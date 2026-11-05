@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func TestAgentPauseResumeAuthority(t *testing.T) {
 	defer store.Close()
 	authority := AgentAuthority{Repository: store}
 	active, err := authority.Activate(t.Context(), "agent/activate", definition, decision)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pauseDecision := publishAgentAuthorityArtifact(t, store, artifact.KindEvidence, "agent-pause-decision")
 	paused, err := authority.Pause(t.Context(), "agent/pause", definition.Name, pauseDecision)
 	if err != nil || paused.Activation.State != AgentPaused || paused.Activation.Prior != active.Activation.ID {
@@ -56,9 +55,7 @@ func TestAgentPauseResumeAuthority(t *testing.T) {
 func agentAuthorityFixture(t *testing.T) (*overgodb.Store, recipe.AgentDefinition, artifact.ID) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name:              "durable-agent",
 		Prompt:            publishAgentAuthorityArtifact(t, store, artifact.KindFile, "agent-prompt"),

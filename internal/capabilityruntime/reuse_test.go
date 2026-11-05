@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -59,9 +60,7 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 	store, _, program := capabilityFixture(t, "reused")
 	selection := modelrecipetest.CandidateExecution(t, store, program)
 	preprocessor := filepath.Join(t.TempDir(), "tokenizer.json")
-	if err := os.WriteFile(preprocessor, []byte("vocabulary"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(preprocessor, []byte("vocabulary"), 0o644))
 	unreadable := false
 	executed, scored, gain := 0, 0, 2
 	contract := artifact.JSONContract(artifact.KindOutput, "test.reuse-output.v1")
@@ -102,14 +101,10 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 			ctx = FreshRun(ctx)
 		}
 		got, err := model(ctx, store, "model", selection, `{"value":4}`)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		answer = got.(Measured).Output.(int)
 		got, err = scorer(t.Context(), store, "scorer", selection, `{"observation":`+strconv.Itoa(answer)+`,"protocol":"exact"}`)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return answer, got.(Measured).Output.(int)
 	}
 	for _, build := range []struct {
@@ -129,21 +124,13 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 		{"a change to the scorer alone", func() { identities[scorerPackage] = "scorer-2" }, 1, 2, 8},
 		{"a change to a kernel of the model, the answer the same", func() { identities[modelPackage] = "model-2" }, 2, 2, 8},
 		{"a change to a file the model reads beside its inventory", func() {
-			if err := os.WriteFile(preprocessor, []byte("a longer vocabulary"), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(preprocessor, []byte("a longer vocabulary"), 0o644))
 		}, 3, 2, 8},
 		{"other bytes in that file, under the size and the time it had", func() {
 			before, err := os.Stat(preprocessor)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(preprocessor, []byte("a longer dictionary"), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Chtimes(preprocessor, before.ModTime(), before.ModTime()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, os.WriteFile(preprocessor, []byte("a longer dictionary"), 0o644))
+			testcheck.NoError(t, os.Chtimes(preprocessor, before.ModTime(), before.ModTime()))
 			if after, err := os.Stat(preprocessor); err != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
 				t.Fatalf("the file's size and time moved with its bytes: %v", err)
 			}

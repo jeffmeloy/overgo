@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -51,9 +53,7 @@ func validatePythonPlace(ctx context.Context, root string) error {
 // one in the ignored place is not.
 func TestPythonLivesOnlyInItsIgnoredPlace(t *testing.T) {
 	t.Parallel()
-	if err := validatePythonPlace(t.Context(), "../.."); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validatePythonPlace(t.Context(), "../.."))
 	root := t.TempDir()
 	git := func(arguments ...string) {
 		t.Helper()
@@ -65,12 +65,8 @@ func TestPythonLivesOnlyInItsIgnoredPlace(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	git("init", "--quiet")
 	write(".gitignore", "/"+pythonPlace+"\n")

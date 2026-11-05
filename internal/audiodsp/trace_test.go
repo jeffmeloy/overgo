@@ -5,6 +5,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
@@ -15,23 +17,17 @@ func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
 	// tail makes trimming after this transformation observably incorrect.
 	samples := []float32{1, 1, 1, 1, 1000, 1000, 1000, 1000}
 	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var workspace Workspace
 	options := ProcessOptions{FrameLimit: 1}
 	selected, frames, err := plan.Process(t.Context(), [][]float32{samples}, config.SampleRate, &workspace, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != options.FrameLimit {
 		t.Fatalf("frames=%d", frames)
 	}
 	selected = slices.Clone(selected)
 	all, _, err := plan.Process(t.Context(), [][]float32{samples}, config.SampleRate, &workspace, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.Equal(selected, all[:len(selected)]) {
 		t.Fatal("selection did not precede global clipping")
 	}
@@ -41,9 +37,7 @@ func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
 		return nil
 	}
 	got, _, err := plan.Process(t.Context(), [][]float32{samples}, config.SampleRate, &workspace, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, value := range got {
 		if value != maximum {
 			t.Fatalf("clipped value=%g, selected maximum=%g", value, maximum)
@@ -54,9 +48,7 @@ func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
 func TestFrameTraceRefusalAndBudget(t *testing.T) {
 	config := testFrontendConfig()
 	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chunks := [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}
 	var workspace Workspace
 	sentinel := errors.New("observer refused")
@@ -85,9 +77,7 @@ func TestFrameTraceRefusalAndBudget(t *testing.T) {
 
 func TestFrameTraceSteadyStateAllocations(t *testing.T) {
 	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chunks := [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}
 	var workspace Workspace
 	options := ProcessOptions{Observe: func(FrameTrace) error { return nil }}

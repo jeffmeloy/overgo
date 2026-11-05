@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -43,31 +44,21 @@ func checkQwenIFEvalResponse(row qwenIFEvalResponse, name, prompt string) error 
 func TestQwenFourIFEvalAcquisitionAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	read := func(id artifact.ID, target any) {
 		t.Helper()
 		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(content.Data, target); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(content.Data, target))
 	}
 	profileID := parse(qwenIFEvalProfile)
 	selectionID, found, err := store.ResolveAlias(t.Context(), "validation/qwen4-ifeval/"+profileID.DigestHex()+"/acquired")
@@ -84,9 +75,7 @@ func TestQwenFourIFEvalAcquisitionAcceptance(t *testing.T) {
 		(selection.Collector.String() != qwenIFEvalCollector && selection.Collector.String() != qwenIFEvalContinuation) || !selection.Attempt.Valid() {
 		t.Fatal("selection changed its profile, collector or acquisition attempt")
 	}
-	if err := checkIFEvalSelection(selection.Cells, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkIFEvalSelection(selection.Cells, nil))
 	var profile struct {
 		Producer, Model, Recipe, Protocol string
 		Collector, Environment            artifact.ID
@@ -140,13 +129,9 @@ func TestQwenFourIFEvalAcquisitionAcceptance(t *testing.T) {
 		for _, field := range record.Fields {
 			switch field.Name {
 			case "prompt":
-				if err := json.Unmarshal(field.Value, &prompt); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(field.Value, &prompt))
 			case "instruction_id_list":
-				if err := json.Unmarshal(field.Value, &ids); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(field.Value, &ids))
 			}
 		}
 		if prompt == "" || len(ids) == 0 {
@@ -156,9 +141,7 @@ func TestQwenFourIFEvalAcquisitionAcceptance(t *testing.T) {
 		name := fmt.Sprintf("ifeval/default/train/%d", index)
 		var row qwenIFEvalResponse
 		read(cells[name].Output, &row)
-		if err := checkQwenIFEvalResponse(row, name, prompt); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkQwenIFEvalResponse(row, name, prompt))
 		if len(row.Output) == profile.MaximumTokens {
 			capped++
 		}

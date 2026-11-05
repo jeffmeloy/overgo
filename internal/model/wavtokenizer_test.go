@@ -6,6 +6,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildWavTokenizerDecoder(t *testing.T) {
@@ -14,9 +15,7 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	input := func(name string, shape tensor.Shape, fill float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
 		elements, err := shape.Elements()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = fill
@@ -74,13 +73,9 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	embeddings := input("embeddings", tensor.MustShape(2, 3), 0.5)
 	program := fixtureModelPlan(t, spec, Weights{})
 	output, err := program.SequenceOutput().Build(builder, embeddings, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got := results[output]
 	want := []float32{1, 2, 3, 1, 2, 3, 1, 2, 3}
 	if !got.Shape.Equal(tensor.MustShape(3, 3)) || len(got.Data) != len(want) {

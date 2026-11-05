@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestLoopMarkersLiveInTheRuntimeDirectory holds the hook's turn snapshot to
@@ -16,12 +17,8 @@ import (
 func TestLoopMarkersLiveInTheRuntimeDirectory(t *testing.T) {
 	t.Chdir(t.TempDir())
 	legacy := filepath.Join("docs", ".loop_state")
-	if err := os.MkdirAll("docs", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(legacy, []byte(`{"head":"abc123","facts":[]}`+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll("docs", 0o755))
+	testcheck.NoError(t, os.WriteFile(legacy, []byte(`{"head":"abc123","facts":[]}`+"\n"), 0o600))
 	if path := turnBaseFile(""); path != filepath.Join(processlock.StateDirectory, "loop_state") {
 		t.Fatalf("turn snapshot at %q, want the state directory", path)
 	}

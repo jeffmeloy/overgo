@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/modelrecipe"
+	"overgo/internal/testcheck"
 )
 
 // TestControlsOfferExportedVoices pins the choices a request field takes
@@ -15,12 +16,8 @@ import (
 func TestControlsOfferExportedVoices(t *testing.T) {
 	directory := t.TempDir()
 	for _, path := range []string{"embeddings_v2/alba.safetensors", "embeddings_v3/anna.safetensors", "embeddings_v3/alba.safetensors", "embeddings_v3/notes.txt"} {
-		if err := os.MkdirAll(filepath.Dir(filepath.Join(directory, path)), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(directory, path), []byte("voice"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(directory, path)), 0o700))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, path), []byte("voice"), 0o600))
 	}
 	controls, refusal := Controls(modelrecipe.ModuleSpeechTokenize, directory)
 	if refusal != "" {

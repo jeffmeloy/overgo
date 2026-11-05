@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -22,9 +23,7 @@ func TestWebUIBrowserTablesAlike(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the tables leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// A succeeded run and a failed one, so the Runs table shows both tones.
 	for _, outcome := range []runrecord.Outcome{runrecord.OutcomeSucceeded, runrecord.OutcomeFailed} {
@@ -38,13 +37,9 @@ func TestWebUIBrowserTablesAlike(t *testing.T) {
 			failure = "fixture-failure"
 		}
 		run, err := runrecord.NewRun(recipeID, outcome, nil, []artifact.ID{outputID}, failure)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := run.Batch("fixture/run/" + string(outcome))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}

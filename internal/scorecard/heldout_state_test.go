@@ -7,6 +7,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,17 +19,11 @@ func TestAHeldOutReadingKeepsTheStateItRanUnder(t *testing.T) {
 	metrics := []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}
 	plain, err := runrecord.NewEvaluation(testutil.ArtifactID(t, artifact.KindRecipe, "candidate"), testutil.ArtifactID(t, artifact.KindRun, "run"),
 		testutil.ArtifactID(t, artifact.KindDataset, "suite"), metrics)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	read, err := plain.UnderState(string(modelrecipe.StateNotVerified))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := read.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := runrecord.ParseEvaluation(content.Data)
 	if err != nil || parsed.Verification != string(modelrecipe.StateNotVerified) || parsed.ID == plain.ID {
 		t.Fatalf("the reading came back as %+v (%v), want its state, under an identity of its own", parsed, err)

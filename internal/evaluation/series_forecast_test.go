@@ -14,6 +14,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -57,27 +58,19 @@ func TestSeriesForecastScoresTheMeanAbsoluteErrorOfEveryStep(t *testing.T) {
 		{Name: "flat", Context: []float32{7, 7}, Target: []float32{7, 9, 7}},
 	}}
 	compiled, err := compileSeriesForecast(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindSeriesForecast(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateSeriesForecast(t.Context(), store, lastValueForecaster{}, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The first window's forecast is 3, 3 against 4, 5: errors 1 and 2; the
 	// second's is 7, 7, 7 against 7, 9, 7: errors 0, 2 and 0.
 	if want := 5.0 / 5.0; report.Steps != 5 || math.Abs(report.MeanAbsoluteError-want) > 1e-12 ||
@@ -128,13 +121,9 @@ func TestETTWindowsAreConsecutiveAndDoNotOverlap(t *testing.T) {
 		fmt.Fprintf(&table, "2016-07-01 %02d:00:00,%d,%d.5\n", reading, 100+reading, reading)
 	}
 	path := filepath.Join(t.TempDir(), "ETTh1.csv")
-	if err := os.WriteFile(path, []byte(table.String()), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(table.String()), 0o600))
 	suite, err := BuildETTSeriesForecast(SeriesForecastSpec{CSV: path, Context: 3, Horizon: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(suite.Cases) != 2 || suite.Cases[0].Name != "etth1/oil-temperature/000" ||
 		fmt.Sprint(suite.Cases[0].Context, suite.Cases[0].Target) != "[0.5 1.5 2.5] [3.5 4.5]" ||
 		fmt.Sprint(suite.Cases[1].Context, suite.Cases[1].Target) != "[5.5 6.5 7.5] [8.5 9.5]" {

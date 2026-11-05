@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWriteSplitRoundTripsLogicalModel(t *testing.T) {
@@ -39,9 +41,7 @@ func TestWriteSplitRoundTripsLogicalModel(t *testing.T) {
 		uint64(sourceBytes.Len()),
 		DefaultOptions(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	directory := t.TempDir()
 	prefix := filepath.Join(directory, "part")
@@ -54,13 +54,9 @@ func TestWriteSplitRoundTripsLogicalModel(t *testing.T) {
 			NoTensorsInFirstFile: true,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	merged, err := Open(formatSplitPath(prefix, 0, 4))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer merged.Close()
 	if merged.SplitCount != 4 || len(merged.Tensors) != 5 {
 		t.Fatalf("split/tensors = %d/%d, want 4/5", merged.SplitCount, len(merged.Tensors))
@@ -75,9 +71,7 @@ func TestWriteSplitRoundTripsLogicalModel(t *testing.T) {
 			t.Fatalf("tensor %d shard = %d, want %d", index, tensor.Shard, wantShards[index])
 		}
 		data := make([]byte, tensor.Size)
-		if err := merged.ReadTensorData(tensor, data); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, merged.ReadTensorData(tensor, data))
 		want := bytes.Repeat([]byte{byte(index + 1)}, len(data))
 		if !bytes.Equal(data, want) {
 			t.Fatalf("tensor %d data = %x, want %x", index, data, want)
@@ -95,9 +89,7 @@ func TestPlanSplitsHonorsAlignedPayloadTarget(t *testing.T) {
 		},
 	}
 	partitions, err := file.planSplits(SplitOptions{MaxTensors: 10, MaxBytes: 64})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(partitions) != 2 || len(partitions[0]) != 2 || len(partitions[1]) != 1 {
 		t.Fatalf("partition sizes = %v", []int{len(partitions[0]), len(partitions[1])})
 	}

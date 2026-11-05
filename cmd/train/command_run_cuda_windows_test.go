@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -35,9 +36,7 @@ func TestWorkbenchRewardRunTrainsInItsOwnProcessOnTheDevice(t *testing.T) {
 	fixture := newRewardCommandFixture(t)
 	t.Setenv(commandChildEnvironment, childDevice)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	held := device.NewAllocationSet(worker)
 	defer held.Close(ctx)
@@ -50,9 +49,7 @@ func TestWorkbenchRewardRunTrainsInItsOwnProcessOnTheDevice(t *testing.T) {
 
 	request := fixture.request("trained")
 	result, err := trainingworkflow.ExecuteInCommand(ctx, os.Args[0], fixture.storePath, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.GRPO) != 1 || !result.GRPO[0].Valid() || result.Checkpoint.Optimizer.Step != 1 {
 		t.Fatalf("the run returned the steps %+v and a checkpoint at step %d; want the one step the device took", result.GRPO, result.Checkpoint.Optimizer.Step)
 	}

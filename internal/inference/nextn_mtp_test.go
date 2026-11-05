@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 )
 
 func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
@@ -45,9 +46,7 @@ func TestValidateGLM4NextNAvailability(t *testing.T) {
 		weights: model.Weights{AppendedSingleDraft: []model.AppendedDraftWeights{{}}}},
 	}
 	runner = attachFixtureProgram(runner)
-	if err := runner.validateNextNMTP(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.validateNextNMTP())
 	runner.weights.AppendedSingleDraft = nil
 	if err := runner.validateNextNMTP(); err == nil {
 		t.Fatal("GLM4 without loaded NextN block was accepted")

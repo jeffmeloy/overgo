@@ -3,6 +3,8 @@ package speechsynth
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestBackboneStreamGolden gates the flow-LM conditioner (ladder g6): one
@@ -28,9 +30,7 @@ func TestBackboneStreamGolden(t *testing.T) {
 		IDs []int `json:"ids"`
 	}](t, "g1_tokenizer.json")
 	textEmb := make([]float32, len(g1.IDs)*d)
-	if err := m.TextEmbedInto(textEmb, g1.IDs); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, m.TextEmbedInto(textEmb, g1.IDs))
 	requireWithin(t, "text embeddings", textEmb, g.TextEmbeddings.Values, tolTextEmbed)
 
 	// BOS row gate: input_linear(bos_emb) must equal the third call's input.

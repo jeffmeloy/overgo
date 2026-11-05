@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -22,9 +23,7 @@ func TestWebUIBrowserRememberedSettings(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the remembered settings leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	activatedImageModel(t, store)
 	// The executor records the request it decoded, as the runtime does: the record a past output reopens.
@@ -69,9 +68,7 @@ func TestWebUIBrowserRememberedSettings(t *testing.T) {
 	settle(`[...document.querySelectorAll('.artifact.msg.media')].some(card => !!card.querySelector('img'))`)
 
 	// Reloaded, the capability's entries return.
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	open()
 	check(`rememberField('class').value === '3' && rememberField('seed').value === '11'`)
 

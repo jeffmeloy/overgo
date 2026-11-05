@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestBuilderAndTopological(t *testing.T) {
@@ -14,13 +15,9 @@ func TestBuilderAndTopological(t *testing.T) {
 	left := builder.Input("left", dtype.F32, shape)
 	right := builder.Input("right", dtype.F32, shape)
 	output := builder.SiLU(builder.Scale(builder.Add(left, right), 0.5))
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	nodes, err := Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(nodes) != 5 || nodes[len(nodes)-1] != output {
 		t.Fatalf("unexpected topological order: %#v", nodes)
 	}
@@ -32,9 +29,7 @@ func TestBuilderMulMatComputePolicy(t *testing.T) {
 	left := builder.Input("left", dtype.BF16, MustShape(8, 4))
 	right := builder.Input("right", dtype.F32, MustShape(8, 3))
 	output := builder.MulMat(left, right)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes, ok := output.Attrs.(MulMatAttributes)
 	if !ok || attributes.Compute != MulMatComputeBF16TensorCore {
 		t.Fatalf("mul_mat attributes = %#v", output.Attrs)
@@ -65,9 +60,7 @@ func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
 	left := builder.Input("left", dtype.F32, MustShape(channels, 1, uint64(capacityTokens)))
 	right := builder.Input("right", dtype.F32, MustShape(channels, 1, 1))
 	output := builder.AppendCache(left, right, 2)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes, ok := output.Attrs.(CacheAppendAttributes)
 	if !ok || output.Op != OpCacheAppend || !output.Shape.Equal(left.Shape) ||
 		attributes.Axis != 2 || attributes.Offset != activeTokens {
@@ -118,9 +111,7 @@ func TestBuilderDivideBroadcasts(t *testing.T) {
 	left := builder.Input("left", dtype.F32, MustShape(4, 3))
 	right := builder.Input("right", dtype.F32, MustShape(4))
 	output := builder.Divide(left, right)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpDivide || !output.Shape.Equal(MustShape(4, 3)) {
 		t.Fatalf("unexpected divide tensor: %+v", output)
 	}
@@ -133,9 +124,7 @@ func TestBuilderAttentionSinks(t *testing.T) {
 	value := builder.Input("value", dtype.F32, MustShape(2, 1, 1))
 	sinks := builder.Input("sinks", dtype.F32, MustShape(2))
 	output := builder.AttentionWithOptions(query, key, value, AttentionOptions{Sinks: sinks, Scale: 1, Causal: true, QueryStart: 0})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(AttentionAttributes)
 	if !attributes.HasSinks || len(output.Inputs) != 4 || output.Inputs[3] != sinks {
 		t.Fatalf("unexpected sink attention: %+v", attributes)
@@ -177,9 +166,7 @@ func TestBuilderBroadcastWeightedNormAndSwiGLU(t *testing.T) {
 	norm := builder.WeightedRMSNorm(activation, weight, 1e-5)
 	up := builder.Input("up", dtype.F32, MustShape(4, 3))
 	output := builder.SwiGLU(norm, up)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(4, 3)) {
 		t.Fatalf("output shape = %v", output.Shape.Slice())
 	}
@@ -194,9 +181,7 @@ func TestBuilderAdaptiveShiftScale(t *testing.T) {
 	shift := builder.Input("shift", dtype.F32, MustShape(4))
 	scale := builder.Input("scale", dtype.F32, MustShape(4))
 	output := builder.AdaptiveShiftScale(input, shift, scale)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpAdd || output.Inputs[0].Op != OpAdd || output.Inputs[0].Inputs[1].Op != OpMultiply {
 		t.Fatalf("unexpected adaptive modulation graph ending in %s", output.Op)
 	}
@@ -208,9 +193,7 @@ func TestBuilderAffineLayerNorm(t *testing.T) {
 	weight := builder.Input("weight", dtype.F32, MustShape(4))
 	bias := builder.Input("bias", dtype.F32, MustShape(4))
 	output := builder.AffineLayerNorm(input, weight, bias, 1e-5)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpAdd ||
 		output.Inputs[0].Op != OpMultiply ||
 		output.Inputs[0].Inputs[0].Op != OpLayerNorm {
@@ -228,9 +211,7 @@ func TestBuilderPixelShuffle2D(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(12, 3, 2))
 	output := builder.PixelShuffle2D(input, 2)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpPixelShuffle2D || output.Shape != MustShape(3, 6, 4) {
 		t.Fatalf("unexpected pixel shuffle output: %s %v", output.Op, output.Shape)
 	}
@@ -246,9 +227,7 @@ func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))
 	output := builder.L2Norm(builder.Softplus(builder.Sigmoid(input)), 1e-6)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpL2Norm || output.Inputs[0].Op != OpSoftplus ||
 		output.Inputs[0].Inputs[0].Op != OpSigmoid {
 		t.Fatalf("unexpected unary graph ending in %s", output.Op)
@@ -273,9 +252,7 @@ func TestBuilderSparsePrimitives(t *testing.T) {
 	key := builder.Input("key", dtype.F32, MustShape(5, 1, 4))
 	value := builder.Input("value", dtype.F32, MustShape(6, 1, 4))
 	attention := builder.SparseAttentionWithOffset(query, key, value, indices, 0.5, false, 0)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if transformed.Op != OpFWHT || !indices.Shape.Equal(MustShape(2, 3)) ||
 		!gathered.Shape.Equal(MustShape(5, 2, 3)) ||
 		!attention.Shape.Equal(MustShape(6, 2, 3)) {
@@ -294,9 +271,7 @@ func TestBuilderGatherLastSupportsQ8EmbeddingFeedback(t *testing.T) {
 	table := builder.Input("table", dtype.Q8_0, MustShape(32, 4))
 	indices := builder.Input("indices", dtype.F32, MustShape(2))
 	output := builder.GatherLast(table, indices)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Type != dtype.F32 || !output.Shape.Equal(MustShape(32, 2)) {
 		t.Fatalf("dynamic Q8 rows = %s %v", output.Type, output.Shape.Slice())
 	}
@@ -306,9 +281,7 @@ func TestBuilderXIELU(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))
 	output := builder.XIELU(input, 0.8, 0.2, 0.5, -1e-6)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes, ok := output.Attrs.(XIELUAttributes)
 	if output.Op != OpXIELU || !ok || attributes.AlphaN != 0.8 || attributes.Epsilon != -1e-6 {
 		t.Fatalf("unexpected xIELU node: %#v", output)
@@ -326,9 +299,7 @@ func TestBuilderSSMConv(t *testing.T) {
 	input := builder.Input("input", dtype.F32, MustShape(6, 4, 2))
 	weights := builder.Input("weights", dtype.F32, MustShape(3, 4))
 	output := builder.SSMConv(input, weights)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(4, 4, 2)) {
 		t.Fatalf("SSMConv output shape = %v", output.Shape.Slice())
 	}
@@ -343,9 +314,7 @@ func TestBuilderSSMScan(t *testing.T) {
 	beta := builder.Input("beta", dtype.F32, MustShape(3, 2, 5, 2))
 	c := builder.Input("c", dtype.F32, MustShape(3, 2, 5, 2))
 	output := builder.SSMScan(state, x, dt, a, beta, c)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(64)) {
 		t.Fatalf("SSMScan output shape = %v", output.Shape.Slice())
 	}
@@ -355,9 +324,7 @@ func TestBuilderRepeatHeads(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1, 3))
 	output := builder.RepeatHeads(input, 4)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(2, 4, 3)) {
 		t.Fatalf("RepeatHeads output shape = %v", output.Shape.Slice())
 	}
@@ -378,9 +345,7 @@ func TestBuilderSigmoidMoEWithSelectionBias(t *testing.T) {
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Routing != MoERoutingSigmoid || attributes.Activation != MoEActivationSiLU ||
 		len(output.Inputs) != 7 {
@@ -396,9 +361,7 @@ func TestBuilderLimitedSigmoidMoE(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 3})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.SwiGLUClamp != 3 || attributes.Routing != MoERoutingSigmoid {
 		t.Fatalf("unexpected limited MoE attributes: %+v", attributes)
@@ -423,9 +386,7 @@ func TestBuilderSigmoidMoEWithFusedGateUp(t *testing.T) {
 	gateUp := builder.Input("gate_up", dtype.F32, MustShape(2, 8, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	output := builder.MoEWithOptions(input, router, gateUp, down, MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSigmoid, Activation: MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if !attributes.Gated || !attributes.FusedGateUp || attributes.Routing != MoERoutingSigmoid ||
 		len(output.Inputs) != 5 {
@@ -441,9 +402,7 @@ func TestBuilderSoftmaxMoEWithFusedGateUpAndSelectionBias(t *testing.T) {
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
 	output := builder.MoEWithOptions(input, router, gateUp, down, MoEOptions{SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if !attributes.Gated || !attributes.FusedGateUp || attributes.Routing != MoERoutingSoftmax ||
 		len(output.Inputs) != 6 {
@@ -460,9 +419,7 @@ func TestBuilderSoftmaxMoEWithSelectionBias(t *testing.T) {
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Routing != MoERoutingSoftmax || attributes.Activation != MoEActivationSiLU ||
 		len(output.Inputs) != 7 {
@@ -477,9 +434,7 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Gated || attributes.Routing != MoERoutingSoftmax ||
 		attributes.Activation != MoEActivationSiLU || len(output.Inputs) != 5 {
@@ -492,9 +447,7 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	quantizedUp := quantized.Input("up", dtype.Q8_0, MustShape(32, 32, 3))
 	quantizedDown := quantized.Input("down", dtype.Q8_0, MustShape(32, 32, 3))
 	quantized.MoEWithOptions(quantizedInput, quantizedRouter, quantizedUp, quantizedDown, MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := quantized.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, quantized.Err())
 }
 
 // TestBuilderMoEExpertBankStorage preserves each bank's supported storage and row alignment.
@@ -552,9 +505,7 @@ func TestBuilderUngatedMoEWithSelectionBias(t *testing.T) {
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	bias := builder.Input("bias", dtype.F32, MustShape(3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{SelectionBias: bias, TopK: 2, NormalizeTopKProb: true, Scale: 1.5, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Gated || attributes.Routing != MoERoutingSoftmax ||
 		attributes.Activation != MoEActivationSiLU || !attributes.NormalizeTopKProb ||
@@ -574,9 +525,7 @@ func TestBuilderReLUMoEWithRouterInput(t *testing.T) {
 	output := builder.MoEWithOptions(
 		input, router, up, down, MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSigmoid, Activation: MoEActivationReLU, ExpertIndexDivisor: 1})
 
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Activation != MoEActivationReLU || attributes.Routing != MoERoutingSigmoid ||
 		output.Inputs[1] != routerInput || len(output.Inputs) != 6 {
@@ -595,9 +544,7 @@ func TestBuilderGroupedMoEWithRouterInput(t *testing.T) {
 	output := builder.MoEWithOptions(
 		input, router, up, down, MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1.25, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 2})
 
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Experts != 4 || attributes.ExpertIndexDivisor != 2 ||
 		output.Inputs[1] != routerInput || len(output.Inputs) != 6 {
@@ -625,9 +572,7 @@ func TestBuilderGELUMoE(t *testing.T) {
 	up := builder.Input("up", dtype.F32, MustShape(2, 4, 3))
 	down := builder.Input("down", dtype.F32, MustShape(4, 2, 3))
 	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationGELU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(MoEAttributes)
 	if attributes.Activation != MoEActivationGELU || !attributes.Gated ||
 		attributes.Routing != MoERoutingSoftmax || len(output.Inputs) != 6 {
@@ -639,9 +584,7 @@ func TestBuilderClamp(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(3))
 	output := builder.Clamp(input, -2, 3)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	attributes := output.Attrs.(ClampAttributes)
 	if output.Op != OpClamp || attributes.Minimum != -2 || attributes.Maximum != 3 {
 		t.Fatalf("unexpected clamp graph: %+v", output)
@@ -658,9 +601,7 @@ func TestBuilderBF16Round(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(3, 2))
 	output := builder.BF16Round(input)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpBF16Round || output.Type != dtype.F32 || !output.Shape.Equal(input.Shape) {
 		t.Fatalf("unexpected BF16 round graph: %+v", output)
 	}
@@ -686,9 +627,7 @@ func TestBuilderNativeQuantizedMoEFormats(t *testing.T) {
 			up := builder.Input("up", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
 			down := builder.Input("down", dataType, MustShape(traits.BlockSize, traits.BlockSize, 2))
 			output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: false, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, builder.Err())
 			if output.Type != dtype.F32 {
 				t.Fatalf("%s MoE output type = %s", dataType, output.Type)
 			}
@@ -705,9 +644,7 @@ func TestBuilderGatedDeltaNet(t *testing.T) {
 	beta := builder.Input("beta", dtype.F32, MustShape(1, 4, 3, 2))
 	state := builder.Input("state", dtype.F32, MustShape(4, 4, 4, 2))
 	output := builder.GatedDeltaNet(q, k, v, gate, beta, state)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(16, 14)) {
 		t.Fatalf("GatedDeltaNet output shape = %v", output.Shape.Slice())
 	}
@@ -722,9 +659,7 @@ func TestBuilderGatedLinearAttention(t *testing.T) {
 	decay := builder.Input("decay", dtype.F32, vectors)
 	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
 	output := builder.GatedLinearAttention(key, value, receptance, decay, state, 0.5)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(2, 5)) || output.Op != OpGatedLinearAttention {
 		t.Fatalf("unexpected GatedLinearAttention output: %+v", output)
 	}
@@ -740,9 +675,7 @@ func TestBuilderRWKV6(t *testing.T) {
 	decay := builder.Input("decay", dtype.F32, vectors)
 	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
 	output := builder.WKV6(key, value, receptance, first, decay, state)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(2, 5)) || output.Op != OpWKV6 {
 		t.Fatalf("unexpected WKV6 output: %+v", output)
 	}
@@ -760,9 +693,7 @@ func TestBuilderSumRowsAndRWKV7(t *testing.T) {
 	state := builder.Input("state", dtype.F32, MustShape(2, 2, 1, 1))
 	packed := builder.WKV7(receptance, decay, key, value, a, bVector, state)
 	reduced := builder.SumRows(value)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !packed.Shape.Equal(MustShape(2, 4)) || packed.Op != OpWKV7 {
 		t.Fatalf("unexpected WKV7 output: %+v", packed)
 	}
@@ -782,9 +713,7 @@ func TestBuilderQwen35LayoutOperations(t *testing.T) {
 	packed := builder.Input("packed", dtype.F32, MustShape(8, 6))
 	attention := builder.FlatSlice(packed, 0, 2, 4, 3)
 	newState := builder.FlatSlice(packed, 24, 2, 2, 6)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !query.Shape.Equal(MustShape(2, 4, 3)) ||
 		!gate.Shape.Equal(query.Shape) ||
 		!convInput.Shape.Equal(MustShape(5, 16)) ||
@@ -807,9 +736,7 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	rope := builder.RoPEWithOptions(
 		builder.Input("query", dtype.F32, MustShape(8, 2, 2)), RoPEOptions{Layout: RoPELayoutNeoX, Positions: []uint32{4, 5}, RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: 1})
 
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !embedding.Shape.Equal(MustShape(8, 2)) || !rope.Shape.Equal(MustShape(8, 2, 2)) {
 		t.Fatalf("unexpected shapes %v and %v", embedding.Shape.Slice(), rope.Shape.Slice())
 	}
@@ -822,9 +749,7 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	multi := builder.RoPEWithOptions(
 		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)), RoPEOptions{MultiPositions: &positions, Sections: [4]int32{2, 2, 2, 2}, RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: 1})
 
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if multi.Op != OpRoPEMulti || !multi.Shape.Equal(MustShape(8, 1, 2)) {
 		t.Fatalf("unexpected multi-axis RoPE tensor: %+v", multi)
 	}
@@ -860,9 +785,7 @@ func TestBuilderQ8DeviceOperationsProduceF32(t *testing.T) {
 	rows := builder.GetRows(table, []uint32{2})
 	input := builder.Input("input", dtype.F32, MustShape(32, 2))
 	product := builder.MulMat(table, input)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if rows.Type != dtype.F32 || product.Type != dtype.F32 {
 		t.Fatalf("Q8 outputs have types %s and %s, want f32", rows.Type, product.Type)
 	}
@@ -872,9 +795,7 @@ func TestBuilderBF16GetRowsProducesF32(t *testing.T) {
 	builder := NewBuilder()
 	table := builder.Input("table", dtype.BF16, MustShape(8, 4))
 	rows := builder.GetRows(table, []uint32{2})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if rows.Type != dtype.F32 {
 		t.Fatalf("BF16 get_rows output type = %s, want f32", rows.Type)
 	}
@@ -886,9 +807,7 @@ func TestBuilderQ6KDeviceOperationsProduceF32(t *testing.T) {
 	rows := builder.GetRows(table, []uint32{2})
 	input := builder.Input("input", dtype.F32, MustShape(256, 2))
 	product := builder.MulMat(table, input)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if rows.Type != dtype.F32 || product.Type != dtype.F32 {
 		t.Fatalf("Q6_K outputs have types %s and %s, want f32", rows.Type, product.Type)
 	}
@@ -986,9 +905,7 @@ func TestBuilderGroupedMulMatShape(t *testing.T) {
 	left := builder.Input("left", dtype.F32, MustShape(3, 4, 2))
 	right := builder.Input("right", dtype.F32, MustShape(3, 2, 5))
 	output := builder.GroupedMulMat(left, right)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if !output.Shape.Equal(MustShape(4, 2, 5)) || output.Op != OpGroupedMulMat {
 		t.Fatalf("unexpected grouped matmul output: %+v", output)
 	}
@@ -1000,9 +917,7 @@ func TestBuilderIndexerScoreShape(t *testing.T) {
 	key := builder.Input("key", dtype.F32, MustShape(4, 1, 5))
 	weights := builder.Input("weights", dtype.F32, MustShape(2, 3))
 	output := builder.IndexerScore(query, key, weights, 0.5, 2)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	if output.Op != OpIndexerScore || !output.Shape.Equal(MustShape(5, 3)) {
 		t.Fatalf("unexpected indexer score output: %+v", output)
 	}

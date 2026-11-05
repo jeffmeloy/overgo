@@ -17,6 +17,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
@@ -36,9 +35,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		VAEStride: [3]int{4, 8, 8},
 	}
 	base, err := LoadDenoiserConfig(wanDir, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint, err := CompileReferenceEditCheckpoint(
 		filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"), base,
 	)
@@ -58,40 +55,28 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err == nil {
 		err = session.projectContext(context)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if session != nil {
 			_ = session.Close()
 		}
 	}()
 	headE, blockE, err := CompileTimestepConditioning([]float64{900}, session.cold.timestepWeights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var outputs [][]float32
 	for frame := range 2 {
 		combined := retainedDenoiserChunk(current, source, frame)
 		patches, err := session.cold.PatchifyLatent(combined)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := session.RunChunk(t.Context(), patches, blockE, headE, frame, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		outputs = append(outputs, output)
 	}
 	stats := session.Stats()
 	memory, err := session.MemoryStats()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution, err := session.ExecutionStats()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.Layers != 2 || stats.Runs != 2 || stats.ContextProjections != 1 || stats.HistoryTokens != geometry.Seq || stats.WeightBytes == 0 {
 		t.Fatalf("retained denoiser stats=%+v", stats)
 	}
@@ -114,26 +99,18 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		t.Fatal("history-conditioned second chunk reproduced the first chunk")
 	}
 	retainedWall := time.Since(started)
-	if err := session.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, session.Close())
 	session = nil
 	fresh, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0)
 	if err == nil {
 		err = fresh.projectContext(context)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fresh.Close()
 	second, err := fresh.cold.PatchifyLatent(retainedDenoiserChunk(current, source, 1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coldSecond, err := fresh.RunChunk(t.Context(), second, blockE, headE, 0, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	historyEffect := testutil.MaxAbsDiff(outputs[1], coldSecond)
 	if historyEffect == 0 {
 		t.Fatal("retained self-attention history has no numerical effect")
@@ -148,9 +125,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
@@ -160,15 +135,11 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 		VAEStride: [3]int{4, 8, 8},
 	}
 	base, err := LoadDenoiserConfig(wanDir, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint, err := CompileReferenceEditCheckpoint(
 		filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"), base,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	geometry := LatentGeometry{
 		Channels: checkpoint.Config.InDim, LatentFrames: 3, LatentHeight: 32, LatentWidth: 64,
 		Grid: [3]int{3, 16, 32}, Seq: 3 * 16 * 32,
@@ -179,31 +150,21 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	if err == nil {
 		err = session.projectContext(context)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close()
 	combined := make([]float32, geometry.Channels*geometry.LatentFrames*geometry.LatentHeight*geometry.LatentWidth)
 	for index := range combined {
 		combined[index] = float32(index%257-128) / 257
 	}
 	patches, err := session.cold.PatchifyLatent(combined)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	headE, blockE, err := CompileTimestepConditioning([]float64{900}, session.cold.timestepWeights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run := func() ([]float32, [][2][sha256.Size]byte) {
 		t.Helper()
-		if err := session.ResetHistory(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, session.ResetHistory())
 		output, err := session.RunChunk(t.Context(), patches, blockE, headE, 0, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		digests := make([][2][sha256.Size]byte, layers)
 		for layer := range layers {
 			for kind, buffer := range []*executor.DeviceBuffer{session.cacheKeys[layer], session.cacheValues[layer]} {
@@ -211,13 +172,9 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 				if kind == 1 {
 					value, err = buffer.Value(session.cold.currentSelfVals[layer].Shape)
 				}
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				elements, err := value.Shape.Elements()
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				raw := make([]byte, int(elements)*4)
 				if err := session.worker.Do(t.Context(), func(state *device.State) error {
 					return state.Driver.MemcpyDtoH(raw, value.Pointer)
@@ -247,45 +204,31 @@ func encodeRetainedDenoiserSource(t testing.TB, models string) []float32 {
 	t.Helper()
 	checkpoint := filepath.Join(models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	graph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := SourceCodecProfile{InputChannels: graph.InputChannels, LatentChannels: graph.LatentChannels, Stride: graph.Stride, LatentStats: loadSourceCodecStats(t)}
 	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := loadRealSourceCrops(t, plan.Source)
 	session, err := newVAEEncoderCUDASession(checkpoint, graph, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close()
 	latent, _, err := session.Encode(t.Context(), plan, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return latent
 }
 
 func loadRetainedDenoiserCurrent(t testing.TB) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var manifest struct {
 		Final struct {
 			Values []float32 `json:"values"`
 		} `json:"final_latent"`
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &manifest))
 	if len(manifest.Final.Values) != 16*2*2*4 {
 		t.Fatalf("Wan retained latent elements=%d", len(manifest.Final.Values))
 	}
@@ -311,9 +254,7 @@ func retainedDenoiserChunk(current, source []float32, frame int) []float32 {
 func readRetainedDenoiserF32(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(raw) != elements*4 {
 		t.Fatalf("retained context bytes=%d want=%d", len(raw), elements*4)
 	}

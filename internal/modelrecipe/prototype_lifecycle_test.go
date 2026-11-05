@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
@@ -48,20 +49,14 @@ func TestPrototypeRecipeLifecycleAndRollback(t *testing.T) {
 			t.Context(), counting, "fixture/supervised/verified", fixture.definition,
 			recipe.StatusVerified, []artifact.ID{fixture.decision.ID}, nil, fixture.terminal,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if counting.Commits != 1 || event.To != recipe.StatusVerified {
 			t.Fatalf("verified transition = (%d commits, %+v)", counting.Commits, event)
 		}
 		assertSupervisedAliases(t, fixture.store, fixture, event)
-		if err := fixture.store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, fixture.store.Close())
 		reopened, err := overgodb.Create(fixture.path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = reopened.Close() })
 		assertSupervisedAliases(t, reopened, fixture, event)
 	})
@@ -98,9 +93,7 @@ func TestPrototypeRecipeLifecycleAndRollback(t *testing.T) {
 		completed := fixture.terminal
 		completed.Previous = fixture.running.ID
 		completed, err = runrecord.NewStageReceipt(completed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for name, id := range map[string]artifact.ID{"event": event.ID, "terminal receipt": completed.ID} {
 			if _, present, lookupErr := fixture.store.Artifact(t.Context(), id); lookupErr != nil || present {
 				t.Fatalf("%s survived rolled-back batch = (%v, %v)", name, present, lookupErr)
@@ -211,9 +204,7 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 	ctx := t.Context()
 	path := t.TempDir()
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "supervised-verification-model")
 	testutil.PublishArtifact(t, store, modelID)
 	var definition recipe.Definition
@@ -231,9 +222,7 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 	} else {
 		definition, err = inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/supervised/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -247,32 +236,24 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 		definition.ID, recipe.DecisionAccepted, recipe.EvidenceVerified, "held-out candidate improvement accepted",
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: evaluation}, []artifact.ID{evaluation},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishVerificationDecision(t, store, decision)
 	task := publishVerificationTask(t, store, definition.ID, evaluation)
 	arguments, err := verificationArguments(definition.ID, decision.ID, statusAlias(definition.ID))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitContent(t, store, "fixture/supervised/arguments", arguments, nil)
 	mutation, err := invocation.NewEffect(invocation.Effect{
 		Manual: definition.ID, Arguments: arguments.Descriptor.ID, Class: invocation.ClassMutation,
 		Targets: []invocation.Target{{Scope: invocation.ScopeRepository, Value: statusAlias(definition.ID)}}, Known: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishInvocationEffect(t, store, "fixture/supervised/mutation", mutation)
 	inspectionFact := publishVerificationFact(t, store, "candidate-status-inspection")
 	inspectionEffect, err := invocation.NewEffect(invocation.Effect{
 		Manual: definition.ID, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection,
 		Targets: []invocation.Target{{Scope: invocation.ScopeRepository, Value: statusAlias(definition.ID)}}, Known: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishInvocationEffect(t, store, "fixture/supervised/inspection-effect", inspectionEffect)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "supervised-verification-operation")
 	testutil.PublishArtifact(t, store, operation)
@@ -283,33 +264,23 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 		Source: arguments.Descriptor.ID, CausalRoot: operation,
 		Tokens: 1, Bytes: 1, Documents: 1, Depth: 1,
 	}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stimulus, err := runrecord.PublishAttemptStimulus(ctx, store, runrecord.AttemptStimulusBoundary{
 		Operation: operation, Attempt: 1, Manual: definition.ID, Class: invocation.ClassMutation,
 		Arguments: arguments.Descriptor.ID, Effect: mutation.ID,
 		Inspection: inspectionFact, InspectionEffect: inspectionEffect.ID,
 		Ceiling: task.ID, CausalContext: inspectionFact, Prior: inspectionFact, Selection: selection,
 	}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	action := operatoraction.Action{
 		Code: string(invocation.MutationPromotion), Summary: string(invocation.MutationPromotion),
 		Argv: invocation.ApprovalArguments(definition.ID, arguments.Descriptor.ID, mutation.ID, stimulus.ID),
 	}
 	request, err := operatoraction.NewApprovalRequest(operation, task.ID, action, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	human, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.PublishHumanDecision(ctx, store, request, human); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, human))
 	binding := invocation.ReceiptBinding{
 		Boundary: invocation.BoundaryInternal, Kind: invocation.MutationPromotion, Action: string(invocation.MutationPromotion),
 		Subject: definition.ID, Arguments: arguments.Descriptor.ID, Effect: mutation.ID,
@@ -323,16 +294,12 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 		Recipe: task.ID, Node: recipe.NodeID(invocation.MutationPromotion), Operation: operation,
 		Attempt: 1, State: runrecord.StageAdmitted, Inputs: input, Invocation: &binding,
 	}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	running, err := runrecord.PublishStageReceipt(ctx, store, runrecord.StageReceipt{
 		Recipe: task.ID, Node: recipe.NodeID(invocation.MutationPromotion), Operation: operation,
 		Attempt: 1, State: runrecord.StageRunning, Inputs: input, Invocation: &binding,
 	}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if running.Previous != admitted.ID {
 		t.Fatalf("running receipt previous = %s, want %s", running.Previous, admitted.ID)
 	}
@@ -364,9 +331,7 @@ func publishVerificationFact(t *testing.T, store artifact.Repository, name strin
 		Kind: artifact.KindEvidence, MediaType: verificationEvidenceMediaType, Schema: verificationEvidenceSchema,
 	}
 	content, err := contract.ContentBytes([]byte(`{"passed":true,"subject":"` + name + `"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitContent(t, store, "fixture/supervised/fact/"+name, content, nil)
 	return content.Descriptor.ID
 }
@@ -374,9 +339,7 @@ func publishVerificationFact(t *testing.T, store artifact.Repository, name strin
 func publishVerificationDecision(t *testing.T, store artifact.Repository, decision recipe.Decision) {
 	t.Helper()
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitContent(t, store, "fixture/supervised/decision", content, decision.Lineage())
 }
 
@@ -397,13 +360,9 @@ func publishVerificationTask(
 		Verification: []artifact.ID{evidence}, Budget: budget,
 		PauseConditions: []string{"Operator declines the exact mutation."},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := task.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitContent(t, store, "fixture/supervised/task", content, task.Lineage())
 	return task
 }
@@ -411,9 +370,7 @@ func publishVerificationTask(
 func publishInvocationEffect(t *testing.T, store artifact.Repository, key string, effect invocation.Effect) {
 	t.Helper()
 	content, err := effect.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitContent(t, store, key, content, effect.Lineage())
 }
 
@@ -426,9 +383,7 @@ func commitContent(
 ) {
 	t.Helper()
 	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, lineage, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}

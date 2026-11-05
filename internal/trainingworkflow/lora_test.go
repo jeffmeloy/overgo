@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -50,13 +51,9 @@ func TestTextObjectiveTrainsALoRAAdapter(t *testing.T) {
 	}
 
 	checkpoint, err := trainingprogram.LoadCheckpoint(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	factors := 0
 	for _, module := range adapter.Modules {
 		factors += module.Rank * (module.In + module.Out)
@@ -70,24 +67,16 @@ func TestTextObjectiveTrainsALoRAAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 	fromAdapter, err := safetensors.OpenSource(merged)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fromAdapter.Close()
 	fromCheckpoint, err := safetensors.OpenSource(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fromCheckpoint.Close()
 	for name, tensor := range fromCheckpoint.Tensors {
 		got, err := safetensors.ReadF32(fromAdapter.Tensors[name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want, err := safetensors.ReadF32(tensor)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range want {
 			if math.Abs(float64(got[index]-want[index])) > 1e-5 {
 				t.Fatalf("%s[%d]: merged adapter %v, checkpoint %v", name, index, got[index], want[index])
@@ -147,9 +136,7 @@ func TestContinuedAdapterIsJudgedAgainstTheTrueBase(t *testing.T) {
 	firstResult, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
 		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: first, Steps: 16, Host: true, LoRA: &LoRA{Rank: 4, Alpha: 8, Seed: 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, trained := values(firstResult)
 	if base == trained {
 		t.Fatalf("the first run's adapter left the held-out accuracy at %v: the fixture cannot tell a base baseline from an adapted one", base)
@@ -158,9 +145,7 @@ func TestContinuedAdapterIsJudgedAgainstTheTrueBase(t *testing.T) {
 		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "second"), Steps: 4, Host: true,
 		LoRA: &LoRA{From: filepath.Join(first, LoRAAdapterDirectory)},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if again, _ := values(secondResult); again != base {
 		t.Fatalf("the continued run's baseline is %v, want the true base's %v, not the first adapter's %v", again, base, trained)
 	}
@@ -184,9 +169,7 @@ func TestLoRARunContinuesAnAdapterFromPEFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	started, err := peft.Load(filepath.Join(first, LoRAAdapterDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second := filepath.Join(text.root, "second")
 	if _, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
 		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: second, Steps: 8, Host: true, LoRA: &LoRA{From: filepath.Join(first, LoRAAdapterDirectory)},
@@ -194,9 +177,7 @@ func TestLoRARunContinuesAnAdapterFromPEFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	continued, err := peft.Load(filepath.Join(second, LoRAAdapterDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(continued.Modules) != len(started.Modules) || continued.Config.Rank != started.Config.Rank || continued.Config.Alpha != started.Config.Alpha {
 		t.Fatalf("continued adapter = %+v with %d modules, want the first run's %+v with %d", continued.Config, len(continued.Modules), started.Config, len(started.Modules))
 	}

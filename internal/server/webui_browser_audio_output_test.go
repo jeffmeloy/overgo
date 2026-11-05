@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -65,14 +66,10 @@ func TestWebUIBrowserAudioOutput(t *testing.T) {
    const digest=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).join(',');
    return received.byteLength===expected.byteLength && await digest(received)===await digest(expected);
  })()`)
-	if err := browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `nativeAudio.loop=true;nativeAudio.play()`, "userGesture": true, "awaitPromise": true}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `nativeAudio.loop=true;nativeAudio.play()`, "userGesture": true, "awaitPromise": true}, nil))
 	settle(`!nativeAudio.paused`)
 	check(`(()=>{window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));return nativeAudio.paused;})()`)
-	if err := browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `nativeAudio.play()`, "userGesture": true, "awaitPromise": true}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `nativeAudio.play()`, "userGesture": true, "awaitPromise": true}, nil))
 	check(`(()=>{nativeDownloadLink.click();return true;})()`)
 	settle(`nativeDownloadCalls.length===3`)
 	check(`(()=>{nativeAudioCard.remove();return true;})()`)

@@ -3,6 +3,8 @@ package tokenizer
 import (
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWPMNormalizationGreedySegmentationAndSpecials(t *testing.T) {
@@ -27,17 +29,13 @@ func TestWPMNormalizationGreedySegmentationAndSpecials(t *testing.T) {
 	vocab.Tokens[2].Type = TokenControl
 
 	got, err := vocab.Encode("Äpfel 中!", EncodeOptions{AddSpecial: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []TokenID{1, 3, 4, 5, 6, 7, 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("WPM IDs = %v, want %v", got, want)
 	}
 	unknown, err := vocab.Encode("unrepresented", EncodeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(unknown, []TokenID{0}) {
 		t.Fatalf("unknown IDs = %v", unknown)
 	}

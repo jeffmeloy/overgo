@@ -9,6 +9,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "server-decision-operation")
@@ -31,13 +30,9 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 	request, err := operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{
 		Code: "rollback", Argv: []string{"--target", "prior"},
 	}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requestContent, err := request.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "operator/approval/" + request.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: operationID}, {ID: recipeID}},
@@ -52,9 +47,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	response := serveTestRequest(handler, http.MethodGet, "/operations/decisions", "")
@@ -65,28 +58,20 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		Approvals []runrecord.PendingOperatorDecision `json:"approvals"`
 		Blocked   []json.RawMessage                   `json:"blocked"`
 	}
-	if err := json.Unmarshal(response.Body.Bytes(), &view); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &view))
 	if len(view.Approvals) != 1 || view.Approvals[0].Request != request.ID ||
 		view.Approvals[0].Tool != "rollback" || len(view.Blocked) != 0 {
 		t.Fatalf("pending-decision view = %+v", view)
 	}
 
 	decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerDecline)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.PublishHumanDecision(ctx, store, request, decision); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, decision))
 	response = serveTestRequest(handler, http.MethodGet, "/operations/decisions", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
-	if err := json.Unmarshal(response.Body.Bytes(), &view); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &view))
 	if len(view.Approvals) != 0 {
 		t.Fatalf("decided request stayed in the view: %+v", view.Approvals)
 	}
@@ -99,9 +84,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		Operation artifact.ID                       `json:"operation"`
 		Events    []runrecord.OperatorTimelineEvent `json:"events"`
 	}
-	if err := json.Unmarshal(response.Body.Bytes(), &timeline); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &timeline))
 	if timeline.Operation != operationID || len(timeline.Events) != 2 ||
 		timeline.Events[0].Kind != "stage-receipt" || timeline.Events[1].Kind != "human-decision" ||
 		timeline.Events[0].Sequence >= timeline.Events[1].Sequence {

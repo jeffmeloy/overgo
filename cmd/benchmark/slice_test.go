@@ -15,6 +15,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -70,9 +71,7 @@ func TestSliceClassifiesEachOutcome(t *testing.T) {
 		"unknown":  `{"task":"inference","runs":1,"prompts":["a"],"extra":1}`,
 	} {
 		path := filepath.Join(directory, name+".json")
-		if err := os.WriteFile(path, []byte(document), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(document), 0o600))
 		record := measureSlice(t.Context(), options{}, name, path, func(metric.Record) error { return nil })
 		if record.Failure == "" || record.Metrics[metric.Failures] != 1 {
 			t.Fatalf("%s gave %+v, want a failed record", name, record)
@@ -91,9 +90,7 @@ func TestSliceDocumentsDecode(t *testing.T) {
 	}
 	for _, path := range documents {
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var document sliceDocument
 		if err := strictjson.DecodeBytes(data, &document); err != nil {
 			t.Fatalf("%s: %v", path, err)

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // The compact projection was generated from the full 19.6 MB tokenizer.json
@@ -15,9 +17,7 @@ import (
 // It retains every vocabulary entry that can affect these fixed pieces.
 func TestKimiDeclaredTokenizerReference(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_k3_rank_reference.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "fe1bec80dcf4a56ac59c1fffe529d8ea84e7118fe69a941dc3242ca087059ae6" {
 		t.Fatalf("Kimi reference projection changed: %s", got)
 	}
@@ -35,9 +35,7 @@ func TestKimiDeclaredTokenizerReference(t *testing.T) {
 			IDs    []int    `json:"ids"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	if reference.Source != "Xenova/Kimi-K3-tokenizer tokenizer.json" ||
 		reference.SourceCommit != "3f11cbe14873d9b64356607af3bbef7608aadf5b" ||
 		reference.SourceSHA256 != "b55c4532c501114da9a8891b77d244fa32eee2ace2bd51abb5dc4fb156f60eb9" ||
@@ -46,9 +44,7 @@ func TestKimiDeclaredTokenizerReference(t *testing.T) {
 		t.Fatal("Kimi source identity or reference coverage changed")
 	}
 	splitRaw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var split struct {
 		Pattern string `json:"pattern"`
 	}
@@ -64,17 +60,11 @@ func TestKimiDeclaredTokenizerReference(t *testing.T) {
 		"model": model, "pre_tokenizer": pre, "decoder": map[string]any{"type": "ByteLevel"},
 		"added_tokens": reference.AddedTokens,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
 	encoder, err := Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, sample := range reference.Cases {
 		if got := encoder.preTokenize(sample.Input); !slices.Equal(got, sample.Pieces) {
 			t.Errorf("case %d Split(%q) = %q; want %q", index, sample.Input, got, sample.Pieces)

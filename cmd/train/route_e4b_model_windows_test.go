@@ -20,6 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -51,21 +52,15 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	dataset := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(dataset, []byte(e4bTrainingText), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(dataset, []byte(e4bTrainingText), 0o600))
 	storePath, out := filepath.Join(root, "store"), filepath.Join(root, "trained")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, err = modelrecipe.PublishArchitectureProfileCatalog(ctx, store)
 	if closeErr := store.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
-	if err := runRoute(ctx, []string{"e4b", "-model", base, "-dataset", dataset, "-steps", "1", "-seq", "64", "-store", storePath, "-out", out}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runRoute(ctx, []string{"e4b", "-model", base, "-dataset", dataset, "-steps", "1", "-seq", "64", "-store", storePath, "-out", out}))
 	// The trainer's masters and momentum are garbage once the route
 	// returns; hand them back before the checkpoint and the server load.
 	debug.FreeOSMemory()
@@ -76,9 +71,7 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	}
 	trained := filepath.Join(out, trainingprogram.CheckpointModel)
 	file, err := gguf.Open(trained)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query, trainedQuery := file.Tensor("blk.0.attn_q.weight")
 	embedding, frozenEmbedding := file.Tensor("per_layer_token_embd.weight")
 	if err := file.Close(); err != nil || len(file.SourcePaths()) != 2 || !trainedQuery || query.Type != gguf.DTypeF32 || query.Shard != 0 ||
@@ -90,29 +83,21 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	debug.FreeOSMemory()
 
 	store, err = overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidate := registeredCandidate(t, store, checkpoint.ID())
 	err = modelrecipetest.ActivateCandidate(ctx, store, "e4b/trained-model", candidate)
 	if closeErr := store.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
 	served, err := modelcli.OpenRunner(ctx, storePath, trained, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	greedy, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generated := 0
 	_, answer, err := served.Generate(ctx, e4bHeldOutPrompt, inference.GenerateOptions{
 		MaxNewTokens: 8, Sampler: greedy, OnToken: func(inference.TokenEvent) error { generated++; return nil },
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scores, err := served.ScoreContinuations(ctx, e4bHeldOutPrompt, []string{e4bHeldOutAnswer})
 	if closeErr := served.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -125,13 +110,9 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 
 	// The base serves as intake registers a trained model's candidate.
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	baseline, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := baseline.ScoreContinuations(ctx, e4bHeldOutPrompt, []string{e4bHeldOutAnswer})
 	if closeErr := baseline.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)

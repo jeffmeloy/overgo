@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -14,16 +15,12 @@ func TestGuardGenerationProtocol(t *testing.T) {
 	eog := []tokenizer.TokenID{2, 3}
 	logits := []float32{1, 2, 4, 3}
 	raw, err := generationOptions(RawContinuation, DeclaredFloors().OutputTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if token, err := raw.Sampler.Sample(logits); err != nil || token != int(eog[0]) {
 		t.Fatalf("natural EOS changed: token=%d err=%v", token, err)
 	}
 	guard, err := generationOptions(GuardContinuation, DeclaredFloors().OutputTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if token, err := guard.Sampler.Sample(logits); err != nil || token != int(eog[0]) {
 		t.Fatalf("guard changed greedy selection: token=%d err=%v", token, err)
 	}
@@ -35,9 +32,7 @@ func TestGuardGenerationProtocol(t *testing.T) {
 		t.Fatal("unknown protocol accepted")
 	}
 	model, _, err := artifact.Identify(artifact.KindModel, strings.NewReader("guard protocol fixture"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rawInputs := BindInputs(model, "same corpus", eog, RawContinuation)
 	guardInputs := BindInputs(model, "same corpus", eog, GuardContinuation)
 	if !rawInputs.valid() || !guardInputs.valid() || rawInputs == guardInputs ||
@@ -45,9 +40,7 @@ func TestGuardGenerationProtocol(t *testing.T) {
 		t.Fatal("protocol failed to distinguish otherwise identical inputs")
 	}
 	data, err := json.Marshal(guardInputs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decoded Inputs
 	if err := json.Unmarshal(data, &decoded); err != nil || decoded != guardInputs {
 		t.Fatalf("protocol identity changed in storage: %v", err)

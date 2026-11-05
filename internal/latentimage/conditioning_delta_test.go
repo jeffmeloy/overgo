@@ -13,15 +13,14 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func conditioningDeltaGolden(t *testing.T, file, digest string, run graphruntime.Runner) {
 	t.Helper()
 	mossFixtureBytes(t, file, digest)
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	var cases []string
 	for name := range s.Tensors {
@@ -89,17 +88,11 @@ func conditioningDeltaGolden(t *testing.T, file, digest string, run graphruntime
 					feeds[nodes[i]] = reference.Value{Shape: shapes[i], Data: data[i]}
 				}
 				out := b.GatedDeltaNetChunked(nodes[0], nodes[1], nodes[2], nodes[3], nodes[4], nodes[5], repeat)
-				if err := b.Err(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, b.Err())
 				got, err := run([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				again, err := run([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				actual := got[out].Data
 				for i, v := range actual {
 					if math.Float32bits(v) != math.Float32bits(again[out].Data[i]) {

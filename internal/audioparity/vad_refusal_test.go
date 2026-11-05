@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/speechactivity"
+	"overgo/internal/testcheck"
 )
 
 // verifyVADArtifactRefusals runs once, as TestVADOfflineAcceptance's
@@ -38,9 +39,7 @@ func verifyVADArtifactRefusals(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "refused.pth")
 			file, err := os.Create(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			archive := zip.NewWriter(file)
 			if name == "metadata-bound" {
 				// A ZIP64 metadata entry advertises a host-unrepresentable length;
@@ -54,15 +53,9 @@ func verifyVADArtifactRefusals(t *testing.T) {
 					_, err = entry.Write([]byte("\x80\x02cexample\nConstructor\n)\x81."))
 				}
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := archive.Close(); err != nil {
-				t.Fatal(err)
-			}
-			if err := file.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, archive.Close())
+			testcheck.NoError(t, file.Close())
 			_, err = speechactivity.LoadNetwork(t.Context(), path, l.profile.Network, vadReferenceBytes)
 			if err == nil {
 				t.Fatal("unsafe or oversized metadata admitted")

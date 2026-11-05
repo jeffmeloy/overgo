@@ -13,14 +13,13 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestE4BValidationProducer(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	source := id(artifact.KindDataset, "registered validation")
@@ -37,13 +36,9 @@ func TestE4BValidationProducer(t *testing.T) {
 	}
 	encoded := []byte("pinned encoded payload; this host fixture checks identity, not audio quality")
 	audio, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "payload")
-	if err := os.WriteFile(path, encoded, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	origin := dataset.AudioPayloadOrigin{Container: audio}
 	input := evaluation.TranscriptionResourceInput{Name: "case", Reference: dataset.AudioPayloadReference{Path: path, Audio: audio, Origin: origin}, Policy: dataset.AudioInspectionPolicy{MaximumEncodedBytes: uint64(len(encoded))}}
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "fixture/transcription", Source: "frozen host source", Dataset: source,
@@ -85,9 +80,7 @@ func TestE4BValidationProducer(t *testing.T) {
 			}
 		})
 	}
-	if err := prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))))
 	if suite.Split == inventory || suite.Split.Kind() != artifact.KindDatasetShard {
 		t.Fatal("selection reused inventory")
 	}
@@ -96,20 +89,14 @@ func TestE4BValidationProducer(t *testing.T) {
 		t.Fatalf("selection provenance: %v %v", parents, err)
 	}
 	head, sequence = store.Head()
-	if err := prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))))
 	if after, n := store.Head(); after != head || n != sequence {
 		t.Fatal("exact replay appended evidence")
 	}
 	before, err := evaluation.CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite.Cases[0].Reference = "different target"
-	if err := prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))))
 	after, err := evaluation.CompileTranscription(suite)
 	if err != nil || reflect.DeepEqual(before, after) {
 		t.Fatalf("changed target did not rebind the compiled suite: %v", err)

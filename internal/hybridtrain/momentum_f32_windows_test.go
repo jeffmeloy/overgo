@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 // checkpointed is a hybrid model with the optimizer state its checkpoint holds, as a trainer hands both on.
@@ -35,16 +36,10 @@ func TestAHybridCheckpointKeepsMatrixMomentumInF32(t *testing.T) {
 		vector[index] = float64(index+1) / 3
 	}
 	vec, err := optimizer.New(m.vecW, make([]float32, len(m.vecW)), m.vecPlan, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := vec.Restore(optimizer.State{PlanIdentity: m.vecPlan.Identity(), Config: cfg, Step: step, Momentum: vector}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, vec.Restore(optimizer.State{PlanIdentity: m.vecPlan.Identity(), Config: cfg, Step: step, Momentum: vector}))
 	var state optimizer.State
-	if err := m.checkpointF32(TrainingOptions{Checkpoint: func(s optimizer.State) error { state = s; return nil }}, matrix, step, cfg, vec); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, m.checkpointF32(TrainingOptions{Checkpoint: func(s optimizer.State) error { state = s; return nil }}, matrix, step, cfg, vec))
 	if len(state.MomentumF32) != len(matrix) || &state.MomentumF32[0] != &matrix[0] || !slices.Equal(state.Momentum, vector) {
 		t.Fatalf("the checkpoint holds %d f32 and %d f64 values, want the stepper's own %d f32 slab then the vector's %d f64",
 			len(state.MomentumF32), len(state.Momentum), len(matrix), len(vector))

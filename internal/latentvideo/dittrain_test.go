@@ -2,6 +2,7 @@ package latentvideo
 
 import (
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 
 	"math"
 	"math/rand"
@@ -41,9 +42,7 @@ func ditTestConfig() (DenoiserConfig, LatentGeometry, int) {
 func TestIndexedMediaProgramBindings(t *testing.T) {
 	config, geometry, _ := ditTestConfig()
 	program, err := CompileDenoiserProgram(config, &DenoiserWeights{}, geometry)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, bindings := range []tensor.WeightBindings{program.contextWeightInputs, program.stepWeightInputs} {
 		first := bindings[0]
 		if bindings.Node(first.Name) != first {
@@ -72,9 +71,7 @@ func ditTestTrainer(t *testing.T) (*ditTrainer, DiTTrainBatch) {
 		tensors[spec.name] = values
 	}
 	trainer, err := NewDiTTrainer(cfg, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { trainer.Close() })
 	if len(tensors) != 0 {
 		t.Fatalf("trainer left %d tensors unconsumed", len(tensors))
@@ -148,14 +145,10 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 		}
 		shift(1)
 		plus, err := trainer.Loss(batch)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		shift(-1)
 		minus, err := trainer.Loss(batch)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		copy(trainer.weights[s.start:s.end], saved)
 		numeric := (plus - minus) / (2 * epsilon)
 		var got float64
@@ -174,23 +167,17 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 func TestDiTTrainerStepDescends(t *testing.T) {
 	trainer, batch := ditTestTrainer(t)
 	first, err := trainer.Loss(batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var last ditTrainStepResult
 	for step := range 5 {
 		last, err = trainer.Step(batch)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if last.GradientL2 <= 0 {
 			t.Fatalf("step %d: gradient norm %g", step, last.GradientL2)
 		}
 	}
 	final, err := trainer.Loss(batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
@@ -205,9 +192,7 @@ func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cfg, _, textDim := ditTestConfig()
 	trained := map[string][]float32{}
 	for _, spec := range ditTensorSpecs(cfg, textDim) {
@@ -225,21 +210,13 @@ func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
 	trainer, batch := ditTestTrainer(t)
 	text, err := trainer.projectText(batch.RawText, batch.TextTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	timeActs, err := trainer.timestepConditioning(batch.Timestep)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpointed, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if checkpointed.blocks != nil {
 		t.Fatal("checkpointed forward retained full block activations")
 	}
@@ -257,9 +234,7 @@ func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
 	// The recomputing backward must produce the exact gradients the
 	// finite-difference test already validates on this same path.
 	loss, gradientL2, err := trainer.lossAndGradients(batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(loss > 0) || !(gradientL2 > 0) {
 		t.Fatalf("checkpointed backward loss=%g grad_l2=%g", loss, gradientL2)
 	}

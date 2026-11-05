@@ -18,6 +18,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ import (
 func fixtureRepository(t *testing.T) (root, head string) {
 	t.Helper()
 	root = t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("fixture\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "notes.md"), []byte("fixture\n"), 0o644))
 	for _, arguments := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "fixture"}, {"rev-parse", "HEAD"}} {
 		command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com"}, arguments...)...)
 		command.Dir = root
@@ -216,13 +215,9 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 		data, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "store/" + family, Cases: []evaluation.ExactCase{
 			{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2},
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite, err := evaluation.CompileSuite(data, evaluation.ListingAuthorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suites = append(suites, suite)
 	}
 
@@ -259,9 +254,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 			continue
 		}
 		bound, err := catalog.bind(t.Context(), nil, cell)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		registered[index] = bound
 	}
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: baseline})

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -121,9 +122,7 @@ func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 	t.Parallel()
 	generator := &fakeGenerator{pieces: []string{"A"}, started: make(chan struct{}), release: make(chan struct{})}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, MaxConcurrent: 1}, slowTokenizer{generator})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	var served sync.WaitGroup
 	send := func() {
@@ -166,9 +165,7 @@ func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 func TestRequestMonitorRecordsARefusedRequest(t *testing.T) {
 	t.Parallel()
 	handler, err := New(Config{ModelID: testModelID, APIKey: "secret", MaxTokens: testMaxTokens}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	if response := serveTestRequest(handler, http.MethodGet, "/props", ""); response.Code != http.StatusUnauthorized {
 		t.Fatalf("an unauthorized call answered %d", response.Code)
@@ -197,9 +194,7 @@ func TestRequestMonitorStreamsThroughTheRecorder(t *testing.T) {
 	defer server.Close()
 	defer close(generator.release)
 	response, err := http.Post(server.URL+"/completion", "application/json", strings.NewReader(`{"prompt":"hi","n_predict":4,"stream":true}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 		t.Fatalf("stream answered %d as %q", response.StatusCode, response.Header.Get("Content-Type"))

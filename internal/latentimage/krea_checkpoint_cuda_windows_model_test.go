@@ -12,6 +12,7 @@ import (
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/torchrng"
 )
 
@@ -345,9 +346,7 @@ func TestSeededInitLatentKreaGeometry(t *testing.T) {
 		shape.ZDim, shape.Height, shape.Width, shape.Elements())
 
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	latent := make([]float32, shape.Elements())
@@ -368,9 +367,7 @@ func TestSeededInitLatentKreaGeometry(t *testing.T) {
 		SeededLatentFromNoise(reference, InitNoiseMix)
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireExactF32(t, latent, reference)
 	for i, v := range latent {
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {

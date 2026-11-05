@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
@@ -16,18 +17,14 @@ import (
 func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	generator := &speechSurfaceGenerator{retired: true, generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "cold-speech-run"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "cold-speech-recipe"), Name: "Local speech (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}}, Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}, Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}, {Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}}},
 	}}}
 	// Only workflows: this fixture has no loaded text model or model properties.
 	handler, err := New(Config{Repository: store, RuntimePolicy: testRuntimePolicy(), Workflows: generator}, GenerationRefused{Reason: "No chat model is loaded"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	return &IdleShell{Repository: store, Workbench: handler}, generator
 }
@@ -91,9 +88,7 @@ func TestWebUIBrowserAudioStartup(t *testing.T) {
 	check(`(()=>{document.querySelector('.mode-controls select[aria-label="voice"]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "ArrowDown", 40)
 	check(`(()=>{document.querySelector('.composer textarea').focus();return true;})()`)
-	if err := browser.Call(ctx, "Input.insertText", map[string]any{"text": "Speech without loading chat."}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Input.insertText", map[string]any{"text": "Speech without loading chat."}, nil))
 	for _, viewport := range append(webuilane.ScreenViewports, webuilane.Viewport{Name: "small-phone", Width: 320, Height: 568}, webuilane.Viewport{Name: "phone-landscape", Width: 844, Height: 390}) {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "cold-speech-ready")
 		if err != nil || len(findings) != 0 {

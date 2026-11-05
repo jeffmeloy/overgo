@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "candidate-closure-model")
 	candidate, err := CapabilityDefinition(recipe.TaskForecast, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runnable := ValidateCandidateRecipe(candidate)
 	if !runnable.Runnable || len(runnable.Refusals) != 0 || runnable.Definition != candidate.ID {
 		t.Fatalf("registered candidate closure = %+v", runnable)
@@ -42,15 +41,11 @@ func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	definitionContent, err := Content(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "closure/candidate", Contents: []artifact.Content{definitionContent},
 	}); err != nil {
@@ -71,17 +66,11 @@ func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing
 	}, struct {
 		Name string `json:"name"`
 	}{Name: "candidate-capability-model"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := CapabilityDefinition(recipe.TaskForecast, modelContent.Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "candidate/capability-model", Contents: []artifact.Content{modelContent},
@@ -111,9 +100,7 @@ func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing
 			candidate, err := recipe.NewDefinitionWithDependencies(
 				definition.Task, dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			closure := ValidateStoredCandidateRecipe(t.Context(), store, candidate)
 			if closure.Runnable || len(closure.Refusals) == 0 {
 				t.Fatalf("unknown %s validated: %+v", capability.name, closure)

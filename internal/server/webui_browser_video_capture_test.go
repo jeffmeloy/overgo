@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +21,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "video capture runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Clip fixture"}}))
 	handler.config.APIKey = testAPIKey
@@ -49,9 +48,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 		t.Helper()
 		for _, viewport := range []webuilane.Viewport{{Name: "desktop", Width: 1280, Height: 900}, {Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 390, Height: 380}, {Name: "small-phone", Width: 320, Height: 568}} {
 			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "camera-"+state)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, finding := range findings {
 				t.Errorf("camera %s: %+v", state, finding)
 			}
@@ -118,9 +115,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	settle(`captureDialog().dataset.state==='ready' && !!captureDialog().querySelector('video[controls]')`)
 	check(`captureTracks.every(track=>track.readyState==='ended')`)
 	settle(`captureDialog().querySelector('video').readyState>=HTMLMediaElement.HAVE_CURRENT_DATA`)
-	if err := browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `(async()=>{const video=captureDialog().querySelector('video');video.muted=true;await video.play();return true;})()`, "userGesture": true, "awaitPromise": true}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `(async()=>{const video=captureDialog().querySelector('video');video.muted=true;await video.play();return true;})()`, "userGesture": true, "awaitPromise": true}, nil))
 	settle(`captureDialog().querySelector('video').currentTime>0 && !captureDialog().querySelector('video').paused`)
 	check(`(() => {const video=captureDialog().querySelector('video');video.pause();return video.videoWidth>0 && video.videoHeight>0;})()`)
 	capture("ready")

@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -25,9 +26,7 @@ func TestWebUIBrowserConversationNavigation(t *testing.T) {
 			t.Fatalf("%v: %s", err, state)
 		}
 	}
-	if err := browser.SetViewport(ctx, 390, 844); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, 390, 844))
 	settle(`!!document.querySelector('.composer textarea') && document.querySelectorAll('#history-rows .conversation').length===2`)
 	check(`(() => {
   window.historyButton=text=>[...document.querySelectorAll('#conversation-list button')].find(node=>node.textContent===text);
@@ -112,16 +111,12 @@ func TestWebUIBrowserConversationNavigation(t *testing.T) {
 	check(`(() => {overgo.api.get=historyGet;historySearch('');return true;})()`)
 	settle(`historyRows().length===2`)
 	for _, viewport := range []webuilane.Viewport{{Name: "phone", Width: 390, Height: 844}, {Name: "desktop", Width: 1280, Height: 800}} {
-		if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetViewport(ctx, viewport.Width, viewport.Height))
 		if viewport.Name == "phone" {
 			check(`(() => {document.querySelector('#navigation-toggle').click();return true;})()`)
 		}
 		for _, scheme := range webuilane.ColourSchemes {
-			if err := browser.SetColorScheme(ctx, scheme); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 			check(`(async () => {await new Promise(resolve=>requestAnimationFrame(resolve));await Promise.allSettled(document.getAnimations().map(animation=>animation.finished));return true;})()`)
 			if findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "conversation-history-"+scheme); err != nil || len(findings) != 0 {
 				t.Fatalf("history %s %s layout: %v, %v", viewport.Name, scheme, findings, err)

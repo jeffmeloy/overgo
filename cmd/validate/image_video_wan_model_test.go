@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"slices"
@@ -21,36 +22,24 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var bundle mediaWanBundle
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_wan.json"), &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_wan.json"), &bundle))
 	if len(bundle.Cases) == 0 {
 		t.Fatal("Wan bundle has no cases")
 	}
 	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoProtocolIdentity(quality); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol imageVideoProtocol
-	if err := json.Unmarshal(quality, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(quality, &protocol))
 	index := slices.IndexFunc(protocol.Cases, func(c imageVideoCase) bool { return c.ID == bundle.Cases[0].Case })
 	if index < 0 || len(protocol.Cases[index].Observations) != 1 {
 		t.Fatal("Wan case lacks its protocol observation")
 	}
 	observation := protocol.Cases[index].Observations[0]
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	content, found, err := artifact.ReadContent(t.Context(), store, bundle.Cases[0].Output)
 	if err != nil || !found {
@@ -62,9 +51,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 	for _, mutation := range []string{"truncate", "reorder", "timing", "pixel"} {
 		t.Run(mutation, func(t *testing.T) {
 			video, err := gif.DecodeAll(bytes.NewReader(content.Data))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			switch mutation {
 			case "truncate":
 				video.Image = video.Image[:len(video.Image)-1]
@@ -80,9 +67,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 				video.Image[0].Pix[0] = (video.Image[0].Pix[0] + 1) % uint8(len(video.Image[0].Palette)-1)
 			}
 			var encoded bytes.Buffer
-			if err := gif.EncodeAll(&encoded, video); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, gif.EncodeAll(&encoded, video))
 			if err := checkMediaWanGIF(encoded.Bytes(), content.Data, observation); err == nil {
 				t.Fatal("altered clip accepted")
 			}

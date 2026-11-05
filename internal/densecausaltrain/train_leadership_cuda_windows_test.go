@@ -18,6 +18,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/densecausal"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -63,17 +64,11 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal("Carbon artifact, config, corpus, or protocol fingerprint differs")
 	}
 	model, err := densecausal.Load(modelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	warmModel, err := densecausal.Load(modelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	if _, err := TrainDeviceResidentWeighted(warmModel, worker, oneSequenceGroups(carbonAdaptiveCausalWindows[:1]), 1.33179e-5, 0.95, Options{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
@@ -87,15 +82,11 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	started := time.Now()
 	result, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(carbonAdaptiveCausalWindows), 1.33179e-5, 0.95, Options{FrozenLexical: true, Measure: true})
 	totalWall := time.Since(started)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trajectory, measurement := result.Losses, result.Measurement
 	t.Logf("matched Carbon trajectory: %.9f", trajectory)
 	memory, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const (
 		adaptiveWall = 6816 * time.Millisecond
 		adaptivePeak = uint64(12315818721)
@@ -121,9 +112,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 func fileSHA256(t *testing.T, path string) string {
 	t.Helper()
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -157,13 +146,9 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		return
 	}
 	model, err := densecausal.Load(artifactDir(t, "Carbon-500M"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	tokens := make([]int, 64)
 	tokens[0] = 1
@@ -186,14 +171,10 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	started := time.Now()
 	result, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(slices.Repeat([][]int{tokens}, 4)), derivedTestLearningRate(t, model), 0.95, Options{FrozenLexical: true})
 	wall := time.Since(started)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trajectory := result.Losses
 	memory, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, loss := range trajectory {
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("loss[%d]=%g", index, loss)

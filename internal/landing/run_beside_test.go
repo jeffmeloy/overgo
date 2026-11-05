@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
+	"overgo/internal/testcheck"
 )
 
 // TestALandingBesideARunWaitsOnlyForTheDevice holds a landing beside a
@@ -27,9 +28,7 @@ func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 	ctx := t.Context()
 	l := &landing{Options: Options{Log: io.Discard}}
 	release, err := l.holdQuiet(ctx, machine)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	l.quiet, l.quietMachine = release, machine
 
 	held, let := make(chan struct{}), make(chan struct{})
@@ -58,17 +57,13 @@ func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 		}
 	})
 	measuring, _, err := quietmachine.Await(ctx, machine, true, noWait)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	select {
 	case <-ran:
 		t.Fatal("the landing's lanes ran while the run held the lane turn")
 	default:
 	}
-	if err := measuring(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, measuring())
 	close(let)
 	if heldAgain := <-ran; !heldAgain {
 		t.Fatal("the landing's lanes ran without its side of the quiet machine")
@@ -77,7 +72,5 @@ func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 	if l.quiet == nil {
 		t.Fatal("the landing kept no side of the quiet machine after its lanes")
 	}
-	if err := l.quiet(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, l.quiet())
 }

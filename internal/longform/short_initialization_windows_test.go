@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -25,27 +26,17 @@ func TestShortInitializesMeasuredShape(t *testing.T) {
 	var control ShortShape
 	for _, explicit := range []bool{true, false} {
 		program, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		runner, err := inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		func() {
 			defer runner.Close()
-			if err := Warm(t.Context(), runner, corpus[:floors.PromptTokens], GuardContinuation); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, Warm(t.Context(), runner, corpus[:floors.PromptTokens], GuardContinuation))
 			if explicit {
-				if err := Warm(t.Context(), runner, corpus[:floors.ShortPromptTokens], GuardContinuation); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, Warm(t.Context(), runner, corpus[:floors.ShortPromptTokens], GuardContinuation))
 			}
 			shape, err := Short(t.Context(), runner, corpus, floors, GuardContinuation)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			work := shape.Measure.Execution
 			if shape.WarmupOutputTokens != WarmupOutputTokens || work.GraphLaunchesPerToken == 0 || work.GraphInstantiationsPerToken != 0 {
 				t.Fatalf("explicit=%t measured graph initialization: %+v", explicit, work)

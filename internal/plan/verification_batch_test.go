@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -29,9 +30,7 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 	t.Parallel()
 	document := batchPlanFixture()
 	data, err := json.Marshal(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := Parse(data)
 	if err != nil || !reflect.DeepEqual(parsed, document) {
 		t.Fatalf("declaration round trip = %+v, %v", parsed, err)

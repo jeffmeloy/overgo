@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/representation"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestPaddingEntersNoPromptRow holds what lets the encoder leave a prompt's
@@ -38,13 +39,9 @@ func TestPaddingEntersNoPromptRow(t *testing.T) {
 	}
 	block := func(weights encoderBlockWeights, rows int) []float32 {
 		buckets, err := representation.RelativePositionBuckets(rows, rows, bucketCount, distance, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		out, err := encoderBlockForward(x[:rows*dim], mask[:rows], buckets, 1, rows, dim, heads, ffn, bucketCount, weights, 1e-6, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return out[:kept*dim]
 	}
 	whole := block(weights, padded)

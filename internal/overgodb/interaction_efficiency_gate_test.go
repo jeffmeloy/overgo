@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -14,9 +15,7 @@ import (
 func TestKindIndexInspectsLessThanScan(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	descriptors := make([]artifact.Descriptor, 0, 9)

@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // TestQwen35ZeroCenteredNormsShiftByOne: every zero-centered RMSNorm the conversion writes is stored as 1+w, the draft
@@ -30,9 +31,7 @@ func TestQwen35ZeroCenteredNormsShiftByOne(t *testing.T) {
 	} {
 		payload := binary.LittleEndian.AppendUint32(nil, math.Float32bits(0.5))
 		for _, transform := range transforms(name) {
-			if err := transform.apply(payload, 4); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, transform.apply(payload, 4))
 		}
 		if got := math.Float32frombits(binary.LittleEndian.Uint32(payload)); got != want {
 			t.Errorf("%s: stored %v from 0.5, want %v", name, got, want)
@@ -48,22 +47,14 @@ func TestQwen35RecurrentMetadataIncludesPredictionLayers(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			repository := qwen35Fixture(t)
 			var text map[string]json.RawMessage
-			if err := json.Unmarshal(repository.Config["text_config"], &text); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(repository.Config["text_config"], &text))
 			encoded, err := json.Marshal(schedule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			text["layer_types"] = encoded
 			repository.Config["text_config"], err = json.Marshal(text)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			metadata, trunk, err := qwen35MetadataForOutput(repository, LanguageTokens)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var declared, prediction uint32
 			var recurrent []bool
 			for _, item := range metadata {
@@ -101,13 +92,9 @@ func TestQwen35ConvolutionNativeStorage(t *testing.T) {
 	}
 	var err error
 	repository.Tensors.Tensors[name], err = safetensors.NewTensor(name, "BF16", tensor.Shape, bytes.NewReader(encoded), 0, int64(len(encoded)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, tensors, err := Qwen35Conversion(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, output := range tensors {
 		if output.Name != "blk.0.ssm_conv1d.weight" {
 			continue
@@ -116,9 +103,7 @@ func TestQwen35ConvolutionNativeStorage(t *testing.T) {
 			t.Fatalf("native convolution requires F32, got %s", output.Type)
 		}
 		data, err := io.ReadAll(output.Data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(data) != int(tensor.Elements())*4 {
 			t.Fatal("widening changed the element denominator")
 		}

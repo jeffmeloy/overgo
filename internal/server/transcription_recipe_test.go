@@ -7,6 +7,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 )
 
 // TestCompiledTranscriptionRecipeLoads holds a recipe the transcription
@@ -21,9 +22,7 @@ func TestCompiledTranscriptionRecipeLoads(t *testing.T) {
 	ctx := t.Context()
 	policy := fixture.workspace.policy
 	definition, err := recipe.RequireDefinition(ctx, fixture.store, policy.Recipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.SpeechComponents(definition); err != nil {
 		t.Fatalf("the speech runtime refuses the compiled recipe: %v", err)
 	}
@@ -34,7 +33,5 @@ func TestCompiledTranscriptionRecipeLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evaluate's native session cannot load the compiled recipe: %v", err)
 	}
-	if err := session.Close(context.WithoutCancel(ctx)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, session.Close(context.WithoutCancel(ctx)))
 }

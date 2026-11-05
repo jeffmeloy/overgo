@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"io"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAViewTensorIsReleasedAtItsEnd opens a view whose first built tensor is larger than the directory's read-ahead,
@@ -22,17 +24,13 @@ func TestAViewTensorIsReleasedAtItsEnd(t *testing.T) {
 		built++
 		return bytes.NewReader(data), nil
 	}}}, WriteOptions{}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := file.source.(*viewSource)
 	info, _ := file.Tensor("large")
 	part, read := info.Size/4, make([]byte, 0, info.Size)
 	for from := uint64(0); from < info.Size; from += part {
 		chunk := make([]byte, part)
-		if err := file.ReadTensorRange(info, from, chunk); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorRange(info, from, chunk))
 		if read = append(read, chunk...); from+part < info.Size && len(source.built) != 1 {
 			t.Fatalf("after %d of %d bytes the view keeps %d built tensors, want the one being read", from+part, info.Size, len(source.built))
 		}

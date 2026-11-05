@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // standingDoctrine is the conversion of a plan that holds its doctrine as one
@@ -171,32 +173,22 @@ func TestDoctrineParagraphsNameWhatTheyGovern(t *testing.T) {
 
 	t.Run("the one string converts to standing paragraphs word for word", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "plan.json")
-		if err := os.WriteFile(path, []byte(before), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(before), 0o644))
 		held, err := Load(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		converted := standingDoctrine(held)
 		if err := Save(path, converted); err != nil {
 			t.Fatalf("saving the converted plan: %v", err)
 		}
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var keys map[string]json.RawMessage
-		if err := json.Unmarshal(data, &keys); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(data, &keys))
 		if _, old := keys["doctrine"]; old || keys["paragraphs"] == nil {
 			t.Fatalf("the saved plan holds the keys of %s, want paragraphs and no doctrine string", data)
 		}
 		loaded, err := Load(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if err := Validate(loaded); err != nil || !reflect.DeepEqual(loaded, converted) {
 			t.Fatalf("the saved plan loads as %+v (%v), want what was saved: %+v", loaded, err, converted)
 		}

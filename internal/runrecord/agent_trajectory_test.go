@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -9,9 +10,7 @@ import (
 func TestAgentTrajectoryIdentity(t *testing.T) {
 	base, err := NewInteractionTrace(Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")},
 		testutil.ArtifactID(t, artifact.KindEvidence, "request"), []InteractionMessage{{Role: "user", Content: "task"}, {Role: "assistant", Content: "result"}}, nil, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base.Events[1].Branch = "candidate/a"
 	base.TaskContract = testutil.ArtifactID(t, artifact.KindRecipe, "task")
 	base.ToolManuals = []artifact.ID{testutil.ArtifactID(t, artifact.KindRecipe, "manual")}
@@ -23,13 +22,9 @@ func TestAgentTrajectoryIdentity(t *testing.T) {
 	base.BudgetCharges = []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "charge")}
 	base.Terminal = OutcomeSucceeded
 	first, err := NewAgentTrajectory(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := NewAgentTrajectory(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.ID != second.ID || len(first.Lineage()) == 0 || first.Events[1].Branch != "candidate/a" {
 		t.Fatalf("trajectory = %+v", first)
 	}

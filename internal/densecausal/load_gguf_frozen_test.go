@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,13 +18,9 @@ func TestFrozenLlamaLoadReadsQueryAndKeyRowsInCheckpointOrder(t *testing.T) {
 	t.Parallel()
 	path := testutil.QuantizedLlamaGGUF(t, 1)
 	dense, err := LoadGGUF(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	frozen, err := LoadGGUFFrozen(path, func(string) bool { return true })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reordered := 0
 	for name, values := range dense.Weights {
 		attention := strings.HasSuffix(name, queryProjection) || strings.HasSuffix(name, keyProjection)
@@ -57,9 +54,7 @@ func TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead(t *testing.T) {
 		t.Fatalf("holding every tensor: err = %v, want the stored embedding refused", err)
 	}
 	frozen, err := LoadGGUFFrozen(path, func(name string) bool { return strings.Contains(name, ".layers.") })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !frozen.Frozen("model.layers.0.self_attn.v_proj.weight") || frozen.Frozen("model.embed_tokens.weight") {
 		t.Error("holding the layers' tensors did not hold their projections and leave the embedding in full precision")
 	}
@@ -81,19 +76,13 @@ func TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead(t *testing.T) {
 func TestMaskedLossWithoutAMaskIsTheLossOfEveryToken(t *testing.T) {
 	t.Parallel()
 	model, err := LoadGGUF(testutil.QuantizedDenseGGUF(t, 1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokens := []int{3, 4, 5, 6, 7, 4, 5, 6}
 	train := func(name string) bool { return strings.Contains(name, "layers.0.") }
 	want, wantGrads, err := model.MaskedLossAndLayerGradsOf(tokens, slices.Repeat([]bool{true}, len(tokens)), train, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, gotGrads, err := model.MaskedLossAndLayerGradsOf(tokens, nil, train, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != want || len(gotGrads) != len(wantGrads) {
 		t.Fatalf("loss %v with %d gradients, want %v with %d", got, len(gotGrads), want, len(wantGrads))
 	}

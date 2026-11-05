@@ -10,20 +10,15 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func registerFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "clip-a.mp4"), make([]byte, 4096), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "clip-b.mp4"), make([]byte, 4096), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "captions.json"), []byte(`[{"vid":"clip-a","caption":"a"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "clip-a.mp4"), make([]byte, 4096), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "clip-b.mp4"), make([]byte, 4096), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "captions.json"), []byte(`[{"vid":"clip-a","caption":"a"}]`), 0o600))
 	return root
 }
 
@@ -34,30 +29,22 @@ func registerFixture(t *testing.T) string {
 func TestRegisterDirectoryDataset(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	legacyRoot, legacyContent := legacyCatalogFixture(t)
 	if _, err := PublishLegacyCatalog(ctx, store, legacyRoot, legacyContent); err != nil {
 		t.Fatal(err)
 	}
 	before, err := InspectCatalog(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := registerFixture(t)
 	registered, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !registered.Changed || registered.Files != 3 {
 		t.Fatalf("registration = %+v", registered)
 	}
 	coverage, err := InspectCatalog(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if coverage.Registered != before.Registered+1 || !coverage.Complete {
 		t.Fatalf("coverage = registered %d complete %t, want the legacy entries plus the new one",
 			coverage.Registered, coverage.Complete)
@@ -76,9 +63,7 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 			entry.Entry.Modality, entry.Entry.Modalities)
 	}
 	repeat, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if repeat.Changed {
 		t.Fatalf("idempotent re-registration changed the store: %+v", repeat)
 	}
@@ -92,23 +77,15 @@ func TestRegisterContentIdentity(t *testing.T) {
 	ctx := t.Context()
 	build := func(payload []byte) artifact.ID {
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		root := t.TempDir()
 		path := filepath.Join(root, "clip.mp4")
-		if err := os.WriteFile(path, payload, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 		fixed := time.Unix(1700000000, 0)
-		if err := os.Chtimes(path, fixed, fixed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Chtimes(path, fixed, fixed))
 		registered, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return registered.Dataset
 	}
 	first := build(bytes.Repeat([]byte{0xAA}, 4096))
@@ -125,27 +102,17 @@ func TestRegisterContentIdentity(t *testing.T) {
 func TestRegisterTouchDoesNotReidentify(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	root := t.TempDir()
 	path := filepath.Join(root, "clip.mp4")
-	if err := os.WriteFile(path, bytes.Repeat([]byte{0xCC}, 4096), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, bytes.Repeat([]byte{0xCC}, 4096), 0o600))
 	first, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	touched := time.Unix(1800000000, 0)
-	if err := os.Chtimes(path, touched, touched); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(path, touched, touched))
 	second, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.Changed || second.Dataset != first.Dataset {
 		t.Fatalf("touch re-identified: first=%s second=%s changed=%t", first.Dataset, second.Dataset, second.Changed)
 	}
@@ -159,12 +126,8 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 	ctx := t.Context()
 	mixedCorpus := func() string {
 		root := t.TempDir()
-		if err := os.WriteFile(filepath.Join(root, "a.mp4"), make([]byte, 2048), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "b.json"), []byte("[]"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "a.mp4"), make([]byte, 2048), 0o600))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "b.json"), []byte("[]"), 0o600))
 		return root
 	}
 	primaryOf := func(store *overgodb.Store, name string) CatalogEntry {
@@ -182,9 +145,7 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 	}
 
 	declaredStore, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer declaredStore.Close()
 	if _, err := RegisterDirectoryDatasetAs(ctx, declaredStore, "corpus", mixedCorpus(), "video"); err != nil {
 		t.Fatal(err)
@@ -198,9 +159,7 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 	}
 
 	undeclaredStore, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer undeclaredStore.Close()
 	if _, err := RegisterDirectoryDataset(ctx, undeclaredStore, "corpus", mixedCorpus()); err != nil {
 		t.Fatal(err)
@@ -209,9 +168,7 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 		t.Fatalf("undeclared mixed primary = %q, want %q", entry.Modality, MixedModality)
 	}
 	single := t.TempDir()
-	if err := os.WriteFile(filepath.Join(single, "only.mp4"), make([]byte, 1024), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(single, "only.mp4"), make([]byte, 1024), 0o600))
 	if _, err := RegisterDirectoryDataset(ctx, undeclaredStore, "single", single); err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,9 +37,7 @@ func TestTrainingBracketMatchesExecutionContracts(t *testing.T) {
 		if err == nil {
 			err = json.Unmarshal(data, &result)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result.Directions = map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize}
 		return result
 	}
@@ -134,9 +133,7 @@ func TestTrainingBracket(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	session := testutil.ArtifactID(t, artifact.KindEvidence, "bracket-session")
@@ -149,9 +146,7 @@ func TestTrainingBracket(t *testing.T) {
 		t.Fatal(err)
 	}
 	id, err := publishTrainingBracket(ctx, store, session, model, recipeID, pre, post)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bracket, found, err := trainingBracketCodec.Read(ctx, store, id)
 	if err != nil || !found {
 		t.Fatalf("bracket read = (%t, %v)", found, err)

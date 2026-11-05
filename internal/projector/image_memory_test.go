@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"testing"
 	"weak"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRememberImagesEncodesAPictureOnce holds a session's image encoder to encoding a picture once while it is among
@@ -63,9 +65,7 @@ func TestRememberImagesEncodesAPictureOnce(t *testing.T) {
 	})
 	rows := func() weak.Pointer[float32] {
 		item, err := fresh(t.Context(), picture(11, 3))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return weak.Make(&item.Embeddings[0])
 	}()
 	for width := 12; width < 12+rememberedImages; width++ {

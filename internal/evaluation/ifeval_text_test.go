@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 //go:embed testdata/ifeval_text_oracle.json
@@ -22,9 +24,7 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 			Strict, Loose []bool
 		}
 	}
-	if err := json.Unmarshal(ifevalTextOracle, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(ifevalTextOracle, &oracle))
 	if oracle.ReferenceVersion != "0.4.9.1" || len(oracle.Cases) != 25 || oracle.Sources["instructions.py"] != "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32" || oracle.Sources["utils.py"] != "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632" {
 		t.Fatal("native checker or denominator changed")
 	}
@@ -37,16 +37,12 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		}
 		suite := assembled.(instructionRulesSuite)
 		compiled, err := compileInstructionRules(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("one instruction must produce one verdict")
 		}
 		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %s %q strict=%v/%v loose=%v/%v", index, c.Instruction, c.Response, strict, c.Strict, loose, c.Loose)
 		}
@@ -55,16 +51,12 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		legacy.Cases[0].Rules = slices.Clone(suite.Cases[0].Rules)
 		legacy.Cases[0].Rules[0].Kind = legacyKinds[c.Instruction]
 		prior, err := compileInstructionRules(legacy)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 			t.Fatal("scorer correction reused prior identity")
 		}
 		oldStrict, oldLoose, err := evaluateInstructionViews(c.Response, prior.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(oldStrict, c.Strict) || !slices.Equal(oldLoose, c.Loose) {
 			corrected++
 		}

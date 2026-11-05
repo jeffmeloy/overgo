@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestAlignmentManifestRefusesBeforeStoreMutation(t *testing.T) {
@@ -17,9 +19,7 @@ func verifySpeechManifestAdmission(t *testing.T, evaluate func(context.Context, 
 		t.Run(data, func(t *testing.T) {
 			root := t.TempDir()
 			manifest := filepath.Join(root, "manifest.json")
-			if err := os.WriteFile(manifest, []byte(data), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(manifest, []byte(data), 0o600))
 			store := filepath.Join(root, "absent-store")
 			if err := evaluate(t.Context(), store, manifest); err == nil {
 				t.Fatal("invalid manifest admitted")

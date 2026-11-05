@@ -9,6 +9,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,15 +21,11 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content := func(kind artifact.Kind, mediaType, schema string, data []byte) artifact.Content {
 		t.Helper()
 		id, err := artifact.IdentifyBytes(kind, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: mediaType, Schema: schema}, Data: data}
 	}
 	request := content(artifact.KindFile, artifact.JSONMediaType, "overgo.video-edit-input.v1", []byte(`{"seed":3}`))
@@ -42,13 +39,9 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	commitRun := func(key string, inputs, outputs []artifact.ID) artifact.ID {
 		t.Helper()
 		run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, outputs, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := run.Batch(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
@@ -56,13 +49,9 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	}
 	producer := commitRun("fixture/lineage/producer", []artifact.ID{request.Descriptor.ID, source.Descriptor.ID}, []artifact.ID{output.Descriptor.ID})
 	consumer := commitRun("fixture/lineage/consumer", []artifact.ID{output.Descriptor.ID}, []artifact.ID{answer.Descriptor.ID})
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	page := serveTestRequest(handler, http.MethodGet, "/artifacts/lineage?id="+output.Descriptor.ID.String(), "")
 	var lineage artifactLineageResponse

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/fixtureasset"
+	"overgo/internal/testcheck"
 )
 
 // referenceTensor is one golden tensor the fixture manifest pins.
@@ -35,9 +36,7 @@ func loadReference(t *testing.T, directory string, tensor referenceTensor) []flo
 		elements *= extent
 	}
 	values, err := fixtureasset.LoadF32(directory, tensor.File, tensor.SHA256, elements)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return values
 }
 

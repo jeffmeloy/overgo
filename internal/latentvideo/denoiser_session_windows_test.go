@@ -10,6 +10,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -22,9 +23,7 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	manifest, dir := loadDenoiseManifest(t, name)
 	program := newGoldenDenoiserProgram(t, manifest)
 	session, err := NewDenoiserCUDASession(program, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if program.weights != nil {
 		t.Fatal("resident session retained host denoiser weights")
 	}
@@ -50,9 +49,7 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 		InitialSample: sampleIn,
 		TraceSteps:    true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, step := range result.Steps {
 		prefix := fmt.Sprintf("step_%02d_", i)
 		requireParity(t, prefix+"sample_in", step.SampleIn, manifest.trace(t, dir, prefix+"sample_in"), goldenSampleTolerance)
@@ -64,13 +61,9 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	requireParity(t, "final_latent", result.Latent, loadG1Tensor(t, dir, manifest.FinalLatent), goldenFinalTolerance)
 
 	execution, err := session.ExecutionStats()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memory, err := session.MemoryStats()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("graph_launches=%d graph_instantiations=%d graph_updates=%d kernel_launches=%d htod_bytes=%d dtoh_bytes=%d",
 		execution.GraphLaunches, execution.GraphInstantiations, execution.GraphUpdates,
 		execution.KernelLaunches, execution.HostToDeviceBytes, execution.DeviceToHostBytes)
@@ -106,19 +99,13 @@ func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	config, weights := denoiserFixture(t)
 	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session, err := NewDenoiserCUDASession(program, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
@@ -132,9 +119,7 @@ func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 		UncondContext: loadRawContext(t, dir, manifest.Request.UncondContext, contextElements),
 		InitialSample: manifest.trace(t, dir, "step_00_sample_in"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := loadG1Tensor(t, dir, manifest.FinalLatent)
 	var dot, gotNorm, wantNorm, deltaSquares, maxDelta float64
 	for i := range want {

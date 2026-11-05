@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 // hostRopeHalf applies split-half RoPE to a [seq, nHeads*hd] tensor in float64.
@@ -37,9 +38,7 @@ func hostRopeHalf(x []float32, invFreq []float64, seq, nHeads, hd int) []float64
 func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, nHeads, hd = 7, 3, 8
@@ -52,9 +51,7 @@ func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 	x := randSlice(rng, seq*nHeads*hd)
 
 	got, err := RoPEHalfForward(worker, x, invF32, seq, nHeads, hd)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := hostRopeHalf(x, invF64, seq, nHeads, hd)
 	var maxDiff float64
 	for i := range want {
@@ -75,9 +72,7 @@ func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 func TestRoPEHalfBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, nHeads, hd = 5, 2, 8
@@ -91,9 +86,7 @@ func TestRoPEHalfBackwardGradCheck(t *testing.T) {
 	dOut := randSlice(rng, seq*nHeads*hd)
 
 	dx, err := RoPEHalfBackward(worker, dOut, invF32, seq, nHeads, hd)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		out := hostRopeHalf(x, invF64, seq, nHeads, hd)

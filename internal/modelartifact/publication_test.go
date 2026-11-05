@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
@@ -31,15 +32,11 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			data := []byte("# A license declaration\n")
 			id, err := artifact.IdentifyBytes(tc.kind, data)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			prior := artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: tc.priorType, Schema: tc.schema}
 			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "prior", Artifacts: []artifact.Descriptor{prior}}); err != nil {
 				t.Fatal(err)

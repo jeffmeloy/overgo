@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,18 +39,14 @@ func launchEvaluationWorkspace(t testing.TB) *evaluationWorkspaceFixture {
 		Schema: "fixture/v1", Source: "fixture",
 		Cases: []evaluation.ExactCase{{Name: "case", Prompt: "prompt", MaxTokens: 1, Text: "A", PromptTokens: 2, GeneratedTokens: 1}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := evaluation.CompileSuite(data, evaluation.ExactAuthorities{
 		ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "launch-evaluation-definition"),
 		RuntimeRecipe:   recipeID, CodeCommit: evaluationTestCommit,
 		Environment: testutil.ArtifactID(t, artifact.KindEvidence, "launch-evaluation-environment"),
 		Execution:   evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return &evaluationWorkspaceFixture{
 		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "launch-evaluation-run"),
@@ -76,9 +73,7 @@ func workspaceTabsByID(t testing.TB, handler *Handler) map[string]workspaceTab {
 func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	t.Parallel()
 	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t), Workflows: launchWorkflows(t, WorkflowTraining, workflowModelBuild)}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer enabled.Close()
 	tabs := workspaceTabsByID(t, enabled)
 	for _, id := range []string{"training-jobs", "model-builder", "evaluations"} {
@@ -90,9 +85,7 @@ func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 		t.Fatalf("workspace the launch did not enable is not refused: %+v", tabs["export-jobs"])
 	}
 	refused, err := New(Config{Workflows: launchWorkflows(t)}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer refused.Close()
 	tabs = workspaceTabsByID(t, refused)
 	for _, id := range []string{"training-jobs", "model-builder", "evaluations"} {

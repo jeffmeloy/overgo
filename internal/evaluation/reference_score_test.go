@@ -6,19 +6,16 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestReferenceScoresDeclareMergeAndLoad(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model, err := artifact.NewID(artifact.KindModel, sha256.Sum256([]byte("reference model")))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	if references, err := LoadReferenceScores(ctx, store, model); err != nil || len(references) != 0 {
 		t.Fatalf("undeclared model = %v, %v", references, err)

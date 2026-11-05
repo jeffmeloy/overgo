@@ -13,6 +13,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,9 +46,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 		}
 		return operation.Completion{Run: runID}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if blocked, err := handler.operations.Wait(t.Context(), id); err != nil || blocked.State != operation.StateBlocked {
 		t.Fatalf("blocked operation=(%+v, %v)", blocked, err)
 	}
@@ -70,9 +69,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 			} `json:"actions"`
 		} `json:"blocked"`
 	}
-	if err := json.Unmarshal(view.Body.Bytes(), &decisions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(view.Body.Bytes(), &decisions))
 	var advertised artifact.ID
 	for _, blocked := range decisions.Blocked {
 		for _, candidate := range blocked.Actions {

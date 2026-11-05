@@ -6,14 +6,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestDPOProgramRequiresReferenceAndScale(t *testing.T) {
 	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reference := testutil.ArtifactID(t, artifact.KindModel, "reference")
 	spec := ProgramSpec{
 		Objective: ObjectiveDPO,
@@ -27,9 +26,7 @@ func TestDPOProgramRequiresReferenceAndScale(t *testing.T) {
 		Preference: &PreferencePolicy{Reference: reference, Scale: 0.1},
 	}
 	program, err := CompileTrainingProgram(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy, ok := program.Preference()
 	if !ok || policy.Reference != reference || policy.Scale != spec.Preference.Scale {
 		t.Fatalf("preference policy = (%+v, %v)", policy, ok)

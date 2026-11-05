@@ -26,6 +26,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -132,30 +133,16 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var cost mediaCostProfile
 	data, err := os.ReadFile(filepath.Join(root, "docs/image_video_costs.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(data, imageVideoCostProfileSHA256); err != nil {
-		t.Fatal(err)
-	}
-	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_costs.json"), &cost); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoCostProfileSHA256))
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join(root, "docs/image_video_costs.json"), &cost))
 	var inventory imageVideoInventory
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaCostCoverage(cost, inventory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory))
+	testcheck.NoError(t, checkMediaCostCoverage(cost, inventory))
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, p := range cost.Pipelines {
 		active, found, err := modelrecipe.ActiveRecord(t.Context(), store, p.Model, p.Task)
@@ -177,16 +164,10 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	}
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	profile, err := latentvideo.ResolveProfile(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config, err := latentvideo.LoadDenoiserConfig(directory, profile.Policy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaCostBytes(cost, profile, config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaCostBytes(cost, profile, config))
 	for _, defect := range []string{"missing stage", "duplicate cell", "omitted cell", "changed quality"} {
 		bad := cost
 		bad.Pipelines = slices.Clone(cost.Pipelines)
@@ -210,14 +191,10 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 		t.Fatal("accepted incorrect transfer bytes")
 	}
 	var changed map[string]any
-	if err := json.Unmarshal(data, &changed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &changed))
 	changed["boundaries"] = nil
 	changedData, err := json.Marshal(changed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if checkMediaProtocolIdentity(changedData, imageVideoCostProfileSHA256) == nil {
 		t.Fatal("accepted omitted lifetime and copy attribution")
 	}

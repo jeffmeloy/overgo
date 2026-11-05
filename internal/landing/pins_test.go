@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestPreflightNamesPinnedBytes holds the surface check to naming, before the
@@ -26,9 +28,7 @@ func TestPreflightNamesPinnedBytes(t *testing.T) {
 		"cmd/validate/accepted_fixture_test.go":   "package main\nfunc TestFixture(t *testing.T) { requireAcceptedDocument(t, root, \"docs/verification/fixture-coverage.json\", \"" + digest("the reviewed document") + "\", nil) }\n",
 	})
 	stale, err := stalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{
 		"docs/verification/fixture-coverage.json (pinned by cmd/validate/accepted_fixture_test.go)",
 		"internal/a/a_test.go (pinned by docs/verification/fixture-coverage.json)",

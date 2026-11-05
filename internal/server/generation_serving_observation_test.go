@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,9 +30,7 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
@@ -106,9 +105,7 @@ func TestGenerationAttemptCitesTheRunItsExecutorMade(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
@@ -125,28 +122,20 @@ func TestGenerationAttemptCitesTheRunItsExecutorMade(t *testing.T) {
 		t.Fatal(err)
 	}
 	inner, err := runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{made}, "", strings.Repeat("ab", 20), device, 1, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The executor's failure code is not the workspace's, so the two failed
 	// runs are different records.
 	refused, err := runrecord.NewRun(recipeID, runrecord.OutcomeFailed, nil, nil, "executor_refused")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for key, run := range map[string]runrecord.Run{"fixture/executor/run": inner, "fixture/executor/refused": refused} {
 		batch, err := run.Batch(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	process, err := runrecord.CurrentEnvironment("process", "go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			switch raw {
@@ -238,9 +227,7 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			modelID := activatedImageModel(t, store)
 			catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
@@ -271,9 +258,7 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 func TestGenerationCancelledAtPublicationRecordsItsRun(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	activatedImageModel(t, store)
 	ctx, cancel := context.WithCancel(t.Context())

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -26,9 +27,7 @@ func TestWebUIBrowserDatasetDrafting(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the dataset drafting leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	datasets := t.TempDir()
 	const question, answer = "What is wide?", "The sea."
@@ -86,9 +85,7 @@ func TestWebUIBrowserDatasetDrafting(t *testing.T) {
 	}
 
 	for _, scheme := range webuilane.ColourSchemes {
-		if err := browser.SetColorScheme(ctx, scheme); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 		for _, viewport := range webuilane.ScreenViewports {
 			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "dataset-drafting-"+scheme)
 			if err != nil || len(findings) != 0 {

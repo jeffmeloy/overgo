@@ -10,21 +10,18 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatSafetensors)
 	root := qualificationAssets(t)
 	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !qualification.Loadable || len(qualification.Passed) != len(qualificationChecks) || len(qualification.Refusals) != 0 {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -37,16 +34,10 @@ func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 	}
 
 	batch, err := election.Batch("audio/qualification/exact-granite")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := qualification.AugmentBatch(&batch, inventory, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, qualification.AugmentBatch(&batch, inventory, nil))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
@@ -61,20 +52,14 @@ func TestAudioArtifactQualificationRejectsTensorShape(t *testing.T) {
 	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatSafetensors)
 	facts := inventory.TensorInventory.Tensors
 	facts[0].Shape[0]++
 	inventory.TensorInventory, err = modelartifact.NewTensorInventoryDocument(election.Model.ID, modelartifact.TensorFormatSafetensors, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if qualification.Loadable || !hasQualificationRefusal(qualification, "tensor-schema:") {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -84,14 +69,10 @@ func TestIncompatibleAudioGGUFQualification(t *testing.T) {
 	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatGGUF)
 	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if qualification.Loadable || !hasQualificationRefusal(qualification, "container: parsed format \"gguf\"") {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -100,13 +81,9 @@ func TestIncompatibleAudioGGUFQualification(t *testing.T) {
 func qualificationElection(t *testing.T) Election {
 	t.Helper()
 	encoded, err := os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	election, err := NormalizeElection(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return election
 }
 
@@ -128,9 +105,7 @@ func qualificationInventory(
 		facts[index].Bytes = 1
 	}
 	tensors, err := modelartifact.NewTensorInventoryDocument(election.Model.ID, format, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return modelartifact.Inventory{Manifest: election.Model, TensorInventory: tensors}
 }
 
@@ -148,9 +123,7 @@ func qualificationAssets(t *testing.T) string {
 		"tokenizer.json":           `{"model":{"type":"BPE","vocab":{"a":0},"merges":[]}}`,
 	}
 	for name, value := range assets {
-		if err := os.WriteFile(filepath.Join(root, name), []byte(value), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(value), 0o600))
 	}
 	return root
 }

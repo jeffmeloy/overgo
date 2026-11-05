@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestMemoryMovementTraceReduction(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	contract := ProjectionContractVersion()
@@ -37,9 +36,7 @@ func TestMemoryMovementTraceReduction(t *testing.T) {
 	content, err := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: "application/octet-stream", Schema: "overgo/movement-blob/v1",
 	}.ContentBytes(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "movement/blob", Contents: []artifact.Content{content},
 	}); err != nil {

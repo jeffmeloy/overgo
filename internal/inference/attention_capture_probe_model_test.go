@@ -7,6 +7,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -23,9 +24,7 @@ func TestExtractAttentionShapeGeometry(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen2"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 
 	tokens := []tokenizer.TokenID{9707, 27, 785, 4062}

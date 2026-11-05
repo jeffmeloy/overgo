@@ -2,6 +2,7 @@ package webuilane
 
 import (
 	"os"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"strings"
 	"testing"
@@ -12,19 +13,13 @@ func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 		testskip.NotApplicable(t, "capture settling runs through cmd/webui-lane")
 	}
 	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	html := `<style>body{margin:0;background:rgb(0,0,0);color:rgb(255,255,255);transition:background-color 1s linear}body.light{background:rgb(255,255,255);color:rgb(0,0,0)}@keyframes pulse{to{opacity:.5}}.spinner{animation:pulse 1s infinite}.paused{animation:pulse 1s paused}</style><body><span class="spinner"></span><span class="paused"></span><p>Readable after the theme transition.</p></body>`
 	browser, err := Open(ctx, path, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
-	if err := browser.Evaluate(ctx, `(() => { void document.body.offsetWidth; document.body.className = "light"; return getComputedStyle(document.body).backgroundColor; })()`, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `(() => { void document.body.offsetWidth; document.body.className = "light"; return getComputedStyle(document.body).backgroundColor; })()`, nil))
 	findings, err := CaptureState(ctx, browser, "", ScreenViewports[0], "theme-transition")
 	if err != nil || len(findings) != 0 {
 		t.Fatalf("transient layout captured: %v, %v", findings, err)
@@ -42,9 +37,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		testskip.NotApplicable(t, "the layout audit runs through cmd/webui-lane")
 	}
 	browserPath, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A data URL ends at a "#", so the colours are written as rgb().
 	faulty := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)">` +
 		`<div style="width:3000px;height:10px"></div>` +
@@ -72,17 +65,11 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		ctx := t.Context()
 		// A data URL keeps a "+" literal, so spaces travel percent-encoded; a glyph needs the charset.
 		browser, err := Open(ctx, browserPath, "data:text/html;charset=utf-8,"+strings.ReplaceAll(html, " ", "%20"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer browser.Close()
-		if err := browser.SetViewport(ctx, 800, 600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetViewport(ctx, 800, 600))
 		findings, err := browser.LayoutAudit(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		image, err := browser.Screenshot(ctx)
 		if err != nil || len(image) < 8 || string(image[1:4]) != "PNG" {
 			t.Fatalf("screenshot = %d bytes, %v", len(image), err)
@@ -115,9 +102,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	tall := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><div style="height:500px"></div><div id="panels">content</div></body>`
 	ctx := t.Context()
 	browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(tall, " ", "%20"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	findings, err := CaptureState(ctx, browser, "", ScreenViewports[1], "tall")
 	if err != nil || len(findings) != 1 || findings[0].Finding.Kind != layoutHeader {
@@ -144,28 +129,18 @@ func TestWebUIBrowserPromisePredicateHolds(t *testing.T) {
 		testskip.NotApplicable(t, "predicate waits run through cmd/webui-lane")
 	}
 	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	browser, err := Open(ctx, path, "data:text/html,<body></body>")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
-	if err := browser.Evaluate(ctx, `(() => { window.checks = 0; window.done = false; setTimeout(() => { window.done = true; }, 300); return true; })()`, nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := browser.Eventually(ctx, `new Promise((resolve, reject) => { window.checks++; setTimeout(() => window.checks % 2 ? resolve(window.done) : reject(new Error("not yet")), 5); })`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `(() => { window.checks = 0; window.done = false; setTimeout(() => { window.done = true; }, 300); return true; })()`, nil))
+	testcheck.NoError(t, browser.Eventually(ctx, `new Promise((resolve, reject) => { window.checks++; setTimeout(() => window.checks % 2 ? resolve(window.done) : reject(new Error("not yet")), 5); })`))
 	var state struct {
 		Done   bool
 		Checks int
 	}
-	if err := browser.Evaluate(ctx, `({Done: window.done, Checks: window.checks})`, &state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `({Done: window.done, Checks: window.checks})`, &state))
 	if !state.Done || state.Checks < 2 {
 		t.Fatalf("a promise predicate held before it settled true: %+v", state)
 	}

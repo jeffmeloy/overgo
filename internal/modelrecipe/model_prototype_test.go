@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,25 +18,19 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 	}
 	profile := registeredProfileDocument(t, names[0])
 	prototype, err := NewModelPrototype(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prototype.ID().Kind() != artifact.KindRecipe || prototype.Architecture() != names[0] ||
 		prototype.Profile() != profile.ID || prototype.ValidateIdentity() != nil {
 		t.Fatal("model prototype does not bind the exact compiled profile")
 	}
 
 	second, err := NewModelPrototype(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.ID() != prototype.ID() {
 		t.Fatal("identical compiled profile produced unstable prototype identity")
 	}
 	content, err := prototype.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.MediaType != ModelPrototypeMediaType || content.Descriptor.Schema != ModelPrototypeSchema {
 		t.Fatalf("unexpected prototype contract: %+v", content.Descriptor)
 	}
@@ -45,9 +40,7 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 		}
 	}
 	parsedDocument, err := modelPrototypeCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed := ModelPrototype{document: parsedDocument}
 	if parsed.ID() != prototype.ID() || parsed.ValidateIdentity() != nil {
 		t.Fatal("model prototype did not round-trip with exact identity")
@@ -74,9 +67,7 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 	for name, document := range invalidDocuments {
 		t.Run(name, func(t *testing.T) {
 			data, err := json.Marshal(document)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := modelPrototypeCodec.Parse(data); err == nil {
 				t.Fatal("invalid model prototype accepted")
 			}
@@ -107,8 +98,6 @@ func registeredProfileDocument(t testing.TB, name string) ProfileDocument {
 		t.Fatalf("compiled architecture %q absent", name)
 	}
 	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return document
 }

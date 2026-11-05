@@ -8,6 +8,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -34,21 +35,15 @@ type nativeStreamRestart struct {
 func verifyNativeRestartChild(t *testing.T, encoded string) {
 	t.Helper()
 	var request nativeStreamRestart
-	if err := strictjson.DecodeBytes([]byte(encoded), &request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes([]byte(encoded), &request))
 	if len(request.Chunks) == 0 || len(request.Chunks) != len(request.Expected) {
 		t.Fatal("restart child has no exact continuation denominator")
 	}
 	store, err := overgodb.Create(request.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	session, err := speechrecognition.LoadSession(t.Context(), store, request.Recipe, 4<<30)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close(t.Context())
 	wrong := request.Source
 	wrong.Audio = request.Chunks[0].Audio
@@ -56,9 +51,7 @@ func verifyNativeRestartChild(t *testing.T, encoded string) {
 		t.Fatal("wrong source restart acquired or retained a lease")
 	}
 	stream, err := session.OpenStream(t.Context(), speechrecognition.StreamRequest{Source: request.Source, Resume: request.Resume})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer stream.Close(t.Context())
 	for i, chunk := range request.Chunks {
 		result, err := stream.Process(t.Context(), chunk)

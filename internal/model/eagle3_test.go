@@ -6,6 +6,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
@@ -14,9 +15,7 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 	input := func(name string, shape tensor.Shape, fill float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
 		elements, err := shape.Elements()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = fill + float32(index%7)*0.01
@@ -53,13 +52,9 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 	result, err := buildFixtureLayerWithAuxiliary(
 		builder, tokens, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, fused, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !results[result.Output].Shape.Equal(tensor.MustShape(4, 3)) ||
 		!results[result.Key].Shape.Equal(tensor.MustShape(2, 1, 3)) {
 		t.Fatalf("unexpected Eagle3 shapes: output=%v key=%v", results[result.Output].Shape.Slice(), results[result.Key].Shape.Slice())

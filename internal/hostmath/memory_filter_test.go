@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDepthwiseMemoryDilatedContextAndFuture(t *testing.T) {
@@ -13,9 +15,7 @@ func TestDepthwiseMemoryDilatedContextAndFuture(t *testing.T) {
 	future := []float32{.25, .5, .25, .5}
 	cache := []float32{-1, -10, -2, -20}
 	dst := make([]float32, len(x))
-	if err := DepthwiseMemoryF64(dst, x, past, future, cache, 4, 2, 2, 1); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DepthwiseMemoryF64(dst, x, past, future, cache, 4, 2, 2, 1))
 	want := []float32{3.5, 35, 5.75, 57.5, 7.5, 75, 9, 90}
 	if !slices.Equal(dst, want) {
 		t.Fatalf("memory filter %v, want %v", dst, want)
@@ -29,18 +29,12 @@ func TestDepthwiseMemoryCausalChunks(t *testing.T) {
 	x := []float32{1, 10, 2, 20, 3, 30, 4, 40}
 	weights := []float32{.5, 1, .25, 2}
 	want := make([]float32, len(x))
-	if err := DepthwiseMemoryF64(want, x, weights, nil, nil, 4, 2, 2, 0); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DepthwiseMemoryF64(want, x, weights, nil, nil, 4, 2, 2, 0))
 	for split := 1; split < 4; split++ {
 		got := make([]float32, len(x))
-		if err := DepthwiseMemoryF64(got[:split*2], x[:split*2], weights, nil, nil, split, 2, 2, 0); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, DepthwiseMemoryF64(got[:split*2], x[:split*2], weights, nil, nil, split, 2, 2, 0))
 		cache := x[max(0, split-2)*2 : split*2]
-		if err := DepthwiseMemoryF64(got[split*2:], x[split*2:], weights, nil, cache, 4-split, 2, 2, 0); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, DepthwiseMemoryF64(got[split*2:], x[split*2:], weights, nil, cache, 4-split, 2, 2, 0))
 		if !slices.Equal(got, want) {
 			t.Fatalf("split %d changed output %v != %v", split, got, want)
 		}

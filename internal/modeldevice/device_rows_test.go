@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestPlaceRowsGathersRowsInTheirOrder places a Q8_0 matrix's rows out of file
@@ -22,9 +23,7 @@ func TestPlaceRowsGathersRowsInTheirOrder(t *testing.T) {
 	head, _ := file.Tensor("head")
 	rows := []uint32{count - 1, 3, placeRowsChunk, 3, placeRowsChunk - 1, 0}
 	placed, err := weights.PlaceRows(t.Context(), file, head, "draft.head", rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rowBytes := head.Size / count
 	if placed.Type != dtype.Q8_0 || placed.Shape[0] != width || placed.Shape[1] != uint64(len(rows)) || placed.Size != uint64(len(rows))*rowBytes {
 		t.Fatalf("placed %v %v of %d bytes", placed.Type, placed.Shape, placed.Size)

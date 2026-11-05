@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // Real-checkpoint shapes: every derived dim comes from config + tensors.
@@ -18,35 +19,23 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 	}
 	binding := SenseNovaBinding()
 	cfg, err := LoadConfig(senseNovaDir(t), binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	flowCfg, err := LoadFlowConfig(senseNovaDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	src, err := safetensors.OpenSource(senseNovaDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer src.Close()
 	flow, err := InspectFlowProfile(senseNovaDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := CompileFlowPlan(src, cfg, flowCfg, flow)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := testFlowPlan()
 	if plan != want {
 		t.Fatalf("plan = %+v, want %+v", plan, want)
 	}
 	// noise_scale_base_image_seq_len is the 256x256 reference token count.
 	shape, err := plan.ImagePlan(256, 256)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if shape.Tokens != plan.NoiseScaleBase {
 		t.Fatalf("256x256 tokens = %d, base = %d", shape.Tokens, plan.NoiseScaleBase)
 	}
@@ -54,13 +43,9 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 		t.Fatalf("256x256 noise scale = %g (normalized %g)", shape.NoiseScale, plan.NormalizedNoiseScale(shape.NoiseScale))
 	}
 	weights, err := LoadFlowTerminalWeights(src, plan, flow)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	condition, err := FlowConditionRow(weights, plan, 0, plan.NormalizedNoiseScale(shape.NoiseScale))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(condition) != plan.Hidden {
 		t.Fatalf("condition len = %d, want %d", len(condition), plan.Hidden)
 	}
@@ -78,17 +63,13 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 	}
 	for _, prefix := range []string{flow.SourceVisionPrefix, flow.GenerationVisionPrefix} {
 		embedder, err := LoadVisionEmbedderWeights(src, prefix, plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		image := make([]float32, plan.VisionChannels*64*64)
 		for i := range image {
 			image[i] = float32(i%17)/17 - 0.5
 		}
 		tokens, tokenShape, err := VisionEmbedTokens(embedder, plan, image, 64, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if tokenShape.Tokens != 4 || len(tokens) != 4*plan.Hidden {
 			t.Fatalf("%s: tokens = %d len = %d", prefix, tokenShape.Tokens, len(tokens))
 		}
@@ -105,9 +86,7 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 		hidden[i] = dtype.RoundBF16(float32(i%13)/13 - 0.5)
 	}
 	velocity, err := FlowHeadVelocity(weights.Head, plan, hidden, z, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(velocity) != plan.FlowDim {
 		t.Fatalf("velocity len = %d, want %d", len(velocity), plan.FlowDim)
 	}

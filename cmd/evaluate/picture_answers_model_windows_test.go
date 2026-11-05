@@ -23,6 +23,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -58,22 +59,16 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/picture_answers/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's reference picture answers are on file: %v", err)
 	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, fixture := range fixtures {
 		raw, err := os.ReadFile(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var reference pictureReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -92,13 +87,9 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 				}
 			}
 			store, err := overgodb.OpenReadOnly(roots.Store)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			modelID, _, err := modelcli.ResolveModel(t.Context(), store, model)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			reserve, bind := modelcli.ModelReserve(t.Context())
 			vision, err := projector.OpenActiveSession(t.Context(), store, modelID, projectorPath, projector.OpenOptions{CUDA: true, MemoryReserve: reserve})
 			if closeErr := store.Close(); err != nil || closeErr != nil {
@@ -106,29 +97,21 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = vision.Close() })
 			runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			t.Cleanup(func() { _ = runner.Close() })
 			bind(runner)
 			widest, same, tokens := 0.0, 0, 0
 			for _, own := range reference.Cases {
 				file, err := os.Open(filepath.Join(frames, own.Name))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				picture, _, err := image.Decode(file)
 				if closeErr := file.Close(); err != nil || closeErr != nil {
 					t.Fatal(err, closeErr)
 				}
 				built, err := vision.BuildImagePrompt(t.Context(), runner, picture, "", reference.Question, false)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				ids, projected, err := inference.CompileProjectedInputs(built, runner.Spec().EmbeddingLength)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if digest := promptDigest(ids); digest != own.IDsSHA256 {
 					t.Fatalf("%s: the prompt the projector builds is not the one the reference answered (%s, %d tokens)", own.Name, digest, len(ids))
 				}

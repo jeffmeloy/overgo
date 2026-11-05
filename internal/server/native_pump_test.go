@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestNativeCompletionUsesThePump holds the native completion engine to the
@@ -24,9 +25,7 @@ func TestNativeCompletionUsesThePump(t *testing.T) {
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	response := serveTestRequest(handler, http.MethodPost, "/completion", `{"prompt":"hi","n_predict":4}`)
 	var completion nativeCompletionResponse

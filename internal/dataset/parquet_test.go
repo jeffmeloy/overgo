@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestSnappyDecode pins the block format against hand-encoded bytes:
@@ -167,9 +169,7 @@ func TestIntegerDictionaryChargesItsDecimalText(t *testing.T) {
 	var text int64
 	for _, decimal := range want {
 		value, err := strconv.ParseInt(decimal, 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		integers = binary.LittleEndian.AppendUint64(integers, uint64(value))
 		text += int64(len(decimal))
 	}

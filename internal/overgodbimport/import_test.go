@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 const importFixtureCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -23,17 +24,11 @@ func TestLegacyProfileUpgradeAddsCurrentProvenance(t *testing.T) {
 		Architecture string                    `json:"architecture"`
 		Policy       model.ArchitectureProfile `json:"policy"`
 	}{Version: 1, Architecture: profile.Name, Policy: profile})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	upgraded, err := upgradeLegacyProfile(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := modelrecipe.ParseProfileDocument(upgraded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Version != modelrecipe.ProfileVersion || len(document.Provenance) == 0 {
 		t.Fatalf("upgraded profile = %+v", document)
 	}
@@ -41,9 +36,7 @@ func TestLegacyProfileUpgradeAddsCurrentProvenance(t *testing.T) {
 
 func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "weights.bin"), []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "weights.bin"), []byte("weights"), 0o600))
 	records := []wireRecord{
 		{Type: "artifact", Name: "weights", Kind: "tensor-set", Path: "weights.bin"},
 		{Type: "manifest", Name: "model", Kind: "model", Components: []componentRecord{{
@@ -57,14 +50,10 @@ func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 	}
 	input := importStream(t, records, nil)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Commit.Valid() || result.Source.Kind() != artifact.KindEvidence || len(result.Names) != 3 {
 		t.Fatalf("import result = %+v", result)
 	}
@@ -82,9 +71,7 @@ func TestImportRejectsCountDriftPathEscapeAndReferenceCycle(t *testing.T) {
 	records := []wireRecord{{Type: "artifact", Name: "weights", Kind: "file", Path: "../weights.bin"}}
 	input := importStream(t, records, nil)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("escaping path accepted")
@@ -104,24 +91,18 @@ func TestImportRejectsCountDriftPathEscapeAndReferenceCycle(t *testing.T) {
 
 func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "value.bin"), []byte("value"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "value.bin"), []byte("value"), 0o600))
 	input := importStream(t, []wireRecord{{
 		Type: "artifact", Name: "value", Kind: "file", Path: "value.bin",
 	}}, nil)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := importRecords(t.Context(), store, "", nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("empty artifact root accepted")
 	}
 	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query, err := store.Query(t.Context(), overgodb.Query{
 		MaxResults: 10, FromSequence: 1, ToSequence: 1,
 		Projection: overgodb.ProjectCommits,
@@ -146,20 +127,14 @@ func TestExternalEvidenceImportDerivesNativeRunEvaluationLineage(t *testing.T) {
 		{Type: "artifact", Name: "evaluation", Kind: "evaluation", MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema, Document: json.RawMessage(`{"version":1,"recipe":{"$artifact":"recipe"},"run":{"$artifact":"run"},"dataset":{"$artifact":"dataset"},"metrics":[{"name":"score","value":1,"direction":"maximize"}]}`)},
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	result, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireParent := func(child, parent artifact.ID, relation artifact.Relation) {
 		t.Helper()
 		edges, err := store.Parents(t.Context(), child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, edge := range edges {
 			if edge.Parent == parent && edge.Relation == relation {
 				return
@@ -188,9 +163,7 @@ func importStream(t *testing.T, records []wireRecord, counts map[string]uint64) 
 	var output bytes.Buffer
 	encode := func(value any) {
 		content, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output.Write(content)
 		output.WriteByte('\n')
 	}

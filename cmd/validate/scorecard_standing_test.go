@@ -10,6 +10,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ import (
 func TestScorecardReadingStatesItsStanding(t *testing.T) {
 	t.Parallel()
 	comparisons, err := scorecard.PathComparisons()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	at := slices.IndexFunc(comparisons, func(entry scorecard.PathComparison) bool { return entry.Test != "" })
 	if at < 0 {
 		t.Fatal("the embedded comparisons name no test")
@@ -41,18 +40,14 @@ func TestScorecardReadingStatesItsStanding(t *testing.T) {
 		row("an unchecked model", recipe.TaskImageGen, ""),
 		row("a trained model", recipe.TaskTraining, ""),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compared := "- " + named.Model + " " + string(named.Task) + ": " + named.Package + " " + named.Test + " holds " + named.Holds
 	before, after, found := strings.Cut(text, "no comparison with a reference output is named")
 	if !found || !strings.Contains(before, compared) || !strings.Contains(after, "- an unchecked model image-gen\n") || strings.Contains(before, "an unchecked model") || strings.Contains(text, "a trained model") {
 		t.Fatalf("the standing reads:\n%s\nwant %q under the compared readings, the unchecked model under the readings no comparison is named for, and the trained model under neither", text, compared)
 	}
 	var output bytes.Buffer
-	if err := runArgs(t.Context(), []string{"-scorecard", "-repo", scorecardFixture(t)}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArgs(t.Context(), []string{"-scorecard", "-repo", scorecardFixture(t)}, &output))
 	if strings.Contains(output.String(), "served path") {
 		t.Fatalf("a scorecard with no held-out reading speaks of served paths:\n%s", output.String())
 	}

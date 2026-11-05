@@ -8,6 +8,7 @@ import (
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"strings"
 	"testing"
 )
@@ -22,9 +23,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 			}
 			data := make([]byte, item.Elements()*2)
 			value, err := safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(data), 0, int64(len(data)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			repository.Tensors.Tensors[name] = value
 		}
 		return repository
@@ -41,14 +40,10 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 				repository.Tensors.Tensors[item.Name] = item
 			case "mixed-declaration":
 				text, err := qwen35TextConfig(repository.Config)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				text["dtype"] = json.RawMessage(`"float32"`)
 				repository.Config["text_config"], err = json.Marshal(text)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 			}
 			catalog, err := InspectLanguageModel(repository, LanguageHidden)
 			if strings.HasPrefix(mode, "mixed-") {
@@ -57,9 +52,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want := model.ArithmeticPolicy("")
 			if mode == "native" {
 				want = model.ArithmeticTransformersBF16
@@ -68,9 +61,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 				t.Fatal("source arithmetic differs", catalog.Spec.Arithmetic)
 			}
 			encoded, err := json.Marshal(catalog.Spec)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if bytes.Contains(encoded, []byte(model.ArithmeticTransformersBF16)) != (mode == "native") {
 				t.Fatal("serialized import loses source arithmetic")
 			}
@@ -84,9 +75,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 				}
 				for repeat := range 2 {
 					payload, err := catalog.Payload(binding.Target)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					data, err := io.ReadAll(payload.Data)
 					if err != nil || uint64(len(data)) != binding.TargetBytes {
 						t.Fatal("catalog payload", repeat, len(data), err)
@@ -103,9 +92,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 func TestLanguageCatalogBindings(t *testing.T) {
 	repository := baseLanguageFixture(t)
 	catalog, err := InspectLanguageModel(repository, LanguageHidden)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bindings := catalog.Bindings()
 	if len(bindings) != len(catalog.mappings) {
 		t.Fatal("missing materialization bindings")
@@ -120,13 +107,9 @@ func TestLanguageCatalogBindings(t *testing.T) {
 		}
 		if len(binding.Transforms) > 0 {
 			encoded, err := json.Marshal(binding.Transforms)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var decoded []TensorTransform
-			if err := json.Unmarshal(encoded, &decoded); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 			if decoded[0] != mapping.transforms[0] {
 				t.Fatal("transform cannot round trip")
 			}
@@ -181,15 +164,11 @@ func TestLanguageCatalogOutputContract(t *testing.T) {
 			reader := &refuseLanguagePayload{}
 			for name, tensor := range repository.Tensors.Tensors {
 				bounded, err := safetensors.NewTensor(name, tensor.DType, tensor.Shape, reader, 0, tensor.Size())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				repository.Tensors.Tensors[name] = bounded
 			}
 			hidden, err := InspectLanguageModel(repository, LanguageHidden)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if hidden.Output != LanguageHidden || hidden.Weights.Output != nil || hidden.Spec.NextNPredictLayers != 0 {
 				t.Fatal("hidden-state catalog contains prediction topology")
 			}
@@ -210,13 +189,9 @@ func TestLanguageCatalogOutputContract(t *testing.T) {
 					t.Fatal("legacy validation advertises base-model prediction")
 				}
 			} else {
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				old, err := ValidateRepository(repository)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if prediction.Spec.BlockCount != old.BlockCount || prediction.Spec.NextNPredictLayers != old.NextNPredictLayers {
 					t.Fatal("prediction topology changed")
 				}

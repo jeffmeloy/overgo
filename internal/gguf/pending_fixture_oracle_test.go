@@ -14,23 +14,20 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestPendingFixtureTinyOracles(t *testing.T) {
 	root := filepath.Join("..", "parity", "testdata")
 	raw, err := os.ReadFile(filepath.Join(root, "olmoe_tiny.gguf"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const pinnedSHA = "191e65fe8477cd1e50a9d14ee832aa6bf10b39980b61189831f2f44f2a05a5d1"
 	actual := sha256.Sum256(raw)
 	if hex.EncodeToString(actual[:]) != pinnedSHA {
 		t.Fatalf("tiny GGUF source changed: %x", actual)
 	}
 	manifestBytes, err := os.ReadFile(filepath.Join(root, "olmoe_tiny.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var oracle struct {
 		Format       string `json:"format"`
 		Architecture string `json:"architecture"`
@@ -42,16 +39,12 @@ func TestPendingFixtureTinyOracles(t *testing.T) {
 		} `json:"tensors"`
 		QRowSums []float64 `json:"q_row_sums"`
 	}
-	if err := json.Unmarshal(manifestBytes, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(manifestBytes, &oracle))
 	if oracle.Format != "GGUF-v3-independent-python" || oracle.Architecture != "olmoe" || oracle.SHA256 != pinnedSHA {
 		t.Fatalf("unexpected independent fixture provenance: %+v", oracle)
 	}
 	file, err := gguf.Parse(bytes.NewReader(raw), uint64(len(raw)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var rewritten bytes.Buffer
 	if err := file.WriteTo(&rewritten, gguf.WriteOptions{}); err != nil || !bytes.Equal(rewritten.Bytes(), raw) {
 		t.Fatalf("Go GGUF writer differs from the independent Python wire fixture: %v", err)
@@ -67,9 +60,7 @@ func TestPendingFixtureTinyOracles(t *testing.T) {
 			t.Fatalf("tensor %d = %+v, want %+v", index, info, expected)
 		}
 		payload := make([]byte, info.Size)
-		if err := file.ReadTensorData(info, payload); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorData(info, payload))
 		digest := sha256.Sum256(payload)
 		if hex.EncodeToString(digest[:]) != expected.SHA256 {
 			t.Fatalf("tensor %q payload differs", info.Name)

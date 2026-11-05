@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRootDocumentsNameExistingCommands holds the root documents to the tree:
@@ -15,9 +17,7 @@ func TestRootDocumentsNameExistingCommands(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, document := range []string{"skill.md", "README.md"} {
 		data, err := os.ReadFile(filepath.Join(root, document))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		named := 0
 		for rest := string(data); ; {
 			at := strings.Index(rest, "cmd/")

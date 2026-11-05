@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,9 +21,7 @@ func TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers(t *testing.T) {
 		GapState: MechanismGapClosed,
 	}
 	census, err := CompileMechanismCensus([]MechanismAssessment{router, scaling})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reordered, err := CompileMechanismCensus([]MechanismAssessment{scaling, router})
 	if err != nil || reordered.ID() != census.ID() {
 		t.Fatalf("reordered census = (%s, %v), want %s", reordered.ID(), err, census.ID())

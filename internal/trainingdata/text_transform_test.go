@@ -6,25 +6,20 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestTextTransform(t *testing.T) {
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var identities []artifact.ID
 	for _, lowercase := range []bool{false, true} {
 		transform, err := NewTextTransform(lowercase)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		identities = append(identities, transform.ID)
 		content, err := transform.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: transform.ID.String(), Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}

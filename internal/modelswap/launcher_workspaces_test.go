@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestLauncherForwardsWorkspaceEnablement proves the operator's launch
@@ -25,9 +27,7 @@ func TestLauncherForwardsWorkspaceEnablement(t *testing.T) {
 			t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 			t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
 			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir(), Workspaces: workspaces}, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer supervisor.Close()
 			proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 			response := httptest.NewRecorder()
@@ -36,9 +36,7 @@ func TestLauncherForwardsWorkspaceEnablement(t *testing.T) {
 				t.Fatalf("startup = %d %s", response.Code, response.Body)
 			}
 			recorded, err := os.ReadFile(record)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			arguments := strings.Split(strings.TrimSpace(string(recorded)), "\n")
 			for _, serving := range []string{"-listen", "-repo", "-model-id"} {
 				if !slices.Contains(arguments, serving) {

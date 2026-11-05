@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -14,18 +15,12 @@ func TestCausalContextLink(t *testing.T) {
 	rootID, subject := id("causal-link-root"), id("causal-link-subject")
 	motivationA, motivationB := id("causal-link-motivation-a"), id("causal-link-motivation-b")
 	root, err := NewCausalRoot(TriggerWebhook, rootID, motivationB, motivationA)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	context, err := root.Derive(TriggerRecovery, subject)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution := id("causal-link-execution")
 	link, err := context.Link(execution)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := artifact.CausalLink{
 		Execution: execution, Root: rootID, Trigger: string(TriggerRecovery),
 		Subject: subject, Motivation: []artifact.ID{motivationA, motivationB},
@@ -37,9 +32,7 @@ func TestCausalContextLink(t *testing.T) {
 		t.Fatalf("causal link = %+v, want %+v", link, want)
 	}
 	batch := artifact.Batch{}
-	if err := BindCausality(&batch, execution, &context); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, BindCausality(&batch, execution, &context))
 	if len(batch.Causality) != 1 || !reflect.DeepEqual(batch.Causality[0], want) {
 		t.Fatalf("bound causality = %+v, want %+v", batch.Causality, want)
 	}
@@ -91,22 +84,16 @@ func TestCausalContextIdentityAndValidation(t *testing.T) {
 	}
 
 	root, err := NewCausalRoot(TriggerWebhook, rootEvidence, motivationB, motivationA)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(root.Motivation) != 2 || artifact.CompareID(root.Motivation[0], root.Motivation[1]) >= 0 {
 		t.Fatalf("motivation not canonicalized: %+v", root.Motivation)
 	}
 
 	// A retry of a retry counts ordinals under one root.
 	retry, err := root.Derive(TriggerRetry, id("attempt-0"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondRetry, err := retry.Derive(TriggerRetry, id("attempt-1"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if retry.RetryOrdinal != 1 || secondRetry.RetryOrdinal != 2 {
 		t.Fatalf("retry ordinals = %d then %d", retry.RetryOrdinal, secondRetry.RetryOrdinal)
 	}

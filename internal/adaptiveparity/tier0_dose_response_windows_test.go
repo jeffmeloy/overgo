@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -45,9 +46,7 @@ func TestTier0ChainDoseResponse(t *testing.T) {
 	}
 	tokens := qwenAdaptiveProfileTokens
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directions := []struct {
 		name            string

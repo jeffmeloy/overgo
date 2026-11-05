@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/testcheck"
 )
 
 // TestSmokeDeclarationBindsTheLiveRecipe holds a declaration, which names a
@@ -27,9 +28,7 @@ func TestSmokeDeclarationBindsTheLiveRecipe(t *testing.T) {
 			t.Fatalf("%s: bound %+v, %v, want the live recipe %s", name, bound[model], err, live)
 		}
 		id, err := artifact.JSONID(artifact.KindProfile, bound[model])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		identities = append(identities, id)
 	}
 	if identities[0] == identities[1] {
@@ -62,9 +61,7 @@ func TestSelectedSmokeOracleBinding(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data, err := json.Marshal(tc.declarations)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if err = os.WriteFile(path, data, 0600); err != nil {
 				t.Fatal(err)
 			}

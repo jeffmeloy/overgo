@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestQueryScansProportionalToItsPage holds a document read to its own
@@ -18,9 +19,7 @@ import (
 func TestQueryScansProportionalToItsPage(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	contract := func(schema string) artifact.DocumentContract {
 		return artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "application/json", Schema: schema}
@@ -29,9 +28,7 @@ func TestQueryScansProportionalToItsPage(t *testing.T) {
 	document := func(c artifact.DocumentContract, body string) artifact.Content {
 		data := fmt.Appendf(nil, "{%q:%q}", c.Schema, body)
 		id, err := artifact.IdentifyBytes(c.Kind, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: c.MediaType, Schema: c.Schema}, Data: data}
 	}
 	const pagedCount, crowdPerCommit = 7, 20

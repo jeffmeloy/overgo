@@ -14,6 +14,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,17 +28,11 @@ const (
 func productionNoiseGrid(t testing.TB, elements int) int {
 	t.Helper()
 	library, err := driver.Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer library.Close()
-	if err := library.Init(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, library.Init())
 	info, err := library.DeviceInfo(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grid := (elements + 1023) / 1024
 	if ceiling := info.MultiprocessorCount * 6; grid > ceiling {
 		grid = ceiling
@@ -52,15 +47,11 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 
 	config, weights := denoiserFixture(b)
 	geometry, err := config.CompileLatentGeometry(81, 832, 480)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	program, err := CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	fixtureDir := testutil.FixturePath(b, "wan")
 	contextElements := config.TextLen * config.Dim
 	cond := loadRawContext(b, fixtureDir, "raw/g1_cond_context.f32le", contextElements)
@@ -70,9 +61,7 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 	for b.Loop() {
 		started := time.Now()
 		denoiser, err := NewDenoiserCUDASession(program, 0)
-		if err != nil {
-			b.Fatal(err)
-		}
+		testcheck.NoError(b, err)
 		result, err := denoiser.Denoise(context.Background(), DenoiseRequest{
 			Steps: 50, Shift: 5, GuideScale: 6,
 			CondContext: cond, UncondContext: uncond,
@@ -94,9 +83,7 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 			_ = denoiser.Close()
 			b.Fatal(err)
 		}
-		if err := denoiser.Close(); err != nil {
-			b.Fatal(err)
-		}
+		testcheck.NoError(b, denoiser.Close())
 
 		referencePath := filepath.Join(
 			testutil.RepoRoot(b), "build", "latentvideo", "_r12_prod50", "final_latent.f32le",

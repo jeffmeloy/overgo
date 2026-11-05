@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -44,9 +45,7 @@ func TestMain(m *testing.M) {
 func planCommand(t *testing.T, root string, arguments ...string) (string, error) {
 	t.Helper()
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	command := exec.CommandContext(t.Context(), executable, arguments...)
 	command.Dir = root
 	// The child's refusals are this test's to read: they go to no error file a
@@ -67,9 +66,7 @@ func editFixture(t *testing.T, document plan.Plan) (root string, written []byte)
 func planBytes(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return data
 }
 
@@ -77,9 +74,7 @@ func planBytes(t *testing.T, path string) []byte {
 func editedPlan(t *testing.T, root string) plan.Plan {
 	t.Helper()
 	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return document
 }
 
@@ -88,9 +83,7 @@ func editedPlan(t *testing.T, root string) plan.Plan {
 func rendered(t *testing.T, value any) string {
 	t.Helper()
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(data)
 }
 
@@ -193,9 +186,7 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	save := func(name string, document plan.Plan) string {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), name)
-		if err := plan.Save(path, document); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, plan.Save(path, document))
 		return path
 	}
 	amendment := save("amendment.json", filed)
@@ -272,9 +263,7 @@ func TestADocumentsRowsAreTheFilersAsAnAddedRowIs(t *testing.T) {
 		{ID: "owned", Title: "Owned", Owner: "lane-b", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
 	}}
 	amendment := filepath.Join(t.TempDir(), "amendment.json")
-	if err := plan.Save(amendment, filed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(amendment, filed))
 	root, _ := editFixture(t, held)
 	if output, err := planCommand(t, root, "-add", "-from", amendment, "-role", "lane-a"); err != nil {
 		t.Fatalf("plan -add -from under a role: %v\n%s", err, output)
@@ -314,9 +303,7 @@ func TestSetCountWritesTheCountAndItsReason(t *testing.T) {
 	}
 	requireNoCheckRan(t, root)
 	reason := filepath.Join(t.TempDir(), "reason.txt")
-	if err := os.WriteFile(reason, []byte("\nThe row must shrink.\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(reason, []byte("\nThe row must shrink.\n"), 0o600))
 	if output, err := planCommand(t, root, "-setcount", "-nodes", "-7", "-rationale-file", reason, "other"); err != nil {
 		t.Fatalf("plan -setcount below zero, its reason in a file: %v\n%s", err, output)
 	}
@@ -353,9 +340,7 @@ func TestAddStepInsertsBeforeAnother(t *testing.T) {
 	}}
 	root, _ := editFixture(t, held)
 	reasoning := filepath.Join(t.TempDir(), "why.txt")
-	if err := os.WriteFile(reasoning, []byte("\nWhy the step exists.\n\nIts second paragraph.\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(reasoning, []byte("\nWhy the step exists.\n\nIts second paragraph.\n"), 0o600))
 	const check = "go test ./x -run '^TestMiddle$'"
 	output, err := planCommand(t, root, "-addstep", "-before", "last", "-title", "Middle step", "-vcmd", check, "-rationale-file", reasoning, "work", "middle")
 	if err != nil || !strings.HasPrefix(output, "work/middle: step added; next: ") {
@@ -380,9 +365,7 @@ func TestAddStepInsertsBeforeAnother(t *testing.T) {
 
 	refusing, written := editFixture(t, held)
 	empty := filepath.Join(t.TempDir(), "empty.txt")
-	if err := os.WriteFile(empty, []byte(" \n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(empty, []byte(" \n"), 0o600))
 	const usage = "plan -addstep -title <title> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>"
 	requireRefused(t, refusing, written, "work/first", "-addstep", "-title", "Again", "-vcmd", check, "-rationale-file", reasoning, "work", "first")
 	requireRefused(t, refusing, written, `"absent"`, "-addstep", "-before", "absent", "-title", "New", "-vcmd", check, "-rationale-file", reasoning, "work", "new")
@@ -422,9 +405,7 @@ func TestNoteAppendsToARationale(t *testing.T) {
 	}}
 	root, _ := editFixture(t, held)
 	note := filepath.Join(t.TempDir(), "note.txt")
-	if err := os.WriteFile(note, []byte("\nSecond paragraph.\n\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(note, []byte("\nSecond paragraph.\n\n"), 0o600))
 	for _, names := range [][]string{{"work", "plain"}, {"work/bare"}, {"work", "closed"}, {"work/twice"}} {
 		output, err := planCommand(t, root, append([]string{"-note", "-rationale-file", note}, names...)...)
 		if err != nil || !strings.HasPrefix(output, strings.Join(names, "/")+": reasoning added to; next: ") {
@@ -445,9 +426,7 @@ func TestNoteAppendsToARationale(t *testing.T) {
 
 	refusing, written := editFixture(t, held)
 	empty := filepath.Join(t.TempDir(), "empty.txt")
-	if err := os.WriteFile(empty, []byte("\n \n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(empty, []byte("\n \n"), 0o600))
 	const usage = "plan -note -rationale-file <file> <item-id> <step-id>"
 	requireRefused(t, refusing, written, `"absent"`, "-note", "-rationale-file", note, "work", "absent")
 	requireRefused(t, refusing, written, `"absent"`, "-note", "-rationale-file", note, "absent", "plain")
@@ -575,9 +554,7 @@ func TestParagraphRewritesAStandingParagraph(t *testing.T) {
 	write := func(name, content string) string {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), name)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 		return path
 	}
 	const cited = "A rule a check holds (check: cmd/plan TestParagraphRewritesAStandingParagraph)."

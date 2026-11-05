@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type fixtureSession struct {
@@ -35,9 +37,7 @@ func TestEvaluateCommandIsolatesModelsAndReportsTaskFailure(t *testing.T) {
 			{Path: "first.gguf", Suites: []string{"fail.json", "unreached.json"}},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var launched []int
 	err = runParent(t.Context(), compiled, func(_ context.Context, index int) error {
 		launched = append(launched, index)

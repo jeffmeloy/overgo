@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -32,13 +33,9 @@ func TestRealCheckpointTrainingSmoke(t *testing.T) {
 	}](t, "real_forward")
 	x, target := fixedFlowPath(t, golden.X, golden.B, sigmaMin)
 	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := trainer.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, trainer.Close())
 	}()
 	if trainer.Program().Objective() != trainingprogram.ObjectiveFlowMatching {
 		t.Fatalf("trainer objective = %q", trainer.Program().Objective())
@@ -49,9 +46,7 @@ func TestRealCheckpointTrainingSmoke(t *testing.T) {
 	for step := range steps {
 		stepStart := time.Now()
 		loss, err := trainer.Step(x, target, golden.B, golden.H, golden.W)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("non-finite loss %v at step %d", loss, step+1)
 		}

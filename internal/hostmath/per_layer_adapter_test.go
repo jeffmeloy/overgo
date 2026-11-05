@@ -4,6 +4,8 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestPerLayerAdapterBackwardFiniteDifference(t *testing.T) {
@@ -23,23 +25,17 @@ func TestPerLayerAdapterBackwardFiniteDifference(t *testing.T) {
 	}
 	seed := values(rows * hidden)
 	output, trace, err := PerLayerAdapterForward(input, side, gate, projection, norm, rows, hidden, width, 1e-6)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_ = output
 	dGate, dProjection, dNorm := make([]float32, len(gate)), make([]float32, len(projection)), make([]float32, len(norm))
 	dInput, dSide, err := PerLayerAdapterBackward(
 		input, side, gate, projection, norm, seed, dGate, dProjection, dNorm,
 		rows, hidden, width, 1e-6, trace,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loss := func() float64 {
 		got, _, err := PerLayerAdapterForward(input, side, gate, projection, norm, rows, hidden, width, 1e-6)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var sum float64
 		for index := range got {
 			sum += float64(got[index]) * float64(seed[index])

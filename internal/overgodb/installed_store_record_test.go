@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestInstalledStoreRecordIsWhole(t *testing.T) {
 	read := func(name string) (lines map[string][]string, fields map[string]map[string]string) {
 		t.Helper()
 		raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lines, fields = map[string][]string{}, map[string]map[string]string{}
 		var part string
 		for line := range strings.Lines(string(raw)) {
@@ -108,9 +107,7 @@ func TestInstalledStoreRecordIsWhole(t *testing.T) {
 	for _, registered := range projections(new(catalogState)) {
 		found := first(lines, servicePart, `^projection `+regexp.QuoteMeta(registered.name)+` bytes (\d+) .* decode-microseconds (\d+) `)
 		size, err := strconv.ParseInt(found[1], 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sum += size
 	}
 	if strconv.FormatInt(sum, 10) != generation[2] {

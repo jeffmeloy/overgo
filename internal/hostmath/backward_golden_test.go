@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func readFixture(t *testing.T, name string, out any) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %s absent; backward parity NOT verified", name)
 	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, out))
 }
 
 // Tolerance rationale: single-component f64-host vs the reference's f64

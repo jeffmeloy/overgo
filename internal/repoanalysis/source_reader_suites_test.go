@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // workspaceFieldOwners maps every promoted server workspace field to the
@@ -84,14 +86,10 @@ var workspaceFileAllowances = map[string][]string{
 func TestWorkspaceDependencyBoundaries(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dir := filepath.Join(root, "internal", "server")
 	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	violations := []string{}
 	observed := map[string]map[string]bool{}
 	for _, entry := range entries {
@@ -100,9 +98,7 @@ func TestWorkspaceDependencyBoundaries(t *testing.T) {
 			continue
 		}
 		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, name), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, declaration := range parsed.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Recv == nil || len(function.Recv.List) != 1 {
@@ -173,13 +169,9 @@ func workspaceHandlerReceiver(function *ast.FuncDecl) bool {
 func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "overgodb", "retention.go"), nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var operations, committers []string
 	for _, declaration := range parsed.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
@@ -208,18 +200,14 @@ func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
 func TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forbidden := []string{
 		"overgo/internal/inference", "overgo/internal/server",
 		"overgo/internal/llamaserver", "overgo/internal/composition",
 	}
 	for _, file := range []string{"peer.go", "peer_invoke.go"} {
 		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "capabilityruntime", file), nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, imported := range parsed.Imports {
 			path := strings.Trim(imported.Path.Value, `"`)
 			if slices.Contains(forbidden, path) {

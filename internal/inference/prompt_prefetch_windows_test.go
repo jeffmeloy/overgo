@@ -17,6 +17,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestAPromptReadCopiesTheNextGroupsExpertsAhead reads a 1,024-token prompt through two routed layers whose BF16
@@ -30,14 +31,10 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 	ctx := t.Context()
 	const hidden, intermediate, experts, topK, tokens, layers = 256, 256, 8, 2, 1024, 2
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	cuda, err := executor.NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cuda.Close()
 	value := func(seed, index int) float32 { return float32((index*7+seed*13)%23-11) / 64 }
 	// read builds the layers over a residency of limit card bytes, runs them once, and answers the output's bits and the
@@ -86,21 +83,13 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 					Activation: tensor.MoEActivationSiLU, Gate: bank(name("gate"), 3*layer+4, hidden, intermediate, experts),
 					SelectedExperts: selected})
 		}
-		if err := builder.Err(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, builder.Err())
 		var file bytes.Buffer
-		if err := gguf.Write(&file, nil, encoded, gguf.WriteOptions{}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, gguf.Write(&file, nil, encoded, gguf.WriteOptions{}))
 		parsed, err := gguf.Parse(bytes.NewReader(file.Bytes()), uint64(file.Len()), gguf.DefaultOptions())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		weights, err := modeldevice.NewDeviceWeights(worker)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer func() {
 			if err := cuda.SetExpertBanks(nil); err != nil {
 				t.Error(err)
@@ -111,39 +100,23 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 		}()
 		loader := modeldevice.NewLoader(parsed)
 		loader.Experts(weights, parsed.Tensors, limit)
-		if err := loader.Load(ctx, nil); err != nil {
-			t.Fatal(err)
-		}
-		if err := cuda.SetExpertBanks(weights); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, loader.Load(ctx, nil))
+		testcheck.NoError(t, cuda.SetExpertBanks(weights))
 		graph, err := executor.CompileIndexed(output)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var bindings []tensor.InputBinding[driver.DevicePtr]
 		for _, node := range banks {
 			_, pointer, err := weights.Input(builder, node.Name)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			bindings = append(bindings, tensor.InputBinding[driver.DevicePtr]{Node: node, Value: pointer})
 		}
-		if err := graph.Inputs.Bind(bindings); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, graph.Inputs.Bind(bindings))
 		before, err := cuda.Metrics(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err := cuda.ExecuteCompiled(ctx, graph.Graph, host, graph.Inputs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		after, err := cuda.Metrics(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return slices.Clone(driver.Bytes(result[output].Data)), after.PrefetchedExperts - before.PrefetchedExperts
 	}
 	// The card holds every expert under no limit, and none beyond the banks' tables of a pointer an expert.

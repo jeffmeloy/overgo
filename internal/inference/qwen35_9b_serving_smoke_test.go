@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -75,9 +76,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 	runner, err := openNativeFixtureRunner(path, OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	loadElapsed := time.Since(loadStart)
 
@@ -99,9 +98,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 	ctx := t.Context()
 	newGreedy := func() *sampling.Sampler {
 		s, err := sampling.New(sampling.Config{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !s.IsRawGreedy() {
 			t.Fatal("default sampler is not raw greedy")
 		}
@@ -114,13 +111,9 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 			MaxNewTokens: newTokens,
 			Sampler:      newGreedy(),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		promptIDs, err = runner.promptTokenIDs(prompt, GenerateOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return promptIDs, ids[len(promptIDs):], text
 	}
 
@@ -206,13 +199,9 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 			Cases:       cases,
 		}
 		blob, err := json.MarshalIndent(fixture, "", " ")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		blob = append(blob, '\n')
-		if err := os.WriteFile(fixturePath, blob, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(fixturePath, blob, 0o644))
 		t.Logf("wrote serving-smoke fixture %s", fixturePath)
 		return
 	}
@@ -222,9 +211,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 		t.Fatalf("read fixture (regenerate with OVERGO_WRITE_9B_SMOKE_FIXTURE=1): %v", err)
 	}
 	var want qwen35_9BSmokeFixture
-	if err := json.Unmarshal(blob, &want); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(blob, &want))
 	if want.ModelSHA256 != qwen35_9BArtifactSHA256 {
 		t.Errorf("fixture model_sha256 %s != pinned artifact %s", want.ModelSHA256, qwen35_9BArtifactSHA256)
 	}

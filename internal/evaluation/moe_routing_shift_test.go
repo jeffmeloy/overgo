@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -40,9 +41,7 @@ func TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures(t *testing.T) {
 		Version: artifact.InitialDocumentVersion, BaselineMatrix: id(artifact.KindRecipe, "baseline-matrix"),
 		Cases: cases, HiddenStratumFailure: true, ControllerLag: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := moeRoutingShiftCodec.Content(evidence)
 	if err != nil || content.Descriptor.ID != evidence.ID || len(moeRoutingShiftLineage(evidence)) < 10 {
 		t.Fatalf("shift evidence = (%+v, %v)", evidence, err)

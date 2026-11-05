@@ -17,6 +17,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,9 +28,7 @@ func TestLiveEditSourceCodec(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint := filepath.Join(roots.ResolveModelPath("Wan2.1-T2V-1.3B"), "Wan2.1_VAE.pth")
 	if _, err := os.Stat(checkpoint); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan source codec: %v", err)
@@ -39,31 +38,21 @@ func TestLiveEditSourceCodec(t *testing.T) {
 		t.Fatalf("UNAVAILABLE: Wan source codec: %v", err)
 	}
 	graph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stats := loadSourceCodecStats(t)
 	profile := SourceCodecProfile{InputChannels: graph.InputChannels, LatentChannels: graph.LatentChannels, Stride: graph.Stride, LatentStats: stats}
 	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := loadRealSourceCrops(t, plan.Source)
 	hostStarted := time.Now()
 	want, err := EncodeSourceVideo(checkpoint, graph, plan, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostWall := time.Since(hostStarted)
 	session, err := newVAEEncoderCUDASession(checkpoint, graph, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close()
 	got, evidence, err := session.Encode(t.Context(), plan, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	maximum := sourceCodecMaxAbs(got, want)
 	var energy float64
 	for _, value := range got {
@@ -83,18 +72,14 @@ func TestLiveEditSourceCodec(t *testing.T) {
 func loadSourceCodecStats(t testing.TB) VAELatentStats {
 	t.Helper()
 	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g0_config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Stats struct {
 			Mean []float32 `json:"mean"`
 			Std  []float32 `json:"std"`
 		} `json:"vae_latent_stats"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	return VAELatentStats{Mean: fixture.Stats.Mean, Std: fixture.Stats.Std}
 }
 

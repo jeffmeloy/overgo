@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"overgo/internal/quietmachine"
+	"overgo/internal/testcheck"
 )
 
 // quietTestMachine is the machine these tests share among themselves, not the host's own,
@@ -55,17 +56,13 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	<-waiting
 	for _, release := range []func() error{first, second} {
 		landings.Add(-1)
-		if err := release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, release())
 	}
 	group.Wait()
 
 	// And the other way: no landing starts while a measurement runs.
 	measuring, _, err := quietmachine.Await(ctx, quietTestMachine, true, noWait)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var measured atomic.Bool
 	measured.Store(true)
 	waiting = make(chan struct{})
@@ -82,9 +79,7 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	})
 	<-waiting
 	measured.Store(false)
-	if err := measuring(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, measuring())
 	group.Wait()
 }
 
@@ -188,9 +183,7 @@ func TestTimedWorkExcludesCompetingWork(t *testing.T) {
 	// A landing holds the machine: the measurement waits, runs only once the landing has ended, and
 	// returns its wait apart from what it measured.
 	held, _, err := quietmachine.Await(ctx, machine, false, noWait)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var landed, ran atomic.Bool
 	written := make(chan struct{})
 	output := firstWrite{written: sync.OnceFunc(func() { close(written) })}

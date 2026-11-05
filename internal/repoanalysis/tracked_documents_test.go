@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // ValidateTrackedDocuments refuses every tracked document nothing reads.
@@ -32,12 +33,8 @@ func ValidateTrackedDocuments(census []TrackedDocument) error {
 func TestEveryTrackedFileHasAReader(t *testing.T) {
 	t.Parallel()
 	census, err := CheckoutDocuments(t.Context(), "../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateTrackedDocuments(census); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, ValidateTrackedDocuments(census))
 	t.Logf("documents=%d all read", len(census))
 }
 
@@ -61,9 +58,7 @@ func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manif
 `),
 		"internal/prose/prose.go": []byte("package prose\nvar roots = []string{\"cmd/\", \"fixtures/\"}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	texts := map[string]string{"fixtures/model/manifest.json": `{"weights": "weights.bin"}`}
 	census, err := TrackedDocumentCensus(snapshot, []string{
 		"fixtures/joined/tensor.bin", "fixtures/model/latent.f32le", "fixtures/model/manifest.json", "fixtures/model/weights.bin", "fixtures/stray.sum",
@@ -77,9 +72,7 @@ func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manif
 			return []byte(text), nil
 		})
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var refused []string
 	for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
 		refused = append(refused, strings.Fields(finding.Error())[2])
@@ -89,13 +82,9 @@ func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manif
 	}
 
 	listed, err := checkoutFiles(t.Context(), "../..", []string{fixtures})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkout, err := CheckoutDocuments(t.Context(), "../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	live, covered := LiveDocuments(checkout), 0
 	for _, document := range checkout {
 		if !strings.HasPrefix(document.Path, fixtures) {
@@ -156,9 +145,7 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 		"internal/fixtures/stray_name_test.go": []byte("package fixtures\nvar _ = \"a sentence mentioning unused\"\n"),
 		"internal/production/production.go":    []byte("package production\nvar word = \"orphan\"\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	documents := []string{
 		"docs/REPORT.md", "docs/baseline.json", "docs/golden.json", "docs/imported.json",
 		"docs/ledger.json", "docs/model_report.json", "docs/notes.md", "docs/receipts/run.json", "docs/receipts/stray.txt", "docs/samples/a.png",
@@ -166,9 +153,7 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 		"internal/policy/rules.json", "report.json",
 	}
 	census, err := TrackedDocumentCensus(snapshot, documents)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var measured []string
 	for _, document := range census {
 		measured = append(measured, document.Path+" W="+strings.Join(document.Writers, ",")+" R="+strings.Join(document.Readers, ","))
@@ -237,9 +222,7 @@ func TestNoTrackedDocumentIsUnread(t *testing.T) {
 		}
 	}
 	err := DocumentReferences(census, func(document string) ([]byte, error) { return []byte(texts[document]), nil })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var refused []string
 	for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
 		refused = append(refused, finding.Error())

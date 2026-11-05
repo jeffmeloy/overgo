@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestObserverSamplesTheProcessLedger holds a device session's samples to the
@@ -38,13 +39,9 @@ func TestObserverSamplesTheProcessLedger(t *testing.T) {
 func TestAHostSessionHoldsNoDeviceMemory(t *testing.T) {
 	t.Parallel()
 	host, err := NewObserver(nil, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := NewObserver(nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !host.host || device.host {
 		t.Fatalf("NewObserver declared host=%t for a host session and host=%t for a device one", host.host, device.host)
 	}

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // semanticsScript writes the golden this test reads, from Python's Jinja2 as
@@ -29,9 +31,7 @@ const semanticsScript = "scripts/python_golden_references/jinja_semantics.py"
 // lines they stand on.
 func TestRendersAsPythonJinjaDoes(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "semantics.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var document struct {
 		Context json.RawMessage `json:"context"`
 		Cases   []struct {
@@ -43,9 +43,7 @@ func TestRendersAsPythonJinjaDoes(t *testing.T) {
 		t.Fatalf("no case is on file: %v", err)
 	}
 	decoded, err := DecodeJSON(document.Context)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	object, isObject := decoded.(*Dict)
 	if !isObject {
 		t.Fatal("the context is not an object")
@@ -104,9 +102,7 @@ func TestDecodeJSONRefusesWhatIsNotOneValue(t *testing.T) {
 	}
 	valid := "{\"z\": [" + strconv.Itoa(math.MaxInt) + ", " + strconv.Itoa(math.MinInt) + ", null, 1.25], \"a\": true}"
 	value, err := DecodeJSON([]byte(valid))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := filterToJSON(value, nil, nil)
 	if err != nil || got != valid {
 		t.Fatalf("ordered boundary round trip = %v, %v; want %s", got, err, valid)

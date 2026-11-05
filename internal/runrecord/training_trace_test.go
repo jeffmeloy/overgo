@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -21,13 +22,9 @@ func TestDPOTraceBindsMeasuredObservations(t *testing.T) {
 		id(artifact.KindRun, "run"), id(artifact.KindRecipe, "recipe"), id(artifact.KindDataset, "dataset"),
 		id(artifact.KindModel, "policy"), id(artifact.KindModel, "reference"), nil, []trainingprogram.DPOObservation{observation}, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := trace.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := trainingTraceCodec.Parse(content.Data)
 	if err != nil || parsed.ID != trace.ID || len(parsed.DPO) != 1 || parsed.DPO[0] != observation || len(trace.Lineage()) != 5 {
 		t.Fatalf("parsed=%+v lineage=%+v err=%v", parsed, trace.Lineage(), err)
@@ -46,9 +43,7 @@ func TestDPOTraceRejectsInventedReward(t *testing.T) {
 		"dpo":       []map[string]any{{"step": 1, "reward": 1}},
 	}
 	data, err := json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := trainingTraceCodec.Parse(data); err == nil {
 		t.Fatal("invented reward field accepted")
 	}
@@ -67,9 +62,7 @@ func TestGRPOTraceBindsEvaluatorEvidence(t *testing.T) {
 		id(artifact.KindModel, "policy"), artifact.ID{}, []artifact.ID{evaluator}, nil,
 		[]trainingprogram.GRPOObservation{observation},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if trace.Objective != trainingprogram.ObjectiveGRPO || len(trace.GRPO) != 1 || len(trace.Lineage()) != 5 {
 		t.Fatalf("trace=%+v lineage=%+v", trace, trace.Lineage())
 	}

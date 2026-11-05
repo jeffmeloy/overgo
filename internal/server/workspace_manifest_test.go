@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestWorkspaceManifest(t *testing.T) {
@@ -19,9 +20,7 @@ func TestWorkspaceManifest(t *testing.T) {
 		t.Fatalf("workspace manifest status=%d body=%s", response.Code, response.Body.String())
 	}
 	var manifest workspaceManifestResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &manifest))
 	// The conversation is the first tab, so the front page opens on it.
 	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 || manifest.Tabs[0].ID != "chat" {
 		t.Fatalf("workspace manifest = %+v", manifest)
@@ -90,9 +89,7 @@ func TestManifestAcquiresEachCapabilityOnce(t *testing.T) {
 	t.Parallel()
 	workflows := &countingWorkflows{tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskSpeech}}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Analysis: testAnalysisPolicy, Workflows: workflows}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manifest := func() (map[string]bool, map[string]bool) {
 		t.Helper()
 		workflows.listed = map[WorkflowKind]int{}

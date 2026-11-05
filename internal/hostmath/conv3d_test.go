@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +23,7 @@ func TestCausalConv3DMatchesWanTorchFixture(t *testing.T) {
 		StrideT: 1, StrideH: 1, StrideW: 1,
 	}
 	got := make([]float32, 8)
-	if err := CausalConv3DInto(got, x, nil, w, []float32{0.25}, 0, shape); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, CausalConv3DInto(got, x, nil, w, []float32{0.25}, 0, shape))
 	want := []float32{25.950000762939453, 24.950000762939453, 22.950000762939453, 21.950000762939453, 82.6500015258789, 79.05000305175781, 71.8499984741211, 68.25}
 	testutil.RequireSliceClose(t, "causal conv", got, want, 1e-5)
 }
@@ -38,16 +37,12 @@ func TestCausalConv3DWithCacheUsesPriorFrames(t *testing.T) {
 		StrideT: 1, StrideH: 1, StrideW: 1,
 	}
 	got := make([]float32, 1)
-	if err := CausalConv3DInto(got, []float32{3}, []float32{1, 2}, []float32{1, 10, 100}, nil, 2, shape); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, CausalConv3DInto(got, []float32{3}, []float32{1, 2}, []float32{1, 10, 100}, nil, 2, shape))
 	if got[0] != 321 {
 		t.Fatalf("cached causal conv = %v, want [321]", got)
 	}
 	// One cached frame replaces one of the two pad frames: [0, cache, x].
-	if err := CausalConv3DInto(got, []float32{3}, []float32{2}, []float32{1, 10, 100}, nil, 1, shape); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, CausalConv3DInto(got, []float32{3}, []float32{2}, []float32{1, 10, 100}, nil, 1, shape))
 	if got[0] != 320 {
 		t.Fatalf("partially cached causal conv = %v, want [320]", got)
 	}
@@ -60,9 +55,7 @@ func TestConv3DShapeTemporalUpsampleConvDims(t *testing.T) {
 		PadT: 1, PadH: 0, PadW: 0,
 		StrideT: 1, StrideH: 1, StrideW: 1,
 	}).OutputDims()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if tOut != 1 || hOut != 2 || wOut != 3 {
 		t.Fatalf("dims=(%d,%d,%d)", tOut, hOut, wOut)
 	}
@@ -112,9 +105,7 @@ func TestResizeConv2DMatchesWanTorchFixture(t *testing.T) {
 	}
 	weight, bias := take(cOut*cIn*3*3), take(cOut)
 	got := make([]float32, cOut*frames*(2*height)*(2*width))
-	if err := ResizeConv2DInto(got, x, weight, bias, cIn, cOut, frames, height, width); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ResizeConv2DInto(got, x, weight, bias, cIn, cOut, frames, height, width))
 	want := []float32{
 		14.220001220703125, 20.113332748413086, 20.32666778564453, 20.753334045410156,
 		20.96666717529297, 14.433334350585938, 19.793333053588867, 28.25333023071289,

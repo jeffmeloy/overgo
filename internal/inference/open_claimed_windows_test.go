@@ -20,6 +20,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -32,9 +33,7 @@ const singlePassEnvironment = "OVERGO_SINGLE_PASS_GGUF"
 func residentDigests(t *testing.T, loaded modelrecipe.LoadedProgram) map[string][sha256.Size]byte {
 	t.Helper()
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	digests := map[string][sha256.Size]byte{}
 	err = runner.rawWeights.Do(t.Context(), func(state *device.State, tensors map[string]modeldevice.DeviceTensor) error {
@@ -47,9 +46,7 @@ func residentDigests(t *testing.T, loaded modelrecipe.LoadedProgram) map[string]
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, info := range runner.file.Tensors {
 		value, found := runner.deviceWeights.Lookup(info.Name)
 		if !found {
@@ -59,9 +56,7 @@ func residentDigests(t *testing.T, loaded modelrecipe.LoadedProgram) map[string]
 		err := runner.worker.Do(t.Context(), func(state *device.State) error {
 			return state.Driver.MemcpyDtoH(data, value.Pointer)
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		digests["f32 "+info.Name] = sha256.Sum256(data)
 	}
 	if len(digests) == 0 {
@@ -83,33 +78,21 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "model.gguf")
 	source, err := os.Open(original)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	copied, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, copyErr := io.Copy(copied, source)
-	if err := errors.Join(copyErr, source.Close(), copied.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(copyErr, source.Close(), copied.Close()))
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	err = servingtest.PublishActiveGGUFWithPolicy(
 		t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromGGUFPath(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	remembered := modelartifact.Claimer(func(candidate string) (artifact.ID, uint64, bool) {
 		for index, component := range inventory.Components {
 			if inventory.Locations[index].Value == candidate {
@@ -120,30 +103,20 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	})
 
 	verified, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := residentDigests(t, verified)
 	claimed, err := modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := residentDigests(t, claimed); !maps.Equal(got, want) {
 		t.Fatalf("the claimed load holds %d tensors that differ from the verified load's %d", len(got), len(want))
 	}
 
 	claimed, err = modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file, err := os.OpenFile(path, os.O_RDWR, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info, err := file.Stat()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	last := make([]byte, 1)
 	if _, err := file.ReadAt(last, info.Size()-1); err != nil {
 		t.Fatal(err)
@@ -152,9 +125,7 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	if _, err := file.WriteAt(last, info.Size()-1); err != nil {
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	runner, err := OpenWithProgram(t.Context(), &claimed, OpenOptions{})
 	if runner != nil {
 		_ = runner.Close()

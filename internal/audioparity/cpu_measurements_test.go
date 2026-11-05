@@ -18,6 +18,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
@@ -36,28 +37,18 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 	l.storePath = filepath.Join(t.TempDir(), "store")
 	var err error
 	l.store, err = overgodb.Create(l.storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { l.store.Close() })
 	l.base, _ = l.publishTranscriptionBase(t, l.fixture)
 	l.origin.Container, err = artifact.ParseID("file:sha256:" + l.fixture.record.ShardSHA256)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := os.ReadFile("../dataset/testdata/audio_inspection_policy.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &l.policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(data, &l.policy))
 	f := &audioMeasurementFixture{l: l, corpus: lifecycleHeldout(t, l, "testdata/resource_heldout.json"), directory: t.TempDir()}
 	sourceIdentity := audioSources(t, l.fixture.root).Identity()
 	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := environment.Batch("audio-measurement/environment/" + environment.ID.String())
 	l.commit(t, batch, err)
 	f.binding = speechrecognition.RunBinding{CodeCommit: strings.TrimSpace(baselineCommand(t, l.fixture.root, "git", "rev-parse", "HEAD")), Environment: environment.ID, Dataset: f.corpus.suite.Dataset, Split: f.corpus.suite.Split}
@@ -71,17 +62,11 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 		{"silence", silence}, {"corrupt", []byte("fLaC")},
 	} {
 		id, err := artifact.IdentifyBytes(artifact.KindFile, control.data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path := filepath.Join(f.directory, control.name)
-		if err := os.WriteFile(path, control.data, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, control.data, 0600))
 		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		l.commit(t, artifact.Batch{Key: "audio-measurement/control/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(control.data))}}, Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, nil)
 		origin := dataset.AudioPayloadOrigin{Container: id}
 		inspection, err := dataset.InspectAudio(t.Context(), l.store, control.data, origin, l.policy)
@@ -97,9 +82,7 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 		}
 	}
 	f.corpus.compiled, err = evaluation.CompileTranscription(f.corpus.suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suitePath := filepath.Join(f.directory, "suite.json")
 	writeAudioMeasurementJSON(t, suitePath, f.corpus.suite)
 	var inputs []map[string]any
@@ -116,12 +99,8 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 func writeAudioMeasurementJSON(t *testing.T, path string, value any) {
 	t.Helper()
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(path, data, 0600))
 }
 
 type audioMeasuredProcess struct {
@@ -131,9 +110,7 @@ type audioMeasuredProcess struct {
 
 func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	t.Helper()
-	if err := f.l.store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, f.l.store.Close())
 	command := exec.CommandContext(t.Context(), f.executable, "-repo", f.l.storePath, "-transcription-resource-manifest", f.manifest)
 	command.Dir = f.l.fixture.root
 	measured, err := testprocess.Measure(command)
@@ -144,9 +121,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 		t.Fatal("process measurements unavailable")
 	}
 	f.l.store, err = overgodb.Create(f.l.storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reportID artifact.ID
 	for field := range strings.FieldsSeq(string(measured.Output)) {
 		id, err := artifact.ParseID(field)
@@ -156,13 +131,9 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 		}
 	}
 	content, err := artifact.RequireTypedContent(t.Context(), f.l.store, reportID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var result audioMeasuredProcess
-	if err := json.Unmarshal(content.Data, &result.Report); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &result.Report))
 	result.Report.ID = reportID
 	report := result.Report
 	quality, err := evaluation.RequireTranscriptionReport(t.Context(), f.l.store, report.Quality)
@@ -199,30 +170,18 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 		WallNS        uint64      `json:"wall_ns"`
 		PeakHostBytes uint64      `json:"peak_host_bytes"`
 	}{reportID, uint64(measured.Wall), measured.PeakWorkingSetByte})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fitness, err := runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Model: report.Model, Hardware: f.binding.Environment, Workload: report.Plan, Attempt: receipt.Descriptor.ID}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: uint64(measured.Wall)}, {Metric: runrecord.ResourcePeakHostBytes, Value: measured.PeakWorkingSetByte}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chunk, err := runrecord.NewInitialObservationChunk(fitness, runrecord.ObservationSampleExecution, uint64(measured.Wall))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("audio-process/"+receipt.Descriptor.ID.DigestHex(), []artifact.Content{receipt}, artifact.DependencyLineage(receipt.Descriptor.ID, reportID, report.Plan, report.Model, f.binding.Environment), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	summary, err := runrecord.BindObservationChunk(t.Context(), f.l.store, &batch, chunk)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	f.l.commit(t, batch, nil)
 	result.Stream, err = runrecord.RequireObservationStream(t.Context(), f.l.store, receipt.Descriptor.ID, summary.ID, runrecord.ObservationStreamBounds{MaxChunks: 1, MaxRawBytes: summary.Stats.Bytes})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("held-out=%s speakers=%d utterances=%d WER=%.6f CER=%.6f cold_load_ns=%d warm_timed_seconds=%.6f process_wall=%s process_peak_bytes=%d; corrupt admission=%s outside decoded-duration denominator; no GPU, training, full-corpus or promotion claim", reportID, len(speakers), quality.Overall.Utterances, quality.Overall.WordErrorRate, quality.Overall.CharacterErrorRate, report.Load.WallNS, report.Summary.WallSeconds, measured.Wall, measured.PeakWorkingSetByte, f.controls[len(f.controls)-1].DecisionID)
 	return result
 }

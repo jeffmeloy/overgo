@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/textgeneration"
 )
@@ -55,16 +56,12 @@ func TestNeedleCallsMatchUpstreamOnEvaluationCases(t *testing.T) {
 		t.Fatalf("the upstream calls are absent (%v); write them with %s", err, upstreamCallsScript)
 	}
 	var fixture upstreamCalls
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if len(fixture.Cases) == 0 || fixture.GeneratedTokens <= 0 {
 		t.Fatalf("the fixture holds %d cases of %d tokens", len(fixture.Cases), fixture.GeneratedTokens)
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generator, err := LoadGenerator(roots.ResolveModelPath("needle"))
 	if err != nil {
 		t.Fatalf("Needle artifact unavailable: %v", err)
@@ -76,39 +73,27 @@ func TestNeedleCallsMatchUpstreamOnEvaluationCases(t *testing.T) {
 	for _, reference := range fixture.Cases {
 		prompt := reference.Query + " " + toolsMarker + " " + reference.Tools
 		given, _, err := generator.source(prompt, false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(given, reference.EncoderIDs) {
 			t.Fatalf("%s: the encoder input for the tools as given is %v, and upstream builds %v", reference.Name, given, reference.EncoderIDs)
 		}
 		renamed, _, err := generator.source(prompt, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(renamed, reference.NamedEncoderIDs) {
 			t.Fatalf("%s: the encoder input a served request builds is %v, and upstream builds %v", reference.Name, renamed, reference.NamedEncoderIDs)
 		}
 		// The plain decode: the ids of the tools as given, and no names to restore.
 		encoded, err := generator.model.encodeTokens(given, fixture.GeneratedTokens)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		selector, err := generator.prepareGeneration(encoded)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		plain, err := selector.selectText()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if plain != reference.PlainFloat32 {
 			t.Fatalf("%s: the plain decode answers\n  %q\nand upstream, computing in float32,\n  %q", reference.Name, plain, reference.PlainFloat32)
 		}
 		served, err := generator.Generate(textgeneration.Request{Text: prompt, MaxTokens: fixture.GeneratedTokens})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if served != reference.NamedFloat32 {
 			t.Fatalf("%s: a served request answers\n  %q\nand upstream, computing in float32 with names normalized,\n  %q", reference.Name, served, reference.NamedFloat32)
 		}

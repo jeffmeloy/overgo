@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,16 +34,12 @@ const stepRate = 1e-3
 // step to EVERY parameter, and asserts the loss on the same batch decreased.
 func runRealArtifactStep(t *testing.T, name string) {
 	m, err := Load(artifactDir(t, name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("dims %+v", m.Dims)
 	// Fixed token ids (< vocab); no tokenizer dependency for the step gate.
 	tokens := []int{1, 4171, 322, 995, 1063, 88, 421, 9822, 15000, 273, 66, 1523, 7, 2094, 511, 2}
 	lossBefore, _, grads, err := m.LossAndGrads(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var gradNormSq float64
 	for name, g := range grads {
 		w, ok := m.Weights[name]
@@ -61,9 +58,7 @@ func runRealArtifactStep(t *testing.T, name string) {
 		}
 	}
 	lossAfter, _, err := m.Loss(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("loss after step:  %.6f  (delta %.6f)", lossAfter, lossAfter-lossBefore)
 	if !(lossAfter < lossBefore) {
 		t.Fatalf("loss did not decrease: before %.6f after %.6f", lossBefore, lossAfter)

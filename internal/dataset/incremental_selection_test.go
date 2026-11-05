@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +23,7 @@ func incrementalSelectionFixture(t *testing.T, names ...string) InteractionSelec
 	selection, err := SelectInteractions(InteractionSelectionBounds{
 		MaxTokens: 1000, MaxBytes: 10000, MaxDocuments: 10, MaxDepth: 10, MaxResults: 10,
 	}, artifact.CommitID{0x11}, sources, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return selection
 }
 
@@ -37,9 +36,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	prior := incrementalSelectionFixture(t, "alpha", "beta")
 	current := incrementalSelectionFixture(t, "beta", "gamma")
 	delta, err := SelectIncremental(prior, current)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(delta.Reused) != 1 || len(delta.Fresh) != 1 {
 		t.Fatalf("delta decomposition = %+v", delta)
 	}
@@ -49,9 +46,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	if delta.TransferTokens != delta.Fresh[0].Tokens || delta.TransferBytes != delta.Fresh[0].Bytes {
 		t.Fatalf("transfer accounting = %+v", delta)
 	}
-	if err := delta.Validate(prior, current); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, delta.Validate(prior, current))
 
 	omitted := delta
 	omitted.Reused = nil
@@ -66,9 +61,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	}
 
 	identical, err := SelectIncremental(prior, prior)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(identical.Fresh) != 0 || identical.TransferBytes != 0 || len(identical.Reused) != len(prior.Sources) {
 		t.Fatalf("unchanged context still transfers bytes: %+v", identical)
 	}

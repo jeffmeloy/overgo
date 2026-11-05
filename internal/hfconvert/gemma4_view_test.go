@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -37,22 +38,16 @@ func TestAGemma4DirectoryIsTheBytesItsConversionWrites(t *testing.T) {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for the Gemma 4 directory")
 	}
 	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := roots.ResolveModelPath("gemma-4-12B-it")
 	if !Viewed(directory) {
 		t.Fatalf("%s is not served from its own files", directory)
 	}
 	viewed, err := View(directory, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer viewed.Close()
 	source, err := safetensors.OpenSource(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	if architecture, found := viewed.MetadataValue("general.architecture"); !found || architecture.Data != "gemma4" {
 		t.Fatalf("the view's architecture is %v", architecture)
@@ -60,9 +55,7 @@ func TestAGemma4DirectoryIsTheBytesItsConversionWrites(t *testing.T) {
 	read := func(tensor gguf.TensorInfo, offset, size uint64) []byte {
 		t.Helper()
 		data := make([]byte, size)
-		if err := viewed.ReadTensorRange(tensor, offset, data); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, viewed.ReadTensorRange(tensor, offset, data))
 		return data
 	}
 	for name, stored := range gemma4Stored {

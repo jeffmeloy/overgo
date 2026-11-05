@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -23,13 +24,9 @@ func TestPromptAlreadyEncodedIsNotEncodedAgain(t *testing.T) {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoder, err := promptEncoderFor(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	passes := func() int {
 		encoder.mu.Lock()
 		defer encoder.mu.Unlock()
@@ -43,37 +40,25 @@ func TestPromptAlreadyEncodedIsNotEncodedAgain(t *testing.T) {
 	}
 	before := passes()
 	first, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if passes() != before+1 || first.Encoder.Layers == 0 || again.Encoder.Layers != 0 || !slices.Equal(first.Context, again.Context) {
 		t.Fatalf("a prompt conditioned twice made %d passes (the first through %d blocks, the second %d) and gave the same context: %t",
 			passes()-before, first.Encoder.Layers, again.Encoder.Layers, slices.Equal(first.Context, again.Context))
 	}
 	together, err := textConditioningsWithWeights(t.Context(), spec, weights, sourceBytes, prompts...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if passes() != before+2 || !slices.Equal(together[0].Context, first.Context) {
 		t.Fatalf("three prompts, one of them kept, made %d passes more", passes()-before-1)
 	}
 	for index, prompt := range prompts[1:] {
 		tokens, mask, err := encoder.tokenizer.EncodeWithMask(prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		alone, _, err := EncodeTokensStreamed(t.Context(), spec.EncoderCheckpoint, encoder.plan, tokens, mask)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		beside, _, _, err := encodePrompts(t.Context(), spec, prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if together[index+1].TokenCount*encoder.plan.Config.Dim != len(alone) || !slices.Equal(beside[0], alone) {
 			t.Errorf("prompt %d encoded beside another is not the prompt encoded alone", index+1)
 		}

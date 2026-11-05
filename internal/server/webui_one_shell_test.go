@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWebUIOneShell: every tab the workspace manifest declares names a
@@ -15,9 +17,7 @@ import (
 func TestWebUIOneShell(t *testing.T) {
 	t.Parallel()
 	declaration, err := parseWorkspaceManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tab := range declaration.Tabs {
 		module := "mod/" + tab.module() + ".js"
 		if _, err := fs.Stat(webuiFS, module); err != nil {
@@ -45,13 +45,9 @@ func TestWebUIOneShell(t *testing.T) {
 func TestWebUIDevelopmentDirectory(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!DOCTYPE html><title>dev shell</title>"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!DOCTYPE html><title>dev shell</title>"), 0o644))
 	handler, err := New(Config{WebUIDir: dir}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	response := serveTestRequest(handler, http.MethodGet, "/", "")
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "dev shell") {

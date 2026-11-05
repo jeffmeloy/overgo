@@ -10,13 +10,12 @@ import (
 
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "fp8-*.bin")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	weights := []byte{0x00, 0x01, 0x08, 0x38, 0x40, 0x7e, 0x80, 0xb8}
 	scales := []float32{2, 0.5}
@@ -28,21 +27,13 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 		t.Fatal(err)
 	}
 	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := newFP8BF16Reader(weight, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(actual) != len(weights)*2 {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(weights)*2)
 	}
@@ -60,9 +51,7 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 // the per-row F32 scale bytes -- as a raw concatenation with no decode/repack.
 func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "fp8native-*.bin")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	weights := []byte{0x00, 0x01, 0x08, 0x38, 0x40, 0x7e, 0x80, 0xb8}
 	scales := []float32{2, 0.5}
@@ -74,21 +63,13 @@ func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 		t.Fatal(err)
 	}
 	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := newFP8NativeReader(weight, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := append(slices.Clone(weights), encodedScales...)
 	if len(actual) != len(want) {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(want))
@@ -102,9 +83,7 @@ func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 
 func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "position-*.bin")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	for value := range uint16(8) {
 		var encoded [2]byte
@@ -114,17 +93,11 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 		}
 	}
 	source, err := safetensors.NewTensor("position", "BF16", []uint64{2, 2, 2}, file, 0, 16)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := newPositionReader(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []uint16{0, 1, 4, 5, 2, 3, 6, 7}
 	for index, expected := range want {
 		got := binary.LittleEndian.Uint16(actual[index*2:])
@@ -136,9 +109,7 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 
 func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "patch-*.bin")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	for value := range uint16(12) {
 		var encoded [2]byte
@@ -148,17 +119,11 @@ func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 		}
 	}
 	source, err := safetensors.NewTensor("patch", "BF16", []uint64{2, 6}, file, 0, 24)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := newPatchPermutationReader(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []uint16{0, 3, 1, 4, 2, 5, 6, 9, 7, 10, 8, 11}
 	for index, expected := range want {
 		got := binary.LittleEndian.Uint16(actual[index*2:])

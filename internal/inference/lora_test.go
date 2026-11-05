@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -28,15 +29,11 @@ func TestLoRAGraphAppliesAlphaScaleAndGlobalDisable(t *testing.T) {
 		weight: {Shape: weight.Shape, Data: []float32{1, 0, 0, 1}},
 		input:  {Shape: input.Shape, Data: []float32{5, 7}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, want := results[output].Data, []float32{15, 28}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("adapted output = %v, want %v", got, want)
 	}
-	if err := runner.SetLoRAScales(t.Context(), nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.SetLoRAScales(t.Context(), nil))
 	if got := runner.LoRAAdapters()[0].Scale; got != 0 {
 		t.Fatalf("disabled scale = %g", got)
 	}
@@ -61,9 +58,7 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 		"token_embd.weight", []uint32{1},
 		reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{10, 20}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, want := embedded.Data, []float32{16, 30}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("embedding = %v, want %v", got, want)
 	}
@@ -101,16 +96,10 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 		adapter: adapter, scale: 1, signature: loRAStaticSignature(adapter),
 	}}}}
 	before, err := runner.sessionModelSignature()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.SetLoRAScales(t.Context(), []LoRAScale{{ID: 0, Scale: 0.5}}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runner.SetLoRAScales(t.Context(), []LoRAScale{{ID: 0, Scale: 0.5}}))
 	after, err := runner.sessionModelSignature()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if before == after {
 		t.Fatal("LoRA scale did not change session signature")
 	}
@@ -128,9 +117,7 @@ func TestGenerateRestoresPerRequestLoRA(t *testing.T) {
 		LoRA:           []LoRAScale{{ID: 0, Scale: 0.25}},
 		LoRAConfigured: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runner.loraAdapters[0].scale != 1 {
 		t.Fatalf("global scale after request = %g", runner.loraAdapters[0].scale)
 	}

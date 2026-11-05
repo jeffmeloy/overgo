@@ -12,6 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -24,22 +25,16 @@ func TestLazyGrammarDecodesGreedilyUntilItsTrigger(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	const generated = 8
 	prompt := []tokenizer.TokenID{1, 4, 5}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	oracle, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer := oracle[len(prompt):]
 	for at, trigger := range answer[:generated-1] {
 		if slices.Index(answer, trigger) != at {
@@ -53,13 +48,9 @@ func TestLazyGrammarDecodesGreedilyUntilItsTrigger(t *testing.T) {
 		}
 		for _, speculate := range []bool{true, false} {
 			grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]>+", trigger, forced), "", nil, []tokenizer.TokenID{trigger})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			sampler, err := sampling.New(sampling.Config{Temperature: 0, GBNF: grammar})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !sampler.GreedyUntilTrigger() || sampler.IsRawGreedy() {
 				t.Fatal("a greedy sampler with a lazy grammar does not decode greedily until its trigger")
 			}
@@ -91,30 +82,22 @@ func TestLazyGrammarTriggersOnAnAcceptedDraft(t *testing.T) {
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
 	runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, true)}, recipe.ResidencyDeviceF32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	const generated = 24
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	oracle, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true, PlainDecode: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer := oracle[len(prompt):]
 	text := func(ids []tokenizer.TokenID) string {
 		var joined strings.Builder
 		for _, id := range ids {
 			piece, err := runner.vocab.DecodePiece(id, false)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			joined.WriteString(piece)
 		}
 		return joined.String()
@@ -131,15 +114,11 @@ func TestLazyGrammarTriggersOnAnAcceptedDraft(t *testing.T) {
 		// A token of the answer's own other than greedy's next one.
 		forced := answer[slices.IndexFunc(answer, func(id tokenizer.TokenID) bool { return id != answer[at+1] })]
 		grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The sampler on the host, which reads every token's logits, is the reference.
 		decode := func(device bool, onDraft func(int, int)) []tokenizer.TokenID {
 			sampler, err := sampling.New(sampling.Config{Temperature: 0, GBNF: grammar})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, DeviceGreedy: device, PlainDecode: !device, PromptTokenIDs: prompt,
 				OnToken: func(TokenEvent) error { return nil }, OnDraftSpan: onDraft,

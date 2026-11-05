@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 )
 
 // Experimental only: preserve the legacy FNV-1a stream without rereading its
@@ -127,9 +128,7 @@ func TestGBNFVocabularyHashCompatibilityStudy(t *testing.T) {
 				for sample, transformed := range []bool{false, true, true, false} {
 					results := make([]uint64, calls)
 					started, err := processmeasure.Counter()
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					var transform vocabularyHashSuffixStudy
 					if transformed {
 						transform = newVocabularyHashSuffixStudy(data)
@@ -145,9 +144,7 @@ func TestGBNFVocabularyHashCompatibilityStudy(t *testing.T) {
 						}
 					}
 					finished, err := processmeasure.Counter()
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					if sample == 0 {
 						oracle = results
 					}

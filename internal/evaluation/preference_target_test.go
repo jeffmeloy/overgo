@@ -7,6 +7,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -27,18 +28,14 @@ func TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit(t *testing.T) {
 		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{id(artifact.KindEvidence, "preference evidence")},
 		Authority: trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := sftEvaluationViewCodec.New(SFTEvaluationView{
 		Version: artifact.InitialDocumentVersion, Objective: objective.ID, Dataset: datasetID,
 		TrainingMembership: trainingID, HeldoutMembership: heldoutID,
 		Processors: objective.Processors, Signature: signature,
 		Records: []dataset.Record{{ID: "pair", Group: "heldout-group"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy := trainingprogram.PreferencePolicy{Reference: id(artifact.KindModel, "frozen reference"), Scale: 0.2}
 	plan, err := compilePreferenceTargetPlan(objective, view, preferenceTargetSuite{Policy: policy})
 	if err != nil || plan.Policy.Reference != policy.Reference || plan.Heldout != heldoutID {

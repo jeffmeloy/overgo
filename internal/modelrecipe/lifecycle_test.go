@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,16 +17,12 @@ const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
 func TestAtomicEvidenceGatedActivation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "atomic-activation-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/atomic/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -49,13 +46,9 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 	}
 
 	event, err := currentEvent(ctx, store, definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decisions, err := loadDecisions(ctx, store, event.Evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(decisions) != int(expectedCommits) || !activationDecisionMatches(decisions[0], definition.ID, verification) {
 		t.Fatalf("activation decision = %+v", decisions)
 	}
@@ -65,18 +58,14 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 		t.Fatalf("activation evidence = %v", event.Evidence)
 	}
 	eventParents, err := store.Parents(ctx, event.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, edge := range event.Lineage() {
 		if !slices.Contains(eventParents, edge) {
 			t.Fatalf("activation lineage lacks %+v: %v", edge, eventParents)
 		}
 	}
 	parents, err := store.Parents(ctx, decisions[0].ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(parents) != len(decisions[0].Lineage()) {
 		t.Fatalf("decision lineage = %v", parents)
 	}
@@ -89,16 +78,12 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "activation-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ActivateCapability(
 		ctx, store, definition, Verification{}, recipe.EvidenceVerified, "verified fixture",
 	); err == nil {
@@ -145,9 +130,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "decision-model")
 	derivationID := testutil.ArtifactID(t, artifact.KindEvidence, "decision-derivation")
@@ -161,9 +144,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/decision/active/candidate", active); err != nil {
 		t.Fatal(err)
 	}
@@ -183,9 +164,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	}
 
 	refused, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/decision/refused/candidate", refused); err != nil {
 		t.Fatal(err)
 	}
@@ -197,9 +176,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID},
 		[]artifact.ID{testutil.ArtifactID(t, artifact.KindRun, "kernel-parity-failed-run")},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishDecision(t, store, "fixture/decision/refusal", refusal)
 	if _, _, err := Transition(
 		ctx, store, "fixture/decision/refused", refused, recipe.StatusRefused,
@@ -224,37 +201,27 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "legacy-intent-model")
 	intentID := testutil.ArtifactID(t, artifact.KindEvidence, "activation-intent")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, intentID)
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/legacy/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	_, validated, err := Transition(
 		ctx, store, "fixture/legacy/validated", definition, recipe.StatusValidated, nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	active, err := recipe.NewLifecycleEvent(
 		definition, recipe.StatusValidated, recipe.StatusActive, &validated.ID, nil, []artifact.ID{intentID},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := active.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(
 		"fixture/legacy/active", []artifact.Content{content}, nil,
 		[]artifact.AliasBinding{
@@ -262,9 +229,7 @@ func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 			{Name: activeAlias(modelID, definition.Task), Target: definition.ID},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -273,9 +238,7 @@ func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 		t.Fatalf("legacy intent activation = (%v, %v)", ok, err)
 	}
 	replacement, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/legacy/replacement/candidate", replacement); err != nil {
 		t.Fatal(err)
 	}
@@ -294,9 +257,7 @@ func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 func publishDecision(t *testing.T, store artifact.Repository, key string, decision recipe.Decision) {
 	t.Helper()
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: key, Contents: []artifact.Content{content},
 		Lineage: []artifact.Lineage{{

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 type mossTolerance struct {
@@ -68,12 +69,8 @@ func mossContract(t *testing.T) mossOracleContract {
 	t.Helper()
 	raw := mossFixtureBytes(t, "oracle-contract.json", "0c2767456a75075671de88538d8c1ce0f673ef41c2bae897c4e59449fad0ca86")
 	var contract mossOracleContract
-	if err := strictjson.DecodeBytes(raw, &contract); err != nil {
-		t.Fatal(err)
-	}
-	if err := contract.validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(raw, &contract))
+	testcheck.NoError(t, contract.validate())
 	return contract
 }
 
@@ -193,9 +190,7 @@ func TestMOSSGoldenContract(t *testing.T) {
 		entry := cases[name]
 		for _, meta := range source.Metadata {
 			data, err := json.Marshal(meta)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			hash := sha256.Sum256(data)
 			if hex.EncodeToString(hash[:]) != entry.MetadataSHA256 {
 				t.Fatal("portable reference metadata changed")
@@ -249,9 +244,7 @@ func TestMOSSGoldenContract(t *testing.T) {
 			}
 			tolerance := contract.Comparison.Tolerances[dtype]
 			limit := tolerance.Absolute + tolerance.Relative*100
-			if err := compare(float32(100+limit/2), 100); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, compare(float32(100+limit/2), 100))
 			if err := compare(math.Nextafter32(float32(100+limit), float32(math.Inf(1))), 100); err == nil {
 				t.Fatal("out-of-policy value passed")
 			}
@@ -288,13 +281,9 @@ func TestMOSSGoldenContract(t *testing.T) {
 		func(c *mossOracleContract) { c.Comparison.FiniteOnly = false },
 	} {
 		raw, err := json.Marshal(contract)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var changed mossOracleContract
-		if err := json.Unmarshal(raw, &changed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(raw, &changed))
 		change(&changed)
 		if changed.validate() == nil {
 			t.Fatal("incomplete or relaxed contract passed")

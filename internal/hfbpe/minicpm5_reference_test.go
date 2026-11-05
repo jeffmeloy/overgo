@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 // IDs were captured with Hugging Face tokenizers 0.21.1 from MiniCPM5-1B's own
@@ -30,24 +31,18 @@ func TestMiniCPM5DeclaredPipelineReference(t *testing.T) {
 			IDs  []int  `json:"ids"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(readRxFixture(t, "minicpm5-reference.json", referenceSHA), &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(readRxFixture(t, "minicpm5-reference.json", referenceSHA), &reference))
 	if reference.SourceSHA != sourceSHA || reference.Version != "0.21.1" || len(reference.Cases) != 12 {
 		t.Fatal("MiniCPM5 reference provenance or cardinality changed")
 	}
 	directory := modeltest.Directory(t, "MiniCPM5-1B")
 	full, err := os.ReadFile(filepath.Join(directory, "tokenizer.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(full)); got != sourceSHA {
 		t.Fatalf("MiniCPM5 tokenizer source drifted: %s", got)
 	}
 	encoder, err := Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range reference.Cases {
 		got, err := encoder.Encode(tc.Text)
 		if err != nil || !slices.Equal(got, tc.IDs) {

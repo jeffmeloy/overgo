@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -53,15 +54,11 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 	}
 	ctx := t.Context()
 	store, err := overgodb.Create(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	path := soakModelPath(t, ctx, store)
 	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
@@ -70,15 +67,11 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 	defer runner.Close()
 	runtime := chatShapedRuntime{runner}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generate := func(prompt string) string {
 		t.Helper()
 		shaped, err := runtime.ShapeChatPrompt(prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// DeviceGreedy takes the device argmax path the evaluator's
 		// generated-answer scoring uses, the one that reuses parameterized
 		// decode sessions across generations.
@@ -147,13 +140,9 @@ func soakPromptWithTokens(t *testing.T, runtime chatShapedRuntime, tokens int) s
 	t.Helper()
 	count := func(prompt string) int {
 		shaped, err := runtime.ShapeChatPrompt(prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, err := runtime.TokenizeText(shaped, true, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return len(ids)
 	}
 	base := "Q: Count the words."
@@ -190,9 +179,7 @@ func soakPrompt(repeats int) string {
 func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) string {
 	t.Helper()
 	entries, err := discovery.ServableWithMemo(ctx, store, 256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type sized struct {
 		path  string
 		bytes int64
@@ -203,9 +190,7 @@ func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) str
 			continue
 		}
 		domains, declared, err := modelartifact.EvalDomains(ctx, store, entry.Model)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if declared && !slices.Contains(domains, evaluation.DomainText) {
 			continue
 		}

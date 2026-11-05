@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -45,9 +46,7 @@ func TestWebUIBrowserMemoryTiers(t *testing.T) {
 	settle(parts + ` === 'KV cache and buffers 9,weights 8,activations 1,other processes 2'`)
 
 	// A device reporting no total shows no bar.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`" + ` && document.getElementById('device-dot').classList.contains('ok')`)
 	check(`document.getElementById('memory-bar').hidden`)
 	webuilane.Leg(t, "memory tiers leg", "the bar beside the pill showed the served model's owners largest first and another process's share, each sized against the device total with the free bytes in its label; a changed device read on the next probe; a device reporting no total showed no bar")

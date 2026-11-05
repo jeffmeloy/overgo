@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,9 +26,7 @@ func TestToolCallPropensityPreservesEffectAuthority(t *testing.T) {
 			Name: name, Description: "Effect authority fixture.", Effect: effect,
 			Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	read := manual("probe.read", agenttool.EffectInspection)

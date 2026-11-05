@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -32,9 +33,7 @@ func residentAudioAdmission(director *ModelSessionDirector[struct{}, AudioStream
 func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	model := testutil.ArtifactID(t, artifact.KindModel, "leased-model")
 	f := audioSessionFixture{store: store}
@@ -50,9 +49,7 @@ func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 		Model: model, Format: recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		MaxChunkSamples: 8, MaxOverlapSamples: 2,
 	}).Batch("policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -64,13 +61,9 @@ func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 func (f audioSessionFixture) open(t *testing.T, processor AudioStreamProcessor) (*AudioStreamSession, *ModelSessionDirector[struct{}, AudioStreamProcessor, struct{}]) {
 	t.Helper()
 	director, err := NewResidentModelSessionDirector("audio", "cpu", 1, processor)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { session.Close(t.Context()) })
 	return session, director
 }
@@ -89,19 +82,13 @@ func TestAudioSessionRestartAndFinalization(t *testing.T) {
 		t.Fatalf("first result: %+v %v", result, err)
 	}
 	batch, err := session.CheckpointBatch("first")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), f.store, batch); err != nil {
 		t.Fatal(err)
 	}
-	if err := session.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, session.Close(t.Context()))
 	restored, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, batch.Contents[0].Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restored.Close(t.Context())
 	final := workflowruntime.AudioStreamChunk{Sequence: 1, Span: recipecontract.SampleSpan{Start: 6, End: 14}, Audio: f.source.Audio, Final: true}
 	if _, err := restored.Process(t.Context(), final); err != nil {
@@ -115,16 +102,12 @@ func TestAudioSessionRestartAndFinalization(t *testing.T) {
 		t.Fatalf("final stream admitted input: %v", err)
 	}
 	batch, err = restored.CheckpointBatch("final")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), f.store, batch); err != nil {
 		t.Fatal(err)
 	}
 	cursor, err := workflowruntime.LoadAudioStream(t.Context(), f.store, f.source, batch.Contents[0].Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := cursor.Prepare(workflowruntime.AudioStreamChunk{Sequence: 2, Final: true}); err == nil {
 		t.Fatal("restart lost finalization")
 	}
@@ -143,9 +126,7 @@ func TestAudioSessionBackpressureCancellationAndLeaseLifetime(t *testing.T) {
 		return f.result, nil
 	})
 	before, err := session.CheckpointBatch("before")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	processed := make(chan error, 1)
 	go func() { _, err := session.Process(t.Context(), f.chunk); processed <- err }()
 	<-started
@@ -194,9 +175,7 @@ func TestAudioSessionFailurePreservesCheckpoint(t *testing.T) {
 				return f.result, nil
 			})
 			before, err := session.CheckpointBatch("before")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if name == "missing-chunk" {
 				f.chunk.Audio = testutil.ArtifactID(t, artifact.KindFile, "absent")
 			}

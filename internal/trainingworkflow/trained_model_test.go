@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -63,27 +64,17 @@ func TestTrainedModelKeepsUnchangedTensorsAsStored(t *testing.T) {
 	root := t.TempDir()
 	base := writeTrainedFixtureBase(t, root)
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	trained := map[string][]float32{"unchanged.weight": {1, 2, 3, 4}, "changed.weight": {5, 6}}
 	directory := filepath.Join(root, "trained")
-	if err := os.Mkdir(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := WriteTrainedModel(t.Context(), store, base, directory, len(trained), lookupTrained(trained)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(directory, 0o755))
+	testcheck.NoError(t, WriteTrainedModel(t.Context(), store, base, directory, len(trained), lookupTrained(trained)))
 	original, err := gguf.Open(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer original.Close()
 	written, err := gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer written.Close()
 	if paths := written.SourcePaths(); len(paths) != 2 || filepath.Base(paths[1]) != trainingprogram.CheckpointFrozenShard {
 		t.Fatalf("trained model shards = %v, want %s then %s", paths, trainingprogram.CheckpointModel, trainingprogram.CheckpointFrozenShard)
@@ -104,9 +95,7 @@ func TestTrainedModelKeepsUnchangedTensorsAsStored(t *testing.T) {
 	}
 	trained["absent.weight"] = []float32{1}
 	refused := filepath.Join(root, "refused")
-	if err := os.Mkdir(refused, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(refused, 0o755))
 	if err := WriteTrainedModel(t.Context(), store, base, refused, len(trained), lookupTrained(trained)); err == nil {
 		t.Fatal("a trained tensor the base does not hold was accepted")
 	}
@@ -123,25 +112,15 @@ func TestTrainedLlamaModelKeepsItsAttentionRowsInTheBaseOrder(t *testing.T) {
 	root := t.TempDir()
 	base := testutil.QuantizedLlamaGGUF(t, 1)
 	model, err := densecausal.LoadGGUF(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directory := filepath.Join(root, "trained")
-	if err := os.Mkdir(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := WriteTrainedModel(t.Context(), store, base, directory, len(model.Weights), trainedGGUFTensors(model)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(directory, 0o755))
+	testcheck.NoError(t, WriteTrainedModel(t.Context(), store, base, directory, len(model.Weights), trainedGGUFTensors(model)))
 	again, err := densecausal.LoadGGUF(filepath.Join(directory, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, values := range model.Weights {
 		if !slices.Equal(again.Weights[name], values) {
 			t.Errorf("%s: the published model reads back as other weights than the ones it was trained as", name)
@@ -161,19 +140,13 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	base := writeTrainedFixtureBase(t, root)
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publish := func(name string, store artifact.Reader, changed float32) string {
 		directory := filepath.Join(root, name)
-		if err := os.Mkdir(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Mkdir(directory, 0o755))
 		trained := map[string][]float32{"unchanged.weight": {1, 2, 3, 4}, "changed.weight": {changed, changed}}
-		if err := WriteTrainedModel(ctx, store, base, directory, len(trained), lookupTrained(trained)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, WriteTrainedModel(ctx, store, base, directory, len(trained), lookupTrained(trained)))
 		return directory
 	}
 	same := func(left, right string) bool {
@@ -187,17 +160,13 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 
 	first := publish("first", store, 5)
 	file, err := gguf.Open(filepath.Join(first, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
 	batch, err := inventory.Batch("fixture/first-trained-model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -213,14 +182,10 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	// bytes records no copy.
 	frozen := inventory.Components[1]
 	stale, err := overgodb.Create(filepath.Join(root, "stale"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer stale.Close()
 	other, err := artifact.CanonicalLocalLocation(frozen.ID, artifact.LocationFile, filepath.Join(first, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, stale, artifact.Batch{
 		Key: "fixture/stale-frozen-shard", Artifacts: []artifact.Descriptor{frozen},
 		Locations: []artifact.LocationEvent{{Location: other, Action: artifact.LocationAdd}},
@@ -232,9 +197,7 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 		t.Fatal("the third run linked a recorded copy that holds other bytes")
 	}
 	want, err := os.ReadFile(filepath.Join(first, trainingprogram.CheckpointFrozenShard))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, err := os.ReadFile(filepath.Join(third, trainingprogram.CheckpointFrozenShard)); err != nil || !bytes.Equal(got, want) {
 		t.Fatalf("the third run's frozen shard = (%d bytes, %v), want the first run's %d bytes", len(got), err, len(want))
 	}

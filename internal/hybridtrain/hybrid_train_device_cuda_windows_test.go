@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 // smallHybrid covers both mix operators.
@@ -27,26 +28,18 @@ func smallHybrid() StackConfig {
 func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
 	host, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	streamed, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observed := 0
 	streamedTraj, err := streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
@@ -55,9 +48,7 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 		observed++
 		return nil
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if observed != testSteps {
 		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
 	}
@@ -85,26 +76,18 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
 	fullSlab, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layered, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullTraj, err := fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observed := 0
 	layerTraj, err := layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
@@ -113,9 +96,7 @@ func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 		observed++
 		return nil
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if observed != testSteps {
 		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
 	}
@@ -145,40 +126,26 @@ func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
 	host, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dev, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("resident matrix params=%d  host-Sign vector params=%d", host.MatrixParamCount(), host.VectorParamCount())
 
 	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := worker.ExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	devTraj, acc, err := dev.TrainDeviceResident(worker, testSteps, ocfg, TrainingOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := worker.ExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// This fixed eight-step fixture used 432384/299680 bytes and 932 stream
 	// synchronizations at d16441de. Require the measured MLP/cache reduction;
 	// hand-maintained residency flags are not proof of actual driver work.

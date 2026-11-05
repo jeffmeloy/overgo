@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/gosyntax"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // Sources of the fixture package a landing grows: nothing, one function, and
@@ -23,9 +24,7 @@ const (
 func packageNodes(t *testing.T, source string) int {
 	t.Helper()
 	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return writtenNodes(snapshot, false)
 }
 
@@ -64,9 +63,7 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	grown := packageNodes(t, oneFunction) - packageNodes(t, emptyPackage)
 	fixture.commitPlan(rowPlan(grown-1, [2]string{"do", "false"}))
 	edited := rowPlan(grown, [2]string{"do", "true"}, [2]string{"file", "true"})
-	if err := plan.Save(fixture.planPath(), edited); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), edited))
 	fixture.write("internal/p/p.go", oneFunction)
 
 	l := fixture.candidateOf("row/do")
@@ -117,9 +114,7 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 		ID: "new", Title: "new", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the new row's estimate"},
 		Steps: []plan.Step{{ID: "do", Title: "new", Status: plan.StatusOpen, Verify: "test -f internal/p/marker"}},
 	})
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.write("internal/p/p.go", oneFunction)
 	fixture.write("internal/p/marker", "here\n")
 	l := fixture.candidateOf("new/do")
@@ -134,9 +129,7 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	landed, err := plan.Load(fixture.planPath())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.ContainsFunc(landed.Items, func(item plan.Item) bool { return item.ID == "new" }) {
 		t.Fatal("the new row stayed in the plan its landing published")
 	}
@@ -175,9 +168,7 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 		t.Fatalf("the first step's growth was refused: %v", err)
 	}
 	commit, err := l.commit(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := left(commit); got != count-first {
 		t.Fatalf("after a landing that added %d of %d nodes the plan gives the row %d, want %d", first, count, got, count-first)
 	}
@@ -191,9 +182,7 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 	// A landing that removes code returns what it removed to the count.
 	fixture.write("internal/p/p.go", emptyPackage)
 	l = fixture.candidateOf("row/later")
-	if err := l.rules(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, l.rules(ctx))
 	if commit, err = l.commit(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -227,9 +216,7 @@ func TestAFilingBesideTheFindingsRegisterIsAFiling(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage, findingsRegister: "{}\n"})
 	fixture.commitPlan(rowPlan(0, [2]string{"do", "false"}))
-	if err := plan.Save(fixture.planPath(), rowPlan(0, [2]string{"do", "false"}, [2]string{"file", "true"})); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), rowPlan(0, [2]string{"do", "false"}, [2]string{"file", "true"})))
 	fixture.write(findingsRegister, "{\"findings\": [\"SQA-1\"]}\n")
 	fixture.write("internal/p/p.go", oneFunction)
 	carrying := fixture.candidateOf("row/file")

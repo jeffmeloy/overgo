@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -51,9 +52,7 @@ func loadG1(t *testing.T) (g1Golden, string) {
 		t.Fatalf("missing required golden manifest: %v", err)
 	}
 	var g g1Golden
-	if err := json.Unmarshal(raw, &g); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g))
 	return g, dir
 }
 
@@ -116,9 +115,7 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The streaming measures below are of a pass over the checkpoint: a prompt
 	// another test of this process conditioned would be given its kept rows.
 	forgetPromptEncoders(t)

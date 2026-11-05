@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds reads a view as a load does, each built tensor once front to back in
@@ -30,18 +32,14 @@ func TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds(t *testing.T) {
 	first, firstData := tensor("first", 1)
 	second, secondData := tensor("second", 7)
 	file, err := View(nil, []ViewTensor{first, second}, WriteOptions{}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Opening reads the directory with a read-ahead that may build the first tensors; the load is counted from here.
 	source, before := file.source.(*viewSource), maps.Clone(opened)
 	read := func(name string, from, size uint64) []byte {
 		t.Helper()
 		info, _ := file.Tensor(name)
 		part := make([]byte, size)
-		if err := file.ReadTensorRange(info, from, part); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorRange(info, from, part))
 		return part
 	}
 	half := uint64(2 * elements)

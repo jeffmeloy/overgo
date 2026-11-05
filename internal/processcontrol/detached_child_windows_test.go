@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"syscall"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDetachedJobChildHelper(t *testing.T) {
@@ -20,42 +22,30 @@ func TestDetachedJobChildHelper(t *testing.T) {
 	}
 	if os.Getenv("OVERGO_DETACHED_CHILD_ROLE") == "parent" {
 		executable, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		child := exec.Command(executable, "-test.run=^TestDetachedJobChildHelper$")
 		child.Env = append(os.Environ(), "OVERGO_DETACHED_CHILD_ROLE=child")
 		if os.Getenv("OVERGO_DETACHED_CHILD_PIPE") == "1" {
 			child.Stdout = os.Stdout
 		}
 		ready, err := child.StderrPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := child.Start(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, child.Start())
 		if _, err := io.ReadFull(ready, make([]byte, len("ready"))); err != nil {
 			t.Fatal(err)
 		}
 		_ = ready.Close()
 		if os.Getenv("OVERGO_DETACHED_CHILD_BLOCK") == "1" {
-			if err := child.Wait(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, child.Wait())
 		} else if err := child.Process.Release(); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
 	connection, err := net.Dial("tcp", address)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer connection.Close()
-	if err := binary.Write(connection, binary.LittleEndian, uint32(os.Getpid())); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, binary.Write(connection, binary.LittleEndian, uint32(os.Getpid())))
 	// The test retains our process handle before allowing the parent to exit.
 	if _, err := io.ReadFull(connection, make([]byte, 1)); err != nil {
 		t.Fatal(err)
@@ -79,16 +69,12 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer listener.Close()
 			stopAccept := context.AfterFunc(t.Context(), func() { _ = listener.Close() })
 			defer stopAccept()
 			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			environment := append(os.Environ(), "OVERGO_DETACHED_CHILD_ADDRESS="+listener.Addr().String(), "OVERGO_DETACHED_CHILD_ROLE=parent")
 			if testCase.inherit {
 				environment = append(environment, "OVERGO_DETACHED_CHILD_PIPE=1")
@@ -97,9 +83,7 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 				environment = append(environment, "OVERGO_DETACHED_CHILD_BLOCK=1")
 			}
 			supervised, err := Start(t.Context(), Command{Path: executable, Args: []string{"-test.run=^TestDetachedJobChildHelper$"}, Env: environment})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() {
 				if !supervised.Exited() {
 					_ = supervised.Terminate()
@@ -107,18 +91,12 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 				_, _ = supervised.Wait(context.WithoutCancel(t.Context()))
 			}()
 			connection, err := listener.Accept()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer connection.Close()
 			var pid uint32
-			if err := binary.Read(connection, binary.LittleEndian, &pid); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, binary.Read(connection, binary.LittleEndian, &pid))
 			handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, pid)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer syscall.CloseHandle(handle)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(nil)

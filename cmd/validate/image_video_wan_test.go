@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -83,27 +84,17 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var bundle mediaWanBundle
 	path := filepath.Join(root, "docs/image_video_wan.json")
-	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoWanSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoWanSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Scope == "" || len(bundle.Numerical) != 5 || len(bundle.Frames) != 4 {
 		t.Fatal("incomplete Wan bundle")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -115,35 +106,25 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	}
 	decode := func(id artifact.ID, value any) {
 		t.Helper()
-		if err := json.Unmarshal(read(id), value); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(id), value))
 	}
 	checkTest := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty Wan check")
 		}
 	}
 	var merged mediaMergedEvidence
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged))
 	protocolRaw := read(bundle.Protocol)
 	var header struct {
 		Source  string `json:"source_base"`
 		Quality string `json:"quality_protocol_sha256"`
 	}
-	if err := json.Unmarshal(protocolRaw, &header); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(protocolRaw, &header))
 	if header.Source != bundle.Source || header.Quality != imageVideoProtocolSHA256 {
 		t.Fatal("acquisition protocol changed")
 	}
@@ -161,16 +142,10 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 		t.Fatal("failed instrumentation attempt was not retained", err)
 	}
 	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoProtocolIdentity(quality); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol imageVideoProtocol
-	if err := json.Unmarshal(quality, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(quality, &protocol))
 	var conditioning []struct {
 		Case          string      `json:"case"`
 		Input         artifact.ID `json:"input"`
@@ -193,9 +168,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 		seen[c.ID] = true
 		entry := bundle.Cases[index]
 		run, err := runrecord.RequireExactRun(t.Context(), store, entry.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if run.Recipe != c.Recipe || !slices.Equal(run.Inputs, c.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{entry.Output}) || run.Outcome != runrecord.OutcomeSucceeded || run.MeasuredNS == 0 || len(run.Phases) == 0 {
 			t.Fatal("Wan run identity or measurement missing")
 		}

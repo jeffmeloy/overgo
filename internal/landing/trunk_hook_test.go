@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,12 +36,8 @@ func hookedRepository(t *testing.T) (run func(environment []string, arguments ..
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	write("code.go", "first\n")
 	setup("add", "-A")
@@ -54,9 +51,7 @@ func hookedRepository(t *testing.T) (run func(environment []string, arguments ..
 	setup("commit", "-q", "-m", "side")
 	setup("checkout", "-q", "master")
 	hook, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), filepath.FromSlash(trunkHookDirectory), trunkHook))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write(filepath.Join(trunkHookDirectory, trunkHook), string(hook))
 	setup("update-index", "--refresh")
 	setup("config", "core.hooksPath", trunkHookDirectory)
@@ -82,9 +77,7 @@ func TestOnlyALandingMovesTheTrunkInGit(t *testing.T) {
 			t.Parallel()
 			run, _ := hookedRepository(t)
 			before, err := run(nil, "rev-parse", "refs/heads/master")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if name == "delete" {
 				if output, err := run(nil, "checkout", "-q", "--detach"); err != nil {
 					t.Fatalf("%v: %s", err, output)
@@ -106,12 +99,8 @@ func TestOnlyALandingMovesTheTrunkInGit(t *testing.T) {
 		}
 	}
 	register := filepath.Join(repo, "docs", "sqa_findings.json")
-	if err := os.MkdirAll(filepath.Dir(register), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(register, []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(register), 0o755))
+	testcheck.NoError(t, os.WriteFile(register, []byte("{}\n"), 0o644))
 	allowed("staging the register", nil, "add", "docs/sqa_findings.json")
 	allowed("a commit of the register", nil, "commit", "-q", "-m", "sqa: a finding")
 	allowed("a new branch", nil, "checkout", "-q", "-b", "elsewhere")
@@ -137,9 +126,7 @@ func TestALandingRefusesATrunkWithoutItsHook(t *testing.T) {
 	if err := check(); err == nil || !strings.Contains(err.Error(), "git config core.hooksPath "+trunkHookDirectory) {
 		t.Fatalf("with the hook off: %v", err)
 	}
-	if err := os.RemoveAll(filepath.Join(repo, filepath.FromSlash(trunkHookDirectory))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(repo, filepath.FromSlash(trunkHookDirectory))))
 	if err := check(); err != nil {
 		t.Fatalf("a repository with no hook: %v", err)
 	}
@@ -151,9 +138,7 @@ func TestAResetThatMovesNothingPasses(t *testing.T) {
 	t.Parallel()
 	run, _ := hookedRepository(t)
 	before, err := run(nil, "rev-parse", "refs/heads/master")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if output, err := run(nil, "reset", "-q"); err != nil {
 		t.Fatalf("a reset that moves nothing was refused: %v: %s", err, output)
 	}

@@ -6,27 +6,20 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestSegmentedTranscriptionTopology(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	base, err := TranscriptionDefinition(id(artifact.KindModel, "recognizer"), id(artifact.KindProfile, "format"), id(artifact.KindProfile, "recognition"), id(artifact.KindTokenizer, "tokens"), id(artifact.KindTensorInventory, "recognition-tensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	activity, err := ActivityDefinition(id(artifact.KindModel, "activity"), id(artifact.KindProfile, "boundaries"), id(artifact.KindTensorInventory, "activity-tensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := SegmentedTranscriptionDefinition(base, activity)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	components, err := CompileComponentSessionPlanWithExtents(t.Context(), program, func(_ context.Context, model artifact.ID) (uint64, error) {
 		if model != base.Model && model != activity.Model {
 			t.Fatalf("foreign model %s", model)
@@ -61,14 +54,10 @@ func TestSegmentedTranscriptionTopology(t *testing.T) {
 	} {
 		// Reconstruct before mutation so each case owns its slices.
 		changed, err := SegmentedTranscriptionDefinition(base, activity)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		mutate(&changed)
 		changed, err = recipe.NewDefinitionWithDependencies(changed.Task, changed.Dependencies, changed.Nodes, changed.Edges, changed.Inputs, changed.Outputs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, _, err := SpeechComponents(changed); err == nil {
 			t.Fatal("altered topology admitted")
 		}

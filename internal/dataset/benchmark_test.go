@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
@@ -17,9 +18,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 	const conversion = "source-schema-to-canonical/v1"
 	data := []byte("{\"query\":\"first\",\"label\":\"one\"}\n{\"query\":\"second\",\"label\":\"two\"}\n")
 	path := t.TempDir() + "/records.jsonl"
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	digest := sha256.Sum256(data)
 	spec := BenchmarkImportSpec{
 		Source: source, Revision: revision, SHA256: hex.EncodeToString(digest[:]), Split: split,
@@ -27,14 +26,10 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		Fields: []FieldBinding{{Target: "answer", Source: "label"}, {Target: "prompt", Source: "query"}},
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	imported, err := ImportBenchmark(t.Context(), store, path, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded, ok, err := benchmarkImportCodec.Read(t.Context(), store, imported.ID)
 	if err != nil || !ok || !reflect.DeepEqual(loaded, imported) {
 		t.Fatalf("loaded import = %+v, %v, %v", loaded, ok, err)
@@ -53,9 +48,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 	changed := spec
 	changed.Revision += "/changed"
 	changedImport, err := ImportBenchmark(t.Context(), store, path, changed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if changedImport.Profile == imported.Profile || changedImport.ID == imported.ID ||
 		changedImport.Records[0] == imported.Records[0] {
 		t.Fatal("source revision did not change import identities")

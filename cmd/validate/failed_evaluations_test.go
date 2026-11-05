@@ -13,6 +13,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.json")
 	running := plan.MeasurementRun{Started: time.Now(), Phases: []plan.MeasurementPhase{{Name: "cells", Started: time.Now()}}}
-	if err := jsonfile.Write(path, running, clioptions.OutputFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(path, running, clioptions.OutputFileMode))
 	t.Setenv(clioptions.MeasurementRunEnvironment, path)
 	model := testutil.ArtifactID(t, artifact.KindModel, "failed model")
 	other := testutil.ArtifactID(t, artifact.KindModel, "other model")
@@ -33,9 +32,7 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 		t.Fatalf("recording the failure said %q", output.String())
 	}
 	failed, err := failedEvaluations(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, read := range []struct {
 		model artifact.ID
 		suite string
@@ -53,9 +50,7 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 	// The scorecard of the run reads the gap where the reading from before would read as holding.
 	reading := scorecard.Cell{Value: 0.5, Source: testutil.ArtifactID(t, artifact.KindEvaluation, "before"), Contract: scorecard.Contract{Suite: "store/mmlu-pro"}}
 	rows, err := withoutFailedEvaluations([]scorecard.Row{{Model: model, Cells: map[metric.Name]scorecard.Cell{metric.Quality: reading}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cell := rows[0].Cells[metric.Quality]; cell.Measured() || !strings.Contains(cell.Reason, "its evaluation on store/mmlu-pro failed") {
 		t.Fatalf("the failed evaluation's quality reads %+v", cell)
 	}

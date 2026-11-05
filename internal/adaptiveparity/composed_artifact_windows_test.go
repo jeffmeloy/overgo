@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -32,38 +33,26 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 		}
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 
 	scorerID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+scorerDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	drafterID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+drafterDir))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chainProgram, _, err := trainingworkflow.ChainPrograms(scorerID, drafterID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decomposition, err := modelartifact.NewComponentDecomposition(scorerID, "qwen2", "text",
 		[]modelartifact.TensorFact{{Name: "blk.0.attn_q.weight", Shape: []uint64{896, 896}, Storage: "bf16"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	composed, err := composition.NewComposedModel(composition.ComposedModelDocument{
 		Architecture: "qwen2",
 		Recipe:       chainProgram.Definition().ID,
 		Parents:      []artifact.ID{scorerID, drafterID},
 		Components:   []artifact.ID{decomposition.ID},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := composition.NewComposedModel(composition.ComposedModelDocument{
 		Architecture: "qwen2",
 		Recipe:       chainProgram.Definition().ID,
@@ -82,13 +71,9 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	}
 
 	recipeContent, err := chainProgram.Definition().ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decompositionContent, err := decomposition.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "composed/inputs",
 		Artifacts: []artifact.Descriptor{{ID: scorerID}, {ID: drafterID}},
@@ -97,16 +82,12 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch, err := composed.Batch("composed/" + composed.ID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	parents, err := store.Parents(ctx, composed.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved := map[artifact.ID]bool{}
 	for _, parent := range parents {
 		resolved[parent.Parent] = true
@@ -134,9 +115,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 		Prefix: 64, Draft: 8, Target: 32,
 		Windows: [][]int{tokens[:104]},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.ChainRecipe != parsed.Recipe {
 		t.Fatalf("execution recipe %s differs from the composed reference %s", result.ChainRecipe, parsed.Recipe)
 	}

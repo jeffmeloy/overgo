@@ -10,6 +10,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,39 +21,27 @@ import (
 func TestConvertLoRAWritesTheGGUFAdapter(t *testing.T) {
 	root := t.TempDir()
 	base := filepath.Join(root, "base")
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(base, 0o755))
 	spec := testutil.DenseCausalSpec{Vocab: 3, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 3}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
-	if err := safetensors.Save(filepath.Join(base, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(base, "model.safetensors"), weights, shapes, nil))
 	config, err := json.Marshal(map[string]any{
 		"model_type": "llama", "hidden_size": spec.Hidden, "intermediate_size": spec.Intermediate, "num_attention_heads": spec.Heads,
 		"num_key_value_heads": spec.KVHeads, "head_dim": spec.HeadDim, "num_hidden_layers": spec.Layers, "vocab_size": spec.Vocab,
 		"max_position_embeddings": 16, "rms_norm_eps": 1e-5, "rope_theta": 10000,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	testutil.WriteTextFile(t, base, "config.json", string(config))
 	adapterDirectory := filepath.Join(root, "adapter")
 	adapter := peft.Adapter{
 		Config:  peft.Config{Rank: 2, Alpha: 4},
 		Modules: map[string]peft.Module{"model.layers.0.self_attn.v_proj": {Rank: 2, In: 8, Out: 4, Alpha: 4, Down: make([]float32, 16), Up: make([]float32, 8)}},
 	}
-	if err := peft.Save(adapterDirectory, adapter); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, peft.Save(adapterDirectory, adapter))
 	output := filepath.Join(root, "adapter.gguf")
-	if err := runSubcommand([]string{"convert-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runSubcommand([]string{"convert-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}))
 	file, err := gguf.Open(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	var names []string
 	for _, info := range file.Tensors {

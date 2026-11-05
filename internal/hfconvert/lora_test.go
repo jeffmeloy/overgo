@@ -14,6 +14,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,17 +38,13 @@ func writeLoRACheckpoint(t *testing.T, modelType string) loRACheckpoint {
 	directory := t.TempDir()
 	spec := testutil.DenseCausalSpec{Vocab: 3, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 2, Seed: 3}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
 	config, err := json.Marshal(map[string]any{
 		"model_type": modelType, "hidden_size": spec.Hidden, "intermediate_size": spec.Intermediate, "num_attention_heads": spec.Heads,
 		"num_key_value_heads": spec.KVHeads, "head_dim": spec.HeadDim, "num_hidden_layers": spec.Layers, "vocab_size": spec.Vocab,
 		"max_position_embeddings": 16, "rms_norm_eps": 1e-5, "rope_theta": 10000, "tie_word_embeddings": true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	testutil.WriteTextFile(t, directory, "config.json", string(config))
 	testutil.WriteTextFile(t, directory, "tokenizer.json", `{"model":{"vocab":{"a":0,"<s>":1,"</s>":2},"merges":[]},"added_tokens":[{"id":1,"content":"<s>","special":true},{"id":2,"content":"</s>","special":true}]}`)
 	testutil.WriteTextFile(t, directory, "generation_config.json", `{"bos_token_id":1,"eos_token_id":2}`)
@@ -101,9 +98,7 @@ func readFloat32(t *testing.T, file *gguf.File, name string) ([]float32, []uint6
 			continue
 		}
 		data := make([]byte, info.Size)
-		if err := file.ReadTensorData(info, data); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorData(info, data))
 		values := make([]float32, len(data)/4)
 		for index := range values {
 			values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[4*index:]))
@@ -127,9 +122,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	base, err := gguf.Open(basePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer base.Close()
 	// The premise of the row permutation: the converted base holds the checkpoint's query rows permuted.
 	baseQuery, _ := readFloat32(t, base, "blk.0.attn_q.weight")
@@ -140,9 +133,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 		}
 	}
 	spec, err := model.ReadSpec(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, stabilized := range []bool{false, true} {
 		adapter := loRAAdapter(stabilized)
 		output := filepath.Join(t.TempDir(), "adapter.gguf")
@@ -158,9 +149,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 			t.Fatalf("stabilized=%t: loaded alpha %v with %d weights, want 8 and three", stabilized, loaded.Alpha, len(loaded.Weights))
 		}
 		file, err := gguf.Open(output)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for module, destination := range map[string]string{loRAQuery: "blk.0.attn_q.weight", loRAKey: "blk.1.attn_k.weight", loRADown: "blk.0.ffn_down.weight"} {
 			factors := adapter.Modules[module]
 			down, downExtents := readFloat32(t, file, destination+".lora_a")
@@ -170,9 +159,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 				t.Fatalf("%s: factor extents %v and %v, want GGUF's reversed in-by-rank and rank-by-out", module, downExtents, upExtents)
 			}
 			want, err := adapter.Delta(module)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			switch module {
 			case loRAQuery:
 				want = rotaryRows(want, factors.Out, factors.In, 2)
@@ -222,9 +209,7 @@ func TestConvertLoRARefusesWhatItCannotName(t *testing.T) {
 		t.Errorf("a gemma checkpoint: err = %v, want it unsupported", err)
 	}
 	existing := filepath.Join(t.TempDir(), "adapter.gguf")
-	if err := os.WriteFile(existing, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(existing, []byte("x"), 0o600))
 	if _, err := ConvertLoRA(loRAAdapter(false), LoRAOptions{Directory: checkpoint.directory, OutputPath: existing}); err == nil {
 		t.Error("an existing output was overwritten")
 	}

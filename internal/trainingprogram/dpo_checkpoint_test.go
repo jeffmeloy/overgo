@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	split := id(artifact.KindDatasetShard, "dpo-split")
 	processor := id(artifact.KindProfile, "dpo-processor")
 	muonPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveDPO,
 		Operators: []OperatorSpec{
@@ -32,9 +31,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  muonPlan, Preference: &PreferencePolicy{Reference: reference, Scale: 0.1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
 	runSpec := RunSpec{
 		Recipe: id(artifact.KindRecipe, "dpo-recipe"), Initial: InitialStateSpec{Model: policy},
@@ -52,14 +49,10 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		},
 	}
 	initial, err := CompileTrainingRunPlan(runSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := hostoptimizer.Config{BaseLearningRate: 0.1, Momentum: 0.9, Steps: 1, Schedule: hostoptimizer.ScheduleConstant}
 	opt, err := hostoptimizer.New([]float32{1}, []float32{0}, muonPlan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stream := id(artifact.KindProfile, "dpo-stream")
 	algorithm := id(artifact.KindProfile, "counter-rng")
 	checkpoint, _ := publishTestCheckpoint(t, CheckpointSpec{
@@ -75,26 +68,18 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	})
 	runSpec.Initial = InitialStateSpec{Checkpoint: checkpoint.ID()}
 	resumed, err := CompileTrainingRunPlan(runSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority := ResumeAuthority{Model: policy, Stream: checkpoint.Stream, OptimizerPlan: muonPlan.Identity()}
-	if err := ValidateResume(resumed, checkpoint, authority); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateResume(resumed, checkpoint, authority))
 	changedProgram, err := CompileTrainingProgram(ProgramSpec{
 		Objective: program.Objective(), Operators: program.Operators(), Parameters: program.Parameters(),
 		Optimizer: muonPlan, Preference: &PreferencePolicy{Reference: id(artifact.KindModel, "other-reference"), Scale: 0.1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	changed := runSpec
 	changed.Program = changedProgram
 	changedPlan, err := CompileTrainingRunPlan(changed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateResume(changedPlan, checkpoint, authority); err == nil {
 		t.Fatal("accepted checkpoint under changed DPO authority")
 	}

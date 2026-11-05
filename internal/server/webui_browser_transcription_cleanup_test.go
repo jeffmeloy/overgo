@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -71,9 +72,7 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 			}
 			if test.name == "mode" {
 				var delta int
-				if err := browser.Evaluate(ctx, `(() => {const mode=cleanupOwned.element.querySelector('[aria-label="mode"]');return [...mode.options].findIndex(option=>option.value==='transcription')-mode.selectedIndex;})()`, &delta); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, browser.Evaluate(ctx, `(() => {const mode=cleanupOwned.element.querySelector('[aria-label="mode"]');return [...mode.options].findIndex(option=>option.value==='transcription')-mode.selectedIndex;})()`, &delta))
 				for delta != 0 {
 					if delta > 0 {
 						pressKey(t, ctx, browser, "ArrowDown", 40)
@@ -101,13 +100,9 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 						t.Fatal(err)
 					}
 					var wheel struct{ X, Y, Delta float64 }
-					if err := browser.Evaluate(ctx, `(() => {const r=cleanupOwned.extras.getBoundingClientRect(),status=cleanupOwned.element.querySelector('.attachment-row [role=status]').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,delta:Math.ceil(Math.max(0,status.bottom-r.bottom))};})()`, &wheel); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, browser.Evaluate(ctx, `(() => {const r=cleanupOwned.extras.getBoundingClientRect(),status=cleanupOwned.element.querySelector('.attachment-row [role=status]').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,delta:Math.ceil(Math.max(0,status.bottom-r.bottom))};})()`, &wheel))
 					if wheel.Delta > 0 {
-						if err := browser.Call(ctx, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": wheel.X, "y": wheel.Y, "deltaX": 0, "deltaY": wheel.Delta}, nil); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, browser.Call(ctx, "Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": wheel.X, "y": wheel.Y, "deltaX": 0, "deltaY": wheel.Delta}, nil))
 					}
 					settle(`(() => {const outer=cleanupOwned.extras.getBoundingClientRect(),status=cleanupOwned.element.querySelector('.attachment-row [role=status]').getBoundingClientRect();return status.top>=outer.top&&Math.ceil(status.bottom)<=Math.ceil(outer.bottom);})()`)
 					if findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "transcription-"+test.name); err != nil || len(findings) != 0 {

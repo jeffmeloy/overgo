@@ -17,13 +17,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 func TestArgvOutputLimit(t *testing.T) {
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	for _, mode := range []string{"finite", "continuing-tree", "valid"} {
 		t.Run(mode, func(t *testing.T) {

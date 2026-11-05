@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // readableContrast is the level-AA ratio body text must reach on its
@@ -20,17 +22,11 @@ func derivedDesign(t *testing.T) (DesignDocument, []byte) {
 	t.Helper()
 	root := filepath.Join("..", "..")
 	stylesheet, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(StylesheetPath)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := ParseDesign(string(stylesheet))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded, err := EncodeDesign(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return document, encoded
 }
 
@@ -129,9 +125,7 @@ func scaledProperty(property string) bool {
 func stylesheetRules(t *testing.T) []cssRule {
 	t.Helper()
 	stylesheet, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(StylesheetPath)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return parseCSS(string(stylesheet))
 }
 

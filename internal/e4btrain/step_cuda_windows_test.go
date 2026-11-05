@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -28,34 +29,24 @@ const (
 func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(device.DefaultOrdinal())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	host := tinyModel(t, 1)
 	hostLoss, err := host.differentiate(hostAttention)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: 1, MaximumSequence: tinyTokens,
 		Parameters: host.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := plan.Optimizer()
 	model := tinyModel(t, 1)
 	trainer, err := NewTrainer(worker, model, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	deviceLoss, err := model.differentiate(trainer.attention)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if deviceLoss != hostLoss {
 		t.Fatalf("device pass loss %v, host kit %v: the forward is shared", deviceLoss, hostLoss)
 	}
@@ -71,16 +62,12 @@ func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 
 	before := slices.Clone(model.weights)
 	result, err := trainer.Step()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Loss != hostLoss || result.Step != 1 || !(result.GradientL2 > 0) {
 		t.Fatalf("step result %+v, want the host kit's loss %v", result, hostLoss)
 	}
 	stepper, err := optimizer.New(host.weights, host.gradients, host.plan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stepper.Step()
 	worst = 0
 	for _, group := range model.plan.Groups() {
@@ -96,9 +83,7 @@ func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 		}
 	}
 	after, err := trainer.Loss()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("step: loss %.6f -> %.6f, gradient L2 %.4g, learning rate %.4g, worst update difference %.3g", result.Loss, after, result.GradientL2, result.LearningRate, worst)
 	if !(after < result.Loss) {
 		t.Errorf("the step did not descend: %.6f -> %.6f", result.Loss, after)

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/optimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,13 +23,9 @@ const (
 func TestResidentMatrixLayout(t *testing.T) {
 	cfg := smallHybrid()
 	m, err := BuildModel(cfg, testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plans, err := m.matrixPlans()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(plans) != len(cfg.Types) {
 		t.Fatalf("plans=%d, want %d layers", len(plans), len(cfg.Types))
 	}
@@ -71,25 +68,17 @@ func TestResidentMatrixLayout(t *testing.T) {
 // saved weights read back bit-exact beside momentum covering them all.
 func TestHybridCompiledHostLifecycle(t *testing.T) {
 	model, err := BuildModel(smallHybrid(), testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var state optimizer.State
 	trajectory, err := model.TrainHost(testSteps, optimizer.Config{
 		BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant,
 	}, TrainingOptions{Checkpoint: func(snapshot optimizer.State) error { state = snapshot; return nil }})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	testutil.RequireFiniteDecrease(t, "hybrid host", trajectory, testSteps)
 	directory := t.TempDir()
-	if err := model.SaveWeights(filepath.Join(directory, "model.safetensors")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, model.SaveWeights(filepath.Join(directory, "model.safetensors")))
 	source, err := safetensors.OpenSource(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	groups := slices.Concat(model.matPlan.Groups(), model.vecPlan.Groups())
 	if len(source.Tensors) != len(groups) || len(state.Momentum) != len(model.matW)+len(model.vecW) || state.Step != testSteps {

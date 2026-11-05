@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestFlashNextNGram(t *testing.T) { RunFlashNextNGram(t, reference.Execute) }
@@ -22,9 +23,7 @@ func TestFlashNextNGram(t *testing.T) { RunFlashNextNGram(t, reference.Execute) 
 func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/flashnext_ngram.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var f struct {
 		Tolerance float64
 		Config    struct {
@@ -50,9 +49,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 			Input, Output, Embedding, Conv []float32
 		}
 	}
-	if err := json.Unmarshal(data, &f); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &f))
 	spec := qwen35TestSpec()
 	spec.Architecture, spec.BlockCount = "qwen4exp", 1
 	spec.EmbeddingLength, spec.HyperConnectionCount, spec.HyperConnectionRank = f.Config.Hidden, f.Config.HC, 3
@@ -61,16 +58,10 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 	spec = bindFixtureSpec(spec)
 	table := f.Weights["per_layer_token_embd.weight"]
 	var contents, encoded bytes.Buffer
-	if err := binary.Write(&contents, binary.LittleEndian, table.Data); err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(&encoded, nil, []gguf.TensorData{{Name: "per_layer_token_embd.weight", Shape: table.Shape, Type: dtype.F32, Data: &contents}}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, binary.Write(&contents, binary.LittleEndian, table.Data))
+	testcheck.NoError(t, gguf.Write(&encoded, nil, []gguf.TensorData{{Name: "per_layer_token_embd.weight", Shape: table.Shape, Type: dtype.F32, Data: &contents}}, gguf.WriteOptions{}))
 	file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var history []uint32
 	var conv reference.Value
 	for _, test := range f.Cases {
@@ -80,16 +71,12 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 				conv = reference.ZeroValue(tensor.MustShape(uint64(f.Config.Hidden*f.Config.HC), uint64((f.Config.Conv-1)*f.Config.Size)))
 			}
 			rows, next, err := spec.NGramRows(test.Tokens, history)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(rows, test.Rows) || !slices.Equal(next, test.History) {
 				t.Fatalf("rows/history = %v/%v, original %v/%v", rows, next, test.Rows, test.History)
 			}
 			selected, err := LoadHostRows(t.Context(), file, file.Tensors[0], rows)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(selected.Data, test.Embedding) {
 				t.Fatal("selected embedding differs from original")
 			}
@@ -119,13 +106,9 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 			result, err := buildNGramInjection(blockDispatchOptions{Context: c, Spec: spec, Weights: LayerGraphWeights{
 				NGramKey: weight("ple_key"), NGramValue: weight("ple_value"), NGramKeyNorm: weight("ple_norm_key"), NGramQueryNorm: weight("ple_norm_query"), NGramConvNorm: weight("ple_norm_conv"), NGramConv: weight("ple_conv1d"),
 			}}, activation)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			values, err := run(result.States.AppendValues([]*tensor.Tensor{result.Output}), feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, check := range []struct {
 				name string
 				node *tensor.Tensor
@@ -168,9 +151,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 		node := b.Input("gate", dtype.F32, tensor.MustShape(uint64(len(data))))
 		out := b.SignedSqrt(node, ngramGateFloor)
 		values, err := run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{node: {Shape: node.Shape, Data: data}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for i, want := range []float32{-2, -.001, -.001, 0, .001, .001, 2} {
 			if math.Abs(float64(values[out].Data[i]-want)) > 1e-7 {
 				t.Fatalf("root[%d] = %g, want %g", i, values[out].Data[i], want)

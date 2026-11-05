@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -25,15 +26,11 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		DevelopmentSplit: development, Recipe: recipeID, Code: code, Proposer: proposer,
 		Components: []artifact.ID{id(artifact.KindModel, "component"), id(artifact.KindAdapter, "bridge")},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluator := id(artifact.KindEvidence, "evaluator")
 	authority := id(artifact.KindEvidence, "admission-authority")
 	admission, err := AdmitImprovement(proposal, authority, evaluator, promotion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	child := id(artifact.KindModel, "child")
 	environment := id(artifact.KindEvidence, "environment")
 	output := id(artifact.KindOutput, "prediction")
@@ -42,15 +39,11 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		[]artifact.ID{child, dataset, promotion, code, admission.ID}, []artifact.ID{output},
 		"", fixtureCodeCommit, environment, 100, []PhaseMetric{{Phase: PhaseValidate, DurationNS: 100}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluation, err := NewEvaluation(recipeID, run.ID, dataset, []Metric{{
 		Name: "quality", Value: 1, Direction: DirectionMaximize,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decider := id(artifact.KindEvidence, "decider")
 	decision, err := DecideImprovement(admission, child, run, evaluation, decider, ImprovementPromote)
 	if err != nil || decision.Rollback != parent {
@@ -70,9 +63,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		}
 	}
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := improvementDecisionCodec.Parse(content.Data)
 	if err != nil || parsed.ID != decision.ID || parsed.Rollback != parent {
 		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.Rollback, err)
@@ -82,9 +73,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	static := []artifact.ID{
 		proposal.ID(), proposal.Incumbent(), proposal.Candidate(), parent, child, dataset, development, promotion,
@@ -107,9 +96,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		{"fixture/improvement/decision", decision.Batch},
 	} {
 		value, err := batch.build(batch.key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, value); err != nil {
 			t.Fatal(err)
 		}

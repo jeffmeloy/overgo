@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -30,9 +31,7 @@ func TestWebUIBrowserRemoteTurns(t *testing.T) {
 		{"model": "model:local", "location": "C:/models/local.gguf", "present": true, "recipe": "recipe:local",
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:local", "tier": "verified"}}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/catalog/models" {
 			w.Header().Set("Content-Type", "application/json")

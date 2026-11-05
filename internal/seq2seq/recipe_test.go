@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/textgeneration"
 	"overgo/internal/tokenizer"
 )
@@ -12,9 +13,7 @@ import (
 func generateThroughRecipe(t testing.TB, generator *Generator, request textgeneration.Request) (string, error) {
 	t.Helper()
 	fixture := modelrecipetest.NewCapability(t, "seq2seq-model", recipe.TaskSeq2Seq)
-	if err := RegisterRuntime(fixture.Runtime, fixture.Model, generator); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, RegisterRuntime(fixture.Runtime, fixture.Model, generator))
 	result, err := fixture.ExecuteScalar("seq2seq/runtime", request)
 	if err != nil {
 		return "", err
@@ -33,20 +32,14 @@ func TestGenerateAnswersWhatTheRecipeStagesAnswer(t *testing.T) {
 	}
 	pieces[0].Piece = "▁"
 	table, err := tokenizer.NewUnigram(pieces, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model.Dims.EOSToken = model.Dims.Vocab - 1
 	generator := &Generator{model: model, tokenizer: table}
 	request := textgeneration.Request{Text: text, MaxTokens: bound}
 	direct, err := generator.Generate(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staged, err := generateThroughRecipe(t, generator, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if direct != staged || direct == "" {
 		t.Fatalf("direct generation %q, recipe stages %q", direct, staged)
 	}
@@ -71,24 +64,16 @@ func TestGeneratorReportsTheTokensItsSelectionDecoded(t *testing.T) {
 	}
 	pieces[0].Piece = "▁"
 	table, err := tokenizer.NewUnigram(pieces, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := table.Encode(text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generator := &Generator{model: model, tokenizer: table}
 	for _, test := range []struct{ end, tokens int }{{end: model.Dims.Vocab - 1, tokens: bound}, {end: model.Dims.StartToken}} {
 		model.Dims.EOSToken = test.end
 		selected, err := executeGenerationStages(model, source, bound)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: text, MaxTokens: bound})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(selected) != test.tokens || output != table.Decode(selected) || generator.OutputTokens() != uint64(test.tokens) {
 			t.Fatalf("ending on token %d the generator reports %d tokens for %q; want the %d its selection decoded (%v, %q)",
 				test.end, generator.OutputTokens(), output, test.tokens, selected, table.Decode(selected))

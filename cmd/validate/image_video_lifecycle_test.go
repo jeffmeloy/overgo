@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -67,20 +68,14 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	testskip.Short(t, "retained media lifecycle evidence")
 	root := testutil.RepoRoot(t)
 	bundle, err := readMediaLifecycleBundle(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Scope == "" || len(bundle.Checks) == 0 || len(bundle.Failed) == 0 {
 		t.Fatal("incomplete lifecycle evidence")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -116,9 +111,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	}
 	covered := map[string]bool{}
 	var assertions map[string]map[string][]string
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions))
 	for _, check := range bundle.Checks {
 		if check.Name == "" || check.Command == "" || check.Scope == "" || len(check.Required) == 0 {
 			t.Fatal("incomplete lifecycle check", check.Name)
@@ -163,20 +156,14 @@ func TestImageVideoLifecycleRejectsChangedEvidence(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_lifecycle.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, field := range []string{"source_base", "source_changes", "source_patch", "protocol", "checks", "failed_attempts", "test_sources", "source_size_review"} {
 		t.Run(field, func(t *testing.T) {
 			var changed map[string]any
-			if err := json.Unmarshal(raw, &changed); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(raw, &changed))
 			delete(changed, field)
 			data, err := json.Marshal(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if err := checkMediaProtocolIdentity(data, imageVideoLifecycleSHA256); err == nil {
 				t.Fatal("accepted missing lifecycle evidence", field)
 			}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		MaximumLatencyIncrease:    0.2,
 		MaximumDeviceByteIncrease: 64,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := RepresentationBridgePromotion{
 		Bridge:         testutil.ArtifactID(t, artifact.KindAdapter, "trained representation bridge"),
 		SourceModel:    testutil.ArtifactID(t, artifact.KindModel, "audio source model"),
@@ -40,9 +39,7 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		},
 	}
 	promotion, err := promoter.Evaluate(policy, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if promotion.ID.Kind() != artifact.KindEvidence || promotion.Trials[0].Seed != 11 ||
 		promotion.WorstHeldOutGain < policy.MinimumHeldOutGain ||
 		promotion.WorstSourceDependence < policy.MinimumSourceDependence ||
@@ -50,9 +47,7 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		t.Fatalf("promotion evidence = %+v", promotion)
 	}
 	content, err := promotion.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := promoter.Parse(content.Data)
 	if err != nil || parsed.ID != promotion.ID || len(parsed.Lineage()) != len(promotion.Lineage()) {
 		t.Fatalf("promotion round trip: parsed=%+v err=%v", parsed, err)

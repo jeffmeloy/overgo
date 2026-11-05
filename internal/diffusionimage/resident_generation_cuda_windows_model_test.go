@@ -13,6 +13,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,15 +27,11 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 		started := time.Now()
 		var err error
 		hostPixels, err = model.Sample(t.Context(), 1, size, size, steps, seed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		hostDurations[index] = time.Since(started)
 	}
 	forward, err := CompileResidentForward(t.Context(), model, 0, size, size)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer forward.Close(context.Background())
 	if _, err := forward.Sample(t.Context(), steps, seed); err != nil {
 		t.Fatal(err)
@@ -44,9 +41,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	for index := range warmDurations {
 		started := time.Now()
 		devicePixels, err = forward.Sample(t.Context(), steps, seed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		warmDurations[index] = time.Since(started)
 	}
 	slices.Sort(hostDurations)
@@ -54,9 +49,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]
 	pixelDiff := testutil.MaxAbsDiff(devicePixels, hostPixels)
 	encoded, err := model.decode(t.Context(), sampleFeatures{pixels: devicePixels, height: size, width: size})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referencePath := testutil.FixturePath(t, "simplediffusion", "uvit_direct_seed7_steps2_64.png")
 	reference, err := os.ReadFile(referencePath)
 	if err != nil {
@@ -77,9 +70,7 @@ func comparePNGPixels(t *testing.T, candidate, reference []byte) (changed, maxim
 	t.Helper()
 	decode := func(data []byte) []uint8 {
 		image, err := png.Decode(bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		bounds := image.Bounds()
 		pixels := make([]uint8, 0, bounds.Dx()*bounds.Dy()*3)
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {

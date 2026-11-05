@@ -18,6 +18,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -31,14 +32,10 @@ func TestStructuredMediaReportProjection(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	storePath := retainedReferenceStore(roots.Store)
 	store, err := overgodb.OpenReadOnly(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	t.Run("shared retained projection", func(t *testing.T) {
 		assertStructuredMediaReport(t, root, storePath)
@@ -51,21 +48,13 @@ func TestStructuredMediaReportProjection(t *testing.T) {
 func assertStructuredMediaReport(t *testing.T, root, storePath string) {
 	t.Helper()
 	output, err := generateMediaReport(root, storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var value mediaProjection
-	if err := json.Unmarshal(output.JSON, &value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(output.JSON, &value))
 	var index mediaValidationIndex
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaValidationPath), &index); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaValidationPath), &index))
 	var protocol imageVideoProtocol
-	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol))
 	if value.Validation == nil || value.Protocol == nil || len(value.Validation.Checks) != len(index.Checks) || len(value.Protocol.Cases) != len(protocol.Cases) || value.Counts.Activations != len(value.Rows) {
 		t.Fatal("declared denominator omitted or totals disagree")
 	}
@@ -104,23 +93,15 @@ func assertStructuredMediaReport(t *testing.T, root, storePath string) {
 func assertStructuredMediaProtocol(t *testing.T, root string, reader artifact.Reader) {
 	t.Helper()
 	var protocol imageVideoProtocol
-	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol))
 	write := func(value imageVideoProtocol) string {
 		t.Helper()
 		fixture := t.TempDir()
 		path := filepath.Join(fixture, imageVideoProtocolPath)
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
 		raw, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, raw, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(path, raw, 0600))
 		return fixture
 	}
 	for name, mutate := range map[string]func(*imageVideoProtocol){
@@ -173,22 +154,14 @@ func TestMediaReceiptRetainedContracts(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t)
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var bindings map[string]map[string][]string
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &bindings); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &bindings))
 	seen := map[string]bool{}
 	accepted, rejected := 0, 0
 	for _, path := range []string{mediaValidationPath, "docs/image_video_lifecycle.json", "docs/image_video_capacity.json"} {
@@ -198,9 +171,7 @@ func TestMediaReceiptRetainedContracts(t *testing.T) {
 				Required []string `json:"required_tests"`
 			}
 		}
-		if err := jsonfile.Decode(filepath.Join(root, path), &index); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Decode(filepath.Join(root, path), &index))
 		for _, check := range index.Checks {
 			if seen[check.Name] || len(bindings[check.Name]) == 0 {
 				t.Fatal("duplicate check or missing assertion contract", check.Name)
@@ -222,9 +193,7 @@ func TestMediaReceiptRetainedContracts(t *testing.T) {
 				rejected++
 				continue
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(check.Required) != 0 {
 				requireMediaTestReceipt(t, check.Name, content.Data, check.Required, bindings)
 			}

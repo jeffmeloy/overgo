@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func TestGemmaNativeIFEvalAcceptance(t *testing.T) {
 		Prefix  string      `json:"prefix"`
 	}
 	root := testutil.RepoRoot(t)
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/gemma12-ifeval-acceptance.json"), &fixtures); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/gemma12-ifeval-acceptance.json"), &fixtures))
 	// These are the two registered execution artifacts in this model bundle.
 	models := map[string]string{
 		"native": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
@@ -58,20 +57,14 @@ func TestGemmaNativeIFEvalAcceptance(t *testing.T) {
 func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, expectedModel string) {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	// The immutable request fixes the producer, model, recipe and cumulative budget.
@@ -143,9 +136,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 	}
 	readRetainedEvidence(t, store, nativeID, &scores)
 	record, err := RequireEvaluationEvidence(t.Context(), store, scores.Evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record.CodeCommit != request.Producer || record.ModelDefinition != request.ModelDefinition ||
 		record.Recipe != request.Recipe || record.Report != scores.Selection ||
 		scores.Prompts != request.Cases || scores.Instructions != request.Instructions {
@@ -171,9 +162,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 		t.Logf("continuation preserved %d exact completed responses", len(retained.Outputs))
 	}
 	plan, err := loadEvidencePlan(t.Context(), store, record.Plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	protocol, err := ReadExecutionPolicy(t.Context(), store, plan.Execution())
 	if err != nil || protocol.Prompting != PromptingChatTemplate || plan.body.CaseProfile != scores.Profile {
 		t.Fatalf("instruction protocol or case profile differs: %v", err)
@@ -201,9 +190,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 			t.Fatalf("response or native token bound differs: %s", testCase.Name)
 		}
 		caseID, err := artifact.JSONID(artifact.KindDatasetShard, testCase)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		alias := "evaluation/instruction-generations/" + plan.Identity().String() + "/" + caseID.String()
 		saved, found, err := loadInstructionGeneration(t.Context(), store, alias, plan, caseID, testCase)
 		if err != nil || !found || saved.Result.Text != row.Raw || saved.Result.PromptTokens != row.Prompt || saved.Result.GeneratedTokens != row.Generated {

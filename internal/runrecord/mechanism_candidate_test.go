@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -26,9 +27,7 @@ func TestMarinCandidateAdmissionRequiresRelevantTypedEvidence(t *testing.T) {
 	err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, fixture.candidate, fixture.provenance, fixture.binding.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	foreign := fixture.provenance
 	foreign.Census = testutil.ArtifactID(t, artifact.KindRecipe, "foreign-census")
@@ -54,13 +53,9 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	foreignBenefit, err := trainingprogram.NewMechanismEvidence(
 		trainingprogram.MechanismEvidenceBenefit, foreignMechanism, foreignSource,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignContent, err := foreignBenefit.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 		Key: "fixture/mechanism-admission/foreign-benefit",
 		Artifacts: []artifact.Descriptor{
@@ -73,9 +68,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	unrelated, err := trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, foreignBenefit.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, unrelated, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -86,13 +79,9 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	wrongRole, err := trainingprogram.NewMechanismEvidence(
 		trainingprogram.MechanismEvidenceCostBound, fixture.mechanism, wrongRoleSource,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wrongRoleContent, err := wrongRole.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 		Key:       "fixture/mechanism-admission/wrong-role",
 		Artifacts: []artifact.Descriptor{{ID: wrongRoleSource}},
@@ -103,9 +92,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	wrongRoleCandidate, err := trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, wrongRole.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, wrongRoleCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -122,9 +109,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	descriptorCandidate, err := trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, descriptorOnly,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, descriptorCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -139,9 +124,7 @@ func newMechanismAdmissionFixture(t *testing.T) mechanismAdmissionFixture {
 	claim := func(role trainingprogram.MechanismEvidenceRole, sourceKind artifact.Kind, name string) trainingprogram.MechanismEvidence {
 		t.Helper()
 		value, err := trainingprogram.NewMechanismEvidence(role, mechanism, id(sourceKind, name+"-source"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	gap := claim(trainingprogram.MechanismEvidenceGap, artifact.KindEvidence, "gap")
@@ -153,20 +136,14 @@ func newMechanismAdmissionFixture(t *testing.T) mechanismAdmissionFixture {
 		Gap: gap.ID, Falsifier: falsifier.ID, GapState: trainingprogram.MechanismGapOpen,
 	}
 	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	provenance, err := NewExternalMechanismProvenance(
 		census, "local/marin", "b352a9e5d49eede33f08e0ab8df1e786425c2db5", id(artifact.KindEvidence, "license"),
 		[]ExternalMechanismSource{{Mechanism: mechanism, Paths: []string{"experiments/grug/moe/model.py"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidate, err := trainingprogram.CompileMechanismCandidate(census, provenance.ID, mechanism, cost.ID, benefit.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	binding, err := NewAdmissionBinding(AdmissionBinding{
 		Generation:   0,
 		Proposer:     AuthorityDomain{Name: "mechanism-proposer", Identity: id(artifact.KindEvidence, "proposer")},
@@ -175,13 +152,9 @@ func newMechanismAdmissionFixture(t *testing.T) mechanismAdmissionFixture {
 		SealedInputs: id(artifact.KindDataset, "sealed-inputs"),
 		CleanWorker:  id(artifact.KindEvidence, "clean-worker"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	claims := []trainingprogram.MechanismEvidence{gap, falsifier, cost, benefit}
 	contents := make([]artifact.Content, 0, len(claims)+3)
 	lineage := make([]artifact.Lineage, 0, len(claims)*2+len(census.Lineage())+len(provenance.Lineage()))

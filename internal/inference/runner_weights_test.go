@@ -8,6 +8,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestNativeExpertBankTensors covers native storage and complete-layer eligibility.
@@ -45,17 +46,11 @@ func TestNativeExpertBankTensors(t *testing.T) {
 		t.Fatalf("native expert banks = %v, want %v", names, want)
 	}
 	expert, err := gguf.NewTensorInfo("experts", dtype.BF16, []uint64{2, 2, 4})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dense, err := gguf.NewTensorInfo("dense", dtype.F32, []uint64{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	converted, err := gguf.NewTensorInfo("converted", dtype.BF16, []uint64{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range []struct {
 		available uint64
 		backed    int

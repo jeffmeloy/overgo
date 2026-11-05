@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
+	"overgo/internal/testcheck"
 )
 
 // finishedRequestBytes bounds what a finished request leaves on the device, the
@@ -25,16 +26,12 @@ func TestMOSSBoundedResidency(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
 	profile, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base := Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
 	load := func(request Request) *Generator {
 		t.Helper()
 		g, err := LoadGenerator(t.Context(), root, profile, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := g.Close(context.Background()); err != nil {
 				t.Error(err)
@@ -45,21 +42,15 @@ func TestMOSSBoundedResidency(t *testing.T) {
 	stats := func(g *Generator) graphruntime.ResidentStats {
 		t.Helper()
 		s, err := g.rotary.runtime.Stats(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return s
 	}
 	finish := func(g *Generator) []byte {
 		t.Helper()
 		session, err := g.integrate(t.Context(), g)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		image, err := g.decode(t.Context(), session)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if s := stats(g); s.StaticBytes != 0 || s.Device.CurrentBytes > finishedRequestBytes {
 			t.Fatalf("a finished request left %d bytes of weights and %d bytes on the device", s.StaticBytes, s.Device.CurrentBytes)
 		}
@@ -105,9 +96,7 @@ func TestMOSSBoundedResidency(t *testing.T) {
 			if test.before != nil {
 				test.before()
 			}
-			if err := g.Reset(t.Context(), test.request); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, g.Reset(t.Context(), test.request))
 			transferred := prepare(g, test.request)
 			if test.cached && transferred != 0 {
 				t.Fatalf("a prompt met again uploaded %d bytes", transferred)
@@ -123,15 +112,11 @@ func TestMOSSBoundedResidency(t *testing.T) {
 			if !bytes.Equal(actual, finish(cold)) {
 				t.Fatal("session reuse changed the fresh image")
 			}
-			if err := cold.Close(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cold.Close(t.Context()))
 		})
 	}
 	t.Run("two prompts place the encoder once", func(t *testing.T) {
-		if err := g.Reset(t.Context(), Request{Prompt: "yellow hat", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 7}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, g.Reset(t.Context(), Request{Prompt: "yellow hat", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 7}))
 		onePrompt := prepare(g, Request{Prompt: "yellow hat", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 7})
 		finish(g)
 		// The second prompt of a two-prompt request adds its token rows, never
@@ -149,18 +134,14 @@ func TestMOSSBoundedResidency(t *testing.T) {
 	if after := stats(g); after.Execution != before.Execution {
 		t.Fatal("cancelled reset performed device work")
 	}
-	if err := g.Reset(t.Context(), base); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, g.Reset(t.Context(), base))
 	if _, err := g.prepare(cancelled, base); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancelled preparation accepted", err)
 	}
 	if g.prepared {
 		t.Fatal("cancelled preparation published completion")
 	}
-	if err := g.Close(cancelled); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, g.Close(cancelled))
 	if g.rotary != nil {
 		t.Fatal("closed session retained conditioning")
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -21,9 +22,7 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "browser reliability runs through cmd/webui-lane")
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
@@ -98,29 +97,19 @@ func TestWebUIBrowserReliability(t *testing.T) {
     fixtureComposer.input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));
     return submissions.length===0 && fixtureComposer.element.querySelector('.send-button').disabled;
   })()`)
-	if err := browser.Eventually(ctx, `!fixtureComposer.element.querySelector('.send-button').disabled && !!fixtureComposer.attachments[0].dataURL`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!fixtureComposer.element.querySelector('.send-button').disabled && !!fixtureComposer.attachments[0].dataURL`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {fixtureComposer.input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));fixtureComposer.clearAttachments();fixtureComposer.addFile(new File(['broken'],'bad.png',{type:'image/png'}));return submissions.length===1 && submissions[0].parts.length===1;})()`)
-	if err := browser.Eventually(ctx, `!!fixtureComposer.attachments[0].refusal && fixtureComposer.element.querySelector('.send-button').disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!fixtureComposer.attachments[0].refusal && fixtureComposer.element.querySelector('.send-button').disabled`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {
     document.querySelector('#reliability-fixture').remove();overgo.setKey('gui-test',false);
     const image=overgo.el('img',{id:'protected-image',src:'/artifacts/content?id=gui-test-image',alt:'protected preview'});
     document.querySelector('#panel-chat .chat-log').append(image);return true;
   })()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#protected-image').naturalWidth===1 && document.querySelector('#protected-image').src.startsWith('blob:')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#protected-image').naturalWidth===1 && document.querySelector('#protected-image').src.startsWith('blob:')`))
 	downloadDirectory := t.TempDir()
-	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDirectory, "eventsEnabled": true}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDirectory, "eventsEnabled": true}, nil))
 	assertBrowserPredicate(t, ctx, browser, `(() => {const link=overgo.el('a',{href:'/artifacts/content?id=gui-test-image',download:'preview.png',text:'download'});document.body.append(link);link.click();return true;})()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#protected-image').complete`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#protected-image').complete`))
 	// The browser requests the payload again for the download, with the same key.
 	select {
 	case <-ctx.Done():
@@ -130,43 +119,27 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	// A requested payload is not a completed download. The browser reports
 	// the download's completion; the final file then carries the bytes.
 	var expected bytes.Buffer
-	if err := png.Encode(&expected, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
-		t.Fatal(err)
-	}
-	if err := browser.AwaitDownload(ctx, "preview.png"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&expected, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+	testcheck.NoError(t, browser.AwaitDownload(ctx, "preview.png"))
 	data, err := os.ReadFile(filepath.Join(downloadDirectory, "preview.png"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(data, expected.Bytes()) {
 		t.Fatal("authenticated download bytes differ")
 	}
 	say(t, ctx, browser, "First conversation")
-	if err := browser.Eventually(ctx, `overgo.conversation() && overgo.conversation().root==='resp_gui_1'`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `overgo.conversation() && overgo.conversation().root==='resp_gui_1'`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.oldComposer=document.querySelector('#panel-chat .composer');overgo.openConversation(null);return true;})()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#panel-chat .composer')!==oldComposer && !!document.querySelector('#panel-chat .front-empty')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#panel-chat .composer')!==oldComposer && !!document.querySelector('#panel-chat .front-empty')`))
 	if followed.Load() != 0 {
 		t.Fatal("a new conversation followed the old response")
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {overgo.openConversation({root:'resp_gui_1',latest:'resp_gui_1'});return true;})()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#panel-chat .chat-log').textContent.includes('Recovered answer') && !document.querySelector('#panel-chat .send-button').disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#panel-chat .chat-log').textContent.includes('Recovered answer') && !document.querySelector('#panel-chat .send-button').disabled`))
 	assertBrowserPredicate(t, ctx, browser, `document.querySelectorAll('#panel-chat .msg.assistant').length===1 && !document.querySelector('#panel-chat .chat-log').textContent.includes('partial') && overgo.errors.length===0`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.originalServedModel=overgo.servedModel;overgo.servedModel=()=>({model:'another-model'});overgo.openConversation({root:'resp_gui_1',latest:'resp_gui_1',model:'original-model'});return true;})()`)
-	if err := browser.Eventually(ctx, `document.querySelector('#panel-chat .composer textarea').readOnly && document.querySelector('#panel-chat .send-button').disabled && document.querySelector('#panel-chat').textContent.includes('Choose its original model')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#panel-chat .composer textarea').readOnly && document.querySelector('#panel-chat .send-button').disabled && document.querySelector('#panel-chat').textContent.includes('Choose its original model')`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {overgo.servedModel=originalServedModel;overgo.openConversation(null);return true;})()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-chat .front-empty') && !document.querySelector('#panel-chat .send-button').disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-chat .front-empty') && !document.querySelector('#panel-chat .send-button').disabled`))
 	if started.Load() != 1 || followed.Load() != 1 || cancelled.Load() != 1 {
 		t.Fatalf("response ownership: started=%d followed=%d cancelled=%d", started.Load(), followed.Load(), cancelled.Load())
 	}

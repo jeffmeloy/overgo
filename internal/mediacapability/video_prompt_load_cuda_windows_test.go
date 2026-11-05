@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,39 +36,27 @@ func TestVideoPromptIsEncodedWhileItsModelLoads(t *testing.T) {
 	cudatest.Require(t)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := os.Stat(latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-prompt-beside-load")
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	raw, err := json.Marshal(latentvideo.WanRequest{
 		Prompt: "a grey heron lifts off over still water at first light, held for the load test",
 		Seed:   47, Frames: 5, Width: 32, Height: 16, Steps: 2,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// serve gives the request to a capability and a store of its own, as a process that has served nothing does.
 	serve := func(name string) ([]byte, string) {
 		t.Helper()
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		publishArtifactExtent(t, store, modelID, wan)
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/video-prompt-load-profile", Contents: []artifact.Content{profileContent}}); err != nil {
@@ -77,9 +66,7 @@ func TestVideoPromptIsEncodedWhileItsModelLoads(t *testing.T) {
 		started := time.Now()
 		output, err := videoCapability().Execute(ctx, store, wan, modelrecipetest.CandidateExecution(t, store, program), string(raw))
 		wall := time.Since(started)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -87,9 +88,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	ctx, models := t.Context(), t.TempDir()
 	const selected = "C:/stores/selected"
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	write := func(path, text string) {
 		t.Helper()
@@ -101,9 +100,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		default:
 			err = os.WriteFile(path, []byte(text), 0o600)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	// The inventories the capabilities resolve: a Hugging Face repository,
 	// a root configuration beside one weights file, one subdirectory per
@@ -145,16 +142,12 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 			write(filepath.Join(root, filepath.FromSlash(path)), text)
 		}
 		resolved, err := inventory(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := resolved.Batch("fixture/model/" + name)
 		if err == nil {
 			err = modelrecipe.PublishFacts(ctx, store, batch)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return resolved.Manifest.ID
 	}
 	activate := func(definition recipe.Definition, err error) {
@@ -162,9 +155,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		if err == nil {
 			err = modelrecipetest.PublishActivation(ctx, store, "fixture/activation/"+definition.ID.String(), definition)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	sharded := register("SenseNova", modelartifact.FromHFPath, map[string]string{
 		"config.json":                      `{"model_type":"neo_chat","architectures":["NEOChatModel"]}`,
@@ -193,9 +184,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskGeneration, thoughts))
 
 	cells, err := registeredCells(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, want := range []struct {
 		model      artifact.ID
 		task       recipe.Task

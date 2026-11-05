@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -23,41 +24,27 @@ func TestRunPublishesMechanismCensus(t *testing.T) {
 		GapState: trainingprogram.MechanismGapOpen,
 	}
 	specification, err := json.Marshal(censusSpecification{Assessments: []trainingprogram.MechanismAssessment{assessment}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	input := filepath.Join(root, "census.json")
-	if err := os.WriteFile(input, specification, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(input, specification, 0o600))
 	storePath := filepath.Join(root, "store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := []artifact.Descriptor{{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}}
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/mechanism-census/parents", Artifacts: parents}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	var output bytes.Buffer
-	if err := run([]string{"-input", input, "-store", storePath}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run([]string{"-input", input, "-store", storePath}, &output))
 	if !strings.Contains(output.String(), "assessments=1 open=1 closed=0") {
 		t.Fatalf("output = %q", output.String())
 	}
 	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err = overgodb.OpenReadOnly(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, found, err := artifact.ReadContent(t.Context(), store, census.ID()); err != nil || !found {
 		t.Fatalf("published census = (%t, %v)", found, err)
@@ -77,32 +64,22 @@ func TestRunPublishesExternalMechanismProvenance(t *testing.T) {
 		Commit: "b352a9e5d49eede33f08e0ab8df1e786425c2db5", License: license,
 		Sources: []runrecord.ExternalMechanismSource{{Mechanism: assessment.Mechanism, Paths: []string{"experiments/grug/moe/model.py"}}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	input := filepath.Join(root, "provenance.json")
-	if err := os.WriteFile(input, specification, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(input, specification, 0o600))
 	storePath := filepath.Join(root, "store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := []artifact.Descriptor{
 		{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}, {ID: license},
 	}
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/external-provenance/parents", Artifacts: parents}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	var output bytes.Buffer
-	if err := run([]string{"-provenance", input, "-store", storePath}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run([]string{"-provenance", input, "-store", storePath}, &output))
 	if !strings.Contains(output.String(), "mechanisms=1 transfer=reexpress-overgo-native") {
 		t.Fatalf("output = %q", output.String())
 	}
@@ -118,19 +95,13 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 		{Role: trainingprogram.MechanismEvidenceBenefit, Source: id(artifact.KindEvidence, "benefit-source")},
 	}
 	data, err := json.Marshal(evidenceSpecification{Mechanism: mechanism, Sources: sources})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	input := filepath.Join(root, "evidence.json")
-	if err := os.WriteFile(input, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(input, data, 0o600))
 	storePath := filepath.Join(root, "store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptors := []artifact.Descriptor{{ID: mechanism}}
 	for _, source := range sources {
 		descriptors = append(descriptors, artifact.Descriptor{ID: source.Source})
@@ -140,26 +111,18 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	var output bytes.Buffer
-	if err := run([]string{"-evidence", input, "-store", storePath}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run([]string{"-evidence", input, "-store", storePath}, &output))
 	if !strings.Contains(output.String(), "claims=4") {
 		t.Fatalf("output = %q", output.String())
 	}
 	store, err = overgodb.OpenReadOnly(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, source := range sources {
 		want, err := trainingprogram.NewMechanismEvidence(source.Role, mechanism, source.Source)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, err := trainingprogram.RequireMechanismEvidence(t.Context(), store, want.ID, source.Role)
 		if err != nil || got != want {
 			t.Fatalf("evidence %s = (%+v, %v), want %+v", source.Role, got, err, want)

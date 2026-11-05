@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestSelectedServableScope(t *testing.T) {
 				return strings.ToUpper(filepath.ToSlash(path))
 			}
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			paths := make([]string, 0, 2)
 			models := make([]artifact.ID, 0, 2)
@@ -31,20 +30,14 @@ func TestSelectedServableScope(t *testing.T) {
 				payload := []byte(name)
 				id := testutil.ArtifactBytesID(t, artifact.KindModel, payload)
 				path := filepath.Join(t.TempDir(), name+".gguf")
-				if err := os.WriteFile(path, payload, 0o600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 				manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: id}})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				_, err = store.Commit(t.Context(), artifact.Batch{Key: "selection/" + name,
 					Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(payload))}}, Manifests: []artifact.Manifest{manifest},
 					Locations: []artifact.LocationEvent{{Action: artifact.LocationAdd, Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: path}}},
 				})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				publishVerifiedActivation(t, store, manifest.ID, name)
 				paths, models = append(paths, path), append(models, manifest.ID)
 			}
@@ -73,23 +66,17 @@ func TestSelectedServableScope(t *testing.T) {
 			// An unrelated corrupt activation must not even be resolved in selected mode.
 			alias := "recipe.active.inference." + models[1].String()
 			previous, _, err := store.ResolveAlias(t.Context(), alias)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			broken := testutil.ArtifactID(t, artifact.KindRecipe, "missing-definition")
 			_, err = store.Commit(t.Context(), artifact.Batch{Key: "selection/corrupt-unrelated",
 				Artifacts: []artifact.Descriptor{{ID: broken}}, Aliases: []artifact.AliasBinding{{Name: alias, Target: broken, Previous: &previous}},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			entries, err = ServableWithMemo(t.Context(), store, 2*len(models), NewMemo(), selectInput(models[0], paths[0]))
 			if err != nil || len(entries) != 1 || entries[0].Stale != "" {
 				t.Fatalf("unrelated activation affected selected model: %+v, %v", entries, err)
 			}
-			if err := os.WriteFile(paths[0], []byte("replaced selected bytes"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(paths[0], []byte("replaced selected bytes"), 0o600))
 			entries, err = ServableWithMemo(t.Context(), store, 2*len(models), memo, selectInput(models[0], paths[0]))
 			if err != nil || len(entries) != 0 {
 				t.Fatalf("changed selected bytes accepted: %+v, %v", entries, err)

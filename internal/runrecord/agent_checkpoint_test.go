@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -16,16 +17,12 @@ func TestAgentMutationCheckpointIdentity(t *testing.T) {
 			{Target: "internal/new.go", Mode: "absent", Encoding: "binary", Gap: "new target has no preimage"},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if checkpoint.ID.Kind() != artifact.KindCheckpoint || checkpoint.Captured != 1 || checkpoint.Gaps != 1 || len(checkpoint.Lineage()) == 0 {
 		t.Fatalf("checkpoint = %+v", checkpoint)
 	}
 	content, err := checkpoint.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(content.Data) == 0 {
 		t.Fatal("checkpoint content absent")
 	}

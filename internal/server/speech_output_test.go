@@ -21,6 +21,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechsynth"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,18 +37,14 @@ type speechOutputFixture struct {
 func newSpeechOutputFixture(t *testing.T) (*Handler, *speechOutputFixture) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	var pcm []float32
 	for index := range 6 {
 		pcm = append(pcm, speechFixtureChunk(index).PCM...)
 	}
 	content, err := speechsynth.WAVContent(speechsynth.Audio{PCM: pcm, SampleRate: 24000, Channels: 1, Complete: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := &speechOutputFixture{generationWorkspaceGenerator: &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-output"),
 		capability: WorkflowCapability{Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-output"), Name: "Speech fixture",
@@ -56,9 +53,7 @@ func newSpeechOutputFixture(t *testing.T) (*Handler, *speechOutputFixture) {
 		},
 	}, cancelled: make(chan struct{}), released: make(chan struct{}), content: content}
 	handler, err := New(Config{Repository: store, Workflows: fixture}, fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	return handler, fixture
 }
@@ -223,9 +218,7 @@ func TestSpeechOutputStream(t *testing.T) {
 							Channels   int    `json:"channels"`
 							PCM        []byte `json:"pcm_f32le"`
 						}
-						if err := json.Unmarshal([]byte(strings.TrimPrefix(block, "event: audio\ndata: ")), &chunk); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(block, "event: audio\ndata: ")), &chunk))
 						decoded, err := media.DecodeFloat32LE(chunk.PCM)
 						if err != nil || chunk.Sequence != chunks || chunk.SampleRate != 24000 || chunk.Channels != 1 || !slices.Equal(decoded, speechFixtureChunk(chunks).PCM) {
 							t.Fatalf("chunk %d changed", chunks)
@@ -287,9 +280,7 @@ func TestSpeechOutputStream(t *testing.T) {
 				t.Fatal("stream ended before chunk")
 			}
 			id, err := artifact.ParseID(response.Header().Get("X-Overgo-Operation"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if cancellation == "disconnect" {
 				cancel()
 			} else if !handler.operations.Cancel(id) {

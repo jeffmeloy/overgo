@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 // and every absent optional measurement is named as an explicit gap.
 func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "terminal-operation")
@@ -40,13 +39,9 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		Source: "test-lane", Message: "dial tcp 127.0.0.1:9: connection refused",
 		ExitCode: 1, ObservedUnixNS: failureFixtureObservedNS,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	normalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	disposition := executionfailure.Decide(executionfailure.Situation{
 		Cause: normalization.Cause, Attempts: 1, MaxAttempts: 3,
 	})
@@ -65,9 +60,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		Gaps:                 []string{GapToolOutput},
 		ObservedUnixNS:       failureFixtureObservedNS,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The retry closes as a second attempt chained to the first, with
 	// only its outcome measured: every other facet is an explicit gap.
@@ -77,9 +70,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		Gaps:           []string{GapProcessTermination, GapResources, GapToolOutput, GapTranscript},
 		ObservedUnixNS: failureFixtureObservedNS + 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The receipt alone reaches everything evaluation and recovery read.
 	resolved, found, err := ResolveTerminalAttemptReceipt(ctx, store, operation, 0)
@@ -158,9 +149,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 // the stored tuple and decision policy, not today's normalization rules.
 func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 
@@ -194,35 +183,23 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 		Source: "reference-test", Message: "connection refused", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignObservation, err := PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "deadline exceeded", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS + 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	normalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignNormalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(foreignObservation))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runBoundObservation, err := PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "connection refused", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS + 2, Run: foreignRun,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runBoundNormalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(runBoundObservation))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "connection refused",
 		ObservedUnixNS: failureFixtureObservedNS + 3, Run: operations["run-bound-observation"],
@@ -239,9 +216,7 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 		Cause:             executionfailure.CauseTimeout,
 		Rule:              "historical-timeout",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if historicalNormalization.Cause == NormalizeFailureObservation(observation).Cause {
 		t.Fatal("historical fixture does not differ from the current classifier")
 	}
@@ -397,9 +372,7 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 // preceding attempt alias. A recovered outcome cannot originate at attempt 0.
 func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 
@@ -440,9 +413,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	validPrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["valid"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recovered, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["valid"], 1, OutcomeRecovered, validPrior.ID, failureFixtureObservedNS+1,
 	))
@@ -468,9 +439,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	sourcePrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["source"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+4,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["foreign"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+5,
 	)); err != nil {
@@ -486,15 +455,11 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	ordinalZero, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["ordinal"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+7,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ordinalOne, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["ordinal"], 1, OutcomeSucceeded, ordinalZero.ID, failureFixtureObservedNS+8,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if ordinalOne.ID == ordinalZero.ID {
 		t.Fatal("ordinal fixture collapsed distinct receipts")
 	}
@@ -516,13 +481,9 @@ func commitTerminalTestReceiptDirect(
 	t.Helper()
 	value.Version = artifact.InitialDocumentVersion
 	identified, err := terminalAttemptCodec.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := terminalAttemptCodec.Batch(key, identified, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := repository.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -545,17 +506,11 @@ func publishTerminalTestCapability(
 			MaxInputBytes: 4096, MaxOutputBytes: 4096, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 4096,
 		},
 	}).Identify()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := capability.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, capability.Lineage(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := repository.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -65,18 +66,14 @@ type chatModeReference struct {
 func TestChatModesReachAModelAsItsOwnTemplateGivesThem(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/chat_modes/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's own conversations are on file (%v); write them with %s", err, chatModesScript)
 	}
 	for _, fixture := range fixtures {
 		raw, err := os.ReadFile(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var reference chatModeReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no conversation: %v", fixture, err)
@@ -87,9 +84,7 @@ func TestChatModesReachAModelAsItsOwnTemplateGivesThem(t *testing.T) {
 				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
 			reader, err := inference.OpenPromptReader(model)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			t.Cleanup(func() { _ = reader.Close() })
 			known := knownChatModeFaults[reference.Model]
 			held, faulted := 0, 0

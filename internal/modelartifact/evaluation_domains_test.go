@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -13,9 +14,7 @@ import (
 // Reading metadata must not require linking model execution or change history.
 func TestEvaluationDomainIdentity(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "domain-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/domain/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {

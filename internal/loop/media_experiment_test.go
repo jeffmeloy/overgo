@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestMediaExperimentResume(t *testing.T) {
 			media[index] = MediaCell{Index: index, Request: request}
 		}
 		experiment, err := NewMediaExperiment(model, data, budget, media)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return experiment
 	}
 	acquirer := func(store *overgodb.Store, calls *int, failAt int) Acquirer {
@@ -55,33 +54,23 @@ func TestMediaExperimentResume(t *testing.T) {
 
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	experiment := build(t, store)
 
 	calls := 0
 	report, err := ResumeMediaExperiment(t.Context(), store, experiment, acquirer(store, &calls, -1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if calls != cells || report.Acquired != cells || report.Reused != 0 || len(report.Acquisitions) != cells {
 		t.Fatalf("full run: calls=%d report=%+v", calls, report)
 	}
 
 	// Reopen the store and resume: retained cells are reused without any acquire.
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	resumed, err := ResumeMediaExperiment(t.Context(), reopened, experiment, poison)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if resumed.ID != report.ID || resumed.Reused != cells || resumed.Acquired != 0 {
 		t.Fatalf("resume did not reuse every cell without mutation: %+v vs %+v", resumed, report)
 	}
@@ -90,9 +79,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	// re-acquires only the missing cell.
 	partialDirectory := t.TempDir()
 	partialStore, err := overgodb.Create(partialDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer partialStore.Close()
 	partial := build(t, partialStore)
 	interrupted := 0
@@ -104,9 +91,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	}
 	recovered := 0
 	report, err = ResumeMediaExperiment(t.Context(), partialStore, partial, acquirer(partialStore, &recovered, -1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if recovered != 1 || report.Acquired != 1 || report.Reused != cells-1 {
 		t.Fatalf("recovery re-acquired %d cells, want only the missing one: %+v", recovered, report)
 	}

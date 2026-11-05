@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestLoopViewAndStop: a worktree's loop view names the row it works next
@@ -23,9 +24,7 @@ func TestLoopViewAndStop(t *testing.T) {
 	view := func() LoopView {
 		t.Helper()
 		read, err := ReadLoopView(t.Context(), repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return read
 	}
 	first := view()
@@ -35,16 +34,12 @@ func TestLoopViewAndStop(t *testing.T) {
 	}
 	// A live supervisor reads as running, and the stop wakes it.
 	campaign, err := processcontrol.BeginCampaign(repository, "loop-worker")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer campaign.Close()
 	if !view().Running {
 		t.Fatal("a live supervisor did not read as running")
 	}
-	if err := StopLoop(t.Context(), repository, "stopped from the workbench"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, StopLoop(t.Context(), repository, "stopped from the workbench"))
 	select {
 	case <-campaign.Stops():
 	default:
@@ -58,9 +53,7 @@ func TestLoopViewAndStop(t *testing.T) {
 	if err != nil || !held.Blocked || held.Event.Worker != workbenchWorker {
 		t.Fatalf("stop = %+v, %v", held, err)
 	}
-	if err := StopLoop(t.Context(), repository, "a second stop"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, StopLoop(t.Context(), repository, "a second stop"))
 	if again, err := ReadStop(t.Context(), repository, "", ExecutionUnattended); err != nil || again.ID != held.ID {
 		t.Fatalf("a second stop replaced the first: %+v, %v", again, err)
 	}
@@ -77,25 +70,19 @@ func TestAParkedRowWaitsForACommit(t *testing.T) {
 	resolve := func() Dispatch {
 		t.Helper()
 		dispatch, err := ResolveDispatch(t.Context(), repository, DispatchRequest{Mode: ExecutionInteractive})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return dispatch
 	}
 	if dispatch := resolve(); dispatch.Item != "failing" {
 		t.Fatalf("before parking, dispatch = %+v", dispatch)
 	}
 	for _, parked := range []string{"failing/do", "failing/do"} {
-		if err := ParkRow(t.Context(), repository, parked); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, ParkRow(t.Context(), repository, parked))
 	}
 	if dispatch := resolve(); dispatch.Item != "behind" {
 		t.Fatalf("with failing parked, dispatch = %+v", dispatch)
 	}
-	if err := ParkRow(t.Context(), repository, "behind/do"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ParkRow(t.Context(), repository, "behind/do"))
 	if dispatch := resolve(); dispatch.Item != "" || !strings.Contains(dispatch.Waiting, "parked until a commit: failing/do, behind/do") {
 		t.Fatalf("with both parked, dispatch = %+v", dispatch)
 	}

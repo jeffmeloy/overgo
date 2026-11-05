@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func TestAttemptStimulusBoundary(t *testing.T) {
@@ -17,9 +18,7 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation, err := MutationReceiptOperation("stimulus-session-step-1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	boundary, found, err := runrecord.ResolveAttemptStimulus(ctx, store, operation, 1)
 	if err != nil || !found {
 		t.Fatalf("attempt boundary = (%+v, %t, %v)", boundary, found, err)

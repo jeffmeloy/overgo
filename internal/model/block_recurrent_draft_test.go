@@ -2,6 +2,7 @@ package model
 
 import (
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 
 	"overgo/internal/tensor/dtype"
 
@@ -42,16 +43,12 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 			builder, input, spec, weights, []uint32{0, 1}, conv, state,
 			bindFixtureSpec(spec).PlanLayer(0, true),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(conv.Shape) || !result.Value.Shape.Equal(state.Shape) {
 			t.Fatalf("unexpected KDA result: %+v", result)
 		}
 		nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var convolutions, delta, rope int
 		for _, node := range nodes {
 			if node.Op == tensor.OpSSMConv {
@@ -82,16 +79,12 @@ func TestBuildKimiLinearKDAAndMLABlocks(t *testing.T) {
 			builder, input, spec, weights, []uint32{0, 1}, nil, nil,
 			bindFixtureSpec(spec).PlanLayer(1, false),
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !result.Key.Shape.Equal(tensor.MustShape(5, 1, 2)) || !result.Value.Shape.Equal(tensor.MustShape(3, 1, 2)) {
 			t.Fatalf("unexpected MLA cache: %v %v", result.Key.Shape, result.Value.Shape)
 		}
 		nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var moe, rope int
 		for _, node := range nodes {
 			if node.Op == tensor.OpMoE {
@@ -137,16 +130,12 @@ func TestBuildRWKV6Qwen2Block(t *testing.T) {
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
 		t.Fatalf("unexpected WKV6-Qwen2 result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var gla, tanh, exponential int
 	for _, node := range nodes {
 		switch node.Op {
@@ -200,16 +189,12 @@ func TestBuildRWKV6Block(t *testing.T) {
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) || !result.Value.Shape.Equal(state.Shape) {
 		t.Fatalf("unexpected WKV6 result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var wkv, layerNorm, reluSquared int
 	for _, node := range nodes {
 		switch node.Op {
@@ -238,25 +223,19 @@ func TestBuildRWKV7BlockValueResidual(t *testing.T) {
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 2))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
 	first, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Auxiliary == nil || !first.Auxiliary.Shape.Equal(input.Shape) ||
 		!first.Output.Shape.Equal(input.Shape) || !first.Key.Shape.Equal(shift.Shape) || !first.Value.Shape.Equal(state.Shape) {
 		t.Fatalf("unexpected WKV7 first-layer result: %+v", first)
 	}
 	weights.PerLayerInput = builder.Input("first_value", dtype.F32, input.Shape)
 	second, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.Auxiliary != nil {
 		t.Fatalf("unexpected WKV7 later-layer auxiliary: %+v", second.Auxiliary)
 	}
 	nodes, err := tensor.Topological(first.Output, first.Key, first.Value, first.Auxiliary, second.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var wkv, sumRows int
 	for _, node := range nodes {
 		switch node.Op {
@@ -283,16 +262,12 @@ func TestBuildARWKV7UngatedBlock(t *testing.T) {
 	shift := builder.Input("shift", dtype.F32, tensor.MustShape(8, 1))
 	state := builder.Input("state", dtype.F32, tensor.MustShape(4, 4, 2, 1))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, nil, shift, state, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Auxiliary == nil || !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(shift.Shape) {
 		t.Fatalf("unexpected ARWKV7 result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, result.Auxiliary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range nodes {
 		if node.Op == tensor.OpLayerNorm {
 			t.Fatal("ungated ARWKV7 unexpectedly uses time group normalization")
@@ -399,26 +374,18 @@ func TestCompiledEncoderBlockUsesRelativeAttention(t *testing.T) {
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
 	plan, err := compileFixtureModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := plan.EncoderProgram(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := program.Build(CachedBlockContext{Builder: builder, Input: input}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output := result.Output
 	if !output.Shape.Equal(input.Shape) {
 		t.Fatalf("T5 output shape = %v, want %v", output.Shape, input.Shape)
 	}
 	var foundRelativeAttention, foundGELU bool
 	order, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range order {
 		if node.Op == tensor.OpAttention {
 			attributes := node.Attrs.(tensor.AttentionAttributes)
@@ -462,19 +429,13 @@ func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 		FeedForwardDown:       builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
 	plan, err := compileFixtureModelPlan(spec, Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := plan.DecoderProgram(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := program.Build(CachedBlockContext{
 		Builder: builder, Input: input, Encoder: encoder,
 	}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	crossKey := result.States[CacheStateCrossKey]
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.Key.Shape.Equal(tensor.MustShape(4, 2, 2)) ||
@@ -484,9 +445,7 @@ func TestCompiledDecoderBlockUsesCrossAttentionCache(t *testing.T) {
 	}
 	var causalRelative, crossAttention, relu bool
 	order, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range order {
 		if node.Op == tensor.OpAttention {
 			attributes := node.Attrs.(tensor.AttentionAttributes)
@@ -512,9 +471,7 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 		Positions: []uint32{0, 1}, Sequences: 1, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.ConvState.Shape.Equal(convState.Shape) ||
 		!result.SSMState.Shape.Equal(ssmState.Shape) ||
@@ -522,9 +479,7 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 		t.Fatalf("unexpected Qwen3.5 recurrent result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.ConvState, result.SSMState)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Two tokens prepare in the fused convolution (GatedDeltaConv), a prompt's in SSMConv.
 	var conv, delta int
 	for _, node := range nodes {
@@ -566,9 +521,7 @@ func TestBuildQwen35PackedRecurrentBlock(t *testing.T) {
 		Positions: []uint32{position}, Sequences: sequenceCount, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.ConvState.Shape.Equal(convState.Shape) ||
 		!result.SSMState.Shape.Equal(ssmState.Shape) {
@@ -605,13 +558,9 @@ func TestBuildQwen35MoEBlocks(t *testing.T) {
 				Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
 				ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(result.Output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var moe tensor.MoEAttributes
 			var moeCount, sigmoid int
 			for _, node := range nodes {
@@ -664,13 +613,9 @@ func TestBuildQwen3NextBlocks(t *testing.T) {
 				Positions: []uint32{0, 1}, Sequences: 1, Recurrent: recurrent,
 				ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(result.Output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var moe, rope, repeatInterleave int
 			for _, node := range nodes {
 				if node.Op == tensor.OpMoE {
@@ -718,13 +663,9 @@ func TestBuildQwen3NextLegacyQKVZBlock(t *testing.T) {
 		Positions: []uint32{0, 1}, Sequences: 1, Recurrent: true,
 		ConvState: convState, SSMState: ssmState, CacheWrite: tensor.CacheWriteConcat,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The legacy layout slices its query, key, value and z and its beta and alpha out of the interleaved projections;
 	// the prompt's convolution of them is one operation keeping the window after its last token.
 	var groupSlices, promptConvs int
@@ -916,9 +857,7 @@ func TestBuildLlama4AttentionAndMoE(t *testing.T) {
 			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{8192, 8193}, nil, nil, test.layer,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var rope, qkNorm int
 			var attention tensor.AttentionAttributes
 			var moe tensor.MoEAttributes
@@ -969,15 +908,11 @@ func TestBuildMistral3TemperatureMoEBlock(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{8, 9}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var temperature bool
 	var moe tensor.MoEAttributes
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range nodes {
 		if node.Op == tensor.OpMultiply && len(node.Inputs) == 2 &&
 			(node.Inputs[0] == weights.AttentionTemperatureScale ||
@@ -1017,13 +952,9 @@ func TestBuildGPTOSSBiasedMoEBlock(t *testing.T) {
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
 	weights.FeedForwardDownBias = builder.Input("down_bias", dtype.F32, tensor.MustShape(8, 4))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention tensor.AttentionAttributes
 	var moe tensor.MoEAttributes
 	for _, node := range nodes {
@@ -1076,13 +1007,9 @@ func TestBuildNemotronHMoEBlockUsesLatentSquaredReLUExperts(t *testing.T) {
 			Builder: builder, Input: input, Positions: fixturePositions, Layer: fixtureLayer,
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var moe tensor.MoEAttributes
 	var squaredReLU int
 	for _, node := range nodes {

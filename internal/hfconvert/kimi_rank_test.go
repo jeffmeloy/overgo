@@ -9,14 +9,13 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
 func TestKimiDeclaredRankConversion(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_rank_reference.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reference struct {
 		Pattern     string          `json:"pattern"`
 		Vocab       map[string]int  `json:"vocab"`
@@ -26,9 +25,7 @@ func TestKimiDeclaredRankConversion(t *testing.T) {
 			IDs   []int  `json:"ids"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	makeSource := func() map[string]any {
 		return map[string]any{
 			"normalizer": nil,
@@ -45,22 +42,14 @@ func TestKimiDeclaredRankConversion(t *testing.T) {
 	convert := func(source map[string]any) ([]gguf.Metadata, error) {
 		t.Helper()
 		data, err := json.Marshal(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
 		return tokenizerMetadata(dir, 163588, nil)
 	}
 	metadata, err := convert(makeSource())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if vocab.Pre != "kimi" || !vocab.IgnoreMerges {
 		t.Fatal("converter did not bind Kimi rank BPE to native GGUF metadata")
 	}

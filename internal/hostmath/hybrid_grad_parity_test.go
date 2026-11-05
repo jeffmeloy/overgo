@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -57,9 +58,7 @@ func TestHybridDecoderLayerGradParity(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %s absent; grad parity NOT verified (the committed torch-oracle capture is the fixture authority)", path)
 	}
 	var g hybridGolden
-	if err := json.Unmarshal(raw, &g); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g))
 	T, H, inter, hd, eps := g.Dims.T, g.Dims.H, g.Dims.Inter, g.Dims.HD, g.Dims.Eps
 	dOut := f32(g.DOut)
 

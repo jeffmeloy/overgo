@@ -9,6 +9,7 @@ import (
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 	caseValue, err := retrievalCaseCodec.RequireExactLineage(
 		t.Context(), store, knowledge.baseline.Case, RetrievalCase.Lineage,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := SupervisedGroundedReplayRequest{
 		RunRecipe: knowledge.transform.Spec().Operation,
 		EpisodeBounds: dataset.CapabilityEpisodeProjectionBounds{
@@ -81,9 +80,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 		KnowledgeAdmission: knowledge.admission.ID,
 	}
 	result, err := RunSupervisedGroundedReplay(t.Context(), store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded ||
 		!slices.Equal(result.Run.Outputs, []artifact.ID{result.Summary}) ||
 		result.Route.Disposition != runrecord.RouteSelected || result.Route.Winner != route.wantWinner ||
@@ -94,13 +91,9 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 		t.Fatalf("supervised grounded replay = %+v", result)
 	}
 
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(knowledge.path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	requireColdGroundedReplayResult(t, reopened, request, result)
 }
@@ -118,34 +111,24 @@ func publishGroundedReplayEpisodeSource(
 		gateRecipe, environment, codeCommit, runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "verify", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepSucceeded, DurationNS: 1}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attempt, err := runrecord.NewAttemptRecord(runrecord.AttemptRecord{
 		PlanItem: "grounded-upgrade", PlanStep: "supervised-replay", Strategy: "supervised-grounded",
 		Result: gate.Result.ID, Recipe: gateRecipe, CodeCommit: codeCommit,
 		Outcome: runrecord.OutcomeSucceeded, WallNS: 1, TaskContract: trace.TaskContract,
 		Environment: environment, Trajectory: trace.ID, CostUnits: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gateContent, err := gate.Result.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attemptContent, err := attempt.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineage := append(gate.Result.Lineage(), attempt.Lineage()...)
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/grounded-replay/episode-source",
 		[]artifact.Content{gateContent, attemptContent}, lineage, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = []artifact.Descriptor{{ID: gateRecipe}, {ID: environment}}
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)

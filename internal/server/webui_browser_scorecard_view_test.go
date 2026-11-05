@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -27,9 +28,7 @@ func TestWebUIBrowserScorecardView(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the scorecard leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// Two trained models: a perplexity under its base's beats it (lower is better), an accuracy under its base's falls below it (higher is better).
 	perplexityBase, accuracyBase := 10.4, 0.4
@@ -97,9 +96,7 @@ func TestWebUIBrowserScorecardView(t *testing.T) {
 	settle(`document.querySelector('#panel-library .chip[aria-selected="true"]').textContent === 'Models' && !!document.querySelector('#panel-library .section-title') && !document.querySelector('#panel-library .view-host .scorecard-history') && location.hash === '#library'`)
 
 	// A server without the scorecard reader says so.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#library`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#library`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`")
 	openScorecard()
 	settle(`!!document.querySelector('#panel-library.active .view-host') && document.querySelector('#panel-library .view-host').textContent.includes("Scorecard isn't available on this server")`)

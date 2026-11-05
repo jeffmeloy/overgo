@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -24,15 +25,11 @@ func TestWebUIBrowserRequestMonitor(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	// The page opens at the view's own address, which a reload or a bookmark does: it lands on the view, not on the first tab.
 	browser, err := webuilane.Open(ctx, path, server.URL+"/#requests")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {

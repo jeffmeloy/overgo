@@ -3,13 +3,13 @@ package representation
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestAssemblePaddedSequence(t *testing.T) {
 	got, err := AssemblePaddedSequence([]int{1}, []int{2}, []int{3}, 3, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(got.IDs, []int{1, 2, 0, 3}) || !slices.Equal(got.Mask, []bool{true, true, false, true}) || got.PromptRows != 3 {
 		t.Fatalf("sequence=%+v", got)
 	}

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/peft"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,13 +28,9 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 	pictures := catalogPictures(t, root)
 	director := pictureService(t)
 	raw, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := director.Executor()(capabilityruntime.FreshRun(t.Context()), pictures.store, root, pictures.execution, string(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measured, ok := output.(capabilityruntime.Measured)
 	if !ok {
 		t.Fatal("missing measured output")
@@ -42,9 +39,7 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 	if !ok {
 		t.Fatal("missing image")
 	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	return image.Data, pictures.execution.Program.Definition().Model.String()
 }
 
@@ -53,26 +48,16 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 func catalogPictures(t *testing.T, root string) servedPictures {
 	t.Helper()
 	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	batch, err := source.Inventory.Batch(t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
 	if err = modelrecipe.PublishFacts(t.Context(), store, batch); err != nil {
@@ -88,18 +73,14 @@ func TestMOSSTrainedModelServes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	spec, err := latentimage.ReadRotaryTransformer(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	options := mosstrain.Options{Rank: 2, Alpha: 2}
 	config := peft.Config{BaseModel: root, Rank: options.Rank, Alpha: options.Alpha}
 	request := latentimage.Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
 	base, baseModel := picturePublished(t, root, request)
 
 	silent := t.TempDir()
-	if err := mosstrain.PublishServed(root, filepath.Join(silent, "model"), peft.Adapter{Config: config, Modules: mosstrain.InitialAdapter(spec, options, 1)}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, mosstrain.PublishServed(root, filepath.Join(silent, "model"), peft.Adapter{Config: config, Modules: mosstrain.InitialAdapter(spec, options, 1)}))
 	same, _ := picturePublished(t, filepath.Join(silent, "model"), request)
 	if !bytes.Equal(same, base) {
 		t.Fatal("an adapter of zero changed the base's picture")
@@ -113,9 +94,7 @@ func TestMOSSTrainedModelServes(t *testing.T) {
 		modules[name] = module
 	}
 	trained := t.TempDir()
-	if err := mosstrain.PublishServed(root, filepath.Join(trained, "model"), peft.Adapter{Config: config, Modules: modules}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, mosstrain.PublishServed(root, filepath.Join(trained, "model"), peft.Adapter{Config: config, Modules: modules}))
 	different, trainedModel := picturePublished(t, filepath.Join(trained, "model"), request)
 	if bytes.Equal(different, base) {
 		t.Fatal("a trained adapter left the base's picture")

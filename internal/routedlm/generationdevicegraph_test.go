@@ -2,6 +2,7 @@ package routedlm
 
 import (
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"testing"
 
 	"overgo/internal/cuda/executor"
@@ -15,13 +16,9 @@ func TestSenseNovaGenerationLayerGraphStructure(t *testing.T) {
 		{Width: 2, Theta: 1e4, Axis: AxisHeight},
 		{Width: 2, Theta: 1e4, Axis: AxisWidth},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !graph.Output.Shape.Equal(tensor.MustShape(uint64(cfg.HiddenSize), 4)) {
 		t.Fatalf("generation output shape=%v", graph.Output.Shape)
 	}

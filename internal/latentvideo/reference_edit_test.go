@@ -5,14 +5,14 @@ import (
 	"math"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestLiveEditReferenceParity(t *testing.T) {
 	t.Run("flow-schedule", func(t *testing.T) {
 		got, err := CompileEditFlowSigmas(EditFlowConfig{InferenceSteps: 1000, TrainTimesteps: 1000, Shift: 5, SigmaMax: 1, ExtraStep: true}, []int64{1000, 750, 500, 250})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want := []float32{1, 0.7500000596046448, 0.5005995631217957, 0.25159743428230286}
 		for index := range want {
 			if math.Abs(float64(got[index]-want[index])) > 1e-7 {
@@ -26,9 +26,7 @@ func TestLiveEditReferenceParity(t *testing.T) {
 		LatentGeometry{Channels: 4, LatentFrames: 7, LatentHeight: 6, LatentWidth: 10},
 		4, 3, 3, []int64{1000, 500, 0},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(plan.ChunkFrames, []int{3, 3, 1}) || plan.TokensPerFrame != 15 || plan.SelfAttentionTokens != 45 || plan.CrossAttentionTokens != 7 || plan.DenoiserCalls != 12 {
 		t.Fatalf("plan=%+v", plan)
 	}
@@ -56,9 +54,7 @@ func TestLiveEditReferenceParity(t *testing.T) {
 				return nil
 			},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !reflect.DeepEqual(got, []float32{3.25, 4.25, 5.25}) || stats.DenoiseCalls != 4 || stats.ContextRefreshCalls != 2 || stats.NoiseCalls != 2 || stats.PeakScratchElements != 12 || len(visits) != 6 {
 			t.Fatalf("output=%v stats=%+v visits=%d", got, stats, len(visits))
 		}

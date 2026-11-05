@@ -10,14 +10,13 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Store)) *Handler {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -32,9 +31,7 @@ func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Sto
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { handler.Close() })
 	return handler
 }
@@ -51,18 +48,14 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	// gate; the gate refuses it before any transport runs.
 	handler := agentTestHandler(t, func(ctx context.Context, store *overgodb.Store) {
 		manuals, err := agenttool.StandardManuals()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		write, err := agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the approval gate.",
 			Effect:    agenttool.EffectMutation,
 			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The argv manual publishes only under a committed policy naming
 		// its program -- the durable allowlist, not a CLI convenience.
 		if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"git"}); err != nil {
@@ -83,9 +76,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		} `json:"tools"`
 		Coverage struct{ Registered, Published int } `json:"coverage"`
 	}
-	if err := json.Unmarshal(catalog.Body.Bytes(), &tools); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(catalog.Body.Bytes(), &tools))
 	effects := map[string]string{}
 	for _, tool := range tools.Tools {
 		effects[tool.Name] = tool.Effect

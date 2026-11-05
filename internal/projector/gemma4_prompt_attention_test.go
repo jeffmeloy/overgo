@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -40,18 +41,12 @@ func TestGemma4TowerCausalMediaPrompts(t *testing.T) {
 			picture := image.NewRGBA(image.Rect(0, 0, 1, 1))
 			program := compileGemma4ImageProgram(source)
 			images, err := executeImagePromptPlan(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, []string{"", "", "Count."}, program.Default, program.Encode)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			media := compileGemma4MediaProgram(source)
 			mixed, err := media.History(t.Context(), gemma4PromptTokenizer{}, []MediaInput{{Kind: MediaImage, Image: picture}, {Kind: MediaAudio, Audio: []float32{1}}}, []string{"before", "between", "after"})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			video, err := media.Video(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, "", "Describe.", 1, false)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for name, prompt := range map[string]MultimodalPrompt{"images": images, "mixed": mixed, "video": video} {
 				if len(prompt.Embeddings) == 0 || len(prompt.TokenIDs) == 0 {
 					t.Fatalf("%s omitted media", name)
@@ -95,12 +90,8 @@ func fixtureMediaAttention(t *testing.T, attention string) mediaPreprocessOwner 
 		&modelartifact.GenerationEssentials{ImageAttention: attention},
 		[]modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat("a", 64)}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile, err := (MediaPreprocessProfile{Version: artifact.InitialDocumentVersion}).BindModelConfig(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return mediaPreprocessOwner{preprocess: profile}
 }

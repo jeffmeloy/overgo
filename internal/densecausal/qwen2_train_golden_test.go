@@ -1,6 +1,10 @@
 package densecausal
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // qwen2 differs from llama only by q/k/v projection biases; same code path
 // with bias slices non-nil. Golden: fixtures/qwen2_train_golden.json, a
@@ -25,13 +29,9 @@ func TestTinyQwen2ForwardOnlyLossAgrees(t *testing.T) {
 	g := readQwen2Golden(t)
 	m := modelFromGolden(t, g)
 	lossForward, _, err := m.Loss(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lossGrad, _, _, err := m.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if lossForward != lossGrad {
 		t.Fatalf("forward-only loss %g != gradient-path loss %g", lossForward, lossGrad)
 	}

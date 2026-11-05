@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
 	t.Helper()
 	plan, err := compileFixtureModelPlan(spec, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan
 }
 
@@ -32,27 +31,21 @@ func fixtureProjection(
 ) ProjectionResult {
 	t.Helper()
 	result, err := plan.Projection(role).Build(builder, operands)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return result
 }
 
 func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) LayerPlan {
 	t.Helper()
 	plan, err := fixtureModelPlan(t, spec, weights).Layer(uint32(layer))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan
 }
 
 func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
 	t.Helper()
 	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(uint32(layer))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return program
 }
 
@@ -64,9 +57,7 @@ func fixtureDraftProgram(
 ) CompiledLayerProgram {
 	t.Helper()
 	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(head)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return draft
 }
 

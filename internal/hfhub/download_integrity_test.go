@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDownloadWithoutDigestRejectsCorruptedPrefix(t *testing.T) {
@@ -27,9 +29,7 @@ func TestDownloadWithoutDigestRejectsCorruptedPrefix(t *testing.T) {
 				serveDownloadBytes(downloadCountingWriter{w, &served}, r, weights)
 			})
 			partial := seedDownloadPrefix(t, client, request, file, make([]byte, len(weights)/2))
-			if err := os.WriteFile(partial+".etag", []byte(etag), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(partial+".etag", []byte(etag), 0o600))
 			if _, err := client.Download(t.Context(), request); err != nil {
 				t.Fatal(err)
 			}
@@ -104,9 +104,7 @@ func TestDownloadCompleteRetainedPrefix(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got, err := os.ReadFile(local)
 			if err != nil || !bytes.Equal(got, test.weights) {
 				t.Fatalf("published=%q error=%v", got, err)

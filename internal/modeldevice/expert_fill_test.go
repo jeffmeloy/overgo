@@ -17,6 +17,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // byteReads counts how often each byte of a file was read.
@@ -107,24 +108,18 @@ func TestExpertFillReadsEachRangeOnce(t *testing.T) {
 		var file *gguf.File
 		path := filepath.Join(t.TempDir(), "experts.gguf")
 		if fromFile {
-			if err := os.WriteFile(path, data, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 			file, err = gguf.Open(path)
 		} else {
 			file, err = gguf.Parse(countedReader{bytes.NewReader(data), reads}, uint64(len(data)), gguf.DefaultOptions())
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = file.Close() })
 		resolution = reads.snapshot()
 		if change != nil {
 			change(data)
 			if fromFile {
-				if err := os.WriteFile(path, data, 0o600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 			}
 		}
 		mem = newFakeExpertDevice()
@@ -155,9 +150,7 @@ func TestExpertFillReadsEachRangeOnce(t *testing.T) {
 	for _, fromFile := range []bool{false, true} {
 		t.Run(fmt.Sprintf("from-file=%t", fromFile), func(t *testing.T) {
 			resolution, total, mem, s, err := pass(t, fromFile, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, name := range banks {
 				start, end := bankRange(name)
 				for position := start; position < end; position++ {
@@ -178,9 +171,7 @@ func TestExpertFillReadsEachRangeOnce(t *testing.T) {
 			for _, name := range banks {
 				bank := cache.banks[name]
 				table, err := mem.at(bank.table, experts*pointerBytes)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				for index := range uint32(experts) {
 					pointer := driver.DevicePtr(binary.LittleEndian.Uint64(table[index*pointerBytes:]))
 					held, err := mem.at(pointer, bank.bytes)

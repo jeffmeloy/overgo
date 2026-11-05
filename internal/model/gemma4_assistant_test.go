@@ -6,6 +6,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildGemma4AssistantPipeline(t *testing.T) {
@@ -49,9 +50,7 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	block, err := buildFixtureLayerWithPlan(
 		builder, current, spec, weights, []uint32{2}, sharedKey, sharedValue, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	current = block.Output
 	outputNorm := input("output_norm", 2)
 	output := input("output", 2, 4)
@@ -84,9 +83,7 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 		feeds[norm] = value
 	}
 	results, err := reference.Execute([]*tensor.Tensor{logits, nextHidden}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !results[logits].Shape.Equal(tensor.MustShape(4, 1)) ||
 		!results[nextHidden].Shape.Equal(tensor.MustShape(3, 1)) {
 		t.Fatalf("Gemma 4 assistant outputs = %v/%v", results[logits].Shape.Slice(), results[nextHidden].Shape.Slice())

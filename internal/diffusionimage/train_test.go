@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -24,16 +25,12 @@ func TestOTFlowObjectiveMatchesTorch(t *testing.T) {
 	n := fx.C * fx.H * fx.W
 	xT := make([]float32, len(fx.X1))
 	target := make([]float32, len(fx.X1))
-	if err := OTLinearFlowPathInto(xT, target, fx.X1, fx.X0, fx.T, fx.B, n, fx.SigmaMin); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, OTLinearFlowPathInto(xT, target, fx.X1, fx.X0, fx.T, fx.B, n, fx.SigmaMin))
 	requireWithin(t, "x_t", xT, fx.XT, tolTight)
 	requireWithin(t, "target", target, fx.Target, tolTight)
 	grad := make([]float32, len(fx.Pred))
 	loss, err := ScaledMSELossGradInto(grad, fx.Pred, target, fx.LossScale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("ot_flow loss got %.9g want %.9g", loss, fx.Loss)
 	if math.Abs(loss-fx.Loss) > tolTight {
 		t.Fatalf("loss=%g want=%g", loss, fx.Loss)
@@ -52,9 +49,7 @@ func fixedFlowPath(t *testing.T, x1 []float32, batch int, sigmaMin float64) (x, 
 	for i := range times {
 		times[i] = 1
 	}
-	if err := OTLinearFlowPathInto(x, target, x1, make([]float32, len(x1)), times, batch, len(x1)/batch, sigmaMin); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, OTLinearFlowPathInto(x, target, x1, make([]float32, len(x1)), times, batch, len(x1)/batch, sigmaMin))
 	return x, target
 }
 
@@ -70,23 +65,17 @@ func TestTinyModelTrainDescends(t *testing.T) {
 	)
 	x, target := fixedFlowPath(t, fx.X, fx.B, sigmaMin)
 	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if trainer.Program().Objective() != trainingprogram.ObjectiveFlowMatching {
 		t.Fatalf("trainer objective = %q", trainer.Program().Objective())
 	}
 	defer func() {
-		if err := trainer.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, trainer.Close())
 	}()
 	losses := make([]float64, 0, steps)
 	for step := range steps {
 		loss, err := trainer.Step(x, target, fx.B, fx.H, fx.W)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("non-finite loss %v at step %d", loss, step)
 		}
@@ -106,13 +95,9 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(m.TrainableParameterCount())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer, err := NewTrainer(m, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	x, target := fixedFlowPath(t, fx.X, fx.B, 0.001)
 	if _, err := trainer.Step(x, target, fx.B, fx.H, fx.W); err != nil {
@@ -133,13 +118,9 @@ func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", dir, err)
 	}
 	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: 1e-4, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := trainer.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, trainer.Close())
 	}()
 	if trainer.pack.ParameterCount() == 0 {
 		t.Fatal("real-artifact Muon plan is empty")

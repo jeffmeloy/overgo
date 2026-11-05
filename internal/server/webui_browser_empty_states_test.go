@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +21,7 @@ func TestWebUIBrowserEmptyStates(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the empty states leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), path: writeTensorFixture(t)}))
 	defer server.Close()
@@ -80,9 +79,7 @@ func TestWebUIBrowserEmptyStates(t *testing.T) {
 	}
 
 	// The memory bar says the model's share of the device in words.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+measured.URL+"`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+measured.URL+"`", nil))
 	settle(`location.origin === ` + "`" + measured.URL + "`" + ` && !document.getElementById('memory-label').hidden`)
 	check(`document.getElementById('memory-label').textContent === '12.00 GB of 24.00 GB'`)
 	webuilane.Leg(t, "empty states leg", "Agent with no agents said so and opened its creation fold, its chat waiting for an agent; the Library's search and download tables stayed hidden until they had rows; runs with none said so with no pager or empty table; a long conversation title wrapped with the whole title in its tooltip; the memory bar said the model's share of the device in words")

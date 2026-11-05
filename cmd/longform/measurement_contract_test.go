@@ -16,15 +16,14 @@ import (
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
 func contractResult(t *testing.T, name string) longform.Result {
 	t.Helper()
 	model, _, err := artifact.Identify(artifact.KindModel, strings.NewReader(name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	floors := longform.DeclaredFloors()
 	ids := make([]int32, floors.ShortOutputTokens)
 	for i := range ids {
@@ -42,9 +41,7 @@ func contractResult(t *testing.T, name string) longform.Result {
 		Shape: longform.ShortShape{PromptTokens: floors.ShortPromptTokens, OutputIDs: ids, NLL: 1.1, Measure: measure},
 		Rungs: []longform.Rung{{Measure: measure, OutputIDs: ids}}}
 	result.Verdict = longform.Judge(measure, result.Short, floors)
-	if err := os.WriteFile(result.ModelPath, []byte(name), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(result.ModelPath, []byte(name), 0o644))
 	return result
 }
 
@@ -74,9 +71,7 @@ func TestCampaignMeasurementContract(t *testing.T) {
 	t.Run("in-flight corpus is a snapshot", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "corpus.txt")
 		cached := options{Corpus: path, corpusText: "fixed source corpus\n\n"}
-		if err := os.WriteFile(path, []byte("later edit"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte("later edit"), 0o644))
 		if text, err := readCorpus(cached, 0); err != nil || text != cached.corpusText {
 			t.Fatal("in-flight corpus snapshot changed")
 		}
@@ -137,9 +132,7 @@ func TestCampaignMeasurementContract(t *testing.T) {
 			t.Fatalf("calls=%d err=%v output=%s", calls, err, output.String())
 		}
 		store, err := overgodb.OpenReadOnly(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		if _, found := longform.LatestByLocation(t.Context(), store, 0)[longform.Key(record.ModelPath)]; !found {
 			t.Fatal("completed model evidence was lost")

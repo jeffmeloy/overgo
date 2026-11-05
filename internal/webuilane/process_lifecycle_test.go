@@ -8,14 +8,13 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 func TestBrowserCloseReportsCleanupFailure(t *testing.T) {
 	foreign := t.TempDir()
 	marker := filepath.Join(foreign, "keep")
-	if err := os.WriteFile(marker, []byte("unowned"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(marker, []byte("unowned"), 0o600))
 	if err := (&Browser{profile: foreign}).Close(); err == nil {
 		t.Fatal("unowned cleanup reported success")
 	}
@@ -23,14 +22,10 @@ func TestBrowserCloseReportsCleanupFailure(t *testing.T) {
 		t.Fatalf("unowned profile changed: %q, %v", data, err)
 	}
 	owned, err := os.MkdirTemp("", "overgo-webui-lane-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer os.RemoveAll(owned)
 	browser := &Browser{profile: owned}
-	if err := browser.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Close())
 	if _, err := os.Stat(owned); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("owned profile remains: %v", err)
 	}
@@ -48,9 +43,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		path, args = "cmd", []string{"/c", "exit 0"}
 	}
 	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := waitDevToolsPort(t.Context(), processcontrol.WatchLine(nil, devToolsAnnouncement), supervised); err == nil {
 		t.Fatal("exited browser reported a DevTools port")
 	}

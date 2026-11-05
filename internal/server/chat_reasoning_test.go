@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -170,9 +171,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 		}
 		g := &declaredReasoningGenerator{fakeGenerator: &fakeGenerator{pieces: pieces}, template: "<think></think>", prompt: "assistant"}
 		h, err := New(Config{ModelID: testModelID, MaxTokens: len(pieces) + 1, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy}, g)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		message, _, _ := runDeclaredReasoningRequest(t, h, true, len(pieces)+1, "")
 		if message.ReasoningContent != "🙂" || message.Content != "π" || len(message.ToolCalls) != 0 {
 			t.Fatalf("message=%+v", message)
@@ -224,9 +223,7 @@ func runDeclaredReasoningRequest(t *testing.T, handler *Handler, streaming bool,
 	}
 	if !streaming {
 		var result chatResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 		if len(result.Choices) != 1 {
 			t.Fatalf("choices=%+v", result.Choices)
 		}
@@ -241,16 +238,12 @@ func runDeclaredReasoningRequest(t *testing.T, handler *Handler, streaming bool,
 			continue
 		}
 		var wire map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(data), &wire); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal([]byte(data), &wire))
 		if wire["error"] != nil {
 			t.Fatalf("stream error: %s", data)
 		}
 		var chunk chatStreamResponse
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal([]byte(data), &chunk))
 		if chunk.Usage != nil {
 			usage = *chunk.Usage
 		}

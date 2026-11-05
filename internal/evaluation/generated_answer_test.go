@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
@@ -17,9 +18,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 		}},
 	}
 	compiled, err := CompileGeneratedAnswer(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
@@ -28,33 +27,23 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
 	plan, err := bindGeneratedAnswer(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite.Transforms = []string{TransformTrimSpace}
 	other, err := CompileGeneratedAnswer(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	otherPlan, err := bindGeneratedAnswer(other, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.Identity() == otherPlan.Identity() {
 		t.Fatal("normalization profile did not change evaluation identity")
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateGeneratedAnswer(
 		t.Context(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observation := report.Observations[0]
 	if report.Accuracy != 1 || observation.Raw != " OK " || observation.Scored != "ok" || !observation.Accepted {
 		t.Fatalf("generated-answer report = %+v", report)

@@ -5,6 +5,8 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestABridgedPairNamesThePartsBesideIt holds a bridge to what it is on disk
@@ -16,21 +18,15 @@ import (
 func TestABridgedPairNamesThePartsBesideIt(t *testing.T) {
 	t.Parallel()
 	sampler, err := servedSampler()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A models directory with the shape of a collection, its encoder's image
 	// processor and another encoder: ResolveBridgedPair reads names, not weights.
 	models := t.TempDir()
 	touch := func(parts ...string) {
 		t.Helper()
 		file := filepath.Join(append([]string{models}, parts...)...)
-		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o700))
+		testcheck.NoError(t, os.WriteFile(file, nil, 0o600))
 	}
 	touch("collection", filepath.FromSlash(sampler.Checkpoint))
 	touch(path.Base(sampler.Encoder), processorConfig)
@@ -41,9 +37,7 @@ func TestABridgedPairNamesThePartsBesideIt(t *testing.T) {
 	if _, held, err := ResolveBridgedPair(pairDirectory); held || err != nil {
 		t.Fatalf("a directory with no bridge resolved as a pair (%t, %v)", held, err)
 	}
-	if err := SaveEncoderBridge(pairDirectory, bridge, "other-encoder", "collection"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, SaveEncoderBridge(pairDirectory, bridge, "other-encoder", "collection"))
 	pair, held, err := ResolveBridgedPair(pairDirectory)
 	if err != nil || !held {
 		t.Fatalf("the saved pair did not resolve (%t, %v)", held, err)
@@ -69,9 +63,7 @@ func TestABridgedPairNamesThePartsBesideIt(t *testing.T) {
 			t.Errorf("a bridge with %s was saved", name)
 		}
 	}
-	if err := os.RemoveAll(filepath.Join(models, "other-encoder")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(models, "other-encoder")))
 	if _, held, err := ResolveBridgedPair(pairDirectory); !held || err == nil {
 		t.Fatalf("a pair whose encoder is gone resolved (%t, %v)", held, err)
 	}

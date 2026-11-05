@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestMovedModelResolvesByIdentity(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	payload := []byte("moved-model-weights")
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
@@ -30,9 +29,7 @@ func TestMovedModelResolvesByIdentity(t *testing.T) {
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/moved/facts",
 		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
@@ -45,9 +42,7 @@ func TestMovedModelResolvesByIdentity(t *testing.T) {
 	}
 	base := t.TempDir()
 	t.Setenv(dataroot.Env, base)
-	if err := os.Remove(recorded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(recorded))
 	moved := filepath.Join(base, "models", "family-1.0", "head", "model.safetensors")
 	writeFile(t, moved, []byte("different-model-bytes"))
 	if location, present := presence(ctx, store, manifest, map[string]fileIdentity{}, nil); present {
@@ -62,10 +57,6 @@ func TestMovedModelResolvesByIdentity(t *testing.T) {
 
 func writeFile(t *testing.T, path string, data []byte) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 }

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -41,9 +42,7 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 	requireWebUILane(t, "the training evidence leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "training evidence recipe")
 	// publish stores one run with its checkpoint and the DPO trace it produced.
@@ -54,13 +53,9 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 			t.Fatal(err)
 		}
 		run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{checkpoint}, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := run.Batch("training-evidence/" + label + "/run")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -69,13 +64,9 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 			Objective string                        `json:"objective"`
 			DPO       []trainingEvidenceObservation `json:"dpo"`
 		}{run.ID, "dpo", observations})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		traceID, err := artifact.IdentifyBytes(artifact.KindEvidence, trace)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		descriptor := artifact.Descriptor{ID: traceID, Size: uint64(len(trace)), MediaType: "application/json"}
 		if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 			Key: "training-evidence/" + label + "/trace", Contents: []artifact.Content{{Descriptor: descriptor, Data: trace}},
@@ -98,13 +89,9 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {

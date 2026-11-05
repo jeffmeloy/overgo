@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +21,7 @@ func TestWebUIBrowserDatasetImport(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the dataset import leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	sources := t.TempDir()
 	chats := filepath.Join(sources, "chats.jsonl")
@@ -31,9 +30,7 @@ func TestWebUIBrowserDatasetImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	plain := filepath.Join(sources, "plain.jsonl")
-	if err := os.WriteFile(plain, []byte(`{"text":"not a conversation"}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(plain, []byte(`{"text":"not a conversation"}`+"\n"), 0o644))
 	datasets := t.TempDir()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}), func(config *Config) {
 		config.LibraryIntake.DatasetRoot = datasets

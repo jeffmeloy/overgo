@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/benchmarkrecord"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestBenchmarkComparisonRecord keeps the run-record consumer contract wired
@@ -43,12 +44,8 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 			Baseline: observation(10), Candidate: observation(9),
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := record.ValidateIdentity(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, record.ValidateIdentity())
 	content, err := record.Content()
 	if err != nil || len(content.Data) == 0 {
 		t.Fatalf("shared record content = %+v, %v", content, err)

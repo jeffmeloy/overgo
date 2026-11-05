@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -21,17 +22,13 @@ func TestPastHeldoutVerdictsAreReadAsTheStoreStood(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
 	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
 		t.Helper()
 		batch, err := stage(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, id := range declared {
 			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
 		}
@@ -56,14 +53,10 @@ func TestPastHeldoutVerdictsAreReadAsTheStoreStood(t *testing.T) {
 		candidate := forecast.score(t, offset, "falling")
 		commit(key+"-report", candidate.Batch)
 		verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, candidate, session)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		commit(key, verdict.Batch)
 		content, err := verdict.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return verdict.ID, content.Descriptor.Size
 	}
 	first, firstBytes := judge("first", 1)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -51,13 +52,9 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "hardened states run through cmd/webui-lane")
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), path: writeTensorFixture(t)})
 	defer handler.Close()
@@ -65,9 +62,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	defer httpServer.Close()
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()
@@ -78,9 +73,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
 	assertBrowserPredicate(t, ctx, browser, hardenedStatesFilter)
 	var tabs []string
-	if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panels .panel")].map((panel) => panel.id.slice("panel-".length))`, &tabs); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `[...document.querySelectorAll("#panels .panel")].map((panel) => panel.id.slice("panel-".length))`, &tabs))
 	var findings []string
 	// visit opens a tab, waits for it (on the page's clock) and answers what it shows.
 	visit := func(tab, wait string) (state struct {
@@ -156,9 +149,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 			// CaptureState sizes the viewport and awaits the page's transitions before it
 			// audits; the screens leg keeps the pictures, so this leg writes none.
 			measured, err := webuilane.CaptureState(ctx, browser, "", viewport, "oversized-"+tab)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, finding := range measured {
 				findings = append(findings, "oversized: "+finding.String())
 			}

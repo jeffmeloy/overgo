@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -20,9 +21,7 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 		tensor.MustShape(1, 1, 5),
 		[]float32{1, 2, 3, 4, 5},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner := attachFixtureProgram(&Runner{preparedModel: preparedModel{spec: model.Spec{
 		CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8},
 	}}})
@@ -47,15 +46,11 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 		states[1].ID != 8 || states[1].Tokens != 2 || len(states[1].Pages) != 1 {
 		t.Fatalf("states = %+v", states)
 	}
-	if err := batch.Remove(t.Context(), 7); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, batch.Remove(t.Context(), 7))
 	if len(batch.Snapshot()) != 1 || batch.Snapshot()[0].ID != 8 {
 		t.Fatalf("post-remove states = %+v", batch.Snapshot())
 	}
-	if err := batch.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, batch.Close(t.Context()))
 	if len(batch.Snapshot()) != 0 {
 		t.Fatal("close retained sequences")
 	}
@@ -134,9 +129,7 @@ func TestContinuousBatchAdmission(t *testing.T) {
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, err = batch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 1, Tokens: []tokenizer.TokenID{1}},
 		{ID: 1, Tokens: []tokenizer.TokenID{2}},
@@ -171,9 +164,7 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	for architecture, want := range tests {
 		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}
 		plan, err := fixtureModelPlan(spec, model.Weights{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if got := plan.Forward().PersistentDeviceCache(); got != want {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
@@ -207,13 +198,9 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
 			plan, err := fixtureModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			schema, err := plan.CacheSchema(0, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			first, second := schema.Primary.Key.Value.Shape, schema.Primary.Value.Value.Shape
 			if test.architecture == "falcon-h1" {
 				convolution, _ := schema.State(model.CacheStateConvolution)

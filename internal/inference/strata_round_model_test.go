@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -34,9 +35,7 @@ const (
 func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := roots.ResolveModelPath(strataRoundModel)
 	if _, err := os.Stat(model); err != nil {
 		t.Skipf("the round's check needs %s: %v", model, err)
@@ -50,9 +49,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	// share of each window's misses, which a window's size moves.
 	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draftFile, StrataRound: true},
 		recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -66,16 +63,12 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 		[]ChatMessage{{Role: ChatRoleUser, Content: "Explain how a refrigerator keeps food cold."}},
 		ChatFormatOptions{AddGenerationPrompt: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const generated = 48
 	decode := func(round, plain bool, drafts strataDraftSource, spans func(int, int)) []tokenizer.TokenID {
 		t.Helper()
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		runner.strataTestDrafts = drafts
 		var delivered []tokenizer.TokenID
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
@@ -84,9 +77,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 			OnToken: func(event TokenEvent) error { delivered = append(delivered, event.ID); return nil },
 		})
 		runner.strataTestDrafts = nil
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// the tokens reach the callback in order, every one before the request ends
 		if !slices.Equal(delivered, ids[len(ids)-generated:]) {
 			t.Fatalf("the callback saw %v of the request's %v", delivered, ids[len(ids)-generated:])
@@ -131,9 +122,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	// A callback's failure ends the request with it, no token delivered after it.
 	gone, delivered := errors.New("the client left"), 0
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, _, err = runner.Generate(t.Context(), prompt, GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, ContinueAfterEOG: true, StrataRound: true,
 		OnToken: func(TokenEvent) error {
@@ -170,15 +159,11 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	sampled := func(plain bool) []tokenizer.TokenID {
 		t.Helper()
 		sampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 20, TopP: 0.95, Seed: 7})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: sampler, ContinueAfterEOG: true, PlainDecode: plain, StrataRound: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids
 	}
 	windowsBefore := runner.strata.windows
@@ -195,17 +180,13 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	turn := func(prompt string, cache, plain bool) ([]tokenizer.TokenID, string, int) {
 		t.Helper()
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cached := 0
 		ids, text, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PlainDecode: plain, StrataRound: true,
 			CachePrompt: cache, OnPromptEvaluated: func(read PromptEvaluation) { cached = read.Cached },
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids, text, cached
 	}
 	_, answered, _ := turn(prompt, true, false)

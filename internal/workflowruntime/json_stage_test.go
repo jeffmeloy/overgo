@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -15,9 +16,7 @@ func TestContextPipelineCarriesRequestContext(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type requestKey struct{}
 	marker := new(int)
 	ctx := context.WithValue(t.Context(), requestKey{}, marker)
@@ -58,9 +57,7 @@ func TestScalarStageCancellationBoundaries(t *testing.T) {
 			store, program := runtimeFixture(t)
 			defer store.Close()
 			runtime, err := NewForProgram(store, program)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(context.Canceled)
 			computed, encoded := false, false

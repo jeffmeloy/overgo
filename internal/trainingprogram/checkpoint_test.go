@@ -15,6 +15,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/modelartifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func publishTestCheckpoint(t *testing.T, spec CheckpointSpec) (Checkpoint, strin
 	checkpoint, err := PublishCheckpoint(target, spec, func(stage string) error {
 		return os.WriteFile(filepath.Join(stage, CheckpointWeights), []byte("weights"), 0o644)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return checkpoint, target
 }
 
@@ -36,9 +35,7 @@ func checkpointTestSpec(t *testing.T, state hostoptimizer.State) CheckpointSpec 
 	t.Helper()
 	id := func(kind artifact.Kind, value string) artifact.ID {
 		result, err := artifact.IdentifyBytes(kind, []byte(value))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	model := id(artifact.KindModel, "model")
@@ -60,13 +57,9 @@ func checkpointTestSpec(t *testing.T, state hostoptimizer.State) CheckpointSpec 
 
 func TestProductionCheckpointResumeExact(t *testing.T) {
 	plan, err := hostoptimizer.CompilePlan(2, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 2, Rows: 1, Cols: 2}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muon, err := hostoptimizer.New([]float32{1, 2}, []float32{3, 4}, plan, hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muon.Step()
 	spec := checkpointTestSpec(t, muon.Snapshot())
 	t.Run("complete-gguf", func(t *testing.T) {
@@ -89,9 +82,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 			t.Helper()
 			directory := filepath.Join(t.TempDir(), "split")
 			checkpoint, err := PublishCheckpoint(directory, spec, write)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return checkpoint, directory
 		}
 		written, directory := publish(t)
@@ -100,40 +91,30 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 			t.Fatalf("split round trip = (%+v, %v)", loaded, err)
 		}
 		file, err := gguf.Open(filepath.Join(directory, CheckpointModel))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 		if closeErr := file.Close(); err != nil || closeErr != nil {
 			t.Fatal(err, closeErr)
 		}
 		batch, err := written.Batch("split", directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, component := range inventory.Components {
 			if !slices.ContainsFunc(batch.Artifacts, func(descriptor artifact.Descriptor) bool { return descriptor.ID == component.ID }) {
 				t.Errorf("checkpoint evidence omits %s", component.ID)
 			}
 		}
 		original, err := os.ReadFile(filepath.Join(directory, CheckpointFrozenShard))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		changed := slices.Clone(original)
 		changed[len(changed)-1] ^= 1 // Same directory and shape, only frozen tensor bytes change.
-		if err := os.WriteFile(filepath.Join(directory, CheckpointFrozenShard), changed, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, CheckpointFrozenShard), changed, 0o644))
 		if _, err := LoadCheckpoint(directory); err == nil {
 			t.Error("changed frozen shard resumed")
 		}
 		if _, err := written.Batch("changed", directory); err == nil {
 			t.Error("changed frozen shard recorded as unchanged evidence")
 		}
-		if err := os.Remove(filepath.Join(directory, CheckpointFrozenShard)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(directory, CheckpointFrozenShard)))
 		if _, err := LoadCheckpoint(directory); err == nil {
 			t.Error("missing frozen shard resumed")
 		}
@@ -142,17 +123,11 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		incomplete, directory := publish(t)
 		incomplete.version = artifact.SecondDocumentVersion
 		incomplete.Weights = inventory.Components[0].ID
-		if err := identify(&incomplete); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, identify(&incomplete))
 		for name, document := range map[string]any{CheckpointFilename: incomplete.document(), resumeFilename: incomplete.resume()} {
 			data, err := json.Marshal(document)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(directory, name), data, 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o644))
 		}
 		if _, err := LoadCheckpoint(directory); err == nil {
 			t.Error("incomplete v2 split identity was accepted")
@@ -164,31 +139,19 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 			return gguf.WriteFileExclusive(filepath.Join(stage, "model.gguf"), nil,
 				[]gguf.TensorData{testutil.GGUFTensorF32("weights", []uint64{2}, 1)}, gguf.WriteOptions{})
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Reproduce the old v2 raw-file binding and sidecar, without changing
 		// their contract to the newly published split document.
 		weights, err := os.ReadFile(filepath.Join(directory, "model.gguf"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		checkpoint.Weights, err = artifact.IdentifyBytes(artifact.KindTensorSet, weights)
 		checkpoint.version = artifact.SecondDocumentVersion
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := identify(&checkpoint); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, identify(&checkpoint))
 		for name, document := range map[string]any{CheckpointFilename: checkpoint.document(), resumeFilename: checkpoint.resume()} {
 			data, err := json.Marshal(document)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(directory, name), data, 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o644))
 		}
 		loaded, err := LoadCheckpoint(directory)
 		if err != nil || loaded.ID() != checkpoint.ID() || loaded.Resume != checkpoint.Resume || loaded.Stream != spec.Stream || !slices.Equal(loaded.Optimizer.Momentum, spec.Optimizer.Momentum) {
@@ -203,9 +166,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 	if _, err := PublishCheckpoint(target, spec, func(string) error { return nil }); err == nil {
 		t.Fatal("checkpoint overwrite accepted")
 	}
-	if err := os.WriteFile(filepath.Join(target, CheckpointWeights), []byte("tampered"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(target, CheckpointWeights), []byte("tampered"), 0o644))
 	if _, err := LoadCheckpoint(target); err == nil {
 		t.Fatal("modified weights accepted")
 	}
@@ -234,9 +195,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 // its momentum, refuse.
 func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 	plan, err := hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{{Name: "weight", End: 6, Rows: 2, Cols: 3}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9}
 	extremes32 := []float32{math.Float32frombits(1), -0.0, math.MaxFloat32, -math.SmallestNonzeroFloat32, 1.0 / 3, -7.25}
 	extremes64 := []float64{math.Float64frombits(1), math.Copysign(0, -1), math.MaxFloat64, 1.0 / 3, -1e-300, 0.1}
@@ -252,9 +211,7 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 			spec := checkpointTestSpec(t, state.state)
 			written, target := publishTestCheckpoint(t, spec)
 			document, err := os.ReadFile(filepath.Join(target, CheckpointFilename))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, inlined := range []string{`"momentum"`, `"stream"`, `"rng"`, `"optimizer"`} {
 				if bytes.Contains(document, []byte(inlined)) {
 					t.Fatalf("checkpoint document inlines %s: %s", inlined, document)
@@ -268,9 +225,7 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 				t.Fatalf("momentum file = (%v, %v), want %d bytes a value", info, err, state.width)
 			}
 			loaded, err := LoadCheckpoint(target)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got := loaded.Optimizer
 			if loaded.ID() != written.ID() || loaded.Resume != written.Resume || got.Step != state.state.Step ||
 				got.Config != state.state.Config || got.PlanIdentity != state.state.PlanIdentity ||
@@ -280,20 +235,14 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 				t.Fatalf("loaded resume state %+v differs from the published %+v", got, state.state)
 			}
 			original, err := os.ReadFile(momentumPath)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			flipped := slices.Clone(original)
 			flipped[0] ^= 1
-			if err := os.WriteFile(momentumPath, flipped, 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(momentumPath, flipped, 0o644))
 			if _, err := LoadCheckpoint(target); err == nil || !strings.Contains(err.Error(), "momentum file differs") {
 				t.Fatalf("a changed momentum bit loaded: %v", err)
 			}
-			if err := os.WriteFile(momentumPath, original[:len(original)-1], 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(momentumPath, original[:len(original)-1], 0o644))
 			if _, err := LoadCheckpoint(target); err == nil {
 				t.Fatal("a truncated momentum file loaded")
 			}

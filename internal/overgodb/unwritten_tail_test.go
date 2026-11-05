@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // The test's journals: the commits each holds, and the payload a frame whose header alone landed declares.
@@ -44,9 +45,7 @@ func TestAnUnwrittenTailEndsTheJournal(t *testing.T) {
 			} else if torn := store.TornTail(); torn != cut {
 				t.Fatalf("%s: the open says it cut %d bytes, want %d", name, torn, cut)
 			}
-			if err := store.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, store.Close())
 		}
 	}
 
@@ -60,9 +59,7 @@ func TestAnUnwrittenTailEndsTheJournal(t *testing.T) {
 	if got, _ := store.Head(); got != head {
 		t.Fatalf("the sealed store opens at %s, want %s", got, head)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	// Bytes that are not zeros are damage, and a sealed segment is immutable: both still refuse.
 	root, _ = committedJournal(t, false)
@@ -77,18 +74,14 @@ func TestAnUnwrittenTailEndsTheJournal(t *testing.T) {
 	}
 	appendTo(t, segments[len(segments)-1], zeros)
 	// Without the checkpoint the seal wrote, which anchors an open past the segments, the open replays them.
-	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, checkpointDirectory)))
 	if _, err := Open(root); err == nil {
 		t.Fatal("a sealed segment ending in zeros opened")
 	}
 
 	// A journal whose header never reached the disk, with no sealed segment, was never begun.
 	unbegun := t.TempDir()
-	if err := os.WriteFile(filepath.Join(unbegun, storeFilename), make([]byte, storeHeaderBytes/2), storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(unbegun, storeFilename), make([]byte, storeHeaderBytes/2), storeFileMode))
 	store, err = Create(unbegun)
 	if err != nil {
 		t.Fatalf("a writer does not start a journal that never began: %v", err)
@@ -96,9 +89,7 @@ func TestAnUnwrittenTailEndsTheJournal(t *testing.T) {
 	if _, sequence := store.Head(); sequence != 0 {
 		t.Fatalf("the started journal is at sequence %d", sequence)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 }
 
 // committedJournal is a store of tailCommits commits, sealed where asked, and its head.
@@ -106,9 +97,7 @@ func committedJournal(t *testing.T, sealed bool) (string, artifact.CommitID) {
 	t.Helper()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var head artifact.CommitID
 	for index := range tailCommits {
 		name := fmt.Sprintf("tail-%d", index)
@@ -121,9 +110,7 @@ func committedJournal(t *testing.T, sealed bool) (string, artifact.CommitID) {
 			t.Fatal(err)
 		}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return root, head
 }
 
@@ -131,13 +118,9 @@ func committedJournal(t *testing.T, sealed bool) (string, artifact.CommitID) {
 func appendTo(t *testing.T, path string, tail []byte) {
 	t.Helper()
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := file.Write(tail); err != nil {
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 }

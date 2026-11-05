@@ -20,6 +20,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -51,13 +52,9 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	fixtures := filepath.Join(root, "fixtures", "rae")
 	var reference raeGeneration
-	if err := jsonfile.Decode(filepath.Join(fixtures, "generation.json"), &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join(fixtures, "generation.json"), &reference))
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := roots.ResolveModelPath("RAE-collections")
 	collection, held, err := rae.ResolveCollection(directory)
 	if err != nil || !held {
@@ -68,31 +65,21 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 	}
 	testskip.Short(t, "samples with the collection's DiT and decodes with its 1.7 GB decoder")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	capability := Catalog[recipe.TaskImageGen]
 	source, err := capability.Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, _, err := source.Define(source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if entry := program.Stages()[0].Module.ID; entry != modelrecipe.ModuleRAEImagePrepare {
 		t.Fatalf("the collection compiles to entry module %s", entry)
 	}
 	generate := func(request rae.Request) (latentimage.EncodedImage, error) {
 		raw, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(raw))
 		if err != nil {
 			return latentimage.EncodedImage{}, err
@@ -104,18 +91,12 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 		return image, nil
 	}
 	image, err := generate(rae.Request{Class: reference.Label, Seed: reference.Seed, Steps: reference.Steps})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	channels, height, width := reference.Image.Shape[0], reference.Image.Shape[1], reference.Image.Shape[2]
 	golden, err := fixtureasset.LoadF32(fixtures, reference.Image.File, reference.Image.SHA256, channels*height*width)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoded, err := png.Decode(bytes.NewReader(image.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bounds := decoded.Bounds(); bounds.Dx() != width || bounds.Dy() != height || image.Channels != channels {
 		t.Fatalf("generated a %dx%d image of %d channels, the reference is %dx%d of %d", bounds.Dx(), bounds.Dy(), image.Channels, width, height, channels)
 	}

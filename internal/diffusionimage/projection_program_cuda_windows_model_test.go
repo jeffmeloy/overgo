@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 		t.Fatalf("projection graph currently requires batch 1, got %d", golden.B)
 	}
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer device.Close()
 
 	patch, err := compileProjectionProgram(
@@ -33,9 +32,7 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 		imageGeometry{channels: model.Cfg.InChannels, height: golden.H, width: golden.W},
 		model.Cfg.BaseChannels, model.Cfg.PatchSize, model.Cfg.PatchSize, false,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	patchWant, patchH, patchW := conv2dValidStride(
 		golden.X, model.patch.weight, model.patch.bias, 1,
 		model.Cfg.InChannels, model.Cfg.BaseChannels, golden.H, golden.W,
@@ -44,9 +41,7 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 	checkProjectionProgram(t, device, "patch", patch, golden.X, patchWant)
 
 	_, trace, err := model.forward(golden.X, 1, golden.H, golden.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, down := range trace.encDowns {
 		binding := model.encoders[index].transition
 		downProgram, err := compileProjectionProgram(
@@ -54,9 +49,7 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 			imageGeometry{channels: down.channels, height: down.h, width: down.width},
 			down.nextChannels, 1, 1, true,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		downWant, _, _ := conv2dValidStride(
 			down.input, binding.weight, binding.bias, 1,
 			down.channels, down.nextChannels, down.h, down.width, 1, 1,
@@ -71,13 +64,9 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 func checkProjectionProgram(t *testing.T, device *executor.Executor, name string, program projectionProgram, input, want []float32) {
 	t.Helper()
 	referenceOutput, err := program.execute(context.Background(), nil, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	deviceOutput, err := program.execute(context.Background(), device, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenceDiff, deviceDiff := testutil.MaxAbsDiff(referenceOutput, want), testutil.MaxAbsDiff(deviceOutput, want)
 	t.Logf("%s reference_max=%.3e cuda_max=%.3e", name, referenceDiff, deviceDiff)
 	if referenceDiff > 2e-5 || deviceDiff > 2e-3 {

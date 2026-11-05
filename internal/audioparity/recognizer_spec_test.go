@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // TestReviewedRecognizerResolvesEachDeclaredForm holds the reviewed registry
@@ -18,9 +19,7 @@ import (
 func TestReviewedRecognizerResolvesEachDeclaredForm(t *testing.T) {
 	t.Parallel()
 	var recurrent recurrentDeclaration
-	if err := json.Unmarshal(transducerExecutionJSON, &recurrent); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(transducerExecutionJSON, &recurrent))
 	if recurrent.ModelType == "" {
 		t.Fatal("the recurrent declaration names no model type")
 	}
@@ -29,23 +28,17 @@ func TestReviewedRecognizerResolvesEachDeclaredForm(t *testing.T) {
 		t.Fatalf("recurrent checkpoint known = %t: %v", known, err)
 	}
 	var binding speechrecognition.TransducerBinding
-	if err := strictjson.DecodeBytes(reviewed.Transducer, &binding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(reviewed.Transducer, &binding))
 	if binding.Blank < 0 || len(binding.Recurrent) == 0 || binding.Bands == 0 {
 		t.Fatalf("recurrent binding is incomplete: %+v", binding)
 	}
 	var declaration speechrecognition.Declaration
-	if err := strictjson.DecodeBytes(reviewed.Execution, &declaration); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(reviewed.Execution, &declaration))
 	if reviewed.Grouping.StackFrames != 0 || reviewed.Grouping.DeltaRadius != 0 {
 		t.Fatalf("a recurrent checkpoint declared a grouping: %+v", reviewed.Grouping)
 	}
 	recipe, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	connectionist, known, err := RecognizerSpecFor(recipe.ModelType)
 	if err != nil || !known {
 		t.Fatalf("connectionist checkpoint known = %t: %v", known, err)

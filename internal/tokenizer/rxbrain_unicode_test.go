@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"unicode/utf8"
+
+	"overgo/internal/testcheck"
 )
 
 // The class intervals come from the pinned Hugging Face regex engine, queried
@@ -16,9 +18,7 @@ func TestRxBrainUnicodeClassesMatchReference(t *testing.T) {
 	const fixtureSHA = "7db1e9a46d0478d3ae4c3d77276cec9c636a8fdb041ff30d2aa6d701d00c0e66"
 	const sourceSHA = "ae5ca95eeb8e9a8774513a996e4e820a05c27db32966aa8e071c10828402cb73"
 	raw, err := os.ReadFile(filepath.Join("testdata", "rxbrain-hf-unicode-classes.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != fixtureSHA {
 		t.Fatalf("Unicode class fixture drifted: %s", got)
 	}
@@ -27,9 +27,7 @@ func TestRxBrainUnicodeClassesMatchReference(t *testing.T) {
 		Version   string               `json:"reference_version"`
 		Classes   map[string][][2]rune `json:"classes"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if fixture.SourceSHA != sourceSHA || fixture.Version != "0.22.2" || len(fixture.Classes) != 6 {
 		t.Fatal("Unicode class provenance or cardinality changed")
 	}

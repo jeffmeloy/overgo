@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -18,28 +20,20 @@ const (
 // a malformed one is refused.
 func TestIDRoundTrip(t *testing.T) {
 	id, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseID(id.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed != id || parsed.Kind() != KindModel {
 		t.Fatalf("round trip = %v, want %v", parsed, id)
 	}
 	encoded, err := json.Marshal(id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decoded ID
 	if err := json.Unmarshal(encoded, &decoded); err != nil || decoded != id {
 		t.Fatalf("JSON round trip = %v, %v, want %v", decoded, err, id)
 	}
 	if allocations := testing.AllocsPerRun(100, func() {
-		if err := decoded.UnmarshalJSON(encoded); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, decoded.UnmarshalJSON(encoded))
 	}); allocations > 2 || decoded != id {
 		t.Fatalf("decoding an identity allocated %.0f times, decoded %v", allocations, decoded)
 	}
@@ -60,13 +54,9 @@ func TestIDRoundTrip(t *testing.T) {
 
 func TestIdentityIncludesKind(t *testing.T) {
 	model, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint, err := IdentifyBytes(KindCheckpoint, []byte(fixtureModelPayload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if model == checkpoint || model.digest != checkpoint.digest {
 		t.Fatalf("kind qualification failed: model=%s checkpoint=%s", model, checkpoint)
 	}
@@ -75,9 +65,7 @@ func TestIdentityIncludesKind(t *testing.T) {
 func TestIdentifyReaderReportsSize(t *testing.T) {
 	payload := []byte(fixtureModelPayload)
 	id, size, err := Identify(KindModel, bytes.NewReader(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, _ := IdentifyBytes(KindModel, payload)
 	if id != want || size != uint64(len(payload)) {
 		t.Fatalf("identify = (%s, %d), want (%s, %d)", id, size, want, len(payload))
@@ -109,9 +97,7 @@ func TestIdentifyReadsItsOwnBuffer(t *testing.T) {
 	payload := bytes.Repeat([]byte(fixtureModelPayload), identifyBufferBytes/len(fixtureModelPayload)*3)
 	source := &writerToSource{Reader: bytes.NewReader(payload)}
 	id, size, err := Identify(KindModel, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, _ := IdentifyBytes(KindModel, payload)
 	if id != want || size != uint64(len(payload)) {
 		t.Fatalf("identify = (%s, %d), want (%s, %d)", id, size, want, len(payload))
@@ -124,9 +110,7 @@ func TestIdentifyReadsItsOwnBuffer(t *testing.T) {
 func TestDescriptorValidation(t *testing.T) {
 	id, _ := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
 	valid := Descriptor{ID: id, Size: uint64(len(fixtureModelPayload)), MediaType: fixtureMediaType}
-	if err := valid.Validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, valid.Validate())
 	invalid := valid
 	invalid.MediaType = " text/plain "
 	if err := invalid.Validate(); err == nil {
@@ -136,13 +120,9 @@ func TestDescriptorValidation(t *testing.T) {
 
 func TestRelationJSONRoundTrip(t *testing.T) {
 	encoded, err := json.Marshal(RelationQuantizedFrom)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decoded Relation
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 	if decoded != RelationQuantizedFrom {
 		t.Fatalf("relation = %v, want %v", decoded, RelationQuantizedFrom)
 	}
@@ -153,14 +133,10 @@ func TestRelationJSONRoundTrip(t *testing.T) {
 func TestHasherMatchesIdentifyForAnyChunking(t *testing.T) {
 	payload := bytes.Repeat([]byte(fixtureModelPayload), 997)
 	want, wantSize, err := Identify(KindTensorSet, bytes.NewReader(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, cut := range []int{1, 3, 64, 65, 4096, len(payload), len(payload) + 1} {
 		hasher, err := NewHasher(KindTensorSet)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for rest := payload; len(rest) > 0; {
 			size := min(cut, len(rest))
 			if _, err := hasher.Write(rest[:size]); err != nil {
@@ -173,9 +149,7 @@ func TestHasherMatchesIdentifyForAnyChunking(t *testing.T) {
 		}
 	}
 	empty, err := NewHasher(KindTensorSet)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantEmpty, _ := IdentifyBytes(KindTensorSet, nil)
 	if got, size := empty.ID(); got != wantEmpty || size != 0 {
 		t.Fatalf("empty identity = (%s, %d), want (%s, 0)", got, size, wantEmpty)

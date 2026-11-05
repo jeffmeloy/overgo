@@ -6,18 +6,15 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 func verifyHybridCachedBackward(t *testing.T, worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, incoming []float32, want hostmath.HybridDecoderLayerGrads) {
 	t.Helper()
 	_, cache, err := HybridDecoderLayerForwardDevice(worker, x, w, d, state)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := hybridLayerBackwardCachedW(worker, x, hybridHostMatW(w), w, d, state, incoming, &cache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("retained and prepared forward gradients differ")
 	}

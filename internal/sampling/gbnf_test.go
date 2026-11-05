@@ -4,6 +4,8 @@ import (
 	"math/rand/v2"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // newGBNFGrammar binds source to token pieces as commands do, through a vocabulary of the pieces and EOS tokens that
@@ -21,9 +23,7 @@ func TestGBNFLiteralsClassesGroupsAndRepetition(t *testing.T) {
 	grammar, err := newGBNFGrammar(`
 root ::= ("a" | [b-c]) [0-9]{2,3}
 `, "root", pieces, []int{7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tokens := range [][]int{
 		{0, 3, 4, 7},
 		{1, 9, 7},
@@ -50,9 +50,7 @@ func TestGBNFRightRecursiveBalancedInput(t *testing.T) {
 	grammar, err := newGBNFGrammar(`
 root ::= "(" root? ")"
 `, "root", bytePieces("(", ")", "", "x", "()"), []int{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tokens := range [][]int{
 		{0, 1, 2},
 		{0, 0, 1, 1, 2},
@@ -80,13 +78,9 @@ func TestGBNFUnicodeCanSpanByteTokens(t *testing.T) {
 		[][]byte{{0xE2}, {0x82}, {0xAC}, nil, {'x'}},
 		[]int{3},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := grammar.initialState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, token := range []int{0, 1, 2, 3} {
 		var ok bool
 		state, ok = grammar.advanceToken(state, token)
@@ -98,9 +92,7 @@ func TestGBNFUnicodeCanSpanByteTokens(t *testing.T) {
 		t.Fatal("Unicode grammar did not terminate on EOS")
 	}
 	state, err = grammar.initialState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, ok := grammar.advanceToken(state, 0)
 	if !ok {
 		t.Fatal("Unicode grammar rejected a valid leading byte")
@@ -117,9 +109,7 @@ func TestGBNFNegatedClassWildcardAndEscapes(t *testing.T) {
 		bytePieces("x", "a", "Z", "\n", "€", "", "xy"),
 		[]int{5},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !gbnfAcceptsTokens(t, grammar, []int{0, 2, 3, 4, 5}) {
 		t.Fatal("negated/wildcard grammar rejected valid input")
 	}
@@ -158,9 +148,7 @@ func TestGBNFTokenTerminalsMatchPinnedUpstreamSemantics(t *testing.T) {
 root ::= <[10]> content <[11]>
 content ::= (!<[11]>)*
 `, "root", pieces, []int{31})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tokens := range [][]int{
 		{10, 11, 31},
 		{10, 0, 11, 31},
@@ -188,13 +176,9 @@ func TestGBNFNamedTokenTerminalResolution(t *testing.T) {
 		[]int{3},
 		map[string]int{"<start>": 0, "<end>": 2},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grammar, err := vocabulary.Compile(`root ::= <start> !<end> <end>`, "root", GBNFLazyOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !gbnfAcceptsTokens(t, grammar, []int{0, 1, 2, 3}) {
 		t.Fatal("named token-terminal grammar rejected valid IDs")
 	}
@@ -206,9 +190,7 @@ func TestGBNFNamedTokenTerminalResolution(t *testing.T) {
 func TestLazyGBNFPatternReplaysOverlappingTokenPieces(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("prefixJS", "ON:42", "", "unconstrained"), []int{2}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grammar, err := vocabulary.Compile(
 		`root ::= "JSON:" [0-9]+`,
 		"root",
@@ -217,13 +199,9 @@ func TestLazyGBNFPatternReplaysOverlappingTokenPieces(t *testing.T) {
 			Patterns: []string{`prefix(JSON:)`},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := grammar.initialState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !state.awaitingTrigger {
 		t.Fatal("lazy grammar did not begin in trigger-waiting state")
 	}
@@ -285,17 +263,13 @@ func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			vocabulary, err := NewGBNFVocabulary(bytePieces(test.pieces...), []int{len(test.pieces) - 1}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			grammar, err := vocabulary.Compile(
 				test.source,
 				"root",
 				GBNFLazyOptions{Enabled: true, Patterns: []string{test.pattern}},
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !gbnfAcceptsTokens(t, grammar, test.tokens) {
 				t.Fatal("ECMAScript trigger rejected valid sequence")
 			}
@@ -306,30 +280,22 @@ func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
 func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
 	t.Parallel()
 	small, err := NewGBNFVocabulary(bytePieces("a", ""), []int{1}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	options := GBNFLazyOptions{Enabled: true, Patterns: []string{strings.Repeat("a", maxGBNFTriggerPatternBytes+1)}}
 	if _, err := small.Compile(`root ::= "a"`, "root", options); err == nil {
 		t.Fatalf("lazy grammar accepted oversized trigger options %+v", options)
 	}
 
 	large, err := NewGBNFVocabulary(bytePieces(strings.Repeat("x", maxGBNFSourceBytes), "y", ""), []int{2}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grammar, err := large.Compile(
 		`root ::= "x"`,
 		"root",
 		GBNFLazyOptions{Enabled: true, Patterns: []string{"trigger"}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := grammar.initialState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, ok := grammar.advanceToken(state, 0)
 	if !ok {
 		t.Fatal("lazy grammar rejected trigger buffer at limit")
@@ -339,9 +305,7 @@ func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
 	}
 
 	bounded, err := compileGBNFTriggerRegex(`(?:^){40000}`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err = bounded.findStart(nil); err == nil {
 		t.Fatal("bounded trigger accepted excessive backtracking stack")
 	}
@@ -350,17 +314,13 @@ func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
 func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", ""), []int{4}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grammar, err := vocabulary.Compile(
 		`root ::= <[2]> "x"`,
 		"root",
 		GBNFLazyOptions{Enabled: true, Tokens: []int{2}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !gbnfAcceptsTokens(t, grammar, []int{0, 1, 2, 3, 4}) {
 		t.Fatal("token-triggered lazy grammar rejected valid sequence")
 	}
@@ -378,26 +338,18 @@ func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
 func TestGreedyGrammarSamplerChoosesThePipelinesToken(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", "y", ""), []int{5}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const steps = 64
 	for name, lazy := range map[string]GBNFLazyOptions{
 		"strict": {},
 		"lazy":   {Enabled: true, Tokens: []int{2}},
 	} {
 		grammar, err := vocabulary.Compile(`root ::= <[2]> [xy]+`, "root", lazy)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		greedy, err := New(Config{GBNF: grammar})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		pipeline, err := New(Config{GBNF: grammar, LogitBiases: []LogitBias{{Token: 0, Bias: 0}}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		source := rand.New(rand.NewPCG(steps, uint64(len(name))))
 		for step := range steps {
 			logits := make([]float32, len(vocabulary.pieces))
@@ -424,21 +376,15 @@ func TestGreedyGrammarSamplerChoosesThePipelinesToken(t *testing.T) {
 func TestGreedyUntilTrigger(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", ""), []int{4}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compile := func(lazy GBNFLazyOptions) *GBNFGrammar {
 		grammar, err := vocabulary.Compile(`root ::= <[2]> "x"`, "root", lazy)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return grammar
 	}
 	lazy := compile(GBNFLazyOptions{Enabled: true, Tokens: []int{2}})
 	sampler, err := New(Config{GBNF: lazy})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !sampler.GreedyUntilTrigger() || sampler.IsRawGreedy() {
 		t.Fatal("a greedy sampler awaiting its grammar's trigger does not decode greedily")
 	}
@@ -456,9 +402,7 @@ func TestGreedyUntilTrigger(t *testing.T) {
 		"none":        {},
 	} {
 		sampler, err := New(config)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if sampler.GreedyUntilTrigger() {
 			t.Fatalf("%s: the sampler decodes greedily until a trigger", name)
 		}
@@ -468,9 +412,7 @@ func TestGreedyUntilTrigger(t *testing.T) {
 func TestLazyGBNFRequiresValidTriggers(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("a", ""), []int{1}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, options := range []GBNFLazyOptions{
 		{Enabled: true},
 		{Enabled: true, Patterns: []string{"("}},
@@ -490,9 +432,7 @@ value ::= (
   | "no"
 )
 `, "value", bytePieces("yes", "no", "", "maybe"), []int{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !gbnfAcceptsTokens(t, grammar, []int{0, 2}) ||
 		!gbnfAcceptsTokens(t, grammar, []int{1, 2}) ||
 		gbnfAcceptsTokens(t, grammar, []int{3}) {
@@ -578,9 +518,7 @@ func assertGBNFCorpus(
 	eos := len(pieces)
 	pieces = append(pieces, nil)
 	grammar, err := newGBNFGrammar(source, "root", pieces, []int{eos})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, value := range passing {
 		tokens := []int{eos}
 		if value != "" {
@@ -604,9 +542,7 @@ func assertGBNFCorpus(
 func gbnfAcceptsTokens(t *testing.T, grammar *GBNFGrammar, tokens []int) bool {
 	t.Helper()
 	state, err := grammar.initialState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, token := range tokens {
 		next, ok := grammar.advanceToken(state, token)
 		if !ok {

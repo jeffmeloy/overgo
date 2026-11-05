@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWebUIRouteTable: every route the client calls is declared in the
@@ -40,9 +42,7 @@ func TestWebUIRouteTable(t *testing.T) {
 		t.Fatalf("GET /workspace/routes status = %d", response.Code)
 	}
 	var table workspaceRoutesResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &table); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &table))
 	if len(table.Routes) != len(APIManifestRoutes()) {
 		t.Errorf("explorer table carries %d routes, manifest projection %d", len(table.Routes), len(APIManifestRoutes()))
 	}

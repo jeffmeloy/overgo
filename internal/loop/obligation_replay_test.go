@@ -1,6 +1,10 @@
 package loop
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // obligationWorld extends the scripted world with a replay counter and
 // a programmed due count per supervision round.
@@ -38,9 +42,7 @@ func TestObligationCompletionReplay(t *testing.T) {
 		due: []uint64{3, 2},
 	}
 	outcome, err := Run(world, Config{MaxAttemptsPerStep: 2, MaxInvocations: 4})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if outcome.Reason != ReasonPlanComplete {
 		t.Fatalf("outcome = %+v", outcome)
 	}

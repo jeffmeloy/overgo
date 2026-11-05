@@ -10,15 +10,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestSpeechLatentMaterialization(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	id := func(kind artifact.Kind, text string) artifact.ID { return testutil.ArtifactID(t, kind, text) }
 	profile := SpeechLatentProfile{Model: id(artifact.KindModel, "base"), Tokenizer: id(artifact.KindFile, "tokens"),
@@ -26,25 +25,19 @@ func TestSpeechLatentMaterialization(t *testing.T) {
 		Conditioning: id(artifact.KindProfile, "text-bos"), Noise: id(artifact.KindProfile, "gaussian"),
 		Width: 2, MaximumFrames: 3, MaximumTextBytes: 64, MaximumEncodedBytes: 2048}
 	content, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := id(artifact.KindFile, "recorded input")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "source", Artifacts: []artifact.Descriptor{{ID: source}}}); err != nil {
 		t.Fatal(err)
 	}
 	process, err := SpeechLatentProcessor(store, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record := SpeechLatentRecord{Profile: content.Descriptor.ID, Source: source, SourceRecord: "row-12", Text: "a b", Frames: 2,
 		Seed: -7, Latents: []float32{float32(math.Copysign(0, -1)), math.SmallestNonzeroFloat32, 0.75, -0.125}}
 	encode := func(record SpeechLatentRecord) RawRecord {
 		t.Helper()
 		data, err := json.Marshal(record)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return RawRecord{ID: "dataset-record-3", Group: "speaker-2", Data: data}
 	}
 	example, err := process(t.Context(), encode(record))

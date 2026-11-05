@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // pickleWriter builds a minimal torch state_dict pickle stream by hand.
@@ -85,26 +86,18 @@ func syntheticCheckpoint(t *testing.T, values []float32) (string, []byte) {
 	var archive bytes.Buffer
 	zw := zip.NewWriter(&archive)
 	pkl, err := zw.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := pkl.Write(w.buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
 	storage, err := zw.CreateHeader(&zip.FileHeader{Name: "archive/data/0", Method: zip.Store})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := storage.Write(body); err != nil {
 		t.Fatal(err)
 	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, zw.Close())
 	path := filepath.Join(t.TempDir(), "synthetic.pth")
-	if err := os.WriteFile(path, archive.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, archive.Bytes(), 0o644))
 	return path, w.buf.Bytes()
 }
 
@@ -112,9 +105,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	path, pickle := syntheticCheckpoint(t, values)
 	catalog, err := ReadCatalog(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	metas := catalog.Tensors
 	if len(metas) != 1 || metas[0].Name != "w" || metas[0].DType != "BFloat16Storage" || metas[0].Numel != 6 {
 		t.Fatalf("metas=%+v", metas)
@@ -123,18 +114,12 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 		t.Fatalf("scalars=%v", catalog.Scalars)
 	}
 	bindings, err := CompileBindings(metas, []string{"w"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	got, err := reader.ReadBinding(bindings[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, want := range values {
 		if got[i] != want { // all values BF16-exact by construction
 			t.Fatalf("value[%d]=%g want %g", i, got[i], want)
@@ -144,9 +129,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	// is long enough.
 	kept := make([]uint16, len(values)+1)
 	stored, err := reader.ReadBF16(bindings[0], kept)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(stored) != len(values) || &stored[0] != &kept[0] {
 		t.Fatalf("%d stored values in storage of the reader's own, want %d in the caller's", len(stored), len(values))
 	}
@@ -156,9 +139,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 		}
 	}
 	rows, err := reader.ReadTensorRows(bindings[0], []int{1, 0}, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantRows := []float32{255, -0.375, 8, -2.5, 0, 1.25}
 	for i, want := range wantRows {
 		if rows[i] != want {
@@ -180,21 +161,15 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	record := func(path string) string {
 		t.Helper()
 		admission, err := Admit(path, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := admission.File.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, admission.File.Close())
 		return admission.Identity
 	}
 	first, _ := syntheticCheckpoint(t, values)
 	again, _ := syntheticCheckpoint(t, values)
 	other, _ := syntheticCheckpoint(t, []float32{-2.5, 0, 1.25, 255, -0.375, 4})
 	raw, err := os.ReadFile(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if info, err := os.Stat(other); err != nil || info.Size() != int64(len(raw)) {
 		t.Fatalf("the checkpoint of another value is not the length of the first: %v", err)
 	}
@@ -203,9 +178,7 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	}
 
 	admitted, err := Admit(first, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if admitted.Immutable {
 		writer, err := os.OpenFile(first, os.O_WRONLY, 0)
 		if err == nil {
@@ -220,9 +193,7 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	if named, err := Admit(again, kept); err != nil || named.Identity != "kept" || named.File.Close() != nil {
 		t.Fatalf("an admission did not take the name kept for its bytes: %v", err)
 	}
-	if err := admitted.File.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, admitted.File.Close())
 	// The last value, 8, where it lies in the file, made 4 with the directory untouched.
 	stored := make([]byte, 2)
 	binary.LittleEndian.PutUint16(stored, dtype.Float32ToBF16(8))
@@ -231,34 +202,22 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 		t.Fatalf("the stored value lies %d times in the file, want once", bytes.Count(raw, stored))
 	}
 	binary.LittleEndian.PutUint16(raw[at:], dtype.Float32ToBF16(4))
-	if err := os.WriteFile(first, raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(first, raw, 0o644))
 	catalog, err := ReadCatalog(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bindings, err := CompileBindings(catalog.Tensors, []string{"w"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader, err := Open(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	got, err := reader.ReadBinding(bindings[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record(first) == record(again) || got[len(got)-1] != 4 {
 		t.Fatalf("a value changed in place: the record moved: %t, and the reader gives %g; want changed payload identity and 4 read", record(first) != record(again), got[len(got)-1])
 	}
 
 	plain := filepath.Join(t.TempDir(), "plain.pth")
-	if err := os.WriteFile(plain, []byte("no archive"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(plain, []byte("no archive"), 0o644))
 	if admitted, err := Admit(plain, kept); err == nil {
 		admitted.File.Close()
 		t.Fatalf("a file that is no archive was admitted")
@@ -272,38 +231,26 @@ func TestCompressedStorageRefused(t *testing.T) {
 	values := []float32{1, 2, 3, 4, 5, 6}
 	path, _ := syntheticCheckpoint(t, values)
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Rebuild with a DEFLATED storage entry: reader must refuse (offset reads
 	// require stored bodies).
 	var archive bytes.Buffer
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	zw := zip.NewWriter(&archive)
 	for _, f := range zr.File {
 		rc, err := f.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		dst, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Deflate})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := io.Copy(dst, rc); err != nil {
 			t.Fatal(err)
 		}
 		rc.Close()
 	}
-	if err := zw.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, zw.Close())
 	compressed := filepath.Join(t.TempDir(), "compressed.pth")
-	if err := os.WriteFile(compressed, archive.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(compressed, archive.Bytes(), 0o644))
 	if _, err := Open(compressed); err == nil || !strings.Contains(err.Error(), "compressed") {
 		t.Fatalf("compressed storage accepted: %v", err)
 	}

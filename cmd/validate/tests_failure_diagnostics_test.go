@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 )
 
@@ -40,9 +41,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		// the runtime ended the fixture by itself a few milliseconds after
 		// its announcement, and the caller's cancellation had to win that race.
 		connection, err := net.Dial("tcp", os.Getenv(blockedAnnouncement))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, _ = connection.Read(make([]byte, 1))
 		// The read returns only when the caller is gone.
 		os.Exit(1)
@@ -207,9 +206,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		ended := errors.New("the caller ended the blocked run")
 		ctx, cancel := context.WithCancelCause(t.Context())
 		blocked, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer blocked.Close()
 		// The fixture's connection is held open until the run has ended: the
 		// fixture lives on its read of it.

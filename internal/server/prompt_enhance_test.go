@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 // TestPromptEnhanceRewritesUnderTheInstruction pins the enhance route: the
@@ -35,9 +36,7 @@ func TestPromptEnhanceRewritesUnderTheInstruction(t *testing.T) {
 		t.Fatalf("the served model saw %+v", messages)
 	}
 	id, err := artifact.ParseID(answer.Record)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor, reader, found, err := handler.repository.OpenContent(t.Context(), id)
 	if err != nil || !found || descriptor.Schema != promptEnhancementSchema || descriptor.MediaType != artifact.JSONMediaType {
 		t.Fatalf("record = %+v found=%v err=%v", descriptor, found, err)

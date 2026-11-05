@@ -7,18 +7,15 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestCompositionAPIWorkflow(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -29,9 +26,7 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 		t.Fatalf("inventory status = %d body=%s", response.Code, response.Body.String())
 	}
 	var inventory compositionInventoryResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &inventory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &inventory))
 	if len(inventory.Compositions) != 0 {
 		t.Fatalf("inventory = %+v", inventory)
 	}
@@ -45,13 +40,9 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()

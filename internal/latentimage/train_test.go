@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -54,24 +55,18 @@ func finalStimulus(rows, hidden, out int) (x, temb, target []float64) {
 
 func TestFinalLayerTrainerDescends(t *testing.T) {
 	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
 		t.Fatalf("momentum %g, want derived %g", got, want)
 	}
 	x, temb, target := finalStimulus(5, 8, 4)
 	before, err := trainer.Loss(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var first FinalLayerStepResult
 	for step := range 12 {
 		result, err := trainer.Step(x, temb, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
 			t.Fatalf("step %d non-finite loss", step)
 		}
@@ -83,9 +78,7 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 		}
 	}
 	after, err := trainer.Loss(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(after < first.Loss) {
 		t.Fatalf("final layer loss did not descend: %.6f -> %.6f", first.Loss, after)
 	}
@@ -96,18 +89,14 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 // reads both back bit for bit under every head tensor name.
 func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	x, temb, target := finalStimulus(5, 8, 4)
 	if _, err := trainer.Step(x, temb, target); err != nil {
 		t.Fatal(err)
 	}
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view := trainer.pack.Weights
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"final.norm": view(trainer.norm), "final.table": view(trainer.table),
@@ -119,19 +108,13 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 	weights := tinyFinalLayer(7, 3)
 	weights.Norm = nil // the Wan2.1 head: non-parametric LayerNorm
 	trainer, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	x, temb, target := finalStimulus(3, 7, 3)
 	baseline, err := trainer.Loss(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stepLoss, gradientL2, err := trainer.lossAndGradients(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
 		t.Fatalf("layernorm gradient pass loss %.9g vs %.9g", stepLoss, baseline)
 	}
@@ -140,21 +123,15 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 	_, gradients := trainer.pack.Slabs()
 	for _, index := range []int{groups[trainer.table].Start + 2, groups[trainer.table].Start + 7 + 2, groups[trainer.linear].Start + 4, groups[trainer.bias].Start} {
 		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		freshWeights, _ := fresh.pack.Slabs()
 		original := freshWeights[index]
 		freshWeights[index] = original + epsilonFD
 		plus, err := fresh.Loss(x, temb, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		freshWeights[index] = original - epsilonFD
 		minus, err := fresh.Loss(x, temb, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilonFD)
 		got := float64(gradients[index])
@@ -169,9 +146,7 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 		}
 	}
 	after, err := trainer.Loss(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(after < baseline) {
 		t.Fatalf("layernorm head did not descend: %.6f -> %.6f", baseline, after)
 	}
@@ -183,18 +158,12 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	x, temb, target := finalStimulus(3, 7, 3)
 
 	grader, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer grader.Close()
 	baseline, err := grader.Loss(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stepLoss, gradientL2, err := grader.lossAndGradients(x, temb, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
 		t.Fatalf("gradient pass loss %.9g vs %.9g", stepLoss, baseline)
 	}
@@ -212,21 +181,15 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	_, gradients := grader.pack.Slabs()
 	for _, index := range indices {
 		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		freshWeights, _ := fresh.pack.Slabs()
 		original := freshWeights[index]
 		freshWeights[index] = original + epsilon
 		plus, err := fresh.Loss(x, temb, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		freshWeights[index] = original - epsilon
 		minus, err := fresh.Loss(x, temb, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilon)
 		got := float64(gradients[index])

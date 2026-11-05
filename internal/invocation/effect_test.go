@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -14,16 +15,12 @@ func TestMutationRequiresBoundPreflightInspection(t *testing.T) {
 		Manual: manual, Arguments: arguments, Class: ClassInspection, Known: true,
 		Targets: []Target{{Scope: ScopeWorkspace, Value: "internal/modelrecipe"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mutation, err := NewEffect(Effect{
 		Manual: manual, Arguments: arguments, Class: ClassMutation, Known: true,
 		Targets: []Target{{Scope: ScopeWorkspace, Value: "internal/modelrecipe/lifecycle.go"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !InspectionCovers(inspection, mutation) {
 		t.Fatal("relevant parent inspection did not cover mutation")
 	}
@@ -31,9 +28,7 @@ func TestMutationRequiresBoundPreflightInspection(t *testing.T) {
 	unrelated.ID = artifact.ID{}
 	unrelated.Targets[0].Value = "internal/dataset"
 	unrelated, err = NewEffect(unrelated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if InspectionCovers(unrelated, mutation) {
 		t.Fatal("unrelated inspection covered mutation")
 	}

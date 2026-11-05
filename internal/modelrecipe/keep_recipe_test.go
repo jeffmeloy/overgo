@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestABrokenVerificationKeepsItsRecipe: a recipe whose evidence does not stand is still the recipe chosen for this
@@ -25,9 +26,7 @@ func TestABrokenVerificationKeepsItsRecipe(t *testing.T) {
 		tuned, err := InferenceWithModelDefinition(
 			inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid, DecodeSessionRequest, recipe.ResidencyHybridNative,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if tuned.ID == definitionRecipe(t, inventory, resolved).ID {
 			t.Fatal("the fixture's tuned recipe is the one its file derives")
 		}
@@ -37,25 +36,17 @@ func TestABrokenVerificationKeepsItsRecipe(t *testing.T) {
 		batch, err := artifact.NewDocumentBatch("fixture/keep/alias", nil, nil, []artifact.AliasBinding{
 			{Name: activeAlias(tuned.Model, tuned.Task), Target: tuned.ID},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
 		loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer loaded.Close()
 		identity, err := loaded.Identity()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		state, err := loaded.State()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if identity.Recipe != tuned.ID || state.Verification != StateBroken || state.Reason == "" {
 			t.Fatalf("recipe %v, state %+v, want the tuned %v, broken", identity.Recipe, state, tuned.ID)
 		}
@@ -71,9 +62,7 @@ func TestABrokenVerificationKeepsItsRecipe(t *testing.T) {
 			failing := &readsThenFails{Reader: store, left: reads, failure: failure}
 			loaded, err := ResolveActiveGGUF(t.Context(), failing, path)
 			if failing.left >= 0 {
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				loaded.Close()
 				return
 			}

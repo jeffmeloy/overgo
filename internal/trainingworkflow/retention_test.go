@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/peft"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -16,9 +17,7 @@ import (
 func stepCheckpoints(t *testing.T, output string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Dir(output))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var names []string
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), filepath.Base(output)+stepCheckpointInfix) {
@@ -33,13 +32,9 @@ func stepCheckpoints(t *testing.T, output string) []string {
 func publishedWeights(t *testing.T, output string) []byte {
 	t.Helper()
 	path, err := trainingprogram.CheckpointWeightsPath(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return data
 }
 
@@ -67,9 +62,7 @@ func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
 		var made []string
 		for _, number := range numbers {
 			path := output + stepCheckpointInfix + number
-			if err := os.Mkdir(path, 0o700); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.Mkdir(path, 0o700))
 			made = append(made, path)
 		}
 		return made
@@ -78,9 +71,7 @@ func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
 	t.Run("a stale directory neither outranks the run's saves nor is deleted by them", func(t *testing.T) {
 		output := filepath.Join(text.root, "fresh")
 		older := stale(output, "000200", "000700")
-		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1}))
 		for _, path := range older {
 			if !exists(path) {
 				t.Errorf("the run deleted %s, which an earlier run left", path)
@@ -105,9 +96,7 @@ func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
 
 	t.Run("an output with a trailing separator saves beside itself", func(t *testing.T) {
 		output := filepath.Join(text.root, "slashed")
-		if err := run(output+string(filepath.Separator), TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 2}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(output+string(filepath.Separator), TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 2}))
 		if got, want := stepCheckpoints(t, output), []string{"slashed-step-000004", "slashed-step-000008"}; !slices.Equal(got, want) {
 			t.Fatalf("step directories %v, want %v beside the output", got, want)
 		}
@@ -121,25 +110,17 @@ func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
 
 	t.Run("a run resumed from a step that is not the newest continues once the later steps are gone", func(t *testing.T) {
 		output := filepath.Join(text.root, "resumable")
-		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 4}); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.RemoveAll(output); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 4}))
+		testcheck.NoError(t, os.RemoveAll(output))
 		from := output + stepCheckpointInfix + "000004"
 		err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1, Resume: from})
 		if err == nil || !strings.Contains(err.Error(), output+stepCheckpointInfix+"000006") {
 			t.Fatalf("the resumed run was %v, want it refused naming the first later step", err)
 		}
 		for _, later := range []string{"000006", "000008"} {
-			if err := os.RemoveAll(output + stepCheckpointInfix + later); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.RemoveAll(output+stepCheckpointInfix+later))
 		}
-		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1, Resume: from}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1, Resume: from}))
 		if got, want := stepCheckpoints(t, output), []string{"resumable-step-000002", "resumable-step-000004", "resumable-step-000008"}; !slices.Equal(got, want) {
 			t.Fatalf("step directories %v, want the step resumed from, the earlier run's older one and the resumed run's newest save %v", got, want)
 		}
@@ -173,9 +154,7 @@ func TestCheckpointRetention(t *testing.T) {
 		output := filepath.Join(text.root, "kept")
 		// Names beside the output that are not a checkpoint of this run, which retention must leave be.
 		for _, bystander := range []string{"kept" + stepCheckpointInfix + "abc", "kept" + stepCheckpointInfix + "00000012", "kept-other", "other" + stepCheckpointInfix + "000002"} {
-			if err := os.Mkdir(filepath.Join(text.root, bystander), 0o700); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.Mkdir(filepath.Join(text.root, bystander), 0o700))
 		}
 		run(t, "kept", TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 2})
 		var kept []string
@@ -230,13 +209,9 @@ func TestCheckpointRetention(t *testing.T) {
 		run(t, "lora-interrupted", TextHeldoutRequest{Average: 0.9, LoRA: lora(), CheckpointEvery: 4, CheckpointKeep: 3})
 		resumed := run(t, "lora-resumed", TextHeldoutRequest{Average: 0.9, LoRA: lora(), Resume: filepath.Join(text.root, "lora-interrupted"+stepCheckpointInfix+"000004")})
 		wholeAdapter, err := peft.Load(filepath.Join(whole, LoRAAdapterDirectory))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		resumedAdapter, err := peft.Load(filepath.Join(resumed, LoRAAdapterDirectory))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for name, module := range wholeAdapter.Modules {
 			other := resumedAdapter.Modules[name]
 			if !slices.Equal(module.Down, other.Down) || !slices.Equal(module.Up, other.Up) {

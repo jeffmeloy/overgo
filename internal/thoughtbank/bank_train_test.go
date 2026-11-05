@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -22,27 +23,19 @@ func TestBankTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	rng := rand.New(rand.NewSource(20260930))
 	weights, input, memory, rows, slots := newFastWeightBankFixture(rng, false)
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(len(weights.FWA) + len(weights.FWB) + len(weights.FWO) + len(weights.NormWeight))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer, err := weights.NewTrainer(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	example := BankTrainingExample{Input: input, Memory: memory, Target: randSlice(rng, len(input), 1), Rows: rows, Slots: slots}
 	before, err := trainer.Loss(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := trainer.Step(example)
 	if err != nil || result.Loss != before || !(result.GradientL2 > 0) {
 		t.Fatalf("step = %+v (%v), want the loss before it (%g) and a gradient", result, err, before)
 	}
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"bank.fw_a": weights.FWA, "bank.fw_b": weights.FWB, "bank.fw_o": weights.FWO, "bank.norm": weights.NormWeight,
 	})
@@ -54,9 +47,7 @@ func TestBankTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 func TestBankTrainerHasAUserPath(t *testing.T) {
 	directory := filepath.Join("..", "..", "cmd", "train")
 	entries, err := os.ReadDir(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	files := token.NewFileSet()
 	routes := map[string]string{}
 	reaching := map[string]bool{}
@@ -66,9 +57,7 @@ func TestBankTrainerHasAUserPath(t *testing.T) {
 			continue
 		}
 		parsed, err := parser.ParseFile(files, filepath.Join(directory, name), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		imports := false
 		for _, spec := range parsed.Imports {
 			imports = imports || spec.Path.Value == strconv.Quote("overgo/internal/thoughtbank")
@@ -80,9 +69,7 @@ func TestBankTrainerHasAUserPath(t *testing.T) {
 					for _, element := range node.Values[0].(*ast.CompositeLit).Elts {
 						pair := element.(*ast.KeyValueExpr)
 						route, err := strconv.Unquote(pair.Key.(*ast.BasicLit).Value)
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						routes[pair.Value.(*ast.Ident).Name] = route
 					}
 				}

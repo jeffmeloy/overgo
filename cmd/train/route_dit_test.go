@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -31,12 +32,8 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 	for path, data := range map[string]string{
 		weights: "weights", stimulus: routeFixtureDataset, filepath.Join(fixtures, "g3_denoise.json"): "{}",
 	} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 	}
 	run := func(ctx context.Context) (store, out string, err error) {
 		scratch := t.TempDir()
@@ -46,15 +43,11 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 	}
 	t.Run("flow matching, text to video", func(t *testing.T) {
 		identities, err := overgodb.Create(filepath.Join(t.TempDir(), "identities"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer identities.Close()
 		recipeOf := func(contract trainingworkflow.RecipeContract) artifact.ID {
 			id, err := trainingworkflow.BootstrapRecipe(t.Context(), identities, weights, []byte(routeFixtureDataset), contract)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return id
 		}
 		flow := recipeOf(generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityVideo, trainingprogram.MetricVideoPSNRUnit))
@@ -64,9 +57,7 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 			t.Fatal("the dit route trained a stand-in stack that loads no model")
 		}
 		store, err := overgodb.OpenReadOnly(storePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		published := map[artifact.ID]bool{}
 		for _, id := range []artifact.ID{flow, token} {

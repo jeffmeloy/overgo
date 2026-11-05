@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestSelectedLogProbIntoMatchesMaterialized(t *testing.T) {
@@ -14,9 +16,7 @@ func TestSelectedLogProbIntoMatchesMaterialized(t *testing.T) {
 	targets := []int{2, 0}
 	selected := []bool{true, true}
 	got := make([]float64, rows)
-	if err := SelectedLogProbInto(got, x, weight, bias, targets, selected, rows, input, output, make([]float32, input)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, SelectedLogProbInto(got, x, weight, bias, targets, selected, rows, input, output, make([]float32, input)))
 	logits := make([]float32, rows*output)
 	Linear(logits, x, weight, rows, input, output)
 	for row := range rows {
@@ -37,13 +37,9 @@ func TestSelectedLogProbBackwardFiniteDifference(t *testing.T) {
 	selected := []bool{true}
 	dX := make([]float32, len(x))
 	dWeight := make([]float32, len(weight))
-	if err := SelectedLogProbBackward(dX, dWeight, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, SelectedLogProbBackward(dX, dWeight, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false))
 	dXOnly := make([]float32, len(x))
-	if err := SelectedLogProbBackward(dXOnly, nil, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, SelectedLogProbBackward(dXOnly, nil, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false))
 	if !slices.Equal(dXOnly, dX) {
 		t.Fatalf("activation-only gradient=%v want=%v", dXOnly, dX)
 	}

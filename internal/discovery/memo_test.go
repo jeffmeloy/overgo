@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestMemoReusesOnlyUnchangedFiles pins the memo's claim: a remembered digest
@@ -15,30 +16,20 @@ import (
 func TestMemoReusesOnlyUnchangedFiles(t *testing.T) {
 	memo := NewMemo()
 	path := filepath.Join(t.TempDir(), "weights.bin")
-	if err := os.WriteFile(path, []byte("original bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte("original bytes"), 0o644))
 	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity := fileIdentity{size: 14, present: true}
 	memo.record("key", info, identity)
 	remembered, ok := memo.lookup("key", info)
 	if !ok || remembered != identity {
 		t.Fatalf("unchanged file not reused: %v %v", remembered, ok)
 	}
-	if err := os.WriteFile(path, []byte("changed content!!"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte("changed content!!"), 0o644))
 	future := time.Now().Add(2 * time.Second)
-	if err := os.Chtimes(path, future, future); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(path, future, future))
 	changed, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, ok := memo.lookup("key", changed); ok {
 		t.Fatal("changed file served a stale digest")
 	}
@@ -54,17 +45,11 @@ func TestMemoReusesOnlyUnchangedFiles(t *testing.T) {
 // the memo has no copy of the bytes to give it from.
 func TestMemoClaimNamesTheRememberedIdentityWithoutReadingTheFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(path, []byte("original bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte("original bytes"), 0o644))
 	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("original bytes"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memo := NewMemo()
 	if _, _, ok := memo.Claim(path); ok {
 		t.Fatal("an empty memo made a claim")
@@ -81,15 +66,11 @@ func TestMemoClaimNamesTheRememberedIdentityWithoutReadingTheFile(t *testing.T) 
 		t.Fatal("a nil memo made a claim")
 	}
 	future := time.Now().Add(2 * time.Second)
-	if err := os.Chtimes(path, future, future); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(path, future, future))
 	if _, _, ok := memo.Claim(path); ok {
 		t.Fatal("a file with a new modification time kept its claim")
 	}
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(path))
 	if _, _, ok := memo.Claim(path); ok {
 		t.Fatal("an absent file kept its claim")
 	}

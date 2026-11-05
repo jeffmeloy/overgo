@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWorkflowInputArtifactControl pins the artifact control's validation:
@@ -16,9 +18,7 @@ func TestWorkflowInputArtifactControl(t *testing.T) {
 	}
 	controls := []workflowControl{{Name: "source_artifact", Type: workflowControlArtifact}, {Name: "seed", Type: workflowControlInteger}}
 	valid := json.RawMessage(`{"source_artifact": "file:sha256:` + strings.Repeat("ab", 32) + `", "seed": 7}`)
-	if err := validateWorkflowInput(controls, valid); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateWorkflowInput(controls, valid))
 	for name, raw := range map[string]json.RawMessage{
 		"not an id":    json.RawMessage(`{"source_artifact": "clip.gif"}`),
 		"not a string": json.RawMessage(`{"source_artifact": 7}`),

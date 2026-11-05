@@ -15,6 +15,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -59,27 +60,17 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_routed_images.json")
 	var bundle mediaRoutedBundle
-	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoRoutedImagesSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoRoutedImagesSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Previous == "" || bundle.Scope == "" || bundle.ReuseScope == "" || len(bundle.Numerical) != 3 || len(bundle.Failed) != 1 {
 		t.Fatal("incomplete routed image bundle")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -92,12 +83,8 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	checkTest := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty routed check")
 		}
@@ -106,9 +93,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		command := exec.Command("git", "show", revision+":internal/safetensors/convert.go")
 		command.Dir = root
 		data, err := command.Output()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
 			t.Fatal("unreviewed shared converter change")
 		}
@@ -118,9 +103,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		Source  string `json:"source_base"`
 		Quality string `json:"quality_protocol_sha256"`
 	}
-	if err := json.Unmarshal(primary, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(primary, &protocol))
 	if protocol.Source != bundle.Source || protocol.Quality != imageVideoProtocolSHA256 {
 		t.Fatal("protocol source or criteria differs")
 	}
@@ -130,9 +113,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 			Protocol string `json:"protocol_sha256"`
 			Harness  string `json:"harness_sha256"`
 		}
-		if err := json.Unmarshal(read(bundle.Instrumentation[pair[0]]), &instrumentation); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(bundle.Instrumentation[pair[0]]), &instrumentation))
 		if instrumentation.Source != bundle.Source || instrumentation.Protocol != fmt.Sprintf("%x", sha256.Sum256(primary)) || instrumentation.Harness != fmt.Sprintf("%x", sha256.Sum256(read(bundle.Instrumentation[pair[1]]))) {
 			t.Fatal("acquisition instrumentation differs")
 		}
@@ -150,12 +131,8 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		checkTest(check.Evidence)
 	}
 	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoProtocolIdentity(quality); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	type frozenCase struct {
 		ID           string                  `json:"id"`
 		Model        artifact.ID             `json:"model"`
@@ -168,9 +145,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	var frozen struct {
 		Cases []frozenCase `json:"cases"`
 	}
-	if err := json.Unmarshal(quality, &frozen); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(quality, &frozen))
 	var expected []string
 	for _, c := range frozen.Cases {
 		if strings.HasPrefix(c.ID, "SenseNova-") || strings.HasPrefix(c.ID, "Un-0/image-gen/") {
@@ -181,9 +156,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	for i, c := range bundle.Cases {
 		coverage[i].Case = c.Case
 	}
-	if err := checkMediaLatentCoverage(coverage, expected); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkMediaLatentCoverage(coverage, expected))
 	if checkMediaLatentCoverage(coverage[1:], expected) == nil {
 		t.Fatal("accepted omitted image case")
 	}
@@ -196,9 +169,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		}
 		reference := frozen.Cases[index]
 		run, err := runrecord.RequireExactRun(t.Context(), store, c.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if run.Recipe != reference.Recipe || !slices.Equal(run.Inputs, reference.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{c.Output}) {
 			t.Fatal("frozen recipe or request differs")
 		}
@@ -208,9 +179,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		}
 		observation := reference.Observations[0]
 		observation.Artifact = c.Output
-		if err := checkImageVideoObservation(observation, output); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkImageVideoObservation(observation, output))
 		switch c.Mode {
 		case "acquired-cuda", "acquired-host":
 			acquisition := read(c.Acquisition)
@@ -219,16 +188,12 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 				Protocol string `json:"protocol_sha256"`
 				Backend  string `json:"backend"`
 			}
-			if err := json.Unmarshal(acquisition, &header); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(acquisition, &header))
 			if header.Source != bundle.Source || header.Protocol != fmt.Sprintf("%x", sha256.Sum256(primary)) {
 				t.Fatal("raw acquisition identity differs")
 			}
 			rows, closed, err := mediaLatentRows(acquisition)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			i := slices.IndexFunc(rows, func(row mediaLatentObservation) bool { return row.Case == c.Case })
 			if i < 0 {
 				t.Fatal("missing raw case")
@@ -238,18 +203,14 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 				t.Fatal("raw model/request/output differs")
 			}
 			environment, err := runrecord.RequireEnvironment(t.Context(), store, row.Environment)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			check := func(candidate mediaLatentObservation) error {
 				if c.Mode == "acquired-cuda" {
 					return checkMediaLatentObservation(candidate, run, bundle.Source, closed)
 				}
 				return checkMediaCPUImage(candidate, run, bundle.Source)
 			}
-			if err := check(row); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, check(row))
 			if c.Mode == "acquired-host" && (header.Backend != "host" || environment.Backend != "host" || row.Before != nil || row.Load != nil || row.Memory.PeakBytes != 0) {
 				t.Fatal("CPU image mislabeled as GPU acquisition")
 			}
@@ -281,28 +242,16 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 				} `json:"overgo_quality"`
 			}
 			oracleRaw := read(c.Acquisition)
-			if err := json.Unmarshal(oracleRaw, &oracle); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(oracleRaw, &oracle))
 			var oracleValue any
-			if err := json.Unmarshal(oracleRaw, &oracleValue); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(oracleRaw, &oracleValue))
 			canonicalOracle, err := json.Marshal(oracleValue)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			currentOracle, err := os.ReadFile(filepath.Join(root, "fixtures/sensenova/full_generation_quality.json"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := checkMediaProtocolIdentity(currentOracle, fmt.Sprintf("%x", sha256.Sum256(canonicalOracle))); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, checkMediaProtocolIdentity(currentOracle, fmt.Sprintf("%x", sha256.Sum256(canonicalOracle))))
 			var request map[string]any
-			if err := json.Unmarshal(read(reference.Inputs[0]), &request); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(read(reference.Inputs[0]), &request))
 			prompt, ok := request["prompt"].(string)
 			if !ok || fmt.Sprintf("%x", sha256.Sum256([]byte(prompt))) != oracle.Source.Prompt {
 				t.Fatal("reused prompt differs")
@@ -323,9 +272,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 			Defects      string      `json:"visible_defects"`
 			Video        string      `json:"video"`
 		}
-		if err := json.Unmarshal(read(c.Review), &review); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(c.Review), &review))
 		if review.Output != c.Output || review.Subject == "" || review.Preservation == "" || review.Defects == "" || review.Video == "" {
 			t.Fatal("incomplete image-specific review")
 		}

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageOperations pins what the front page's header reads: the
@@ -24,9 +26,7 @@ func TestFrontPageOperations(t *testing.T) {
 			PeakBytes    uint64 `json:"peak_bytes"`
 		} `json:"device"`
 	}
-	if err := json.Unmarshal(health.Body.Bytes(), &probe); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(health.Body.Bytes(), &probe))
 	if probe.Status != "ok" || probe.Model != testModelID || probe.Device.PeakBytes == 0 || probe.Device.CurrentBytes == 0 {
 		t.Fatalf("health = %s", health.Body.String())
 	}

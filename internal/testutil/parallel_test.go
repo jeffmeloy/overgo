@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestSuitesRunInParallel holds the suites every control-plane landing pays
@@ -67,9 +69,7 @@ func requireParallel(t *testing.T, directory string, bound []string, markers ...
 			continue
 		}
 		data, err := os.ReadFile(file)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, function := range strings.Split(string(data), "\nfunc ")[1:] {
 			header, body, found := strings.Cut(function, "\n")
 			if !found || !strings.HasPrefix(header, "Test") || !strings.HasSuffix(header, "(t *testing.T) {") {

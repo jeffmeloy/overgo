@@ -19,6 +19,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -62,9 +63,7 @@ func (*servedFixture) TokenizeSamplingText(text string) ([]tokenizer.TokenID, er
 func tick(t *testing.T, since time.Duration) time.Duration {
 	for {
 		now, err := processmeasure.Counter()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if now > since {
 			return now
 		}
@@ -115,9 +114,7 @@ func (*servedFixture) RuntimePolicy() modelrecipe.RuntimePolicy {
 func servingAttempts(t *testing.T, directory string) []runrecord.ServingObservation {
 	t.Helper()
 	reader, err := overgodb.OpenReadOnly(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	var observed []runrecord.ServingObservation
 	if _, err := overgodb.VisitDecodedDocuments(t.Context(), reader, overgodb.DocumentQuery{
@@ -143,32 +140,22 @@ func measuredFixture(t *testing.T) (directory, path string, model *servedFixture
 	path = testutil.HermeticLlamaGGUF(t, servedContext)
 	directory = t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cases := []evaluation.ExactCase{
 		{Name: "dna", Prompt: "<dna>ATGGCG", Text: servedOutput, MaxTokens: len(servedOutput), PromptTokens: servedPromptTokens, GeneratedTokens: len(servedOutput)},
 		{Name: "text", Prompt: "The capital of France is", Text: servedOutput, MaxTokens: len(servedOutput), PromptTokens: servedPromptTokens, GeneratedTokens: len(servedOutput)},
 	}
 	exact, err := evaluation.CompileExact(evaluation.ExactSuite{Schema: "test/v1", Source: "measured request", Cases: cases})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := environment.Batch("fixture/environment")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -177,25 +164,15 @@ func measuredFixture(t *testing.T) (directory, path string, model *servedFixture
 		ModelDefinition: candidate.Resolved.Document.ID, RuntimeRecipe: candidate.Definition.ID, CodeCommit: revision,
 		Environment: environment.ID, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model = &servedFixture{t: t}
 	report, err := evaluation.EvaluateExactSharded(ctx, store, model, exact, plan, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := modelintake.PublishVerification(ctx, store, candidate.Definition, revision, time.Millisecond, "cuda:0", "cuda",
 		fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", plan.Identity(), report, len(cases)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, "recorded and replayed"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, "recorded and replayed"))
+	testcheck.NoError(t, store.Close())
 	return directory, path, model, candidate.Definition.ID, cases[0]
 }
 
@@ -259,9 +236,7 @@ func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
 	verified := len(model.prompts)
 	model.context = uint32(evaluation.PromptLengths[1] - 1)
 	_, attempt, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observed := servingAttempts(t, directory)
 	if len(observed) != 3 || observed[2].ID != attempt || len(model.prompts) != verified+4 {
 		t.Fatalf("serving attempts = %+v after %d prompts; want the verified request's, one longer prompt's and the warm request's second reading", observed, len(model.prompts)-verified)

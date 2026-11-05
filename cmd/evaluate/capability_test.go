@@ -20,6 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/seriesforecast"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,9 +46,7 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights := []byte("capability-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
@@ -55,9 +54,7 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "capability/model",
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}, {ID: profile}},
@@ -72,18 +69,14 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 	}
 	if define != nil {
 		definition, err := define(model.ID, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if explicit {
 			requested = &definition.ID
 			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "candidate", definition); err != nil {
 				t.Fatal(err)
 			}
 		} else {
-			if err := modelrecipetest.PublishActivation(ctx, store, "capability/active", definition); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "capability/active", definition))
 		}
 	}
 	opening := &capabilityOpening{}
@@ -179,18 +172,14 @@ func TestACapabilitySessionNamesTheDeviceItRunsOnAndRefusesOneItCannotSelect(t *
 				t.Fatal(opening.err)
 			}
 			want, err := runrecord.CurrentEnvironment(c.device, c.backend)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if got := opening.session.(*capabilitySession).campaign.Authorities().Environment; got != want.ID {
 				t.Errorf("the session's environment is %s, want that of %s/%s, %s", got, c.device, c.backend, want.ID)
 			}
 			if opening.loads != 1 || opening.releases != 0 {
 				t.Errorf("the runtime was loaded %d times and released %d times by opening, want once and never", opening.loads, opening.releases)
 			}
-			if err := opening.session.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, opening.session.Close())
 		})
 	}
 }
@@ -249,9 +238,7 @@ func TestACapabilitySessionReleasesTheRuntimeItLoadedExactlyOnce(t *testing.T) {
 func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	session, opened, err := openThoughtBankSession(t.Context(), store, manifest{}, t.TempDir())
 	if session != nil || opened || err != nil {
@@ -266,9 +253,7 @@ func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) 
 func TestAVQAAnswerIsReplayedOnlyForTheSameQuestionOfTheSameAttempt(t *testing.T) {
 	t.Parallel()
 	base, err := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if again, _ := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48); again != base {
 		t.Fatal("the same attempt, image, question and budget changed the key")
 	}
@@ -315,9 +300,7 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	if _, err := embedder.Embed(t.Context(), "../outside.png"); err == nil {
 		t.Error("a picture outside the media root was embedded")
 	}
-	if err := os.WriteFile(filepath.Join(embedder.root, "bad.png"), []byte("not the digest's picture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(embedder.root, "bad.png"), []byte("not the digest's picture"), 0o600))
 	if _, err := embedder.Embed(t.Context(), "bad.png"); err == nil {
 		t.Error("a picture whose bytes are not the digest it is named for was embedded")
 	}

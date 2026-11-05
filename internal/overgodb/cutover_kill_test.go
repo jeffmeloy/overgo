@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAKillBetweenCutoverRenamesStartsNoEmptyStore: a cutover killed after it moved the live store aside and before it
@@ -14,9 +16,7 @@ func TestAKillBetweenCutoverRenamesStartsNoEmptyStore(t *testing.T) {
 	t.Parallel()
 	root, head := committedJournal(t, false)
 	aside := root + supersededMarker + head.String()[:12]
-	if err := os.Rename(root, aside); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(root, aside))
 	if store, err := Create(root); err == nil || !strings.Contains(err.Error(), aside) {
 		if store != nil {
 			_ = store.Close()
@@ -29,13 +29,9 @@ func TestAKillBetweenCutoverRenamesStartsNoEmptyStore(t *testing.T) {
 	if _, err := Open(root); err == nil {
 		t.Fatal("Open found a store where the cutover left none")
 	}
-	if err := os.Rename(aside, root); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(aside, root))
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if got, sequence := store.Head(); got != head || sequence != tailCommits {
 		t.Fatalf("the store moved back opens at %s@%d, want %s@%d", got, sequence, head, tailCommits)

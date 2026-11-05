@@ -6,6 +6,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -13,21 +14,15 @@ import (
 func TestPromptMeasurementClock(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 16)
 	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	sampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, cached := range []bool{false, true} {
 		var measured PromptEvaluation
 		calls := 0
 		before, err := processmeasure.Counter()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{PromptTokenIDs: []tokenizer.TokenID{1, 4}, MaxNewTokens: 2, ContinueAfterEOG: true, CachePrompt: cached, Sampler: sampler, OnPromptEvaluated: func(value PromptEvaluation) { measured = value; calls++ }})
 		after, clockErr := processmeasure.Counter()
 		if err != nil || clockErr != nil {

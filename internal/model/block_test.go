@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 
 	"overgo/internal/tensor/dtype"
 
@@ -27,18 +28,14 @@ func TestBuildGemma4PerLayerInputs(t *testing.T) {
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(1))
 	program := fixtureModelPlan(t, spec, Weights{})
 	outputs, err := program.BuildPerLayerInputs(builder, input, selected, projection, norm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := reference.Execute(outputs, map[*tensor.Tensor]reference.Value{
 		input:      {Shape: input.Shape, Data: []float32{3, 4}},
 		selected:   {Shape: selected.Shape, Data: []float32{2, 3}},
 		projection: {Shape: projection.Shape, Data: make([]float32, 4)},
 		norm:       {Shape: norm.Shape, Data: []float32{1}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for layer, want := range []float32{float32(math.Sqrt(2)), 3 / float32(math.Sqrt(2))} {
 		got := results[outputs[layer]]
 		if !got.Shape.Equal(tensor.MustShape(1, 1)) || math.Abs(float64(got.Data[0]-want)) > 1e-6 {
@@ -66,23 +63,17 @@ func TestBuildGemma4SharedKVMoEBlock(t *testing.T) {
 	first, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, owned, []uint32{0, 1}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shared := gemma4BlockInputs(builder, spec, false, true)
 	second, err := buildFixtureDenseBlockCachedForLayer(
 		builder, first.Output, spec, shared, []uint32{0, 1}, first.Key, first.Value, 2,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.Key != first.Key || second.Value != first.Value || !second.Output.Shape.Equal(input.Shape) {
 		t.Fatalf("Gemma 4 shared result shapes = %v/%v/%v", second.Output.Shape.Slice(), second.Key.Shape.Slice(), second.Value.Shape.Slice())
 	}
 	nodes, err := tensor.Topological(second.Output, second.Key, second.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var foundMoE, foundExpertScale bool
 	for _, node := range nodes {
 		if node.Op == tensor.OpMoE {
@@ -113,13 +104,9 @@ func TestBuildGemma4SlidingBlockUsesVisionBlockMask(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention {
 			attributes := node.Attrs.(tensor.AttentionAttributes)
@@ -171,9 +158,7 @@ func TestBuildGemma4BlockHonorsAppendCacheWrite(t *testing.T) {
 		},
 		Spec: spec, Weights: weights, Plan: &plan,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Key.Op != tensor.OpCacheAppend || result.Value.Op != tensor.OpCacheAppend {
 		t.Fatalf("Gemma 4 append cache ops = %v/%v, want OpCacheAppend", result.Key.Op, result.Value.Op)
 	}
@@ -181,9 +166,7 @@ func TestBuildGemma4BlockHonorsAppendCacheWrite(t *testing.T) {
 		t.Fatalf("Gemma 4 append key token axis = %d, want capacity %d", result.Key.Shape.Dims[2], capacityTokens)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var foundAttention bool
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention {
@@ -255,24 +238,18 @@ func TestBuildGemma3nAttentionAndFeedForwardStages(t *testing.T) {
 	owned, err := ownedProgram.BuildActivationProjection(CachedBlockContext{
 		Builder: builder, Input: input, Positions: []uint32{0, 1}, Layer: 0,
 	}, gemma3nBlockInputs(builder, spec, true))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	activated := builder.Input("activated", dtype.F32, tensor.MustShape(6, 2))
 	output, err := ownedProgram.BuildActivatedOutput(
 		builder, owned.Residual, activated, gemma3nBlockInputs(builder, spec, true),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sharedProgram := fixtureLayerProgram(t, spec, Weights{}, 20)
 	shared, err := sharedProgram.BuildActivationProjection(CachedBlockContext{
 		Builder: builder, Input: output, Positions: []uint32{0, 1},
 		PastKey: owned.Key, PastValue: owned.Value, Layer: 20,
 	}, gemma3nBlockInputs(builder, spec, false))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Shape.Equal(input.Shape) || shared.Key != owned.Key || shared.Value != owned.Value ||
 		!shared.Gate.Shape.Equal(tensor.MustShape(6, 2)) ||
 		!shared.Up.Shape.Equal(tensor.MustShape(6, 2)) {
@@ -323,16 +300,12 @@ func TestBuildDenseQwen3Block(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 3))
 	weights := denseBlockInputs(builder, spec)
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Shape.Equal(input.Shape) {
 		t.Fatalf("output shape = %v, want %v", output.Shape.Slice(), input.Shape.Slice())
 	}
 	nodes, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var foundAttention bool
 	for _, node := range nodes {
 		foundAttention = foundAttention || node.Op == tensor.OpAttention
@@ -379,9 +352,7 @@ func TestBuildDeciSparseLayerModes(t *testing.T) {
 			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{2, 3, 4}, pastKey, pastValue, test.layer,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if test.dummy && result.Output != input {
 				t.Fatal("dummy Deci layer changed activation")
 			}
@@ -390,9 +361,7 @@ func TestBuildDeciSparseLayerModes(t *testing.T) {
 				t.Fatalf("sentinel cache shapes = %v/%v", result.Key.Shape.Slice(), result.Value.Shape.Slice())
 			}
 			nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var mulMats int
 			for _, node := range nodes {
 				if node.Op == tensor.OpAttention {
@@ -434,13 +403,9 @@ func TestBuildDenseQwen3MoEBlock(t *testing.T) {
 	weights.FeedForwardUpExperts = builder.Input("ffn_up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	weights.FeedForwardDownExperts = builder.Input("ffn_down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var moe *tensor.Tensor
 	for _, node := range nodes {
 		if node.Op == tensor.OpMoE {
@@ -474,13 +439,9 @@ func TestBuildDBRXBlockUsesClampedFusedQKVAndNormalizedMoE(t *testing.T) {
 	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var clamp, moe *tensor.Tensor
 	var rope, layerNorm int
 	for _, node := range nodes {
@@ -531,18 +492,14 @@ func TestBuildGrokBlockUsesYaRNPostNormAndGELUMoE(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) ||
 		!result.Value.Shape.Equal(tensor.MustShape(4, 1, 2)) {
 		t.Fatalf("unexpected Grok result: %+v", result)
 	}
 	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var moe *tensor.Tensor
 	var yarn, gelu, rmsNorm int
 	var attention tensor.AttentionAttributes
@@ -608,9 +565,7 @@ func TestBuildMellumSlidingAndYaRNBlocks(t *testing.T) {
 				FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4)),
 			}
 			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, layer)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, _ := tensor.Topological(result.Output)
 			var attention tensor.AttentionAttributes
 			var rope tensor.RoPEAttributes
@@ -652,9 +607,7 @@ func TestBuildHunyuanMoEBlock(t *testing.T) {
 		FeedForwardRouter: b.Input("r", dtype.F32, tensor.MustShape(8, 4)), FeedForwardGateExperts: b.Input("ge", dtype.F32, tensor.MustShape(8, 6, 4)), FeedForwardUpExperts: b.Input("ue", dtype.F32, tensor.MustShape(8, 6, 4)), FeedForwardDownExperts: b.Input("de", dtype.F32, tensor.MustShape(6, 8, 4)), FeedForwardSharedGate: b.Input("sg", dtype.F32, tensor.MustShape(8, 10)), FeedForwardSharedUp: b.Input("su", dtype.F32, tensor.MustShape(8, 10)), FeedForwardSharedDown: b.Input("sd", dtype.F32, tensor.MustShape(10, 8)),
 	}
 	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(r.Output)
 	var moe, silu int
 	for _, n := range nodes {
@@ -688,9 +641,7 @@ func TestBuildQwenBlock(t *testing.T) {
 		FeedForwardDown:  b.Input("fd", dtype.F32, tensor.MustShape(12, 8)),
 	}
 	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(r.Output)
 	var slices, rope, silu int
 	for _, n := range nodes {
@@ -715,9 +666,7 @@ func TestBuildChatGLMBlock(t *testing.T) {
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 24)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(r.Output)
 	var slices, rope, silu int
 	for _, n := range nodes {
@@ -742,9 +691,7 @@ func TestBuildHunyuanDenseBlock(t *testing.T) {
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(r.Output)
 	var rope, rms, silu int
 	for _, n := range nodes {
@@ -772,13 +719,9 @@ func TestBuildHunyuanBlocksUsePostMRoPEQKNorm(t *testing.T) {
 			w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 16)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), AttentionQNorm: b.Input("qn", dtype.F32, tensor.MustShape(4)), AttentionKNorm: b.Input("kn", dtype.F32, tensor.MustShape(4)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 			positions := [4][]uint32{{10, 11}, {20, 21}, {30, 31}, {40, 41}}
 			r, err := buildFixtureDenseBlockCachedWithMultiPositions(b, in, s, w, positions, nil, nil, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(r.Output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var multiRoPE, postRoPENorm int
 			for _, node := range nodes {
 				if node.Op == tensor.OpRoPEMulti {
@@ -807,13 +750,9 @@ func TestBuildCogVLMTokenBlockUsesFusedQKVAndNormalRoPE(t *testing.T) {
 	in := b.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	w := LayerGraphWeights{AttentionNorm: b.Input("an", dtype.F32, tensor.MustShape(8)), AttentionQKV: b.Input("qkv", dtype.F32, tensor.MustShape(8, 24)), AttentionOutput: b.Input("o", dtype.F32, tensor.MustShape(8, 8)), FeedForwardNorm: b.Input("fn", dtype.F32, tensor.MustShape(8)), FeedForwardGate: b.Input("fg", dtype.F32, tensor.MustShape(8, 12)), FeedForwardUp: b.Input("fu", dtype.F32, tensor.MustShape(8, 12)), FeedForwardDown: b.Input("fd", dtype.F32, tensor.MustShape(12, 8))}
 	r, err := buildFixtureDenseBlockCachedForLayer(b, in, s, w, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(r.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var rope, rms, silu int
 	for _, node := range nodes {
 		switch node.Op {
@@ -849,13 +788,9 @@ func TestBuildArcticParallelDenseAndMoEBlock(t *testing.T) {
 	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var moe *tensor.Tensor
 	var rope, silu int
 	for _, node := range nodes {
@@ -904,13 +839,9 @@ func TestBuildOpenELMBlockUsesPerLayerHeadsAndQKNorm(t *testing.T) {
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(16, 8)),
 	}
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var rms, neoX int
 	for _, node := range nodes {
 		switch node.Op {
@@ -959,13 +890,9 @@ func testBuildSharedExpertSoftmaxMoEBlock(t *testing.T, architecture string, nor
 	weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12))
 	weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8))
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var moe *tensor.Tensor
 	var rope, silu int
 	for _, node := range nodes {
@@ -1009,13 +936,9 @@ func TestBuildGraniteMoEBlockUsesUngatedExpertsAndSharedSwiGLU(t *testing.T) {
 			weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 5))
 			weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(5, 8))
 			output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var moe *tensor.Tensor
 			var rope, silu, scale int
 			for _, node := range nodes {
@@ -1085,13 +1008,9 @@ func TestBuildBailingMoE2BlockUsesFusedQKVNeoXAndSharedExpert(t *testing.T) {
 				FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
 			}
 			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(result.Output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var moe *tensor.Tensor
 			var neox, silu int
 			for _, node := range nodes {
@@ -1136,9 +1055,7 @@ func TestBuildQwen2MoEBlockUsesGatedSharedExpert(t *testing.T) {
 	weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10))
 	weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8))
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(output)
 	var moe *tensor.Tensor
 	var sigmoid bool
@@ -1176,9 +1093,7 @@ func TestBuildOLMoEBlockNormalizesFullQKProjections(t *testing.T) {
 		FeedForwardDownExperts: builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4)),
 	}
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, _ := tensor.Topological(output)
 	var projectionNorms int
 	var moe *tensor.Tensor
@@ -1210,13 +1125,9 @@ func TestBuildEuroBERTBlockUsesNonCausalNeoXAttention(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var rope int
 	for _, node := range nodes {
@@ -1257,13 +1168,9 @@ func TestBuildBERTBlockUsesPostNormNonCausalAttention(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var layerNorm, gelu, rope int
 	for _, node := range nodes {
@@ -1304,13 +1211,9 @@ func TestBuildNeoBERTBlockUsesNormalRoPEAndFusedSwiGLU(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var normalRoPE, silu int
 	for _, node := range nodes {
@@ -1352,13 +1255,9 @@ func TestBuildNomicBERTBlockUsesNeoXRoPEAndSwiGLU(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var neoXRoPE, layerNorm, silu, gelu int
 	for _, node := range nodes {
@@ -1411,13 +1310,9 @@ func TestBuildJinaBERTV2BlockUsesALiBiNormsAndFusedGEGLU(t *testing.T) {
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var layerNorm, gelu, multiply, rope int
 	for _, node := range nodes {
@@ -1480,13 +1375,9 @@ func TestBuildJinaBERTV2BlockSelectsPlainOrSeparateGateFFN(t *testing.T) {
 			result, err := buildFixtureDenseBlockCachedForLayer(
 				builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			nodes, err := tensor.Topological(result.Output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var geglu bool
 			for _, node := range nodes {
 				if node.Op == tensor.OpMultiply && len(node.Inputs) == 2 && node.Inputs[0].Op == tensor.OpGELU {
@@ -1520,13 +1411,9 @@ func TestBuildJinaBERTV3BlockUsesNeoXRoPEAndGELU(t *testing.T) {
 		FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
 	}
 	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var attention *tensor.Tensor
 	var neoXRoPE, layerNorm, gelu int
 	for _, node := range nodes {

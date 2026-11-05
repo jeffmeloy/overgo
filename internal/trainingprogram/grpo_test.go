@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 )
 
 // TestGroupIsWeightedByOrderAlone holds the reward objective to its one rule:
@@ -115,18 +116,14 @@ func TestGroupIsWeightedByOrderAlone(t *testing.T) {
 		t.Fatal("a preference session without an objective scale was planned")
 	}
 	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective:  ObjectiveGRPO,
 		Operators:  []OperatorSpec{{ID: "forward", Phase: PhaseForward}, {ID: "backward", Phase: PhaseBackward}, {ID: "optimize", Phase: PhaseOptimize}, {ID: "evaluate", Phase: PhaseEvaluate}},
 		Parameters: []ParameterSpec{{Name: "scalar", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  plan,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The identity the same program had before the objective named its rule.
 	before, err := artifact.JSONID(artifact.KindRecipe, struct {
 		Objective   ObjectiveKind   `json:"objective"`

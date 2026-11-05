@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,22 +25,16 @@ func TestDeviceMemoryOwners(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openF32FixtureRunner(testutil.HermeticLlamaGGUF(t, hermeticContext), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	if _, _, err := runner.Generate(ctx, "ab", GenerateOptions{MaxNewTokens: 4}); err != nil {
 		t.Fatal(err)
 	}
 	memory, err := runner.DeviceMemory(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stats, err := runner.DeviceMemoryStats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var owned, weights uint64
 	for _, owner := range memory.Owners {
 		owned += owner.Bytes
@@ -60,9 +55,7 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	file, err := gguf.Open(writeHermeticFlashNextGGUF(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	var banks []gguf.TensorInfo
 	for _, info := range file.Tensors {
@@ -71,9 +64,7 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 		}
 	}
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var weights *modeldevice.DeviceWeights
 	var cuda *executor.Executor
 	closed := false
@@ -87,21 +78,15 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 	}
 	loader := modeldevice.NewLoader(file)
 	loader.Experts(weights, banks, 0)
-	if err := loader.Load(ctx, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(ctx, nil))
 	if cuda, err = executor.NewWithWorker(worker); err != nil {
 		t.Fatal(err)
 	}
-	if err := cuda.SetExpertBanks(weights); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cuda.SetExpertBanks(weights))
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(64, 1))
 	graph, err := executor.Compile(builder.Add(builder.Multiply(input, input), input))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained, err := cuda.ExecuteRetainedCompiledOnce(ctx, graph, map[*tensor.Tensor]reference.Value{
 		input: {Shape: input.Shape, Data: make([]float32, 64)},
 	}, nil, nil, nil)
@@ -111,9 +96,7 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 	if err == nil {
 		err = cuda.ReleasePromptMemory(ctx)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if metrics, err := cuda.Metrics(ctx); err != nil || metrics.PromptArenaBytes == 0 || !weights.HasExpertResidency() {
 		t.Fatalf("lent an arena of %d bytes to a residency %t (%v), want one lent", metrics.PromptArenaBytes, weights.HasExpertResidency(), err)
 	}

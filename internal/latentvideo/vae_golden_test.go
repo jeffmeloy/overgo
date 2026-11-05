@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -51,9 +52,7 @@ func vaeG0LatentStats(t testing.TB) VAELatentStats {
 			ZDim int       `json:"z_dim"`
 		} `json:"vae_latent_stats"`
 	}
-	if err := json.Unmarshal(raw, &g0); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g0))
 	stats := VAELatentStats{Mean: g0.VAELatentStats.Mean, Std: g0.VAELatentStats.Std}
 	if len(stats.Mean) != g0.VAELatentStats.ZDim || len(stats.Std) != g0.VAELatentStats.ZDim || g0.VAELatentStats.ZDim <= 0 {
 		t.Fatalf("g0 latent stats arity mean=%d std=%d z_dim=%d", len(stats.Mean), len(stats.Std), g0.VAELatentStats.ZDim)
@@ -65,14 +64,10 @@ func compileRealVAEDecoderPlan(t testing.TB) (VAEDecoderPlan, string) {
 	t.Helper()
 	checkpoint := wanVAECheckpointPath(t)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	metas := catalog.Tensors
 	plan, err := CompileVAEDecoderPlan(metas)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan, checkpoint
 }
 
@@ -117,9 +112,7 @@ func loadVAEGoldenFrames(t *testing.T, manifestName string) vaeGoldenFrames {
 		Frames      map[string]g1Tensor `json:"frames"`
 		LatentShape goldenLatentShape   `json:"latent_shape"`
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &manifest))
 	golden := vaeGoldenFrames{
 		shape:  manifest.LatentShape,
 		latent: loadG1Tensor(t, dir, manifest.FinalLatent),
@@ -155,9 +148,7 @@ func runVAEDecodeGolden(t *testing.T, manifestName string) {
 			decoded = append(decoded, append([]float32(nil), frame...))
 			return nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(decoded) != len(golden.frames) {
 		t.Fatalf("decoded %d frames, want %d", len(decoded), len(golden.frames))
 	}

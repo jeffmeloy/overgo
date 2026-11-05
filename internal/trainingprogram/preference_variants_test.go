@@ -17,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -68,9 +69,7 @@ func TestPreferenceLossVariantsShareTheDPOPath(t *testing.T) {
 	}
 	reference := testutil.ArtifactID(t, artifact.KindModel, "reference")
 	own, err := json.Marshal(trainingprogram.PreferencePolicy{Reference: reference, Scale: 0.1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := json.Marshal(struct {
 		Reference artifact.ID
 		Scale     float64
@@ -114,9 +113,7 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -133,27 +130,17 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	for index, document := range documents {
 		records[index] = dataset.Record{ID: document["id"].(string), Group: document["group"].(string)}
 		line, err := json.Marshal(document)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lines.Write(append(line, '\n'))
 	}
-	if err := os.WriteFile(fixture.dataset, lines.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(fixture.dataset, lines.Bytes(), 0o600))
 	source, err := artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const splitSeed = 17
 	split, err := dataset.BuildGroupSplit(source, records, splitSeed, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := split.PublicationBatch("fixture/preference-variants/split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: source, Size: uint64(lines.Len())})
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
@@ -179,18 +166,12 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 		Dataset: source, Split: fixture.training.ID, Processors: []artifact.ID{processor}, Loss: profile("dpo loss"), Evaluation: evaluation,
 		Metric: metric, Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policies.Objective = objective.ID
 	objectiveContent, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerContent, err := optimizer.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var descriptors []artifact.Descriptor
 	for _, id := range []artifact.ID{
 		policy, reference, processor, objective.Loss, evidence, policies.Precision, policies.Placement,
@@ -208,19 +189,13 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 		{Role: recipe.DependencyModel, Artifact: policy},
 		{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
 	}, modelrecipetest.PolicyDependencies(policies)...))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/preference-variants/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/preference-variants/verification", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "preference variants fixture"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "preference variants fixture"))
 	fixture.recipe = definition.ID
 	return fixture
 }
@@ -232,28 +207,18 @@ func writePreferenceModel(t *testing.T, directory string, seed int64) artifact.I
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: seed,
 	})
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
-	if err := safetensors.Save(path, weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(path, weights, shapes, nil))
 	for name, content := range map[string]string{
 		"config.json":    `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"max_position_embeddings":16,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`,
 		"tokenizer.json": `{"model":{"type":"BPE","vocab":{"a":1,"b":2,"c":3,"d":4},"merges":[]}}`,
 	} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(artifact.KindModel, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }

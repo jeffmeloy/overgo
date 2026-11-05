@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,24 +21,18 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 	}
 	partitions := []SplitPartition{{Name: "train", Weight: 4}, {Name: "test", Weight: 1}}
 	first, err := BuildGroupSplit(source, records, 42, partitions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := BuildGroupSplit(source, []Record{
 		records[5], records[3], records[1], records[4], records[0], records[2],
 	}, 42, []SplitPartition{partitions[1], partitions[0]})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Split.ID != second.Split.ID || !reflect.DeepEqual(first.Memberships, second.Memberships) {
 		t.Fatal("same source and seed produced different split")
 	}
 	groupPartition := map[string]string{}
 	for _, membership := range first.Memberships {
 		content, err := membership.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := membershipCodec.Parse(content.Data); err != nil {
 			t.Fatal(err)
 		}
@@ -53,9 +48,7 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -66,13 +59,9 @@ func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 	plan, err := BuildGroupSplit(source, []Record{
 		{ID: "a", Group: "a"}, {ID: "b", Group: "b"}, {ID: "c", Group: "c"},
 	}, 7, []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := plan.PublicationBatch("fixture/split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -102,13 +91,9 @@ func TestSplitPublicationRejectsCrossWiredPlan(t *testing.T) {
 	}
 	partitions := []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}}
 	first, err := BuildGroupSplit(source, records, 7, partitions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := BuildGroupSplit(source, records, 8, partitions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first.Memberships[0] = second.Memberships[0]
 	if _, err := first.PublicationBatch("fixture/cross-wired", nil); err == nil {
 		t.Fatal("cross-wired split plan accepted")

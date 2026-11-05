@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDeviceDeclaredConsumers(t *testing.T) {
@@ -19,12 +21,8 @@ func TestDeviceDeclaredConsumers(t *testing.T) {
 	}
 	for path, content := range files {
 		path = filepath.Join(root, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	for _, path := range []string{
 		"kernels/cuda/owned.cu", "internal/cuda/kernel/owned.ptx",

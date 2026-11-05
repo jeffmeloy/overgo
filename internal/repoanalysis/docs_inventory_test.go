@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDocsHoldNoUnplannedBinaries(t *testing.T) {
 	t.Parallel()
-	if err := ValidateDocsInventory(filepath.Join("..", "..")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateDocsInventory(filepath.Join("..", "..")))
 }
 
 func TestDocsInventoryPolicy(t *testing.T) {
@@ -31,16 +31,10 @@ func TestDocsInventoryPolicy(t *testing.T) {
 	} {
 		t.Run(test.path, func(t *testing.T) {
 			root := t.TempDir()
-			if err := os.WriteFile(filepath.Join(root, "README.md"), nil, 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(root, "README.md"), nil, 0o644))
 			path := filepath.Join(root, "docs", filepath.FromSlash(test.path))
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, []byte("fixture"), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+			testcheck.NoError(t, os.WriteFile(path, []byte("fixture"), 0o644))
 			err := ValidateDocsInventory(root)
 			if (err == nil) != test.allowed {
 				t.Fatalf("allowed=%v, error=%v", test.allowed, err)
@@ -61,9 +55,7 @@ func TestReadmeReferences(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for _, directory := range []string{"docs", "cmd/live"} {
-		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, directory), 0o755))
 	}
 	for _, test := range []struct {
 		text  string
@@ -73,9 +65,7 @@ func TestReadmeReferences(t *testing.T) {
 		{"[missing](docs/missing.json)", false},
 		{"`cmd/missing`", false},
 	} {
-		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(test.text), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "README.md"), []byte(test.text), 0o644))
 		if err := ValidateDocsInventory(root); (err == nil) != test.valid {
 			t.Fatalf("valid=%v error=%v", test.valid, err)
 		}

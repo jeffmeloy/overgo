@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/loop"
+	"overgo/internal/testcheck"
 )
 
 // The worker runs in a real contained subprocess and exits immediately after
@@ -17,9 +18,7 @@ func TestCampaignWorkerExitContinues(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_WORKER_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
 		prompt, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		body, bound := strings.CutPrefix(string(prompt), "Test campaign policy\n\n")
 		if !bound {
 			t.Fatal("strategy prompt was not supplied to worker")
@@ -28,9 +27,7 @@ func TestCampaignWorkerExitContinues(t *testing.T) {
 		if name != "first" && name != "second" {
 			t.Fatalf("unexpected worker request %q", name)
 		}
-		if err := os.WriteFile(filepath.Join(root, name), []byte("completed"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte("completed"), 0o600))
 		return
 	}
 	root := t.TempDir()

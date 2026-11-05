@@ -12,6 +12,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -51,25 +52,17 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
 	}
 	data, err := os.ReadFile(smokeOraclePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var declarations []smokeProtocol
-	if err := json.Unmarshal(data, &declarations); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &declarations))
 	declared := map[artifact.ID]smokeProtocol{}
 	for _, declaration := range declarations {
 		declared[declaration.Model] = declaration
 	}
 	root, err := dataroot.StoreRoot("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	names, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
@@ -78,9 +71,7 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	}
 	index := evaluation.LatestEvidence(ctx, store, names, 0)
 	entries, err := discovery.ServableWithMemo(ctx, store, 100000, discovery.LoadMemo(ctx, store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	covered := 0
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" || entry.Trained {

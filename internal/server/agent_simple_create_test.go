@@ -8,6 +8,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestAgentSimpleCreate pins one-step creation: a name, plain
@@ -19,9 +20,7 @@ import (
 func TestAgentSimpleCreate(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -31,16 +30,12 @@ func TestAgentSimpleCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 
 	refused := serveTestRequest(handler, http.MethodPost, "/agents/create",

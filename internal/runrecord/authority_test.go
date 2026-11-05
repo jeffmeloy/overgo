@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 		Generation: 0, Proposer: proposer, Evaluator: evaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := NewAdmissionBinding(AdmissionBinding{
 		Generation: 0, Proposer: proposer, Evaluator: evaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean,
@@ -75,16 +74,12 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: decider.Identity},
 		[]artifact.ID{sealed},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	next, err := NewAdmissionBinding(AdmissionBinding{
 		Generation: 1, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: approval.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateAdmissionSuccession(next, bootstrap, approval); err != nil {
 		t.Fatalf("legal succession refused: %v", err)
 	}
@@ -95,18 +90,14 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: proposer.Identity},
 		[]artifact.ID{sealed},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forged := next
 	forged.PriorApproval = imposter.ID
 	forged, err = NewAdmissionBinding(AdmissionBinding{
 		Generation: 1, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: imposter.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateAdmissionSuccession(forged, bootstrap, imposter); err == nil {
 		t.Fatal("approval decided outside the prior decider authority accepted")
 	}
@@ -117,17 +108,13 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 		Generation: 2, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: approval.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := ValidateAdmissionSuccession(skipped, bootstrap, approval); err == nil {
 		t.Fatal("generation skip accepted")
 	}
 
 	content, err := next.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseAdmissionBinding(content.Data)
 	if err != nil || parsed.ID != next.ID || parsed.PriorApproval != approval.ID {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)

@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -75,9 +76,7 @@ type promptReference struct {
 func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/prompt_ids/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's own tokens are on file (%v); write them with %s", err, promptIDsScript)
@@ -85,9 +84,7 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 	held, faulted := 0, map[string]bool{}
 	for _, fixture := range fixtures {
 		raw, err := os.ReadFile(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var reference promptReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -114,13 +111,9 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 				cases.Cases = append(cases.Cases, held)
 			}
 			encoded, err := json.Marshal(cases)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			path := filepath.Join(t.TempDir(), "cases.json")
-			if err := os.WriteFile(path, encoded, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, encoded, 0o600))
 			chat := reference.Protocol == promptChat
 			read, err := readPrompts(model, path, chat)
 			if err != nil || len(read) != len(reference.Cases) {

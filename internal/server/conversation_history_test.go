@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,17 +18,13 @@ import (
 func conversationHistoryFixture(t testing.TB) (*Handler, string, string) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	h := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Stored answer"}}))
 	h.config.MaxStoredResponses = 2
 	respond := func(input, previous string) string {
 		body, err := json.Marshal(map[string]any{"input": input, "previous_response_id": previous, "max_output_tokens": 1})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		response := serveTestRequest(h, http.MethodPost, "/v1/responses", string(body))
 		var result responsesResponse
 		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil {
@@ -124,9 +121,7 @@ func TestConversationHistoryPaging(t *testing.T) {
 	for range 2 {
 		for _, archived := range []bool{true, false} {
 			body, err := json.Marshal(map[string]any{"root": root, "title": "Renamed", "archived": archived})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if response := serveTestRequest(h, http.MethodPost, "/interactions/label", string(body)); response.Code != http.StatusOK {
 				t.Fatal(response.Body)
 			}
@@ -152,16 +147,12 @@ func TestConversationHistoryRefresh(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"External answer"}})
 	producer := newTestHandlerForRepository(t, writer, generator)
 	reader, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	consumer := newTestHandlerForRepository(t, reader, generator)
 	response := serveTestRequest(producer, http.MethodPost, "/v1/responses", `{"input":"External conversation","max_output_tokens":1}`)

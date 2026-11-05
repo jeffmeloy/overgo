@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -83,9 +84,7 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			director, err := NewComponentSessionDirector[*gatedModel]("test", "host", 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			component := func(label string) modelrecipe.ComponentSession {
 				return modelrecipe.ComponentSession{
 					Identity: testutil.ArtifactID(t, artifact.KindProfile, label+"-resources"),
@@ -95,9 +94,7 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 			}
 			first := newGatedModel()
 			held, err := director.LeaseComponent(ctx, component("first"), func(context.Context) (*gatedModel, error) { return first, nil })
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			second, third := newGatedModel(), newGatedModel()
 			close(second.gate)
 			close(third.gate)
@@ -122,9 +119,7 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 			// The first model's teardown starts: an idle model is evicted by the next request for another, a
 			// request-scoped one is retired when its lease ends.
 			if row.session == recipe.SessionCapacity {
-				if err := held.Release(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, held.Release())
 				go contend(secondCtx, component("second"), second, secondLoaded)
 			} else {
 				go func() { _ = held.Release() }()
@@ -154,13 +149,9 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 				if got.lease.Model() != want {
 					t.Fatal("the requests were admitted in the other order than this row sets out to force")
 				}
-				if err := got.lease.Release(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, got.lease.Release())
 			}
-			if err := director.Close(ctx); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, director.Close(ctx))
 			if snapshot := director.Snapshot(); snapshot.Retiring != 0 {
 				t.Fatalf("a finished teardown still reads %d retiring: %+v", snapshot.Retiring, snapshot)
 			}

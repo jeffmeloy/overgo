@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestGatedDeltaOperationsMatchTheComposedPreparation: GatedDeltaConv and GatedDeltaGates give the bits of the
@@ -72,13 +73,9 @@ func TestGatedDeltaOperationsMatchTheComposedPreparation(t *testing.T) {
 				gates = b.GatedDeltaGates(normalized, alphaWeight, betaWeight, timeStep, decay)
 				outputs = append(outputs, beta, gate, gates)
 			}
-			if err := b.Err(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, b.Err())
 			got, err := Execute(outputs, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			same := func(name string, fused, composed []float32) {
 				t.Helper()
 				if !slices.EqualFunc(fused, composed, func(x, y float32) bool { return math.Float32bits(x) == math.Float32bits(y) }) {

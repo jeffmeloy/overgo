@@ -3,6 +3,8 @@ package media
 import (
 	"errors"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCodecChunkStreamOwnsCausalState holds one stream's temporal state to its
@@ -14,18 +16,12 @@ func TestCodecChunkStreamOwnsCausalState(t *testing.T) {
 	op := NewCodecOperation[struct{}](CodecPointwise, "accumulate", 1, 1)
 	var err error
 	op.Bindings, err = BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program := CodecProgram[struct{}]{Operations: []CodecOperation[struct{}]{op}}
 	first, err := NewCodecChunkStream[struct{}, int](program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := NewCodecChunkStream[struct{}, int](program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	step := func(_ int, _ CodecOperation[struct{}], state *int, value CodecVolume[int]) (CodecVolume[int], error) {
 		*state += value.Storage
 		value.Storage = *state

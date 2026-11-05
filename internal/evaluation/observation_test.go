@@ -17,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 // scoreChoicesAlone answers and scores a choice suite in a store of its own,
@@ -24,9 +25,7 @@ import (
 func scoreChoicesAlone(t *testing.T, ctx context.Context, scorer continuationScorer, suite MultipleChoiceSuite) ([]choiceObservation, float64, error) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -80,9 +79,7 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const cases = observedPending + 8
 	suite := MultipleChoiceSuite{
@@ -102,9 +99,7 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 		candidate[prompt] = []sequencescore.Score{{LogProbability: -4, Tokens: 4}, {LogProbability: -3, Tokens: 1}}
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type model struct {
 		tally      *choiceTally
 		campaign   *Campaign
@@ -116,34 +111,24 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 		campaign, err := newCampaign(store, tally, modelrecipe.ProgramIdentity{
 			Model: planID(t, artifact.KindModel, name+"-model"), Definition: planID(t, artifact.KindModelDefinition, name+"-definition"), Recipe: definition.ID,
 		}, environment, runtimeLedgerCommit, LifecycleIsolated)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return model{tally, campaign, definition}
 	}
 	// evaluated evaluates the suite as it now stands, and returns the result with the records of answers the store then holds for it.
 	evaluated := func(subject model) (CampaignResult, []artifact.ID, error) {
 		source, err := json.Marshal(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		compiled, err := CompileSuite(source, subject.campaign.Authorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, evaluateErr := subject.campaign.Evaluate(ctx, compiled)
 		asked := make([]askedChoice, len(suite.Cases))
 		for index, testCase := range suite.Cases {
 			asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
 		}
 		observed, err := compiled.Plan().observed(asked)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		edges, err := store.Children(ctx, observed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var records []artifact.ID
 		for _, edge := range edges {
 			if edge.Child.Kind() == artifact.KindOutput {
@@ -162,13 +147,9 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 
 	incumbent, challenger := served("incumbent", base), served("challenger", candidate)
 	baseline, baseRecords, err := evaluated(incumbent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, records, err := evaluated(challenger)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(incumbent.tally.asked) != cases || len(challenger.tally.asked) != cases || len(records) != 2 || len(baseRecords) != 2 ||
 		accuracy(baseline) != 0.5 || accuracy(first) != 0 {
 		t.Fatalf("scored by summed likelihood the base reads %v and the candidate %v, having been put %d and %d cases and written %d and %d records of answers; want 0.5 and 0, %d cases each, and two records each",
@@ -189,13 +170,9 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 	} {
 		fix.change()
 		rebased, rebasedRecords, err := evaluated(incumbent)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		rescored, rescoredRecords, err := evaluated(challenger)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(incumbent.tally.asked) != cases || len(challenger.tally.asked) != cases {
 			t.Fatalf("%s, the models were put %d and %d more cases, want none", fix.name, len(incumbent.tally.asked)-cases, len(challenger.tally.asked)-cases)
 		}
@@ -252,9 +229,7 @@ func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	identity := modelrecipe.ProgramIdentity{
 		Model: planID(t, artifact.KindModel, "outcomes model"), Definition: planID(t, artifact.KindModelDefinition, "outcomes definition"), Recipe: planID(t, artifact.KindRecipe, "outcomes recipe"),
@@ -263,9 +238,7 @@ func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The model scores the answer likelier on the right case, the other candidate on the wrong one, and the two alike on the tied one; it says "ok" to every prompt.
 	tally := &choiceTally{scores: map[string][]sequencescore.Score{
 		"right?": {{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
@@ -273,23 +246,15 @@ func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 		"tied?":  {{LogProbability: -1, Tokens: 1}, {LogProbability: -1, Tokens: 1}},
 	}}
 	campaign, err := newCampaign(store, tally, identity, environment, planTestCommit, LifecycleIsolated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	read := func(suite any) (map[string]bool, bool) {
 		t.Helper()
 		source, err := json.Marshal(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		compiled, err := CompileSuite(source, campaign.Authorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err := campaign.Evaluate(ctx, compiled)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return CaseOutcomes(ctx, store, result.Evaluation)
 	}
 	choices := MultipleChoiceSuite{Kind: MultipleChoiceKind, Schema: "fixture/outcomes/v1", Source: "outcomes", Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy, TieBreak: TieBreakFirst}

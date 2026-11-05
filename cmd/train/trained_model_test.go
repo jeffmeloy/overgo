@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -61,9 +62,7 @@ func writeServingFixture(t *testing.T, directory string) string {
 		testutil.GGUFTensorF32("blk.0.ffn_down.weight", []uint64{ffn, width}, 12),
 	}
 	path := filepath.Join(directory, "base.gguf")
-	if err := gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}))
 	return path
 }
 
@@ -79,37 +78,27 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 	root := t.TempDir()
 	base := writeServingFixture(t, root)
 	dataset := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
 	storeRoot := filepath.Join(root, "store")
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	out := filepath.Join(root, "trained")
 	result, err := trainingworkflow.Execute(ctx, trainingworkflow.Request{
 		Repository: store, Recipe: recipeID, Observations: store,
 		ModelDirectory: base, DatasetPath: dataset, OutputDirectory: out,
 		Steps: 1, MaximumSequence: 16, Host: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trained := filepath.Join(out, trainingprogram.CheckpointModel)
 	file, err := gguf.Open(trained)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -124,9 +113,7 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 		t.Fatalf("trained model lineage = (%v, %v), want it trained from %s and produced by %s", parents, err, result.Checkpoint.Model, result.Checkpoint.ID())
 	}
 	weights, err := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loaded, err := trainingprogram.LoadCheckpoint(out); err != nil || loaded.Weights != weights.ID {
 		t.Fatalf("checkpoint = (%s, %v), want it bound to the complete trained weights %s", loaded.Weights, err, weights.ID)
 	}
@@ -135,38 +122,22 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 	profile, _ := definition.PrimaryDependency(recipe.DependencyProfile)
 	modelDefinition, _ := definition.PrimaryDependency(recipe.DependencyDefinition)
 	host, err := modelrecipe.InferenceWithModelDefinition(definition.Model, profile, modelDefinition, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipetest.PublishActivation(ctx, store, "fixture/trained-model", host); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "fixture/trained-model", host))
+	testcheck.NoError(t, store.Close())
 	served, err := modelcli.OpenRunner(ctx, storeRoot, trained, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer served.Close()
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	baseline, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer baseline.Close()
 	prompt, continuation := "a b", []string{" c d"}
 	scores, err := served.ScoreContinuations(ctx, prompt, continuation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := baseline.ScoreContinuations(ctx, prompt, continuation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(scores) != 1 || scores[0].Tokens == 0 || math.IsNaN(scores[0].LogProbability) || math.IsInf(scores[0].LogProbability, 0) ||
 		scores[0].LogProbability == before[0].LogProbability {
 		t.Fatalf("served trained model scores %+v against the base's %+v, want a finite score of its own", scores, before)

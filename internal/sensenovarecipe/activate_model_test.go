@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -47,27 +48,17 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	flowProfile, err := routedlm.InspectFlowProfile(modelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	flowContent, err := flowProfile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := inventory.Batch("fixture/sensenova/checkpoint/facts")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, flowContent)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
@@ -80,9 +71,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	verification, err := modelrecipetest.PublishVerification(
 		ctx, store, "fixture/sensenova/checkpoint/verification", definition.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("register + activate: %v", err)
 	}

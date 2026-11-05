@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ func TestWorkflowEvaluationBindsTrace(t *testing.T) {
 	trace := func(input artifact.ID) runrecord.InteractionTrace {
 		value, err := runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: recipeID, Model: modelID}, input,
 			[]runrecord.InteractionMessage{{Role: "assistant", Content: "answer"}}, nil, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	baseline, candidate := trace(request), trace(request)

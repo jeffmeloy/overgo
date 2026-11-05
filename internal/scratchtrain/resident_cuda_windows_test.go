@@ -13,6 +13,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -20,20 +21,14 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const steps = 3
 	policy := trainingprogram.BuiltinOptimizerPolicy()
 	host, err := construction.TrainShared(steps, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	initializedAt := time.Now()
 	trainer, err := NewResidentTrainer(construction, steps, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	initWall := time.Since(initializedAt)
 	// A resident cache hit must enforce the same boundary as a fresh graph.
@@ -48,32 +43,22 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	losses, walls := make([]float64, steps), make([]time.Duration, steps)
 	for step := range steps {
 		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		started := time.Now()
 		losses[step], err = trainer.Step(tokens, step+1)
 		walls[step] = time.Since(started)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	validationTokens, err := construction.Tokens(construction.Split().Validation[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	validation, err := trainer.Evaluate(validationTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worst := math.Abs(validation - host.ValidationLoss)
 	for step := range steps {
 		worst = max(worst, math.Abs(losses[step]-host.Losses[step]))
 	}
 	weights, gradients, momentum, err := trainer.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, slab := range [][]float32{weights, gradients, momentum} {
 		for _, value := range slab {
 			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
@@ -95,35 +80,25 @@ func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const steps = 2
 	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	for step := range steps {
 		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := trainer.Step(tokens, step+1); err != nil {
 			t.Fatal(err)
 		}
 	}
 	trained, err := trainer.Trained()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if step := trained.Snapshot().Step; step != steps {
 		t.Fatalf("trained state is at step %d, want the last step %d", step, steps)
 	}
 	weights, _, _, err := trainer.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	groups := construction.OptimizerPlan().Groups()
 	parameters := make(map[string][]float32, len(groups))
 	for _, group := range groups {
@@ -136,54 +111,32 @@ func TestScratchResidentStateParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const steps = 3
 	hostWeights := construction.InitialWeights()
 	hostGradients := make([]float32, len(hostWeights))
 	hostModel, err := construction.BindMADTransformer(hostWeights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostGradient, err := construction.BindMADTransformer(hostGradients)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config, err := construction.OptimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.OptimizerPlan(), config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	backward, err := trainer.training.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimize, err := trainer.training.Select(trainingprogram.PhaseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	for step := range steps {
 		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		hostLoss, trace, err := hostmath.MADTransformerForward(hostModel, tokens)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := hostmath.MADTransformerBackward(hostModel, hostGradient, tokens, trace); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, hostmath.MADTransformerBackward(hostModel, hostGradient, tokens, trace))
 		state := residentTrainingState{trainer: trainer, tokens: tokens, step: step + 1}
 		if err := backward.Run(&state); err != nil {
 			state.release()
@@ -202,9 +155,7 @@ func TestScratchResidentStateParity(t *testing.T) {
 		state.release()
 		hostMuon.Step()
 		residentWeights, residentClearedGradients, residentMomentum, err := trainer.Snapshot()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		hostState := hostMuon.Snapshot()
 		momentumDelta := maxF64F32StateDelta(residentMomentum, hostState.Momentum)
 		weightDelta := maxF32StateDelta(residentWeights, hostWeights)

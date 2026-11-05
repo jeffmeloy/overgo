@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestUnpairedDatasetReadsLabelledCompletions reads twelve labelled
@@ -33,9 +35,7 @@ func TestUnpairedDatasetReadsLabelledCompletions(t *testing.T) {
 		var raw bytes.Buffer
 		for _, document := range documents {
 			line, err := json.Marshal(document)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			raw.Write(append(line, '\n'))
 		}
 		return raw.Bytes()
@@ -49,9 +49,7 @@ func TestUnpairedDatasetReadsLabelledCompletions(t *testing.T) {
 		})
 	}
 	read, err := unpairedBatchesResume(t.Context(), lines(documents...), 0, encode, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if read.units != 2 || len(read.batches) != read.units || read.desirable != 3 || read.undesirable != 9 || read.stream.Position != 2*ktoMicrobatchExamples {
 		t.Fatalf("read %d units, %d batches, %d desirable and %d undesirable to position %d", read.units, len(read.batches), read.desirable, read.undesirable, read.stream.Position)
 	}

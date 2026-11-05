@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -25,32 +26,20 @@ func TestMediaEvidenceBinding(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256))
 	var inputs struct {
 		Bundle     mediaCapacityBundle
 		Assertions map[string]map[string][]string
 	}
-	if err := json.Unmarshal(raw, &inputs.Bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &inputs.Bundle))
 	var assertions map[string]map[string][]string
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions))
 	inputs.Assertions = map[string]map[string][]string{}
 	for _, check := range inputs.Bundle.Checks {
 		inputs.Assertions[check.Name] = assertions[check.Name]
@@ -58,9 +47,7 @@ func TestMediaEvidenceBinding(t *testing.T) {
 	identify := func(value any) artifact.ID {
 		t.Helper()
 		id, err := artifact.JSONID(artifact.KindEvidence, value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	inputID := identify(inputs)
@@ -109,9 +96,7 @@ func TestMediaEvidenceBinding(t *testing.T) {
 		}
 		return nil
 	}
-	if err := audit(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, audit(t.Context()))
 	t.Run("missing native fixture", func(t *testing.T) {
 		reader = verificationContentFaultReader{Reader: store, id: inputs.Bundle.Native, absent: true}
 		defer func() { reader = store }()
@@ -143,33 +128,21 @@ func TestMediaReceiptProvenance(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "producer")
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "text/plain", Schema: "overgo/source/v1"}
 	content, err := contract.ContentBytes([]byte("package fixture\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-overlay", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	relocated := filepath.Join(root, "consumer")
-	if err := os.Rename(path, relocated); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(path, relocated))
 	store, err = overgodb.OpenReadOnly(relocated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	missing, err := contract.Identify([]byte("unresolved overlay"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const producerPath = "C:/retired/worktree/fixture_test.go"
 	valid := mediaValidationCheck{
 		Source:      strings.Repeat("a", 40),
@@ -183,9 +156,7 @@ func TestMediaReceiptProvenance(t *testing.T) {
 	}{
 		{name: "relocated content retains producer path", accepted: true},
 		{name: "unrelated source file", change: func(*mediaValidationCheck) {
-			if err := os.WriteFile(filepath.Join(root, "unrelated.txt"), []byte("unrelated change"), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(root, "unrelated.txt"), []byte("unrelated change"), 0600))
 		}, accepted: true},
 		{name: "corrupt content", corrupt: true},
 		{name: "missing overlay", change: func(v *mediaValidationCheck) { v.Harness[producerPath] = missing }},

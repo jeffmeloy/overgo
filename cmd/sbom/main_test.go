@@ -6,24 +6,20 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGenerateIsDeterministicAndValidJSON(t *testing.T) {
 	first, err := generate("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := generate("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(first, second) {
 		t.Fatal("SBOM output is not deterministic")
 	}
 	var document map[string]any
-	if err := json.Unmarshal(first, &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(first, &document))
 	if document["bomFormat"] != "CycloneDX" || document["specVersion"] != "1.6" {
 		t.Fatalf("document header = %#v", document)
 	}
@@ -35,9 +31,7 @@ func TestGenerateIsDeterministicAndValidJSON(t *testing.T) {
 
 func TestSBOMOmitUndeclaredLicenses(t *testing.T) {
 	generated, err := generate("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bytes.Contains(generated, []byte("NOASSERTION")) {
 		t.Fatal("SBOM retains undeclared-license policy")
 	}
@@ -46,9 +40,7 @@ func TestSBOMOmitUndeclaredLicenses(t *testing.T) {
 			Component map[string]any `json:"component"`
 		} `json:"metadata"`
 	}
-	if err := json.Unmarshal(generated, &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(generated, &document))
 	if _, ok := document.Metadata.Component["licenses"]; ok {
 		t.Fatal("project component declares a license")
 	}
@@ -56,9 +48,7 @@ func TestSBOMOmitUndeclaredLicenses(t *testing.T) {
 
 func TestSBOMOmitReferenceOnlyComponents(t *testing.T) {
 	generated, err := generate("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, reference := range [][]byte{
 		[]byte("llama.cpp compatibility baseline"),
 		[]byte("pkg:github/ggml-org/llama.cpp"),
@@ -80,13 +70,9 @@ func TestSBOMOmitReferenceOnlyComponents(t *testing.T) {
 
 func TestReleaseIntegrityContract(t *testing.T) {
 	generated, err := generate("../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	committed, err := os.ReadFile(filepath.Join("..", "..", sbomPath))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(generated, committed) {
 		t.Fatal("committed SBOM does not match the dependency graph")
 	}

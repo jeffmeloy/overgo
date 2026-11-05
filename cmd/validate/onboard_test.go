@@ -14,6 +14,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -62,13 +63,9 @@ func newOnboardingFixture(t *testing.T) *onboardingFixture {
 func huggingFaceDirectory(t *testing.T, config string) string {
 	t.Helper()
 	directory := filepath.Join(t.TempDir(), "Tiny-LM")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	for name, content := range map[string]string{modelConfigFile: config, "model.safetensors": "{}"} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
 	return directory
 }
@@ -76,12 +73,8 @@ func huggingFaceDirectory(t *testing.T, config string) string {
 // writeConversion stands in for a conversion written at path.
 func writeConversion(t *testing.T, path string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("converted"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	testcheck.NoError(t, os.WriteFile(path, []byte("converted"), 0o600))
 }
 
 func (fixture *onboardingFixture) onboard(t *testing.T, path string) error {
@@ -103,9 +96,7 @@ func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	earlier := filepath.Join(filepath.Dir(fixture.converted), "Tiny-LM-f16.gguf")
 	converted := InventoryModel{Model: conversion, Location: earlier, Cells: []ModelValidation{{Location: earlier, Kind: "inference"}}}
 	fixture.tied[directory] = []InventoryModel{converted}
-	if err := fixture.onboard(t, directory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.onboard(t, directory))
 	want := []string{
 		"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
 		"go run ./cmd/benchmark -publish -repo STORE " + directory + " " + shortBenchmarkPrompt,
@@ -219,9 +210,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 	t.Parallel()
 	fixture := newOnboardingFixture(t)
 	directory := huggingFaceDirectory(t, "{}")
-	if err := fixture.onboard(t, directory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.onboard(t, directory))
 	// Conversion and the guard both name the one selected store.
 	converted := fixture.converted
 	want := []string{
@@ -260,9 +249,7 @@ func TestOnboardingReusesOnlyTheSameSourcesConversion(t *testing.T) {
 	t.Parallel()
 	fixture := newOnboardingFixture(t)
 	first := huggingFaceDirectory(t, `{"model_type":"gemma4"}`)
-	if err := fixture.onboard(t, first); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.onboard(t, first))
 	converted := fixture.converted
 	writeConversion(t, converted)
 	fixture.tied[first] = []InventoryModel{{Location: converted, Cells: []ModelValidation{{Location: converted}}}}

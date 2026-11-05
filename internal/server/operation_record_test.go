@@ -22,6 +22,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -141,9 +142,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	const retention = 4
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "operation record "+name)
@@ -155,9 +154,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	builder, err := NewModelBuilderWorkspace(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plainRuns, blockingRuns, builds := &countedWorkflow{WorkflowWorkspaceAPI: plain}, &countedWorkflow{WorkflowWorkspaceAPI: blocking}, &countedWorkflow{WorkflowWorkspaceAPI: builder}
 
 	// The evaluation workspace is the server's own, over a runtime that answers one exact case.
@@ -168,24 +165,16 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "operation-record", Cases: []evaluation.ExactCase{
 		{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suitePath := filepath.Join(t.TempDir(), "suite.json")
-	if err := os.WriteFile(suitePath, suite, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(suitePath, suite, 0o600))
 	evaluations, err := NewEvaluationWorkspace(store, recordRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: evaluated},
 		environment, evaluationTestCommit, retention, []string{suitePath})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The library intake's validation is a stub that completes with a run it committed.
 	var validations atomic.Int32
@@ -217,17 +206,11 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		[]recipe.Input{{Name: recipe.ToolCallPort, Data: recipe.DataToolCall, Target: recipe.Endpoint{Node: node.ID, Port: recipe.ToolCallPort}}},
 		[]recipe.Output{{Name: recipe.ToolResultPort, Data: recipe.DataToolResult, Source: recipe.Endpoint{Node: node.ID, Port: recipe.ToolResultPort}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := recipe.NewCatalog(module)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	toolProgram, err := recipe.CompileProgram(toolDefinition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var toolCalls atomic.Int32
 	config := Config{
 		Repository: store, MaxStoredResponses: retention, Evaluation: evaluations, LibraryIntake: intake,
@@ -241,9 +224,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	serve := func() *Handler {
 		t.Helper()
 		handler, err := New(config, &fakeGenerator{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = handler.Close() })
 		return handler
 	}
@@ -262,9 +243,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	ended := func(handler *Handler, operationID artifact.ID) operation.State {
 		t.Helper()
 		status, err := handler.operations.Wait(ctx, operationID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return status.State
 	}
 	// driven names the entry of every operation the test started.
@@ -307,9 +286,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Fatalf("model builder lists %d capabilities (%v), want one", len(build), err)
 	}
 	buildInput, err := json.Marshal(modelBuildInput{Corpus: "abcd\nbcda\ncdab\ndabc", Seed: 1, Steps: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first, second := twice("model build", server, "/model-builder/run", workflowRequest{Task: build[0].Task, Recipe: build[0].Recipe, Input: buildInput}, operation.StateCompleted); first == second || builds.executions.Load() != 2 {
 		t.Errorf("model build: two submissions ran as %s and %s with %d executions, want two operations that each executed", first, second, builds.executions.Load())
 	}
@@ -323,9 +300,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Errorf("evaluation: two submissions ran as the one operation %s, want two", first)
 	}
 	var replay any
-	if err := json.Unmarshal(groundedReplayAPIBody(t, model, groundedReplayAPIRequest(t, evaluated), false), &replay); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(groundedReplayAPIBody(t, model, groundedReplayAPIRequest(t, evaluated), false), &replay))
 	if first, second := twice("grounded replay", server, "/evaluations/run", replay, operation.StateFailed); first == second {
 		t.Errorf("grounded replay: two submissions ran as the one operation %s, want two", first)
 	}
@@ -342,9 +317,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		t.Fatalf("granted recovery: the first attempt ended %s, want %s", state, operation.StateBlocked)
 	}
 	approval, err := operatoraction.NewApprovalRequest(blocked, blocking.capability.Recipe, blocking.resume, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	granted := serveTestRequest(server, http.MethodPost, "/operations/decision", marshalTestJSON(t, operationDecisionRequest{
 		Operation: blocked, Tool: blocking.resume.Code, Answer: operatoraction.AnswerGrant, Request: approval.ID,
 	}))
@@ -360,9 +333,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 
 	// A tool call is submitted to the executor's own manager, and its operations are the ones its stage receipts name.
 	call, err := recipe.NewToolCall("call", toolModule, json.RawMessage(`{}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 2 {
 		if _, err := server.tools.ExecuteTool(ctx, call); err != nil {
 			t.Fatal(err)
@@ -426,15 +397,11 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 func TestACompletionTheStoreDoesNotHoldFailsItsOperation(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	workflow := newRecordWorkflow(t, store, "unheld completion")
 	handler, err := New(Config{Repository: store, Workflows: workflow}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	run := func() operation.Status {
 		t.Helper()
@@ -444,9 +411,7 @@ func TestACompletionTheStoreDoesNotHoldFailsItsOperation(t *testing.T) {
 			t.Fatalf("the run answered %d %s (%v), want an operation", response.Code, response.Body.String(), err)
 		}
 		status, err := handler.operations.Wait(t.Context(), submission.Operation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return status
 	}
 	workflow.unheld.Store(true)

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ import (
 func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "numbered workflow recipe")
 	generator := &generationWorkspaceGenerator{
@@ -38,22 +37,16 @@ func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
 		},
 	}
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	post := func(request, text string) (int, workflowResponse) {
 		t.Helper()
 		body, err := json.Marshal(workflowRequest{Task: recipe.TaskGeneration, Recipe: recipeID, Input: json.RawMessage(fmt.Sprintf(`{"text":%q}`, text)), Request: request})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		response := serveTestRequest(handler, http.MethodPost, "/generation/run", string(body))
 		var submission workflowResponse
 		if response.Code == http.StatusAccepted {
-			if err := json.Unmarshal(response.Body.Bytes(), &submission); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &submission))
 		}
 		return response.Code, submission
 	}
@@ -116,9 +109,7 @@ func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
 func mustJSON(t *testing.T, value any) string {
 	t.Helper()
 	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(encoded)
 }
 

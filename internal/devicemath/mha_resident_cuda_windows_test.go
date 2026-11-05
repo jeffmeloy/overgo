@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestMultiHeadAttentionBackwardResidentMatchesPerOp checks the resident GQA
@@ -18,9 +19,7 @@ import (
 func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 32, 8, 2, 16
@@ -33,13 +32,9 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 	p := hostCausalSoftmaxGQA(q, k, seq, nh, nkv, hd)
 
 	dQp, dKp, dVp, err := MultiHeadAttentionBackward(worker, q, k, v, p, dOut, seq, nh, nkv, hd, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dQr, dKr, dVr, err := MultiHeadAttentionBackwardResident(worker, q, k, v, dOut, seq, nh, nkv, hd, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	maxAbs := func(a, b []float32) float64 {
 		var m float64
@@ -63,14 +58,10 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 
 	const iters = 20
 	timeIt := func(fn func() error) time.Duration {
-		if err := fn(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, fn())
 		start := time.Now()
 		for range iters {
-			if err := fn(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, fn())
 		}
 		return time.Since(start) / iters
 	}

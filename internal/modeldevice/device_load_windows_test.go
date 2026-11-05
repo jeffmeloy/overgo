@@ -17,6 +17,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -31,22 +32,14 @@ type deviceStores struct {
 func newDeviceStores(t *testing.T) deviceStores {
 	t.Helper()
 	worker, err := device.New(modelTestDeviceOrdinal)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = worker.Close() })
 	raw, err := NewDeviceWeights(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	f32, err := NewDeviceConvertedWeights(worker, dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bf16, err := NewDeviceConvertedWeights(worker, dtype.BF16)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return deviceStores{worker: worker, stores: stores{raw: raw, f32: f32, bf16: bf16}}
 }
 
@@ -62,18 +55,14 @@ func (d deviceStores) download(t *testing.T, value DeviceTensor) []byte {
 	err := d.worker.Do(t.Context(), func(state *device.State) error {
 		return state.Driver.MemcpyDtoH(data, value.Pointer)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return data
 }
 
 func (d deviceStores) currentBytes(t *testing.T) uint64 {
 	t.Helper()
 	stats, err := d.worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return stats.CurrentBytes
 }
 
@@ -101,23 +90,17 @@ func TestLoaderUploadsVerifiedBytesToTheDevice(t *testing.T) {
 	if got := refused.currentBytes(t); got != baseline || refused.loaded() != 0 {
 		t.Fatalf("after the refusal the ledger holds %d bytes (was %d) and %d tensors are stored", got, baseline, refused.loaded())
 	}
-	if err := refused.worker.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, refused.worker.Close())
 
 	loaded := newDeviceStores(t)
 	file := source.parse(t)
 	loader = NewLoader(file)
 	source.route(loader, loaded.stores, file)
-	if err := loader.Load(t.Context(), claim); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(t.Context(), claim))
 	if routed := source.check(t, file, loaded.stores, loaded.download); routed != loaded.loaded() {
 		t.Fatalf("stores hold %d tensors, want the %d routed", loaded.loaded(), routed)
 	}
-	if err := errors.Join(loaded.raw.Close(), loaded.f32.Close(), loaded.bf16.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(loaded.raw.Close(), loaded.f32.Close(), loaded.bf16.Close()))
 	if got := loaded.currentBytes(t); got != 0 {
 		t.Fatalf("after closing the stores the ledger holds %d bytes", got)
 	}
@@ -137,20 +120,14 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 		testskip.NotApplicable(t, "set "+loadGGUFEnvironment+" to a small GGUF path")
 	}
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	var claim []artifact.ID
 	for _, source := range file.SourcePaths() {
 		held, err := os.Open(source)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		id, _, identifyErr := artifact.Identify(artifact.KindTensorSet, held)
-		if err := errors.Join(identifyErr, held.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(identifyErr, held.Close()))
 		claim = append(claim, id)
 	}
 
@@ -166,9 +143,7 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	}
 
 	wrong, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("not this model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refused := newDeviceStores(t)
 	baseline := refused.currentBytes(t)
 	loader := NewLoader(file)
@@ -181,23 +156,17 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	if got := refused.currentBytes(t); got != baseline || refused.loaded() != 0 {
 		t.Fatalf("after the refusal the ledger holds %d bytes (was %d) and %d tensors are stored", got, baseline, refused.loaded())
 	}
-	if err := refused.worker.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, refused.worker.Close())
 
 	loaded := newDeviceStores(t)
 	loader = NewLoader(file)
 	loader.Raw(loaded.raw, raw)
 	loader.Converted(loaded.f32, converted)
-	if err := loader.Load(t.Context(), claim); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(t.Context(), claim))
 	for _, info := range raw {
 		value, found := loaded.raw.Lookup(info.Name)
 		stored := make([]byte, info.Size)
-		if err := file.ReadTensorData(info, stored); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorData(info, stored))
 		if !found || !bytes.Equal(loaded.download(t, value), stored) {
 			t.Fatalf("raw tensor %q on the device differs from the file (found %t)", info.Name, found)
 		}
@@ -205,9 +174,7 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	for _, info := range converted {
 		value, found := loaded.f32.Lookup(info.Name)
 		host, err := model.LoadHostTensor(context.Background(), file, info)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want := loaded.f32.encode(host.Data, len(host.Data)*4)
 		if !found || !bytes.Equal(loaded.download(t, value), want) {
 			t.Fatalf("converted tensor %q on the device differs from the file's values (found %t)", info.Name, found)

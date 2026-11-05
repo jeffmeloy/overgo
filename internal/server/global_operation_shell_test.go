@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -71,9 +72,7 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		return operation.Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status, err := handler.operations.Wait(t.Context(), id); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("terminal operation=(%+v, %v)", status, err)
 	}

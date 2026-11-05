@@ -19,6 +19,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // fakeDevice stands in for device memory: it keeps every live allocation's
@@ -173,9 +174,7 @@ func writeFixture(t *testing.T, random *rand.Rand, tensors []fixtureTensor, note
 	payloads := make(map[string][]byte, len(tensors))
 	for index, spec := range tensors {
 		info, err := gguf.NewTensorInfo(spec.name, spec.kind, spec.shape)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		payloads[spec.name] = randomBytes(random, info.Size)
 		inputs[index] = gguf.TensorData{Name: spec.name, Shape: spec.shape, Type: spec.kind, Data: bytes.NewReader(payloads[spec.name])}
 	}
@@ -184,9 +183,7 @@ func writeFixture(t *testing.T, random *rand.Rand, tensors []fixtureTensor, note
 		{Key: "fixture.note", Value: gguf.Value{Type: gguf.ValueTypeString, Data: string(randomBytes(random, uint64(noteBytes)))}},
 	}
 	var buffer bytes.Buffer
-	if err := gguf.Write(&buffer, metadata, inputs, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.Write(&buffer, metadata, inputs, gguf.WriteOptions{}))
 	buffer.Write(randomBytes(random, uint64(trailing)))
 	return fixture{data: buffer.Bytes(), tensors: tensors, payloads: payloads}
 }
@@ -194,9 +191,7 @@ func writeFixture(t *testing.T, random *rand.Rand, tensors []fixtureTensor, note
 func (f fixture) parse(t *testing.T) *gguf.File {
 	t.Helper()
 	file, err := gguf.Parse(bytes.NewReader(f.data), uint64(len(f.data)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return file
 }
 
@@ -204,9 +199,7 @@ func (f fixture) parse(t *testing.T) *gguf.File {
 func identity(t *testing.T, data []byte) artifact.ID {
 	t.Helper()
 	id, _, err := artifact.Identify(artifact.KindTensorSet, bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -258,9 +251,7 @@ func (f fixture) check(t *testing.T, file *gguf.File, s stores, read func(*testi
 			}
 		}
 		decoded, err := model.DecodeHostTensor(info, f.payloads[spec.name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, converted := range []struct {
 			wanted bool
 			store  *DeviceConvertedWeights
@@ -324,9 +315,7 @@ func TestLoaderUploadsEachRoutedTensor(t *testing.T) {
 				if claimed {
 					expect = []artifact.ID{identity(t, source.data)}
 				}
-				if err := loader.Load(t.Context(), expect); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, loader.Load(t.Context(), expect))
 				source.checkFake(t, file, s, device)
 			})
 		}
@@ -434,9 +423,7 @@ func TestLoaderRefusesATamperedByteAnywhere(t *testing.T) {
 		s := newStores(device)
 		loader := NewLoader(parsed)
 		source.route(loader, s, parsed)
-		if err := loader.Load(t.Context(), claim); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, loader.Load(t.Context(), claim))
 		source.checkFake(t, parsed, s, device)
 	})
 }
@@ -491,9 +478,7 @@ func TestLoaderReadsEachByteOnce(t *testing.T) {
 	for _, claimed := range []bool{true, false} {
 		recorder := &readRecorder{source: bytes.NewReader(source.data)}
 		file, err := gguf.Parse(recorder, uint64(len(source.data)), gguf.DefaultOptions())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		recorder.ranges = nil
 		device := newFakeDevice()
 		s := newStores(device)
@@ -504,9 +489,7 @@ func TestLoaderReadsEachByteOnce(t *testing.T) {
 		if claimed {
 			expect = []artifact.ID{identity(t, source.data)}
 		}
-		if err := loader.Load(t.Context(), expect); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, loader.Load(t.Context(), expect))
 		var reads, wantRoutedBytes int64
 		for _, spec := range source.tensors {
 			if spec.raw || spec.f32 || spec.bf16 {
@@ -551,9 +534,7 @@ func TestLoaderReleasesEverythingOnFailure(t *testing.T) {
 		counted := newFakeDevice()
 		counting := NewLoader(source.parse(t))
 		source.route(counting, newStores(counted), counting.file)
-		if err := counting.Load(t.Context(), expect); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, counting.Load(t.Context(), expect))
 		for failure := 1; failure <= counted.allocs; failure++ {
 			t.Run(fmt.Sprintf("allocation %d claimed=%t", failure, claimed), func(t *testing.T) {
 				file, device := source.parse(t), newFakeDevice()
@@ -636,9 +617,7 @@ func TestLoaderRejectsRoutesThatCannotLoad(t *testing.T) {
 		s := newStores(device)
 		first := NewLoader(file)
 		source.route(first, s, file)
-		if err := first.Load(t.Context(), nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, first.Load(t.Context(), nil))
 		held := device.liveCount()
 		second := NewLoader(file)
 		source.route(second, s, file)
@@ -655,9 +634,7 @@ func TestLoaderRejectsRoutesThatCannotLoad(t *testing.T) {
 	t.Run("closed store", func(t *testing.T) {
 		file, device := source.parse(t), newFakeDevice()
 		s := newStores(device)
-		if err := s.raw.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, s.raw.Close())
 		loader := NewLoader(file)
 		source.route(loader, s, file)
 		if err := loader.Load(t.Context(), nil); err == nil || device.liveCount() != 0 {
@@ -673,9 +650,7 @@ func TestLoaderVerifiesWithoutRoutes(t *testing.T) {
 	source := mixedFixture(t, random)
 	claim := []artifact.ID{identity(t, source.data)}
 	file := source.parse(t)
-	if err := NewLoader(file).Load(t.Context(), claim); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, NewLoader(file).Load(t.Context(), claim))
 	source.data[len(source.data)/2] ^= 1
 	if err := NewLoader(file).Load(t.Context(), claim); !errors.Is(err, artifact.ErrContentMismatch) {
 		t.Fatalf("load of changed bytes = %v", err)
@@ -699,25 +674,19 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 	err := whole.WriteSplit(func(index, count uint16) (io.WriteCloser, error) {
 		return os.Create(name(index, count))
 	}, gguf.SplitOptions{MaxTensors: 2, NoTensorsInFirstFile: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const shards = 3
 	paths := make([]string, shards)
 	var claim []artifact.ID
 	for index := range paths {
 		paths[index] = name(uint16(index), shards)
 		onDisk, err := os.ReadFile(paths[index])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		claim = append(claim, identity(t, onDisk))
 	}
 	load := func(t *testing.T, expect []artifact.ID) (error, *fakeDevice, stores) {
 		file, err := gguf.Open(paths[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer file.Close()
 		device := newFakeDevice()
 		s := newStores(device)
@@ -743,9 +712,7 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 	for index := range paths {
 		t.Run(fmt.Sprintf("shard %d changed", index), func(t *testing.T) {
 			onDisk, err := os.ReadFile(paths[index])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			changed := slices.Clone(onDisk)
 			position := len(changed) - 1
 			if index == 0 {
@@ -753,9 +720,7 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 				position = bytes.Index(changed, []byte("load fixture"))
 			}
 			changed[position] ^= 0x10
-			if err := os.WriteFile(paths[index], changed, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(paths[index], changed, 0o600))
 			t.Cleanup(func() { _ = os.WriteFile(paths[index], onDisk, 0o600) })
 			err, device, s := load(t, claim)
 			if !errors.Is(err, artifact.ErrContentMismatch) {
@@ -819,9 +784,7 @@ func TestLoaderMapsATensorFromHostMemory(t *testing.T) {
 	carded, _ := file.Tensor("b.f16")
 	loader.Mapped(s.raw, []gguf.TensorInfo{mapped})
 	loader.Raw(s.raw, []gguf.TensorInfo{carded})
-	if err := loader.Load(t.Context(), nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(t.Context(), nil))
 	value, found := s.raw.Lookup("a.q8")
 	if host, hosted := device.hosted[value.Pointer]; !found || !hosted || !bytes.Equal(host, source.payloads["a.q8"]) {
 		t.Fatalf("the mapped tensor is not its file bytes in host memory at its address (found %t)", found)

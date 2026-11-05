@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // consolidatedGroup is one group of repeated logic that a common component replaced.
@@ -294,9 +295,7 @@ func fixtureSnapshot(t *testing.T, fixtures ...map[string]string) gosyntax.Snaps
 		}
 	}
 	snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return snapshot
 }
 
@@ -304,9 +303,7 @@ func fixtureSnapshot(t *testing.T, fixtures ...map[string]string) gosyntax.Snaps
 func holdConsolidated(t *testing.T, fixture gosyntax.Snapshot, reading shapeReading, planted []consolidatedGroup, want []string) {
 	t.Helper()
 	repeats, err := consolidatedRepeats(fixture, reading, planted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(repeats, want) {
 		t.Errorf("the fixture's repeats =\n%s\nwant\n%s", strings.Join(repeats, "\n"), strings.Join(want, "\n"))
 	}
@@ -331,9 +328,7 @@ func handWrittenClones(t *testing.T, snapshot gosyntax.Snapshot) map[string]bool
 			continue
 		}
 		file, err := source.Syntax()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ast.Inspect(file, func(node ast.Node) bool {
 			var clone ast.Expr
 			switch node := node.(type) {

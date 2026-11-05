@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensorstats"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ import (
 func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-qwen25-05b.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {
@@ -42,13 +41,9 @@ func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 		}
 	}
 	named, err := artifact.ParseID(record["acceptance"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var document InstructionAcceptance
-	if err := strictjson.DecodeBytes([]byte(record["document"]), &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes([]byte(record["document"]), &document))
 	acceptance, err := instructionAcceptanceCodec.New(document)
 	if err != nil || acceptance.ID != named {
 		t.Fatalf("the record's document is acceptance %s (%v), and the record names %s", acceptance.ID, err, named)
@@ -71,9 +66,7 @@ func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 		t.Fatalf("the acceptance has a basis of %d draws, arms differing on %v and power %v; the record's %d development groups, %d of them differing, give %v and %v", len(acceptance.Basis), acceptance.Discordance, acceptance.Power, groups, differing, repeated+acceptance.Gain, power)
 	}
 	ran, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-run-qwen25-05b.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run := map[string]string{}
 	for line := range strings.Lines(string(ran)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

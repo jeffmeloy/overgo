@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCancelledDownloadHoldsItsSlotUntilItFinishes holds the registry's transfer bound and history to
@@ -16,9 +18,7 @@ func TestCancelledDownloadHoldsItsSlotUntilItFinishes(t *testing.T) {
 	job := func(id uint64) *downloadJob { return &downloadJob{ID: id, State: downloadStateRunning} }
 	first, second, third := job(1), job(2), job(3)
 	_, cancel := context.WithCancel(t.Context())
-	if err := registry.admit(first, cancel); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registry.admit(first, cancel))
 	if state, found := registry.cancel(first.ID); !found || state != downloadStateCancelled {
 		t.Fatalf("cancel reported (%q, %t), want the job cancelled at once", state, found)
 	}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 	proposal := id(artifact.KindEvidence, "evaluation-proposal")
 	motivation := id(artifact.KindEvidence, "evaluation-motivation")
 	root, err := runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, proposal, motivation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value := EvaluationEvidence{
 		Version: artifact.InitialDocumentVersion,
 		Plan:    id(artifact.KindProfile, "plan"), Acceptance: id(artifact.KindProfile, "acceptance"),
@@ -35,17 +34,13 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Causal:  &root,
 	}
 	evidence, err := evaluationEvidenceCodec.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evidence.Causal == nil || evidence.Causal.Root != proposal ||
 		len(evidence.Causal.Motivation) != 1 || evidence.Causal.Motivation[0] != motivation {
 		t.Fatalf("evidence left the causal chain: %+v", evidence.Causal)
 	}
 	parsed, err := ParseEvaluationEvidence(mustContent(t, evidence).Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.Causal == nil || parsed.Causal.Root != proposal {
 		t.Fatalf("parsed evidence lost the causal root: %+v", parsed.Causal)
 	}
@@ -61,8 +56,6 @@ func TestRSICausalChainClosure(t *testing.T) {
 func mustContent(t *testing.T, evidence EvaluationEvidence) artifact.Content {
 	t.Helper()
 	content, err := evidence.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }

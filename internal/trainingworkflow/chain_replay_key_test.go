@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -48,13 +49,9 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 			writeModel(t, model, weights, shapes)
 		}
 		encoded, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		executable, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		first := 0
 		for process := 1; process <= 2; process++ {
 			command := exec.CommandContext(t.Context(), executable, "-test.run=^TestAReplayKeyNamesTheCodeThatComputesIt$")
@@ -75,13 +72,9 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 func runChainChild(t *testing.T, encoded string) {
 	t.Helper()
 	var request chainChildRequest
-	if err := json.Unmarshal([]byte(encoded), &request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(encoded), &request))
 	store, err := overgodb.Create(request.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	result, err := RunChainViability(store, ChainConfig{
 		ScorerDir: request.Scorer, DrafterDir: request.Drafter,
@@ -99,9 +92,7 @@ func runChainChild(t *testing.T, encoded string) {
 func completedChainStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	receipts := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: runrecord.StageReceiptSchema}},

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,13 +20,9 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 
 	// Causal derivation: one root, typed triggers, reproducible motivation.
 	root, err := NewCausalRoot(TriggerControllerProposal, id(artifact.KindEvidence, "proposal"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retry, err := root.Derive(TriggerRetry, id(artifact.KindEvidence, "retry"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if retry.Root != root.Root || retry.Trigger != TriggerRetry {
 		t.Fatalf("derived cause lost the root: %+v", retry)
 	}
@@ -37,9 +34,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 		Recipe: id(artifact.KindRecipe, "recipe"), CodeCommit: commit,
 		Outcome: OutcomeSucceeded, WallNS: 1, Causal: &retry,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if attempt.Causal == nil || attempt.Causal.Root != root.Root {
 		t.Fatalf("attempt dropped its causal chain: %+v", attempt.Causal)
 	}

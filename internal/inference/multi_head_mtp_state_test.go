@@ -8,6 +8,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -15,25 +16,17 @@ func TestMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 	runner := multiHeadMTPStateRunner()
 	session := multiHeadMTPStateFixture(t, runner, true)
 	data, err := runner.SaveMultiHeadMTPSession(session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	restored, err := runner.LoadMultiHeadMTPSession(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
 	fresh := multiHeadMTPStateFixture(t, runner, false)
 	freshData, err := runner.SaveMultiHeadMTPSession(fresh)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	freshRestored, err := runner.LoadMultiHeadMTPSession(freshData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(freshRestored, fresh) {
 		t.Fatalf("fresh multi-head MTP session differs: got %+v want %+v", freshRestored, fresh)
 	}
@@ -47,13 +40,9 @@ func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 	runner = attachFixtureProgram(runner)
 	session := multiHeadMTPStateFixture(t, runner, true)
 	data, err := runner.SaveMultiHeadMTPSession(session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	restored, err := runner.LoadMultiHeadMTPSession(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored alternate multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
@@ -62,9 +51,7 @@ func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 func TestMultiHeadMTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := multiHeadMTPStateRunner()
 	data, err := runner.SaveMultiHeadMTPSession(multiHeadMTPStateFixture(t, runner, true))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, length := range []int{0, multiHeadMTPStateHeader - 1, len(data) - 1} {
 		if _, err := runner.LoadMultiHeadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated multi-head MTP state length %d was accepted", length)
@@ -109,9 +96,7 @@ func multiHeadMTPStateRunner() *Runner {
 func multiHeadMTPStateFixture(t *testing.T, runner *Runner, active bool) *MultiHeadMTPSession {
 	t.Helper()
 	signature, err := runner.sessionModelSignature()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cacheValue := func(shape tensor.Shape, start float32) reference.Value {
 		elements, shapeErr := shape.Elements()
 		if shapeErr != nil {

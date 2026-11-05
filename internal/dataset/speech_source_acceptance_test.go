@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 )
@@ -42,27 +43,17 @@ func testSpeechReferenceRejections(t *testing.T) {
 	var fixture struct {
 		Parquet string `json:"parquet_base64"`
 	}
-	if err := json.Unmarshal(speechNullableGolden, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(speechNullableGolden, &fixture))
 	encoded, err := base64.StdEncoding.DecodeString(fixture.Parquet)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	path := filepath.Join(root, "nullable.parquet")
-	if err := os.WriteFile(path, encoded, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	registered, err := dataset.RegisterDirectoryDataset(t.Context(), store, "nullable", root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec := dataset.SpeechMaterializationSpec{Source: registered.Dataset, AudioColumn: "audio.bytes", TargetColumn: "text"}
 	result, err := dataset.MaterializeSpeechDataset(t.Context(), store, root, spec, uint64(len(encoded)))
 	if err != nil || result.Rows != 6 || result.Records != 3 || result.Rejected != 3 || result.Shards != 1 {
@@ -93,9 +84,7 @@ func testSpeechReferenceRejections(t *testing.T) {
 		t.Fatal("container budget bypassed")
 	}
 	encoded[len("PAR1")] ^= 1
-	if err := os.WriteFile(path, encoded, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	if _, err := dataset.MaterializeSpeechDataset(t.Context(), store, root, spec, uint64(len(encoded))); err == nil {
 		t.Fatal("changed source admitted under old inventory")
 	}
@@ -107,23 +96,15 @@ func testSpeechReferenceRejections(t *testing.T) {
 
 func testSpeechSignalAdmission(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var policy dataset.AudioInspectionPolicy
-	if err := json.Unmarshal(speechInspectionPolicy, &policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(speechInspectionPolicy, &policy))
 	source, err := dataset.NewAudioPayloadReader(policy.MaximumEncodedBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	processor, err := trainingdata.AudioTextProcessor(store, source, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	accepted, rejected := 0, 0
 	for _, tc := range []struct {
 		name   string
@@ -137,33 +118,23 @@ func testSpeechSignalAdmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			id, _ := artifact.IdentifyBytes(artifact.KindFile, tc.data)
 			path := filepath.Join(t.TempDir(), tc.name+".wav")
-			if err := os.WriteFile(path, tc.data, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, tc.data, 0600))
 			batch := artifact.Batch{Key: "signal/" + tc.name, Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(tc.data))}}, Locations: []artifact.LocationEvent{{Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd}}}
 			if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 				t.Fatal(err)
 			}
 			origin := dataset.AudioPayloadOrigin{Container: id}
 			data, err := json.Marshal(dataset.SpeechRecord{Audio: id, Origin: origin, Target: "isolated target"})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			profile, _ := artifact.JSONID(artifact.KindProfile, policy)
 			authority := trainingdata.Authority{Dataset: testutil.ArtifactID(t, artifact.KindDataset, tc.name), Split: testutil.ArtifactID(t, artifact.KindDatasetShard, tc.name), Processors: []artifact.ID{profile}, Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityAudio}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}}}
 			materialized, err := trainingdata.MaterializeRecords(authority, profile, []trainingdata.RawRecord{{ID: tc.name, Data: data}}, trainingdata.ProcessorBinding{Artifact: profile, Modalities: []recipecontract.Modality{recipecontract.ModalityAudio, recipecontract.ModalityText}, Process: processor})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer materialized.Close()
 			stream, err := trainingdata.NewStream(materialized, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, DecodeWorkers: 1})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			before := stream.Snapshot()
 			result, err := batcher.Next(t.Context())
 			if tc.accept {

@@ -12,19 +12,16 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
 func identityFixtureFile(t *testing.T, directory, name, content string) artifact.ID {
 	t.Helper()
 	path := filepath.Join(directory, name)
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	id, err := artifact.IdentifyBytes(artifact.KindModel, []byte(content))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -51,9 +48,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 
 	ggufPath := writeTrainingGGUF(t)
 	ggufFile, err := gguf.Open(ggufPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromGGUF(ggufFile, artifact.KindModel)
 	if closeErr := ggufFile.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -75,14 +70,10 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	}
 	t.Run("registered-gguf", func(t *testing.T) {
 		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		registration, err := inventory.Batch("registered/" + expected.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, registration); err != nil {
 			t.Fatal(err)
 		}
@@ -95,32 +86,22 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 		directory := t.TempDir()
 		for index, name := range []string{"first", "second", "third"} {
 			file := fmt.Sprintf("model-%05d-of-00003.safetensors", index+1)
-			if err := safetensors.Save(filepath.Join(directory, file), map[string][]float32{name: {float32(index)}}, map[string][]int{name: {1}}, nil); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, safetensors.Save(filepath.Join(directory, file), map[string][]float32{name: {float32(index)}}, map[string][]int{name: {1}}, nil))
 		}
-		if err := os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), []byte(`{"weight_map":{"first":"model-00001-of-00003.safetensors","second":"model-00002-of-00003.safetensors","third":"model-00003-of-00003.safetensors"}}`), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), []byte(`{"weight_map":{"first":"model-00001-of-00003.safetensors","second":"model-00002-of-00003.safetensors","third":"model-00003-of-00003.safetensors"}}`), 0o644))
 		inventory, err := modelartifact.FromSafetensorsPath(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		id, err := identifyModel(directory)
 		if err != nil || id != inventory.Manifest.ID {
 			t.Fatalf("indexed identity = (%s, %v), want %s", id, err, inventory.Manifest.ID)
 		}
 		sibling := filepath.Join(directory, "model-00002-of-00003.safetensors")
-		if err := safetensors.Save(sibling, map[string][]float32{"second": {5}}, map[string][]int{"second": {1}}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, safetensors.Save(sibling, map[string][]float32{"second": {5}}, map[string][]int{"second": {1}}, nil))
 		changed, err := identifyModel(directory)
 		if err != nil || changed == id {
 			t.Fatalf("changed Safetensors sibling = (%s, %v), old %s", changed, err, id)
 		}
-		if err := os.Remove(sibling); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(sibling))
 		if _, err := identifyModel(directory); err == nil {
 			t.Fatal("missing indexed sibling identified")
 		}
@@ -128,37 +109,25 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	t.Run("split-gguf", func(t *testing.T) {
 		root := t.TempDir()
 		store, err := overgodb.Create(filepath.Join(root, "store"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		base := writeTrainedFixtureBase(t, root)
 		directory := filepath.Join(root, "split")
-		if err := os.Mkdir(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := WriteTrainedModel(t.Context(), store, base, directory, 1, lookupTrained(map[string][]float32{"changed.weight": {5, 6}})); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Mkdir(directory, 0o755))
+		testcheck.NoError(t, WriteTrainedModel(t.Context(), store, base, directory, 1, lookupTrained(map[string][]float32{"changed.weight": {5, 6}})))
 		path := filepath.Join(directory, trainingprogram.CheckpointModel)
 		id, err := identifyModel(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		recorded, err := identifyAndRecordWeights(t.Context(), store, path)
 		if err != nil || recorded != id {
 			t.Fatalf("bootstrap identity = (%s, %v), want %s", recorded, err, id)
 		}
 		frozen := filepath.Join(directory, trainingprogram.CheckpointFrozenShard)
 		original, err := os.ReadFile(frozen)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		changed := slices.Clone(original)
 		changed[len(changed)-1] ^= 1
-		if err := os.WriteFile(frozen, changed, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(frozen, changed, 0o644))
 		changedID, err := identifyModel(path)
 		if err != nil || changedID == id {
 			t.Fatalf("changed sibling identity = (%s, %v), old %s", changedID, err, id)
@@ -167,9 +136,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 		if err != nil || recorded != changedID {
 			t.Fatalf("changed bootstrap identity = (%s, %v), want %s", recorded, err, changedID)
 		}
-		if err := os.Remove(frozen); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(frozen))
 		if _, err := identifyModel(path); err == nil {
 			t.Error("missing sibling identified")
 		}

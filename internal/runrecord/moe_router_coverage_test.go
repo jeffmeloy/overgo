@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,20 +25,14 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 			value := base
 			value.Step, value.Layer = step+5, layer
 			identified, err := NewMoERouterObservation(value)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			observations = append(observations, identified)
 		}
 	}
 	chunk, err := NewMoERouterObservationChunk(observations, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coverage, err := NewMoERouterObservationCoverage(chunk, 5, 2, []uint32{3, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if coverage.Run != run || coverage.FirstStep != 5 || coverage.Steps != 2 ||
 		coverage.Chunk != chunk.ID || coverage.ObservationCount != uint64(len(observations)) || coverage.ObservationBytes == 0 {
 		t.Fatalf("coverage = %+v", coverage)
@@ -47,18 +42,14 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 	}
 
 	incomplete, err := NewMoERouterObservationChunk(observations[:len(observations)-1], artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := NewMoERouterObservationCoverage(incomplete, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("missing layer observation accepted")
 	}
 	duplicate := append([]MoERouterObservation(nil), observations...)
 	duplicate[len(duplicate)-1] = duplicate[0]
 	duplicateChunk, err := NewMoERouterObservationChunk(duplicate, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := NewMoERouterObservationCoverage(duplicateChunk, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("duplicate observation accepted")
 	}
@@ -95,14 +86,10 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 			value.Step, value.Layer = changed[1].Step, changed[1].Layer
 			testCase.mutate(&value)
 			identified, err := NewMoERouterObservation(value)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			changed[1] = identified
 			changedChunk, err := NewMoERouterObservationChunk(changed, artifact.ID{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := NewMoERouterObservationCoverage(changedChunk, 5, 2, []uint32{1, 3}); err == nil {
 				t.Fatal("mixed observation scope accepted")
 			}

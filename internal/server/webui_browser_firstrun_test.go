@@ -26,6 +26,7 @@ import (
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -54,14 +55,10 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		testskip.NotApplicable(t, "the journey runs through cmd/webui-lane -journeys")
 	}
 	journey, err := prepareBrowserJourney(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	binary, store := journey.binary, journey.store
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sourceInfo, sourceErr := os.Stat(roots.Store)
 	storeInfo, storeErr := os.Stat(store)
 	if sourceErr == nil && storeErr == nil && os.SameFile(sourceInfo, storeInfo) {
@@ -70,9 +67,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	modelName, modelLocation := journey.model, journey.location
 	webuilane.Leg(t, "first-run journey", "model %s at %s", modelName, modelLocation)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Leg 13's remote model: fake loopback provider declared in the lane
 	// store before the proxy child opens it; key in this environment (child
 	// inherits); retired after the journey.
@@ -85,23 +80,17 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
 	serverDir := testutil.RepoRoot(t)
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	repository, err := overgodb.OpenContext(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	// The resolver only reads: a read-only view refreshes without the
 	// store's process lock, so the picker never waits behind other
 	// processes' transactions on the lane store, while the writer handle
 	// stays the idle shell's, whose refresh is its writer admission.
 	catalog, err := overgodb.OpenReadOnly(store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = catalog.Close() })
 	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	// No default: the journey opens on the cold proxy, as overgo_gui.bat
@@ -117,14 +106,10 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// and beside the gate's test groups they take longer.
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, front.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	// Desktop journey: the narrower default viewport leaves the history drawer inert.
-	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
 	// Each step settles on the page's own clock under the journey's context:
 	// a model switch loads real weights for as long as the machine takes,
 	// and a leg that cannot settle fails with the page's state when the
@@ -167,14 +152,10 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		t.Helper()
 		for _, viewport := range webuilane.ScreenViewports {
 			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			layoutFindings = append(layoutFindings, findings...)
 		}
-		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
 		webuilane.Leg(t, "states leg", "%s captured at %d viewports", name, len(webuilane.ScreenViewports))
 	}
 	// openPicker: picker open over the catalog rows. A picker left open after
@@ -207,9 +188,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	switchTo := func(name string) {
 		t.Helper()
 		var previous string
-		if err := browser.Evaluate(ctx, `window.overgo.capabilities().id`, &previous); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `window.overgo.capabilities().id`, &previous))
 		// The page re-derives by remounting: the composer in place before the
 		// switch is marked, and the switch has landed once a new one stands.
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer").dataset.laneBefore = "1"; return true; })()`)
@@ -257,9 +236,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	settle("the cold-page declaration answers with its location or the modified-tree refusal", declaredTag+` ||
       [...document.querySelectorAll(".note")].some((note) => note.textContent.includes("worktree is dirty"))`)
 	var declaredOnPage bool
-	if err := browser.Evaluate(ctx, declaredTag, &declaredOnPage); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, declaredTag, &declaredOnPage))
 	webuilane.Leg(t, "cold-page declaration leg", "declared on the page %v", declaredOnPage)
 	// The hash no longer names the Library, so the served model's remount lands on the front page.
 	assertBrowserPredicate(t, ctx, browser, `(() => { history.replaceState(null, "", location.pathname); document.querySelector("#model-pill").click(); return true; })()`)
@@ -310,14 +287,10 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// model, and the switch it makes precedes the picker leg.
 	imageLeg := func() {
 		var vision bool
-		if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision))
 		if multimodal := journey.multimodal; !vision && multimodal != "" && multimodal != modelName {
 			switchTo(multimodal)
-			if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision))
 			webuilane.Leg(t, "image-in leg", "switched to %s, image input declared %v", multimodal, vision)
 		}
 		attachTinyPNG()
@@ -326,9 +299,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 			// A switch may have opened a fresh conversation: the reply is the one
 			// assistant turn beyond what the thread held before the image was sent.
 			var before int
-			if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before))
 			say(t, ctx, browser, "Describe the attached image in one sentence.")
 			settle("grounded reply", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
       [...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.trim().length > 0 && !document.querySelector(".composer .btn").disabled`)
@@ -492,9 +463,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
 		settle("image back in as an attachment", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
 		var refused bool
-		if err := browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused))
 		webuilane.Leg(t, "media-in leg", "the generated image re-entered the composer, refused=%v", refused)
 		captureStates("composer-attachment")
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row') && !document.querySelector('.send-button').disabled; })()`)
@@ -505,9 +474,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `new URL(document.querySelector("#panel-chat .msg.media .note a").href).searchParams.get("id")`, &generated); err != nil || generated == "" {
 			t.Fatalf("generated image id = %q, %v", generated, err)
 		}
-		if err := browser.Reload(ctx); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Reload(ctx))
 		settle("page back after the reload", `document.readyState === "complete" && !!window.overgo && !!document.querySelector('.composer select[aria-label="mode"]') && `+mediaCards+` === 0`)
 		if !generationMode("image-gen", "model.oscillator-image-prepare") {
 			t.Fatal("the image mode is gone after the reload")
@@ -542,9 +509,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		settle("the image card shows the run that made it", `(() => { const block = document.querySelector("#panel-chat .msg.media .lineage");
       return !!block && block.textContent.includes("made by run") && block.textContent.includes("request ") && block.textContent.includes("prompt "); })()`)
 		var steps []string
-		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip")].map((chip) => chip.textContent)`, &steps))
 		webuilane.Leg(t, "lineage leg", "the image's next steps are %q", steps)
 		if len(steps) > 0 {
 			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip").click(); return true; })()`)
@@ -624,26 +589,20 @@ func TestModelJourneyFirstRun(t *testing.T) {
       const input = field && field.querySelector("input");
       return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
 		var beforeVQA int
-		if err := browser.Evaluate(ctx, `document.querySelectorAll('#panel-chat .msg.assistant').length`, &beforeVQA); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `document.querySelectorAll('#panel-chat .msg.assistant').length`, &beforeVQA))
 		say(t, ctx, browser, "What does this image show?")
 		settle("the answer lands as the assistant's text", `document.querySelectorAll('#panel-chat .msg.assistant').length===`+strconv.Itoa(beforeVQA+1)+` && !document.querySelector(".send-button").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		var answer string
-		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer))
 		webuilane.Leg(t, "vqa leg", "the VQA model answered %q", answer)
 		// 12b. Fresh attachment in vqa mode (the served chat model refuses
 		// images): stored through the intake route, the card names the
 		// artifact, the image control takes its id, the answer is about it.
 		const vqaImage = `[...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"))`
 		var filled string
-		if err := browser.Evaluate(ctx, `((field) => field ? field.querySelector("input").value : "")(`+vqaImage+`)`, &filled); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `((field) => field ? field.querySelector("input").value : "")(`+vqaImage+`)`, &filled))
 		attachTinyPNG()
 		settle("the upload fills the vqa image control", `(() => {
       const field = `+vqaImage+`, row = document.querySelector(".composer .attachment-row[data-state=ready]");
@@ -659,16 +618,12 @@ func TestModelJourneyFirstRun(t *testing.T) {
       return input.value === thumb.dataset.id; })()`)
 		webuilane.Leg(t, "slot leg", "the declared image slot listed the stored attachment and filled from it")
 		var before int
-		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before))
 		say(t, ctx, browser, "What colour is this image?")
 		settle("the answer about the upload lands as the assistant's text", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
       !document.querySelector(".composer .btn").disabled && document.querySelectorAll("#panel-chat .msg.error").length === 0 &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0`)
-		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer))
 		webuilane.Leg(t, "vqa upload leg", "the VQA model answered %q about the stored attachment", answer)
 	} else {
 		t.Log("vqa leg not taken: the store declares no VQA model")
@@ -690,9 +645,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       const input = field && field.querySelector("input"), row = document.querySelector(".composer .attachment-row[data-state=ready]");
       return !!input && input.value.includes(":sha256:") && !!row && [...row.querySelectorAll('a')].some(link => link.textContent==='Stored file' && link.getAttribute('href').includes(encodeURIComponent(input.value))); })()`)
 		var before int
-		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before))
 		say(t, ctx, browser, "transcribe")
 		settle("the transcript lands as the assistant's text", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
       !document.querySelector(".composer .btn").disabled && document.querySelectorAll("#panel-chat .msg.error").length === 0 &&
@@ -767,9 +720,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       [...row.querySelectorAll("button")].find((button) => button.textContent === "Retire").click(); return true; })()`)
 		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
 		build, err := buildinfo.ReadFile(binary)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The child uses its embedded revision when present. Development
 		// binaries without one use the worktree, as ExecutableCodeCommit does.
 		stamped := false
@@ -789,9 +740,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		}
 		settle("the retirement follows the served binary's source identity", retirement)
 		var retiredOnPage bool
-		if err := browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage))
 		webuilane.Leg(t, "retire-from-page leg", "retired on the page %v", retiredOnPage)
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#chat"; return true; })()`)
 		settle("back on the front page after the retirement", `!!document.querySelector("#panel-chat.active .composer textarea")`)
@@ -873,13 +822,9 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	// compete with this fixture under the same picker name.
 	retireLaneRemote(t, storePath, remoteprovider.Location(provider))
 	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	laneStore, err := overgodb.OpenContext(t.Context(), storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	declaration, err := remoteprovider.Declare(t.Context(), laneStore, provider, commit)
 	if closeErr := laneStore.Close(); closeErr != nil {
 		t.Fatal(closeErr)
@@ -901,9 +846,7 @@ func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
 		t.Fatalf("fixture picker names: %q, %q", first, second)
 	}
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	declared, err := remoteprovider.List(t.Context(), store, 256)
 	if err != nil || len(declared) != 1 {
@@ -916,9 +859,7 @@ func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
 func say(t *testing.T, ctx context.Context, browser *webuilane.Browser, text string) {
 	t.Helper()
 	assertBrowserPredicate(t, ctx, browser, `(() => { const input = document.querySelector(".composer textarea"); input.focus(); input.value = ""; return document.activeElement === input; })()`)
-	if err := browser.Call(ctx, "Input.insertText", map[string]any{"text": text}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Input.insertText", map[string]any{"text": text}, nil))
 	pressKey(t, ctx, browser, "Enter", 13)
 }
 
@@ -927,9 +868,7 @@ func say(t *testing.T, ctx context.Context, browser *webuilane.Browser, text str
 func ensureLaneAgent(t *testing.T, base string) {
 	t.Helper()
 	listed, err := http.Get(base + "/agents")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, _ := io.ReadAll(listed.Body)
 	listed.Body.Close()
 	if strings.Contains(string(inventory), `"name":"lane-agent"`) {
@@ -937,9 +876,7 @@ func ensureLaneAgent(t *testing.T, base string) {
 	}
 	created, err := http.Post(base+"/agents/create", "application/json",
 		strings.NewReader(`{"name":"lane-agent","instructions":"You are the lane agent. Answer briefly.","tools":["store.head"]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	body, _ := io.ReadAll(created.Body)
 	created.Body.Close()
 	if created.StatusCode != http.StatusOK {
@@ -968,8 +905,6 @@ func tinyPNGBase64(t *testing.T) string {
 		}
 	}
 	var buffer bytes.Buffer
-	if err := png.Encode(&buffer, canvas); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&buffer, canvas))
 	return base64.StdEncoding.EncodeToString(buffer.Bytes())
 }

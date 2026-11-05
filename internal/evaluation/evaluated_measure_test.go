@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestEvaluatedMeasureNamesAMeasureBuiltAgain evaluates one measure twice,
@@ -18,9 +19,7 @@ import (
 func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
@@ -37,13 +36,9 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 			suite.Cases = append(suite.Cases, GeneratedAnswerCase{Name: "fixture/edit/" + clip, Prompt: "which is true of " + clip + " as drawn " + drawn, MaxTokens: 1, Answers: []string{"a"}})
 		}
 		compiled, err := CompileGeneratedAnswer(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		plan, err := bindGeneratedAnswer(compiled, authorities)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The model, recipe and environment the plans name are the same three,
 		// published with the first.
 		if !published {
@@ -80,9 +75,7 @@ func TestEvaluatedSetStatesAKindOnlyForCasesOfOneUnit(t *testing.T) {
 	read := func(profile any) EvaluatedSet {
 		t.Helper()
 		data, err := json.Marshal(profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		set, ok := evaluatedSet(data)
 		if !ok {
 			t.Fatalf("the profile %s reads no set", data)

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/peft"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -70,9 +71,7 @@ func TestQuantizedBaseAdapterRunMatchesTheDenseRun(t *testing.T) {
 	// The quantized run's model holds the projections as the base stores them: its trained shard
 	// holds none of them, and its frozen shard is the base's own bytes.
 	entries, err := os.ReadDir(filepath.Join(text.root, "quantized-gguf"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var names []string
 	for _, entry := range entries {
 		names = append(names, entry.Name())
@@ -106,14 +105,10 @@ func TestQuantizedBaseOfALlamaPublishesTheBaseAsStored(t *testing.T) {
 		t.Fatal(err)
 	}
 	original, err := gguf.Open(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer original.Close()
 	published, err := gguf.Open(filepath.Join(output, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer published.Close()
 	for _, info := range original.Tensors {
 		baseInfo, baseData := readStored(t, original, info.Name)

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -25,9 +26,7 @@ import (
 func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
 	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative)
 	if err != nil {
@@ -43,9 +42,7 @@ func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 	runner.qsaStreamedContext = strataRoundBenchContext
 	prompt, err := runner.FormatChatWithOptions([]ChatMessage{{Role: ChatRoleUser, Content: "Explain how a refrigerator keeps food cold."}},
 		ChatFormatOptions{AddGenerationPrompt: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const generated = 48
 	width := strataRoundStreams * strataRoundEmbedding
 	// decode reads the prompt afresh and decodes it through windows the drafts give, nil for plain decoding, returning
@@ -64,15 +61,11 @@ func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 			t.Fatal(err)
 		}
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, ContinueAfterEOG: true, PlainDecode: drafts == nil, StrataRound: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids, rows
 	}
 	plain, plainRows := decode(nil)

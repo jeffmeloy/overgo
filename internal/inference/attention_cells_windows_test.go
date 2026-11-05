@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -34,13 +35,9 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 		t.Helper()
 		loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity,
 			recipe.ResidencyDeviceF32)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = runner.Close() })
 		if !slices.Equal(runner.cellLayers, []bool{true, true}) {
 			t.Fatalf("the fixture at gemma-4-12B's layer kinds holds cells %v, want both layers", runner.cellLayers)
@@ -110,9 +107,7 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 	})
 	cellRunner := open(true)
 	before, err := cellRunner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cellLogits, cellBytes := run(cellRunner, func(step int, _ []float32) tokenizer.TokenID { return fed[step] })
 	// The decode steps replay their captured graphs, each step's cells read from its staged step record.
 	if after, err := cellRunner.DeviceExecutionStats(t.Context()); err != nil || after.GraphLaunches == before.GraphLaunches {

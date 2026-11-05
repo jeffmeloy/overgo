@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -49,9 +50,7 @@ func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab
-	if err := draft.validateMTPTarget(target); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, draft.validateMTPTarget(target))
 	if _, _, err := draft.forwardCachedLocked(t.Context(), []tokenizer.TokenID{0}, nil); err == nil {
 		t.Fatal("ordinary forward accepted Cohere2-MoE MTP-only model")
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestWebUIBrowserLongSessionStaysBounded holds what a long session costs the browser: a conversation of many messages
@@ -21,9 +22,7 @@ func TestWebUIBrowserLongSessionStaysBounded(t *testing.T) {
 	)
 	requireWebUILane(t, "the long session leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer server.Close()
@@ -65,18 +64,14 @@ func TestWebUIBrowserLongSessionStaysBounded(t *testing.T) {
 })()`)
 	settle(`!!window.measured`)
 	var text string
-	if err := browser.Evaluate(context.WithoutCancel(ctx), `JSON.stringify(window.measured)`, &text); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(context.WithoutCancel(ctx), `JSON.stringify(window.measured)`, &text))
 	var measured struct {
 		Conversation, Output   float64
 		Nodes, Rendered, Shown int
 		HeapBefore, HeapAfter  int
 		Failed                 string
 	}
-	if err := json.Unmarshal([]byte(text), &measured); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(text), &measured))
 	t.Logf("%s", text)
 	if measured.Failed != "" {
 		t.Fatal(measured.Failed)

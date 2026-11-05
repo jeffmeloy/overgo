@@ -9,14 +9,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestBuiltinOptimizerPolicyDerivesConfig(t *testing.T) {
 	policy := BuiltinOptimizerPolicy()
 	config, err := policy.Config(policy.MomentumEffectiveSamples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantRate := math.Pow(float64(policy.MomentumEffectiveSamples), policy.ParameterExponent)
 	wantMomentum := float64(policy.MomentumEffectiveSamples-1) / float64(policy.MomentumEffectiveSamples+1)
 	if config.BaseLearningRate != wantRate || config.Momentum != wantMomentum {
@@ -59,9 +58,7 @@ func TestDerivedRateFineTunesMeasuredModels(t *testing.T) {
 func TestOptimizerPolicyRecordedBeforeInitializationServesBoth(t *testing.T) {
 	t.Parallel()
 	policy, _, err := optimizerPolicyCodec.Normalize([]byte(`{"parameter_exponent": -0.5, "momentum_effective_samples": 30, "schedule": "constant"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const parameters = 494032768
 	if base, initialization := policy.BaseLearningRate(parameters), policy.InitializationLearningRate(parameters); base != initialization || base != math.Pow(parameters, -0.5) {
 		t.Fatalf("recorded policy rates = %g and %g, want both %g", base, initialization, math.Pow(parameters, -0.5))
@@ -76,9 +73,7 @@ func TestOptimizerPolicyRecordedBeforeInitializationServesBoth(t *testing.T) {
 func TestOptimizerPolicyRequiresRecipeContent(t *testing.T) {
 	policy := BuiltinOptimizerPolicy()
 	content, err := policy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store := &policyReader{contents: map[artifact.ID]artifact.Content{policy.ID: content}}
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	definition, err := recipe.NewDefinitionWithDependencies(recipe.TaskTraining, []recipe.Dependency{
@@ -86,9 +81,7 @@ func TestOptimizerPolicyRequiresRecipeContent(t *testing.T) {
 		{Role: recipe.DependencyOptimizer, Artifact: policy.ID},
 	}, []recipe.Node{{ID: "optimize", Module: "test", Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := OptimizerPolicyFromRecipe(t.Context(), store, definition)
 	if err != nil || resolved.ID != policy.ID {
 		t.Fatalf("resolved = %+v, err = %v", resolved, err)

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -22,13 +23,9 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the typeset leg runs through cmd/webui-lane")
 	stylesheet, err := os.ReadFile("webui/style.css")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	design, err := webuilane.ParseDesign(string(stylesheet))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var scale []float64
 	for _, value := range design.Type {
 		size, err := strconv.ParseFloat(strings.TrimSuffix(value, "px"), 64)
@@ -40,13 +37,9 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	slices.Sort(scale)
 	encodedScale, _ := json.Marshal(scale)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	reply := strings.Repeat("A reply long enough to fill several lines of the conversation, so the reading measure decides its width. ", 8)
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{reply}}), path: writeTensorFixture(t)})
@@ -55,9 +48,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	defer httpServer.Close()
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()
@@ -69,9 +60,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	say(t, ctx, browser, "Write a long reply.")
 	settle(`(document.querySelector("#panel-chat .msg.assistant .body") || {}).textContent?.length > 400 && overgo.api.inFlight() === 0`)
 	var tabs []string
-	if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panels .panel")].map((panel) => panel.id.slice("panel-".length))`, &tabs); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `[...document.querySelectorAll("#panels .panel")].map((panel) => panel.id.slice("panel-".length))`, &tabs))
 	offScale := map[string]bool{}
 	states := 0
 	var measure struct {
@@ -83,9 +72,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 			assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = `+strconv.Quote(tab)+`; return true; })()`)
 			settle(`!!document.querySelector("#panel-` + tab + `.active") && overgo.api.inFlight() === 0`)
 			// The screens leg captures and audits every tab; this leg only measures type.
-			if err := webuilane.SettleViewport(ctx, browser, viewport); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, webuilane.SettleViewport(ctx, browser, viewport))
 			states++
 			var sizes []string
 			if err := browser.Evaluate(ctx, `(() => {

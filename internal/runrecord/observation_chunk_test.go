@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -56,9 +57,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	id := func(kind artifact.Kind, label string) artifact.ID {
@@ -104,22 +103,14 @@ func TestObservationChunkPublication(t *testing.T) {
 			{Metric: ResourceOutputTokens, Value: 7},
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	raw, err := first.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expected, err := SummarizeObservationChunk(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, sequenceBefore := store.Head()
 	firstSummary, err := commitObservationChunk(t, ctx, store, first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, sequenceAfter := store.Head()
 	if sequenceAfter != sequenceBefore+1 || !reflect.DeepEqual(firstSummary, expected) {
 		t.Fatalf("atomic publication = sequence %d->%d summary=%+v", sequenceBefore, sequenceAfter, firstSummary)
@@ -190,9 +181,7 @@ func TestObservationChunkPublication(t *testing.T) {
 		t.Fatalf("interaction aggregate = %+v", firstSummary.Aggregate.Interactions)
 	}
 	parents, err := store.Parents(ctx, firstSummary.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Contains(parents, artifact.Lineage{Child: firstSummary.ID, Parent: firstSummary.Chunk, Relation: artifact.RelationContains}) {
 		t.Fatalf("summary lacks raw digest lineage: %+v", parents)
 	}
@@ -215,13 +204,9 @@ func TestObservationChunkPublication(t *testing.T) {
 		Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken,
 		Measures: []ResourceMeasure{{Metric: ResourceInputTokens, Value: 4}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	divergentSummary, err := SummarizeObservationChunk(divergent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	headBefore, sequenceBefore := store.Head()
 	if _, err := commitObservationChunk(t, ctx, store, divergent); err == nil {
 		t.Fatal("divergent initial range accepted")
@@ -237,25 +222,17 @@ func TestObservationChunkPublication(t *testing.T) {
 		Ordinal: 5, ElapsedNS: 45, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{{Metric: resourceDiskReadBytes, Value: 9}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staleSibling, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{{
 		Ordinal: 5, ElapsedNS: 46, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{{Metric: resourceDiskReadBytes, Value: 10}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staleSummary, err := SummarizeObservationChunk(staleSibling)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, sequenceBefore = store.Head()
 	secondSummary, err := commitObservationChunk(t, ctx, store, second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, sequenceAfter = store.Head()
 	if sequenceAfter != sequenceBefore+1 || secondSummary.Previous != firstSummary.ID || secondSummary.Stats.FirstOrdinal != 5 {
 		t.Fatalf("continuation = sequence %d->%d summary=%+v", sequenceBefore, sequenceAfter, secondSummary)
@@ -288,26 +265,18 @@ func TestObservationChunkPublication(t *testing.T) {
 		Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken,
 		Measures: []ResourceMeasure{{Metric: ResourceInputTokens, Value: 999}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := verifyObservationChunk(firstSummary, other); err == nil {
 		t.Fatal("summary verified a different raw chunk")
 	}
 	otherContent, err := other.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forgedBody := observationChunkSummaryCodec.Clone(firstSummary)
 	forgedBody.Chunk, forgedBody.ID = other.ID, artifact.ID{}
 	forged, err := observationChunkSummaryCodec.New(forgedBody)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forgedContent, err := forged.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "observation/test/forged-summary", Contents: []artifact.Content{otherContent, forgedContent},
 	}); err != nil {

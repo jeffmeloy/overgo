@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -21,18 +22,14 @@ func TestDraftedWindowStateBytesAreReported(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{}, recipe.ResidencyDeviceF32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
 		}
 	})
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: 12, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true,
 		PromptTokenIDs: []tokenizer.TokenID{1, 4, 5}, ContinueAfterEOG: true,

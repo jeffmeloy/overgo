@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRewriteReleasesATensorOnceItIsRead holds a rewritten tensor to one
@@ -20,17 +22,11 @@ func TestRewriteReleasesATensorOnceItIsRead(t *testing.T) {
 		{Key: "general.file_type", Value: Value{Type: ValueTypeUint32, Data: uint32(0)}},
 		{Key: "split.no", Value: Value{Type: ValueTypeUint16, Data: uint16(0)}},
 	}, []TensorData{{Name: "matrix.weight", Shape: []uint64{32, 2}, Type: DTypeF32, Data: bytes.NewReader(float32Bytes(values))}}, WriteOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "source.gguf")
-	if err := os.WriteFile(path, source.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, source.Bytes(), 0o600))
 	file, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	computed := 0
 	reader := &rewriteReader{file: file, tensor: file.Tensors[0], target: DTypeF32, transform: func(TensorInfo, []float32) error {

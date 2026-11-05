@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageLibrary pins the library lifecycle (professional GUI
@@ -21,9 +23,7 @@ func TestFrontPageLibrary(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	corpus := t.TempDir()
-	if err := os.WriteFile(filepath.Join(corpus, "notes.txt"), []byte("the sea is wide\nthe sky is high\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, "notes.txt"), []byte("the sea is wide\nthe sky is high\n"), 0o644))
 	quoted := func(value string) string {
 		data, _ := json.Marshal(value)
 		return string(data)
@@ -38,9 +38,7 @@ func TestFrontPageLibrary(t *testing.T) {
 		Dataset string `json:"dataset"`
 		Files   uint64 `json:"files"`
 	}
-	if err := json.Unmarshal(registered.Body.Bytes(), &receipt); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(registered.Body.Bytes(), &receipt))
 	if receipt.Kind != "dataset" || receipt.Dataset == "" || receipt.Files != 1 {
 		t.Fatalf("dataset receipt = %+v", receipt)
 	}

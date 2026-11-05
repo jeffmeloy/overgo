@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -31,9 +32,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		testskip.NotApplicable(t, "browser acceptance runs through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	running, blocked := publishBrowserLaneOperations(t, handler)
 	httpServer := httptest.NewServer(handler)
@@ -41,9 +40,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#api")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
@@ -60,46 +57,32 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       location.hash = "recipe";
       return true;
     })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-recipe.active")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-recipe.active")`))
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "api"; return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`))
 
 	// The empty store: the catalog lists nothing servable, so the welcome
 	// card's control opens the picker, the picker names the two ways in, and
 	// the hosted one opens the Library tab on the provider form with its
 	// first field focused.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "chat"; return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`))
 	assertChatAttachmentModeReset(t, ctx, browser)
 	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Choose a model"); if (add) add.click(); return !!add; })()`)
-	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "Add a local model|Declare a hosted provider"`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "Add a local model|Declare a hosted provider"`))
 	// The picker over an empty store, captured and audited at both viewports.
 	for _, viewport := range webuilane.ScreenViewports {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "picker-empty")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, finding := range findings {
 			t.Error(finding)
 		}
 	}
 	webuilane.Leg(t, "states leg", "picker-empty captured at %d viewports", len(webuilane.ScreenViewports))
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll(".topbar .card button")].pop().click(); return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`))
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "api"; return !document.querySelector(".topbar dialog[open]"); })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`))
 	// Every control mounted so far (the chat, library and API tabs, the
 	// shell) has an accessible name: its label, aria-label, text, placeholder or
 	// title; the status strip announces politely and a banner is an alert.
@@ -111,14 +94,10 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       return document.querySelector(".operation-strip").getAttribute("aria-live") === "polite";
     })()`)
 
-	if err := browser.SetViewport(ctx, 1280, 900); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, 1280, 900))
 	assertBrowserPredicate(t, ctx, browser, `getComputedStyle(document.querySelector(".shell")).flexDirection === "row" &&
       document.querySelector(".sidebar").getBoundingClientRect().width < innerWidth`)
-	if err := browser.SetViewport(ctx, 640, 900); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, 640, 900))
 	if err := browser.Eventually(ctx, `getComputedStyle(document.querySelector(".sidebar")).display === "none" &&
       document.querySelector("#navigation-toggle").getBoundingClientRect().width > 0`); err != nil {
 		t.Fatal(err)
@@ -151,18 +130,14 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       chip.click();
       return true;
     })()`)
-	if err := browser.Eventually(ctx, `document.querySelector(".operation-detail").textContent.includes("Recovery decision")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector(".operation-detail").textContent.includes("Recovery decision")`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const grant = [...document.querySelectorAll(".operation-detail button")].find((item) => item.textContent.startsWith("Grant "));
       if (!grant) return false;
       grant.click();
       return true;
     })()`)
-	if err := browser.Eventually(ctx, `document.querySelector(".operation-chip.completed") !== null`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector(".operation-chip.completed") !== null`))
 	if status, err := handler.operations.Wait(ctx, blocked); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("browser recovery=(%+v, %v)", status, err)
 	}
@@ -174,24 +149,18 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       chip.click();
       return true;
     })()`)
-	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".operation-detail button")].some((item) => item.textContent === "Cancel")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `[...document.querySelectorAll(".operation-detail button")].some((item) => item.textContent === "Cancel")`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const cancel = [...document.querySelectorAll(".operation-detail button")].find((item) => item.textContent === "Cancel");
       if (!cancel) return false;
       cancel.click();
       return true;
     })()`)
-	if err := browser.Eventually(ctx, `document.querySelector(".operation-chip.cancelled") !== null`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector(".operation-chip.cancelled") !== null`))
 	if status, err := handler.operations.Wait(ctx, running); err != nil || status.State != operation.StateCancelled {
 		t.Fatalf("browser cancellation=(%+v, %v)", status, err)
 	}
-	if err := browser.Eventually(ctx, `document.getElementById('global-operation-shell').hidden`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.getElementById('global-operation-shell').hidden`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {document.querySelector('[aria-label="Close activity"]').click();return !document.querySelector('.activity-dialog').open;})()`)
 
 	// The API key must live in memory for the page session: browser storage
@@ -240,20 +209,14 @@ func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *w
           o.capabilities = saved.capabilities; o.api.get = saved.get; o.api.upload = saved.upload;
           delete window.modeResetProbe; o.openConversation(null); return true;
         })()`)
-		if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`))
 	}()
-	if err := browser.Eventually(ctx, `!!document.querySelector('.composer select[aria-label="mode"] option[value="vqa"]')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('.composer select[aria-label="mode"] option[value="vqa"]')`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const mode = document.querySelector('.composer select[aria-label="mode"]');
       mode.value = "vqa"; mode.dispatchEvent(new Event("change")); return true;
     })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector('.mode-controls label.control input')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('.mode-controls label.control input')`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const mode = document.querySelector('.composer select[aria-label="mode"]');
       mode.value = "chat"; mode.dispatchEvent(new Event("change"));
@@ -283,9 +246,7 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 		<-ctx.Done()
 		return operation.Completion{Run: runningRunID}, ctx.Err()
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	<-runningEntered
 	return running, blockOperation(t, handler, recipeID, runID, "retry-browser", "Retry browser operation")
 }
@@ -306,9 +267,7 @@ func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID,
 		}
 		return operation.Completion{Run: runID}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	waitBrowserOperationState(t, handler, blocked, operation.StateBlocked)
 	return blocked
 }
@@ -320,9 +279,7 @@ func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID,
 func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, state operation.State) {
 	t.Helper()
 	events, stop, err := handler.events.subscribe(handler.config.MaxStoredResponses)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer stop()
 	reached := func(current operation.Status) bool {
 		t.Helper()
@@ -380,14 +337,10 @@ func requireWebUILane(t *testing.T, reason string) {
 func openBrowserLeg(t *testing.T, url string) (context.Context, *webuilane.Browser, func(expression string), func(expression string)) {
 	t.Helper()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {
 		t.Helper()
@@ -411,16 +364,12 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 		testskip.NotApplicable(t, "browser acceptance runs through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A declared hosted model gives the picker a row (its key set, so the
 	// row serves); the generator holds every turn open until released, so
 	// a running turn is there for the Escape key to stop.
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	t.Setenv("OVERGO_FRONT_PAGE_TEST_KEY", "front-key")
 	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
@@ -436,9 +385,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	defer httpServer.Close()
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .composer textarea") && window.overgo.errors.length === 0`); err != nil {
 		var page string
@@ -455,33 +402,21 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `document.activeElement !== document.body && document.activeElement.tagName !== "TEXTAREA" &&
       getComputedStyle(document.activeElement).outlineStyle !== "none" && parseFloat(getComputedStyle(document.activeElement).outlineWidth) > 0`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { window.overgo.inspectTurn("resp_missing"); return true; })()`)
-	if err := browser.Eventually(ctx, `!document.querySelector("#inspector").hidden && document.activeElement.getAttribute("aria-label") === "close the inspector"`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!document.querySelector("#inspector").hidden && document.activeElement.getAttribute("aria-label") === "close the inspector"`))
 	pressKey(t, ctx, browser, "Escape", 27)
-	if err := browser.Eventually(ctx, `document.querySelector("#inspector").hidden`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector("#inspector").hidden`))
 	// Keyboard path to a model: Alt+M opens the picker, its first row takes
 	// focus, Enter serves it (without the proxy the page says a relaunch is
 	// the way), Escape stops a running turn from anywhere on the page.
 	pressKey(t, ctx, browser, "m", 77, keyModifierAlt)
-	if err := browser.Eventually(ctx, `document.activeElement.classList.contains("row") && document.activeElement.querySelector(".mono").textContent === "front-model"`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.activeElement.classList.contains("row") && document.activeElement.querySelector(".mono").textContent === "front-model"`))
 	pressKey(t, ctx, browser, "Enter", 13)
-	if err := browser.Eventually(ctx, `document.querySelector(".topbar .card").textContent.includes("without the swap proxy")`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector(".topbar .card").textContent.includes("without the swap proxy")`))
 	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#model-pill").click(); return !document.querySelector(".topbar .card"); })()`)
 	say(t, ctx, browser, "hello")
-	if err := browser.Eventually(ctx, `document.querySelector(".composer .btn").disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector(".composer .btn").disabled`))
 	pressKey(t, ctx, browser, "Escape", 27)
-	if err := browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`))
 	emulateMedia(t, ctx, browser, "prefers-reduced-motion", "reduce")
 	assertBrowserPredicate(t, ctx, browser, `matchMedia("(prefers-reduced-motion: reduce)").matches && parseFloat(getComputedStyle(document.querySelector("#server-dot")).transitionDuration) < 0.001`)
 	for scheme, background := range map[string]string{"light": "rgb(250, 250, 247)", "dark": "rgb(21, 24, 25)"} {
@@ -491,9 +426,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 		}
 	}
 	for _, width := range []int{1280, 820, 390} {
-		if err := browser.SetViewport(ctx, width, 900); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetViewport(ctx, width, 900))
 		if err := browser.Eventually(ctx, `document.documentElement.scrollWidth <= innerWidth &&
         document.querySelector(".composer textarea").getBoundingClientRect().right <= innerWidth &&
         document.querySelector(".topbar").getBoundingClientRect().right <= innerWidth`); err != nil {
@@ -510,9 +443,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 		t.Fatalf("phone conversation: %v; %s", err, page)
 	}
 	pressKey(t, ctx, browser, "Escape", 27)
-	if err := browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`))
 }
 
 // keyModifierAlt is the DevTools key event modifier bit for Alt.
@@ -534,9 +465,7 @@ func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key
 		if key == "Enter" && kind == "keyDown" {
 			event["text"] = "\r" // native button activation requires the character event
 		}
-		if err := browser.Call(ctx, "Input.dispatchKeyEvent", event, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Call(ctx, "Input.dispatchKeyEvent", event, nil))
 	}
 }
 

@@ -8,15 +8,15 @@ import (
 	"syscall"
 	"testing"
 	"unsafe"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGPUCapacityTransactionRecovery(t *testing.T) {
 	name := sharedAdmissionName(t)
 	owner := holdSharedAdmission(t, sharedAdmissionProbe{Name: name, Transaction: true})
 	encoded, err := syscall.UTF16PtrFromString("Global\\" + resourceObjectName(name) + ".Mutation")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handle, _, callErr := procCreateResourceMutex.Call(0, 0, uintptr(unsafe.Pointer(encoded)))
 	if handle == 0 {
 		t.Fatal(callErr)

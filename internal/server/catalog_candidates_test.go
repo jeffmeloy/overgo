@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,15 +23,11 @@ import (
 func TestTheCatalogSaysWhatAnUnactivatedModelRuns(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights := func(name string) string {
 		location := filepath.Join(t.TempDir(), name)
-		if err := os.WriteFile(location, []byte(name), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(location, []byte(name), 0o600))
 		return location
 	}
 	text, _ := candidateModelAt(t, store, weights("trained.gguf"), func(model artifact.ID) (recipe.Definition, error) {
@@ -44,9 +41,7 @@ func TestTheCatalogSaysWhatAnUnactivatedModelRuns(t *testing.T) {
 	image, _ := candidateModelAt(t, store, weights("image.safetensors"), oscillatorImageDefinition)
 	activated := activateModelAt(t, store, weights("activated.safetensors"), oscillatorImageDefinition)
 	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/catalog/models", "")
 	var catalog struct{ Models []catalogModel }

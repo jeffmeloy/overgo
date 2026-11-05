@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWorkspaceSchema(t *testing.T) {
@@ -14,9 +16,7 @@ func TestWorkspaceSchema(t *testing.T) {
 		t.Fatalf("workspace schema status=%d body=%s", response.Code, response.Body.String())
 	}
 	var schema workspaceObjectSchema
-	if err := json.Unmarshal(response.Body.Bytes(), &schema); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &schema))
 	if schema.ID != "agent-definition" || len(schema.Fields) == 0 {
 		t.Fatalf("workspace schema = %+v", schema)
 	}

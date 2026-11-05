@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,26 +29,20 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
 	})
 	inventory, err := FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// Sampling alone: 4 samples x 4 bytes = 16 bytes recorded.
 	sampled, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: 1 << 20,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Sampling plus spectral: the full 64-byte tensor read must be charged on
 	// top of the sampled bytes, so recorded ReadBytes strictly exceeds the
 	// sampling-only document's.
 	spectral, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: 1 << 20, SpectralMaxDim: 8,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spectral.Measurements[0].SpectralStatus != SpectralComputed {
 		t.Fatalf("spectral status = %q, want computed", spectral.Measurements[0].SpectralStatus)
 	}
@@ -68,14 +63,10 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 	encoded, err := os.ReadFile(testutil.TempGGUF(t, "counted.gguf", nil, []gguf.TensorData{
 		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := &countedReader{source: bytes.NewReader(encoded)}
 	counted, err := gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source.reads = 0
 	if _, err := MeasureGGUF(inventory.TensorInventory, counted, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: sampled.ReadBytes - 1,

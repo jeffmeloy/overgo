@@ -20,6 +20,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -40,9 +41,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 		"dataset": dataset, "output": "trained", "steps": len(expectedObservations),
 		"objective_scale": 0.1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
 	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
 		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
@@ -123,9 +122,7 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 			// pairs are known before the dataset they split is written.
 			partitions := []dataset.SplitPartition{{Name: heldoutPartition, Weight: 1}, {Name: trainPartition, Weight: 1}}
 			assigned, err := dataset.BuildGroupSplit(testutil.ArtifactID(t, artifact.KindDataset, "unwritten"), records, splitSeed, partitions)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			heldout := map[string]bool{}
 			for _, membership := range assigned.Memberships {
 				for _, record := range membership.Records {
@@ -139,19 +136,13 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 					chosen, rejected = test.chosen, test.rejected
 				}
 				line, err := json.Marshal(map[string]string{"id": record.ID, "group": record.Group, "prompt": prompts[index], "chosen": chosen, "rejected": rejected})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				lines.Write(append(line, '\n'))
 			}
 			source, err := artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			split, err := dataset.BuildGroupSplit(source, records, splitSeed, partitions)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var training artifact.ID
 			for _, membership := range split.Memberships {
 				if membership.Partition == trainPartition {
@@ -166,9 +157,7 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 				t.Fatalf("capabilities=%+v err=%v, want the DPO loss modes offered", capabilities, err)
 			}
 			input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1, "preference_mode": test.mode})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			completion, err := fixture.workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
 			if err != nil || len(completion.Outputs) != 4 || completion.Outputs[3].Kind() != artifact.KindEvaluation {
 				t.Fatalf("completion=%+v err=%v, want a checkpoint, trace, decision and held-out verdict", completion, err)
@@ -213,9 +202,7 @@ func TestPreferenceWorkspaceRefusesModesItDoesNotOffer(t *testing.T) {
 	input, err := json.Marshal(map[string]any{
 		"dataset": fixture.dataset, "output": "trained", "steps": 1, "objective_scale": 0.1, "preference_mode": trainingprogram.PreferenceKTO,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := fixture.workspace.ExecuteWorkflow(t.Context(), WorkflowTraining, capabilities[0], input, testReporter{}); err == nil {
 		t.Fatal("the workspace ran a mode it does not offer")
 	}
@@ -231,9 +218,7 @@ func readJSON(t *testing.T, store *overgodb.Store, id artifact.ID, value any) {
 	if err != nil || !found {
 		t.Fatalf("content %s found=%t err=%v", id, found, err)
 	}
-	if err := json.Unmarshal(content.Data, value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, value))
 }
 
 // dpoTrainingFixture: a tiny DPO program activated in a fresh store, its
@@ -262,9 +247,7 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 9,
@@ -276,27 +259,17 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	referencePath := filepath.Join(roots.Models, "reference")
 	policy := writeWorkspaceModel(t, policyPath, weights, shapes)
 	reference := writeWorkspaceModel(t, referencePath, referenceWeights, referenceShapes)
-	if err := os.MkdirAll(roots.Datasets, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(roots.Datasets, 0o755))
 	datasetPath := filepath.Join(roots.Datasets, "preference.jsonl")
-	if err := os.WriteFile(datasetPath, datasetData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(datasetPath, datasetData, 0o600))
 	dataset, err := artifact.IdentifyBytes(artifact.KindDataset, datasetData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainingSplit, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	metric := trainingprogram.MetricTokenAccuracy
 	if split != nil {
 		batch, err := split.PublicationBatch("fixture/training-workspace/split", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: dataset, Size: uint64(len(datasetData))})
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
@@ -332,18 +305,12 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 		Metric: metric, Evidence: []artifact.ID{evidence},
 		Authority: trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policies.Objective = objective.ID
 	objectiveContent, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerContent, err := optimizerPolicy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := []artifact.ID{
 		processor, objective.Loss, evidence, policies.Precision, policies.Placement,
 		policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
@@ -374,23 +341,15 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 		{Role: recipe.DependencyModel, Artifact: policy},
 		{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
 	}, modelrecipetest.PolicyDependencies(policies)...))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/training-workspace/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/training-workspace/verification", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "native DPO fixture"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "native DPO fixture"))
 	workspace, err := NewTrainingWorkspace(ctx, store, roots, policy, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return dpoTrainingFixture{store: store, roots: roots, workspace: workspace, definition: definition, dataset: dataset, policy: policy, reference: reference}
 }
 
@@ -412,9 +371,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 			ctx := t.Context()
 			root := t.TempDir()
 			store, err := overgodb.Create(filepath.Join(root, "store"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			policy := testutil.ArtifactID(t, artifact.KindModel, test.name+" policy")
 			reference := testutil.ArtifactID(t, artifact.KindModel, test.name+" reference")
@@ -425,9 +382,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 				artifacts = append(artifacts, artifact.Descriptor{ID: reference})
 			}
 			definition, err := trainingWorkspaceAdmissionDefinition(test.objective, dependencies)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/training-admission/artifacts", Artifacts: artifacts}); err != nil {
 				t.Fatal(err)
 			}
@@ -435,12 +390,8 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 				t.Fatal(err)
 			}
 			verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/training-admission/verification", definition.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training admission fixture"); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training admission fixture"))
 			model := testutil.ArtifactID(t, artifact.KindModel, test.name+" absent model")
 			if test.registered {
 				model = policy
@@ -453,9 +404,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 				return
 			}
 			capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			found := false
 			for _, capability := range capabilities {
 				found = found || capability.Task == recipe.TaskTraining && capability.Recipe == definition.ID
@@ -469,29 +418,17 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 
 func writeWorkspaceModel(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int) artifact.ID {
 	t.Helper()
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
-	if err := safetensors.Save(path, weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(path, weights, shapes, nil))
 	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
 	tokenizer := `{"model":{"type":"BPE","vocab":{"a":1,"b":2,"c":3,"d":4},"merges":[]}}`
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(tokenizer), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(tokenizer), 0o600))
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	if identifyErr != nil {
 		t.Fatal(identifyErr)
 	}

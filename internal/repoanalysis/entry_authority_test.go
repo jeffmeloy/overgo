@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 func TestEntryAuthorityScriptSuffixIsData(t *testing.T) {
@@ -30,9 +31,7 @@ func TestEntryAuthorityScriptSuffixIsData(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			file, err := parser.ParseFile(token.NewFileSet(), "case.go", "package fixture\n"+tc.source, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if got := rule.Detect(file) > 0; got != tc.refuse {
 				t.Fatalf("script classification=%v, want refusal=%v", got, tc.refuse)
 			}
@@ -70,9 +69,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			const rogue = "internal/rogue/rogue.go"
 			source := []byte("package rogue\n" + test.source + "\n")
 			snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{rogue: source})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := ValidateEntryAuthorities(snapshot, []EntryAuthorityRule{rule}); err == nil || !strings.Contains(err.Error(), rogue+" bypasses the owner") {
 				t.Fatalf("bypass escaped its domain: %v", err)
 			}
@@ -83,9 +80,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			}
 			for _, replacement := range [][]byte{nil, []byte("package rogue\n")} {
 				clean, err := snapshot.Overlay(map[string][]byte{rogue: replacement})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if _, err := ValidateEntryAuthorities(clean, []EntryAuthorityRule{rule}); err == nil || !strings.Contains(err.Error(), "no longer holds a direct site") {
 					t.Fatalf("stale exception admitted: %v", err)
 				}
@@ -94,9 +89,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			rule.Exceptions = nil
 			if len(rule.OwnerPaths) != 0 {
 				owned, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{path.Join(rule.OwnerPaths[0], "owned.go"): source})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if _, err := ValidateEntryAuthorities(owned, []EntryAuthorityRule{rule}); err != nil {
 					t.Fatalf("owner refused: %v", err)
 				}

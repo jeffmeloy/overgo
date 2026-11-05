@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -83,25 +84,19 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 		}
 	}
 	// Effort is measured at the desktop layout, where the navigation stands beside the conversation.
-	if err := webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]))
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
 	measured := map[string]taskEffort{}
 	requests := map[string]int{}
 	for index, task := range commonTasks {
 		// Every task starts where a person lands: the page freshly opened on the conversation (the
 		// query makes each opening a full load, not a move within the page).
-		if err := browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL + "/app.html?effort=" + strconv.Itoa(index) + "#chat"}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL + "/app.html?effort=" + strconv.Itoa(index) + "#chat"}, nil))
 		settle(`document.readyState === "complete" && !window.effortSwitches && !!document.querySelector("#panel-chat.active .composer textarea") && overgo.api.inFlight() === 0`)
 		measured[task.name], requests[task.name] = measureEffort(t, ctx, browser, settle, task)
 	}
 	var places struct{ Sections, Entries int }
-	if err := browser.Evaluate(ctx, `({Sections: document.querySelectorAll("#sections button.section").length, Entries: document.querySelectorAll("#sections button").length})`, &places); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `({Sections: document.querySelectorAll("#sections button.section").length, Entries: document.querySelectorAll("#sections button").length})`, &places))
 	if places.Sections != 5 || places.Entries != navigationCeiling {
 		t.Errorf("navigation holds %d places and %d entries, want 5 places and %d entries", places.Sections, places.Entries, navigationCeiling)
 	}
@@ -147,9 +142,7 @@ func measureEffort(t *testing.T, ctx context.Context, browser *webuilane.Browser
 	}
 	settle(task.done)
 	var counted struct{ Switches, Requests int }
-	if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &counted); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &counted))
 	effort.TabSwitches = counted.Switches
 	if ceiling, found := effortCeilings[task.name]; !found || effort != ceiling {
 		t.Errorf("%s: effort %+v, ceiling %+v (held %v); a task's effort only falls, and a fall lowers its ceiling", task.name, effort, ceiling, found)

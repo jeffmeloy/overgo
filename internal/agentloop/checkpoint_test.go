@@ -14,6 +14,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -48,76 +49,48 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 	empty := filepath.Join(root, "empty.txt")
 	absent := filepath.Join(root, "new.txt")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	manual, err := agenttool.NewManual(agenttool.Manual{Name: "file.write", Description: "Write workspace files.", Effect: agenttool.EffectMutation,
 		Arguments: []agenttool.Field{{Name: "path", Kind: agenttool.FieldString, Required: true}},
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}, {Scope: agenttool.EffectScopeWorkspace, Value: second}, {Scope: agenttool.EffectScopeWorkspace, Value: empty}, {Scope: agenttool.EffectScopeWorkspace, Value: absent}}}, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	arguments, _ := json.Marshal(map[string]string{"path": target})
 	effect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	for _, failure := range []string{"later preimage", "completion receipt"} {
 		t.Run(failure, func(t *testing.T) {
 			before := map[string]string{target: "before", second: "second-before", empty: ""}
 			modes := map[string]os.FileMode{}
 			for path, data := range before {
-				if err := os.WriteFile(path, []byte(data), 0o640); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o640))
 				info, err := os.Stat(path)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				modes[path] = info.Mode().Perm()
 			}
 			if err := os.Remove(absent); err != nil && !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
 			}
 			runtime, err := NewMutationCheckpointRuntime(root, store)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			checkpoint, err := runtime.BeginCheckpoint(ctx, testutil.ArtifactID(t, artifact.KindEvidence, failure), 1, effect, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, path := range []string{target, second, empty, absent} {
-				if err := os.WriteFile(path, []byte("after"), 0o600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(path, []byte("after"), 0o600))
 			}
 			checkpoint, err = runtime.SealCheckpoint(ctx, checkpoint)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			request, err := RestoreApprovalRequest(checkpoint, recipeID)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := runrecord.PublishHumanDecision(ctx, store, request, decision); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(target, []byte("drift"), 0o640); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, decision))
+			testcheck.NoError(t, os.WriteFile(target, []byte("drift"), 0o640))
 			if _, err := runtime.RestoreCheckpoint(ctx, checkpoint, effect, recipeID); err == nil {
 				t.Fatal("postimage drift was accepted")
 			}
-			if err := os.WriteFile(target, []byte("after"), 0o640); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(target, []byte("after"), 0o640))
 			broken := errors.New(failure)
 			faults := restoreFaults{Repository: store}
 			if failure == "later preimage" {
@@ -152,9 +125,7 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 				t.Fatalf("first restored file=%q, %v", data, err)
 			}
 			runtime, err = NewMutationCheckpointRuntime(root, store)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			receipt, err := runtime.RestoreCheckpoint(ctx, checkpoint, effect, recipeID)
 			if err != nil {
 				t.Fatalf("exact interrupted restore retry: %v", err)
@@ -178,9 +149,7 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 			if err != nil || !receipt.Valid() || repeated != receipt || after != head {
 				t.Fatalf("completion replay=%s, %v, head %s, want %s and %s", repeated, err, after, receipt, head)
 			}
-			if err := os.WriteFile(target, []byte("after"), 0o640); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(target, []byte("after"), 0o640))
 			if _, err := runtime.RestoreCheckpoint(ctx, checkpoint, effect, recipeID); err == nil {
 				t.Fatal("completed restore admitted subsequent mutation")
 			}

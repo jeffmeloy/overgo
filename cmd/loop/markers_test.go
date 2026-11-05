@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestLoopMarkersLiveInTheRuntimeDirectory holds the loop's pause marker and
@@ -16,13 +17,9 @@ import (
 // loop, and docs keeps neither.
 func TestLoopMarkersLiveInTheRuntimeDirectory(t *testing.T) {
 	t.Chdir(t.TempDir())
-	if err := os.MkdirAll("docs", 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll("docs", 0o755))
 	for _, legacy := range []string{legacyPauseMarker, processcontrol.LegacyLoopConfigFile} {
-		if err := os.WriteFile(filepath.FromSlash(legacy), []byte("{}\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.FromSlash(legacy), []byte("{}\n"), 0o600))
 	}
 	if !(&execWorld{}).Paused() {
 		t.Fatal("a pause marker left under docs no longer pauses the loop")

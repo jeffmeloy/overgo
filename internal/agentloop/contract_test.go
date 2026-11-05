@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,19 +20,13 @@ func TestAgentContractEnforcement(t *testing.T) {
 		Verification: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "gate")}, Budget: testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"opaque mutation"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
 		Task: contract.ID, Name: "tests", Scope: "internal/agentloop", Sources: []artifact.ID{contract.ID},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := NewContractState(contract, []runrecord.AgentObligation{obligation})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(state.epochs) != 0 {
 		t.Fatalf("a fresh contract state holds the epochs %v, want none", state.epochs)
 	}
@@ -41,16 +36,10 @@ func TestAgentContractEnforcement(t *testing.T) {
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	effect, err := agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{"path":"internal/agentloop/coordinator.go"}`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := state.Admit(effect); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, state.Admit(effect))
 	state.ObserveMutation(effect)
 	if len(state.epochs) != 1 || state.epochs[obligation.Scope] != 1 {
 		t.Fatalf("a mutation inside the obligation's scope advanced the epochs %v, want its scope's advanced once, which leaves its evidence stale", state.epochs)

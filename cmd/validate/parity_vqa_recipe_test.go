@@ -8,6 +8,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/parity"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/vqaserve"
 	"path/filepath"
@@ -34,25 +35,17 @@ func TestParityCommandsRequireFreshExecution(t *testing.T) {
 		return vqaserve.Result{Generated: []int{answered}}, "there", nil
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	model := testutil.ArtifactID(t, artifact.KindModel, "vqa-model")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
 	image := filepath.Join(directory, "image")
-	if err := os.WriteFile(image, []byte("image"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(image, []byte("image"), 0600))
 	campaign := &campaignContext{Campaign: parity.NewCampaign(filepath.Join(directory, "parity.log"))}
 	for _, command := range []struct {
 		name string

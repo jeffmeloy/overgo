@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -32,9 +33,7 @@ import (
 func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 	repository := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The registration records where the reviewed weights live; the test
 	// asks the store for them by the digest the reviewed policy names.
 	reference := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), roots.AudioReference)
@@ -42,59 +41,39 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 		testskip.NotApplicable(t, "no audio reference store holds the activity model's registration here")
 	}
 	registrations, err := overgodb.OpenReadOnly(reference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer registrations.Close()
 	var policy struct {
 		Source struct {
 			Weights string `json:"offline_weights_sha256"`
 		} `json:"source"`
 	}
-	if err := jsonfile.Decode(filepath.Join(repository, "internal", "audioparity", "recipes", "firered_vad_policy.json"), &policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join(repository, "internal", "audioparity", "recipes", "firered_vad_policy.json"), &policy))
 	weights, err := artifact.ParseID("tensor-set:sha256:" + policy.Source.Weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	offline, err := artifact.AvailablePath(t.Context(), registrations, weights, artifact.LocationDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The recording and the streaming checkpoint ship in the same model
 	// repository as the registered offline checkpoint.
 	root := filepath.Dir(offline)
 	recording, err := os.ReadFile(filepath.Join(root, "FireRedVAD", "assets", "hello_en.wav"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	capability := Catalog[recipe.TaskActivityDetection]
 	detect := func(t *testing.T, directory, policy string) ([]recipecontract.ActivitySegment, error) {
 		t.Helper()
 		source, err := capability.Resolve(t.Context(), directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskActivityDetection, source.Inventory.Manifest.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		program, err := modelrecipe.CompileCapability(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		request, err := json.Marshal(map[string]any{
 			"audio": recording, "maximum_samples": len(recording), "memory_bytes": 64 << 20, "policy": json.RawMessage(policy),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
 		if err != nil {
 			return nil, err
@@ -113,16 +92,12 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 		return total
 	}
 	defaults, err := detect(t, offline, `{}`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(defaults) == 0 {
 		t.Fatal("the shipped policy found no speech in a spoken greeting")
 	}
 	strict, err := detect(t, offline, `{"threshold":0.95}`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if speech(strict) >= speech(defaults) {
 		t.Fatalf("a stricter threshold kept %d samples of speech, the default %d", speech(strict), speech(defaults))
 	}

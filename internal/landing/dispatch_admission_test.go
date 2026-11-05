@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -44,9 +45,7 @@ func TestALandingRefusesWhatDispatchWouldPass(t *testing.T) {
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: fixture.repo,
 		Mode: plan.ExecutionAll, ReasonCode: "requested", Detail: "asked to stop", CodeCommit: head}
 	stopped, err := plan.RecordStop(t.Context(), event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := land("row/do"); err == nil || !strings.Contains(err.Error(), "stop") {
 		t.Fatalf("landing row/do under a recorded stop ended as %v, want it refused for the stop", err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -16,9 +17,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "media capture runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Capture fixture"}}))
 	handler.config.APIKey = testAPIKey
@@ -33,9 +32,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 			t.Fatalf("%s: %v", expression, err)
 		}
 		var result bool
-		if err := browser.Evaluate(ctx, expression, &result); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, expression, &result))
 		if !result {
 			var state string
 			_ = browser.Evaluate(ctx, "document.querySelector('.capture-dialog')?.textContent", &state)
@@ -95,13 +92,9 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	activate("Attach recording")
 	settle(`!!captureSlot('Audio').value && document.querySelector('.attachment-row').dataset.state==='ready'`)
 	var audioBase64 string
-	if err := browser.Evaluate(ctx, `(async()=>{const blob=await overgo.api.blob('/artifacts/content?id='+encodeURIComponent(captureSlot('Audio').value));return btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())));})()`, &audioBase64); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `(async()=>{const blob=await overgo.api.blob('/artifacts/content?id='+encodeURIComponent(captureSlot('Audio').value));return btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())));})()`, &audioBase64))
 	wave, err := base64.StdEncoding.DecodeString(audioBase64)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoded, _, err := media.DecodeAudio(ctx, wave, 2048)
 	if err != nil {
 		t.Fatalf("browser WAV: %v", err)
@@ -140,9 +133,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	settle(`captureDialog().dataset.state==='preview' && captureCalls.at(-1).video.deviceId?.exact==='fixture-camera'`)
 	check(`captureBeforeSwitch.every(track=>track.readyState==='ended')`)
 	for _, scheme := range webuilane.ColourSchemes {
-		if err := browser.SetColorScheme(ctx, scheme); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 		for _, viewport := range []webuilane.Viewport{{Name: "phone", Width: 390, Height: 844}, {Name: "keyboard", Width: 390, Height: 320}, {Name: "small", Width: 320, Height: 568}} {
 			if findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "media-capture-"+scheme); err != nil || len(findings) != 0 {
 				t.Fatalf("capture %s layout: %v, %v", viewport.Name, findings, err)

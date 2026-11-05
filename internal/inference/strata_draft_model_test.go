@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ var strataDraftModel = filepath.Join("Qwen3.8-Flash-Next", "unsloth-UD-IQ4_XS", 
 // bytes, the first, a middle and the last chunk of experts) are the rt pack's that mtp_rt.py wrote from the same file.
 func TestStrataDraftPackIsStratas(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rt := filepath.Join(roots.References(), "strata", "mtp", "rt")
 	path := roots.ResolveModelPath(strataDraftModel)
 	for _, need := range []string{path, filepath.Join(rt, "dense.txt")} {
@@ -35,22 +34,14 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 		}
 	}
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { file.Close() })
 	dense, tensors, err := strataDraftDense(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reference, err := os.ReadFile(filepath.Join(rt, "dense.bin"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	index, err := os.Open(filepath.Join(rt, "dense.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer index.Close()
 	lines := 0
 	scanner := bufio.NewScanner(index)
@@ -86,9 +77,7 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 		t.Errorf("the pack holds %d dense tensors, dense.txt %d", len(tensors), lines)
 	}
 	experts, err := os.Open(filepath.Join(rt, "experts.bin"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer experts.Close()
 	gateUp, _ := file.Tensor("mtp.layers.0.mlp.experts.gate_up_proj")
 	down, _ := file.Tensor("mtp.layers.0.mlp.experts.down_proj")
@@ -97,12 +86,8 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 	for _, first := range []int{0, strataDraftExperts / 2, strataDraftExperts - strataDraftExpertChunk} {
 		count := strataDraftExpertChunk
 		rows, downs := make([]byte, uint64(count)*gateUpExpert), make([]byte, uint64(count)*downExpert)
-		if err := file.ReadTensorRange(gateUp, uint64(first)*gateUpExpert, rows); err != nil {
-			t.Fatal(err)
-		}
-		if err := file.ReadTensorRange(down, uint64(first)*downExpert, downs); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorRange(gateUp, uint64(first)*gateUpExpert, rows))
+		testcheck.NoError(t, file.ReadTensorRange(down, uint64(first)*downExpert, downs))
 		want := make([]byte, uint64(count)*blob)
 		if _, err := experts.ReadAt(want, int64(uint64(first)*blob)); err != nil {
 			t.Fatal(err)

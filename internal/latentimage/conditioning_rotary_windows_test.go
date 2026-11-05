@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestMOSSConditioningRotaryGolden(t *testing.T) {
@@ -21,9 +22,7 @@ func TestMOSSConditioningRotaryGolden(t *testing.T) {
 	const file = "rotary-cuda.safetensors"
 	mossFixtureBytes(t, file, "6db58226427f7bc155b2856b011655042e10956843910b3ada87def731255845")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	policies := map[string]struct {
 		Rotary   uint32
@@ -104,19 +103,13 @@ func TestMOSSConditioningRotaryGolden(t *testing.T) {
 				compare("frequencies", inverse, refinementValues(t, s, name+".inverse"))
 				want := refinementValues(t, s, name+".output")
 				cpu, err := reference.Execute([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				compare("cpu", cpu[out].Data, want)
 				got, err := run([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				compare("cuda", got[out].Data, want)
 				again, err := run([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				compare("repeat", again[out].Data, got[out].Data)
 			})
 		}

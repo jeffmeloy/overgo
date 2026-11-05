@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/kernel"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 // TestGDNForwardMatchesKernel pins hostmath.GatedDeltaNetForward against the
@@ -21,9 +22,7 @@ import (
 func TestGDNForwardMatchesKernel(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const size, qHeads, kHeads, heads, tokens, seqs, gateWidth = 8, 2, 2, 2, 4, 1, 1
@@ -103,9 +102,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 		}
 		return lib.MemcpyDtoH(driver.Bytes(out), oP)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	maxAbs := func(a, b []float32) float64 {
 		var m float64
@@ -133,9 +130,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	maxAbs := func(a, b []float32) float64 {
@@ -184,9 +179,7 @@ func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
 				worker, query, key, value, gate, beta, inputState, dOutput,
 				tc.size, tc.qHeads, tc.kHeads, tc.heads, tc.tokens, tc.seqs, tc.gateWidth,
 				tc.repeatInterleave)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 
 			dqD := maxAbs(wantDQ, gotDQ)
 			dkD := maxAbs(wantDK, gotDK)

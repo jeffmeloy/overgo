@@ -3,6 +3,8 @@ package oscillatorimage
 import (
 	"encoding/json"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type dynamicsGolden struct {
@@ -79,12 +81,8 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 		ToOutW: f32of(gf("to_out_w")), ToOutB: f32of(gf("to_out_b")),
 	}
 	features, err := model.integrate(t.Context(), phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	image, err := model.decodePlanar(features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "generator", image.Pixels, gf("out"), tolGenerator)
 }

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 type speakerSegment struct {
@@ -39,13 +40,9 @@ func verifySpeakerCorpus(t *testing.T, corpus speakerCorpus, publication *audioP
 	root := filepath.Dir(corpus.path)
 	waveID := alignmentFileID(t, corpus.Source.SHA256)
 	data, err := os.ReadFile(corpus.path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	audio, _, err := media.DecodeAudio(t.Context(), data, uint64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if audio.Format.SampleRate != 16000 || audio.Format.Channels != 1 || uint64(len(audio.Samples)) != corpus.SourceSamples {
 		t.Fatal("continuous source geometry differs")
 	}
@@ -105,9 +102,7 @@ func verifySpeakerCorpus(t *testing.T, corpus speakerCorpus, publication *audioP
 			t.Fatal("pre-inference annotated election differs")
 		}
 		encoded, err := media.EncodeWAVPCM16(audio.Samples[clip.Start:clip.End], 16000)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		id, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
 		if err != nil || id.DigestHex() != clip.SHA256 {
 			t.Fatal("crop differs from continuous source")

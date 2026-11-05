@@ -9,19 +9,16 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestMTPSessionStateRoundTrip(t *testing.T) {
 	runner := qwen35MTPStateRunner()
 	session := qwen35MTPStateFixture()
 	data, err := runner.SaveMTPSession(session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	restored, err := runner.LoadMTPSession(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored Qwen3.5 MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
@@ -30,13 +27,9 @@ func TestMTPSessionStateRoundTrip(t *testing.T) {
 	fresh.Position = fresh.MTPStart
 	fresh.Layer = LayerCache{}
 	freshData, err := runner.SaveMTPSession(fresh)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	freshRestored, err := runner.LoadMTPSession(freshData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(freshRestored, fresh) {
 		t.Fatalf("fresh Qwen3.5 MTP session differs: got %+v want %+v", freshRestored, fresh)
 	}
@@ -45,9 +38,7 @@ func TestMTPSessionStateRoundTrip(t *testing.T) {
 func TestMTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := qwen35MTPStateRunner()
 	data, err := runner.SaveMTPSession(qwen35MTPStateFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, length := range []int{0, len(data) - 1} {
 		if _, err := runner.LoadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated Qwen3.5 MTP state length %d was accepted", length)

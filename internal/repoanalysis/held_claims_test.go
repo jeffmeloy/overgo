@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // anchoredDeclaration names the function or method a claim's evidence anchors, its contains being the declaration's
@@ -46,13 +48,9 @@ func TestNoTestHeldEntryWaitsOnAClaim(t *testing.T) {
 		}
 	}
 	_, classOf, err := sortedEntries(keptList(t, unreachedList))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := os.ReadFile(filepath.Join(checkoutRoot, "compatibility.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var manifest struct {
 		Claims []struct {
 			ID       string `json:"id"`
@@ -63,9 +61,7 @@ func TestNoTestHeldEntryWaitsOnAClaim(t *testing.T) {
 			} `json:"evidence"`
 		} `json:"claims"`
 	}
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &manifest))
 	anchors := 0
 	for _, claim := range manifest.Claims {
 		for _, evidence := range claim.Evidence {

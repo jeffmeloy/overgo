@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestRecordCensus builds a store with a templated schema -- records of one
@@ -23,16 +24,12 @@ func TestRecordCensus(t *testing.T) {
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mint := func(schema, body string) artifact.Content {
 		t.Helper()
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: schema}
 		content, err := contract.ContentBytes([]byte(body))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return content
 	}
 	var templated []artifact.Content
@@ -48,14 +45,10 @@ func TestRecordCensus(t *testing.T) {
 		func(descriptor artifact.Descriptor) bool { return descriptor.ID == released }); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	var output bytes.Buffer
-	if err := writeCensus(&output, root, len(varied)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writeCensus(&output, root, len(varied)))
 	var census []schemaCensus
 	if err := json.Unmarshal(output.Bytes(), &census); err != nil {
 		t.Fatalf("census output %s: %v", output.Bytes(), err)

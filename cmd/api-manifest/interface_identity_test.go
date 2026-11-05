@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestManifestChangesOnlyWithTheInterface holds the published manifest to the
@@ -19,17 +21,11 @@ func TestManifestChangesOnlyWithTheInterface(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	manifest, err := compile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := manifest.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var header map[string]json.RawMessage
-	if err := json.Unmarshal(content.Data, &header); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &header))
 	if _, carried := header["source_identity"]; carried {
 		t.Fatal("the manifest carries an identity of the whole source tree again")
 	}
@@ -42,9 +38,7 @@ func TestManifestChangesOnlyWithTheInterface(t *testing.T) {
 		}
 	}
 	published, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestJSONPath)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(bytes.TrimSpace(published), bytes.TrimSpace(content.Data)) {
 		t.Fatalf("%s is not what the source compiles to; regenerate with go run ./cmd/api-manifest -update", manifestJSONPath)
 	}

@@ -101,7 +101,7 @@ func BuildDeviceMerger(spec Spec, imageRows, gridT, gridH, gridW int) (*DeviceMe
 
 	// Per-member [out, rows] slabs (contiguous FlatSlice on the outer axis).
 	slab := make([]*tensor.Tensor, group)
-	for pos := uint64(0); pos < group; pos++ {
+	for pos := range group {
 		slab[pos] = b.FlatSlice(projRG, pos*out*R, out, R)
 	}
 	// Mean pool over the members -> [out, rows], bf16.
@@ -114,7 +114,7 @@ func BuildDeviceMerger(spec Spec, imageRows, gridT, gridH, gridW int) (*DeviceMe
 	// Score MLP per member: fused=[member;pooled] -> pool0 -> erf-GELU -> pool2.
 	scoreStack := make([]*tensor.Tensor, group)
 	projStack := make([]*tensor.Tensor, group)
-	for pos := uint64(0); pos < group; pos++ {
+	for pos := range group {
 		fused := b.Concat(slab[pos], pooled, 0) // [2*out, rows]
 		hidden := b.BF16Round(b.Add(b.MulMat(g.Pool0W, fused), g.Pool0B))
 		hidden = b.BF16Round(b.GELUErf(hidden))

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -49,16 +50,12 @@ func TestFailedCheckNeverSwaps(t *testing.T) {
 // names cannot wait for a real candidate to surface.
 func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	proof := overgodb.OperationProof{Checks: []check{{Name: "only", Passed: true}}}
 	proof.Verdict()
 	batch, err := proof.Batch(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, overgodb.ErrProducerRefused) {
 		t.Fatalf("the plain door admitted a proof: %v", err)
 	}
@@ -82,16 +79,12 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		textContent(t, strings.Repeat("held in a blob ", 1<<10)),
 	}
 	store, err := overgodb.Create(live)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cutover/fixture", Contents: contents}); err != nil {
 		t.Fatal(err)
 	}
 	original, _ := store.Head()
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	// serves opens the store at root and requires head and every content.
 	serves := func(root string, head artifact.CommitID, extra ...artifact.Content) {
 		t.Helper()
@@ -117,13 +110,9 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 	}
 	serves(live, original)
 	rebuilt, err := overgodb.OpenReadOnly(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, _ := rebuilt.Head()
-	if err := rebuilt.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rebuilt.Close())
 	if err := runSubcommand(rebuildArgs[:len(rebuildArgs)-1]); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("a rebuild into an existing store = %v", err)
 	}
@@ -136,14 +125,10 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 			}
 		}
 		writer, err := overgodb.Create(changing)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		tail := textContent(t, "acknowledged after the candidate snapshot")
 		newer, err := writer.Commit(t.Context(), artifact.Batch{Key: "cutover/newer", Contents: []artifact.Content{tail}})
-		if err := errors.Join(err, writer.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(err, writer.Close()))
 		if _, err := overgodb.ReplaceStore(t.Context(), changing, stale, original.String()); err == nil {
 			t.Fatal("a candidate built before an acknowledged write replaced the live store")
 		}
@@ -160,9 +145,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 	}
 	serves(live, head)
 	serves(superseded, original)
-	if err := os.Mkdir(candidate, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(candidate, 0o755))
 	if _, err := overgodb.ReplaceStore(t.Context(), live, candidate, original.String()); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("swap over an occupied superseded path = %v", err)
 	}
@@ -174,9 +157,7 @@ func textContent(t *testing.T, text string) artifact.Content {
 	t.Helper()
 	data := []byte(text)
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 }
 
@@ -184,9 +165,7 @@ func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	ctx := t.Context()
 	sourcePath := filepath.Join(t.TempDir(), "source")
 	source, err := overgodb.Create(sourcePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := source.Commit(ctx, artifact.Batch{Key: "census/fixture", Contents: []artifact.Content{textContent(t, "retained content")}}); err != nil {
 		t.Fatal(err)
 	}
@@ -195,23 +174,17 @@ func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	if _, err := overgodb.Rebuild(ctx, source, candidate, nil, runrecord.RetiredGateAliasesAtRest, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, source.Close())
 	checkout := testutil.RepoRoot(t)
 	bindings := map[string][]byte{}
 	for _, name := range []string{"accepted_census.json", "media_census.json"} {
 		path := filepath.Join(checkout, "cmd", "validate", "testdata", name)
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		bindings[path] = data
 	}
 	result := receipt{OperationProof: overgodb.OperationProof{HeadBefore: head.String(), SequenceBefore: sequence}, Candidate: candidate}
-	if err := proveRebuilt(ctx, &result, checkout); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, proveRebuilt(ctx, &result, checkout))
 	rejected := false
 	for _, check := range result.Checks {
 		if check.Name == "accepted-censuses" {
@@ -227,9 +200,7 @@ func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 		t.Fatal("refused proof admitted swap")
 	}
 	source, err = overgodb.OpenReadOnly(sourcePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	if after, _ := source.Head(); after != head {
 		t.Fatalf("source head moved: %s != %s", after, head)

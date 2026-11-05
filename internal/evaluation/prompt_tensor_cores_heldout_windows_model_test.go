@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -42,16 +43,12 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// derive compiles the family's suite under the protocol asked, once for each model's parts.
 	derive := func(t *testing.T, family string, asked prompting) CompiledSuite {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(roots.Store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		authorities := ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "prompt-tensor-cores"), RuntimeRecipe: planID(t, artifact.KindRecipe, "prompt-tensor-cores"),
@@ -77,9 +74,7 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 			right := map[bool]map[string]map[string]bool{}
 			for _, tensorCores := range []bool{false, true} {
 				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, file, inference.OpenOptions{PromptTensorCores: &tensorCores})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)
@@ -93,9 +88,7 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 					}
 					right[tensorCores][family] = answerCells(t, suite, runtime)
 				}
-				if err := runner.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, runner.Close())
 			}
 			for family := range parts {
 				losses, wins := 0, 0

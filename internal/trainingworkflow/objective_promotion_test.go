@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -30,9 +31,7 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	derived := derivedIdentity(t, "overgo/test-objective/")
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
@@ -47,9 +46,7 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 		Metric: trainingprogram.MetricVideoPSNRUnit, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const alias = "objective.registered.test-pair"
 	observation := observedTraining(t, ctx, store, root, objective, alias)
 
@@ -58,9 +55,7 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 		t.Fatal("a fabricated observation was accepted as promotion evidence")
 	}
 	promoted, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{observation})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if promoted.Authority != trainingprogram.ObjectiveAdaptive {
 		t.Fatalf("promoted authority = %q", promoted.Authority)
 	}
@@ -69,9 +64,7 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 		t.Fatalf("alias after promotion = (%s, %t, %v), want the promoted document", bound, found, err)
 	}
 	reloaded, err := trainingprogram.LoadObjective(ctx, store, promoted.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Contains(reloaded.Evidence, observation) {
 		t.Fatal("promoted objective does not carry the grounding observation in its evidence")
 	}
@@ -103,9 +96,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	derived := derivedIdentity(t, "overgo/heldout-approval-test/")
 	source := derived(artifact.KindDataset, "dataset")
@@ -122,35 +113,27 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 		Authority: trainingprogram.ObjectiveDeclared,
 	}
 	declared, err := trainingprogram.NewObjective(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const alias = "objective.registered.forecast-heldout"
 	observation := observedTraining(t, ctx, store, root, declared, alias)
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{observation}); err != nil {
 		t.Fatal(err)
 	}
 	observed, err := runrecord.RequireServingObservation(ctx, store, observation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session := evaluation.HeldoutTraining{
 		Observation: observation, Model: observed.Model, Inputs: derived(artifact.KindProfile, "inputs"),
 		Trained: recordedCheckpoint(t, store, observed.Model, source, training.ID),
 	}
 
 	view, err := evaluation.CompileSFTEvaluationView(declared, training, heldout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var cases []evaluation.HeldoutCase
 	for index, record := range view.Records {
 		cases = append(cases, evaluation.HeldoutCase{Record: record.ID, Values: []float64{float64(index), 1}})
 	}
 	plan, err := evaluation.CompileHeldoutPlan(declared, view, cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// forecastBy reports each case's values shifted by offset under plan.
 	forecastBy := func(plan evaluation.HeldoutPlan, offset float64) evaluation.HeldoutReport {
 		t.Helper()
@@ -163,18 +146,14 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 			observations = append(observations, evaluation.HeldoutObservation{Record: target.Record, Values: values})
 		}
 		report, err := plan.Score(observations)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return report
 	}
 	base, trained, regressed := forecastBy(plan, 2), forecastBy(plan, 1), forecastBy(plan, 3)
 	commit := func(key string, stage func(string) (artifact.Batch, error)) {
 		t.Helper()
 		batch, err := stage(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -187,9 +166,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	judge := func(key string, objective trainingprogram.ObjectiveDocument, view evaluation.SFTEvaluationView, candidate evaluation.HeldoutReport) artifact.ID {
 		t.Helper()
 		verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, candidate, session)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		commit(key, verdict.Batch)
 		return verdict.ID
 	}
@@ -200,25 +177,17 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	renamedSpec := spec
 	renamedSpec.Name = "forecast-heldout-other"
 	renamed, err := trainingprogram.NewObjective(renamedSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	renamedContent, err := renamed.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "test-renamed", Contents: []artifact.Content{renamedContent}}); err != nil {
 		t.Fatal(err)
 	}
 	otherView, err := evaluation.CompileSFTEvaluationView(renamed, training, heldout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit("test-other-view", otherView.Batch)
 	otherPlan, err := evaluation.CompileHeldoutPlan(renamed, otherView, cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit("test-other-plan", otherPlan.Batch)
 	scoreOther := func(key string, offset float64) evaluation.HeldoutReport {
 		t.Helper()
@@ -237,9 +206,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 
 	passed := judge("test-passed", declared, view, trained)
 	approved, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{passed, commitBenchmarkReport(t, ctx, store, "passed", true)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if approved.Authority != trainingprogram.ObjectiveApproved || !slices.Contains(approved.Evidence, passed) {
 		t.Fatalf("approved = %q, evidence carries the verdict %t", approved.Authority, slices.Contains(approved.Evidence, passed))
 	}
@@ -251,9 +218,7 @@ func derivedIdentity(t *testing.T, prefix string) func(artifact.Kind, string) ar
 	return func(kind artifact.Kind, role string) artifact.ID {
 		t.Helper()
 		id, err := artifact.IdentifyBytes(kind, []byte(prefix+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 }
@@ -265,20 +230,12 @@ func observedTraining(t *testing.T, ctx context.Context, store *overgodb.Store, 
 	t.Helper()
 	modelPath, modelID := registerObjective(t, ctx, store, root, objective, alias)
 	recipeID, err := BootstrapObjectiveRecipe(ctx, store, modelPath, alias)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observer, err := NewObserver(store, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, observer.Admit(ctx, modelID, recipeID))
 	observation, err := observer.Finish(ctx, modelID, recipeID, nil, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return observation
 }
 
@@ -288,30 +245,20 @@ func observedTraining(t *testing.T, ctx context.Context, store *overgodb.Store, 
 func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, objective trainingprogram.ObjectiveDocument, alias string) (string, artifact.ID) {
 	t.Helper()
 	modelPath := filepath.Join(root, "model.safetensors")
-	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("model"), 0o600))
 	modelFile, err := os.Open(modelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
 	modelFile.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenced := []artifact.ID{modelID, objective.Dataset, objective.Split, objective.Loss, objective.Evaluation}
 	referenced = append(referenced, objective.Processors...)
 	referenced = append(referenced, objective.Evidence...)
 	for _, name := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
 		id, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		referenced = append(referenced, id)
 	}
 	var descriptors []artifact.Descriptor
@@ -340,9 +287,7 @@ func commitSeriesSplit(t *testing.T, ctx context.Context, store *overgodb.Store,
 		records = append(records, dataset.Record{ID: fmt.Sprintf("series/%02d", index), Group: fmt.Sprintf("series-%02d", index)})
 	}
 	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memberships := map[string]dataset.Membership{}
 	for _, membership := range split.Memberships {
 		memberships[membership.Partition] = membership
@@ -355,9 +300,7 @@ func commitSeriesSplit(t *testing.T, ctx context.Context, store *overgodb.Store,
 		t.Fatal(err)
 	}
 	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -369,13 +312,9 @@ func commitSeriesSplit(t *testing.T, ctx context.Context, store *overgodb.Store,
 func commitBenchmarkReport(t *testing.T, ctx context.Context, store *overgodb.Store, name string, passed bool) artifact.ID {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"passed": passed})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(artifact.KindEvaluation, body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "test-evaluation-report-" + name,
 		Contents: []artifact.Content{{

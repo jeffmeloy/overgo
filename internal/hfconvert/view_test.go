@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -80,9 +81,7 @@ func profileDirectory(t *testing.T, modelType string) string {
 		}
 		weights[name] = values
 	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
 	return directory
 }
 
@@ -95,13 +94,9 @@ func requireViewIsConversion(t *testing.T, directory string) {
 		t.Fatal(err)
 	}
 	written, err := os.ReadFile(converted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file, err := View(directory, "fixture")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	shards := file.Shards()
 	if len(shards) != 1 || shards[0].Size != uint64(len(written)) {
@@ -126,9 +121,7 @@ func requireViewIsConversion(t *testing.T, directory string) {
 		t.Fatalf("the view read in pieces differs from the converted file at byte %d", at)
 	}
 	opened, err := gguf.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer opened.Close()
 	if opened.ViewDirectory() == "" || len(opened.Tensors) != len(file.Tensors) || len(opened.Metadata) != len(file.Metadata) {
 		t.Errorf("gguf.Open of the directory = %d tensors, %d metadata, viewing %q; want the view of it", len(opened.Tensors), len(opened.Metadata), opened.ViewDirectory())

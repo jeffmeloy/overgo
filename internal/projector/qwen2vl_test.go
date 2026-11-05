@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -43,9 +44,7 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tinyQwen2VLTensors())
 	runner, err := openImageProjectorAs[*qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := range 4 {
@@ -56,9 +55,7 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	output, err := runner.EncodeImage(t.Context(), input, qwen2VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 1)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -77,9 +74,7 @@ func TestQwen2VLSpecOptionalNormPairs(t *testing.T) {
 	tensors = append(tensors, f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tensors)
 	opened, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer opened.Close()
 	if _, err := readQwen2VLSpec(opened); err == nil {
 		t.Fatal("expected incomplete optional pre-LayerNorm rejection")
@@ -115,9 +110,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	opened, err := OpenAs[Projector](t.Context(), path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, ok := opened.(*qwen2VLRunner)
 	if !ok {
 		t.Fatalf("projector type = %T", opened)
@@ -126,9 +119,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	tok := &qwen2VLPromptTokenizer{}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, input, "before", "after", true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(prompt.EmbeddingTokenIndices) != 1 || prompt.EmbeddingWidth != 6 || len(prompt.Embeddings) != 6 {
 		t.Fatalf("image projection = indices %v width %d values %d", prompt.EmbeddingTokenIndices, prompt.EmbeddingWidth, len(prompt.Embeddings))
 	}
@@ -137,9 +128,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	}
 	frames := []image.Image{input, input, input, input}
 	video, err := testSession(t, runner).BuildVideoPrompt(t.Context(), tok, frames, "", "describe", 24, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(video.EmbeddingTokenIndices) != 2 || len(video.Embeddings) != 12 {
 		t.Fatalf("video projection = indices %v values %d", video.EmbeddingTokenIndices, len(video.Embeddings))
 	}
@@ -154,9 +143,7 @@ func TestSpatialPositionsGrid3D(t *testing.T) {
 	positions, err := compileSpatialPositions(12, positionGrid3D, []spatialPositionChunk{{
 		Start: 2, Extents: [tensor.TripleExtent]int{2, 2, 2},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if positions[0][2] != 2 || positions[0][6] != 3 || positions[1][4] != 3 ||
 		positions[2][3] != 3 || positions[3][9] != 0 || positions[0][10] != 4 {
 		t.Fatalf("unexpected Qwen2-VL video positions: %v", positions)

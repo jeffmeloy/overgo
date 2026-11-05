@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,17 +18,13 @@ func TestBridgeProposalBlocksWithoutVerifier(t *testing.T) {
 	target := testutil.ArtifactID(t, artifact.KindModel, "proposal-target")
 	donor := testutil.ArtifactID(t, artifact.KindModel, "proposal-donor")
 	ranker, err := TrainProposalRanker(nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidates := []BridgeCandidate{{Donor: donor, Component: "blk.7.ffn_gate.weight", Distance: 0.125}}
 	verifier := "go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1"
 	blocker := "no recorded experiment evidence; the adapter tier is retired pending per-matrix modulation"
 
 	proposal, err := NewBridgeProposal(target, candidates, ranker, verifier, blocker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if proposal.State != ProposalPromotionBlocked || proposal.Blocker != blocker {
 		t.Fatalf("proposal state = %+v, want promotion-blocked with blocker", proposal)
 	}
@@ -53,9 +50,7 @@ func TestBridgeProposalBlocksWithoutVerifier(t *testing.T) {
 	}
 
 	content, err := proposal.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseBridgeProposal(content.Data)
 	if err != nil || parsed.ID != proposal.ID || parsed.State != ProposalPromotionBlocked {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)

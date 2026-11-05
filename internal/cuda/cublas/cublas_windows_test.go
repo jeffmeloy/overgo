@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,9 +37,7 @@ func newBLASFixture(t *testing.T) *blasFixture {
 	t.Helper()
 	cudatest.Require(t)
 	worker, err := device.New(fixtureDevice)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := worker.Close(); err != nil {
 			t.Errorf("close CUDA worker: %v", err)
@@ -367,9 +366,7 @@ func TestCUBLASIsAskedForRepeatableResults(t *testing.T) {
 		t.Fatal("the workspace is not set when the package has started")
 	}
 	record, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "repeatable-steps.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(record), "CUBLAS_WORKSPACE_CONFIG="+workspaceConfig) {
 		t.Fatalf("the record measured no workspace of %s", workspaceConfig)
 	}

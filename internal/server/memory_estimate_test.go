@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestRunMemoryEstimateFromMeasuredRecords: before a model serves, the
@@ -26,35 +27,23 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 	ctx := t.Context()
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "measured.gguf")
-	if err := os.WriteFile(weightsPath, []byte("measured memory weights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("measured memory weights"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit := func(capability string, peak uint64, document string) {
 		t.Helper()
 		data := []byte(document)
 		evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 			Capability: capability, Tier: runrecord.TierCapabilityMeasured, PeakDeviceBytes: peak, WallNS: 1_000_000,
 			Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := runrecord.CommitVerificationClaim(ctx, store, record, data, evidence, weightsPath); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, data, evidence, weightsPath))
 	}
 	commit("benchmark", 6_000_000_000, `{"device_after_load_bytes":5000000000,"realized_residency":"device-native","device":{"totalMemoryBytes":24000000000},"summary":{"decode_tokens_per_second_p50":40}}`)
 	commit("long-form", 0, `{"verdict":{"passed":true},"device":{"totalMemoryBytes":24000000000},"rungs":[
@@ -62,9 +51,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 		{"measure":{"prompt_tokens":4096,"memory":{"peakBytes":6900000000}}},
 		{"measure":{"prompt_tokens":8192}}]}`)
 	registered, err := filepath.Abs(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rows := catalogListing([]discovery.CatalogEntry{
 		{Model: model, Location: registered, Present: true},
 		{Model: model, Location: "C:/models/unmeasured.gguf", Present: true},
@@ -81,9 +68,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 
 	fixture := newDPOTrainingFixture(t)
 	training, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer training.Close()
 	var capabilities []WorkflowCapability
 	listed := serveTestRequest(training, http.MethodGet, "/training/capabilities", "")

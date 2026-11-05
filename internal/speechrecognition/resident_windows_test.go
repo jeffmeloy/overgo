@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,9 +21,7 @@ func TestASRResidentCUDA(t *testing.T) {
 	t.Run("encoder", func(t *testing.T) {
 		fixture, _, e := smallEncoder(t)
 		before := driver.ProcessCurrentBytes()
-		if err := e.BindDevice(t.Context(), 0); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, e.BindDevice(t.Context(), 0))
 		defer e.Close(context.Background())
 		static := e.resident.session.StaticBytes()
 		if static == 0 {
@@ -52,13 +51,9 @@ func TestASRResidentCUDA(t *testing.T) {
 				testutil.RequireWithin(t, name, trace.Values, tc.Traces[name].Values, tolerance)
 				return nil
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			logits, err := e.Project(t.Context(), hidden, frames, &w)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			testutil.RequireWithin(t, "logits", logits, tc.Logits, tolerance)
 			if e.resident.session.StaticBytes() != static {
 				t.Fatal("changing frame count duplicated resident weights")
@@ -84,9 +79,7 @@ func TestASRResidentCUDA(t *testing.T) {
 		}); !errors.Is(err, context.Canceled) {
 			t.Fatalf("mid-forward cancellation: %v", err)
 		}
-		if err := e.Close(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, e.Close(t.Context()))
 		if driver.ProcessCurrentBytes() != before {
 			t.Fatal("closing the recognizer retained device allocations")
 		}
@@ -96,9 +89,7 @@ func TestASRResidentCUDA(t *testing.T) {
 	})
 	t.Run("stream_refused", func(t *testing.T) {
 		_, _, _, model := tinyTransducer(t)
-		if err := model.BindDevice(t.Context(), 0); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, model.BindDevice(t.Context(), 0))
 		defer model.Close(context.Background())
 		var workspace TransducerWorkspace
 		if _, err := model.RecognizeChunk(t.Context(), []float32{1, -1, 2, -2}, 2, true, &workspace, nil); err == nil || workspace.stream != nil {

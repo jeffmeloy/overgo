@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -73,9 +74,7 @@ func TestScaleLogits(t *testing.T) {
 
 func TestAddOutputBiasBroadcastsAcrossTokens(t *testing.T) {
 	logits := []float32{1, 2, 3, 4, 5, 6}
-	if err := addOutputBias(logits, []float32{0.5, -1, 2}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, addOutputBias(logits, []float32{0.5, -1, 2}))
 	want := []float32{1.5, 1, 5, 4.5, 4, 8}
 	for index := range want {
 		if logits[index] != want[index] {
@@ -89,9 +88,7 @@ func TestAddOutputBiasBroadcastsAcrossTokens(t *testing.T) {
 
 func TestNegativeLogProbability(t *testing.T) {
 	got, err := negativeLogProbability([]float32{1, 2, 3}, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := math.Log(math.Exp(-2) + math.Exp(-1) + 1)
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("negative log probability = %.15g, want %.15g", got, want)
@@ -100,9 +97,7 @@ func TestNegativeLogProbability(t *testing.T) {
 
 func TestNegativeLogProbabilityIsStableAndRejectsInvalidData(t *testing.T) {
 	got, err := negativeLogProbability([]float32{10000, 9999}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(got-math.Log1p(math.Exp(-1))) > 1e-12 {
 		t.Fatalf("stable negative log probability = %.15g", got)
 	}

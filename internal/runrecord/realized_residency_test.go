@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 		aggregate, err := NewResourceFitness(ResourceFitness{
 			Scope: scope, Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: wall}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ObservationStream{
 			Scope: scope, Aggregate: aggregate,
 			SummaryIDs: []artifact.ID{id(artifact.KindEvidence, name+" summary")},
@@ -68,9 +67,7 @@ func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 	serving := servingObservationFixture(t)
 	serving.RealizedResidency = recipe.RealizedOOMStreamed
 	serving, err = NewServingObservation(serving)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fitness, err := serving.ResourceFitness(artifact.ID{}, nil, ResourceWallNS)
 	if err != nil || fitness.Scope.RealizedResidency != recipe.RealizedOOMStreamed {
 		t.Fatalf("serving outcome lost in resource observation: %+v, %v", fitness.Scope, err)

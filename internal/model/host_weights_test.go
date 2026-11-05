@@ -13,18 +13,15 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestLoadHostTensor(t *testing.T) {
 	data := hostTensorFixture(t, "weight", 4)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value, err := LoadHostTensor(t.Context(), file, file.Tensors[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !value.Shape.Equal(tensor.MustShape(4)) {
 		t.Fatalf("shape = %v", value.Shape.Slice())
 	}
@@ -47,9 +44,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	data := hostTensorFixture(t, "table", 2, tableRows)
 	reader := &countedRowReader{Reader: bytes.NewReader(data)}
 	file, err := gguf.Parse(reader, uint64(len(data)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Row r holds 2r+1 and 2r+2.
 	check := func(indices []uint32, data []float32) {
 		t.Helper()
@@ -65,9 +60,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	}
 	reader.calls.Store(0)
 	value, err := LoadHostRows(t.Context(), file, file.Tensors[0], every)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if reader.calls.Load() != tableRows {
 		t.Fatalf("read %d rows, want %d", reader.calls.Load(), tableRows)
 	}
@@ -85,9 +78,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 
 	// One set of eight ways: of nine rows read, eight stay.
 	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nine := []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8}
 	for _, want := range []int64{9, 1} {
 		reader.calls.Store(0)
@@ -117,13 +108,9 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 
 	// A table in a file is read through handles of its own, at the table's offset in the file.
 	path := filepath.Join(t.TempDir(), "table.gguf")
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	opened, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer opened.Close()
 	if rows, err = NewHostRows(opened, opened.Tensors[0], 0); err != nil {
 		t.Fatal(err)
@@ -140,9 +127,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	}
 
 	scores, err := DotRows(t.Context(), file, file.Tensors[0], []float32{1, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for row, score := range scores {
 		if score != float32(4*row+3) {
 			t.Fatalf("score[%d] = %v, want %v", row, score, 4*row+3)
@@ -180,13 +165,9 @@ func TestHostRowsPrefetchesReadTogether(t *testing.T) {
 	data := hostTensorFixture(t, "table", 2, 300)
 	reader := &heldRowReader{Reader: bytes.NewReader(data), started: make(chan struct{}), release: make(chan struct{})}
 	file, err := gguf.Parse(reader, uint64(len(data)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rows.Close()
 	reader.hold.Store(true)
 	rows.Prefetch(t.Context(), []uint32{1})
@@ -194,9 +175,7 @@ func TestHostRowsPrefetchesReadTogether(t *testing.T) {
 	reader.hold.Store(false)
 	rows.Prefetch(t.Context(), []uint32{2})
 	value, err := rows.Load(t.Context(), []uint32{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if value.Data[0] != 5 || reader.finished.Load() != 1 {
 		t.Fatalf("row 2 = %v with %d reads finished, want 5 beside the held read", value.Data, reader.finished.Load())
 	}
@@ -254,12 +233,8 @@ func hostTensorFixture(t *testing.T, name string, dimensions ...uint64) []byte {
 	}
 	var payload, buffer bytes.Buffer
 	for index := range elements {
-		if err := binary.Write(&payload, binary.LittleEndian, float32(index+1)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Write(&payload, binary.LittleEndian, float32(index+1)))
 	}
-	if err := gguf.Write(&buffer, nil, []gguf.TensorData{{Name: name, Shape: dimensions, Type: dtype.F32, Data: &payload}}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.Write(&buffer, nil, []gguf.TensorData{{Name: name, Shape: dimensions, Type: dtype.F32, Data: &payload}}, gguf.WriteOptions{}))
 	return buffer.Bytes()
 }

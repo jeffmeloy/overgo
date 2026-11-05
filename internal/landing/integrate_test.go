@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestWorktreeCandidateIsIntegratedOntoTheTrunk holds a commit from a linked
@@ -73,9 +74,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	rows := func(checkout *sliceFixture) (ids []string) {
 		t.Helper()
 		document, err := plan.Load(checkout.planPath())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, item := range document.Items {
 			ids = append(ids, item.ID)
 		}
@@ -96,9 +95,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 
 	// The lead gives the second row a check only the first's tree passes.
 	document, err := plan.Load(fixture.planPath())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document.Items[0].Steps[0].Verify = "test -f " + fileOne
 	fixture.commitPlan(document)
 	leads := fixture.git("rev-parse", "HEAD")
@@ -130,9 +127,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	if one.git("rev-parse", "HEAD") != first || holds(one, fileTwo) != mine || fixture.git("rev-parse", "refs/heads/trunk") != second {
 		t.Fatalf("the refused worktree is on %s holding %q with the trunk at %s; want it where it was, on %s", one.git("rev-parse", "HEAD"), holds(one, fileTwo), fixture.git("rev-parse", "refs/heads/trunk"), first)
 	}
-	if err := os.Remove(filepath.Join(one.repo, filepath.FromSlash(fileTwo))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(one.repo, filepath.FromSlash(fileTwo))))
 
 	// The lead has a change of its own, uncommitted, to a file the commit changes.
 	fixture.write("a.txt", "the lead's\n")

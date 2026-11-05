@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestAliasMovesHaveOneOwner holds the alias move to its owner. Naming the
@@ -22,9 +23,7 @@ import (
 func TestAliasMovesHaveOneOwner(t *testing.T) {
 	t.Parallel()
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handwritten := func(snapshot gosyntax.Snapshot) []string {
 		var sites []string
 		for _, file := range snapshot.Files {
@@ -32,9 +31,7 @@ func TestAliasMovesHaveOneOwner(t *testing.T) {
 				continue
 			}
 			syntax, err := file.Syntax()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			bindings := map[string]bool{}
 			report := func(ast.Node) { sites = append(sites, file.Path) }
 			ast.Inspect(syntax, func(node ast.Node) bool {
@@ -100,9 +97,7 @@ func move(name string, target, held artifact.ID, pointer *artifact.ID) artifact.
 }
 `
 	overlaid, err := snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sites := handwritten(overlaid); len(sites) != 4 {
 		t.Fatalf("the walk found %v in a package that writes the move out four ways", sites)
 	}

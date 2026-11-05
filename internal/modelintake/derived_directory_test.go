@@ -8,6 +8,7 @@ import (
 	_ "overgo/internal/hfconvert"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,28 +18,20 @@ import (
 func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directory := testutil.Qwen35Directory(t)
 	testutil.WriteTextFile(t, directory, "generation_config.json", `{"do_sample":true,"temperature":0.25}`)
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	state, err := loaded.State()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if state.Verification != modelrecipe.StateNotVerified {
 		t.Fatalf("state = %+v", state)
 	}
 	policy, err := loaded.RuntimePolicy()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if policy.Serving.Sampling.Temperature != 0.25 {
 		t.Fatalf("the directory's sampling did not reach the policy: %+v", policy.Serving.Sampling)
 	}

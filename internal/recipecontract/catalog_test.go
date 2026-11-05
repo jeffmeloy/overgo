@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestCanonicalModuleCatalogContract(t *testing.T) {
@@ -18,9 +19,7 @@ func TestCanonicalModuleCatalogContract(t *testing.T) {
 		},
 	}
 	catalog, err := recipe.NewCatalog(module)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	module.Tasks[0] = recipe.TaskForecast
 	module.Outputs[0].Data = recipe.DataImage

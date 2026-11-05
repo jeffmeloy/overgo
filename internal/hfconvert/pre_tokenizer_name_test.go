@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -28,9 +29,7 @@ func TestConverterNamesASplittingRuleByTheFileThatHoldsIt(t *testing.T) {
 	}
 	for _, fixture := range fixtures {
 		raw, err := os.ReadFile(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var reference struct {
 			Rule         string          `json:"rule"`
 			PreTokenizer json.RawMessage `json:"pre_tokenizer"`
@@ -71,9 +70,7 @@ func declaration(t *testing.T, steps ...map[string]any) json.RawMessage {
 		value = steps[0]
 	}
 	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return encoded
 }
 
@@ -94,15 +91,11 @@ func declaration(t *testing.T, steps ...map[string]any) json.RawMessage {
 func TestConverterRefusesADeclarationItsRuleDoesNotCut(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "fixtures", "pre_tokenizer", "deepseek-v3.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reference struct {
 		PreTokenizer json.RawMessage `json:"pre_tokenizer"`
 	}
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	held := string(reference.PreTokenizer)
 	if name, err := preTokenizerName(reference.PreTokenizer); err != nil || name != "deepseek-v3" {
 		t.Fatalf("the held declaration is named %q, so a change to it proves nothing: %v", name, err)

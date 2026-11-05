@@ -20,6 +20,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -51,13 +52,9 @@ func sharedRunPublishes(t *testing.T) {
 	root, store, modelPath, datasetPath := routeFixture(t)
 	ctx := t.Context()
 	session, err := openSession(ctx, store, modelPath, datasetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
 	target := filepath.Join(root, "checkpoint")
 	run := boundedRun{name: "shared-run", plan: plan, session: session, loss: matrix.loss,
@@ -66,17 +63,11 @@ func sharedRunPublishes(t *testing.T) {
 			return session.publishPlanned(ctx, target, matrix, plan.Updates())
 		},
 	}
-	if err := run.train(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run.train(ctx))
 	stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(plan.Updates()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint, err := trainingprogram.LoadCheckpoint(target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, recorded, err := store.Artifact(ctx, checkpoint.ID())
 	if err != nil || !recorded || checkpoint.Model != session.model || checkpoint.Program != matrix.program.ID() ||
 		checkpoint.Stream != trainingprogram.DatasetState(stream) {
@@ -84,9 +75,7 @@ func sharedRunPublishes(t *testing.T) {
 			checkpoint.ID(), checkpoint.Model, checkpoint.Program, checkpoint.Stream, recorded, err, session.model, matrix.program.ID(), stream)
 	}
 	rerun := filepath.Join(root, "rerun")
-	if err := session.publishPlanned(ctx, rerun, matrix, plan.Updates()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, session.publishPlanned(ctx, rerun, matrix, plan.Updates()))
 	if again, err := trainingprogram.LoadCheckpoint(rerun); err != nil || again.ID() != checkpoint.ID() {
 		t.Fatalf("a rerun publishing the same checkpoint elsewhere = (%s, %v), want %s recorded again", again.ID(), err, checkpoint.ID())
 	}
@@ -117,14 +106,10 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		root, store, modelPath, datasetPath := routeFixture(t)
 		ctx := t.Context()
 		session, err := openSession(ctx, store, modelPath, datasetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		session.proof = true
 		plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
 		target, full := filepath.Join(root, "proof"), filepath.Join(root, "full")
 		if err := (boundedRun{name: "proof", plan: plan, session: session, loss: matrix.loss,
@@ -139,22 +124,16 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		requireProofFootprint(t, store, target, proved, session.model)
 		// The same trained state, published by a session that is not a proof.
 		session.proof = false
-		if err := session.publishPlanned(ctx, full, matrix, plan.Updates()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, session.publishPlanned(ctx, full, matrix, plan.Updates()))
 		requireFullPublication(t, store, full, proved)
 	})
 	t.Run("a held-out run's publications", func(t *testing.T) {
 		root, store, modelPath, datasetPath := routeFixture(t)
 		ctx := t.Context()
 		session, err := recipeSession(ctx, store, modelPath, datasetPath, trainingworkflow.TokenContract)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		config, err := trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		matrix := newHostMatrix(t, session.authority.Objective, config)
 		for name, publish := range map[string]func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error){
 			"under the trainer's own program, as the tabular route publishes": func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
@@ -166,9 +145,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		} {
 			// Each publication takes a step of its own, so its checkpoint is no other's.
 			stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(matrix.step().Step))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			target, full := filepath.Join(root, name, "proof"), filepath.Join(root, name, "full")
 			proved, err := publish(target, stream, true)
 			if err != nil {
@@ -197,25 +174,17 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
 		base, dataset, storePath := writeServingFixture(t, root), filepath.Join(root, "dataset.txt"), filepath.Join(root, "store")
-		if err := os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
 		store, err := overgodb.Create(storePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 			t.Fatal(err)
 		}
 		recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		model, err := trainingworkflow.WeightsIdentity(base)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Setenv(commandChildEnvironment, childStandIn)
 		// started runs the training command over the arguments and returns
 		// what it printed, the status it ended with and the error it wrote for
@@ -227,9 +196,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 			receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 				Path: os.Args[0], Args: arguments, Stdout: &printed, Env: append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written),
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			// A command that ended well wrote no error.
 			refusal, _ := os.ReadFile(written)
 			return printed.String(), receipt.ExitCode, string(refusal)
@@ -244,9 +211,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 			if status != 0 {
 				t.Fatalf("the training command given %v ended with status %d: %s", arguments, status, refusal)
 			}
-			if err := store.Refresh(ctx); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, store.Refresh(ctx))
 			return printed
 		}
 		models := func() int {
@@ -292,15 +257,11 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		// A text objective, by train -objective: each file of the corpus is one
 		// record, of a length of its own.
 		corpus := filepath.Join(root, "corpus")
-		if err := os.Mkdir(corpus, 0o700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Mkdir(corpus, 0o700))
 		const documents = 8
 		for index := range documents {
 			text := strings.Repeat("a b c d ", 3)[:8+2*index]
-			if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(text), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(text), 0o600))
 		}
 		source, training := registerSplit(t, ctx, store, "texts", corpus, documents, nil)
 		const alias = "objective.registered.texts"
@@ -366,14 +327,10 @@ func routeFixture(t *testing.T) (root string, store *overgodb.Store, modelPath, 
 	root = t.TempDir()
 	modelPath, datasetPath = filepath.Join(root, "model.safetensors"), filepath.Join(root, "dataset.txt")
 	for path, data := range map[string]string{modelPath: "weights", datasetPath: routeFixtureDataset} {
-		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 	}
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	return root, store, modelPath, datasetPath
 }
@@ -395,23 +352,15 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 	t.Run("scratch start", func(t *testing.T) {
 		root, store, _, datasetPath := routeFixture(t)
 		declaration, err := os.ReadFile(datasetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		construction, processor, err := bootstrapConstruction(oscillatorimage.Config{ModelType: "fixture"}, testMatrix.End, 1, declaration)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		session, err := scratchSession(t.Context(), store, construction, processor,
 			generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		session.data = declaration
 		plan, err := probeSession(trainingprogram.ObjectiveLatentL2, 3, testMatrix.End, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		matrix := newHostMatrix(t, trainingprogram.ObjectiveLatentL2, plan.Optimizer())
 		target := filepath.Join(root, "checkpoint")
 		if err := (boundedRun{name: "scratch", plan: plan, session: session, loss: matrix.loss,
@@ -423,9 +372,7 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkpoint, err := trainingprogram.LoadCheckpoint(target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		scratch := trainingprogram.LineageParent{Artifact: construction.ID(), Relation: artifact.RelationDependsOn}
 		if checkpoint.Model != construction.InitializedModel() || checkpoint.Program != matrix.program.ID() || !slices.Contains(checkpoint.Lineage, scratch) {
 			t.Fatalf("scratch checkpoint of %s under program %s with lineage %v, want the latent-l2 program %s from construction %s",
@@ -438,17 +385,11 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 			t.Fatalf("flow-matching run = (%d steps, %v), want all three", ran.steps, ran.err)
 		}
 		checkpoint, err := trainingprogram.LoadCheckpoint(ran.target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, newHostMatrix(t, trainingprogram.ObjectiveFlowMatching, checkpoint.Optimizer.Config).plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(ran.steps))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		session := ran.session
 		_, recorded, err := session.store.Artifact(t.Context(), checkpoint.ID())
 		if err != nil || !recorded || session.authority.Objective != trainingprogram.ObjectiveFlowMatching || checkpoint.Program != program.ID() ||
@@ -483,9 +424,7 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 	t.Run("setup failure", func(t *testing.T) {
 		_, store, modelPath, datasetPath := routeFixture(t)
 		session, err := openSession(t.Context(), store, modelPath, datasetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		failure := errors.New("the model failed to load")
 		setupErr := failure
 		session.settle(t.Context(), &setupErr)
@@ -518,16 +457,10 @@ func runUnderContract(t *testing.T, contract trainingworkflow.RecipeContract, ki
 	t.Helper()
 	root, store, modelPath, datasetPath := routeFixture(t)
 	session, err := openSessionAs(t.Context(), store, modelPath, datasetPath, contract)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(datasetPath, []byte("edited after the session read it"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("edited after the session read it"), 0o600))
 	plan, err := probeSession(kind, 3, testMatrix.End, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	if cancelAt == 0 {
@@ -564,9 +497,7 @@ type hostMatrix struct {
 func newHostMatrix(t *testing.T, objective trainingprogram.ObjectiveKind, config hostoptimizer.Config) *hostMatrix {
 	t.Helper()
 	plan, err := hostoptimizer.CompilePlan(testMatrix.End, []hostoptimizer.GroupSpec{testMatrix})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	matrix := &hostMatrix{plan: plan, weights: make([]float32, testMatrix.End), gradients: make([]float32, testMatrix.End)}
 	if matrix.program, err = trainingprogram.CompileObjectiveProgram(objective, nil, plan); err != nil {
 		t.Fatal(err)

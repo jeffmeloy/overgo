@@ -9,21 +9,18 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
 	runner, err := openImageProjectorAs[*hunyuanVLRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), rasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 4)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -37,9 +34,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*hunyuanVLRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
@@ -48,18 +43,14 @@ func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 	runner, err := openImageProjectorAs[*hunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		t.Context(), imagePromptTokenizer{marker: hunyuanVLImagePad, token: 9002},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prompt.EmbeddingWidth != 6 || len(prompt.Embeddings) != 9*6 || len(prompt.EmbeddingTokenIndices) != 9 {
 		t.Fatalf("embedding contract = width %d values %d indices %d", prompt.EmbeddingWidth, len(prompt.Embeddings), len(prompt.EmbeddingTokenIndices))
 	}
@@ -99,9 +90,7 @@ func TestPreprocessRasterPatchOrder(t *testing.T) {
 		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels},
 		mean:          spec.ImageMean, std: spec.ImageStd, interpolation: rasterBicubic,
 	}, rasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	patchArea := spec.PatchSize * spec.PatchSize
 	redStarts := []float32{
 		processed.PixelValues[0], processed.PixelValues[3*patchArea],
@@ -124,18 +113,12 @@ func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 
 func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 	file, err := gguf.Open(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	spec, err := readHunyuanVLSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	names, err := validateHunyuanVLCatalog(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.Contains(names, "mm.0.weight") {
 		t.Fatal("host-reordered convolution entered device catalog")
 	}
@@ -161,13 +144,9 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	}
 	options := rasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, "Hunyuan-VL", got.Embeddings.Data, want.Embeddings.Data, 2e-3)
 }
 

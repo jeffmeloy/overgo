@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,25 +21,17 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
 		[]artifact.ID{derivation, evidence},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseDecision(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != decision.ID || parsed.Decider != decision.Decider || parsed.Tier != EvidenceParity ||
 		parsed.Reason != decision.Reason {
 		t.Fatalf("parsed decision = %+v", parsed)
 	}
 	batch, err := decision.Batch("test/decision")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := map[artifact.ID]bool{subject: true, derivation: true, evidence: true}
 	if len(batch.Contents) != 1 || len(batch.Lineage) != len(parents) {
 		t.Fatalf("decision batch = %+v", batch)
@@ -52,9 +45,7 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 		subject, DecisionRefused, EvidenceExperimental, decision.Reason,
 		decision.Decider, decision.Evidence,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.ID == decision.ID {
 		t.Fatal("decision tier did not affect identity")
 	}
@@ -81,13 +72,9 @@ func TestRefusalDecisionCarriesMeasuredReason(t *testing.T) {
 		"held-out loss regressed beyond the noise envelope",
 		decider, []artifact.ID{failedRun},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseDecision(content.Data)
 	if err != nil || parsed.Reason != decision.Reason || len(parsed.Evidence) != 1 || parsed.Evidence[0] != failedRun {
 		t.Fatalf("parsed refusal = (%+v, %v)", parsed, err)
@@ -167,9 +154,7 @@ func TestEvidenceTierIsVerificationVocabulary(t *testing.T) {
 		subject, DecisionAccepted, EvidenceVerified, "verification evidence stands",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation}, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if decision.Tier != EvidenceVerified {
 		t.Fatalf("tier = %q", decision.Tier)
 	}

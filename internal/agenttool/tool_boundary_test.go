@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestOneRefusedAddressList: a tool's endpoint and a media source answer to one list, every prefix of which the dial refuses,
@@ -52,9 +54,7 @@ func TestToolEnvironmentProcess(t *testing.T) {
 func TestAToolReceivesOnlyWhatItsManualNames(t *testing.T) {
 	// Serial: it sets the server's environment and finds the tool on PATH.
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("TOOL_NAMED", "named")
 	t.Setenv("TOOL_PROVIDER_KEY", "held-by-the-server")
@@ -66,17 +66,11 @@ func TestAToolReceivesOnlyWhatItsManualNames(t *testing.T) {
 			Environment: []string{"TOOL_NAMED"},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := NewOperatorExecutor().Invoke(t.Context(), manual, json.RawMessage(`{}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var received string
-	if err := json.Unmarshal(result, &received); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(result, &received))
 	if !strings.Contains(received, "TOOL_NAMED=named") || strings.Contains(received, "held-by-the-server") || !strings.Contains(strings.ToUpper(received), "PATH=") {
 		t.Fatalf("the tool received:\n%s", received)
 	}

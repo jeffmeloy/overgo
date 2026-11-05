@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
@@ -18,28 +19,20 @@ func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
 	archive := zip.NewWriter(&encoded)
 	for name, body := range map[string]string{"archive/data.pkl": metadata, "archive/data/0": "\x00\x00\x80\x3f"} {
 		entry, err := archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := entry.Write([]byte(body)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := archive.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, archive.Close())
 	var expected artifact.ID
 	for _, suffix := range []string{".pth", ".pt", ".pth.tar", ".PT.TAR"} {
 		t.Run(suffix, func(t *testing.T) {
 			root := t.TempDir()
 			path := filepath.Join(root, "model"+suffix)
-			if err := os.WriteFile(path, encoded.Bytes(), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, encoded.Bytes(), 0o600))
 			inventory, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fact, found := inventory.TensorInventory.Tensor("weights/weight")
 			if !found || fact.Storage != "f32" || fact.Bytes != 4 || len(fact.Shape) != 1 || fact.Shape[0] != 1 {
 				t.Fatalf("tensor facts: %+v", inventory.TensorInventory)
@@ -48,9 +41,7 @@ func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
 				t.Fatal("filename suffix changed the same checkpoint's identity")
 			}
 			expected = inventory.Manifest.ID
-			if err := os.WriteFile(path, []byte("not a ZIP checkpoint"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, []byte("not a ZIP checkpoint"), 0o600))
 			if _, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}}); err == nil {
 				t.Fatal("accepted invalid PyTorch container")
 			}
@@ -66,21 +57,15 @@ func TestFromFilesInventoriesIndexedShardsOnce(t *testing.T) {
 	index, err := json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	indexPath := filepath.Join(directory, "model.safetensors.index.json")
-	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(indexPath, index, 0o600))
 	inventory, err := FromFiles(directory, []FileSpec{
 		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
 		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
 		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.TensorInventory.Tensors) != len(shards) {
 		t.Fatalf("tensor facts = %d, want %d", len(inventory.TensorInventory.Tensors), len(shards))
 	}
@@ -101,21 +86,15 @@ func TestFromFilesInventoriesNonstandardIndexedShards(t *testing.T) {
 	index, err := json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	indexPath := filepath.Join(directory, "diffusion_pytorch_model.safetensors.index.json")
-	if err := os.WriteFile(indexPath, index, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(indexPath, index, 0o600))
 	inventory, err := FromFiles(directory, []FileSpec{
 		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
 		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
 		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.TensorInventory.Tensors) != 2 {
 		t.Fatalf("tensor facts = %d, want 2", len(inventory.TensorInventory.Tensors))
 	}
@@ -128,12 +107,8 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 	var specs []FileSpec
 	for _, head := range []string{"classification", "regression"} {
 		headDir := filepath.Join(directory, head)
-		if err := os.MkdirAll(headDir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(headDir, "config.json"), []byte(fixtureConfig), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(headDir, 0o755))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(headDir, "config.json"), []byte(fixtureConfig), 0o600))
 		writeSafetensor(t, filepath.Join(headDir, "model.safetensors"), fixtureTensorName)
 		specs = append(specs,
 			FileSpec{Path: filepath.Join(headDir, "config.json"), Name: head + "/config", Role: artifact.ComponentConfig},
@@ -141,9 +116,7 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 		)
 	}
 	inventory, err := FromFiles(directory, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.Components) != 4 || len(inventory.Manifest.Components) != 4 || len(inventory.Locations) != 5 {
 		t.Fatalf("inventory shape = %d/%d/%d", len(inventory.Components), len(inventory.Manifest.Components), len(inventory.Locations))
 	}
@@ -170,12 +143,8 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 	var otherSpecs []FileSpec
 	for _, head := range []string{"classification", "regression"} {
 		headDir := filepath.Join(other, head)
-		if err := os.MkdirAll(headDir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(headDir, "config.json"), []byte(fixtureConfig), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(headDir, 0o755))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(headDir, "config.json"), []byte(fixtureConfig), 0o600))
 		writeSafetensor(t, filepath.Join(headDir, "model.safetensors"), fixtureTensorName)
 		otherSpecs = append(otherSpecs,
 			FileSpec{Path: filepath.Join(headDir, "config.json"), Name: head + "/config", Role: artifact.ComponentConfig},
@@ -183,9 +152,7 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 		)
 	}
 	relocated, err := FromFiles(other, otherSpecs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if relocated.Manifest.ID != inventory.Manifest.ID || relocated.TensorInventory.ID != inventory.TensorInventory.ID {
 		t.Fatalf("relocated identities differ: %s != %s", relocated.Manifest.ID, inventory.Manifest.ID)
 	}

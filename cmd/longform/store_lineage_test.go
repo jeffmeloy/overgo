@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // requireStoreLineage skips a store-bound guard test when the store under
@@ -14,13 +15,9 @@ import (
 func requireStoreLineage(t *testing.T, store *overgodb.Store, text string) {
 	t.Helper()
 	id, err := artifact.ParseID(text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	found, err := store.HasContent(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !found {
 		t.Skipf("integration: the bound guard record %s is absent from this store; only the producer's store lineage carries it", id)
 	}

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 	var sessions atomic.Int64
 	hub.pump(func() runtimeSessionsResponse { sessions.Add(1); return runtimeSessionsResponse{} })
 	manager, err := operation.NewManager(8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer manager.Close()
 	var last atomic.Uint64
 	manager.Notify(func(event operation.Event) { last.Store(event.Sequence); hub.observeOperation(event) })
@@ -34,9 +33,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 	queues := make([]<-chan hubEvent, streams)
 	for index := range queues {
 		events, unsubscribe, err := hub.subscribe(64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer unsubscribe()
 		queues[index] = events
 	}
@@ -48,9 +45,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 			reporter.Publishing()
 			return operation.Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := manager.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
@@ -106,9 +101,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 
 	// A stream that stops reading holds one resync, not a stale backlog.
 	slow, unsubscribe, err := hub.subscribe(64)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer unsubscribe()
 	for range cap(slow) + 1 {
 		hub.publish("hub.downloads", []downloadJob{})

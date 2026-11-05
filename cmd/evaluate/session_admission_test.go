@@ -7,21 +7,16 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 func TestEvaluationSessionWriterCancellation(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	lock, err := processlock.Acquire(root+".lock", 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)

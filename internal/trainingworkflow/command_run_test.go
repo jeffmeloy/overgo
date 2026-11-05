@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -43,9 +44,7 @@ func TestRewardRunHandsItsStepsToItsStarter(t *testing.T) {
 	request.Host, request.Device, request.Observations = false, hostWeightedStep, request.Repository.(artifact.Repository)
 	request.Steps, request.OutputDirectory = 1, filepath.Join(root, "first")
 	result, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var handed []trainingprogram.GRPOObservation
 	if err := jsonfile.DecodeStrict(handoff, &handed); err != nil || len(handed) != 1 || !reflect.DeepEqual(handed, result.GRPO) {
 		t.Fatalf("the file the run's starter named holds %+v (%v); want the one step the run returned, %+v", handed, err, result.GRPO)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -28,18 +29,12 @@ func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; real training step NOT verified", dir)
 	}
 	m, err := Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenizer, err := LoadTokenizer(filepath.Join(dir, "tokenizer.model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	golden := loadFixture[g7Golden](t, "g7_generation.json")
 	ids, err := tokenizer.Encode(golden.Text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	frames := len(golden.QuantizerCalls)
 	latents := make([]float32, 0, frames*m.Dims.LatentDim)
 	for _, call := range golden.QuantizerCalls {
@@ -49,29 +44,21 @@ func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
 		t.Fatalf("native latent geometry traced=%d generated=%d values=%d want=%d", frames, golden.NQuantizerCalls, len(latents), frames*m.Dims.LatentDim)
 	}
 	before, err := m.LossAndGrads(ids, latents, frames, golden.Seed, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const baseLR = 1e-4
 	lrJoint, nFlow, nJoint := m.DerivedJointLR(baseLR)
 	tensors, _ := m.TrainedTensors(true)
 	probe := tensors["flow_lm.flow_net.final_layer.linear.weight"]
 	probeBefore := append([]float32(nil), probe...)
 	trainer, err := NewJointTrainer(m, optimizer.Config{Steps: 1, BaseLearningRate: baseLR, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}, host)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	started := time.Now()
 	stepLoss, err := trainer.Step(TrainingExample{TextIDs: ids, Latents: latents, Frames: frames, Seed: golden.Seed})
 	stepWall := time.Since(started)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := m.LossAndGrads(ids, latents, frames, golden.Seed, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	changed := 0
 	for index, value := range probe {
 		if value != probeBefore[index] {

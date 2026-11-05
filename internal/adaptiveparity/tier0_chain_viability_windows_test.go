@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -56,9 +57,7 @@ func TestTier0ChainViability(t *testing.T) {
 		tokens[2*span : 3*span],
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	config := trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
@@ -67,16 +66,12 @@ func TestTier0ChainViability(t *testing.T) {
 	}
 	started := time.Now()
 	result, err := trainingworkflow.RunChainViability(store, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Outcomes) != len(windows) {
 		t.Fatalf("outcomes = %d, want one per window", len(result.Outcomes))
 	}
 	record, err := trainingworkflow.RecordChainViability(store, config, result)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record.Outcome != runrecord.OutcomeSucceeded && record.Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("generation record outcome = %q", record.Outcome)
 	}

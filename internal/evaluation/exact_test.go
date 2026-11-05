@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,21 +38,15 @@ func TestCompileExactOwnsStableSuite(t *testing.T) {
 	t.Parallel()
 	suite := exactFixture()
 	first, err := CompileExact(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := CompileExact(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.identity != second.identity {
 		t.Fatalf("identity differs: %s != %s", first.identity, second.identity)
 	}
 	suite.Cases[0].Text = "changed"
 	result, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Text != "ok" {
 		t.Fatalf("result = %+v", result)
 	}
@@ -73,9 +68,7 @@ func TestCompileExactRejectsIncompleteSuite(t *testing.T) {
 func TestExactReportsGenerationFailureAndMismatch(t *testing.T) {
 	t.Parallel()
 	plan, err := CompileExact(exactFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := evaluateExactCase(t.Context(), exactGenerator{err: errors.New("generate")}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("generation failure accepted")
 	}

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -19,9 +20,7 @@ func TestMOSSConditioningL2Golden(t *testing.T) {
 	const file = "l2-cuda.safetensors"
 	mossFixtureBytes(t, file, "c57437804e63dd1de7feb69b6bbe1b0e2e0405c179a7b5e3480a8139cf59e229")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	policies := map[string]float32{}
 	for _, metadata := range s.Metadata {
@@ -59,15 +58,11 @@ func TestMOSSConditioningL2Golden(t *testing.T) {
 				}
 			}
 			cpu, err := reference.Execute([]*tensor.Tensor{out}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			compare("cpu", cpu[out].Data)
 			for pass := range 2 {
 				got, err := run([]*tensor.Tensor{out}, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				compare([]string{"cuda", "repeat"}[pass], got[out].Data)
 			}
 		})

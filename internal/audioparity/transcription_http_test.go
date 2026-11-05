@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/server"
+	"overgo/internal/testcheck"
 )
 
 const audioHTTPFixtureKey = "audio-integration-test-only-key"
@@ -39,16 +40,10 @@ func newAudioHTTPFixture(t *testing.T, store *overgodb.Store, definition recipe.
 	// Actual inference/evaluation precedes this isolated routing fixture. This
 	// scaffolding does not claim a quality win or production promotion.
 	verification, err := modelrecipetest.PublishVerification(t.Context(), store, "audio/http-verification/"+definition.ID.String(), definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(t.Context(), store, definition, verification, recipe.EvidenceParity, "isolated audio HTTP fixture; not production promotion"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(t.Context(), store, definition, verification, recipe.EvidenceParity, "isolated audio HTTP fixture; not production promotion"))
 	workspace, err := server.NewTranscriptionWorkspace(t.Context(), store, server.TranscriptionPolicy{Recipe: definition.ID, MemoryBytes: adapterAcceptanceMemory, Inspection: policy}, commit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := workspace.Close(context.WithoutCancel(t.Context())); err != nil {
 			t.Error(err)
@@ -61,9 +56,7 @@ func newAudioHTTPFixture(t *testing.T, store *overgodb.Store, definition recipe.
 	runtime := &audioHTTPRuntime{TranscriptionWorkspace: workspace}
 	handler, err := server.New(server.Config{Repository: store, APIKey: audioHTTPFixtureKey, RuntimePolicy: runtimePolicy, Workflows: runtime},
 		server.GenerationRefused{Reason: "text generation is not part of this audio fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := handler.Close(); err != nil {
 			t.Error(err)
@@ -90,18 +83,12 @@ func audioHTTPRequest(t *testing.T, definition recipe.Definition, data []byte, a
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	part, err := writer.CreateFormFile("file", "source.flac")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := part.Write(data); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.WriteField("model", definition.ID.String()); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.WriteField("model", definition.ID.String()))
+	testcheck.NoError(t, writer.Close())
 	request := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	if authorized {

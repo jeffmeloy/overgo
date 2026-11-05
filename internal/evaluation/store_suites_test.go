@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func rawFields(t *testing.T, pairs map[string]any) map[string]json.RawMessage {
@@ -16,9 +17,7 @@ func rawFields(t *testing.T, pairs map[string]any) map[string]json.RawMessage {
 	fields := make(map[string]json.RawMessage, len(pairs))
 	for name, value := range pairs {
 		encoded, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		fields[name] = encoded
 	}
 	return fields
@@ -35,9 +34,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 			"question": "Which number is even?", "choices": []string{"three", "four"}, "answer": 1,
 		}),
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mmluSuite := mmlu.(MultipleChoiceSuite)
 	if mmluSuite.Cases[0].Prompt != "Which number is even?\nA. three\nB. four\nAnswer:" ||
 		mmluSuite.Cases[0].Candidates[1] != " B" || mmluSuite.Cases[0].Answer != 1 {
@@ -50,9 +47,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 		{entry: "bbh/boolean_expressions/test", subset: "boolean_expressions", ordinal: 1,
 			fields: rawFields(t, map[string]any{"input": "True or False is", "target": "True"})},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bbhSuite := bbh.(GroupedChoiceSuite)
 	if bbhSuite.Cases[0].Prompt != "Q: not True is\nA:" ||
 		len(bbhSuite.Cases[0].Candidates) != 2 || bbhSuite.Cases[0].Candidates[0] != " False" ||
@@ -67,9 +62,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 			"choices": `['left', 'right']`, "answer_index": 0,
 		}),
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	musrSuite := musr.(GroupedChoiceSuite)
 	if musrSuite.Cases[0].Prompt != "A is left of B.\n\nWhere is A?\n\n1 - left\n2 - right\nAnswer:" ||
 		musrSuite.Cases[0].Candidates[0] != " left" {
@@ -133,21 +126,13 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 func TestDeriveStoreSuites(t *testing.T) {
 	t.Parallel()
 	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	target := filepath.Join(root, "cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(target, fixture, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	testcheck.NoError(t, os.WriteFile(target, fixture, 0o644))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, _, err := CatalogHFCacheBenchmarks(ctx, store, root); err != nil {
@@ -160,9 +145,7 @@ func TestDeriveStoreSuites(t *testing.T) {
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
 	suites, skipped, err := DeriveStoreSuites(ctx, store, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(suites) != 1 || len(skipped) != 0 {
 		t.Fatalf("derived = %d suites, skipped %v", len(suites), skipped)
 	}

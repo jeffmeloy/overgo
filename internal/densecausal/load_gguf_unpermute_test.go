@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,30 +38,20 @@ func TestLlamaGGUFLoadsItsAttentionRowsInCheckpointOrder(t *testing.T) {
 	t.Parallel()
 	path := testutil.HermeticLlamaGGUF(t, 64)
 	model, err := LoadGGUF(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	stored := func(name string) []float32 {
 		t.Helper()
 		index := slices.IndexFunc(file.Tensors, func(info gguf.TensorInfo) bool { return info.Name == name })
 		info := file.Tensors[index]
 		raw := make([]byte, info.Size)
-		if err := file.ReadTensorData(info, raw); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.ReadTensorData(info, raw))
 		elements, err := info.ElementCount()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		values, err := quant.Dequantize(info.Type, raw, elements)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return values
 	}
 	for _, projection := range []struct {

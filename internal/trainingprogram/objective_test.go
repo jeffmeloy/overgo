@@ -9,6 +9,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	text := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityText, false)
@@ -28,18 +27,14 @@ func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 	contents := make([]artifact.Content, 0, 2)
 	for _, objective := range []ObjectiveDocument{text, image} {
 		content, err := objective.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contents = append(contents, content)
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "objectives", Artifacts: descriptors, Contents: contents}); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := CompileObjectiveMatrix(ctx, store, []artifact.ID{image.ID, text.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(rows) != 36 {
 		t.Fatalf("objective rows=%d, want 36", len(rows))
 	}
@@ -67,32 +62,24 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objective := objectiveFixture(t, recipecontract.ModalityImage, recipecontract.ModalityText, true)
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "run-objective", Artifacts: objectiveReferences(objective), Contents: []artifact.Content{content},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	muon, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective:  ObjectiveTokenPrediction,
 		Operators:  []OperatorSpec{{ID: "forward", Phase: PhaseForward}, {ID: "backward", Phase: PhaseBackward}, {ID: "muon", Phase: PhaseOptimize}},
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}}, Optimizer: muon,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	profile := func(name string) artifact.ID { return identity(artifact.KindProfile, name) }
 	modelID := identity(artifact.KindModel, "model")
@@ -111,9 +98,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	definition := trainingRunRecipeFixture(t, recipe.TaskTraining, modelID, spec.Policies)
 	spec.Recipe = definition.ID
 	definitionContent, err := definition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
@@ -133,20 +118,14 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	objective := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityText, false)
 	objectiveContent, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muon, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
@@ -157,9 +136,7 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  muon,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
 	modelID := id(artifact.KindModel, "bound-model")
@@ -243,18 +220,14 @@ func trainingRunRecipeFixture(t *testing.T, task recipe.Task, model artifact.ID,
 		[]recipe.Node{{ID: "train", Module: "train", Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "train", Port: "checkpoint"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return definition
 }
 
 func mustOptimizerPolicyContent(t *testing.T) artifact.Content {
 	t.Helper()
 	content, err := BuiltinOptimizerPolicy().Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 
@@ -263,13 +236,9 @@ func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
 		{Name: "matrix", Start: 0, End: 4, Rows: 2, Cols: 2},
 		{Name: "frozen", Start: 4, End: 6, Rows: 1, Cols: 2, Frozen: true},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileObjectiveProgram(ObjectiveTokenPrediction, nil, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parameters := program.Parameters()
 	if len(parameters) != 2 || parameters[0].Name != "matrix" ||
 		parameters[0].Rows != 2 || parameters[0].Cols != 2 || !parameters[0].Trainable ||
@@ -282,15 +251,11 @@ func TestObjectiveMatrixRefusesUnstoredEvidence(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objective := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityAudio, false)
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "objective-only", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
@@ -303,9 +268,7 @@ func objectiveFixture(t *testing.T, input, output recipecontract.Modality, proje
 	t.Helper()
 	ids := func(kind artifact.Kind, label string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte(label+"/"+string(input)+"/"+string(output)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	var projectors []artifact.ID
@@ -323,9 +286,7 @@ func objectiveFixture(t *testing.T, input, output recipecontract.Modality, proje
 		Metric:   fixtureMetric(output),
 		Evidence: []artifact.ID{ids(artifact.KindEvidence, "evidence")}, Authority: ObjectiveAdaptive,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return objective
 }
 
@@ -399,9 +360,7 @@ func TestObjectiveEvidenceAcceptsEvaluationReports(t *testing.T) {
 	t.Parallel()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/objective-evidence-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	spec := ObjectiveSpec{
@@ -416,9 +375,7 @@ func TestObjectiveEvidenceAcceptsEvaluationReports(t *testing.T) {
 		Authority: ObjectiveAdaptive,
 	}
 	adaptive, err := NewObjective(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec.Evidence = append(spec.Evidence, derived(artifact.KindEvaluation, "verdict"))
 	spec.Authority = ObjectiveApproved
 	approved, err := NewObjective(spec)

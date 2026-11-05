@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -55,9 +56,7 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 			}},
 		},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/catalog/models" {
 			w.Header().Set("Content-Type", "application/json")

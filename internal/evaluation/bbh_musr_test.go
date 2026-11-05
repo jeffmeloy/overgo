@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
@@ -19,9 +20,7 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 			Demonstrations: []MultipleChoiceCase{{Name: "demo", Prompt: "Q: True and not False is\nA:", Candidates: []string{"False", "True"}, Answer: 1}},
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bbh.choice.suite.Cases[0].Prompt != bbhPrompt {
 		t.Fatalf("BBH prompt = %q", bbh.choice.suite.Cases[0].Prompt)
 	}
@@ -34,22 +33,16 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 			Candidates: []string{"left", "right"}, Answer: 0,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, compiled := range []groupedChoicePlan{bbh, musr} {
 		plan, err := BindGroupedChoice(compiled, ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 			RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 			Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := EvaluateGroupedChoice(
 			t.Context(), store,

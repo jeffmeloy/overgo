@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestTensorPackBindsDeterministicallyAndReplacesGradients(t *testing.T) {
@@ -22,9 +24,7 @@ func TestTensorPackBindsDeterministicallyAndReplacesGradients(t *testing.T) {
 			"vector": {vectorRows, vectorCols},
 		}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, _ := pack.plan.Group(0)
 	second, _ := pack.plan.Group(1)
 	if first.Name != "matrix" || second.Name != "vector" {
@@ -39,9 +39,7 @@ func TestTensorPackBindsDeterministicallyAndReplacesGradients(t *testing.T) {
 	for index := range pack.gradients {
 		pack.gradients[index] = 99
 	}
-	if err := pack.GatherGradients(map[string][]float32{"matrix": {1, 2, 3, 4}}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pack.GatherGradients(map[string][]float32{"matrix": {1, 2, 3, 4}}))
 	if !slices.Equal(pack.gradients, []float32{1, 2, 3, 4, 0, 0}) {
 		t.Fatalf("gradients = %v", pack.gradients)
 	}
@@ -70,9 +68,7 @@ func TestSectionPackKeepsDeclarationOrderAndDecodesBF16Masters(t *testing.T) {
 		{Name: "z.bias", Rows: 1, Cols: 2, Values: []float32{3, 4}},
 		{Name: "a.weight", Rows: 1, Cols: 2, BF16: []uint16{oneBF16, minusTwoBF16}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first, _ := pack.Plan().Group(0); first.Name != "z.bias" {
 		t.Fatalf("first group = %q, want declaration order", first.Name)
 	}

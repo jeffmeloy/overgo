@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -51,16 +52,12 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		t.Fatalf("recorded profile stream too short: %d tokens", len(tokens))
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	target := synthesisModelID(t, targetDir)
 	donor := synthesisModelID(t, donorDir)
 	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	proposal, err := composition.NewBridgeProposal(
 		target,
 		[]composition.BridgeCandidate{{Donor: donor, Component: "model.layers.14.mlp.gate_proj.weight", Distance: 0.25}},
@@ -68,17 +65,11 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		"go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1",
 		"adapter tier retired; synthesis validates the pipeline, promotion requires the experiment plane",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	proposalContent, err := proposal.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rankerContent, err := ranker.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "synthesis/fixture",
 		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
@@ -103,9 +94,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		},
 		HeldOut: tokens[2*synthesisWindow : 3*synthesisWindow],
 	}, decider)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verdict := "REFUSE"
 	if outcome.Result.Ship {
 		verdict = "SHIP"
@@ -135,15 +124,11 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 func synthesisModelID(t *testing.T, directory string) artifact.ID {
 	t.Helper()
 	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, _, err := artifact.Identify(artifact.KindModel, file)
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }

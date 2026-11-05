@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/vqaserve"
@@ -35,32 +36,22 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	checkRetainedModelPublication(t, fixture)
 	root := testutil.RepoRoot(t)
 	var spec verificationSpecification
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification", fixture.Specification), &spec); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/verification", fixture.Specification), &spec))
 	if len(spec.Claims) != 1 || spec.Claims[0].Capability != "vqa-canonical-native-text" || spec.Claims[0].Tier != runrecord.TierExactGolden {
 		t.Fatal("acceptance exceeds the single canonical text claim")
 	}
 	claim := spec.Claims[0]
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID, value any) artifact.Content {
 		t.Helper()
 		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if value != nil {
-			if err := json.Unmarshal(content.Data, value); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(content.Data, value))
 		}
 		return content
 	}
@@ -82,9 +73,7 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	}
 	read(protocolID, &protocol)
 	quality, err := runrecord.RequireExactRun(t.Context(), store, runID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if quality.Outcome != runrecord.OutcomeSucceeded || quality.Recipe != protocol.Recipe || quality.CodeCommit != protocol.Producer || claim.Commit != protocol.Producer || quality.MeasuredNS != claim.WallNS || len(quality.Outputs) != 1 {
 		t.Fatal("quality result, source or measured command wall differs")
 	}
@@ -106,9 +95,7 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	}
 	read(quality.Outputs[0], &command)
 	verified, err := runrecord.VerifyGateRun(t.Context(), store, protocol.Recipe, command.Gate, command.Run)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if command.Recipe != protocol.Recipe || verified.Run.CodeCommit != protocol.Producer || !slices.Equal(verified.Run.Inputs, []artifact.ID{protocol.Request}) || command.Output.Output != protocol.Expected || protocol.Expected == "" {
 		t.Fatal("verifier, exact request or native output differs")
 	}
@@ -119,12 +106,8 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	}
 	var request vqaserve.Request
 	requestContent := read(protocol.Request, nil)
-	if err := strictjson.DecodeBytes(requestContent.Data, &request); err != nil {
-		t.Fatal(err)
-	}
-	if err := vqaserve.RequestContract.ValidateContent(requestContent, protocol.Request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(requestContent.Data, &request))
+	testcheck.NoError(t, vqaserve.RequestContract.ValidateContent(requestContent, protocol.Request))
 	var oracle struct {
 		GeneratedTokens []int  `json:"generated_tokens"`
 		GeneratedText   string `json:"generated_text"`
@@ -147,13 +130,9 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	// The accepted run was made when a capability run's key was its recipe and its request alone, and its
 	// receipt is kept under that key; a run made since is keyed on the code that made it as well.
 	operation, err := workflowruntime.ExecutionID(definition.ID, "recipe/run/"+definition.ID.String()+"/"+requestContent.Descriptor.ID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer, err := artifact.JSONContent(vqaserve.AnswerContract, command.Output.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	read(answer.Descriptor.ID, nil)
 	var receipt runrecord.StageReceipt
 	for _, id := range quality.Inputs {
@@ -163,9 +142,7 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 		content := read(id, nil)
 		if content.Descriptor.Schema == runrecord.StageReceiptSchema {
 			receipt, err = runrecord.ParseStageReceipt(content.Data)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 		}
 	}
 	if receipt.Recipe != definition.ID || receipt.Operation != operation || receipt.Node != "generate" || receipt.State != runrecord.StageCompleted || len(receipt.Outputs) != 1 || !slices.Equal(receipt.Outputs[0].Artifacts, []artifact.ID{answer.Descriptor.ID}) {

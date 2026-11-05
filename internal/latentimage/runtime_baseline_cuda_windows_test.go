@@ -18,6 +18,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -34,9 +35,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	totalStart := time.Now()
 	profile := kreaProfileOrSkip(t)
 	generator, err := LoadGenerator(ctx, kreaModelDir(t), profile, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := generator.Close(ctx); err != nil {
 			t.Errorf("close: %v", err)
@@ -46,29 +45,21 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 
 	prepareStart := time.Now()
 	session, err := generator.prepare(ctx, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prepareWall := time.Since(prepareStart)
 	wantMedian := [...]float64{-0.003021240234375, -0.00518798828125, -0.008575439453125, -0.009796142578125, -0.011077880859375, -0.008880615234375, -0.0128173828125, -0.04833984375}
 	wantMAD := [...]float64{0.641510009765625, 0.607421875, 0.569549560546875, 0.517608642578125, 0.455718994140625, 0.389556884765625, 0.3172607421875, 0.29736328125}
 	wantVelocityMedian := [...]float64{0.035400390625, 0.069580078125, 0.048828125, 0.02197265625, 0.010162353515625, 0.0062713623046875, 0.0068359375, 0.01806640625}
 	wantVelocityMAD := [...]float64{0.777099609375, 0.828857421875, 0.787109375, 0.74853515625, 0.728515625, 0.7093963623046875, 0.7001953125, 0.66162109375}
 	prior, err := generator.pipeline.Latent(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var integrateWall time.Duration
 	for step := range generator.schedule.Steps {
 		started := time.Now()
-		if err := generator.pipeline.Advance(ctx, generator.schedule.Sigmas[step], generator.schedule.Deltas[step]); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, generator.pipeline.Advance(ctx, generator.schedule.Sigmas[step], generator.schedule.Deltas[step]))
 		integrateWall += time.Since(started)
 		latent, err := generator.pipeline.Latent(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		median, mad := medianMAD(latent)
 		t.Logf("step %d latent median/MAD: got %.6f/%.6f adaptive %.6f/%.6f", step, median, mad, wantMedian[step], wantMAD[step])
 		if math.Abs(median-wantMedian[step]) > 0.005 || math.Abs(mad-wantMAD[step]) > 0.01 {
@@ -88,9 +79,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	generator.integrated = true
 	decodeStart := time.Now()
 	image, err := generator.decode(ctx, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decodeWall := time.Since(decodeStart)
 	if image.Channels != 3 || image.Height != 256 || image.Width != 256 || len(image.Data) == 0 || image.MediaType != "image/png" {
 		t.Fatalf("image geometry = %d/%dx%d bytes=%d type=%q", image.Channels, image.Width, image.Height, len(image.Data), image.MediaType)
@@ -99,14 +88,10 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 		t.Fatalf("PNG bytes=%d, raw float bytes=%d", len(image.Data), image.Channels*image.Width*image.Height*4)
 	}
 	decoded, err := png.Decode(bytes.NewReader(image.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	minimum, maximum := image.Minimum, image.Maximum
 	golden, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "krea", "raw", "g3_decoded_rgb_f32le.bin"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plane := image.Width * image.Height
 	if len(golden) != 4*image.Channels*plane {
 		t.Fatalf("golden bytes = %d, want %d", len(golden), 4*image.Channels*plane)
@@ -164,9 +149,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	}
 	ctx := t.Context()
 	generator, err := LoadGenerator(ctx, kreaModelDir(t), kreaProfileOrSkip(t), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := generator.Close(ctx); err != nil {
 			t.Errorf("close: %v", err)
@@ -174,9 +157,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	}()
 	first, firstWall := runResidentGeneration(t, ctx, generator, request)
 	request.Seed++
-	if err := generator.Reset(ctx, request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, generator.Reset(ctx, request))
 	second, secondWall := runResidentGeneration(t, ctx, generator, request)
 	if bytes.Equal(first.Data, second.Data) {
 		t.Fatal("seed change reused request-local latent")
@@ -202,16 +183,12 @@ func runResidentGeneration(
 	t.Helper()
 	started := time.Now()
 	session, err := generator.prepare(ctx, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := generator.integrate(ctx, session); err != nil {
 		t.Fatal(err)
 	}
 	image, err := generator.decode(ctx, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return image, time.Since(started)
 }
 

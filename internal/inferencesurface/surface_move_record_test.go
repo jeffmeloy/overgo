@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestSurfaceMoveRecordDefinesClaimDependencies holds the record of what past commits expired and reached to being whole.
@@ -27,13 +29,9 @@ import (
 func TestSurfaceMoveRecordDefinesClaimDependencies(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", "surface-moves.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fields := map[string]string{}
 	var commits, stated []string
 	const commitsPart, figuresPart = "== commits ==", "== figures =="

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 const fixtureManifestLocation = "C:/models/fixture.gguf"
@@ -20,17 +21,11 @@ func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component.ID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor, err := manifest.Descriptor()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/recommit/artifacts", Artifacts: []artifact.Descriptor{component, descriptor},
 	}); err != nil {
@@ -41,9 +36,7 @@ func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
 	if err != nil {
 		t.Fatalf("replay after manifest recommit: %v", err)
@@ -62,13 +55,9 @@ func TestManifestAndLocationReplay(t *testing.T) {
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component.ID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := artifact.Batch{
 		Key: "fixture/manifest/v1", Artifacts: []artifact.Descriptor{component},
 		Manifests: []artifact.Manifest{manifest},
@@ -80,13 +69,9 @@ func TestManifestAndLocationReplay(t *testing.T) {
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	got, ok, err := store.Manifest(t.Context(), manifest.ID)
 	if err != nil || !ok || !sameManifest(got, manifest) {
@@ -105,9 +90,7 @@ func TestManifestAndLocationReplay(t *testing.T) {
 func TestLocationRemoval(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	descriptor := fixtureDescriptor(t, artifact.KindFile, "located")
 	location := artifact.Location{Artifact: descriptor.ID, Kind: artifact.LocationFile, Value: fixtureManifestLocation}

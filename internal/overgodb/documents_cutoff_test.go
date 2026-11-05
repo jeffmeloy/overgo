@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestDocumentHistoricalContentCutoff(t *testing.T) {
@@ -13,9 +14,7 @@ func TestDocumentHistoricalContentCutoff(t *testing.T) {
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	delayed, err := contract.ContentBytes([]byte(`{"value":"delayed evidence"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cutoff/descriptor", Artifacts: []artifact.Descriptor{delayed.Descriptor}}); err != nil {
 		t.Fatal(err)
 	}
@@ -70,13 +69,9 @@ func TestDocumentHistoricalContentCutoff(t *testing.T) {
 	if _, err := store.Snapshot(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if got := read(); !slices.Equal(got, want) {
 		t.Fatalf("snapshot replay changed historical population=%v", got)

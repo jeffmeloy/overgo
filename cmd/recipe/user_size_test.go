@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAUserSizeRequestLeavesItsSizeToTheModel: a verified request loses the size it states, so the model's own defaults
@@ -14,9 +16,7 @@ func TestAUserSizeRequestLeavesItsSizeToTheModel(t *testing.T) {
 		t.Fatalf("stated %t (%v)", stated, err)
 	}
 	var fields map[string]any
-	if err := json.Unmarshal([]byte(sized), &fields); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(sized), &fields))
 	if len(fields) != 2 || fields["prompt"] != "a fox" || fields["seed"] == nil {
 		t.Fatalf("the request reads %s, want its prompt and seed alone", sized)
 	}

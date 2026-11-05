@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 	file, err := gguf.View([]gguf.Metadata{gguf.StringMetadata("general.architecture", "fixture")},
 		[]gguf.ViewTensor{{Name: "weights", Shape: []uint64{uint64(len(stored))}, Type: gguf.DTypeI8, Payload: bytes.NewReader(stored)}},
 		gguf.WriteOptions{}, directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	shard := file.Shards()[0]
 	image := make([]byte, shard.Size)
@@ -33,13 +32,9 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, _, err := artifact.Identify(artifact.KindTensorSet, bytes.NewReader(image))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, claims, err := FromGGUFClaimed(file, artifact.KindModel, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.Components) != 1 || inventory.Components[0].ID != want || inventory.Components[0].Size != shard.Size ||
 		len(inventory.Manifest.Components) != 1 || inventory.Manifest.Components[0].Artifact != want || claims != nil {
 		t.Fatalf("the directory's inventory = %+v with claims %v, want its view's image %s as its one hashed component", inventory, claims, want)

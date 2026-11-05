@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"slices"
 	"strings"
 	"testing"
@@ -74,27 +75,17 @@ func TestQwen3VLRealFixture(t *testing.T) {
 			Merger probeRecord `json:"merger"`
 		} `json:"vit_intermediates"`
 	}
-	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(goldenPath, &golden))
 	file, err := os.Open(imagePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, err := png.Decode(file)
 	_ = file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := openQwen3VLFixture(projectorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	processed, err := PreprocessQwen3VLFrames([]image.Image{input}, runner.Spec(), fixtureMediaPreprocessProfile(t).Image)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(golden.ImageGridTHW) != 3 || processed.GridT != golden.ImageGridTHW[0] ||
 		processed.GridH != golden.ImageGridTHW[1] || processed.GridW != golden.ImageGridTHW[2] {
 		t.Fatalf("grid = %d,%d,%d, want %v", processed.GridT, processed.GridH, processed.GridW, golden.ImageGridTHW)
@@ -107,9 +98,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 		return
 	}
 	output, err := runner.EncodeImage(t.Context(), input, fixtureMediaPreprocessProfile(t).Image)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().OutputHidden), uint64(golden.NumImageTokens))) {
 		t.Fatalf("merger shape = %v, want [%d %d]", output.Embeddings.Shape, runner.Spec().OutputHidden, golden.NumImageTokens)
 	}
@@ -149,9 +138,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	tensors := tinyQwen3VLTensors()
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := range 4 {
@@ -162,9 +149,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	output, err := runner.EncodeImage(t.Context(), input, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 1)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -185,9 +170,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 	})
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen3VLDeepstackTensors())
 	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	if len(runner.Spec().DeepstackLayers) != 1 || !runner.Spec().DeepstackLayers[0] {
 		t.Fatalf("deepstack flags = %v", runner.Spec().DeepstackLayers)
@@ -196,9 +179,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 	output, err := runner.EncodeImage(t.Context(), input, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(output.DeepstackEmbeddings) != 1 || !output.DeepstackEmbeddings[0].Shape.Equal(mustShape(6, 1)) {
 		t.Fatalf("deepstack output = %+v", output.DeepstackEmbeddings)
 	}
@@ -215,13 +196,9 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	options := qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(got.DeepstackEmbeddings) != 1 || len(want.DeepstackEmbeddings) != 1 {
 		t.Fatalf("deepstack streams = %d/%d", len(got.DeepstackEmbeddings), len(want.DeepstackEmbeddings))
 	}
@@ -273,9 +250,7 @@ func TestQwen3VLHalfMatricesEncodeAsF32(t *testing.T) {
 	var outputs [2]qwen3VLOutput
 	for index, half := range []bool{false, true} {
 		runner, err := openImageProjectorAs[*Qwen3VLRunner](fixture(half), fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = runner.Close() })
 		if (runner.cuda.matrices != nil) != half {
 			t.Fatalf("half=%t: the runtime holds matrices at their stored precision = %t", half, runner.cuda.matrices != nil)
@@ -314,9 +289,7 @@ func (c *capturingQwen3VLTokenizer) TokenizeText(text string, addSpecial, specia
 func TestQwen3VLSessionRendersImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
 	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	session := testSession(t, runner)
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
@@ -353,18 +326,14 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
 		t.Context(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
 		[]string{"A", "B", "C"}, PromptOptions{Thinking: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 12 || prompt.EmbeddingWidth != 6 {
 		t.Fatalf("multi-image projection = indices %v embeddings %d width %d", prompt.EmbeddingTokenIndices, len(prompt.Embeddings), prompt.EmbeddingWidth)
 	}
@@ -396,9 +365,7 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 			Pixels, Output []float32
 		}
 	}
-	if err := jsonfile.Decode("testdata/qwen4_vision.json", &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode("testdata/qwen4_vision.json", &fixture))
 	metadata := tinyQwen3VLMetadata()
 	dimensions := map[string]uint32{
 		"clip.vision.image_size":           fixture.ImageSize,
@@ -432,9 +399,7 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 				cudatest.Require(t)
 			}
 			runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: backend.cuda}))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			t.Cleanup(func() {
 				if err := runner.Close(); err != nil {
 					t.Error(err)
@@ -444,9 +409,7 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 				t.Run(test.Name, func(t *testing.T) {
 					input := Qwen3VLImage{PixelValues: test.Pixels, GridT: test.Grid[0], GridH: test.Grid[1], GridW: test.Grid[2]}
 					output, err := runner.encodeGraph(t.Context(), input)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					rows := input.GridT * input.GridH * input.GridW / int(fixture.MergeSize*fixture.MergeSize)
 					if output.Embeddings.Shape != tensor.MustShape(uint64(fixture.OutputHidden), uint64(rows)) ||
 						len(output.DeepstackEmbeddings) != 0 {
@@ -493,9 +456,7 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 	processed, err := PreprocessQwen3VLFrames([]image.Image{input}, spec, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(processed.PixelValues) != 4*2*3*2*2 {
 		t.Fatalf("pixel values = %d", len(processed.PixelValues))
 	}
@@ -526,9 +487,7 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 	processed, err := PreprocessQwen3VLFrames(frames, spec, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if processed.GridT != 2 || processed.GridH != 2 || processed.GridW != 2 {
 		t.Fatalf("grid = %d,%d,%d", processed.GridT, processed.GridH, processed.GridW)
 	}
@@ -563,9 +522,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 			Merger probeRecord `json:"merger"`
 		} `json:"vit_intermediates"`
 	}
-	if err := jsonfile.Decode(goldenPath, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(goldenPath, &golden))
 	frames := make([]image.Image, 16)
 	for temporal := range frames {
 		frame := image.NewRGBA(image.Rect(0, 0, 224, 224))
@@ -581,14 +538,10 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		frames[temporal] = frame
 	}
 	runner, err := openQwen3VLFixture(projectorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	processed, err := PreprocessQwen3VLFrames(frames, runner.Spec(), fixtureMediaPreprocessProfile(t).Video)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(golden.VideoGridTHW) != 3 || processed.GridT != golden.VideoGridTHW[0] ||
 		processed.GridH != golden.VideoGridTHW[1] || processed.GridW != golden.VideoGridTHW[2] {
 		t.Fatalf("grid = %d,%d,%d, want %v", processed.GridT, processed.GridH, processed.GridW, golden.VideoGridTHW)
@@ -602,9 +555,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		return
 	}
 	output, err := runner.EncodeFrames(t.Context(), frames, fixtureMediaPreprocessProfile(t).Video)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().OutputHidden), uint64(golden.NumVideoTokens))) {
 		t.Fatalf("merger shape = %v", output.Embeddings.Shape)
 	}

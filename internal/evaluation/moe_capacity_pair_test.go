@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestCapacityEvaluationPairsConstrainedAndDroplessRuns(t *testing.T) {
 		},
 		DropQualityGap: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := moeCapacityPairCodec.Content(pair)
 	if err != nil || content.Descriptor.ID != pair.ID || len(moeCapacityPairLineage(pair)) != 14 {
 		t.Fatalf("capacity pair = (%+v, %v)", pair, err)

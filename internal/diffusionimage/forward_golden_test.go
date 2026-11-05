@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -233,15 +234,11 @@ func TestTinyModelForwardMatchesTorch(t *testing.T) {
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
 	got, err := m.Forward(fx.X, fx.B, fx.H, fx.W)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "tiny forward", got, fx.Y, tolLoose)
 	// Trace twin must match the serving forward exactly.
 	traced, _, err := m.forward(fx.X, fx.B, fx.H, fx.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if d := testutil.MaxAbsDiff(got, traced); d != 0 {
 		t.Fatalf("trace twin diverges from serving forward: max abs %g", d)
 	}

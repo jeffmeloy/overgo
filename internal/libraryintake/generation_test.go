@@ -13,24 +13,21 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestMOSSGenerationRegistration(t *testing.T) {
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	python := []byte("# Source metadata reuse fixture\n")
 	if err = os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), python, 0600); err != nil {
 		t.Fatal(err)
 	}
 	pythonID, err := artifact.IdentifyBytes(artifact.KindFile, python)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prior := artifact.Content{Descriptor: artifact.Descriptor{ID: pythonID, Size: uint64(len(python)), MediaType: "text/plain"}, Data: python}
 	if _, err = store.Commit(t.Context(), artifact.Batch{Key: "native-source", Contents: []artifact.Content{prior}}); err != nil {
 		t.Fatal(err)
@@ -45,9 +42,7 @@ func TestMOSSGenerationRegistration(t *testing.T) {
 		t.Fatal("cancelled registration changed store")
 	}
 	receipt, err := Register(t.Context(), store, root, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, ok := receipt["recipe"].(artifact.ID)
 	if held, found, err := store.Artifact(t.Context(), pythonID); err != nil || !found || held != prior.Descriptor {
 		t.Fatal("source descriptor changed", held, err)
@@ -75,26 +70,20 @@ func TestMOSSGenerationRegistration(t *testing.T) {
 		t.Fatal("shared preparation duplicated facts")
 	}
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err = modelrecipe.CompileCandidateExecution(t.Context(), store, program); err != nil {
 		t.Fatal("registered candidate cannot bind execution", err)
 	}
 	path := filepath.Join(root, "scheduler", "scheduler_config.json")
 	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var config map[string]any
 	if err = json.Unmarshal(b, &config); err != nil {
 		t.Fatal(err)
 	}
 	config["use_dynamic_shifting"] = true
 	b, err = json.Marshal(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = os.WriteFile(path, b, 0600); err != nil {
 		t.Fatal(err)
 	}

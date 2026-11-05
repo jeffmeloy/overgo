@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -17,9 +18,7 @@ func TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted(t *t
 		GapState: trainingprogram.MechanismGapOpen,
 	}
 	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := ExternalMechanismSource{Mechanism: assessment.Mechanism, Paths: []string{
 		"experiments/grug/moe/model.py", "experiments/grug/moe/README.md",
 	}}
@@ -27,9 +26,7 @@ func TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted(t *t
 	provenance, err := NewExternalMechanismProvenance(
 		census, "local/marin", "b352a9e5d49eede33f08e0ab8df1e786425c2db5", license, []ExternalMechanismSource{source},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := provenance.Content()
 	if err != nil || provenance.Transfer != externalMechanismTransfer || !bytes.Contains(content.Data, []byte(`"transfer":"reexpress-overgo-native"`)) {
 		t.Fatalf("provenance = (%q, %v)", provenance.Transfer, err)

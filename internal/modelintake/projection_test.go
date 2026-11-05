@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -33,9 +34,7 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 	ctx := t.Context()
 	memo := discovery.LoadMemo(ctx, store)
 	entries, _, err := discovery.CapabilityCatalog(ctx, store, 256, memo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		if !entry.Present || entry.Location == "" {
 			continue
@@ -48,9 +47,7 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 			continue
 		}
 		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, entry.Model, recipe.TaskProjection)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return entry.Location, declared, program.Definition()
 	}
 	t.Fatal("projection pair unavailable: the store activates no projector with bytes on disk")
@@ -65,18 +62,12 @@ func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
 	testskip.Short(t, "reading model files is integration")
 	modelPath, projectorPath, stored := storedProjectionPair(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	candidate, err := PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if candidate.Definition.ID != stored.ID {
 		t.Fatalf("intake defined %s for %s + %s; the store activated %s", candidate.Definition.ID, filepath.Base(modelPath), filepath.Base(projectorPath), stored.ID)
 	}

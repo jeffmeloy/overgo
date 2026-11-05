@@ -17,6 +17,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -99,9 +100,7 @@ func loadDenoiseManifest(t *testing.T, name string) (goldenDenoiseManifest, stri
 		t.Fatalf("missing required golden manifest: %v", err)
 	}
 	var manifest goldenDenoiseManifest
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &manifest))
 	return manifest, dir
 }
 
@@ -200,9 +199,7 @@ func requireParity(t *testing.T, name string, got, want []float32, tolerance flo
 func TestUniPCScheduleGoldenG3(t *testing.T) {
 	manifest, _ := loadDenoiseManifest(t, "g3_denoise.json")
 	timesteps, sigmas, err := sampling.UniPCSchedule(referenceDenoiserPolicy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(timesteps) != len(manifest.Timesteps) || len(sigmas) != len(manifest.Sigmas) {
 		t.Fatalf("schedule extent %d/%d want %d/%d", len(timesteps), len(sigmas), len(manifest.Timesteps), len(manifest.Sigmas))
 	}
@@ -267,18 +264,14 @@ func TestTimestepConditioningGoldenG2(t *testing.T) {
 			Timesteps []int64 `json:"timesteps"`
 		} `json:"schedule"`
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &manifest))
 	config, weights := denoiserFixture(t)
 	values := make([]float64, len(manifest.Schedule.Timesteps))
 	for i, timestep := range manifest.Schedule.Timesteps {
 		values[i] = float64(timestep)
 	}
 	headE, blockE, err := CompileTimestepConditioning(values, weights.TimestepWeights(config))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireParity(t, "g2 head_e", headE, loadG1Tensor(t, dir, manifest.HeadE), 0)
 	requireParity(t, "g2 block_e", blockE, loadG1Tensor(t, dir, manifest.BlockE), 0)
 }
@@ -311,9 +304,7 @@ func newGoldenDenoiserProgram(t *testing.T, manifest goldenDenoiseManifest) *Den
 	t.Helper()
 	config, weights := denoiserFixture(t)
 	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shape := manifest.LatentShape
 	if geometry.Channels != shape.Channels || geometry.LatentFrames != shape.LatentFrames ||
 		geometry.LatentHeight != shape.LatentHeight || geometry.LatentWidth != shape.LatentWidth ||
@@ -321,9 +312,7 @@ func newGoldenDenoiserProgram(t *testing.T, manifest goldenDenoiseManifest) *Den
 		t.Fatalf("latent geometry %+v differs from golden %+v", geometry, shape)
 	}
 	program, err := CompileDenoiserProgram(config, weights, geometry)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return program
 }
 
@@ -350,17 +339,11 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	sampleIn := manifest.trace(t, dir, "step_00_sample_in")
 
 	timesteps, _, err := sampling.UniPCSchedule(config.Policy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	headE, blockE, err := CompileTimestepConditioning([]float64{float64(timesteps[0])}, program.weights.TimestepWeights(config))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	patchTokens, err := program.PatchifyLatent(sampleIn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// Step-0 per-branch probes: block-0 seams, all block outputs, head.
 	seams := blockSeams(program.Blocks[0])
@@ -383,13 +366,9 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	blockMax := make([]float64, len(program.Blocks))
 	for _, branch := range branches {
 		projection, err := program.ProjectContext(run, branch.context)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		values, err := program.Forward(run, patchTokens, blockE, headE, projection, outputs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, seam := range seams {
 			name := fmt.Sprintf("step_00_block_00_%s_%s", branch.name, seam.name)
 			stat := requireParity(t, name, values[seam.node].Data, manifest.trace(t, dir, name), goldenSeamTolerance)
@@ -414,9 +393,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 			}
 		}
 		branchOut, err := program.UnpatchifyLatent(values[program.Head].Data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		name := "step_00_branch_output_" + branch.name
 		requireParity(t, name, branchOut, manifest.trace(t, dir, name), goldenBranchTolerance)
 	}
@@ -434,9 +411,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 		InitialSample: sampleIn,
 		TraceSteps:    true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, step := range result.Steps {
 		prefix := fmt.Sprintf("step_%02d_", i)
 		requireParity(t, prefix+"sample_in", step.SampleIn, manifest.trace(t, dir, prefix+"sample_in"), goldenSampleTolerance)
@@ -470,9 +445,7 @@ func TestDenoiserGoldenDenoiseG4(t *testing.T) {
 		InitialSample: sampleIn,
 		TraceSteps:    true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Timesteps) != len(manifest.Timesteps) {
 		t.Fatalf("timesteps %d want %d", len(result.Timesteps), len(manifest.Timesteps))
 	}

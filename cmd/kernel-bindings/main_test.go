@@ -4,32 +4,24 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGeneratedBindingsMatchManifest(t *testing.T) {
 	document, err := os.ReadFile("../../kernels/manifest.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := generateBindings(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := os.ReadFile("../../internal/cuda/executor/kernel_bindings_generated.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(got) != string(want) {
 		t.Fatal("CUDA kernel bindings are stale; run go generate ./internal/cuda/executor")
 	}
 	kernelWant, err := generateKernelManifest(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	kernelGot, err := os.ReadFile("../../internal/cuda/kernel/manifest_generated.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(kernelGot) != string(kernelWant) {
 		t.Fatal("CUDA kernel manifest constants are stale; run go generate ./internal/cuda/executor")
 	}
@@ -47,13 +39,9 @@ func TestBindingsRecordArgumentWidths(t *testing.T) {
 		t.Fatal("a parameter of no known width was accepted")
 	}
 	document, err := os.ReadFile("../../kernels/manifest.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generated, err := generateBindings(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(generated), "var kernelFunctionArgumentWidths = [...][]uint16{") {
 		t.Fatal("the bindings record no widths")
 	}

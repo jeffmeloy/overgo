@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,30 +22,20 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	writeSynthesisModel(t, targetDir, 3)
 	writeSynthesisModel(t, donorDir, 5)
 	target, err := identifyModel(targetDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	donor, err := identifyModel(donorDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The donor's matching component is the one candidate; retrieval is not
 	// what this test holds.
 	candidates := []composition.BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
 	proposal, err := composition.NewBridgeProposal(target, candidates, ranker,
 		"go test ./internal/trainingworkflow -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
 		"bridge requires measured held-out evidence")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	rankerContent, _ := ranker.Content()
 	proposalContent, _ := proposal.Content()
@@ -65,9 +56,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		Seeds: []int64{7}, Steps: 1, BaseLR: 0.01, Momentum: 0.9,
 		Train: [][]int{{1, 2, 3, 4}, {2, 3, 4, 1}}, HeldOut: []int{1, 3, 2, 4},
 	}, recipe.Decider{CodeCommit: strings.Repeat("a", 40), Derivation: derivation})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := recipe.DecisionRefused
 	if outcome.Result.Ship {
 		want = recipe.DecisionAccepted
@@ -97,14 +86,10 @@ func TestComponentSynthesisLoadsOnlySelectedDonor(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "donor")
 	writeSynthesisModel(t, directory, 11)
 	component, err := loadDonorComponent(directory, -1, synthesisComponentTensor)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained := len(component.gate) + len(component.up) + len(component.down)
 	source, err := safetensors.OpenSource(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	all := 0
 	for _, tensor := range source.Tensors {

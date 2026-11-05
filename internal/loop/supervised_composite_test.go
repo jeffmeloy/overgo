@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -166,25 +167,15 @@ func verifySupervisedCompositeFirstWin(
 func TestSupervisedCompositeFirstWin(t *testing.T) {
 	path := t.TempDir()
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	proof := newSupervisedCompositeProof(t, store)
-	if err := verifySupervisedCompositeFirstWin(t.Context(), store, proof); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, verifySupervisedCompositeFirstWin(t.Context(), store, proof))
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = reopened.Close() })
-	if err := verifySupervisedCompositeFirstWin(t.Context(), reopened, proof); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, verifySupervisedCompositeFirstWin(t.Context(), reopened, proof))
 }
 
 func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervisedCompositeProof {
@@ -219,9 +210,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 		DevelopmentBudget: developmentBudget, PromotionBudget: promotionBudget,
 		Code: code, Environment: environment,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled := supervisedCandidateCompilation(t, candidate, admission)
 
 	incumbent := id(artifact.KindRecipe, "production incumbent")
@@ -230,21 +219,13 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 	goal := id(artifact.KindEvidence, "goal")
 	trigger := id(artifact.KindEvidence, "trigger")
 	causal, err := runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, trigger, goal)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	interaction, err := runrecord.NewBudget("queries", id(artifact.KindDatasetShard, "interaction split"), 5, id(artifact.KindEvidence, "interaction authority"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resources, err := runrecord.NewBudget("queries", id(artifact.KindDatasetShard, "resource split"), 5, id(artifact.KindEvidence, "resource authority"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidateContent, err := candidate.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	interactionContent, _ := interaction.Content()
 	resourceContent, _ := resources.Content()
 	initialDescriptors := []artifact.Descriptor{
@@ -257,9 +238,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 	head, err := commitSupervisedBatch(t, store, "initial", []artifact.Content{
 		candidateContent, interactionContent, resourceContent,
 	}, append(append(candidate.Lineage(), interaction.Lineage()...), resources.Lineage()...), initialDescriptors, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decision, err := runrecord.NewDriverDecision(ctx, store, runrecord.DriverDecisionFacts{
 		Goal: goal, Causal: causal, Head: head,
 		Options: []runrecord.DriverOption{
@@ -273,18 +252,14 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 		InteractionBudget: runrecord.DriverBudgetReference{Grant: interaction.ID},
 		ResourceBudget:    runrecord.DriverBudgetReference{Grant: resources.ID},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decisionContent, _ := decision.Content()
 	if _, err := commitSupervisedBatch(t, store, "decision", []artifact.Content{decisionContent}, decision.Lineage(), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	charge, err := runrecord.NewBudgetCharge(resources.ID, 1, decision.ID, "candidate materialization")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	primaryModel := id(artifact.KindModel, "joint model")
 	ablationModel := id(artifact.KindModel, "ablation model")
 	primaryInventory := id(artifact.KindTensorInventory, "joint inventory")
@@ -294,9 +269,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 	primaryArm := supervisedMaterializedArm(t, compiled.Components[0], modelrecipe.CandidateAblation{}, primaryModel, primaryInventory, primaryDefinition, "joint")
 	ablationArm := supervisedMaterializedArm(t, compiled.Components[0], compiled.Ablations[0], ablationModel, ablationInventory, ablationDefinition, "ablation")
 	materialization, err := modelrecipe.NewCandidateMaterialization(decision, compiled, charge, []modelrecipe.CandidateMaterializedArm{primaryArm, ablationArm})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chargeContent, _ := charge.Content()
 	materializationContent, _ := materialization.Content()
 	armDescriptors := supervisedArmDescriptors(primaryArm, ablationArm)
@@ -322,9 +295,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 			{Name: "wall-ns", Direction: runrecord.DirectionMinimize, MinimumImprovement: 5},
 		}, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fitness := func(capability, wall float64) []runrecord.Metric {
 		return []runrecord.Metric{
 			{Name: "capability", Value: capability, Unit: "ratio", Direction: runrecord.DirectionMaximize},
@@ -350,9 +321,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 	evaluationArms[3].Omitted = compiled.Ablations[0].Omitted
 	evaluationArms[3].Dimensions = []evaluation.CandidateDeltaDimension{evaluation.CandidateDeltaComposition}
 	evaluated, err := evaluation.EvaluateCrossDomainCandidate(contract, decision, compiled, evaluationArms)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contractContent, _ := contract.Content()
 	evaluationContent, _ := evaluated.Content()
 	evaluationDescriptors := []artifact.Descriptor{{ID: evaluator}, {ID: heldOutInputs}}
@@ -365,9 +334,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 	}
 
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, primaryModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitionContent, _ := definition.ArtifactContent()
 	strategy := id(artifact.KindProfile, "strategy")
 	task := id(artifact.KindRecipe, "verification task")
@@ -390,16 +357,10 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 		Argv: invocation.ApprovalArguments(definition.ID, arguments, effect, preflight),
 	}
 	request, err := operatoraction.NewApprovalRequest(operation, task, action, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	human, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.PublishHumanDecision(ctx, store, request, human); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, human))
 	binding := invocation.ReceiptBinding{
 		Boundary: invocation.BoundaryInternal, Kind: invocation.MutationPromotion,
 		Action: string(invocation.MutationPromotion), Subject: definition.ID,
@@ -413,23 +374,15 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 			Recipe: task, Node: recipe.NodeID(invocation.MutationPromotion), Operation: operation,
 			Attempt: 1, State: state, Inputs: input, Invocation: &binding,
 		}, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	candidateEvent, err := recipe.NewLifecycleEvent(definition, "", recipe.StatusCandidate, nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	validatedEvent, err := recipe.NewLifecycleEvent(definition, recipe.StatusCandidate, recipe.StatusValidated, &candidateEvent.ID, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verifiedEvent, err := recipe.NewLifecycleEvent(definition, recipe.StatusValidated, recipe.StatusVerified,
 		&validatedEvent.ID, nil, []artifact.ID{evaluated.ID, receipts[2].ID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lifecycleContents := make([]artifact.Content, 0, 3)
 	var lifecycleLineage []artifact.Lineage
 	for _, event := range []recipe.LifecycleEvent{candidateEvent, validatedEvent, verifiedEvent} {
@@ -449,9 +402,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 		Result: evaluated.ID, Recipe: contract.ID, CodeCommit: strings.Repeat("a", 40),
 		Outcome: runrecord.OutcomeSucceeded, WallNS: 100, StrategyID: strategy,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attemptContent, _ := attempt.Content()
 	if _, err := commitSupervisedBatch(t, store, "attempt", []artifact.Content{attemptContent}, attempt.Lineage(), nil, nil); err != nil {
 		t.Fatal(err)
@@ -468,9 +419,7 @@ func newSupervisedCompositeProof(t *testing.T, store *overgodb.Store) supervised
 		TaskContract:   task, Strategy: strategy, Attempts: []artifact.ID{attempt.ID},
 		Terminal: runrecord.OutcomeSucceeded,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	traceContent, _ := trace.Content()
 	if _, err := commitSupervisedBatch(t, store, "trace", []artifact.Content{traceContent}, trace.Lineage(), nil, nil); err != nil {
 		t.Fatal(err)
@@ -552,9 +501,7 @@ func supervisedCandidateCompilation(
 		Trial: trial, EvaluationPlan: plan, Components: []modelrecipe.CandidateComponentPlan{component},
 		Ablations: []modelrecipe.CandidateAblation{ablation}, Contents: contents, Lineage: lineage,
 	}
-	if err := compiled.ValidateIdentity(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, compiled.ValidateIdentity())
 	return compiled
 }
 
@@ -595,9 +542,7 @@ func supervisedArmDescriptors(arms ...modelrecipe.CandidateMaterializedArm) []ar
 func identifySupervisedJSON(t *testing.T, kind artifact.Kind, value any) artifact.ID {
 	t.Helper()
 	id, err := artifact.JSONID(kind, value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -610,13 +555,9 @@ func supervisedDocumentContent(
 ) artifact.Content {
 	t.Helper()
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := (artifact.DocumentContract{Kind: kind, MediaType: mediaType, Schema: schema}).Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 

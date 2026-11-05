@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -38,13 +39,9 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 	text := registerScoredText(t, documents, trainingprogram.MetricTokenAccuracy, scored)
 	ctx := t.Context()
 	weights, err := IdentifyModelWeights(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, err := identifyAndRecordWeights(ctx, text.store, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	derived := derivedIdentity(t, "overgo/pool-confirm-test/")
 	over := func(objective trainingprogram.ObjectiveDocument, fixedFor artifact.ID) evaluation.HeldoutPoolRequest {
 		return evaluation.HeldoutPoolRequest{
@@ -59,9 +56,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 	}
 	publish := func(fixedFor artifact.ID) evaluation.HeldoutPool {
 		pool, err := evaluation.BuildHeldoutPool(ctx, text.store, over(text.objective, fixedFor))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.Publish(ctx, text.store, pool.Batch); err != nil {
 			t.Fatal(err)
 		}
@@ -88,9 +83,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 		t.Fatalf("a proof run that names a pool = %v, want it refused", err)
 	}
 	result, err := RunTextHeldout(ctx, text.store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Verdict.Valid() || result.Reads != 0 {
 		t.Fatalf("a confirmed run published verdict %s and charged %d reads of the objective's records", result.Verdict, result.Reads)
 	}
@@ -102,9 +95,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 		t.Fatalf("%d confirmations left of %d", result.ConfirmationsLeft, acceptance.Confirmations)
 	}
 	grant, err := runrecord.NewBudget("confirmation", pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, charges, err := runrecord.BudgetCharges(ctx, text.store, grant.ID); err != nil || len(charges) != 1 {
 		t.Fatalf("the pool was charged %d confirmations (%v), want the one", len(charges), err)
 	}

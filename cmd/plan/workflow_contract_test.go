@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -26,12 +27,8 @@ func TestScratchModuleWorkflow(t *testing.T) {
 	write := func(rel, content string) {
 		t.Helper()
 		full := filepath.Join(parent, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		testcheck.NoError(t, os.WriteFile(full, []byte(content), 0o644))
 	}
 	const marker = "scratch-linked-internal"
 	write("go.mod", "module fixtureparent\n\ngo 1.26\n")
@@ -93,31 +90,21 @@ func TestPromptReadsWithoutWriting(t *testing.T) {
 	root := initializePlanTestRepository(t, mutationPlan(t, "Prompt task"))
 	t.Chdir(root)
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, sequence := store.Head()
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	before, err := os.ReadFile(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, worker := range []string{"session-one", "session-two"} {
 		out := captureStdout(t, func() {
-			if err := run(cli{prompt: true, worker: worker}, nil); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, run(cli{prompt: true, worker: worker}, nil))
 		})
 		if !strings.Contains(out, "TASK row/do") {
 			t.Fatalf("prompt for %s did not project the task:\n%s", worker, out)
 		}
 	}
 	store, err = overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if after, count := store.Head(); after != head || count != sequence {
 		t.Fatal("prompt wrote to the store")
@@ -143,54 +130,36 @@ func TestStopStatusProjection(t *testing.T) {
 	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err == nil {
 		t.Fatal("a requested stop no prompt asked for was recorded")
 	}
-	if err := plan.NoteStopRequest(root, "pause the loop here"); err != nil {
-		t.Fatal(err)
-	}
-	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.NoteStopRequest(root, "pause the loop here"))
+	testcheck.NoError(t, recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output))
 	if _, err := commandInput(root, nil, "git", "-c", "core.hooksPath=", "commit", "--allow-empty", "-m", "another worker committed"); err != nil {
 		t.Fatal(err)
 	}
 	var status plan.Dispatch
 	rendered := captureStdout(t, func() {
-		if err := run(cli{next: true, json: true}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(cli{next: true, json: true}, nil))
 	})
-	if err := json.Unmarshal([]byte(rendered), &status); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(rendered), &status))
 	if status.Stop == nil || !status.Stop.Blocked || status.Stop.Event.CodeCommit == status.Stop.CurrentHead || status.Complete || status.Item != "" {
 		t.Fatalf("stop projection=%+v", status)
 	}
 	prompt := captureStdout(t, func() {
-		if err := run(cli{prompt: true, worker: stopCLI.worker}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(cli{prompt: true, worker: stopCLI.worker}, nil))
 	})
 	if !strings.Contains(prompt, "stop=active") || strings.Contains(prompt, "TASK ") {
 		t.Fatalf("stopped executable prompt: %s", prompt)
 	}
 	raw, err := os.ReadFile(plan.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(plan.Path, []byte("{broken"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(plan.Path, []byte("{broken"), 0600))
 	captureStdout(t, func() {
 		if err := run(cli{next: true}, nil); err != nil {
 			t.Fatalf("stop status depended on live plan: %v", err)
 		}
 	})
 	resume := cli{resumeStop: status.Stop.ID.String(), worker: stopCLI.worker}
-	if err := recordStopControlCommand(root, resume, []string{"operator explicitly continued"}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(plan.Path, raw, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, recordStopControlCommand(root, resume, []string{"operator explicitly continued"}, &output))
+	testcheck.NoError(t, os.WriteFile(plan.Path, raw, 0600))
 	resumed, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{})
 	if err != nil || resumed.Stop == nil || resumed.Stop.State != "resumed" || resumed.Waiting != "" {
 		t.Fatalf("resumed dispatch=%+v %v", resumed, err)

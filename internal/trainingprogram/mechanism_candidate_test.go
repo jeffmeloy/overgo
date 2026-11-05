@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,16 +19,12 @@ func TestMarinCandidateAdmissionRequiresGapCostBenefitAndFalsifier(t *testing.T)
 		Gap: id(artifact.KindEvidence, "no-gap"), Falsifier: id(artifact.KindRecipe, "owner-audit"), GapState: MechanismGapClosed,
 	}
 	census, err := CompileMechanismCensus([]MechanismAssessment{open, closed})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	provenance := id(artifact.KindEvidence, "provenance")
 	cost := id(artifact.KindEvidence, "cost")
 	benefit := id(artifact.KindEvidence, "benefit")
 	candidate, err := CompileMechanismCandidate(census, provenance, open.Mechanism, cost, benefit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := make(map[artifact.ID]bool)
 	for _, edge := range candidate.Lineage() {
 		parents[edge.Parent] = true

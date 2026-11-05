@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestAStoreHoldsItsTensorsInOneAllocation loads a fixture onto the card: the driver's ledger counts one allocation for
@@ -19,19 +20,13 @@ func TestAStoreHoldsItsTensorsInOneAllocation(t *testing.T) {
 	source := mixedFixture(t, rand.New(rand.NewPCG(41, 42)))
 	loaded := newDeviceStores(t)
 	before, err := loaded.worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file := source.parse(t)
 	loader := NewLoader(file)
 	source.route(loader, loaded.stores, file)
-	if err := loader.Load(t.Context(), nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(t.Context(), nil))
 	after, err := loaded.worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if routed := source.check(t, file, loaded.stores, loaded.download); routed != loaded.loaded() {
 		t.Fatalf("stores hold %d tensors, want the %d routed", loaded.loaded(), routed)
 	}
@@ -53,9 +48,7 @@ func TestAStoreHoldsItsTensorsInOneAllocation(t *testing.T) {
 	if made := after.Allocations - before.Allocations; made != uint64(filled) {
 		t.Fatalf("the load made %d allocations for %d filled stores, want one each", made, filled)
 	}
-	if err := errors.Join(loaded.raw.Close(), loaded.f32.Close(), loaded.bf16.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(loaded.raw.Close(), loaded.f32.Close(), loaded.bf16.Close()))
 	if got := loaded.currentBytes(t); got != 0 {
 		t.Fatalf("after closing the stores the ledger holds %d bytes", got)
 	}

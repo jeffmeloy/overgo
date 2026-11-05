@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"path/filepath"
 	"testing"
@@ -19,13 +20,9 @@ func TestReadProjectedInputs(t *testing.T) {
   "multi_axis_positions": [[0, 1], [0, 1], [0, 1], [0, 1]],
   "deepstack_embeddings": [{"shape": [2, 2], "data": [1, 2, 3, 4]}]
 }`)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	inputs, err := readProjectedInputs(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inputs.EmbeddingOverrides) != 1 ||
 		inputs.EmbeddingOverrides[0].TokenIndex != 1 ||
 		inputs.MultiAxisPositions == nil ||
@@ -42,9 +39,7 @@ func TestReadProjectedInputsRejectsInvalidTensor(t *testing.T) {
 		`{"deepstack_embeddings":[{"shape":[2,2],"data":[1]}]}`,
 	} {
 		path := filepath.Join(t.TempDir(), "projected.json")
-		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 		if _, err := readProjectedInputs(path); err == nil {
 			t.Fatalf("invalid projected inputs accepted: %s", data)
 		}

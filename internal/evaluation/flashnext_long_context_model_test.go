@@ -24,6 +24,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -60,9 +61,7 @@ var longContextCodes = []struct {
 func TestFlashNextLongContextAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	name, location := flashNextServable(t, ctx, roots.Store)
 	articles := filepath.Join(roots.Datasets, "wikitext2_train_articles")
@@ -82,14 +81,10 @@ func TestFlashNextLongContextAcceptance(t *testing.T) {
 		t.Fatalf("the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: testutil.RepoRoot(t)}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	lease, err := supervisor.Acquire(ctx, modelswap.Servable{Name: name, Location: location})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lease.Release()
 	server := &longContextServer{t: t, ctx: ctx, url: lease.Target, model: name}
 
@@ -143,14 +138,10 @@ func flashNextServable(t *testing.T, ctx context.Context, store string) (name, l
 		testskip.NotApplicable(t, "no store at "+store)
 	}
 	db, err := overgodb.OpenReadOnly(store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer db.Close()
 	entries, _, err := discovery.CapabilityCatalog(ctx, db, longContextCatalogBound, discovery.LoadMemo(ctx, db))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		inference := false
 		for _, capability := range entry.Capabilities {
@@ -171,9 +162,7 @@ func longContextCorpus(t *testing.T, articles string) string {
 	placed := 0
 	for index := 0; corpus.Len() < longContextChars; index++ {
 		data, err := os.ReadFile(filepath.Join(articles, fmt.Sprintf("%05d.txt", index)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for placed < len(longContextCodes) && float64(corpus.Len()) >= longContextCodes[placed].at*longContextChars {
 			fmt.Fprintf(&corpus, "\nThe archive code for the %s Room is %s.\n\n", longContextCodes[placed].room, longContextCodes[placed].code)
 			placed++

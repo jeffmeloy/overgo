@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,9 +39,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	writeEmptyAcceptedCoverage(t, root)
 	register := func(task recipe.Task) recipe.Definition {
@@ -48,13 +47,9 @@ func TestImageVideoReportContract(t *testing.T) {
 		payload := []byte(task)
 		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path := filepath.Join(root, string(task)+".bin")
-		if err := os.WriteFile(path, payload, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 		if _, err := store.Commit(ctx, artifact.Batch{Key: "report/model/" + string(task), Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}}, Manifests: []artifact.Manifest{manifest}, Locations: []artifact.LocationEvent{{Location: artifact.Location{Artifact: component, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd}}}); err != nil {
 			t.Fatal(err)
 		}
@@ -64,32 +59,20 @@ func TestImageVideoReportContract(t *testing.T) {
 		} else {
 			definition, err = modelrecipe.CapabilityDefinition(task, manifest.ID)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := modelrecipetest.PublishActivation(ctx, store, "report/active/"+string(task), definition); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "report/active/"+string(task), definition))
 		return definition
 	}
 	definition := register(recipe.TaskImageGen)
 	register(recipe.TaskSpeech)
 	var buffer bytes.Buffer
-	if err := png.Encode(&buffer, image.NewRGBA(image.Rect(0, 0, 2, 3))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&buffer, image.NewRGBA(image.Rect(0, 0, 2, 3))))
 	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, buffer.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := (artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "image/png", Schema: "overgo.report-fixture-image.v1"}).Content(outputID, buffer.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.report-fixture-input.v1"), map[string]any{"seed": 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "report/media", Contents: []artifact.Content{input, output}}); err != nil {
 		t.Fatal(err)
 	}
@@ -104,17 +87,11 @@ func TestImageVideoReportContract(t *testing.T) {
 			failure = "fixture-failure"
 		}
 		run, err := runrecord.NewRun(definition.ID, outcome, []artifact.ID{input.Descriptor.ID}, outputs, failure)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := run.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := artifact.NewDocumentBatch("report/run/"+string(outcome), []artifact.Content{content}, run.Lineage(), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -123,9 +100,7 @@ func TestImageVideoReportContract(t *testing.T) {
 		}
 	}
 	scope, err := resolveMediaReportScope("image-video")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !scope.FrozenRequests || len(scope.Tasks) != 2 {
 		t.Fatal("focused scope differs")
 	}
@@ -142,37 +117,23 @@ func TestImageVideoReportContract(t *testing.T) {
 	protocol := imageVideoProtocol{Version: 1, RequiredChecks: []string{"lineage"}, Cases: []imageVideoCase{{ID: "fixture", Model: model, Task: recipe.TaskImageGen, Recipe: definition.ID, Run: successful.ID, Inputs: successful.Inputs, Outputs: successful.Outputs}}}
 	writeProtocol := func(value imageVideoProtocol) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Join(root, "docs"), 0o700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o700))
 		value.Census = testutil.ArtifactID(t, artifact.KindEvidence, "report fixture census")
 		data, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "docs", "image_video_protocol.json"), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "docs", "image_video_protocol.json"), data, 0o600))
 	}
 	writeProtocol(protocol)
-	if err := exportMediaSamples(root, storePath, scope); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, exportMediaSamples(root, storePath, scope))
 	first, err := generateMediaReport(root, storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := generateMediaReport(root, storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(first.Markdown, second.Markdown) || !bytes.Equal(first.JSON, second.JSON) {
 		t.Fatal("report rendering is not deterministic")
 	}
 	var projected mediaProjection
-	if err := json.Unmarshal(first.JSON, &projected); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(first.JSON, &projected))
 	if projected.Coverage == nil || projected.Coverage.Activations != 2 || projected.Coverage.AcceptedActivations != 0 {
 		t.Fatal("fixture activation or generated sample gained acceptance credit")
 	}
@@ -209,26 +170,18 @@ func TestImageVideoReportContract(t *testing.T) {
 	}
 	name := hashName(buffer.Bytes(), "png")
 	path := filepath.Join(root, mediaSamplesDir, name)
-	if err := os.WriteFile(path, []byte("changed"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte("changed"), 0o600))
 	if err := exportMediaSamples(root, storePath, scope); err == nil {
 		t.Fatal("damaged existing export accepted")
 	}
 	damaged, err := generateMediaReport(root, storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(damaged.Markdown), "Unavailable or invalid export") || strings.Contains(string(damaged.Markdown), "![") {
 		t.Fatal("damaged sample hidden or embedded")
 	}
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(path))
 	missing, err := generateMediaReport(root, storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(missing.Markdown), "can be exported on demand") || !strings.Contains(string(missing.Markdown), outputID.String()) {
 		t.Fatal("retained output lacks an export disposition")
 	}
@@ -254,16 +207,10 @@ func writeEmptyAcceptedCoverage(t *testing.T, root string) {
 	// This isolated store has no campaign acceptance. Declare that explicitly;
 	// activation and generated samples must not acquire protocol credit.
 	coverageRoot := filepath.Join(root, "docs", "verification")
-	if err := os.MkdirAll(coverageRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(coverageRoot, 0o700))
 	emptyCoverage, err := json.Marshal(acceptedCoverage{Version: artifact.InitialDocumentVersion, Scope: "Fixture with no accepted campaign protocols."})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, name := range []string{"text-vision-coverage.json", "image-video-coverage.json", "specialized-coverage.json"} {
-		if err := os.WriteFile(filepath.Join(coverageRoot, name), emptyCoverage, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(coverageRoot, name), emptyCoverage, 0o600))
 	}
 }

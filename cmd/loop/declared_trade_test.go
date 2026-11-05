@@ -7,6 +7,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 )
 
 // TestADeclaredTradeIsNotFiledAgain holds the loop to the trades the scorecard reads: Qwen3.8-27B's drafting memory,
@@ -15,9 +16,7 @@ import (
 func TestADeclaredTradeIsNotFiledAgain(t *testing.T) {
 	t.Parallel()
 	trades, err := scorecard.DeclaredTrades()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	at := -1
 	for index, trade := range trades {
 		if trade.Name == "Qwen3.8-27B" && trade.Column == metric.PeakMemory {
@@ -44,9 +43,7 @@ func TestADeclaredTradeIsNotFiledAgain(t *testing.T) {
 			t.Fatal(err)
 		}
 		document, err := plan.Load(improver.plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The row's other gaps, such as its path compared with no reference, are not the trade's.
 		declines := 0
 		for _, item := range document.Items {

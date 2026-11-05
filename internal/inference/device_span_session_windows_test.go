@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -18,18 +19,14 @@ func TestSpanDecodeSession(t *testing.T) {
 	cudatest.Require(t)
 	path := writeHermeticQwen35GGUF(t)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 
 	// Teacher-forced host oracle over the full token history.
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
 	oracle, err := runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	for index, token := range tokens {
@@ -45,16 +42,12 @@ func TestSpanDecodeSession(t *testing.T) {
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	release := func(cache *deviceKVCache) {
-		if err := cache.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.Release(t.Context()))
 	}
 	boundary, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[:2], nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release(boundary)
 
 	check := func(label string, cache *deviceKVCache) {
@@ -78,9 +71,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	first, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[2:], boundary, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check("compiled span", first)
 	session := first.session
 	if session == nil {
@@ -94,9 +85,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	second, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[2:], boundary, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check("replayed span", second)
 	if second.session != session || session.replays == 0 {
 		t.Fatalf(

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,17 +26,13 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	generator := rand.New(rand.NewSource(11))
 	for index, name := range []string{"catalog-model-alpha", "catalog-model-beta"} {
 		modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 		directory := filepath.Join(t.TempDir(), name)
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 		tensors := map[string][]float32{}
 		shapes := map[string][]int{}
 		facts := make([]modelartifact.TensorFact, 0, 3)
@@ -49,19 +46,13 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 				Name: tensor, Shape: []uint64{8, 8}, Storage: "f32", Bytes: 64 * 4,
 			})
 		}
-		if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil))
 		inventory, err := modelartifact.NewTensorInventoryDocument(modelID, modelartifact.TensorFormatSafetensors, facts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		measurement, err := modelartifact.MeasureAtLocation(inventory, directory, modelartifact.MeasurementPolicy{
 			MaxSamplesPerTensor: 64, MaxReadBytes: 1 << 20,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       fmt.Sprintf("catalog/model/%d", index),
 			Artifacts: []artifact.Descriptor{{ID: modelID}},
@@ -69,9 +60,7 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 		inventoryContent, err := inventory.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:      fmt.Sprintf("catalog/inventory/%d", index),
 			Contents: []artifact.Content{inventoryContent},
@@ -82,30 +71,22 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 		batch, err := measurement.Batch(fmt.Sprintf("catalog/measurement/%d", index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors/similar?name=blk.0.attn_q.weight&k=5", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 	var result analyzeTensorsSimilarResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	if result.Pool != "store-catalog" {
 		t.Fatalf("pool = %q, want store-catalog", result.Pool)
 	}

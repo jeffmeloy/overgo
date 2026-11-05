@@ -11,6 +11,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -93,9 +94,7 @@ func servedAttempts(t *testing.T, attempts []runrecord.ServingObservation) (arti
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "chat-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "chat-environment")
@@ -110,20 +109,14 @@ func servedAttempts(t *testing.T, attempts []runrecord.ServingObservation) (arti
 			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(time.Millisecond)}}
 		}
 		observation, err := runrecord.NewServingObservation(observation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("attempts/" + observation.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return model, summaries[served]
 }

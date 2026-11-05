@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func TestRecipeCandidateEvaluationAttribution(t *testing.T) {
 	candidate.Quality, candidate.ResourceBytes, candidate.WallNS = 0.62, 3072, 700
 
 	attribution, err := AttributeRecipeEvaluation(candidate, baseline)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if attribution.QualityDelta <= 0 || attribution.ResourceDelta >= 0 || attribution.WallDelta >= 0 ||
 		attribution.Coverage != 24 || attribution.Model != baseline.Model {
 		t.Fatalf("controlled attribution = %+v", attribution)

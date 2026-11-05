@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -136,20 +137,14 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	ctx := t.Context()
 	source := t.TempDir()
 	store, err := overgodb.Create(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	payload := []byte("browser fixture shared weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	location := filepath.Join(t.TempDir(), "weights.bin")
-	if err := os.WriteFile(location, payload, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "browser-fixture/model", Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len(payload))}},
 		Manifests: []artifact.Manifest{manifest},
@@ -158,12 +153,8 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipetest.PublishActivation(ctx, store, "browser-fixture/active", definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "browser-fixture/active", definition))
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated historical result")
 	testutil.PublishArtifact(t, store, unrelated)
 	// A registered profile no activated definition names: the registry republished after the model's activation.
@@ -186,22 +177,16 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	if entries, truncated, err := discovery.CapabilityCatalog(ctx, store, laneCatalogLimit, memo); err != nil || truncated || len(entries) != 1 || !entries[0].Present {
 		t.Fatalf("source fixture: %v %v", entries, err)
 	}
-	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, discovery.PublishMemo(ctx, store, memo))
 	before, sequence := store.Head()
 	memoID, found, err := artifact.ResolveAlias(ctx, store, discovery.IdentityEvidenceAlias)
 	if err != nil || !found {
 		t.Fatalf("source identity memo: %v", err)
 	}
 	destination := t.TempDir()
-	if err := prepareBrowserJourneyStore(ctx, source, destination); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareBrowserJourneyStore(ctx, source, destination))
 	private, err := overgodb.Create(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer private.Close()
 	aliases := 0
 	if err := private.VisitAliases(ctx, "browser-fixture/alias/", func(alias overgodb.AliasView) error {
@@ -235,13 +220,9 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	mutation := testutil.ArtifactID(t, artifact.KindModel, "private browser declaration")
 	testutil.PublishArtifact(t, private, mutation)
-	if err := private.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, private.Close())
 	reopened, err := overgodb.OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	if _, found, err := reopened.Artifact(ctx, mutation); err != nil || !found {
 		t.Fatalf("private result did not survive reopen: %t %v", found, err)
@@ -253,9 +234,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 		t.Fatal("source accepted as destination")
 	}
 	freshSource, err := overgodb.OpenReadOnly(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer freshSource.Close()
 	if after, afterSequence := freshSource.Head(); after != before || afterSequence != sequence {
 		t.Fatal("browser preparation or mutation changed source history")

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -37,27 +38,17 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_merged.json")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoMergedSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoMergedSHA256))
 	var value mediaMergedEvidence
-	if err := jsonfile.DecodeStrict(path, &value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &value))
 	if value.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(value.Local) || !gitauthority.ValidObjectID(value.Incoming) || !gitauthority.ValidObjectID(value.Merged) || value.Scope == "" || len(value.Checks) == 0 {
 		t.Fatal("incomplete merged media evidence")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, check := range value.Checks {
 		content, found, err := artifact.ReadContent(t.Context(), store, check.Evidence)
@@ -65,41 +56,25 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 			t.Fatalf("missing %s: %v", check.Name, err)
 		}
 		report, err := testevidence.GoTestJSONReport(string(content.Data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if check.Name == "" || check.Command == "" || report.PassedPackages == 0 || report.PassedTests == 0 {
 			t.Fatal("empty merged-source check")
 		}
 	}
 	inventory, err := loadFrozenMediaInventory(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if inventory.Census != value.Inventory {
 		t.Fatal("changed frozen media denominator")
 	}
 	census, err := capabilityCensusCodec.Require(t.Context(), store, inventory.Census)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoCoverage(inventory, census, inventory.Tasks); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoCoverage(inventory, census, inventory.Tasks))
 	pending, err := loadMediaPending(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoDefinitions(t.Context(), store, inventory, pending); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoDefinitions(t.Context(), store, inventory, pending))
 	scope, err := resolveMediaReportScope("image-video")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store), scope.Tasks...)
 	if err != nil || truncated {
 		t.Fatalf("current media catalog incomplete: %v", err)

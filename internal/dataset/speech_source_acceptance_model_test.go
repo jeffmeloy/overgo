@@ -20,6 +20,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 )
@@ -34,9 +35,7 @@ var speechDecodeGolden []byte
 // model inference or parameter training.
 func TestSpeechMaterializationAcceptance(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if reference := os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"); reference != "" {
 		roots.Datasets = filepath.Join(filepath.Dir(reference), "datasets")
 	}
@@ -53,32 +52,22 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 			Frames  uint64 `json:"frames"`
 		} `json:"observations"`
 	}
-	if err := json.Unmarshal(speechDecodeGolden, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(speechDecodeGolden, &golden))
 	var policy dataset.AudioInspectionPolicy
-	if err := json.Unmarshal(speechInspectionPolicy, &policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(speechInspectionPolicy, &policy))
 	// This fixture's explicit CPU workspace ceiling is 64 MiB, independently
 	// of per-sample limits. It is not a process-peak measurement or default.
 	const workspaceBytes = 64 << 20
 	rows, err := dataset.OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text", "id"}, workspaceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rows.Close()
 	if rows.Rows() != 2703 || len(golden.Observations) != 4 {
 		t.Fatal("pinned corpus cardinality differs")
 	}
 	container, err := artifact.ParseID("dataset-shard:sha256:" + golden.Container)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	wantTexts := []string{
 		"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE",
@@ -88,9 +77,7 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 	}
 	for index, observation := range golden.Observations {
 		values, err := rows.Read(t.Context(), uint64(index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if values["audio.bytes"] == nil || values["text"] == nil || *values["text"] != wantTexts[index] || values["id"] == nil || *values["id"] != fmt.Sprintf("2277-149896-%04d", index) {
 			t.Fatalf("source row %d differs", index)
 		}
@@ -100,9 +87,7 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 		}
 	}
 	registered, err := dataset.RegisterDirectoryDataset(t.Context(), store, "pinned-validation", filepath.Dir(path))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if registered.Dataset.String() != "dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3" {
 		t.Fatalf("master validation inventory identity differs: %s", registered.Dataset)
 	}
@@ -112,9 +97,7 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	publication, err := dataset.MaterializeSpeechDataset(t.Context(), store, filepath.Dir(path), spec, workspaceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	physical, found, err := store.Artifact(t.Context(), container)
 	if err != nil || !found || physical != existing {
 		t.Fatalf("physical shard descriptor: %v", err)
@@ -140,9 +123,7 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 		records[index] = dataset.Record{ID: fmt.Sprintf("%s/%s/%d", version.ID, version.Assets[0].Name, index), Group: "2277-149896"}
 	}
 	split, err := dataset.BuildGroupSplit(version.ID, records, 0, []dataset.SplitPartition{{Name: "fixture", Weight: 1}, {Name: "reserved", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var membership dataset.Membership
 	for _, candidate := range split.Memberships {
 		if len(candidate.Records) != 0 {
@@ -150,49 +131,33 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 		}
 	}
 	batch, err := split.PublicationBatch("speech/source/fixture", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	source, err := dataset.NewAudioPayloadReader(workspaceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	processor, err := trainingdata.AudioTextProcessor(store, source, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	processorID, err := artifact.JSONID(artifact.KindProfile, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	materialized, err := trainingdata.Materialize(t.Context(), store, trainingdata.Authority{
 		Dataset: version.ID, Split: membership.ID, Processors: []artifact.ID{processorID},
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityAudio}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
 	}, []trainingdata.ProcessorBinding{{Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityAudio, recipecontract.ModalityText}, Process: processor}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer materialized.Close()
 	stream, err := trainingdata.NewStream(materialized, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batchPolicy := trainingdata.BatchPolicy{Examples: 1, DecodeWorkers: 1, MaxBytes: workspaceBytes}
 	batcher, err := trainingdata.NewBatcher(stream, batchPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var resume trainingdata.StreamState
 	var expected trainingdata.Batch
 	for index, observation := range golden.Observations {
 		result, err := batcher.Next(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		example := result.Examples[0]
 		if len(example.Values) != 2 || example.Values[0].Role != trainingdata.RoleInput || example.Values[1].Role != trainingdata.RoleTarget || string(example.Values[1].Data) != wantTexts[index] {
 			t.Fatalf("target isolation row %d", index)
@@ -213,13 +178,9 @@ func TestSpeechMaterializationAcceptance(t *testing.T) {
 		}
 	}
 	resumed, err := trainingdata.NewStream(materialized, &resume)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumedBatcher, err := trainingdata.NewBatcher(resumed, batchPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := resumedBatcher.Next(t.Context())
 	if err != nil || !reflect.DeepEqual(got, expected) {
 		t.Fatalf("exact next-record resume differs: %v", err)

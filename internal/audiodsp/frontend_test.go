@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 func testFrontendConfig() FrontendConfig {
@@ -22,21 +23,15 @@ func testFrontendConfig() FrontendConfig {
 
 func TestSpectrumMatchesNumpyRFFT(t *testing.T) {
 	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	var workspace Workspace
 	source, frames, err := plan.prepare(t.Context(), [][]float32{samples[:1], samples[1:6], samples[6:]}, 8, &workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 5 {
 		t.Fatalf("frames=%d want 5", frames)
 	}
-	if err := plan.workspace(&workspace, 0, len(samples), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.workspace(&workspace, 0, len(samples), false))
 	wantReal := [][]float64{{3, -2.414213562373095, 1, .41421356237309515, -1}, {6, -5.121320343559643, 3, -.8786796564403572, 0}, {0, .2928932188134524, -1, 1.7071067811865475, -2}, {-6, 5.121320343559643, -3, .8786796564403572, 0}, {-6, 5.121320343559643, -3, .8786796564403572, 0}}
 	wantImaginary := [][]float64{{0, 0, 0, 0, 0}, {0, .7071067811865476, -1, .7071067811865476, 0}, {0, -2.121320343559643, 3, -2.121320343559643, 0}, {0, -.7071067811865476, 1, -.7071067811865476, 0}, {0, .7071067811865476, -1, .7071067811865476, 0}}
 	for frame := range frames {
@@ -51,21 +46,15 @@ func TestSpectrumMatchesNumpyRFFT(t *testing.T) {
 
 func TestProcessIsChunkBoundaryInvariantAndReusesStorage(t *testing.T) {
 	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	var whole, split Workspace
 	want, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &whole, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want = append([]float32(nil), want...)
 	for boundary := 1; boundary < len(samples); boundary++ {
 		got, gotFrames, err := plan.Process(t.Context(), [][]float32{samples[:boundary], samples[boundary:]}, 8, &split, ProcessOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if gotFrames != frames || len(got) != len(want) {
 			t.Fatalf("boundary %d geometry=%d/%d", boundary, gotFrames, len(got))
 		}
@@ -97,14 +86,10 @@ func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 	config.Mel.MaxFrequency = 4
 	config.Normalize = &NormalizeConfig{Mode: "per-feature", Correction: 0, Epsilon: 1}
 	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var workspace Workspace
 	got, frames, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 4, 3, 2, 1}}, 8, &workspace, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 2 || len(got) != 4 {
 		t.Fatalf("geometry=%d/%d", frames, len(got))
 	}
@@ -117,14 +102,10 @@ func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 
 func TestFrontendRejectsBorrowedWorkspaceInput(t *testing.T) {
 	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var w Workspace
 	values, _, err := p.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, _, err := p.Process(t.Context(), [][]float32{values[1:]}, 8, &w, ProcessOptions{}); err == nil || got != nil {
 		t.Fatal("accepted borrowed output as mutable input")
 	}
@@ -137,9 +118,7 @@ func TestFrontendSnapshotsRecipeParameters(t *testing.T) {
 	config.Normalize = &NormalizeConfig{Mode: "all", Correction: 0, Epsilon: 1}
 	config.ResampleTaps = []float64{1}
 	p, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	limit = 0
 	config.Normalize.Epsilon = 0
 	config.ResampleTaps[0] = math.NaN()
@@ -153,9 +132,7 @@ func TestFrontendSlaneyFilterbankMatchesTorchAudio(t *testing.T) {
 	config.SampleRate = 8000
 	config.Mel = MelConfig{Scale: "slaney", MaxFrequency: 4000, AreaNormalize: true}
 	p, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// torchaudio.functional.melscale_fbanks(5,0,4000,3,8000,
 	// norm="slaney",mel_scale="slaney"), computed by the installed CPU oracle.
 	want := []float64{0, 0, 0, .0005348663544282317, .0008510092739015818, 0, 0, .00023411086294800043, .0005793526652269065, 0, 0, .00039287295658141375, 0, 0, 0}
@@ -182,13 +159,9 @@ func TestFrontendNormalizationAndDynamicRangeDefinitions(t *testing.T) {
 	config.Geometry.FeatureBins = 2
 	config.Normalize = &NormalizeConfig{Mode: "per-feature", Correction: 0, Epsilon: 1}
 	p, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	values := []float32{1, 10, 3, 30}
-	if err := p.transform(t.Context(), values, 2); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, p.transform(t.Context(), values, 2))
 	want := []float32{-.5, -10.0 / 11, .5, 10.0 / 11}
 	for i := range want {
 		if values[i] != want[i] {
@@ -201,13 +174,9 @@ func TestFrontendNormalizationAndDynamicRangeDefinitions(t *testing.T) {
 	config.Log.Scale = .25
 	config.Log.Bias = 1
 	p, err = NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	values = []float32{-10, 0}
-	if err := p.transform(t.Context(), values, 1); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, p.transform(t.Context(), values, 1))
 	if values[0] != -1 || values[1] != 1 {
 		t.Fatalf("log range=%v", values)
 	}
@@ -231,9 +200,7 @@ func FuzzFrontend(f *testing.F) {
 			config.Padding = "reflect"
 		}
 		p, err := NewFrontend(config, 1<<20)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		samples := make([]float32, len(data))
 		for i, v := range data {
 			samples[i] = float32(int(v)-128) / 128
@@ -267,9 +234,7 @@ func FuzzFrontend(f *testing.F) {
 
 func TestFrontendSharedPlanSeparateWorkspaces(t *testing.T) {
 	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	for _, operation := range []string{"features", "inverse"} {
 		t.Run(operation, func(t *testing.T) {
@@ -304,14 +269,10 @@ func TestResamplingUsesDeclaredFIRAndTargetGrid(t *testing.T) {
 	config.Mel.MaxFrequency = 1
 	config.ResampleTaps = []float64{0, 1, 0}
 	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var workspace Workspace
 	_, frames, err := plan.Process(t.Context(), [][]float32{{1}, {2}}, 1, &workspace, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 2 || len(workspace.resampled) != 4 {
 		t.Fatalf("resampled geometry=%d/%d", frames, len(workspace.resampled))
 	}
@@ -348,9 +309,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 		})
 	}
 	plan, err := NewFrontend(base, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var workspace Workspace
 	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4}}, 7, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want sample-rate refusal")
@@ -364,9 +323,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 		t.Fatal("want cancellation")
 	}
 	other, err := NewFrontend(base, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace, ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -379,9 +336,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 	base.PadLeft, base.PadRight = 0, 0
 	base.Condition = &FrameCondition{Gain: math.MaxFloat64}
 	overflow, err := NewFrontend(base, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := overflow.Process(t.Context(), [][]float32{{1, 1}}, 8, &Workspace{}, ProcessOptions{}); err == nil {
 		t.Fatal("accepted non-finite energy outside mel support")
 	}
@@ -395,9 +350,7 @@ func TestInverseRefusesUncoveredSamples(t *testing.T) {
 	config.WindowOffset = 0
 	config.FrameSpan = 4
 	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var w Workspace
 	if values, err := plan.Reconstruct(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w); err == nil || values != nil {
 		t.Fatalf("uncovered inverse=%v error=%v", values, err)
@@ -406,9 +359,7 @@ func TestInverseRefusesUncoveredSamples(t *testing.T) {
 
 func TestWorkspaceBudgetRefusesBeforeAllocation(t *testing.T) {
 	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan.memoryBytes = plan.tableBytes
 	var w Workspace
 	if values, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{}); err == nil || values != nil {
@@ -433,9 +384,7 @@ func TestStandardSTFTInverseReconstructsSource(t *testing.T) {
 					config.Geometry.HopSamples, config.PadLeft, config.PadRight = 4, 4, 4
 				}
 				plan, err := NewFrontend(config, 1<<22)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				var w Workspace
 				samples := []float32{.25, -.5, .75, -1, .125, -.25, .5}
 				if length == 8 {
@@ -465,13 +414,9 @@ func TestStandardSTFTInverseReconstructsSource(t *testing.T) {
 					}
 					return nil
 				}})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				got, err := plan.Reconstruct(t.Context(), chunks, 8, &w)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if len(got) != len(samples) {
 					t.Fatalf("samples=%d want %d", len(got), len(samples))
 				}

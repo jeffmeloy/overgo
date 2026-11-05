@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const runFixturePlaceholder = "<media>"
@@ -34,9 +36,7 @@ func TestEncodeRunsAssemblesPlaceholderTokens(t *testing.T) {
 		[]int{2, 1},
 		EncodeOptions{AddSpecial: true, ParseSpecial: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []TokenID{1, TokenID('a') + 16, 9, 9, TokenID('b') + 16, TokenID('c') + 16, 9, TokenID('d') + 16}
 	if !slices.Equal(ids, want) || !slices.Equal(starts, []int{2, 6}) {
 		t.Fatalf("runs = %v at %v, want %v at [2 6]", ids, starts, want)
@@ -64,9 +64,7 @@ func TestEncodeMarkersExpandsCompactRuns(t *testing.T) {
 		[]int{2, 1},
 		EncodeOptions{AddSpecial: true, ParseSpecial: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []TokenID{1, TokenID('a') + 16, 9, 9, TokenID('b') + 16, TokenID('c') + 16, 9, TokenID('d') + 16}
 	if !slices.Equal(ids, want) || !slices.Equal(starts, []int{2, 6}) {
 		t.Fatalf("markers = %v at %v, want %v at [2 6]", ids, starts, want)

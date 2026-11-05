@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestMediaPreprocessProfileCatalog(t *testing.T) {
 
 func TestImageAttentionRecipePinsConfig(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "attention-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "attention-projector")
@@ -47,13 +46,9 @@ func TestImageAttentionRecipePinsConfig(t *testing.T) {
 		config, err := modelartifact.NewModelConfigDocument(model, nil,
 			&modelartifact.GenerationEssentials{ImageAttention: policy},
 			[]modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat(digest, 64)}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := config.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: config.ID.String(), Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -61,22 +56,16 @@ func TestImageAttentionRecipePinsConfig(t *testing.T) {
 	}
 	causal := declare("causal", "a")
 	profile, err := base.BindModelConfig(causal)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitionFor := func(profile MediaPreprocessProfile, modelID artifact.ID) recipe.Definition {
 		t.Helper()
 		content, err := profile.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: profile.ID.String(), Contents: []artifact.Content{content}}); err != nil && err != artifact.ErrNoChange {
 			t.Fatal(err)
 		}
 		definition, err := modelrecipe.ProjectionDefinition(modelID, projectorID, profile.ID, recipe.DataImage)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return definition
 	}
 	definition := definitionFor(profile, model)
@@ -101,9 +90,7 @@ func TestImageAttentionRecipePinsConfig(t *testing.T) {
 			changed.ID = artifact.ID{}
 			test.change(&changed)
 			changed, err := mediaPreprocessProfileCodec.New(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := ResolvePreprocessProfile(t.Context(), store, definitionFor(changed, model), &base); err == nil {
 				t.Fatal("contradictory binding accepted")
 			}
@@ -139,9 +126,7 @@ func TestAudioProcessorProfileIdentity(t *testing.T) {
 		t.Fatal("legacy raster profile missing")
 	}
 	content, err := legacy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if strings.Contains(string(content.Data), "audio_attention") {
 		t.Fatal("audio extension rewrote legacy raster profile bytes")
 	}

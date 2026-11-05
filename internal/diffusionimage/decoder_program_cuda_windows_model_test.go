@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
@@ -21,13 +22,9 @@ func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
 		t.Fatalf("decoder graph currently requires batch 1, got %d", golden.B)
 	}
 	_, trace, err := model.forward(golden.X, 1, golden.H, golden.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer device.Close()
 	for index, up := range trace.decUps {
 		binding := model.decoders[index].transition
@@ -36,9 +33,7 @@ func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
 			imageGeometry{channels: up.channels, height: up.h, width: up.width},
 			up.nextChannels,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want, _, _ := conv2dValidStride(
 			up.input, binding.weight, binding.bias, 1,
 			up.channels, up.nextChannels, up.h, up.width, 1, 1,
@@ -51,9 +46,7 @@ func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
 		imageGeometry{channels: model.Cfg.BaseChannels, height: trace.finalH, width: trace.finalW},
 		model.Cfg.InChannels, model.Cfg.PatchSize,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	finalWant, _, _ := convTranspose2dStride(
 		trace.finalInput, model.final.weight, model.final.bias, 1,
 		model.Cfg.BaseChannels, model.Cfg.InChannels, trace.finalH, trace.finalW,

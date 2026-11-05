@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -44,9 +45,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 		nil,
 		InfillFormatOptions{MaxNewTokens: 2},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPSM := []tokenizer.TokenID{1, 2, 5, 6, 7, 8, 9, 13, 3, 10, 11, 12, 4}
 	if !slices.Equal(psm, wantPSM) {
 		t.Fatalf("PSM tokens = %v, want %v", psm, wantPSM)
@@ -61,9 +60,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 			SuffixPrefix: true,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantSPM := []tokenizer.TokenID{1, 3, 10, 11, 12, 2, 5, 6, 7, 8, 9, 13, 4}
 	if !slices.Equal(spm, wantSPM) {
 		t.Fatalf("SPM tokens = %v, want %v", spm, wantSPM)
@@ -93,9 +90,7 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 		nil,
 		InfillFormatOptions{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []tokenizer.TokenID{1, 6, 7, 8, 9, 10, 11, 2, 12, 13, 3}
 	if !slices.Equal(got, want) {
 		t.Fatalf("truncated FIM tokens = %v, want %v", got, want)

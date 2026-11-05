@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact/repositorytest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 func TestHighFanoutReadsAreBatched(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "batched-subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "batched-derivation")
@@ -38,13 +37,9 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 			recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation},
 			[]artifact.ID{derivation},
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := decision.Batch(fmt.Sprintf("batched/decision/%d", ordinal))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -53,9 +48,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	ids = append(ids, testutil.ArtifactID(t, artifact.KindEvidence, "batched-absent"))
 	counting := &repositorytest.CountingRepository{Repository: store}
 	loaded, err := loadDecisions(ctx, counting, ids)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(loaded) != decisions {
 		t.Fatalf("loaded %d decisions, want %d", len(loaded), decisions)
 	}

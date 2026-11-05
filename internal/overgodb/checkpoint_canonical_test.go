@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestCheckpointCanonicalAtTheWriter holds the proof of canonical form to
@@ -32,17 +33,13 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 	}
 
 	target, err := publish(&sound)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if republished, _, loaded, reason := loadProjectionCheckpoints(target); !loaded || catalogDigest(t, republished) != catalogDigest(t, sound) {
 		t.Fatalf("a proved set does not load as the state it was written from: %s", reason)
 	}
 
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("never durable"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sound.contents.set(id, contentLocator{size: 1, blob: true}, 0)
 	target, err = publish(&sound)
 	if err == nil || !strings.Contains(err.Error(), "contents") {
@@ -61,9 +58,7 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 func TestDescriptorIndexesAppend(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var committed []artifact.ID
 	for index := range 40 {
@@ -80,9 +75,7 @@ func TestDescriptorIndexesAppend(t *testing.T) {
 	sorted := slices.SortedFunc(slices.Values(committed), artifact.CompareID)
 	for _, limit := range []int{len(committed), 5} {
 		result, err := store.Query(t.Context(), Query{Schema: schema, MaxResults: limit, Projection: ProjectCatalog})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var ids []artifact.ID
 		for _, descriptor := range result.Artifacts {
 			ids = append(ids, descriptor.ID)

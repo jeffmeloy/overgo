@@ -12,6 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -35,9 +36,7 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 		{"windows", windows, writeFlashNextMTPFixture(t, windows, false, strataFlashNextWindows), true},
 	} {
 		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if runner.windowsDecode() != fixture.windows {
 			_ = runner.Close()
 			t.Fatalf("%s: the runner decodes through windows %t", fixture.name, runner.windowsDecode())
@@ -47,9 +46,7 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 			generate := func(plain, card bool) []tokenizer.TokenID {
 				t.Helper()
 				sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				rows := 0
 				options := GenerateOptions{
 					MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -82,9 +79,7 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 				}
 			}
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		if drafted == 0 {
 			t.Fatalf("%s: no window drafted", fixture.name)
 		}
@@ -109,9 +104,7 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 		{"windows", windows, writeFlashNextMTPFixture(t, windows, false, strataFlashNextWindows)},
 	} {
 		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// generate decodes the seed's text under the grammar, if any, which may end it, and counts the tokens drawn from
 		// whole rows.
 		generate := func(grammar string, trigger tokenizer.TokenID, plain, card bool) ([]tokenizer.TokenID, int) {
@@ -119,15 +112,11 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 			config := sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: 3}
 			if grammar != "" {
 				compiled, err := runner.CompileLazyGBNF(grammar, "", nil, []tokenizer.TokenID{trigger})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				config.GBNF = compiled
 			}
 			sampler, err := sampling.New(config)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			rows := 0
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: grammar == "",
@@ -175,9 +164,7 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 				t.Fatalf("%s: the text through the trigger %v is not the free text's %v", fixture.name, card[:triggered+1], free[:at+1])
 			}
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		t.Logf("%s: the trigger %d at %d of the free text %v", fixture.name, trigger, at, free)
 	}
 }
@@ -199,16 +186,12 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 		{"windows", windows, writeFlashNextMTPFixture(t, windows, true, strataFlashNextWindows)},
 	} {
 		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		text := func(ids []tokenizer.TokenID) string {
 			var joined strings.Builder
 			for _, id := range ids {
 				piece, err := runner.vocab.DecodePiece(id, false)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				joined.WriteString(piece)
 			}
 			return joined.String()
@@ -219,9 +202,7 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 		generate := func(seed int64, grammar *sampling.GBNFGrammar, card bool) ([]tokenizer.TokenID, map[int]bool, int) {
 			t.Helper()
 			sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed, GBNF: grammar})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			rows, emitted, kept := 0, 0, map[int]bool{}
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, DeviceTopK: card,
@@ -265,9 +246,7 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 				forced := free[other]
 				compile := func() *sampling.GBNFGrammar {
 					grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					return grammar
 				}
 				whole, _, wholeRows := generate(seed, compile(), false)
@@ -282,9 +261,7 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 				break
 			}
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		if triggered == 0 {
 			t.Fatalf("%s: no seed's text repeats a token a draft could carry the trigger on", fixture.name)
 		}

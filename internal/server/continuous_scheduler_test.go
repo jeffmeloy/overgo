@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 type continuousFactoryGenerator struct {
@@ -24,9 +25,7 @@ func TestServerUsesModelSessionDirectorAsSoleSessionAuthority(t *testing.T) {
 	t.Parallel()
 	factory := &continuousFactoryGenerator{fakeGenerator: &fakeGenerator{}}
 	handler, err := New(Config{MaxConcurrent: 3, ContextShift: true}, factory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	if factory.options.MaxSequences != 3 || !factory.options.ContextShift {
 		t.Fatalf("scheduler options = %+v", factory.options)

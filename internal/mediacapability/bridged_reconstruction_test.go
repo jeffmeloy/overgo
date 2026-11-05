@@ -19,6 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -32,9 +33,7 @@ import (
 func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := roots.ResolveModelPath("webssl-dino-to-rae-bridge")
 	if _, held, err := rae.ResolveBridgedPair(directory); err != nil || !held {
 		testskip.NotApplicable(t, "no bridged pair with its encoder and collection is at "+directory)
@@ -42,27 +41,19 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	testskip.Short(t, "loads the bridged encoder and the collection's 1.7 GB decoder")
 	capability := Catalog[recipe.TaskReconstruction]
 	source, err := capability.Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if files := len(source.Inventory.Manifest.Components); files != 7 || source.Define == nil {
 		t.Fatalf("the bridged pair resolves to %d files, want its bridge, the encoder's three, the decoder's two and the decoder's image processor", files)
 	}
 	definition, _, err := source.Define(source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if entry := program.Stages()[0].Module.ID; entry != modelrecipe.ModuleReconstructRepresentation {
 		t.Fatalf("the bridged pair compiles to entry module %s", entry)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const side = 256
 	picture := image.NewRGBA(image.Rect(0, 0, side, side))
@@ -76,25 +67,17 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 		}
 	}
 	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, picture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&encoded, picture))
 	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("reconstruction output is %T", capabilityruntime.Unwrap(output))
 	}
 	decoded, err := png.Decode(bytes.NewReader(reconstruction.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if reconstruction.Height != side || reconstruction.Width != side || decoded.Bounds() != picture.Bounds() {
 		t.Fatalf("the picture came back as %dx%d, PNG %v", reconstruction.Height, reconstruction.Width, decoded.Bounds())
 	}
@@ -132,14 +115,10 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 		t.Fatalf("the bridged round trip gives no finite ratio: %v", ratio)
 	}
 	opened, err := OpenAutoencoder(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer opened.Close(t.Context())
 	back, latent, err := opened.RoundTrip(t.Context(), clip)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if latent.Channels != 768 || latent.Height != 16 || latent.Width != 16 || len(back.Pixels) != len(clip.Pixels) {
 		t.Fatalf("the evaluation's round trip gave a latent of %+v and %d values", latent, len(back.Pixels))
 	}

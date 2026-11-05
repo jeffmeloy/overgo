@@ -19,6 +19,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/worklease"
@@ -49,15 +50,9 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	var protocol imageVideoResourceProtocol
 	protocolPath := filepath.Join(root, "docs/image_video_resources.json")
 	data, err := os.ReadFile(protocolPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(data, imageVideoResourceProtocolSHA256); err != nil {
-		t.Fatal(err)
-	}
-	if err := jsonfile.DecodeStrict(protocolPath, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoResourceProtocolSHA256))
+	testcheck.NoError(t, jsonfile.DecodeStrict(protocolPath, &protocol))
 	if protocol.Version != artifact.InitialDocumentVersion || protocol.QualityProtocolSHA256 != imageVideoProtocolSHA256 {
 		t.Fatal("resource and quality protocol binding differs")
 	}
@@ -71,13 +66,9 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		}
 	}
 	encoded, err := json.Marshal(driver.ExecutionStats{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var counters map[string]uint64
-	if err := json.Unmarshal(encoded, &counters); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &counters))
 	for _, name := range protocol.DriverCounters {
 		if _, found := counters[name]; !found {
 			t.Fatalf("counter %s absent from driver owner", name)
@@ -89,14 +80,10 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	for _, field := range []string{"required_common_metrics", "required_driver_counters", "required_memory_scopes", "admission", "measurement"} {
 		t.Run("omitted "+field, func(t *testing.T) {
 			var changed map[string]any
-			if err := json.Unmarshal(data, &changed); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(data, &changed))
 			delete(changed, field)
 			encoded, err := json.Marshal(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if checkMediaProtocolIdentity(encoded, imageVideoResourceProtocolSHA256) == nil {
 				t.Fatal("incomplete resource protocol accepted")
 			}
@@ -109,9 +96,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		t.Fatal("UNAVAILABLE: this campaign's current hardware discovery requires Windows")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var stdout, stderr bytes.Buffer
 	command := processcontrol.Command{
 		Path: "powershell.exe", Args: []string{"-NoProfile", "-NonInteractive", "-Command", `$mediaOS=Get-CimInstance Win32_OperatingSystem; $mediaCPU=Get-CimInstance Win32_Processor; $mediaDisk=Get-CimInstance Win32_LogicalDisk | Where-Object DeviceID -eq $env:OVERGO_MEDIA_DISK_ROOT; [ordered]@{host_available_bytes=([uint64]$mediaOS.FreePhysicalMemory*1024);host_total_bytes=([uint64]$mediaOS.TotalVisibleMemorySize*1024);cpu_logical_processors=(($mediaCPU|Measure-Object NumberOfLogicalProcessors -Sum).Sum);cpu_load_percent=(($mediaCPU|Measure-Object LoadPercentage -Average).Average);disk_available_bytes=[uint64]$mediaDisk.FreeSpace}|ConvertTo-Json -Compress`},
@@ -128,9 +113,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		Load      float64 `json:"cpu_load_percent"`
 		Disk      uint64  `json:"disk_available_bytes"`
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &host); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(stdout.Bytes(), &host))
 	if host.Available == 0 || host.Available > host.Total || host.CPU <= 0 || host.Disk == 0 {
 		t.Fatal("UNAVAILABLE: incomplete host capacity")
 	}
@@ -163,9 +146,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		return testutil.ArtifactID(t, kind, "media resources "+label)
 	}
 	fitness, err := runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Workload: id(artifact.KindProfile, "workload"), Attempt: id(artifact.KindRun, "attempt")}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: 1}, {Metric: runrecord.ResourceHostToDeviceBytes, Value: 0}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if value, known := fitness.Measure(runrecord.ResourceHostToDeviceBytes); !known || value != 0 {
 		t.Fatal("observed zero transfer lost")
 	}

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // countedContext is cancelled from its limit-th question on, so a test cancels
@@ -48,9 +50,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 	for _, steps := range []int{1, 2, 50, 1001} {
 		t.Run(fmt.Sprint(steps), func(t *testing.T) {
 			schedule, err := compileNearestGridFlowSchedule(t.Context(), steps, 1000, 5, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for suffix, values := range map[string][]float64{"sigmas": schedule.Sigmas, "timesteps": schedule.Timesteps} {
 				name := fmt.Sprintf("schedule.%d.%s", steps, suffix)
 				expected := mossF32(t, source, name)
@@ -58,9 +58,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 				for i, v := range values {
 					actual[i] = float32(v)
 				}
-				if err := contract.compare("primitives", reference.Artifact, reference.Backend, name, "F32", []uint64{uint64(len(values))}, actual, expected); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, contract.compare("primitives", reference.Artifact, reference.Backend, name, "F32", []uint64{uint64(len(values))}, actual, expected))
 			}
 			if schedule.Steps != len(schedule.Timesteps) || len(schedule.Sigmas) != schedule.Steps+1 || len(schedule.Deltas) != schedule.Steps {
 				t.Fatal("inconsistent schedule extents")
@@ -76,9 +74,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 				}
 				name := fmt.Sprintf("schedule.%d.latent.%d", steps, i)
 				expected := mossF32(t, source, name)
-				if err := contract.compare("primitives", reference.Artifact, reference.Backend, name, "F32", source.Tensors[name].Shape, sample, expected); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, contract.compare("primitives", reference.Artifact, reference.Backend, name, "F32", source.Tensors[name].Shape, sample, expected))
 			}
 			if steps == 1001 && schedule.Steps != 616 {
 				t.Fatalf("deduplicated count=%d want 616", schedule.Steps)

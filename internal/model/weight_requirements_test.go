@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func tensorBindingFixtures(
@@ -33,9 +34,7 @@ func TestTensorCatalogProgramIsAuthoritative(t *testing.T) {
 	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
 		{Name: firstTensor}, {Name: thirdTensor},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var first, second, third gguf.TensorInfo
 	err = bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(firstTensor, &first),
@@ -48,18 +47,14 @@ func TestTensorCatalogProgramIsAuthoritative(t *testing.T) {
 	catalog, err = newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
 		{Name: thirdTensor}, {Name: firstTensor}, {Name: secondTensor},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var firstView, secondView, thirdView *gguf.TensorInfo
 	err = bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensorPointer(firstTensor, &firstView),
 		requiredTensorPointer(secondTensor, &secondView),
 		requiredTensorPointer(thirdTensor, &thirdView),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if firstView != &catalog.items[catalog.tensors[firstTensor]] ||
 		secondView != &catalog.items[catalog.tensors[secondTensor]] ||
 		thirdView != &catalog.items[catalog.tensors[thirdTensor]] {
@@ -71,9 +66,7 @@ func TestLoadTensorRequirementsEnforcesStorage(t *testing.T) {
 	item := tensorInfo("bias", 2)
 	item.Type = dtype.F16
 	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{item}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var destination *gguf.TensorInfo
 	err = bindTensorProgram(
 		catalog, "",

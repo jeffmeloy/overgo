@@ -14,6 +14,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -34,9 +35,7 @@ func mossSmallEncoder(t *testing.T, fixture, digest string) (*safetensors.Source
 	mossFixtureBytes(t, fixture, digest)
 	weights := mossFixtureBytes(t, "model-small-v3-weights.safetensors", "b5364f94c71b0134562493d8e09e8884d63859ce328cf4be4daa2a6440784e2e")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { s.Close() })
 	root := t.TempDir()
 	if len(s.Metadata) != 1 {
@@ -46,22 +45,14 @@ func mossSmallEncoder(t *testing.T, fixture, digest string) (*safetensors.Source
 		if metadata["torch"] != "2.12.0+cu126" || metadata["transformers"] != "5.14.1" {
 			t.Fatal("native source identity")
 		}
-		if err := os.WriteFile(filepath.Join(root, "config.json"), []byte(metadata["config"]), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "config.json"), []byte(metadata["config"]), 0600))
 	}
-	if err := os.WriteFile(filepath.Join(root, "model.safetensors"), weights, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "model.safetensors"), weights, 0600))
 	repo, err := hfrepo.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { repo.Close() })
 	catalog, err := hfgguf.InspectLanguageModel(repo, hfgguf.LanguageHidden)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return s, root, catalog
 }
 
@@ -72,34 +63,26 @@ func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []s
 		t.Fatal("native model fixture coverage")
 	}
 	session, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close(context.Background())
 	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
 			hidden := refinementValues(t, s, name+".embedding")
 			p, err := compileModelEncoder(catalog, len(hidden)/int(catalog.Spec.EmbeddingLength), 0, int(catalog.Spec.BlockCount))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			names := slices.Sorted(maps.Keys(p.boundaries))
 			var outputs []*tensor.Tensor
 			for _, label := range names {
 				outputs = append(outputs, p.boundaries[label])
 			}
 			program, err := p.resident(t.Context(), session, catalog, root, nil, outputs...)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer session.Release(context.Background(), program)
 			p.feeds[p.input] = reference.Value{Shape: p.input.Shape, Data: hidden}
 			var previous map[*tensor.Tensor]reference.Value
 			for pass := range 2 {
 				actual, err := session.Execute(t.Context(), program, p.feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				for _, label := range names {
 					got := actual[p.boundaries[label]].Data
 					want := refinementValues(t, s, name+"."+label)
@@ -125,9 +108,7 @@ func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []s
 			}
 			before := session.StaticBytes()
 			final, err := conditioner.encode(t.Context(), session, text, hidden, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			failed, unequal, _ := compareMOSSValues(final, refinementValues(t, s, name+".final_norm"), mossStageTolerance{})
 			if failed != 0 || unequal != 0 {
 				t.Fatal("final-output-only graph differs from native")

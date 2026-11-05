@@ -23,6 +23,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -35,9 +36,7 @@ func compactGeneratorFixture(t *testing.T) (string, *safetensors.Source) {
 		t.Fatal("reference identity", err)
 	}
 	s, err := safetensors.OpenFile(filepath.Join(root, "reference.safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { s.Close() })
 	for _, metadata := range s.Metadata {
 		var files map[string]string
@@ -65,13 +64,9 @@ func TestMOSSGeneratorComposition(t *testing.T) {
 			Tolerances map[string]mossStageTolerance `json:"dtype_tolerances"`
 		}
 	}
-	if err := readJSON(filepath.Join("..", "..", "fixtures", "moss", "oracle-contract.json"), &contract); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, readJSON(filepath.Join("..", "..", "fixtures", "moss", "oracle-contract.json"), &contract))
 	identity, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(root, "reference.safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, test := range []struct {
 		name, prompt, negative string
 		h, w                   int
@@ -99,9 +94,7 @@ func TestMOSSGeneratorRefusesPicturesBeyondTheCard(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
 	profile, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, extent := range []int{1 << 34, 1 << 24} {
 		request := Request{Prompt: "blue cube", Width: extent, Height: extent, Steps: 1}
 		if _, err := LoadGenerator(t.Context(), root, profile, request); err == nil {
@@ -114,9 +107,7 @@ func TestMOSSGeneratorLifecycle(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
 	profile, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := Request{Prompt: "blue cube", Width: 48, Height: 32, Steps: 1, Seed: 42}
 	for _, stage := range []string{"prepare", "integrate", "decode"} {
 		t.Run(stage, func(t *testing.T) {
@@ -178,16 +169,12 @@ func TestMOSSGeneratorLifecycle(t *testing.T) {
 func TestResidentWeightShapeRefusal(t *testing.T) {
 	cudatest.Require(t)
 	root := t.TempDir()
-	if err := safetensors.Save(filepath.Join(root, "weights.safetensors"), map[string][]float32{"weight": {1, 2, 3, 4, 5, 6}}, map[string][]int{"weight": {2, 3}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(root, "weights.safetensors"), map[string][]float32{"weight": {1, 2, 3, 4, 5, 6}}, map[string][]int{"weight": {2, 3}}, nil))
 	b := tensor.NewBuilder()
 	weight := b.Input("weight", dtype.F32, tensor.MustShape(2, 3))
 	out := b.Scale(weight, 2)
 	session, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close(context.Background())
 	if _, err = compileResidentWeights(t.Context(), session, "shape refusal", root, tensor.WeightBindings{weight}, nil, out); err == nil {
 		t.Fatal("equal bytes with transposed dimensions accepted")
@@ -200,9 +187,7 @@ func TestResidentWeightShapeRefusal(t *testing.T) {
 func TestMOSSProfileBindsSourcePolicy(t *testing.T) {
 	root, _ := compactGeneratorFixture(t)
 	profile, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if profile.Prompt.MaxTokens != 4096 || !profile.Prompt.EnableThinking || profile.Rotary == nil || profile.Rotary.Guidance != 3 || profile.Rotary.SpatialScale != 16 || profile.Sampling.DefaultSteps != 50 {
 		t.Fatal("source policy differs")
 	}
@@ -211,26 +196,20 @@ func TestMOSSProfileBindsSourcePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	changed, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if profile.ID == changed.ID {
 		t.Fatal("template change absent from profile identity")
 	}
 	path = filepath.Join(root, "scheduler", "scheduler_config.json")
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var config map[string]any
 	if err = json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
 	config["invert_sigmas"] = true
 	data, err = json.Marshal(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -243,63 +222,39 @@ func TestMOSSGeneratorWorkflow(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
 	profile, err := ResolveProfile(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromHFPath(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, inventory.Manifest.ID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	content, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := inventory.Batch(t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, content)
 	if _, err = store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	request := Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
 	input, err := capabilityruntime.InputContent("overgo.image-gen-input.v1", request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime, err := workflowruntime.NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	g, err := LoadGenerator(t.Context(), root, profile, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer g.Close(context.Background())
 	if err = RegisterRuntime(runtime, inventory.Manifest.ID, g); err != nil {
 		t.Fatal(err)
 	}
 	operation, err := workflowruntime.ExecutionID(definition.ID, t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := runtime.ExecuteProgram(t.Context(), t.Name(), operation, nil, program, map[recipe.PortName]workflowruntime.Value{definition.Inputs[0].Name: workflowruntime.ArtifactValue(definition.Inputs[0].Data, request, input)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || result.Run.Recipe != definition.ID || len(result.Run.Outputs) != 1 || len(result.NodeWalls) != len(program.Stages()) {
 		t.Fatal("incomplete workflow lineage", result.Run)
 	}

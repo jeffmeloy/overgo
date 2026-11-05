@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -41,23 +42,15 @@ func TestOvergoDBRuntimeAuthority(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	legacy := filepath.Join(root, "repodb.log")
-	if err := os.WriteFile(legacy, []byte("external legacy input"), storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(legacy, []byte("external legacy input"), storeFileMode))
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	if _, err := os.Stat(filepath.Join(root, storeFilename)); err != nil {
 		t.Fatalf("current store log is absent: %v", err)
 	}
 	data, err := os.ReadFile(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(data) != "external legacy input" {
 		t.Fatalf("legacy import source was modified: %q", data)
 	}
@@ -81,9 +74,7 @@ func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 func TestContentUsesDescriptorAuthority(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
 	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
@@ -105,9 +96,7 @@ func TestMetadataSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor := fixtureDescriptor(t, artifact.KindEvidence, fixturePayload)
 	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -120,29 +109,21 @@ func TestMetadataSnapshot(t *testing.T) {
 		t.Fatalf("content locator = %+v", locator)
 	}
 	snapshot, err := store.Snapshot(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	members, err := os.ReadDir(snapshot.Path)
 	if err != nil || len(members) == 0 {
 		t.Fatalf("checkpoint generation %s: %d members, %v", snapshot.Path, len(members), err)
 	}
 	for _, member := range members {
 		memberData, err := os.ReadFile(filepath.Join(snapshot.Path, member.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if bytes.Contains(memberData, content.Data) {
 			t.Fatalf("checkpoint %s retained content payload", member.Name())
 		}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if status := store.SnapshotReplay(); !status.Loaded || status.Path != filepath.Join(root, checkpointDirectory) || status.Fallback != "" {
 		t.Fatalf("snapshot replay = %+v", status)
@@ -181,25 +162,17 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := fixtureBatch(t)
 	commit, err := store.Commit(t.Context(), batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !commit.Valid() {
 		t.Fatal("commit has zero identity")
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	resolved, ok, err := store.ResolveAlias(t.Context(), fixtureAlias)
 	if err != nil || !ok || resolved != batch.Aliases[0].Target {
@@ -226,17 +199,13 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	if _, err := writer.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
@@ -248,9 +217,7 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 	if _, found, err := reader.Artifact(t.Context(), descriptor.ID); err != nil || found {
 		t.Fatalf("artifact before refresh = (%v, %v)", found, err)
 	}
-	if err := reader.Refresh(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reader.Refresh(t.Context()))
 	if got, found, err := reader.Artifact(t.Context(), descriptor.ID); err != nil || !found || got != descriptor {
 		t.Fatalf("artifact after refresh = (%+v, %v, %v)", got, found, err)
 	}
@@ -260,46 +227,32 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := writer.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.Close())
 	reader, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	head, sequence := reader.Head()
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
 	forkBatch, _, err := encodeBatch(artifact.Batch{
 		Key: "fixture/fork/v1", Artifacts: []artifact.Descriptor{descriptor},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload, err := json.Marshal(forkBatch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, header, trailer := encodeFrame(sequence+1, artifact.CommitID{}, payload)
 	frame := append(header, payload...)
 	frame = append(frame, trailer[:]...)
 	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_APPEND|os.O_WRONLY, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := file.Write(frame); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	if err := reader.Refresh(t.Context()); err == nil {
 		t.Fatal("forked tail accepted")
 	}
@@ -311,19 +264,13 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch := fixtureBatch(t)
 	first, err := store.Commit(t.Context(), batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := store.Commit(t.Context(), batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first != second {
 		t.Fatalf("idempotent commits differ: %s != %s", first, second)
 	}
@@ -345,9 +292,7 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -360,9 +305,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 		Lineage:   slices.Clone(base.Lineage),
 	}
 	normalized, requestDigest, err := encodeBatch(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	delta := store.state.delta(normalized)
 	if !slices.Equal(delta.Artifacts, []artifact.Descriptor{added}) || len(delta.Lineage) != 0 {
 		t.Fatalf("delta = %+v", delta)
@@ -378,9 +321,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 func TestRepeatedFactsDoNotAdvance(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -404,9 +345,7 @@ func TestRepeatedFactsDoNotAdvance(t *testing.T) {
 func TestFailedBatchPublishesNothing(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -436,9 +375,7 @@ func TestFailedBatchPublishesNothing(t *testing.T) {
 func TestAliasCompareAndSet(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -465,9 +402,7 @@ func TestAliasCompareAndSet(t *testing.T) {
 func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -503,9 +438,7 @@ func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 func TestAliasCompareAndSetRetirement(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -526,9 +459,7 @@ func TestAliasCompareAndSetRetirement(t *testing.T) {
 func TestLineageCycleRejected(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), base); err != nil {
@@ -549,9 +480,7 @@ func TestLineageCycleRejected(t *testing.T) {
 func TestLineageCycleWithinBatchRejected(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	first := fixtureDescriptor(t, artifact.KindModel, "cycle-first")
 	second := fixtureDescriptor(t, artifact.KindModel, "cycle-second")
@@ -572,22 +501,16 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	first, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer first.Close()
 	lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	if second, err := Create(root); err == nil {
 		_ = second.Close()
 		t.Fatal("second writer acquired lock")
 	}
-	if err := lock.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lock.Close())
 	second, err := Create(root)
 	if err != nil {
 		t.Fatalf("writer after release: %v", err)
@@ -599,18 +522,14 @@ func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	batch := fixtureBatch(t)
 	if _, err := writer.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	if _, ok, err := reader.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !ok {
 		t.Fatalf("read beside writer = (%v, %v)", ok, err)
@@ -621,40 +540,26 @@ func TestTornTailRecovered(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	path := filepath.Join(root, storeFilename)
 	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := file.Write(make([]byte, tornTailBytes)); err != nil {
 		t.Fatal(err)
 	}
 	_ = file.Close()
 	store, err = Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if after.Size() != before.Size() {
 		t.Fatalf("recovered size = %d, want %d", after.Size(), before.Size())
 	}
@@ -664,24 +569,16 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	path := filepath.Join(root, storeFilename)
 	file, err := os.OpenFile(path, os.O_RDWR, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info, err := file.Stat()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	offset := info.Size() - crc32.Size - 1
 	value := []byte{0}
 	if _, err := file.ReadAt(value, offset); err != nil {
@@ -701,9 +598,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 func TestConcurrentCommitsSerialize(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var wait sync.WaitGroup
 	errorsByWorker := make(chan error, fixtureWorkerCount)
@@ -728,9 +623,7 @@ func TestConcurrentCommitsSerialize(t *testing.T) {
 	wait.Wait()
 	close(errorsByWorker)
 	for err := range errorsByWorker {
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	_, sequence := store.Head()
 	if sequence != fixtureWorkerCount {

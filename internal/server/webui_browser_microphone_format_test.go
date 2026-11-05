@@ -6,6 +6,7 @@ import (
 	"os"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 	"strconv"
 	"testing"
@@ -15,22 +16,16 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "microphone format runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Capture fixture"}}))
 	front := httptest.NewServer(handler)
 	defer front.Close()
 	executable, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, executable, front.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {
@@ -72,17 +67,11 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 		activate("Attach recording")
 		settle(`!!micFile`)
 		var encoded string
-		if err := browser.Evaluate(ctx, `(async()=>btoa(String.fromCharCode(...new Uint8Array(await micFile.arrayBuffer()))))()`, &encoded); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `(async()=>btoa(String.fromCharCode(...new Uint8Array(await micFile.arrayBuffer()))))()`, &encoded))
 		wave, err := base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		decoded, _, err := media.DecodeAudio(ctx, wave, 2048)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if decoded.Format.SampleRate != uint64(rate) || len(decoded.Samples) != 2048 {
 			t.Fatalf("recording rate=%d samples=%d", decoded.Format.SampleRate, len(decoded.Samples))
 		}

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCheckpointsAreTheOnlyAcceleration holds the store to one acceleration
@@ -19,9 +21,7 @@ func TestCheckpointsAreTheOnlyAcceleration(t *testing.T) {
 	digestOf := func(wantLoaded bool) string {
 		t.Helper()
 		store, err := OpenReadOnly(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		replay := store.SnapshotReplay()
 		if replay.Loaded != wantLoaded || wantLoaded == (replay.Fallback != "") {
@@ -35,30 +35,18 @@ func TestCheckpointsAreTheOnlyAcceleration(t *testing.T) {
 	anchored := digestOf(true)
 
 	legacy := filepath.Join(root, snapshotDirectory)
-	if err := os.MkdirAll(legacy, storeDirectoryMode); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(legacy, "00000000000000000001.snapshot"), []byte("not a catalog"), storeFileMode); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(legacy, storeDirectoryMode))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(legacy, "00000000000000000001.snapshot"), []byte("not a catalog"), storeFileMode))
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, checkpointDirectory)))
 	if replayed := digestOf(false); replayed != anchored {
 		t.Fatal("a full replay answered differently from the anchored open")
 	}
 
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info, err := store.Snapshot(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	if info.Path != newestCheckpoints(t, root) {
 		t.Fatalf("the maintenance point names %s, the newest generation is %s", info.Path, newestCheckpoints(t, root))
 	}

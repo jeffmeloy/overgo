@@ -6,13 +6,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 	model, _, err := artifact.Identify(artifact.KindModel, strings.NewReader("realized residency fixture"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result := Result{
 		ModelName: "residency fixture", Commit: strings.Repeat("b", 40), Surface: strings.Repeat("a", 64),
 		Inputs: Inputs{Model: model, CorpusDigest: strings.Repeat("c", 64), TokenDigest: strings.Repeat("d", 64), Protocol: RawContinuation},

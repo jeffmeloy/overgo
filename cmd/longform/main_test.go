@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/longform"
+	"overgo/internal/testcheck"
 )
 
 // The tool takes named models, never none, and its report reads the
@@ -73,9 +74,7 @@ func TestLongformRepositoryResolution(t *testing.T) {
 		t.Fatalf("explicit repository lost authority: %+v, %v", explicit, err)
 	}
 	t.Setenv(dataroot.Env, "")
-	if err := os.WriteFile(filepath.Join(root, dataroot.ConfigFile), []byte(`{"store":"local-store"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, dataroot.ConfigFile), []byte(`{"store":"local-store"}`), 0o644))
 	if local, err := parse("-root", root); err != nil || local.Repository != filepath.Join(root, "local-store") {
 		t.Fatalf("repository-local data root: %+v, %v", local, err)
 	}

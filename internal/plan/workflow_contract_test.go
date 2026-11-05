@@ -3,6 +3,7 @@ package plan
 import (
 	"os"
 	"overgo/internal/authoritylock"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 	"path/filepath"
 	"strings"
@@ -23,9 +24,7 @@ func stopFixture(t *testing.T) (string, ControlEvent) {
 func recordStop(t *testing.T, event ControlEvent) ControlEvent {
 	t.Helper()
 	got, err := RecordStop(t.Context(), event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return got
 }
 
@@ -48,12 +47,8 @@ func TestStopStateContract(t *testing.T) {
 		grant.CodeCommit = changed
 		granted := recordStop(t, grant)
 		current, err = ReadStop(t.Context(), root, changed, ExecutionInteractive)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := current.RequireExecution(event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, current.RequireExecution(event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()))
 		for _, mutate := range []func(*ControlEvent){func(e *ControlEvent) { e.Worker = "another-worker" }, func(e *ControlEvent) { e.Task = "row/other" }, func(e *ControlEvent) { e.Lane = "other-owner" }} {
 			wrong := event
 			wrong.Task = grant.Task
@@ -94,9 +89,7 @@ func TestStopStateContract(t *testing.T) {
 	t.Run("stop while gate mutation owner runs", func(t *testing.T) {
 		root, event := stopFixture(t)
 		lock, err := authoritylock.Acquire(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer lock.Close()
 		recordStop(t, event)
 		status, err := ReadStop(t.Context(), root, event.CodeCommit, ExecutionUnattended)
@@ -117,12 +110,8 @@ func TestStopStateContract(t *testing.T) {
 	})
 	t.Run("malformed stop file blocks for repair", func(t *testing.T) {
 		root, _ := stopFixture(t)
-		if err := processlock.EnsureStateDirectory(root); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, processlock.StateDirectory, stopFile), []byte("{invalid stop bytes"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, processlock.EnsureStateDirectory(root))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, processlock.StateDirectory, stopFile), []byte("{invalid stop bytes"), 0o600))
 		got, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionUnattended)
 		if err != nil || !got.Blocked || got.State != "invalid" {
 			t.Fatalf("malformed stop file: %+v %v", got, err)
@@ -163,9 +152,7 @@ func TestStopStateLivesOutsideTheStore(t *testing.T) {
 	t.Parallel()
 	root, event := stopFixture(t)
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, sequence := store.Head()
 	stop := recordStop(t, event)
 	resume := event
@@ -177,12 +164,8 @@ func TestStopStateLivesOutsideTheStore(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, processlock.StateDirectory, stopFile)); err != nil {
 		t.Fatalf("stop state is not in the checkout's process state: %v", err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(filepath.Join(root, "overgodb-store")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, "overgodb-store")))
 	status, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionUnattended)
 	if err != nil || status.State != "resumed" || status.Blocked {
 		t.Fatalf("stop state unreadable without the store: %+v %v", status, err)

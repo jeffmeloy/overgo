@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // readmeModalities are the kinds of data a served model works in, as the README's table of served models names them.
@@ -161,13 +163,9 @@ func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	carried, err := TrackedDocuments(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	findings, err := readmeModelFindings(root, carried)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, finding := range findings {
 		t.Error(finding)
 	}
@@ -194,19 +192,13 @@ func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			if err := os.MkdirAll(filepath.Join(root, assetsRoot), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.MkdirAll(filepath.Join(root, assetsRoot), 0o755))
 			for name, data := range map[string][]byte{"README.md": []byte(test.readme), named: picture, misnamed: picture, hidden: ignored} {
-				if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), data, 0o644); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), data, 0o644))
 			}
 			// The fixture's git carries its named pictures; the hidden one is on disk under an ignore rule.
 			findings, err := readmeModelFindings(root, []string{named, misnamed})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			joined := strings.Join(findings, "\n")
 			if (test.want == "") != (joined == "") || !strings.Contains(joined, test.want) {
 				t.Fatalf("want a finding of %q, got %q", test.want, joined)

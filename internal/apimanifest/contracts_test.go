@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gosource"
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 func TestDocumentDeclarationsResolvePackageConstantsAndContexts(t *testing.T) {
@@ -51,9 +52,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 		paths = append(paths, name)
 	}
 	snapshot, err := gosyntax.LoadGo(root, paths)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{}, Packages: map[string]string{},
 	}
@@ -63,9 +62,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 	}
 	selection.Packages["internal/example/contracts.go"] = "overgo/internal/example"
 	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(declarations) != 2 {
 		t.Fatalf("document declarations = %+v", declarations)
 	}
@@ -79,21 +76,13 @@ const outputSchemaFixture = "overgo/example/v1"
 
 func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	selection, err := gosource.HostBuildSelection(root, "./internal/...", "./cmd/...")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := map[string]bool{
 		"overgo/api-manifest/v1":        false,
 		"overgo/vocabulary-artifact/v1": false,
@@ -125,9 +114,7 @@ func schema() string { return "overgo/example/v1" }
 var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, artifact.JSONMediaType, schema())
 `)
 	snapshot, err := gosyntax.LoadGo(root, []string{name})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},
@@ -140,10 +127,6 @@ var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, 
 func writeGeneratorFixture(t *testing.T, root, name, content string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 }

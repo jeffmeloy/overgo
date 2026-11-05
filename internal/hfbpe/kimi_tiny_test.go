@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestKimiTinyIgnoreMerges uses Colibri c/tests/tok_kimi_tiny.json at
@@ -16,22 +18,16 @@ import (
 // supplies exact IDs. This tiny fixture does not establish real Kimi IDs.
 func TestKimiTinyIgnoreMerges(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_tiny.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "99b5ff4e6cc9f14bcdc9c4e1d854c35d4afc087af8e825f3264b1ebbc10132eb" {
 		t.Fatalf("Kimi source fixture changed: %s", got)
 	}
 	load := func(source []byte) *Tokenizer {
 		t.Helper()
 		dir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), source, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), source, 0600))
 		encoder, err := Load(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return encoder
 	}
 	encoder := load(raw)

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -44,13 +45,9 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type family struct {
 		name   string
 		suites map[string]CompiledSuite
@@ -76,9 +73,7 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 	for index, model := range models {
 		derived[index] = family{name: model.name, suites: suitesOf(strings.ToLower(model.name))}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for index, model := range models {
 		t.Run(model.name, func(t *testing.T) {
 			// The model is read where its roots find it first.
@@ -97,9 +92,7 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 			right := map[bool]map[string]map[string]bool{}
 			for _, f32 := range []bool{false, true} {
 				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)
@@ -109,9 +102,7 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 				for family, suite := range suites {
 					right[f32][family] = answerCells(t, suite, cellsRuntime{runner})
 				}
-				if err := runner.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, runner.Close())
 			}
 			for family := range suites {
 				losses, wins := 0, 0

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // treeFixture writes under root a tree of two folders and three files, and
@@ -16,12 +18,8 @@ func treeFixture(t *testing.T, root string) (string, []string) {
 	tree := filepath.Join(root, "tree")
 	files := []string{filepath.Join(tree, "document"), filepath.Join(tree, "inner", "weights"), filepath.Join(tree, "inner", "deeper", "state")}
 	for _, file := range files {
-		if err := os.MkdirAll(filepath.Dir(file), DirectoryMode); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, []byte("content of "+filepath.Base(file)), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), DirectoryMode))
+		testcheck.NoError(t, os.WriteFile(file, []byte("content of "+filepath.Base(file)), 0o600))
 	}
 	return tree, files
 }
@@ -41,9 +39,7 @@ func TestRemoveTreeLeavesWhatALinkNames(t *testing.T) {
 	t.Parallel()
 	root, outside := t.TempDir(), t.TempDir()
 	kept := filepath.Join(outside, "kept")
-	if err := os.WriteFile(kept, []byte("outside the tree"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(kept, []byte("outside the tree"), 0o600))
 	tree, _ := treeFixture(t, root)
 	link := filepath.Join(tree, "inner", "link")
 	kind, err := "symbolic link", os.Symlink(outside, link)
@@ -57,9 +53,7 @@ func TestRemoveTreeLeavesWhatALinkNames(t *testing.T) {
 	} else {
 		t.Logf("the tree holds a %s to the folder outside it", kind)
 	}
-	if err := RemoveTree(tree); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, RemoveTree(tree))
 	left, err := os.ReadDir(root)
 	if err != nil || len(left) != 0 {
 		t.Fatalf("after the tree was removed its parent holds %v (%v), want nothing", left, err)

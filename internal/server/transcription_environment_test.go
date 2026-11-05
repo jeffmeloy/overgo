@@ -11,6 +11,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognitiontest"
+	"overgo/internal/testcheck"
 )
 
 // TestTranscriptionWorkspaceRecordsWhereItsRecipeRuns holds the runs a
@@ -39,9 +40,7 @@ func workspaceDevice(t *testing.T, resident bool) string {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fixture := speechrecognitiontest.Publish(t, store, "../speechrecognition/testdata/encoder.json")
 	definition, name := fixture.Definition, "host"
@@ -55,24 +54,16 @@ func workspaceDevice(t *testing.T, resident bool) string {
 		}
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "transcription/"+name+"-verification", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "isolated environment fixture activation"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "isolated environment fixture activation"))
 	workspace, err := NewTranscriptionWorkspace(ctx, store, TranscriptionPolicy{Recipe: definition.ID, MemoryBytes: 1 << 20, Inspection: fixture.Policy}, transcriptionHTTPCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := workspace.Close(context.WithoutCancel(ctx)); err != nil {
 			t.Error(err)
 		}
 	}()
 	environment, err := runrecord.RequireEnvironment(ctx, store, workspace.environment)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return environment.Device
 }

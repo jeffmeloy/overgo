@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -48,31 +49,21 @@ func checkIFEvalSelection(cells []ifevalCell, retained map[string]bool) error {
 func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	read := func(id artifact.ID, target any) {
 		t.Helper()
 		value, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(value.Data, target); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(value.Data, target))
 	}
 	profileID := parse(miniIFEvalProfile)
 	selectionID, found, err := artifact.ResolveAlias(t.Context(), store, "validation/minicpm-ifeval/acquired/"+profileID.DigestHex())
@@ -101,9 +92,7 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 		t.Fatal("IFEval acquisition protocol or input identities differ")
 	}
 	prior, err := evaluation.RequireEvaluationEvidence(t.Context(), store, parse(miniIFEvalPrior))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report evaluation.InstructionRulesReport
 	read(prior.Report, &report)
 	retained := make(map[string]bool)
@@ -115,9 +104,7 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 	if len(retained) != 97 {
 		t.Fatal("retained MiniCPM denominator changed")
 	}
-	if err := checkIFEvalSelection(selection.Cells, retained); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkIFEvalSelection(selection.Cells, retained))
 	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse(miniIFEvalDataset))
 	if err != nil || !found || len(imported.Records) != 541 {
 		t.Fatalf("native corpus: found=%t records=%d err=%v", found, len(imported.Records), err)
@@ -137,13 +124,9 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 		for _, field := range record.Fields {
 			switch field.Name {
 			case "prompt":
-				if err := json.Unmarshal(field.Value, &prompt); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(field.Value, &prompt))
 			case "instruction_id_list":
-				if err := json.Unmarshal(field.Value, &ids); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(field.Value, &ids))
 			}
 		}
 		instructions += len(ids)
@@ -237,28 +220,18 @@ func checkMiniIFEvalNativeScores(rows []miniIFEvalNativeRow, counts map[string]i
 func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID, target any) {
 		t.Helper()
 		value, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(value.Data, target); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(value.Data, target))
 	}
 	profile, err := artifact.ParseID(miniIFEvalProfile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolve := func(prefix string) artifact.ID {
 		t.Helper()
 		id, found, err := artifact.ResolveAlias(t.Context(), store, prefix+profile.DigestHex())
@@ -278,9 +251,7 @@ func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
 		t.Fatal("native scorer input differs from the complete acquisition")
 	}
 	source, err := artifact.RequireTypedContent(t.Context(), store, selection.Inputs["scorer_source"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(source.Data)) != "a009924b67be6dfc1b1dba940c20b9806b764029ef865295c9400625ba8b27e7" {
 		t.Fatal("native scoring program differs from the frozen acquisition consumer")
 	}
@@ -307,9 +278,7 @@ func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
 		t.Fatal("native scorer protocol, producer or denominator differs")
 	}
 	datasetID, err := artifact.ParseID(miniIFEvalDataset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, datasetID)
 	if err != nil || !found {
 		t.Fatalf("native input: found=%t err=%v", found, err)
@@ -323,16 +292,12 @@ func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
 		for _, field := range record.Fields {
 			if field.Name == "instruction_id_list" {
 				var instructions []string
-				if err := json.Unmarshal(field.Value, &instructions); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(field.Value, &instructions))
 				counts[fmt.Sprintf("ifeval/default/train/%d", index)] = len(instructions)
 			}
 		}
 	}
-	if err := checkMiniIFEvalNativeScores(scores.Rows, counts, scores.Metrics); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkMiniIFEvalNativeScores(scores.Rows, counts, scores.Metrics))
 	for _, mutate := range []func([]miniIFEvalNativeRow) []miniIFEvalNativeRow{
 		func(rows []miniIFEvalNativeRow) []miniIFEvalNativeRow { return rows[1:] },
 		func(rows []miniIFEvalNativeRow) []miniIFEvalNativeRow { rows[1] = rows[0]; return rows },

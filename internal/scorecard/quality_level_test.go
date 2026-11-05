@@ -10,6 +10,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func TestASlowQualityDeclineIsFiledAgainstItsLevel(t *testing.T) {
 			Model: model, Name: "paired", Task: recipe.TaskInference, Cells: cells, Heldout: []Cell{second},
 		}}})
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	// declines is what the record's quality gaps come to against a reference, after Supported has judged them by their cases.
 	declines := func(record Record, reference *Record) ([]Gap, []string) {
 		t.Helper()

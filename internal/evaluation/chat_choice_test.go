@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -74,9 +75,7 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 		{Name: "texts", Prompt: "Is it so?", Candidates: []string{" False", " True"}, Answer: 1},
 	} {
 		want, err := ChatChoicePrompt(runtime, testCase)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := answerChoiceByGeneration(t.Context(), runtime, testCase); err != nil {
 			t.Fatal(err)
 		}
@@ -157,9 +156,7 @@ func indexedChatReading(t *testing.T, runtime Runtime, suite MultipleChoiceSuite
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -174,21 +171,13 @@ func indexedChatReading(t *testing.T, runtime Runtime, suite MultipleChoiceSuite
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	campaign, err := newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := json.Marshal(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := CompileSuite(source, campaign.WithPrompting(PromptingChatTemplate).Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := campaign.Evaluate(ctx, compiled); err != nil {
 		t.Fatal(err)
 	}
@@ -215,17 +204,13 @@ func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
 		report, err := json.Marshal(struct {
 			Observations []choiceObservation `json:"observations"`
 		}{observations})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return report
 	}
 	for _, last := range []string{" no idea", ""} {
 		answers := []string{" **B**.", " (B) option", last}
 		observations, accuracy, err := scoreChoicesAlone(t, t.Context(), &chatFixture{answers: answers}, suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		report := written(observations)
 		if unread := countUnread(report); accuracy != 1.0/3 || len(observations) != 3 || observations[2].Selected != unmatchedChoice || observations[2].Raw != last || unread != 1 {
 			t.Errorf("a last answer of %q reads %v with %d answers counted as naming no option in %s; want a third right and the one answer counted", last, accuracy, unread, report)
@@ -239,9 +224,7 @@ func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
 		scores[testCase.Prompt] = []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}
 	}
 	observations, _, err := scoreChoicesAlone(t, t.Context(), &choiceTally{scores: scores}, suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report := written(observations); len(observations) != 3 || countUnread(report) != 0 {
 		t.Errorf("scored by likelihood, %d answers are counted as naming no option in %s; want none of three", countUnread(report), report)
 	}
@@ -254,9 +237,7 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 	// thinking model's " (A) option" both carry the letter first.
 	fixture := &chatFixture{answers: []string{" **B**.", " (B) option", " no idea"}}
 	observations, accuracy, err := scoreChoicesAlone(t, t.Context(), fixture, suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(observations) != 3 || observations[0].Selected != 1 || observations[1].Selected != 1 ||
 		observations[2].Selected != unmatchedChoice || observations[2].Raw != " no idea" {
 		t.Fatalf("observations = %+v", observations)
@@ -271,17 +252,11 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 	templated := raw
 	templated.Execution.Prompting = PromptingChatTemplate
 	compiled, err := CompileMultipleChoice(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rawPlan, err := BindMultipleChoice(compiled, raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	templatedPlan, err := BindMultipleChoice(compiled, templated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if rawPlan.body.Scorer == templatedPlan.body.Scorer {
 		t.Fatal("generated-letter method did not change the scorer authority")
 	}

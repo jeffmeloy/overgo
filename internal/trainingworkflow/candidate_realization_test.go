@@ -9,6 +9,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -58,9 +59,7 @@ func applyLinearMap(source [][]float64, adapter [][]float64, noise func(row, col
 func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	donorID := testutil.ArtifactID(t, artifact.KindModel, "realization-donor")
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "realization-target")
@@ -71,9 +70,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 		{SourceInput: []float32{0, 1}, TargetInput: []float32{1, -1}},
 	}
 	datasetID, err := artifact.JSONID(artifact.KindDataset, examples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Only the inputs are registered; the adapter, its initial weights and
 	// the composite reach the store through the realization's publication.
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -111,9 +108,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 		RealizationSeamActivations{Source: source, Target: linearTarget},
 		training, assembly,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if realized.Adapter.BridgeBefore == realized.Adapter.BridgeAfter {
 		t.Fatal("the adapter did not train")
 	}
@@ -141,9 +136,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 		RealizationSeamActivations{Source: source, Target: identical},
 		RealizationTraining{}, assembly,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if direct.Composite.Adapter.Valid() || direct.Adapter.BridgeAfter.Valid() {
 		t.Fatalf("identity graft trained an adapter: %+v", direct)
 	}
@@ -153,9 +146,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	// Both realizations publish into the store as returned, and publishing
 	// either again changes nothing.
 	for _, published := range []CandidateRealization{realized, realized, direct, direct} {
-		if err := PublishCandidateRealization(ctx, store, published); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, PublishCandidateRealization(ctx, store, published))
 		if _, found, err := artifact.ReadContent(ctx, store, published.Composite.ID); err != nil || !found {
 			t.Fatalf("composite %s found=%t err=%v", published.Composite.ID, found, err)
 		}

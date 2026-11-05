@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestStateDirectoryIgnoresItself holds the state directory to hiding what it
@@ -27,14 +29,10 @@ func TestStateDirectoryIgnoresItself(t *testing.T) {
 	}
 	writers.Wait()
 	for _, err := range failures {
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	lock, err := Acquire(filepath.Join(root, StateDirectory, "holder.lock"), 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	status, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").CombinedOutput()
 	if err != nil {
@@ -44,9 +42,7 @@ func TestStateDirectoryIgnoresItself(t *testing.T) {
 		t.Fatalf("state is visible to git:\n%s", status)
 	}
 	entries, err := os.ReadDir(filepath.Join(root, StateDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		names = append(names, entry.Name())

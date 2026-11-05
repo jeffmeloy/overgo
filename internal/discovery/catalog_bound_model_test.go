@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,17 +16,11 @@ import (
 // of them would refuse the store (258 models on 2026-10-31 refused a bound of 256).
 func TestTheCatalogBoundHoldsTheStore(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	entries, err := ServableWithMemo(t.Context(), store, CatalogBound, LoadMemo(t.Context(), store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("%d servable entries under a bound of %d", len(entries), CatalogBound)
 }

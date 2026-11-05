@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,14 +27,10 @@ func TestLoadLoRAValidatesProjectionAndEmbeddingPairs(t *testing.T) {
 		loRATensor("token_embd.weight.lora_b", []uint64{1, 2}, []float32{11, 12}),
 	})
 	base, err := gguf.Open(basePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer base.Close()
 	adapter, err := LoadLoRA(t.Context(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if adapter.Alpha != 4 || len(adapter.Weights) != 2 || !adapter.Weights["token_embd.weight"].Embedding {
 		t.Fatalf("unexpected adapter: %+v", adapter)
 	}
@@ -53,9 +50,7 @@ func TestLoadLoRARejectsIncompletePair(t *testing.T) {
 		loRATensor("output.weight.lora_a", []uint64{2, 1}, []float32{1, 2}),
 	})
 	base, err := gguf.Open(basePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer base.Close()
 	_, err = LoadLoRA(t.Context(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}})
 	if err == nil || !strings.Contains(err.Error(), "incomplete") {

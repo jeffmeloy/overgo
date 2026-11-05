@@ -18,6 +18,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -30,9 +31,7 @@ func TestScorecardRowsEveryServableModel(t *testing.T) {
 	ctx := t.Context()
 	directory := scorecardFixture(t)
 	var output bytes.Buffer
-	if err := runArgs(ctx, []string{"-scorecard", "-repo", directory}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArgs(ctx, []string{"-scorecard", "-repo", directory}, &output))
 	text := output.String()
 	rows := map[string][]string{}
 	for line := range strings.Lines(text) {
@@ -85,9 +84,7 @@ func TestScorecardHasNoUnexplainedCell(t *testing.T) {
 	t.Parallel()
 	directory := scorecardFixture(t)
 	var output bytes.Buffer
-	if err := runArgs(t.Context(), []string{"-scorecard", "-publish", "-repo", directory}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArgs(t.Context(), []string{"-scorecard", "-publish", "-repo", directory}, &output))
 	records := scorecard.Directory(directory)
 	published, err := scorecard.Records(records)
 	if err != nil || len(published) != 1 || len(published[0].Rows) == 0 {
@@ -112,9 +109,7 @@ func TestScorecardHasNoUnexplainedCell(t *testing.T) {
 		if _, err := scorecard.Publish(records, later, record); err == nil {
 			t.Fatalf("a record with %s published", name)
 		}
-		if err := jsonfile.Write(filepath.Join(records, "scorecard-unexplained.json"), record, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Write(filepath.Join(records, "scorecard-unexplained.json"), record, 0o644))
 		if _, err := scorecard.Records(records); err == nil {
 			t.Fatalf("a record with %s was read as one to judge", name)
 		}
@@ -174,9 +169,7 @@ func scorecardFixture(t *testing.T) string {
 	ctx := t.Context()
 	directory := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forecastModel := testutil.ArtifactID(t, artifact.KindModel, "scorecard-forecast")
 	imageModel := testutil.ArtifactID(t, artifact.KindModel, "scorecard-image")
 	retired := testutil.ArtifactID(t, artifact.KindRecipe, "scorecard-retired-recipe")
@@ -185,17 +178,11 @@ func scorecardFixture(t *testing.T) string {
 		testutil.PublishArtifact(t, store, id)
 	}
 	forecast, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, forecastModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	image, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, imageModel, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for key, definition := range map[string]recipe.Definition{"fixture/forecast": forecast, "fixture/image": image} {
-		if err := modelrecipetest.PublishActivation(ctx, store, key, definition); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, key, definition))
 	}
 	for index, attempt := range []struct {
 		recipe  artifact.ID
@@ -224,9 +211,7 @@ func scorecardFixture(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return directory
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCatalogTakesTheKeyAndWritesNothing: the catalog shows disk paths, so it takes the key, and neither it nor the scorecard
@@ -18,17 +19,13 @@ import (
 func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store,
 		Scorecard: func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return nil, nil },
 	}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	held := make(chan struct{})
 	release := sync.OnceFunc(func() { close(held) })
@@ -73,14 +70,10 @@ func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 func TestACloseCancelsAPendingMemoPublication(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	waiting := make(chan struct{})
 	var seen error
 	handler.publishMemo = func(ctx context.Context) error {
@@ -93,9 +86,7 @@ func TestACloseCancelsAPendingMemoPublication(t *testing.T) {
 	request.Header.Set("Authorization", testBearerToken)
 	handler.ServeHTTP(httptest.NewRecorder(), request)
 	<-waiting
-	if err := handler.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, handler.Close())
 	if !errors.Is(seen, errHandlerClosed) {
 		t.Fatalf("the memo publication ended by %v, want the handler's close", seen)
 	}

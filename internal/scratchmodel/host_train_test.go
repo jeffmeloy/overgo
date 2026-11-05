@@ -7,19 +7,17 @@ import (
 	"math"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestScratchHostTrajectoryParity(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
 	construction, err := Compile(facts, testDerivationProfile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, err := construction.Probe(oracle.Train[:1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !near(first.Loss, oracle.FirstLoss, 2e-15) {
 		t.Fatalf("first loss = %.17g, want %.17g", first.Loss, oracle.FirstLoss)
 	}
@@ -32,13 +30,9 @@ func TestScratchHostTrajectoryParity(t *testing.T) {
 	}
 
 	probe, err := construction.Probe(oracle.Train)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	updates, err := construction.MuonProbe(oracle.Train)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(probe.Groups) != len(oracle.Groups) || len(updates) != len(oracle.Groups) {
 		t.Fatalf("probe groups = %d/%d, want %d", len(probe.Groups), len(updates), len(oracle.Groups))
 	}
@@ -53,21 +47,15 @@ func TestScratchHostTrajectoryParity(t *testing.T) {
 	}
 
 	continuous, err := construction.TrainHost(oracle.Steps, oracle.Steps, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	assertTrajectory(t, continuous.Losses, oracle.LossHistory)
 	if !near(continuous.ValidationLoss, oracle.FinalValLoss, 2e-15) {
 		t.Fatalf("validation loss = %.17g, want %.17g", continuous.ValidationLoss, oracle.FinalValLoss)
 	}
 	firstStep, err := construction.TrainHost(oracle.Steps, 1, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumed, err := construction.TrainHost(oracle.Steps, oracle.Steps-1, &firstStep.Checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(resumed.Losses, continuous.Losses[1:]) || resumed.ValidationLoss != continuous.ValidationLoss ||
 		!reflect.DeepEqual(resumed.Checkpoint.Model.Weights, continuous.Checkpoint.Model.Weights) ||
 		!reflect.DeepEqual(resumed.Checkpoint.Momentum, continuous.Checkpoint.Momentum) {
@@ -92,9 +80,7 @@ func TestScratchHostTrajectoryParity(t *testing.T) {
 		t.Fatal("invalid checkpoint Muon stage accepted")
 	}
 	secondConstruction, err := Compile(facts, testDerivationProfile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondRun, err := secondConstruction.TrainHost(oracle.Steps, oracle.Steps, nil)
 	if err != nil || !reflect.DeepEqual(secondRun.Losses, continuous.Losses) ||
 		!reflect.DeepEqual(secondRun.Checkpoint.Model.Weights, continuous.Checkpoint.Model.Weights) {

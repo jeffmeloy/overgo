@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
@@ -22,9 +23,7 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 	manifest := benchmarkManifest{Datasets: make([]benchmarkDeclaration, len(names))}
 	for index, name := range names {
 		path := name + ".jsonl"
-		if err := os.WriteFile(filepath.Join(root, path), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, path), data, 0o600))
 		manifest.Datasets[index] = benchmarkDeclaration{
 			Name: name, Path: path,
 			Spec: dataset.BenchmarkImportSpec{
@@ -35,30 +34,20 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 		}
 	}
 	encoded, err := json.Marshal(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manifestPath := filepath.Join(root, "catalog.json")
-	if err := os.WriteFile(manifestPath, encoded, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(manifestPath, encoded, 0o600))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id, err := CatalogLocalBenchmarks(t.Context(), store, manifestPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, ok, err := artifact.ReadContent(t.Context(), store, id)
 	if err != nil || !ok {
 		t.Fatalf("catalog content = %v, %v", ok, err)
 	}
 	catalog, err := benchmarkCatalogCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(catalog.Entries) != len(names) {
 		t.Fatalf("catalog entries = %d, want %d", len(catalog.Entries), len(names))
 	}

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
@@ -16,13 +17,9 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 	document := mutationPlan(t, "before")
 	path := saveMutationPlan(t, root, document)
 	before, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lock, err := authoritylock.Acquire(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	called := false
 	err = withPlanMutation(root, func(plan.Plan) error {
@@ -33,9 +30,7 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 		t.Fatalf("locked plan mutation = (called=%t, err=%v)", called, err)
 	}
 	after, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(after) != string(before) {
 		t.Fatal("refused plan mutation changed plan bytes")
 	}
@@ -65,12 +60,8 @@ func TestPlanMutationReloadsAfterAcquiringAuthority(t *testing.T) {
 func saveMutationPlan(t *testing.T, root string, document plan.Plan) string {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(plan.Path))
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := plan.Save(path, document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	testcheck.NoError(t, plan.Save(path, document))
 	return path
 }
 

@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -28,14 +29,10 @@ func (t *cogVLMPromptTokenizer) TokenizeText(text string, addSpecial, _ bool) ([
 
 func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Shape.Equal(mustShape(4, 6)) {
 		t.Fatalf("output shape = %v", output.Shape)
 	}
@@ -49,15 +46,11 @@ func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
 
 func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	tok := &cogVLMPromptTokenizer{}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if tok.text != "Question: beforeafter Answer:" || !strings.HasPrefix(tok.text, "Question:") {
 		t.Fatalf("prompt text = %q", tok.text)
 	}
@@ -69,9 +62,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyCogVLM(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*cogVLMVisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)

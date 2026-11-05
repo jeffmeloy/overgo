@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ func TestPromptTemplateAuthority(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "template-model")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -32,9 +31,7 @@ func TestPromptTemplateAuthority(t *testing.T) {
 	published, err := PublishPromptTemplate(ctx, store, PromptTemplate{
 		Model: model, Source: "tokenizer-metadata", ScoringPrefix: "<dna>",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded, declared, err := LoadPromptTemplate(ctx, store, model)
 	if err != nil || !declared || loaded.ID != published.ID || loaded.ScoringPrefix != "<dna>" {
 		t.Fatalf("loaded template = (%+v, %t, %v)", loaded, declared, err)
@@ -65,9 +62,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 		Kind: sequenceScoringKind, Schema: "carbon/dna-corpus/v1", Source: "store/dna",
 		Cases: []sequenceScoringCase{{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
@@ -75,13 +70,9 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
 	plan, err := bindSequenceScoring(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := &prefixedFixtureScorer{prefix: "<dna>"}

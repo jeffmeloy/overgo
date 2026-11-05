@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // Pause at the first cancellation check after the blob destination exists.
@@ -54,15 +55,11 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			store, err := Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			payload := bytes.Repeat([]byte("captured immutable blob"), 8192)
 			id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "backup/captured", Contents: []artifact.Content{{
 				Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream"}, Data: payload,
 			}}}); err != nil {
@@ -73,9 +70,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 			}
 			head, sequence := store.Head()
 			writer, err := Create(store.root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer writer.Close()
 			destination := filepath.Join(t.TempDir(), "backup")
 			ctx, cancel := context.WithCancelCause(t.Context())
@@ -120,9 +115,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 				finished = true
 				t.Fatalf("writer unavailable during immutable blob copy: %v", err)
 			}
-			if err := lock.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, lock.Close())
 			tail := fixtureDescriptor(t, artifact.KindOutput, "post-capture writer")
 			if cancelCopy {
 				cancel(nil)
@@ -150,9 +143,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 				t.Fatalf("captured identity changed: %+v, %v", copied.report, copied.err)
 			}
 			replica, err := OpenReadOnly(destination)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer replica.Close()
 			if _, found, err := replica.Artifact(t.Context(), tail.ID); err != nil || found {
 				t.Fatalf("post-capture content entered backup: found=%t err=%v", found, err)

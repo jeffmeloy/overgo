@@ -9,21 +9,18 @@ import (
 	"testing"
 
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 func TestValidateEncodedRGBVideo(t *testing.T) {
-	if err := ValidateEncodedRGBVideo([]byte{1}, GIFMediaType, GIFMediaType, 1, RGBChannels, 2, 2, 8); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateEncodedRGBVideo([]byte{1}, GIFMediaType, GIFMediaType, 1, RGBChannels, 2, 2, 8))
 	if err := ValidateEncodedRGBVideo(nil, GIFMediaType, GIFMediaType, 1, RGBChannels, 2, 2, 8); err == nil {
 		t.Fatal("accepted empty encoded video")
 	}
 }
 
 func TestValidatePlanarVideo(t *testing.T) {
-	if err := ValidatePlanarVideo(make([]float32, 3*2*4*4), 3, 2, 4, 4); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidatePlanarVideo(make([]float32, 3*2*4*4), 3, 2, 4, 4))
 	if err := ValidatePlanarVideo(make([]float32, 1), 3, 2, 4, 4); err == nil {
 		t.Fatal("accepted mismatched planar video")
 	}
@@ -49,13 +46,9 @@ func TestDecodeGIFCompositesDisposalAndSamples(t *testing.T) {
 		Config:   image.Config{ColorModel: palette, Width: tensor.PairedExtent, Height: tensor.SingletonExtent},
 	}
 	var data bytes.Buffer
-	if err := gif.EncodeAll(&data, &encoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gif.EncodeAll(&data, &encoded))
 	frames, err := DecodeGIF(bytes.NewReader(data.Bytes()), len(encoded.Image))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(frames) != len(encoded.Image) {
 		t.Fatalf("frames = %d", len(frames))
 	}
@@ -74,9 +67,7 @@ func TestDecodeGIFCompositesDisposalAndSamples(t *testing.T) {
 		}
 	}
 	sampled, err := DecodeGIF(bytes.NewReader(data.Bytes()), RGBChannels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(sampled) != RGBChannels || color.RGBAModel.Convert(sampled[tensor.PairedExtent].At(0, 0)).(color.RGBA) != want[len(want)-tensor.SingletonExtent][tensor.FirstOffset] {
 		t.Fatalf("sampled frames = %d", len(sampled))
 	}
@@ -88,13 +79,9 @@ func TestDecodeEncodedVideoGIF(t *testing.T) {
 		image.NewPaletted(image.Rect(0, 0, tensor.PairedExtent, tensor.PairedExtent), color.Palette{color.Black, color.White}),
 		image.NewPaletted(image.Rect(0, 0, tensor.PairedExtent, tensor.PairedExtent), color.Palette{color.Black, color.White}),
 	}, Delay: []int{tensor.SingletonExtent, tensor.SingletonExtent}}
-	if err := gif.EncodeAll(&data, frames); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gif.EncodeAll(&data, frames))
 	decoded, err := DecodeEncodedVideo(t.Context(), data.Bytes(), "", tensor.PairedExtent, tensor.SingletonExtent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(decoded) != tensor.SingletonExtent || decoded[tensor.FirstOffset].Bounds() != image.Rect(0, 0, tensor.PairedExtent, tensor.PairedExtent) {
 		t.Fatalf("decoded frames = %d, bounds=%v", len(decoded), decoded[tensor.FirstOffset].Bounds())
 	}

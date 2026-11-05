@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestRetirementReportNamesWhatIsSafe holds the leftovers report to what it
@@ -22,15 +23,11 @@ func TestRetirementReportNamesWhatIsSafe(t *testing.T) {
 	repository, backups := filepath.Join(root, "store"), filepath.Join(root, "backups")
 	commit := func(text string) {
 		store, err := overgodb.Create(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		data := []byte(strings.Repeat(text, 1<<13))
 		id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content := artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "leftovers/" + text, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
@@ -38,31 +35,19 @@ func TestRetirementReportNamesWhatIsSafe(t *testing.T) {
 	}
 	commit("first")
 	older, err := sealBackup(t.Context(), repository, backups)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit("second")
 	newer, err := sealBackup(t.Context(), repository, backups)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stale, fresh := repository+".superseded-aaaaaaaaaaaa", repository+".superseded-bbbbbbbbbbbb"
 	for _, directory := range []string{stale, filepath.Join(fresh, "blobs"), filepath.Join(backups, "not-a-backup")} {
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	}
-	if err := os.WriteFile(filepath.Join(fresh, "blobs", "small.pack"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chtimes(stale, time.Time{}, time.Now().Add(-time.Hour)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(fresh, "blobs", "small.pack"), nil, 0o644))
+	testcheck.NoError(t, os.Chtimes(stale, time.Time{}, time.Now().Add(-time.Hour)))
 
 	found, err := listLeftovers(repository, backups)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []leftover{
 		{Path: newer, Kind: leftoverBackup, Keep: true},
 		{Path: older, Kind: leftoverBackup},

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestPreflightRunsTheCheapStagesOnly holds the preflight to the stages that
@@ -56,9 +58,7 @@ func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
 	} {
 		root := t.TempDir()
 		for _, command := range test.commands {
-			if err := os.MkdirAll(filepath.Join(root, "cmd", command), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "cmd", command), 0o755))
 		}
 		var got []string
 		for _, generator := range (&landing{Options: Options{Repo: root}}).generators() {

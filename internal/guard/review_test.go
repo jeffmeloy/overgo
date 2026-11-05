@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestReviewSessionRemovesNothing holds the guard to who may run the one
@@ -29,13 +30,9 @@ func TestReviewSessionRemovesNothing(t *testing.T) {
 		t.Fatalf("git init: %v %s", err, output)
 	}
 	state := filepath.Join(root, processlock.StateDirectory)
-	if err := os.MkdirAll(state, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(state, 0o755))
 	for session, content := range map[string]string{"reviewer": `{"review": true}`, "second": `{"holder": "s9"}`, "implementer": `{"head": "abc123"}`} {
-		if err := os.WriteFile(filepath.Join(state, SessionState(session)), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(state, SessionState(session)), []byte(content), 0o600))
 	}
 	call := func(session, command string) string {
 		request := ToolCall{ToolName: "Bash", Session: session}
@@ -96,12 +93,8 @@ func TestReviewSessionEditsNothingTracked(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	write(".gitignore", "tmp/\n"+processlock.StateDirectory+"/\n")
 	write(processlock.StateDirectory+"/"+SessionState("reviewer"), `{"head": "abc123", "facts": [], "review": true}`)

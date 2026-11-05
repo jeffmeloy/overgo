@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -60,32 +61,20 @@ func serveEdits(t *testing.T, name string, source latentvideo.SourceVideo) serve
 		}
 	}
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	publishArtifactExtent(t, store, modelID, edit)
 	clip, err := latentvideo.SourceFramesContent(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/" + name, Contents: []artifact.Content{profileContent, clip}}); err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +87,7 @@ func serveEdits(t *testing.T, name string, source latentvideo.SourceVideo) serve
 func editService(t *testing.T) capabilityruntime.Executor {
 	t.Helper()
 	director, err := editSessions()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := director.Close(context.Background()); err != nil {
 			t.Error(err)
@@ -114,13 +101,9 @@ func editService(t *testing.T) capabilityruntime.Executor {
 func (edits servedEdits) serve(ctx context.Context, t *testing.T, service capabilityruntime.Executor, prompt string, seed int64) (capabilityruntime.Measured, latentvideo.EncodedVideo) {
 	t.Helper()
 	raw, err := json.Marshal(latentvideo.ReferenceEditRequest{Prompt: prompt, Seed: seed, SourceArtifact: edits.clip})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := service(ctx, edits.store, edits.directory, edits.execution, string(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measured, _ := output.(capabilityruntime.Measured)
 	video, ok := measured.Output.(latentvideo.EncodedVideo)
 	if !ok {

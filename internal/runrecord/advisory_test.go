@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,9 +26,7 @@ func TestMADRegressionAdvisoryReplaysKnownSeries(t *testing.T) {
 		t.Fatalf("phase deltas = %+v", advisory.PhaseDeltas)
 	}
 	content, err := advisory.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseAdvisory(content.Data)
 	if err != nil || parsed.ID != advisory.ID || parsed.Surprise() != advisory.Surprise() {
 		t.Fatalf("advisory round trip = (%+v, %v)", parsed, err)
@@ -67,15 +66,11 @@ func TestMADRegressionAdvisoryRejectsMixedEnvironment(t *testing.T) {
 		prior.Run.Recipe, prior.Run.Outcome, prior.Run.Inputs, prior.Run.Outputs, prior.Run.Failure,
 		prior.Run.CodeCommit, otherEnvironment, prior.Run.MeasuredNS, prior.Run.Phases,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	otherEvaluation, err := NewEvaluation(
 		prior.Evaluation.Recipe, otherRun.ID, prior.Evaluation.Dataset, prior.Evaluation.Metrics,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observations[1].Run, observations[1].Evaluation = otherRun, otherEvaluation
 	if _, _, err := DetectRegression(observations, "latency", 3, 3); err == nil {
 		t.Fatal("mixed environment series accepted")
@@ -94,15 +89,11 @@ func advisoryObservation(t *testing.T, sequence uint64, value float64, prefill, 
 			{Phase: PhaseDecode, DurationNS: decode},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluation, err := NewEvaluation(
 		recipeID, run.ID, testutil.ArtifactID(t, artifact.KindDataset, "advisory-dataset"),
 		[]Metric{{Name: "latency", Value: value, Unit: "ms", Direction: DirectionMinimize}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return Observation{Sequence: sequence, Run: run, Evaluation: evaluation}
 }

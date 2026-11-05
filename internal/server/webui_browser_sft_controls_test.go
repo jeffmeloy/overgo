@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -80,9 +81,7 @@ func TestWebUIBrowserSFTControls(t *testing.T) {
 })()`)
 
 	// Reloaded, the picker still holds the dataset chosen, though its name arrives after the choice is restored.
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	open()
 	settle(fmt.Sprintf(`!!control('conversations') && control('conversations').querySelector('select').value === %q && control('conversations').querySelector('select').selectedOptions[0].text === 'chats · 12 files' && control('steps').querySelector('input').value === '4'`, id))
 }

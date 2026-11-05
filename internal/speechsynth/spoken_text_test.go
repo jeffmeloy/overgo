@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -41,18 +42,14 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 			FramesAfterEnd int    `json:"frames_after_end"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if len(fixture.Cases) == 0 {
 		t.Fatal("the fixture holds no text")
 	}
 	short, long := 0, 0
 	for _, reference := range fixture.Cases {
 		spoken, frames, err := spokenText(reference.Text, false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if spoken != reference.Spoken || frames != reference.FramesAfterEnd {
 			t.Errorf("%q is prepared as %q with %d frames after the end, and the model's own code prepares %q with %d", reference.Text, spoken, frames, reference.Spoken, reference.FramesAfterEnd)
 			continue
@@ -77,9 +74,7 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 		}
 		for _, reference := range fixture.Cases {
 			ids, err := tokenizer.Encode(reference.Spoken)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(ids, reference.IDs) {
 				t.Errorf("%q is read as %v, and the model's own tokenizer reads %v", reference.Spoken, ids, reference.IDs)
 			}

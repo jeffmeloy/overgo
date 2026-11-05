@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/vqaserve"
 )
@@ -41,19 +42,13 @@ func TestVQAControlsDeclareImageQuestionAndBudget(t *testing.T) {
 // catalog binds the executor to the vqa prepare module.
 func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-executor")
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution := modelrecipe.CapabilityEvidenceSelection{Program: program}
 	capability := Catalog[recipe.TaskVQA]
 	if _, err := capability.Execute(t.Context(), store, t.TempDir(), execution, `{"question":"what?"}`); err == nil || !strings.Contains(err.Error(), "image") {
@@ -68,9 +63,7 @@ func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 	// capability's error handoff, with the original image and question.
 	testutil.PublishArtifact(t, store, modelID)
 	image, err := vqaserve.ImageContract.ContentBytes([]byte("fixture image"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "vqa/terminal-image", Contents: []artifact.Content{image}}); err != nil {
 		t.Fatal(err)
 	}
@@ -93,9 +86,7 @@ func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 // a string output becomes a plain-text output artifact.
 func TestTextOutputPublishesPlainText(t *testing.T) {
 	content, err := OutputContent("there")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.ID.Kind() != artifact.KindOutput || content.Descriptor.MediaType != modelrecipe.TextAnswerMediaType || string(content.Data) != "there" {
 		t.Fatalf("text output = %+v %q", content.Descriptor, content.Data)
 	}

@@ -6,14 +6,14 @@ import (
 	"math"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestBoundaryRefusalsAndCancellation(t *testing.T) {
 	config := BoundaryConfig{Smoothing: 3, Threshold: .5, MinSpeech: 2, MaxSpeech: 6, MinSilence: 2}
 	p, err := NewBoundaryPolicy(config, 3*8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, name := range []string{"window", "threshold", "speech", "silence", "maximum", "budget"} {
 		t.Run(name, func(t *testing.T) {
 			bad, budget := config, uint64(3*8)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestLibraryRegisterDeclaresProvidersThroughTheIntake: the provider kind
@@ -17,9 +18,7 @@ import (
 func TestLibraryRegisterDeclaresProvidersThroughTheIntake(t *testing.T) {
 	t.Parallel()
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	body := `{"kind":"provider","name":"fake","endpoint":"https://fake.example/api/v1","key_environment":"OVERGO_LIBRARY_TEST_KEY","models":["vendor/one","vendor/two"],"context_length":4096}`

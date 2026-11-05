@@ -12,6 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,37 +28,23 @@ func TestModelSupportTier(t *testing.T) {
 	ctx := t.Context()
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "guarded.gguf")
-	if err := os.WriteFile(weightsPath, []byte("support tier weights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("support tier weights"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceData := []byte(`{"commit":"0123456789abcdef0123","surface":"feedfacecafebeef0011","verdict":{"passed":true},"output":"long text"}`)
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "long-form", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 	registered, err := filepath.Abs(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	index := handler.catalogEvidence(ctx, nil)
 	guard, found := index.GuardsByLocation[registered]
 	if !found || !guard.Verdict.Passed || guard.Commit != "0123456789abcdef0123" || guard.Surface != "feedfacecafebeef0011" || guard.Record != record.ID {
@@ -120,37 +107,23 @@ func TestUnreadableGuardEvidenceIsNoGuard(t *testing.T) {
 	ctx := t.Context()
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "unreadable.gguf")
-	if err := os.WriteFile(weightsPath, []byte("unreadable guard weights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("unreadable guard weights"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceData := []byte("the long-form record is not a document")
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "long-form", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 	registered, err := filepath.Abs(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if guard, found := handler.catalogEvidence(ctx, nil).GuardsByLocation[registered]; found {
 		t.Fatalf("unreadable evidence became a guard: %+v", guard)
 	}

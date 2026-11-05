@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/torchrng"
 )
@@ -32,14 +33,10 @@ func TestSeededNoiseMatchesReference(t *testing.T) {
 	t.Parallel()
 	fixtures := filepath.Join(testutil.RepoRoot(t), "fixtures", "rae")
 	var reference generationReference
-	if err := jsonfile.DecodeStrict(filepath.Join(fixtures, "generation.json"), &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(fixtures, "generation.json"), &reference))
 	want := loadReference(t, fixtures, reference.Noise)
 	got, err := torchrng.CPUNormal(int64(reference.Seed), len(want))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worst, scale := compareReference(t, got, want)
 	t.Logf("max |drawn - reference| = %.3g against a largest reference value of %.3g", worst, scale)
 	if worst > 1e-6*scale {

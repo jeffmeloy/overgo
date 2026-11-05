@@ -10,15 +10,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	optimizerPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
@@ -27,9 +26,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  optimizerPlan,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := id(artifact.KindModel, "resume-model")
 	datasetID := id(artifact.KindDataset, "resume-dataset")
 	splitID := id(artifact.KindDatasetShard, "resume-split")
@@ -38,13 +35,9 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	projectorID := id(artifact.KindProjector, "resume-projector")
 	codecID := id(artifact.KindProfile, "resume-codec")
 	config, err := BuiltinOptimizerPolicy().Config(optimizerPlan.ParameterCount())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := hostoptimizer.New([]float32{1}, []float32{0}, optimizerPlan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	algorithmID := id(artifact.KindProfile, "resume-rng")
 	routerPolicy := id(artifact.KindRecipe, "router-policy")
 	routerState := RouterControllerState{Policy: routerPolicy, Stratum: splitID, Layer: 3, NextBias: []float32{-0.25, 0.25}}
@@ -61,9 +54,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 		RouterControllers: []RouterControllerState{routerState},
 	})
 	encoded, err := os.ReadFile(filepath.Join(directory, CheckpointFilename))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	restored, err := ParseCheckpoint(encoded)
 	if err != nil || restored.ID() != checkpoint.ID() || len(restored.RouterControllers) != 1 ||
 		!slices.Equal(restored.RouterControllers[0].NextBias, routerState.NextBias) || len(restored.ArtifactLineage()) != 3 {
@@ -97,16 +88,12 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 			Checkpoint: profile("checkpoint"), Evaluation: profile("evaluation"), Promotion: profile("promotion"),
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority := ResumeAuthority{
 		Model: modelID, Stream: checkpoint.Stream, OptimizerPlan: optimizerPlan.Identity(),
 		RouterControllers: []RouterControllerAuthority{{Policy: routerPolicy, Stratum: splitID, Layer: 3, Experts: 2}},
 	}
-	if err := ValidateResume(plan, checkpoint, authority); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateResume(plan, checkpoint, authority))
 	otherStream := authority
 	otherStream.Stream.Identity = id(artifact.KindDatasetShard, "other-stream")
 	if err := ValidateResume(plan, checkpoint, otherStream); err == nil {

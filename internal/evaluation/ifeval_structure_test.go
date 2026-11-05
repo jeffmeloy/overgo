@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 //go:embed testdata/ifeval_structure_oracle.json
@@ -17,15 +18,11 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 	t.Run("compiled criteria own their input values", func(t *testing.T) {
 		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "native-count-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "count", Prompt: "Repeat cat.", MaxTokens: 1, Rules: []instructionRule{{Name: "frequency", Kind: ifevalFrequency, Values: []string{"cat"}, Count: &countRule{Relation: relationAtLeast, Value: 2}}}}}}
 		compiled, err := compileInstructionRules(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite.Cases[0].Rules[0].Values[0] = "dog"
 		suite.Cases[0].Rules[0].Count.Value = 3
 		strict, loose, err := evaluateInstructionViews("catcat", compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, []bool{true}) || !slices.Equal(loose, []bool{true}) {
 			t.Fatal("caller mutation changed compiled criteria")
 		}
@@ -44,9 +41,7 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 			Strict, Loose []bool
 		}
 	}
-	if err := json.Unmarshal(ifevalStructureOracle, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(ifevalStructureOracle, &oracle))
 	if oracle.ReferenceVersion != "0.4.9.1" || len(oracle.Cases) != 131 || oracle.Sources["instructions.py"] != "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32" || oracle.Sources["instructions_util.py"] != "e8c4d9187bac1482d93941fb46469609c3ae78d896195bfcb300a0707d492567" || oracle.Sources["utils.py"] != "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632" {
 		t.Fatal("native source or denominator changed")
 	}
@@ -57,16 +52,12 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 			t.Fatalf("%d %s: dropped=%d error=%v", index, c.Instruction, dropped, err)
 		}
 		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("instruction denominator expanded")
 		}
 		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %s %q: strict=%v/%v loose=%v/%v", index, c.Instruction, c.Response, strict, c.Strict, loose, c.Loose)
 		}

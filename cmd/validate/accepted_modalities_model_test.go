@@ -23,6 +23,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -40,13 +41,9 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 	output := acceptedProtocolCoverageProjection(t)
 	root := testutil.RepoRoot(t)
 	var projection mediaProjection
-	if err := json.Unmarshal(output.JSON, &projection); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(output.JSON, &projection))
 	var generation imageVideoProtocol
-	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &generation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &generation))
 	for _, declared := range generation.Cases {
 		matches := 0
 		for _, model := range projection.Coverage.Models {
@@ -61,9 +58,7 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 		}
 	}
 	var source modelValidationSpecification
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/e4b-validation.json"), &source); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/e4b-validation.json"), &source))
 	index := slices.IndexFunc(projection.Coverage.Models, func(row modalityModelProjection) bool { return row.Model == source.Model })
 	if index < 0 {
 		t.Fatal("multimodal inference model omitted")
@@ -145,13 +140,9 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 		}
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -165,13 +156,9 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 	// Another lane's additions stand aside under their finding until their
 	// owner freezes them, as the inventory's acceptance sets them aside.
 	pending, err := loadMediaPending(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	entries = pending.catalogEntries(entries)
-	if err := checkAcceptedDenominator(t.Context(), store, coverage.Models, entries); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkAcceptedDenominator(t.Context(), store, coverage.Models, entries))
 	proofs := map[string]bool{}
 	for _, proof := range coverage.Proofs {
 		if proofs[proof.Reference+"#"+proof.Check] {
@@ -225,9 +212,7 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGateProof) {
 	t.Helper()
 	gate, err := loadAcceptedGate(t.Context(), store, proof)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, mutation := range []string{"failed", "skipped", "wrong-source", "wrong-verifier", "wrong-check", "missing"} {
 		t.Run(proof.Reference+"/"+mutation, func(t *testing.T) {
 			changed, changedProof := gate, proof
@@ -258,15 +243,11 @@ func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGate
 func requireAcceptedDocument(t *testing.T, root, path, digest string, target any) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(root, path))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
 		t.Fatal("reviewed acceptance assignments changed", path)
 	}
-	if err := strictjson.DecodeBytes(data, target); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(data, target))
 }
 
 func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expected []acceptedModel, live []discovery.CatalogEntry) error {

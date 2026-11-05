@@ -10,26 +10,21 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	read := func(id artifact.ID, target any) {
@@ -62,9 +57,7 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 		t.Fatal("raw acquisition denominator changed")
 	}
 	prior, err := RequireEvaluationEvidence(t.Context(), store, acquisition.Prior)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var old InstructionRulesReport
 	readRetainedEvidence(t, store, prior.Report, &old)
 	retained := map[string]string{}
@@ -101,23 +94,15 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 func TestNativeIFEvalInputBinding(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id, err := artifact.ParseID("evidence:sha256:1850c0aa24d39471d3a36a1a528760c953a8c4ed17619dc24bb2b73c3e46b37d")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var original nativeIFEvalInput
 	readRetainedEvidence(t, store, id, &original)
-	if err := checkNativeIFEvalCases(t.Context(), store, original); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkNativeIFEvalCases(t.Context(), store, original))
 	const first = "ifeval/default/train/0"
 	for name, mutate := range map[string]func(*nativeIFEvalInput){
 		"missing case":   func(input *nativeIFEvalInput) { delete(input.Cases, first) },

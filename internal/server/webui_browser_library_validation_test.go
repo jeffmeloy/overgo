@@ -19,6 +19,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -32,15 +33,11 @@ const laneHubRepository = "lane/validated"
 func hubFixtureServer(t *testing.T, file string) *httptest.Server {
 	t.Helper()
 	handle, err := os.Open(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handle.Close()
 	hash := sha256.New()
 	size, err := io.Copy(hash, handle)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	name := filepath.Base(file)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/models", func(response http.ResponseWriter, _ *http.Request) {
@@ -76,9 +73,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	small := roots.ResolveModelPath("overgo-hfconvert/Qwen2.5-0.5B-f16.gguf")
 	if _, err := os.Stat(small); err != nil {
 		t.Fatalf("library validation unavailable: the small text model is absent: %v", err)
@@ -100,35 +95,23 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	// architecture profiles the Library registers against live there, and
 	// nothing the journey writes reaches the data root.
 	storeDir := filepath.Join(t.TempDir(), "store")
-	if err := prepareBrowserJourneyStore(ctx, roots.Store, storeDir); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareBrowserJourneyStore(ctx, roots.Store, storeDir))
 	store, err := overgodb.Create(storeDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	intake := LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate}
 	workbench, err := New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: filepath.Join(t.TempDir(), "downloads"),
 	}, GenerationRefused{Reason: idleRefusal})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer workbench.Close()
-	if err := os.MkdirAll(workbench.config.HubDownloadRoot, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(workbench.config.HubDownloadRoot, 0o755))
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: storeDir, Dir: root}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	catalog, err := overgodb.OpenReadOnly(storeDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = catalog.Close() })
 	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	proxy := &modelswap.Proxy{
@@ -138,17 +121,11 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	front := httptest.NewServer(proxy)
 	defer front.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	browser, err := webuilane.Open(ctx, path, front.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
-	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
 	// API idleness does not imply shell readiness: workspace scripts load
 	// outside the API request counter. Use the shared browser predicate wait.
 	settle := func(what, expression string) {
@@ -173,17 +150,13 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 		settle(what+" admitted or refused by the source rule",
 			`(typeof window.laneValidation === 'string' && window.laneValidation.length > 0) || `+rowNote(rowText, sourceRule))
 		var admitted string
-		if err := browser.Evaluate(ctx, `window.laneValidation`, &admitted); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `window.laneValidation`, &admitted))
 		if admitted == "" {
 			t.Logf("%s: the modified tree refused with the source rule after admitting the model", what)
 			return false
 		}
 		id, err := artifact.ParseID(admitted)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		assertBrowserPredicate(t, ctx, browser, `(() => { window.laneValidation = ''; return true; })()`)
 		waitBrowserOperationState(t, workbench, id, operation.StateCompleted)
 		return true

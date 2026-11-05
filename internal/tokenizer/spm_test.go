@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestLlamaSPMEncodeDecode(t *testing.T) {
@@ -35,27 +36,19 @@ func TestLlamaSPMEncodeDecode(t *testing.T) {
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 	}}
 	vocab, err := Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, err := vocab.Encode("hello", EncodeOptions{AddSpecial: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []TokenID{1, 12}; !slices.Equal(ids, want) {
 		t.Fatalf("IDs = %v, want %v", ids, want)
 	}
 	text, err := vocab.Decode(ids, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if text != "hello" {
 		t.Fatalf("decoded text = %q, want hello", text)
 	}
 	piece, err := vocab.DecodePiece(12, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if piece != " hello" {
 		t.Fatalf("streaming piece = %q, want %q", piece, " hello")
 	}
@@ -80,20 +73,14 @@ func TestLlamaSPMByteFallback(t *testing.T) {
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 	}}
 	vocab, err := Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, err := vocab.Encode("é", EncodeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []TokenID{4, 5}; !slices.Equal(ids, want) {
 		t.Fatalf("IDs = %v, want %v", ids, want)
 	}
 	text, err := vocab.Decode(ids, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if text != "é" {
 		t.Fatalf("decoded text = %q, want é", text)
 	}

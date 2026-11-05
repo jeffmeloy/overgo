@@ -3,6 +3,8 @@ package apimanifest
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCommandDiscoveryProjection holds the command discovery contract: a
@@ -19,9 +21,7 @@ func TestCommandDiscoveryProjection(t *testing.T) {
 		Flags:          []Parameter{{Name: "next", Type: "bool"}, {Name: "prompt", Type: "bool"}},
 	}
 	binary, err := ProjectCommandBinary(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if binary.Purpose != base.Purpose || binary.Audience != base.Audience || binary.Classification != string(OperatorAndAutomation) {
 		t.Fatalf("projection dropped discovery metadata: %+v", binary)
 	}
@@ -38,9 +38,7 @@ func TestCommandDiscoveryProjection(t *testing.T) {
 	renamed := base
 	renamed.Flags = []Parameter{{Name: "frontier", Type: "bool"}, {Name: "prompt", Type: "bool", Required: true}}
 	changed, err := ProjectCommandBinary(renamed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(changed.Flags, renamed.Flags) || slices.Equal(changed.Flags, base.Flags) {
 		t.Fatalf("flag registration change not reflected: %+v", changed.Flags)
 	}

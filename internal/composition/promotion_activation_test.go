@@ -3,6 +3,7 @@ package composition_test
 import (
 	"overgo/internal/composition"
 	"overgo/internal/composition/compositiontest"
+	"overgo/internal/testcheck"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -17,9 +18,7 @@ func TestCompositionPromotionActivation(t *testing.T) {
 		t.Fatalf("recipe promotion policy = %+v, %v", policy, err)
 	}
 	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/promoted-activate", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -37,13 +36,9 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 	candidate := authority.Recipe
 	candidate.Promotion = testutil.ArtifactID(t, artifact.KindEvidence, "missing bridge promotion")
 	candidate, err := composition.NewCompositionRecipe(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := candidate.Batch("fixture/composition/unpromoted-recipe")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: candidate.Promotion})
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
@@ -54,9 +49,7 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 	candidate = authority.Recipe
 	candidate.PromotionPolicy = testutil.ArtifactID(t, artifact.KindProfile, "unowned promotion policy")
 	candidate, err = composition.NewCompositionRecipe(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/composition/unowned-policy",
 		Artifacts: []artifact.Descriptor{{ID: candidate.PromotionPolicy}},
@@ -64,9 +57,7 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch, err = candidate.Batch("fixture/composition/unowned-policy-recipe")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

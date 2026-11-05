@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/testcheck"
 )
 
 // fixtureGit runs git in a fixture model directory.
@@ -41,17 +42,11 @@ func TestRecipeSpecAssemblesARegistration(t *testing.T) {
 	if err := assemble(); err == nil || !strings.Contains(err.Error(), "declares no license identifier") {
 		t.Fatalf("a card with no license was assembled: %v", err)
 	}
-	if err := assemble("-spdx", "fixture="+want.License.SPDX); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, assemble("-spdx", "fixture="+want.License.SPDX))
 	data, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var got []modelRegistration
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &got))
 	if len(got) != 1 || got[0].Model != want.Model || got[0].TensorInventory != want.TensorInventory ||
 		got[0].SourceRepository != want.SourceRepository || got[0].SourceCommit != want.SourceCommit ||
 		got[0].License != want.License || got[0].Directory != want.Directory {
@@ -64,9 +59,7 @@ func TestRecipeSpecAssemblesARegistration(t *testing.T) {
 	card := filepath.Join(directory, "README.md")
 	commit := func(content string) {
 		t.Helper()
-		if err := os.WriteFile(card, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(card, []byte(content), 0o600))
 		fixtureGit(t, directory, "add", ".")
 		fixtureGit(t, directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--no-gpg-sign", "-qm", "card")
 	}
@@ -75,15 +68,11 @@ func TestRecipeSpecAssemblesARegistration(t *testing.T) {
 		t.Fatalf("a card that declares other was assembled: %v", err)
 	}
 	commit("---\ntags:\n- fixture\nlicense: \"mit\"\n---\n# Card\n")
-	if err := assemble(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, assemble())
 	if data, err = os.ReadFile(output); err != nil || json.Unmarshal(data, &got) != nil || got[0].License.SPDX != "mit" {
 		t.Fatalf("the card's own license was not declared: %+v (%v)", got, err)
 	}
-	if err := os.WriteFile(card, []byte("an edit that is not committed\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(card, []byte("an edit that is not committed\n"), 0o600))
 	if err := assemble(); err == nil || !strings.Contains(err.Error(), "unchanged tracked bytes") {
 		t.Fatalf("a directory with uncommitted tracked changes was assembled: %v", err)
 	}

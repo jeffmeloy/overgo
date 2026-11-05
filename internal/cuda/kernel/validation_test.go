@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestValidateAssets(t *testing.T) {
-	if err := ValidateAssets(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateAssets())
 }
 
 func TestValidateAssetRejectsDifferentContent(t *testing.T) {

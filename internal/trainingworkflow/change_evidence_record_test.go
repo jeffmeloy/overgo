@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,9 +28,7 @@ func TestEvidenceConditioningRecordIsOfItsJudgments(t *testing.T) {
 	read := func(name string) map[string]string {
 		t.Helper()
 		raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		fields := map[string]string{}
 		for line := range strings.Lines(string(raw)) {
 			if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

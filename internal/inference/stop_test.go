@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestStopSequenceValidationAndMatching(t *testing.T) {
@@ -13,9 +14,7 @@ func TestStopSequenceValidationAndMatching(t *testing.T) {
 		t.Fatalf("runtime policy: found=%t err=%v", found, err)
 	}
 	limit := policy.Serving.Limits.StopSequences
-	if err := validateStopSequences([]string{"END", "stop"}, limit); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateStopSequences([]string{"END", "stop"}, limit))
 	if err := validateStopSequences([]string{""}, limit); err == nil {
 		t.Fatal("empty stop sequence was accepted")
 	}

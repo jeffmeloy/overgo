@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDownloadCLI(t *testing.T) {
@@ -30,9 +32,7 @@ func TestDownloadCLI(t *testing.T) {
 	}))
 	defer hub.Close()
 	destination := t.TempDir()
-	if err := runArguments(t.Context(), []string{"download", "-endpoint", hub.URL, "-revision", "main", "-dest", destination, "acme/tiny"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArguments(t.Context(), []string{"download", "-endpoint", hub.URL, "-revision", "main", "-dest", destination, "acme/tiny"}))
 	got, err := os.ReadFile(filepath.Join(destination, "weights.bin"))
 	if err != nil || string(got) != string(weights) {
 		t.Fatalf("download=%q: %v", got, err)
@@ -59,9 +59,7 @@ func TestDownloadCLICallerBudget(t *testing.T) {
 	}
 	// The retained prefix lives in the destination's sibling bookkeeping directory.
 	partials, err := filepath.Glob(filepath.Join(filepath.Dir(destination), "."+filepath.Base(destination)+".download", "weights.bin.partial-*"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained := false
 	for _, path := range partials {
 		if strings.HasSuffix(path, ".etag") {

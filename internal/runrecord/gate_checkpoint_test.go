@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +23,7 @@ func TestGateCheckpointOutcome(t *testing.T) {
 		{Name: "acceptance-producer", Phase: PhaseTest, Outcome: StepReused, DurationNS: 1},
 	}
 	record, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record.Result.Outcome != outcomeCheckpoint || record.Run.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint outcome lost: %+v", record.Result)
 	}
@@ -36,13 +35,9 @@ func TestGateCheckpointOutcome(t *testing.T) {
 		t.Fatal("checkpoint gate accepted a failed step")
 	}
 	preparation, err := newGatePreparation(strings.Repeat("a", 64), environment, time.Unix(100, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	finalized, err := newGateFinalization(preparation, commit, record.Result.ID, outcomeCheckpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if finalized.State != gateFinalized || finalized.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint finalization: %+v", finalized)
 	}

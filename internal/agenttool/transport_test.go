@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 func inspectionManual(t *testing.T, name string, transport Transport) Manual {
@@ -28,9 +29,7 @@ func inspectionManual(t *testing.T, name string, transport Transport) Manual {
 		},
 		Transport: transport,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return manual
 }
 
@@ -47,9 +46,7 @@ func TestTransportBuiltinRoundTripAndRefusals(t *testing.T) {
 		t.Fatal("nil duplicate registration accepted")
 	}
 	result, err := executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x","limit":3,"exact":true,"scope":{"dir":"internal"}}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(result), `"pattern"`) {
 		t.Fatalf("result = %s", result)
 	}
@@ -159,9 +156,7 @@ func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
 	result, err := NewOperatorExecutor().Invoke(
 		t.Context(), manual, json.RawMessage(`{"pattern":"Boston"}`),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(methods, []string{mcpInitializeMethod, mcpInitializedMethod, mcpToolsCallMethod}) ||
 		received.Name != "weather.lookup" || string(received.Arguments) != `{"pattern":"Boston"}` ||
 		string(result) != `{"content":[{"type":"text","text":"sunny"}]}` {
@@ -176,9 +171,7 @@ func TestTransportArgvReturnsStdoutAsJSONString(t *testing.T) {
 		Kind: TransportArgv, Program: "go", Args: []string{"env", "GOOS"},
 	})
 	result, err := executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var text string
 	if err := json.Unmarshal(result, &text); err != nil || text == "" {
 		t.Fatalf("result = %s, %v", result, err)

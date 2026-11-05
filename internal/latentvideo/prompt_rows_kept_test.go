@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -33,9 +34,7 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	const own = "a heron stands in reeds at first light, held for the kept-rows test"
@@ -45,18 +44,14 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 		t.Helper()
 		forgetPromptEncoders(t)
 		encoder, err := promptEncoderFor(spec)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return encoder
 	}
 	encoder := nextProcess()
 	tokens := func(prompt string) (kept int) {
 		t.Helper()
 		_, mask, err := encoder.tokenizer.EncodeWithMask(prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, bit := range mask {
 			kept += bit
 		}
@@ -66,25 +61,19 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 	bound := func(of TextConditioningSpec) bool {
 		t.Helper()
 		_, bound, err := artifact.ResolveAlias(ctx, store, encoder.commonRowsName(of))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return bound
 	}
 
 	first, _, stats, err := encodePrompts(ctx, spec, own, spec.Common)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.TokenRows != ownTokens+commonTokens || !bound(spec) {
 		t.Fatalf("the first process encoded %d rows and kept the common prompt's in the store: %t; want the %d rows of both prompts, and kept", stats.TokenRows, bound(spec), ownTokens+commonTokens)
 	}
 
 	nextProcess()
 	second, _, stats, err := encodePrompts(ctx, spec, own, spec.Common)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.TokenRows != ownTokens {
 		t.Fatalf("the next process encoded %d rows; want the %d of the request's own prompt alone, the common prompt's %d read from the store", stats.TokenRows, ownTokens, commonTokens)
 	}

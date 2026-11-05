@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/testcheck"
 )
 
 // TestEntryAuthoritiesHoldOverTheTree holds the whole tree to the entry
@@ -34,16 +35,10 @@ func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	}
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")
-	if err := os.MkdirAll(rogue, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(rogue, "rogue.go"), []byte("package rogue\n\nconst deployHook = \"deploy.ps1\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(rogue, 0o755))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(rogue, "rogue.go"), []byte("package rogue\n\nconst deployHook = \"deploy.ps1\"\n"), 0o644))
 	violation, err := gosyntax.DiscoverGo(root, "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	goOnly, _ := repoanalysis.EntryAuthorityRuleFor(repoanalysis.EntryAuthorityGoOnly)
 	if _, err := repoanalysis.ValidateEntryAuthorities(violation, []repoanalysis.EntryAuthorityRule{goOnly}); err == nil ||
 		!strings.Contains(err.Error(), "internal/rogue/rogue.go bypasses the owner") {
@@ -55,20 +50,12 @@ func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 func TestProductionAuthorityBoundaries(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	clean, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := clean.Error(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, clean.Error())
 
 	tests := []struct {
 		name    string
@@ -100,13 +87,9 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			candidate, err := snapshot.Overlay(test.overlay)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			report, err := repoanalysis.AuditProductionAuthorityBoundaries(candidate)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if report.Error() == nil {
 				t.Fatalf("%s bypass was admitted", test.family)
 			}
@@ -175,31 +158,23 @@ func architectureRSIFinding(t *testing.T, path, body, family, kind string) {
 func architectureRSISnapshot(t *testing.T) gosyntax.Snapshot {
 	t.Helper()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return snapshot
 }
 
 func architectureRSIOverlay(t *testing.T, snapshot gosyntax.Snapshot, overlay map[string][]byte) gosyntax.Snapshot {
 	t.Helper()
 	candidate, err := snapshot.Overlay(overlay)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return candidate
 }
 
 func architectureRSIAudit(t *testing.T, snapshot gosyntax.Snapshot) repoanalysis.ProductionAuthorityReport {
 	t.Helper()
 	report, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return report
 }
 

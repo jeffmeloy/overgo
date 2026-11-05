@@ -9,18 +9,15 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(4, 2)) || len(output.DeepstackEmbeddings) != 1 ||
 		!output.DeepstackEmbeddings[0].Shape.Equal(mustShape(4, 2)) {
 		t.Fatalf("output = base %v deepstack %+v", output.Embeddings.Shape, output.DeepstackEmbeddings)
@@ -36,9 +33,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*granite4VisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
@@ -53,9 +48,7 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 		}
 	}
 	processed, err := preprocessGranite4VisionImage(input, tinyGranite4VisionSpec())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if processed.GridW != 2 || processed.GridH != 1 || len(processed.Tiles) != 3 {
 		t.Fatalf("grid=%d,%d tiles=%d", processed.GridW, processed.GridH, len(processed.Tiles))
 	}
@@ -69,16 +62,12 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 
 func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
 	runner, err := openImageProjectorAs[*granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagePrompt(
 		t.Context(), imagePromptTokenizer{marker: granite4VisionImageToken, token: 9352}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prompt.EmbeddingWidth != 4 || len(prompt.Embeddings) != 8 || len(prompt.DeepstackEmbeddings) != 1 ||
 		len(prompt.DeepstackEmbeddings[0]) != 8 || len(prompt.EmbeddingTokenIndices) != 2 {
 		t.Fatalf("prompt contract = width %d base %d deepstack %v indices %v", prompt.EmbeddingWidth, len(prompt.Embeddings), prompt.DeepstackEmbeddings, prompt.EmbeddingTokenIndices)
@@ -109,13 +98,9 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 		}
 	}
 	want, err := cpu.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, "Granite 4 Vision", got.Embeddings.Data, want.Embeddings.Data, 3e-3)
 	if len(got.DeepstackEmbeddings) != len(want.DeepstackEmbeddings) {
 		t.Fatalf("deepstack streams = %d, want %d", len(got.DeepstackEmbeddings), len(want.DeepstackEmbeddings))

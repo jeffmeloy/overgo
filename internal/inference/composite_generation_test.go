@@ -11,6 +11,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -64,9 +65,7 @@ func TestCompositeGenerationActiveRecipe(t *testing.T) {
 func TestCompositeGenerationExecution(t *testing.T) {
 	runtime, store, _, request, source := compositeGenerationExecutionFixture(t)
 	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Commit.Valid() || len(result.Evidence.Trials) != len(compositeGenerationArms) ||
 		result.Evidence.CompositionRecipe != runtime.plan.CompositionRecipe ||
 		result.Evidence.ExecutionPlan != runtime.plan.ID || source.calls != 3 {
@@ -83,14 +82,10 @@ func TestCompositeGenerationExecution(t *testing.T) {
 func TestCompositeGenerationOutputLineage(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
 	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trial := result.Evidence.Trials[0]
 	parents, err := store.Parents(t.Context(), trial.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := map[artifact.ID]artifact.Relation{
 		trial.Input: artifact.RelationDerivedFrom,
 		trial.Run:   artifact.RelationProducedBy,
@@ -110,9 +105,7 @@ func TestCompositeGenerationOutputLineage(t *testing.T) {
 func TestCompositeGenerationResourceEvidence(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
 	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, trial := range result.Evidence.Trials {
 		run, runErr := runrecord.RequireRun(t.Context(), store, trial.Run)
 		evaluation, evaluationErr := runrecord.RequireEvaluation(t.Context(), store, trial.Evaluation)
@@ -148,9 +141,7 @@ func compositeGenerationExecutionFixture(
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	request := CompositeGenerationExecutionRequest{
 		Key:                  "fixture/composite-generation/execution",

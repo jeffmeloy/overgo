@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,18 +26,12 @@ func TestCompileRopePlanSenseNovaRealArtifact(t *testing.T) {
 	}
 	binding := SenseNovaBinding()
 	cfg, err := LoadConfig(senseNovaDir(t), binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	src, err := safetensors.OpenSource(senseNovaDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer src.Close()
 	plan, err := CompileRopePlan(src, cfg, binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []RopeSection{
 		{Width: 64, Theta: 5e6, Axis: AxisTime},
 		{Width: 32, Theta: 1e4, Axis: AxisHeight},
@@ -95,16 +90,12 @@ func TestRopePlanDegenerateBitIdentical(t *testing.T) {
 		RopeScaling: map[string]any{"type": "dynamic", "alpha": 4.0},
 	}
 	plan, err := ropePlanFromConfig(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(plan.Sections) != 1 || plan.Sections[0].Width != cfg.HeadDim || plan.Sections[0].Axis != AxisTime {
 		t.Fatalf("degenerate plan sections %+v", plan.Sections)
 	}
 	base, err := RopeInvFreqBase(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	invFreq := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	rng := rand.New(rand.NewSource(11))
 	for _, pos := range []int{0, 1, 17, 4095} {

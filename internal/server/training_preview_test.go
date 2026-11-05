@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -16,23 +17,17 @@ func TestDatasetPreviewShowsTrainedTokens(t *testing.T) {
 	t.Parallel()
 	fixture := newDPOTrainingFixture(t)
 	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	request := func(position int, dataset any) (int, trainingworkflow.Preview) {
 		t.Helper()
 		body, err := json.Marshal(map[string]any{"task": "training", "recipe": fixture.definition.ID,
 			"input": map[string]any{"dataset": dataset}, "position": position, "limit": 1})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		response := serveTestRequest(handler, http.MethodPost, "/training/preview", string(body))
 		var preview trainingworkflow.Preview
 		if response.Code == http.StatusOK {
-			if err := json.Unmarshal(response.Body.Bytes(), &preview); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &preview))
 		}
 		return response.Code, preview
 	}

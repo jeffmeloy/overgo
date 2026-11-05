@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestManifestHoldsOnlyDecodedSections holds compatibility.json to the
@@ -15,13 +17,9 @@ import (
 func TestManifestHoldsOnlyDecodedSections(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("..", "..", manifestPath))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var sections map[string]json.RawMessage
-	if err := json.Unmarshal(data, &sections); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &sections))
 	decoded := map[string]bool{}
 	fields := reflect.TypeFor[manifest]()
 	for field := range fields.Fields() {

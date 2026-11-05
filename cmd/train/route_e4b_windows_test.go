@@ -17,6 +17,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/quant"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -78,9 +79,7 @@ func writeTinyE4B(t *testing.T, directory string) string {
 			}
 		}
 		stored, err := quant.Quantize(kind, values)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		tensors = append(tensors, gguf.TensorData{Name: name, Shape: shape, Type: kind, Data: bytes.NewReader(stored)})
 	}
 	perLayerWidth := uint64(tinyE4BLayers * tinyE4BPerLayer)
@@ -152,9 +151,7 @@ func writeTinyE4B(t *testing.T, directory string) string {
 		testutil.GGUFScalar("gemma4.vocab_size", gguf.ValueTypeUint32, uint32(tinyE4BVocab)),
 	}
 	path := filepath.Join(directory, "tiny-e4b.gguf")
-	if err := gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}))
 	return path
 }
 
@@ -164,25 +161,19 @@ func registeredCandidate(t *testing.T, store artifact.Reader, checkpoint artifac
 	t.Helper()
 	ctx := t.Context()
 	children, err := store.Children(ctx, checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, produced := range children {
 		if produced.Child.Kind() != artifact.KindModel || produced.Relation != artifact.RelationProducedBy {
 			continue
 		}
 		dependents, err := store.Children(ctx, produced.Child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, dependent := range dependents {
 			if dependent.Child.Kind() != artifact.KindRecipe {
 				continue
 			}
 			definition, err := recipe.RequireDefinition(ctx, store, dependent.Child)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if definition.Task == recipe.TaskInference && definition.Model == produced.Child {
 				return definition
 			}
@@ -223,27 +214,19 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 		t.Fatal(err)
 	}
 	session, err := openSession(ctx, store, base, datasetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	window := []uint32{1, 5, 9, 2, 22, 7, 3, 11, 4}
 	model, err := e4btrain.LoadArtifact(ctx, base, window)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: session.authority.Objective, Updates: 1, MaximumSequence: len(window),
 		Parameters: model.ParameterCount(), Optimizer: session.authority.Optimizer,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer := unstepped{Model: model, config: plan.Optimizer()}
 	first, second := filepath.Join(root, "first"), filepath.Join(root, "second")
 	for _, target := range []string{first, second} {
-		if err := session.publishPlanned(ctx, target, trainer, plan.Updates()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, session.publishPlanned(ctx, target, trainer, plan.Updates()))
 	}
 	var settled error
 	if session.settle(ctx, &settled); settled != nil {
@@ -251,18 +234,12 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 	}
 
 	checkpoint, err := trainingprogram.LoadCheckpoint(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	original, err := gguf.Open(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer original.Close()
 	published, err := gguf.Open(filepath.Join(first, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer published.Close()
 	trained := map[string]bool{}
 	for _, group := range model.OptimizerPlan().Groups() {
@@ -271,9 +248,7 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 	var frozen []string
 	for _, info := range original.Tensors {
 		stored := make([]byte, info.Size)
-		if err := original.ReadTensorData(info, stored); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, original.ReadTensorData(info, stored))
 		held, ok := published.Tensor(info.Name)
 		written := make([]byte, held.Size)
 		if !ok || published.ReadTensorData(held, written) != nil || held.Type != info.Type || !bytes.Equal(written, stored) {
@@ -294,16 +269,10 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 	}
 	// The server resolves the registered candidate once it is active.
 	candidate := registeredCandidate(t, store, checkpoint.ID())
-	if err := modelrecipetest.ActivateCandidate(ctx, store, "fixture/tiny-e4b", candidate); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, modelrecipetest.ActivateCandidate(ctx, store, "fixture/tiny-e4b", candidate))
 	served, err := modelrecipe.ResolveActiveGGUF(ctx, store, filepath.Join(first, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := served.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, served.Close())
 	leftInfo, leftErr := os.Stat(filepath.Join(first, trainingprogram.CheckpointFrozenShard))
 	rightInfo, rightErr := os.Stat(filepath.Join(second, trainingprogram.CheckpointFrozenShard))
 	if leftErr != nil || rightErr != nil || !os.SameFile(leftInfo, rightInfo) {

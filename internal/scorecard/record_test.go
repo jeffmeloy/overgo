@@ -14,6 +14,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -266,9 +267,7 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 	zero.Model = testutil.ArtifactID(t, artifact.KindModel, "zero-base")
 	published := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
 	path, err := Publish(directory, published, Record{Commit: "a", Rows: []Row{older}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), `"base"`) {
 		t.Fatalf("a held-out quality without a base publishes %s (%v), want no base field", data, err)
 	}
@@ -276,9 +275,7 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 		t.Fatal(err)
 	}
 	records, err := Records(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(records) != 2 || filepath.Base(path) != records[0].Name {
 		t.Fatalf("read %d records, want the older one first", len(records))
 	}

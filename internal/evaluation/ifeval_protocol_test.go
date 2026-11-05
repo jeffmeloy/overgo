@@ -3,6 +3,8 @@ package evaluation
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // lm_eval 0.4.9.1, ifeval.yaml task v4.0: max_gen_toks=1280.
@@ -24,9 +26,7 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 		t.Fatalf("native cap and instruction denominator: %+v", suite.Cases)
 	}
 	compiled, err := compileInstructionRules(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Captured strict/loose answers from the pinned native QuotationChecker.
 	for _, c := range []struct {
 		response      string
@@ -41,9 +41,7 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 		{"header\n\"hello\"\nfooter", false, true},
 	} {
 		strict, loose, err := evaluateInstructionViews(c.response, compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, []bool{c.strict}) || !slices.Equal(loose, []bool{c.loose}) {
 			t.Errorf("response=%q strict=%v loose=%v want=%t/%t", c.response, strict, loose, c.strict, c.loose)
 		}
@@ -60,9 +58,7 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 	}
 	for _, old := range []instructionRulesSuite{oldCap, oldRules} {
 		prior, err := compileInstructionRules(old)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 			t.Fatal("protocol/scorer correction reused old evaluator lineage")
 		}

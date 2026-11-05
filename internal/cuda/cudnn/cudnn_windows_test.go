@@ -14,6 +14,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -69,9 +70,7 @@ func convolved(shape Shape, input, filter []float32) []float32 {
 func TestConvolutionIsTheSumItIsDefinedAs(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	var library *Library
 	err = worker.Do(context.Background(), func(state *device.State) (err error) {
@@ -81,9 +80,7 @@ func TestConvolutionIsTheSumItIsDefinedAs(t *testing.T) {
 	if errors.Is(err, ErrAbsent) {
 		testskip.NotApplicable(t, err.Error())
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := worker.Do(context.Background(), func(*device.State) error { return library.Close() }); err != nil {
 			t.Error(err)
@@ -101,13 +98,9 @@ func TestConvolutionIsTheSumItIsDefinedAs(t *testing.T) {
 	halves := func(values []float32) ([]float32, []byte) {
 		t.Helper()
 		stored, err := quant.Quantize(dtype.F16, values)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held, err := quant.Dequantize(dtype.F16, stored, uint64(len(values)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return held, stored
 	}
 	for name, shape := range map[string]Shape{

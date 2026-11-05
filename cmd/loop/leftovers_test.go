@@ -31,6 +31,7 @@ import (
 	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -62,23 +63,17 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	ctx := t.Context()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string {
 		t.Helper()
-		if err := os.MkdirAll(at(slash), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
 		return at(slash)
 	}
 	write := func(slash, content string) {
 		t.Helper()
 		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		if err := os.WriteFile(at(slash), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
 	}
 	git := func(directory string, arguments ...string) string {
 		t.Helper()
@@ -90,9 +85,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			return path
 		}
 		inside, err := filepath.Rel(root, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return filepath.ToSlash(inside)
 	}
 	verdicts := func(found []leftover) []string {
@@ -117,9 +110,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	list := func(t *testing.T, h hygiene) []leftover {
 		t.Helper()
 		found, err := listLeftovers(h, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return found
 	}
 
@@ -165,9 +156,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	write("repo/scripts/hook.txt", "work a stash holds\n")
 	git(repo, "stash", "push", "-q", "-m", "kept work")
 	git(repo, "branch", "merged-free", "master")
-	if err := processlock.EnsureStateDirectory(repo); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(repo))
 	copyAt := func(slash string, arguments ...string) string {
 		t.Helper()
 		git(repo, append(append([]string{"worktree", "add", "-q"}, arguments...), at(slash), "master")...)
@@ -177,28 +166,20 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	copyAt("temporary/sessions/s1/scratchpad/dirty", "--detach")
 	write("temporary/sessions/s1/scratchpad/dirty/note.txt", "uncommitted\n")
 	partial := copyAt("temporary/sessions/s1/scratchpad/partial", "--detach")
-	if err := os.Remove(filepath.Join(partial, "scripts", "hook.txt")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(partial, "scripts", "hook.txt")))
 	emptied := copyAt("temporary/sessions/s1/scratchpad/emptied", "--detach")
 	tracked := strings.Fields(git(emptied, "ls-files"))
 	for _, file := range tracked {
-		if err := os.Remove(filepath.Join(emptied, filepath.FromSlash(file))); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(emptied, filepath.FromSlash(file))))
 	}
 	// A commit ran in the emptied copy, and left the record of its run in its process state: the
 	// copy with none is of unknown state.
-	if err := processlock.EnsureStateDirectory(emptied); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(emptied))
 	write("temporary/sessions/s1/scratchpad/emptied/"+processlock.StateDirectory+"/landing_waits.json", "[]\n")
 	// As many changed paths as tracked files, one of them a file added: not an emptied copy.
 	replaced := copyAt("temporary/sessions/s1/scratchpad/replaced", "--detach")
 	for _, file := range tracked[1:] {
-		if err := os.Remove(filepath.Join(replaced, filepath.FromSlash(file))); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(replaced, filepath.FromSlash(file))))
 	}
 	write("temporary/sessions/s1/scratchpad/replaced/added.txt", "uncommitted\n")
 	copyAt("temporary/sessions/s1/scratchpad/ignored", "--detach")
@@ -208,13 +189,9 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	aheadCommit := git(ahead, "rev-parse", "HEAD")
 	git(repo, "branch", "unmerged-free", aheadCommit)
 	held := copyAt("temporary/sessions/s2/scratchpad/held", "--detach")
-	if err := processlock.EnsureStateDirectory(held); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(held))
 	write("temporary/sessions/s2/scratchpad/held/"+processlock.StateDirectory+"/"+guard.WorktreeHolder, "s9\n")
-	if err := os.RemoveAll(copyAt("temporary/sessions/s2/scratchpad/gone", "--detach")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(copyAt("temporary/sessions/s2/scratchpad/gone", "--detach")))
 	copyAt("repo/.claude/worktrees/agent-clean", "--detach")
 	folder("repo/.claude/worktrees/agent-unlinked")
 	folder("repo/.claude/other")
@@ -237,9 +214,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	// The data root: a real store that registers two locations, and what runs left beside it.
 	storePath := folder("data/overgodb-store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	register := func(name string, kind artifact.LocationKind, value string) {
 		t.Helper()
 		id := testutil.ArtifactID(t, artifact.KindTensorSet, name)
@@ -277,9 +252,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	register("whole", artifact.LocationDirectory, at("data/experiments/whole"))
 	// A remote location is no file on this machine, whatever its value reads as.
 	register("elsewhere", artifact.LocationRemote, at("data/experiments/done/weights"))
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	// A second repository whose main worktree is on no branch, with nothing tracked beside its agent
 	// folder, and which is its own data root: the directories it tracks are no leftovers.
@@ -308,9 +281,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	if !linked {
 		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
 		for _, slash := range []string{"temporary/go-build4", "data/experiments/done/linked", "data/scratch/out"} {
-			if err := os.RemoveAll(at(slash)); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.RemoveAll(at(slash)))
 		}
 	}
 
@@ -627,14 +598,10 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 
 	t.Run("the command prints the listing, writes it as a receipt and removes nothing", func(t *testing.T) {
 		var output bytes.Buffer
-		if err := leftoversCommand(h, false, &output); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, leftoversCommand(h, false, &output))
 		receipt := filepath.Join(repo, processlock.StateDirectory, "leftovers-"+trunk[:12]+".txt")
 		written, err := os.ReadFile(receipt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		text, last := output.String(), ""
 		if cut := strings.LastIndex(text, "loop: "); cut >= 0 {
 			text, last = text[:cut], text[cut:]
@@ -716,23 +683,17 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	t.Parallel()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string {
 		t.Helper()
-		if err := os.MkdirAll(at(slash), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
 		return at(slash)
 	}
 	write := func(slash, content string) {
 		t.Helper()
 		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		if err := os.WriteFile(at(slash), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
 	}
 	// savePlan writes the working plan of a checkout: the rows named, each with one open step whose
 	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
@@ -744,9 +705,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",
 			}}})
 		}
-		if err := plan.Save(filepath.Join(checkout, filepath.FromSlash(plan.Path)), document); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, plan.Save(filepath.Join(checkout, filepath.FromSlash(plan.Path)), document))
 	}
 
 	// The trunk's checkout: a record and a source file that name scratch entries, and the plan.
@@ -806,9 +765,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	scratch := func(t *testing.T, h hygiene) (map[string]leftover, []string) {
 		t.Helper()
 		found, err := listLeftovers(h, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		entries, states := map[string]leftover{}, []string{}
 		for _, entry := range found {
 			if entry.place != "tmp" {
@@ -963,16 +920,10 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	t.Run("with the working plan unreadable every entry but the module's own two files is unknown", func(t *testing.T) {
 		working := filepath.Join(repo, filepath.FromSlash(plan.Path))
 		saved, err := os.ReadFile(working)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(working, []byte("no plan\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(working, []byte("no plan\n"), 0o644))
 		entries, states := scratch(t, h)
-		if err := os.WriteFile(working, saved, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(working, saved, 0o644))
 		unread := append(slices.Clone(folders), files...)
 		if want := wanted("unknown", unread...); !slices.Equal(states, want) {
 			t.Fatalf("with the working plan unreadable the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
@@ -1010,9 +961,7 @@ type sandbox struct {
 func newSandbox(t *testing.T) sandbox {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return sandbox{t, root}
 }
 
@@ -1209,9 +1158,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	document.Items = []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 		ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
 	}}}}
-	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	gitFixture(t, repo, "add", "-A")
 	gitFixture(t, repo, "commit", "-q", "-m", "base")
 	s.write("repo/source/tracked.txt", "work a stash holds\n")
@@ -1228,9 +1175,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	// The data root: a real store that registers a prototype's file inside one experiment's output.
 	storePath := s.folder("data/overgodb-store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prototype := testutil.ArtifactID(t, artifact.KindTensorSet, "prototype")
 	s.write("data/experiments/pilot/run/reward/weights.bin", "a prototype")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -1243,9 +1188,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	if _, err := store.Backup(ctx, s.at("data/experiments/sealed/out")); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for _, output := range []string{"done/weights", "kept/store", "kept/runs/order-1", "live/run", "idle/run", "rerun/control", "busy/weights", "orphan/out", "sealed/named/" + filepath.Base(storePath)} {
 		s.write("data/experiments/"+output+"/step.bin", "weights")
 	}
@@ -1255,9 +1198,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	// that ended left its lock file in either.
 	for _, output := range []string{"live/run", "rerun"} {
 		going, err := processlock.Acquire(s.at("data/experiments/"+output+"/"+processlock.OutputLock), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer going.Close()
 	}
 	s.write("data/experiments/idle/run/"+processlock.OutputLock, "")
@@ -1266,9 +1207,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	linked := fixtureLink(s.at("outside"), filepath.Join(s.folder("data/experiments/linked/weights"), "out"))
 	if !linked {
 		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
-		if err := os.RemoveAll(s.at("data/experiments/linked")); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(s.at("data/experiments/linked")))
 	}
 	s.write("data/checkpoints/proto/model.bin", "a trained model")
 	s.write("data/models/base/model.bin", "a model")
@@ -1304,9 +1243,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		return state.String()
 	}
 	locations, err := storeLocations(storePath, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, registered := s.seen(), gitState()
 	// untouched fails when anything in the sandbox or in git's view of it moved since the walk
 	// given, but for the command's own lock and receipt and the paths excepted.
@@ -1409,9 +1346,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			}
 		}
 		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lines, _, err := run(h, "experiment", token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
@@ -1441,9 +1376,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		left := []string{"data/experiments/kept/runs"}
 		if runtime.GOOS == "windows" {
 			busy, err := os.Open(s.at("data/experiments/busy/weights/step.bin"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer busy.Close()
 			left = append(left, "data/experiments/busy/weights")
 		}
@@ -1520,9 +1453,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		ruled(lines, "refs/heads/merged-free", "left", "git branch")
 		lines, _, err = run(h, "branch", shown)
 		receipts(lines)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ruled(lines, "refs/heads/merged-free", "removed", "wholly in the trunk")
 		if branches := strings.Fields(gitFixture(t, repo, "branch", "--format=%(refname:short)")); !slices.Equal(branches, []string{"lane/feature", "main", "master", "merged-held"}) {
 			t.Fatalf("after the removal git holds the branches %q, want all but merged-free", branches)
@@ -1547,14 +1478,10 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		untouched(t, first, "", removed...)
 		listing = nil
 		_, shown, err = run(h, "temporary-build", "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The token names the paths it was shown for: another folder of the same bytes by the same
 		// rule is not what the listing showed.
-		if err := os.Rename(s.at("temporary/go-build1"), s.at("temporary/go-build3")); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Rename(s.at("temporary/go-build1"), s.at("temporary/go-build3")))
 		lines, _, err = run(h, "temporary-build", shown)
 		if renameErr := os.Rename(s.at("temporary/go-build3"), s.at("temporary/go-build1")); err == nil || renameErr != nil || len(lines) != 0 {
 			t.Fatalf("the token of one folder was taken for another of the same bytes (%v, lines %q; renamed back: %v)", err, lines, renameErr)
@@ -1612,9 +1539,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	t.Run("every scratch entry that no plan holds goes, a loose file among them, and the folder of an open row stays", func(t *testing.T) {
 		_, stale, err := run(h, "tmp", "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The token names the entries it was shown for: once another entry lies in the folder, the
 		// listing is another, and is listed again.
 		s.write("repo/tmp/later.go", "package later\n")
@@ -1732,9 +1657,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
 			}}})
 		}
-		if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	}
 	savePlan("open-row", "Case-Row", "tip-row")
 	gitFixture(t, repo, "add", "-A")
@@ -1836,9 +1759,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	receipted := func(t *testing.T, verbs ...string) {
 		t.Helper()
 		written, err := os.ReadFile(receipt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want := []string{"removed " + branch}
 		for _, verb := range verbs {
 			for _, slash := range finished {
@@ -1884,13 +1805,9 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	})
 
 	t.Run("a clearing that cannot run, or whose remover of directories fails, leaves the commit ready and says why", func(t *testing.T) {
-		if err := processlock.EnsureStateDirectory(repo); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, processlock.EnsureStateDirectory(repo))
 		other, err := processlock.Acquire(s.at(removalState+"/"+removalLock), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		outcome, calls := commit(t, h, "", nil)
 		if closeErr := other.Close(); closeErr != nil || outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "another removal") || !slices.Equal(calls, []string{phaseGate, phaseLanded, clearedCall}) {
 			t.Fatalf("with the removal lock held the commit ended %+v after %v (close: %v), want it ready, saying another removal holds the lock", outcome, calls, closeErr)
@@ -1950,9 +1867,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 
 	t.Run("nothing finished is left, and what a rule keeps is still there", func(t *testing.T) {
 		found, err := listLeftovers(h, true, deletingPlaces()...)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if at := slices.IndexFunc(found, func(listed leftover) bool { return listed.state == stateFinished }); at >= 0 {
 			t.Errorf("after the commits %s is still listed as finished by the place %s", found[at].path, found[at].place)
 		}
@@ -2015,9 +1930,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 	landed := s.landedCopy(repo, copies+"landed")
 	emptied := s.landedCopy(repo, copies+"emptied")
 	for file := range strings.FieldsSeq(gitFixture(t, emptied, "ls-files")) {
-		if err := os.Remove(filepath.Join(emptied, filepath.FromSlash(file))); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(emptied, filepath.FromSlash(file))))
 	}
 	raced := s.landedCopy(repo, copies+"raced")
 	s.landedCopy(repo, copies+"edited")
@@ -2029,28 +1942,20 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 	s.landedCopy(repo, copies+"ignored")
 	s.write(copies+"ignored/tmp/probe.txt", "ignored\n")
 	committing, err := authoritylock.Acquire(s.landedCopy(repo, copies+"locked"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer committing.Close()
 	gitFixture(t, repo, "worktree", "lock", "--reason", "its session keeps it", s.landedCopy(repo, copies+"reserved"))
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"fresh"), "master")
 	// Process state that no commit made: what a command that only takes the gate's lock leaves.
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"prepared"), "master")
-	if err := processlock.EnsureStateDirectory(s.at(copies + "prepared")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(s.at(copies+"prepared")))
 	s.write(copies+"prepared"+state+"gate.lock", "")
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"gone"), "master")
-	if err := os.RemoveAll(s.at(copies + "gone")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(s.at(copies+"gone")))
 	ahead := s.landedCopy(repo, copies+"ahead")
 	gitFixture(t, ahead, "commit", "-q", "--allow-empty", "-m", "ahead of the trunk")
 	gitFixture(t, repo, "worktree", "add", "-q", "-b", "merged-held", s.at("lanes/merged"), "master")
-	if err := processlock.EnsureStateDirectory(repo); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(repo))
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at("repo"+state+"cycle"), "master")
 
 	unread := func() ([]string, error) {
@@ -2165,13 +2070,9 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		}
 		refused("a token that is not the listing's", "0123456789abcdef", "list it again")
 		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		refused("the listing's token while another removal holds the lock", token, "another removal")
-		if err := held.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, held.Close())
 		// A copy the listing showed as finished is written in before the token comes back.
 		later := copies + "landed/work/later.txt"
 		s.write(later, "written after the listing\n")
@@ -2179,9 +2080,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		if written, err := os.ReadFile(s.at(later)); err != nil || string(written) != "written after the listing\n" {
 			t.Fatalf("the file written after the listing reads %q (%v), want it as it was written", written, err)
 		}
-		if err := os.Remove(s.at(later)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(s.at(later)))
 		if _, again, err := removalRun(h, "helper-copy", ""); err != nil || again != token {
 			t.Fatalf("with the copy as it was listed the token is %q (%v), want the first listing's %q", again, err, token)
 		}
@@ -2216,9 +2115,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			// A file held open in one copy: Windows refuses the remover that follows no link.
 			busy, err := os.Open(filepath.Join(landed, "source", "tracked.txt"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer busy.Close()
 			lines := failed(func(path string) error {
 				if path == landed {
@@ -2544,9 +2441,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	)
 	storePath := s.folder("data/overgodb-store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The pilot's run: one checkpoint with its model, and prototypes the owner registered by hand,
 	// first one from a folder of its own and two from files beside the checkpoint's own files. A
 	// served model of no run holds the shard the checkpoint's model holds, at a path of its own.
@@ -2605,17 +2500,13 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	const alternateRoot = "data/models/adopted-root"
 	s.folder(alternateRoot)
 	s.commit(store, artifact.Batch{Key: "withdrawal-fixture/alternate-root", Locations: []artifact.LocationEvent{s.location(adopted.model, artifact.LocationDirectory, alternateRoot)}})
-	if err := os.Remove(s.at(alternateRoot)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(s.at(alternateRoot)))
 	for _, shard := range []struct {
 		id   artifact.ID
 		name string
 	}{{adopted.own, "model-00001-of-00002.gguf"}, {adopted.shared, "model-00002-of-00002.gguf"}} {
 		data, err := os.ReadFile(s.at(adopted.slash + "/" + shard.name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		copy := "data/models/adopted-components/" + shard.name
 		s.write(copy, string(data))
 		s.commit(store, artifact.Batch{Key: "withdrawal-fixture/alternative/" + shard.name, Locations: []artifact.LocationEvent{s.location(shard.id, artifact.LocationFile, copy)}})
@@ -2632,9 +2523,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	s.recordCheckpoint(store, siblingRun+"/groups-001", "the shard of a sibling run with no record", 6)
 	// A run whose checkpoint document cannot be read as one.
 	s.write(tornRun+"/groups-001/"+trainingprogram.CheckpointFilename, "{}")
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	h := hygiene{
 		checkout: repo, running: repo, data: s.at("data"), store: storePath, temporary: s.at("temporary"),
@@ -2652,9 +2541,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	read := func(t *testing.T, check func(store *overgodb.Store)) {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(storePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		check(store)
 	}
@@ -2664,9 +2551,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		inside := make([]string, len(values))
 		for index, value := range values {
 			relative, err := filepath.Rel(s.root, value)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			inside[index] = filepath.ToSlash(relative)
 		}
 		slices.Sort(inside)
@@ -2677,9 +2562,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	registered := func(t *testing.T) (paths []string, head artifact.CommitID) {
 		t.Helper()
 		values, err := storeLocations(storePath, 1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		read(t, func(store *overgodb.Store) { head, _ = store.Head() })
 		return slashes(t, values), head
 	}
@@ -2688,9 +2571,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		t.Helper()
 		read(t, func(store *overgodb.Store) {
 			locations, err := store.Locations(ctx, id)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, location := range locations {
 				paths = append(paths, location.Value)
 			}
@@ -2734,9 +2615,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		// A listing asks the store for no write access: it lists while a writer holds the store's
 		// write lock, the file beside the store that one writer takes at a time.
 		writing, err := processlock.Acquire(storePath+".lock", 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		again, repeated, err := withdraw(pilotRun, "")
 		if closeErr := writing.Close(); err != nil || closeErr != nil || repeated != shown || !slices.Equal(s.verbs(again), want) {
 			t.Fatalf("a second listing, made while a writer held the store, gave the token %q (%v, close: %v), want the first one's %q: nothing changed between them", repeated, err, closeErr, shown)
@@ -2780,9 +2659,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 			t.Errorf("with the committed records unreadable the command answered %v and printed %q, want it refused with git's own failure and no line", err, printed.String())
 		}
 		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lines, _, err := withdraw(pilotRun, token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
@@ -2790,13 +2667,9 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		if now, head := registered(t); !slices.Equal(now, first) || head != firstHead {
 			t.Fatalf("the listings and the refusals changed the store: it registers\n%s\nat the head %s, want what it registered before them at %s:\n%s", strings.Join(now, "\n"), head, firstHead, strings.Join(first, "\n"))
 		}
-		if err := os.Mkdir(receipt, 0o700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Mkdir(receipt, 0o700))
 		_, _, receiptErr := withdraw(pilotRun, token)
-		if err := os.Remove(receipt); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(receipt))
 		if now, head := registered(t); receiptErr == nil || head != firstHead || !slices.Equal(now, first) {
 			t.Fatalf("unavailable receipt changed registrations: error=%v head=%s want %s", receiptErr, head, firstHead)
 		}
@@ -2902,9 +2775,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		unmoved(t)
 		// The prototypes still hold the run's directory against the deleting command.
 		listed, _, err := removalRun(h, "experiment", "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		s.ruled(listed, pilotRun, "kept", "the store registers")
 		// The token is of a listing the run no longer gives; the next one has nothing to withdraw,
 		// and its token withdraws nothing.
@@ -2929,23 +2800,17 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 
 	t.Run("a run with no prototype reads finished once its registrations are withdrawn, and is then deleted", func(t *testing.T) {
 		listed, _, err := removalRun(h, "experiment", "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		s.ruled(listed, cleanRun, "kept", "the store registers")
 		_, shown, err := withdraw(cleanRun, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lines, _, err := withdraw(cleanRun, shown)
 		if want := said(map[string][]string{"withdrawn": slices.Concat(clean[0].files(), clean[1].files(), split)}); err != nil || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the withdrawal of a run of two arms, and of a checkpoint whose weights are a manifest, said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
 		unmoved(t)
 		listed, shown, err = removalRun(h, "experiment", "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		s.ruled(listed, cleanRun, "would-remove", "experiment a committed record names")
 		s.ruled(listed, pilotRun, "kept", "the store registers")
 		s.ruled(listed, strandRun, "kept", "the store registers")
@@ -2959,9 +2824,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 			t.Errorf("the deleting command answered a token that is not its listing's with %v, want it refused as not the token of what the place holds", err)
 		}
 		listed, _, err = removalRun(h, "experiment", shown)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		s.ruled(listed, cleanRun, "removed", "experiment a committed record names")
 		if _, err := os.Stat(s.at(cleanRun)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("the run whose registrations were withdrawn is still there after its removal (%v)", err)
@@ -2996,9 +2859,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	t.Run("an active model keeps a usable alternative root", func(t *testing.T) {
 		s.folder(alternateRoot)
 		_, token, err := withdraw(adoptedRun, "")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, _, err := withdraw(adoptedRun, token); err != nil {
 			t.Fatal(err)
 		}

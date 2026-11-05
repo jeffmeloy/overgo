@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 )
 
 // TestCanonicalDocumentPublicationOwners proves this package's typed
@@ -16,16 +17,10 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 		t.Fatal("llama architecture profile unavailable")
 	}
 	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := document.ValidateIdentity(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, document.ValidateIdentity())
 	content, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseProfileDocument(content)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip = (%+v, %v)", parsed.ID, err)

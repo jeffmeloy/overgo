@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 func BenchmarkRecognizerWaveform(b *testing.B) {
@@ -25,9 +26,7 @@ func BenchmarkRecognizerWaveform(b *testing.B) {
 		Declaration: declaration, Frontend: frontend,
 		Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 400},
 	}, 1<<24)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	request := TranscriptionRequest{Audio: transcriptionWAV(testWave(frontend.SampleRate)), MaximumSamples: uint64(frontend.SampleRate), MemoryBytes: 1 << 24}
 	want, err := model.Transcribe(b.Context(), request)
 	if err != nil || want == "" {
@@ -89,24 +88,16 @@ func TestTranscriptStageEncodesItsOutput(t *testing.T) {
 	t.Parallel()
 	for _, text := range []string{"a transcript", ""} {
 		content, err := transcriptContent(text)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := content.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, content.Validate())
 		if content.Descriptor.ID.Kind() != artifact.KindFile {
 			t.Fatalf("transcript identity kind = %q", content.Descriptor.ID.Kind())
 		}
 	}
 	first, err := transcriptContent("one")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := transcriptContent("another")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Descriptor.ID == second.Descriptor.ID {
 		t.Fatal("two transcripts share one identity")
 	}

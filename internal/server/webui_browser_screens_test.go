@@ -8,6 +8,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -32,13 +33,9 @@ func (g screensGenerator) ModelProperties() inference.ModelProperties {
 func TestWebUIBrowserScreens(t *testing.T) {
 	requireWebUILane(t, "browser screens run through cmd/webui-lane")
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	t.Setenv("OVERGO_SCREENS_TEST_KEY", "screens-key")
 	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
@@ -53,14 +50,10 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	defer httpServer.Close()
 	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, finding := range findings {
 		t.Error(finding)
 	}

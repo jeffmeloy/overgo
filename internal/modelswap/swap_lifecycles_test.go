@@ -13,6 +13,8 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 // A generated lifecycle's shape: its seeds, its steps, the idle timeout, the loads a child may take, and the share of
@@ -268,9 +270,7 @@ func swapRun(t *testing.T, seed uint64) (string, []string) {
 	synctest.Test(t, func(t *testing.T) {
 		world := &swapWorld{}
 		supervisor, err := New(world, swapIdle)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		rng := rand.New(rand.NewPCG(seed, seed))
 		lifecycle = &swapLifecycle{rng: rng, world: world, supervisor: supervisor}
 		closeAt := rng.IntN(swapSteps * swapCloseOdds)

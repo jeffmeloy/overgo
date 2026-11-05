@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"path/filepath"
 	"strings"
@@ -20,9 +21,7 @@ func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "writer-oracle.gguf")
 	destination, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload := make([]byte, 18)
 	for index := range payload {
 		payload[index] = byte(index*23 + 7)
@@ -57,9 +56,7 @@ func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 	if closeErr := destination.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	command := exec.Command(oracle, "--sha256", path)
 	command.Dir = filepath.Dir(oracle)
 	output, err := command.CombinedOutput()
@@ -97,9 +94,7 @@ func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 		uint64(sourceData.Len()),
 		DefaultOptions(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var outputData bytes.Buffer
 	if _, err := source.QuantizeTo(
 		&outputData,
@@ -109,9 +104,7 @@ func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "quantizer-oracle.gguf")
-	if err := os.WriteFile(path, outputData.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, outputData.Bytes(), 0o644))
 	command := exec.Command(oracle, "--sha256", path)
 	command.Dir = filepath.Dir(oracle)
 	output, err := command.CombinedOutput()
@@ -139,17 +132,13 @@ func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
 			Data:  bytes.NewReader([]byte{byte(index + 1), 0, 0, 0}),
 		}
 	}
-	if err := Write(&encoded, nil, tensors, WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, Write(&encoded, nil, tensors, WriteOptions{}))
 	source, err := Parse(
 		bytes.NewReader(encoded.Bytes()),
 		uint64(encoded.Len()),
 		DefaultOptions(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
 	prefix := filepath.Join(directory, "go-split")
 	err = source.WriteSplit(
@@ -158,9 +147,7 @@ func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
 		},
 		SplitOptions{MaxTensors: 1},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first := formatSplitPath(prefix, 0, 3)
 	mergedPath := filepath.Join(directory, "upstream-merged.gguf")
 	command := exec.Command(oracle, "--merge", first, mergedPath)
@@ -170,9 +157,7 @@ func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
 		t.Fatalf("pinned llama-gguf-split rejected Go shards: %v\n%s", err, output)
 	}
 	merged, err := Open(mergedPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer merged.Close()
 	if len(merged.Tensors) != len(tensors) {
 		t.Fatalf("upstream merged %d tensors, want %d", len(merged.Tensors), len(tensors))

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -22,9 +23,7 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the what got better leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	rows := testScorecard(t)
 	serve := func(read ScorecardHistoryReader) *httptest.Server {
@@ -74,18 +73,14 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	}
 
 	// Before two are published, it says when they will show.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+first.URL+"/#library`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+first.URL+"/#library`", nil))
 	settle(`location.origin === ` + "`" + first.URL + "`")
 	openScorecard()
 	settle(`!!document.querySelector('#panel-library .view-host .scorecard-history .note')`)
 	check(`document.querySelector('#panel-library .view-host .scorecard-history .note').textContent.includes('once two are published') && !document.querySelector('#panel-library .view-host .scorecard-moves')`)
 
 	// A published record that cannot be read costs the history its answer; the scorecard below it still shows.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+unreadable.URL+"/#library`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+unreadable.URL+"/#library`", nil))
 	settle(`location.origin === ` + "`" + unreadable.URL + "`")
 	openScorecard()
 	settle(`!!document.querySelector('#panel-library .view-host .scorecard-history .note')`)

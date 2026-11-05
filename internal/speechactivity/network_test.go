@@ -12,6 +12,7 @@ import (
 	"overgo/internal/audiodsp"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 func BenchmarkActivityWaveform(b *testing.B) {
@@ -23,9 +24,7 @@ func BenchmarkActivityWaveform(b *testing.B) {
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
 	frontend, err := audiodsp.NewFrontend(config, 1<<24)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	detector := OfflineDetector{network: testNetwork(), frontend: frontend, config: config,
 		policy: OfflineConfig{Smoothing: 1, Threshold: .5, MaxSpeech: config.SampleRate / int(config.Geometry.HopSamples)}, memoryBytes: 1 << 24}
 	samples := make([]float32, config.SampleRate)
@@ -33,9 +32,7 @@ func BenchmarkActivityWaveform(b *testing.B) {
 		samples[i] = float32(i%config.FFTLength)/float32(config.FFTLength) - .5
 	}
 	encoded, err := media.EncodeWAVPCM16(samples, config.SampleRate)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	request := DetectionRequest{Audio: encoded, MaximumSamples: uint64(len(samples)), MemoryBytes: 1 << 24}
 	want, err := detector.Detect(b.Context(), request)
 	if err != nil || len(want) == 0 {
@@ -77,28 +74,18 @@ func TestNetworkChunkAndRestart(t *testing.T) {
 	features := []float32{.25, .5, .125, .75, 1, .375, .5, .25}
 	var whole Workspace
 	want, wantState, err := n.Evaluate(t.Context(), features, len(features), nil, &whole, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for split := 1; split < len(features); split++ {
 		var first, restarted Workspace
 		left, state, err := n.Evaluate(t.Context(), features[:split], split, nil, &first, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		encoded, err := json.Marshal(state)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var restored [][]float32
-		if err := json.Unmarshal(encoded, &restored); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 		before := cloneState(restored)
 		right, final, err := n.Evaluate(t.Context(), features[split:], len(features)-split, restored, &restarted, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got := append(slices.Clone(left), right...)
 		if !slices.Equal(got, want) || !reflect.DeepEqual(final, wantState) || !reflect.DeepEqual(restored, before) {
 			t.Fatalf("split %d changed probabilities, state, or caller-owned restart", split)
@@ -109,9 +96,7 @@ func TestNetworkChunkAndRestart(t *testing.T) {
 	var got []float32
 	for _, value := range features {
 		output, next, err := n.Evaluate(t.Context(), []float32{value}, 1, state, &streaming, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, state = append(got, output...), next
 	}
 	if !slices.Equal(got, want) || !reflect.DeepEqual(state, wantState) {
@@ -122,9 +107,7 @@ func TestNetworkChunkAndRestart(t *testing.T) {
 	}
 	allocations := testing.AllocsPerRun(100, func() {
 		_, next, err := n.Evaluate(t.Context(), features[:1], 1, state, &streaming, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		state = next
 	})
 	// Shared linear dispatch currently allocates closures. Measure its exact
@@ -193,9 +176,7 @@ func TestNetworkCancellationAndStateOwnership(t *testing.T) {
 	n := testNetwork()
 	var w Workspace
 	_, state, err := n.Evaluate(t.Context(), []float32{1}, 1, nil, &w, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := n.Evaluate(t.Context(), state[0], 1, nil, &w, nil); err == nil {
 		t.Fatal("accepted input aliasing returned state")
 	}

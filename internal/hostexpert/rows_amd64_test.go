@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestIQ3SRowsInWideLanes holds the IQ3_S kernels in 512-bit lanes to the formula, for one token and four, on a
@@ -29,9 +30,7 @@ func TestIQ3SRowsInWideLanes(t *testing.T) {
 		values[index] = float32(draws.NormFloat64()) * 0.02
 	}
 	weights, err := quant.Quantize(dtype.IQ3S, values)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var activations [tokensPerKernel][]byte
 	var pointers [tokensPerKernel]*byte
 	for token := range activations {
@@ -40,15 +39,11 @@ func TestIQ3SRowsInWideLanes(t *testing.T) {
 			input[index] = float32(draws.NormFloat64())
 		}
 		activations[token] = make([]byte, depth/superBlockValues*q8KBlockBytes)
-		if err := quantizeQ8K(input, activations[token]); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, quantizeQ8K(input, activations[token]))
 		pointers[token] = &activations[token][0]
 	}
 	decoded, err := quant.Dequantize(dtype.IQ3S, weights, uint64(len(values)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rowBytes, blocks := len(weights)/rows, depth/superBlockValues
 	for row := range rows {
 		weight := weights[row*rowBytes : (row+1)*rowBytes]

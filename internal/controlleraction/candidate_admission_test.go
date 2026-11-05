@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestCrossDomainCandidateAdmissionUsesOneOwner(t *testing.T) {
 	defer fixture.store.Close()
 
 	first, err := CompileTransaction(t.Context(), fixture.store, fixture.action)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := CompileTransaction(t.Context(), fixture.store, fixture.action)
 	if err != nil || len(first.Contents) != 1 || len(second.Contents) != 1 || len(first.Aliases) != 0 {
 		t.Fatalf("candidate admission batches = (%+v, %+v, %v)", first, second, err)
@@ -50,9 +49,7 @@ func TestCrossDomainCandidateAdmissionUsesOneOwner(t *testing.T) {
 	}
 	admissionContent := contentWithMediaType(t, first.Contents, runrecord.CandidateAdmissionMediaType)
 	var admitted runrecord.CandidateAdmission
-	if err := json.Unmarshal(admissionContent.Data, &admitted); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(admissionContent.Data, &admitted))
 	if admitted.Candidate != candidateContent.Descriptor.ID || admitted.Authority != fixture.binding.ID {
 		t.Fatalf("admission = %+v", admitted)
 	}
@@ -125,9 +122,7 @@ func TestCrossDomainCandidateAdmissionUsesOneOwner(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			content, err := budget.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 				Key: "fixture/candidate-admission/budget/" + budget.ID.String(), Contents: []artifact.Content{content},
 				Lineage: budget.Lineage(),
@@ -210,9 +205,7 @@ func newCandidateAdmissionFixture(t *testing.T) candidateAdmissionFixture {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -378,9 +371,7 @@ func candidateObservedDecision(
 		recipe.Decider{CodeCommit: codeCommit, Derivation: binding.Evaluator.Identity},
 		[]artifact.ID{source.Descriptor.ID},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return candidateDecisionFixture{decision: decision, source: source}
 }
 
@@ -394,16 +385,12 @@ func candidateTypedDocument(
 		Label string `json:"label"`
 	}{Label: label}
 	id, err := artifact.JSONID(kind, body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := (artifact.DocumentContract{
 		Kind: kind, MediaType: "application/vnd.overgo.test-" + family + "+json",
 		Schema: "overgo/test-" + family + "/v1",
 	}).ContentJSON(id, body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 
@@ -426,9 +413,7 @@ func mustCandidateDocumentContent(t *testing.T, value candidateContentDocument) 
 func candidateBudget(t *testing.T, split artifact.ID, unit string, issued uint64, authority artifact.ID) runrecord.Budget {
 	t.Helper()
 	value, err := runrecord.NewBudget(unit, split, issued, authority)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }
 

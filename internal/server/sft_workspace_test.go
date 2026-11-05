@@ -20,6 +20,7 @@ import (
 	"overgo/internal/peft"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingworkflow"
 )
@@ -63,9 +64,7 @@ func newSFTFixture(t *testing.T) sftFixture {
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
@@ -76,14 +75,10 @@ func newSFTFixture(t *testing.T) sftFixture {
 	// and the token that ends a sequence, which separates the windows' records.
 	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"max_position_embeddings":16,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
 	for name, document := range map[string]string{"config.json": config, "generation_config.json": `{"eos_token_id":0}`} {
-		if err := os.WriteFile(filepath.Join(served, name), []byte(document), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(served, name), []byte(document), 0o600))
 	}
 	directory := filepath.Join(root, "conversations")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	for index := range 12 {
 		user, assistant := strings.Repeat("ab", 4), strings.Repeat("cd", 4)
 		if index >= 6 {
@@ -92,21 +87,13 @@ func newSFTFixture(t *testing.T) sftFixture {
 		data, err := json.Marshal(dataset.Conversation{Messages: []dataset.ChatMessage{
 			{Role: "user", Content: user[:1+index%6]}, {Role: "assistant", Content: assistant[:1+index%6]},
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("%02d.json", index+1)), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, fmt.Sprintf("%02d.json", index+1)), data, 0o600))
 	}
 	registered, err := dataset.RegisterDirectoryDatasetAs(ctx, store, "chats", directory, dataset.ModalityStructured)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	workspace, err := NewSFTWorkspace(store, roots, SFTTrainer{Model: model, File: served, Render: sftLetters})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return sftFixture{store: store, roots: roots, workspace: workspace, model: model, conversations: registered.Dataset}
 }
 
@@ -223,9 +210,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	learned := func(input json.RawMessage) (trained, masked int) {
 		t.Helper()
 		page, err := workspace.PreviewWorkflow(ctx, WorkflowTraining, capability.Task, capability.Recipe, input, 0, 1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, token := range page.(trainingworkflow.Preview).Page[0].Sequences[0].Tokens {
 			if token.Trained {
 				trained++
@@ -438,9 +423,7 @@ func TestTrainingOpensOnADerivedRecipe(t *testing.T) {
 		t.Fatalf("a model with no training recipe: %v", err)
 	}
 	capabilities, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowTraining)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(capabilities) == 0 {
 		t.Fatal("a model with no training recipe offers no training")
 	}

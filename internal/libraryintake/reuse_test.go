@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,14 +33,10 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 				root = testutil.HermeticLlamaGGUF(t, 16)
 			}
 			inspection, err := modelintake.InspectImport(t.Context(), root, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			storeRoot := t.TempDir()
 			store, err := overgodb.Create(storeRoot)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() {
 				if store != nil {
 					store.Close()
@@ -50,13 +47,9 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 			}
 			if family == "krea" {
 				data, err := os.ReadFile(filepath.Join(root, "tokenizer", "tokenizer_config.json"))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				prior := artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: artifact.JSONMediaType}, Data: data}
 				if _, err := store.Commit(t.Context(), artifact.Batch{Key: "legacy-krea-config", Contents: []artifact.Content{prior}}); err != nil {
 					t.Fatal(err)
@@ -71,13 +64,9 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 			if after, next := store.Head(); after != before || next != sequence {
 				t.Fatal("cancelled import published")
 			}
-			if err := modelintake.RegisterImport(t.Context(), store, inspection); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, modelintake.RegisterImport(t.Context(), store, inspection))
 			receipt, err := Register(t.Context(), store, root, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if receipt["model"] != inspection.Inventory.Manifest.ID {
 				t.Fatalf("Library and inspection disagree: %v != %s", receipt["model"], inspection.Inventory.Manifest.ID)
 			}
@@ -91,9 +80,7 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 			}
 			if family != "gguf" {
 				profile, err := latentimage.ResolveProfile(root)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if (profile.Rotary != nil) != (family == "moss") {
 					t.Fatal("image architectures conflated")
 				}
@@ -102,22 +89,16 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 					t.Fatal("shared preparation disagrees", err)
 				}
 				program, err := modelrecipe.CompileCapability(definition)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if _, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program); err != nil {
 					t.Fatal("candidate cannot bind execution", err)
 				}
 			}
 			before, sequence = store.Head()
-			if err := store.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, store.Close())
 			store = nil
 			store, err = overgodb.Create(storeRoot)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			repeated, err := Register(t.Context(), store, root, "")
 			if err != nil || repeated["model"] != receipt["model"] || repeated["recipe"] != id {
 				t.Fatal("restart changed identity", repeated, err)
@@ -128,20 +109,14 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 			relocated := filepath.Join(t.TempDir(), "source")
 			if family == "gguf" {
 				data, err := os.ReadFile(root)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				relocated += ".gguf"
-				if err := os.WriteFile(relocated, data, 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(relocated, data, 0600))
 			} else if err := os.CopyFS(relocated, os.DirFS(root)); err != nil {
 				t.Fatal(err)
 			}
 			moved, err := modelintake.InspectImport(t.Context(), relocated, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !bytes.Equal(moved.Content.Data, inspection.Content.Data) {
 				t.Fatal("relocation changed canonical description")
 			}
@@ -161,21 +136,15 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 				weight = filepath.Join(root, "vae", "diffusion_pytorch_model.safetensors")
 			}
 			original, err := os.ReadFile(weight)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(weight, []byte("corrupt"), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, os.WriteFile(weight, []byte("corrupt"), 0600))
 			if _, err := Register(t.Context(), store, root, ""); err == nil {
 				t.Fatal("corrupt source registered")
 			}
 			if after, next := store.Head(); after != before || next != sequence {
 				t.Fatal("corruption changed prior candidate")
 			}
-			if err := os.WriteFile(weight, original, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(weight, original, 0600))
 			if _, err := Register(t.Context(), store, root, ""); err != nil {
 				t.Fatal("restored source cannot resume", err)
 			}

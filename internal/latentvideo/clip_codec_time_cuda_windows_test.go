@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 )
 
 // clipCodecCeiling is the time the autoencoder may take to encode a clip of 21
@@ -35,25 +36,17 @@ func TestClipCodecKeepsToItsOwnCodesTime(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
 	profile, err := ResolveProfile(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoderGraph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoderPlan, err := CompileVAEDecoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const frames, height, width = 21, 480, 832
 	plan, err := CompileSourceCodecBoundary(SourceCodecProfile{
 		InputChannels: encoderGraph.InputChannels, LatentChannels: encoderGraph.LatentChannels,
 		Stride: encoderGraph.Stride, LatentStats: profile.LatentStats,
 	}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plane := height * width
 	source := make([]float32, media.RGBChannels*frames*plane)
 	for channel := range media.RGBChannels {
@@ -65,27 +58,19 @@ func TestClipCodecKeepsToItsOwnCodesTime(t *testing.T) {
 		}
 	}
 	encoder, err := newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer encoder.Close()
 	started := time.Now()
 	latent, _, err := encoder.Encode(t.Context(), plan, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded := time.Since(started)
 	decoder, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer decoder.Close()
 	started = time.Now()
 	stats, err := decoder.DecodeContext(t.Context(), profile.LatentStats, latent, plan.Latent.Frames, plan.Latent.Height, plan.Latent.Width,
 		func(int, []float32, int, int) error { return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoded := time.Since(started)
 	if stats.OutputFrames != frames {
 		t.Fatalf("decoded %d frames of %d", stats.OutputFrames, frames)

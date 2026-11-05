@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 const mossReferenceCommit = "797fa8e678b4f0a766271bf5103e6cd7a2faa999"
@@ -23,9 +24,7 @@ const mossReferenceSource = "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2
 func mossFixtureBytes(t *testing.T, name, digest string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "moss", name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual := sha256.Sum256(data)
 	if hex.EncodeToString(actual[:]) != digest {
 		t.Fatalf("fixture %s changed identity", name)
@@ -46,9 +45,7 @@ func mossGolden(t *testing.T, name string) *safetensors.Source {
 	}
 	mossFixtureBytes(t, name+".safetensors", digest)
 	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", name+".safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := source.Close(); err != nil {
 			t.Error(err)
@@ -77,9 +74,7 @@ func mossF32(t *testing.T, source *safetensors.Source, name string) []float32 {
 		t.Fatalf("missing F32 golden %s", name)
 	}
 	data, err := io.ReadAll(tensor.Reader())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	values := make([]float32, len(data)/4)
 	for index := range values {
 		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[index*4:]))
@@ -100,9 +95,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 		} `json:"files"`
 	}
 	data := mossFixtureBytes(t, "checkpoint.json", "0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db")
-	if err := json.Unmarshal(data, &receipt); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &receipt))
 	if receipt.Source != "https://www.modelscope.cn/openmoss/MOSS-Image-SFT.git" || receipt.Revision != mossReferenceCommit || len(receipt.Files) != 37 {
 		t.Fatal("incomplete checkpoint inventory")
 	}
@@ -162,9 +155,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 				t.Fatal("tokenizer provenance differs")
 			}
 			var tokenizerFiles map[string]string
-			if err := json.Unmarshal([]byte(meta["tokenizer_files"]), &tokenizerFiles); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(meta["tokenizer_files"]), &tokenizerFiles))
 			if len(tokenizerFiles) != 3 {
 				t.Fatal("missing tokenizer dependencies")
 			}
@@ -174,9 +165,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 				}
 			}
 			var prompts map[string]string
-			if err := json.Unmarshal([]byte(meta["prompts"]), &prompts); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(meta["prompts"]), &prompts))
 			var layout struct {
 				Summary struct {
 					Caption string `json:"caption"`
@@ -185,9 +174,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 				Format string            `json:"bbox_format"`
 				Space  string            `json:"bbox_coord_space"`
 			}
-			if err := json.Unmarshal([]byte(prompts["layout"]), &layout); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(prompts["layout"]), &layout))
 			if layout.Summary.Caption == "" || len(layout.Items) != 2 || layout.Format != "yxyx" || layout.Space != "abs_centralized" {
 				t.Fatal("layout fixture must use documented format")
 			}
@@ -202,9 +189,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 					t.Fatalf("invalid token fixture %s.%s", name, suffix)
 				}
 				raw, err := io.ReadAll(tensor.Reader())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				for i := 0; i < len(raw); i += 8 {
 					value := int64(binary.LittleEndian.Uint64(raw[i:]))
 					if value < 0 || suffix == "attention_mask" && value != 1 {

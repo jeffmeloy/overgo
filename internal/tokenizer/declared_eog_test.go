@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func TestDeclaredEOGTokens(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if got, want := vocab.EOGTokens(), []TokenID{2, 3, 5, 6}; !slices.Equal(got, want) {
 				t.Fatalf("EOG=%v, want %v", got, want)
 			}
@@ -47,17 +46,11 @@ func TestDeclaredEOGTokens(t *testing.T) {
 				t.Fatal("undeclared or invalid stop classified as terminal")
 			}
 			original, err := Load(&gguf.File{Metadata: base})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			before, err := original.Encode("ab", EncodeOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			after, err := vocab.Encode("ab", EncodeOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(before, []TokenID{0, 1}) || !slices.Equal(before, after) {
 				t.Fatalf("encoding changed: before=%v after=%v", before, after)
 			}
@@ -66,9 +59,7 @@ func TestDeclaredEOGTokens(t *testing.T) {
 			}
 			identity := testutil.ArtifactID(t, artifact.KindTokenizer, "declared EOS fixture")
 			afterArtifact, err := vocab.Artifact(identity)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Contains(afterArtifact.Tokens[3].Roles, VocabularyRoleEOS) {
 				t.Fatal("declared EOS role was lost in semantic vocabulary")
 			}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -41,9 +42,7 @@ func TestOutcomesClassifyFromTypedEvents(t *testing.T) {
 		false: {{name("Inapplicable"), name("Frozen")}, {name("Short"), name("Unowned")}},
 	} {
 		report, err := readGoTestJSON(bytes.NewReader(stream.Bytes()), short, false, 0, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(report.ClassifiedSkipped, want[0]) || !slices.Equal(report.Skipped, want[1]) {
 			t.Fatalf("short=%t classified %v unowned %v, want %v", short, report.ClassifiedSkipped, report.Skipped, want)
 		}

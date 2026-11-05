@@ -2,6 +2,7 @@ package speechsynth
 
 import (
 	"os"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 	"path/filepath"
@@ -41,9 +42,7 @@ func fixtureUnigram(t *testing.T, g8 *g8Golden) *Unigram {
 		pieces[i] = Piece{Piece: unquoteEscaped(t, p.Piece), Score: p.Score}
 	}
 	tok, err := tokenizer.NewUnigram(pieces, g8.UnkID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return tok
 }
 
@@ -94,9 +93,7 @@ func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 		t.Skipf("UNAVAILABLE: tokenizer.model absent at %s; parity NOT verified", path)
 	}
 	pieces, unkID, err := tokenizer.ReadSentencePieceModel(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	g8 := loadFixture[g8Golden](t, "g8_tokenizer.json")
 	if len(pieces) != len(g8.Pieces) || unkID != g8.UnkID {
 		t.Fatalf("model file pieces=%d unk=%d, fixture pieces=%d unk=%d", len(pieces), unkID, len(g8.Pieces), g8.UnkID)
@@ -111,17 +108,13 @@ func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 		}
 	}
 	tok, err := tokenizer.NewUnigram(pieces, unkID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	g1 := loadFixture[struct {
 		Text string `json:"text"`
 		IDs  []int  `json:"ids"`
 	}](t, "g1_tokenizer.json")
 	got, err := tok.Encode(g1.Text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(got) != len(g1.IDs) {
 		t.Fatalf("g1 via model file: got %v want %v", got, g1.IDs)
 	}

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -49,20 +50,12 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	t.Run("frozen-baseline", TestImageVideoOptimizationBaselineAcceptance)
 	var baseline mediaLoaderBaseline
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_baseline.json"), &baseline); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_baseline.json"), &baseline))
 	candidateData, err := os.ReadFile(filepath.Join(root, "docs/image_video_shared_components.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(candidateData, imageVideoSharedComponentsSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(candidateData, imageVideoSharedComponentsSHA256))
 	var candidate mediaSharedComponents
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_shared_components.json"), &candidate); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_shared_components.json"), &candidate))
 	if candidate.Version != artifact.InitialDocumentVersion || candidate.Baseline != imageVideoBaselineSHA256 || !gitauthority.ValidObjectID(candidate.Source) || candidate.Model != baseline.Model || candidate.Recipe != baseline.Recipe || candidate.Harness != baseline.Harness || candidate.Acceptance != baseline.Acceptance || candidate.Decision != "adopt" || candidate.Changes == "" || candidate.Limitations == "" || len(candidate.Prior) == 0 {
 		t.Fatal("candidate changed frozen inputs or omitted its decision")
 	}
@@ -70,13 +63,9 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 		t.Fatal("candidate coverage differs")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -92,12 +81,8 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	requirePass := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty candidate acquisition")
 		}
@@ -128,15 +113,9 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 		}
 		requirePass(a.Evidence)
 		var before, after []mediaLoaderObservation
-		if err := json.Unmarshal(read(b.Observations), &before); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(read(a.Observations), &after); err != nil {
-			t.Fatal(err)
-		}
-		if err := compareMediaLoaderObservations(b.Consumer, before, after); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(b.Observations), &before))
+		testcheck.NoError(t, json.Unmarshal(read(a.Observations), &after))
+		testcheck.NoError(t, compareMediaLoaderObservations(b.Consumer, before, after))
 		for _, mutate := range []func([]mediaLoaderObservation){
 			func(rows []mediaLoaderObservation) { rows[0].Values = "changed" },
 			func(rows []mediaLoaderObservation) { rows[0].Allocated = before[0].Allocated },

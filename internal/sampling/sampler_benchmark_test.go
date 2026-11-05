@@ -1,6 +1,10 @@
 package sampling
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 const benchmarkVocabularySize = 4096
 
@@ -18,9 +22,7 @@ func BenchmarkSamplerPipeline(b *testing.B) {
 		RepeatLastN: -1, RepeatPenalty: 1.1,
 		DryMultiplier: 1, DryBase: 2, DryAllowedLength: 2, DryPenaltyLastN: -1,
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	if _, err := sampler.SampleWithHistory(logits, history); err != nil {
 		b.Fatal(err)
 	}

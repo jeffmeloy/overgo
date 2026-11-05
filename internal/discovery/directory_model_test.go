@@ -10,6 +10,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 	t.Parallel()
 	directory := testutil.Qwen35Directory(t)
 	file, err := gguf.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, _, err := modelartifact.FromGGUFClaimed(file, artifact.KindModel, nil)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -38,9 +37,7 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 		t.Fatalf("the directory's claim = %s, %d, %t; want the identity it was found as", id, size, claimed)
 	}
 	later := time.Now().Add(time.Hour)
-	if err := os.Chtimes(filepath.Join(directory, "config.json"), later, later); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(filepath.Join(directory, "config.json"), later, later))
 	if _, _, claimed := memo.Claim(directory); claimed {
 		t.Error("the claim outlived a change to a file the directory holds")
 	}
@@ -49,9 +46,7 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 	}
 	// A command that names the directory selects the model it serves, as one naming a file selects that file's.
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch := artifact.Batch{Key: "fixture/directory-model", Manifests: []artifact.Manifest{inventory.Manifest}, Artifacts: inventory.Components, Locations: make([]artifact.LocationEvent, 0, len(inventory.Locations))}
 	for _, location := range inventory.Locations {

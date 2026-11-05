@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func TestSpeechTurnScore(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			score, err := ScoreSpeechTurns(t.Context(), recipecontract.SpeechTurns{Source: source, Turns: test.reference}, recipecontract.SpeechTurns{Source: source, Turns: test.predicted}, recipecontract.SampleSpan{End: 30}, 1<<20)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if score.ScoredSamples != 30 || score.ReferenceSpeakerSamples != test.denominator || score.MissedSpeakerSamples != test.miss || score.FalseAlarmSpeakerSamples != test.falseAlarm || score.ConfusedSpeakerSamples != test.confusion || score.ReferenceOverlapSamples != test.overlap || score.DiarizationErrorRate != float64(test.miss+test.falseAlarm+test.confusion)/float64(test.denominator) {
 				t.Fatalf("score=%+v", score)
 			}
@@ -93,9 +92,7 @@ func TestSpeakerAssignment(t *testing.T) {
 			weights[i] = uint64(bits >> i & 1)
 		}
 		assignment, err := speakerAssignment(t.Context(), weights, 3)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var best uint64
 		for _, p := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
 			best = max(best, weights[p[0]]+weights[3+p[1]]+weights[6+p[2]])

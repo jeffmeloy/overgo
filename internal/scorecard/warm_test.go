@@ -11,6 +11,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,9 +26,7 @@ func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "warm-model")
 	served := testutil.ArtifactID(t, artifact.KindRecipe, "warm-recipe")
@@ -52,13 +51,9 @@ func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 			value.Phases = append(value.Phases, runrecord.PhaseMetric{Phase: runrecord.PhaseLoad, DurationNS: ns(30000)})
 		}
 		observation, err := runrecord.NewServingObservation(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("warm/" + observation.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -66,9 +61,7 @@ func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 	attempt(false, 1742, 100, 1496)
 	attempt(true, 50, 128, 941)
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	summary := summaries[served]
 	first := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)
 	rate := throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)

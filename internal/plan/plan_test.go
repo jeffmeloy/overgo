@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -97,9 +98,7 @@ func TestLivePlanRejectsRetainedCompletionState(t *testing.T) {
 		{ID: "open", Status: "open", Steps: []Step{{ID: "work", Status: "open", Verify: "go test ./..."}}},
 		{ID: "blocked", Status: "blocked-external-prereq", Steps: []Step{{ID: "wait", Status: "blocked-external-prereq"}}},
 	}}
-	if err := Validate(valid); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, Validate(valid))
 	for name, invalid := range map[string]Plan{
 		"done item": {Items: []Item{{
 			ID: "done", Status: StatusDone,
@@ -159,9 +158,7 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 		},
 	}}}
 	advanced, err := Advance(document, "item", "first")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
 		t.Fatalf("first advance retained the completed step: %+v", advanced.Items[0])
 	}
@@ -169,9 +166,7 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 		t.Fatalf("current after first advance = %s, open=%v", step.ID, ok)
 	}
 	advanced, err = Advance(advanced, "item", "second")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(advanced.Items) != 0 {
 		t.Fatalf("final advance retained the completed item: %+v", advanced.Items)
 	}

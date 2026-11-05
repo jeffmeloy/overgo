@@ -1,6 +1,10 @@
 package routedlm
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // Mirrors the adaptive sensenova_edit_test.go case shapes: a 3x2 image block
 // (token width 3) embedded in text — the block shares one time index,
@@ -11,9 +15,7 @@ func TestBlockPositionsAndCausalWindowsImageBlock(t *testing.T) {
 	mask := []int{0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0}
 	tokenWidth := 3
 	positions, err := BlockPositions(mask, tokenWidth)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sourceRows := []int{3, 4, 5, 6, 7, 8}
 	blockTime := positions[sourceRows[0]].Time
 	if blockTime != 3 {
@@ -37,17 +39,13 @@ func TestBlockPositionsAndCausalWindowsImageBlock(t *testing.T) {
 		times[row] = p.Time
 	}
 	ends, err := BlockCausalEnds(times)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// First source row sees through the last source row (adaptive assertion).
 	if ends[sourceRows[0]] != int32(sourceRows[len(sourceRows)-1]) {
 		t.Fatalf("block causal ends = %v", ends)
 	}
 	windows, err := BlockCausalWindows(positions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantEnds := []int32{0, 1, 2, 8, 8, 8, 8, 8, 8, 9, 10}
 	for row, want := range wantEnds {
 		if ends[row] != want {
@@ -62,9 +60,7 @@ func TestBlockPositionsAndCausalWindowsImageBlock(t *testing.T) {
 func TestBlockPositionsTwoBlocksAdvanceTime(t *testing.T) {
 	mask := []int{0, 1, 1, 0, 1, 1}
 	positions, err := BlockPositions(mask, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantTimes := []int{0, 1, 1, 2, 3, 3}
 	for row, want := range wantTimes {
 		if positions[row].Time != want {

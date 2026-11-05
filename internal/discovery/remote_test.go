@@ -7,6 +7,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
+	"overgo/internal/testcheck"
 )
 
 const remoteTestCodeCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -17,17 +18,13 @@ const remoteTestCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 // key; servable with it; retired -> gone from both listings.
 func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	t.Setenv("OVERGO_REMOTE_DISCOVERY_TEST_KEY", "")
 	declaration, err := remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_REMOTE_DISCOVERY_TEST_KEY", Model: "vendor/model",
 	}, remoteTestCodeCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	entries, err := Servable(t.Context(), store, 16)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("servable = %+v, %v", entries, err)
@@ -52,9 +49,7 @@ func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 		t.Fatalf("keyed catalog = %+v, %v", catalog, err)
 	}
 	// Retired: out of both listings; history kept.
-	if err := remoteprovider.Retire(t.Context(), store, 16, declaration.Location, remoteTestCodeCommit, "the provider endpoint closed"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, remoteprovider.Retire(t.Context(), store, 16, declaration.Location, remoteTestCodeCommit, "the provider endpoint closed"))
 	if entries, err := Servable(t.Context(), store, 16); err != nil || len(entries) != 0 {
 		t.Fatalf("retired servable = %+v, %v", entries, err)
 	}

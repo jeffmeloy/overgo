@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -40,16 +41,12 @@ func TestWebUIBrowserPhoneTopBarHoldsALongSupportTier(t *testing.T) {
 			rung("registered", true), rung("execution-verified", true), rung("parity-checked", true), rung("guarded", true), rung("trainable", true),
 		}},
 	}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The health probe as a server with a device answers it, so the memory bar stands in the bar too.
 	memory := testDeviceMemory()
 	health["device"] = map[string]any{"current_bytes": memory.TotalBytes - memory.FreeBytes, "peak_bytes": memory.TotalBytes - memory.FreeBytes, "total_bytes": memory.TotalBytes, "free_bytes": memory.FreeBytes, "owners": memory.Owners}
 	probed, err := json.Marshal(health)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/catalog/models":

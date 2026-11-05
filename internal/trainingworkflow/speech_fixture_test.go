@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"slices"
@@ -83,15 +84,9 @@ func writeTinySpeech(t *testing.T, directory string) string {
 	config := `{"default_temperature":1,"flow_lm":{"transformer":{"max_period":10000,"num_heads":2}},"mimi":{"frame_rate":12.5,"sample_rate":24000,` +
 		`"seanet":{"channels":1,"compress":1,"dimension":4,"kernel_size":3,"last_kernel_size":3,"n_filters":1,"ratios":[2],"residual_kernel_size":3},` +
 		`"transformer":{"context":4,"max_period":10000,"num_heads":2}}}`
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "pockettts_config.json"), []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "pockettts_config.json"), []byte(config), 0o600))
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil))
 	testutil.WriteSentencePiece(t, filepath.Join(directory, "tokenizer.model"),
 		[]string{"<pad>", "</s>", "<unk>", "▁a", "▁b", "▁c"}, 2)
 	return directory

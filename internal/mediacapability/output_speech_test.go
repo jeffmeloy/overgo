@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/speechsynth"
+	"overgo/internal/testcheck"
 )
 
 // TestSpeechOutputIsItsWAV holds what a speech request publishes: one WAV
@@ -23,9 +24,7 @@ func TestSpeechOutputIsItsWAV(t *testing.T) {
 	// Silence, half scale either way, and a sample past each end of the range.
 	audio := speechsynth.Audio{PCM: []float32{0, 0.5, -0.5, 2, -2}, SampleRate: rate, Channels: 1, Complete: true}
 	content, err := OutputContent(audio)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor := content.Descriptor
 	if descriptor.ID.Kind() != artifact.KindOutput || descriptor.MediaType != media.WAVMediaType || descriptor.Schema != "overgo.encoded-audio.wav.v1" {
 		t.Fatalf("speech is published as %s %q under %q", descriptor.ID.Kind(), descriptor.MediaType, descriptor.Schema)
@@ -41,13 +40,9 @@ func TestSpeechOutputIsItsWAV(t *testing.T) {
 		t.Fatalf("the published WAV reads as %d samples at %d Hz in %d channels (%s): %v", len(decoded.Samples), decoded.Format.SampleRate, decoded.Format.Channels, status, err)
 	}
 	var stored speechsynth.Audio
-	if err := stored.DecodeContent(content); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, stored.DecodeContent(content))
 	again, err := OutputContent(stored)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(again.Data, content.Data) || again.Descriptor != content.Descriptor {
 		t.Fatal("a recording read back from its WAV is published as other bytes")
 	}

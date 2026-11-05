@@ -14,6 +14,7 @@ import (
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,21 +27,13 @@ func newRelayGenerator(t *testing.T, pieces []string) (*remoterelay.Generator, r
 	declared, err := remoteprovider.New(remoteprovider.Provider{
 		Name: "fake", Endpoint: provider.URL, KeyEnvironment: "OVERGO_SERVER_RELAY_TEST_KEY", Model: "vendor/model",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := modelrecipe.RemoteInferenceDefinition(testutil.ArtifactID(t, artifact.KindModel, "served-remote"), declared.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generator, err := remoterelay.New(declared, definition, provider.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environment, err := remoteprovider.Environment(declared)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return generator, environment, received
 }
 
@@ -55,15 +48,11 @@ func newRelayHandler(t *testing.T, pieces []string) (*Handler, *overgodb.Store) 
 		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
 	}
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	// The interaction's lineage names the served recipe: declared in the store, as a declaration commits it.
 	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := repository.Commit(t.Context(), artifact.Batch{
 		Key: "test/serving-recipe/" + description.Identity.Recipe.String(), Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
 	}); err != nil {
@@ -73,9 +62,7 @@ func newRelayHandler(t *testing.T, pieces []string) (*Handler, *overgodb.Store) 
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment, Repository: repository,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	return handler, repository
 }
@@ -119,9 +106,7 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 
 	body := `{"model":"` + testModelID + `","max_tokens":4,"messages":[{"role":"system","content":"be brief"},{"role":"user","content":"hi"}]}`

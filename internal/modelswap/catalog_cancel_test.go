@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // Cancel between the read-only refresh and the first memo read.
@@ -26,16 +27,10 @@ func (c *cancelAfterRefresh) Err() error {
 func TestCatalogCanceledMemoLoadRetries(t *testing.T) {
 	root := t.TempDir()
 	writer, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, writer.Close())
 	reader, err := overgodb.OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	resolver := CatalogResolver{Store: reader, Limit: 100}
 	ctx, cancel := context.WithCancelCause(t.Context())

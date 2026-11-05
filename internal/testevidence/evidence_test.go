@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -28,9 +29,7 @@ func TestOther(t *testing.T) {}
 func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Skip("fixture skip") }) }
 func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Skip("fixture skip") }
 `
-	if err := os.WriteFile(fixture, []byte(source), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(fixture, []byte(source), 0600))
 	var passing string
 	for _, tc := range []struct {
 		pattern string
@@ -104,9 +103,7 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 					continue
 				}
 				var event goTestEvent
-				if err := json.Unmarshal([]byte(line), &event); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal([]byte(line), &event))
 				child := strings.HasPrefix(event.Test, "TestProbe/child")
 				if mutation == "package terminal" && event.Test == "" && event.Action == "pass" || mutation == "child terminal" && child && event.Action == "pass" || mutation == "child absent" && child {
 					continue
@@ -128,14 +125,10 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 						extra.Action = "fail"
 					}
 					if mutation == "unrelated skip" || mutation == "package contradicted" {
-						if err := json.NewEncoder(&out).Encode(extra); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, json.NewEncoder(&out).Encode(extra))
 					}
 				}
-				if err := json.NewEncoder(&out).Encode(event); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.NewEncoder(&out).Encode(event))
 			}
 			if err := VerifyGoTestEvidence(command, out.String()); (err == nil) != (mutation == "unrelated skip") {
 				t.Fatalf("mutated evidence = %v", err)
@@ -161,9 +154,7 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	out := "{\"Action\":\"skip\",\"Package\":\"overgo/example\",\"Test\":\"TestFixture\",\"Output\":\"UNAVAILABLE: fixture\\n\"}\n"
 	report, err := GoTestJSONReport(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(report.Skipped) != 1 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -181,9 +172,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 		testskip.Key, testskip.KindShort,
 	)
 	report, err := goTestJSONReport(out, true, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.PassedTests != 1 || report.PassedPackages != 1 || len(report.ClassifiedSkipped) != 1 {
 		t.Fatalf("required evidence counts are wrong: %+v", report)
 	}
@@ -220,9 +209,7 @@ func TestVerifyOutput(t *testing.T) {
 func TestVerifyGoTestEvidenceWithoutRun(t *testing.T) {
 	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
-	if err := VerifyGoTestEvidence("go test ./x -count=1", passing); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyGoTestEvidence("go test ./x -count=1", passing))
 	if err := VerifyGoTestEvidence("go test ./x -count=1", "{\"Action\":\"pass\",\"Package\":\"x\"}\n"); err == nil {
 		t.Fatal("package-only output passed without an executed test")
 	}
@@ -241,9 +228,7 @@ func TestVerifyGoTestEvidenceClassifiesExplicitShortExclusions(t *testing.T) {
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestIntegration\"}\n",
 		testskip.Key, testskip.KindShort,
 	)
-	if err := VerifyGoTestEvidence("go test -race -short ./x", passing+classified); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyGoTestEvidence("go test -race -short ./x", passing+classified))
 	if err := VerifyGoTestEvidence("go test -race ./x", passing+classified); err == nil {
 		t.Fatal("non-short verifier accepted a short exclusion")
 	}
@@ -256,9 +241,7 @@ func TestVerifyGoTestEvidenceMixedCommand(t *testing.T) {
 	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
 	command := "go test ./x && go run ./cmd/device-lane"
-	if err := VerifyGoTestEvidence(command, passing+"device lane green\n"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyGoTestEvidence(command, passing+"device lane green\n"))
 	if err := VerifyGoTestEvidence(command, passing+"{malformed event\n"); err == nil {
 		t.Fatal("mixed verifier accepted malformed JSON event")
 	}
@@ -291,9 +274,7 @@ func TestVerifyGoTestEvidencePairsSelectorsPerInvocation(t *testing.T) {
 		"{\"Action\":\"run\",\"Package\":\"overgo/internal/y\",\"Test\":\"TestTwo\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"overgo/internal/y\",\"Test\":\"TestTwo\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"overgo/internal/y\"}\n"
-	if err := VerifyGoTestEvidence(command, targeted+broad+"lane passed\n"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyGoTestEvidence(command, targeted+broad+"lane passed\n"))
 	for name, out := range map[string]string{
 		"broad invocation skipped":   targeted + strings.ReplaceAll(broad, "\"pass\",\"Package\":\"overgo/internal/y\",\"Test\"", "\"skip\",\"Package\":\"overgo/internal/y\",\"Test\""),
 		"selector matched nothing":   strings.ReplaceAll(targeted, "TestOne", "TestOther") + broad,

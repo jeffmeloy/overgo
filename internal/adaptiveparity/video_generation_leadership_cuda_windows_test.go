@@ -20,6 +20,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,9 +39,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	}
 	repo := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	evidence := filepath.Join(filepath.Dir(roots.Models), ".claude", "worktrees", "image_gen", ".media_artifacts", "video_artifacts")
 	ffmpeg := filepath.Join(filepath.Dir(roots.Models), ".env", "Lib", "site-packages", "imageio_ffmpeg", "binaries", "ffmpeg-win-x86_64-v7.1.exe")
@@ -54,16 +53,12 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	source := readLeadershipF32(t, filepath.Join(probes, "source_pixels.f32le"), 3*81*480*832)
 	wantLatent := readLeadershipF32(t, filepath.Join(probes, "final_latent.f32le"), 16*21*60*104)
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sigmas, err := latentvideo.CompileEditFlowSigmas(latentvideo.EditFlowConfig{
 		InferenceSteps: 1000, TrainTimesteps: profile.Policy.NumTrainTimesteps,
 		Shift: 5, SigmaMin: 0, SigmaMax: 1, ExtraStep: true,
 	}, []int64{1000, 750, 500, 250})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loadStarted := time.Now()
 	runtime, err := latentvideo.NewReferenceEditRuntime(latentvideo.ReferenceEditRuntimeConfig{
 		WanDirectory: wan, EditCheckpoint: filepath.Join(modeltest.Directory(t, "LiveEdit"), "ar-forcing_002000.pt"),
@@ -73,9 +68,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 		Timesteps: []int64{1000, 750, 500, 250}, Sigmas: sigmas,
 		Layers: 30, DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runtime.Close()
 	loadWall := time.Since(loadStarted)
 	var firstVideo latentvideo.EncodedVideo
@@ -84,9 +77,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	var peak uint64
 	for run := range 2 {
 		encoder, err := latentvideo.NewMP4Encoder(t.Context(), ffmpeg, profile.SampleFPS, latentvideo.UnitPixels)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		started := time.Now()
 		result, err := runtime.Run(t.Context(), context, 42, source, nil, encoder.Add)
 		wall := time.Since(started)
@@ -221,12 +212,8 @@ func startLeadershipDecoder(t testing.TB, ffmpeg, input string, data io.Reader) 
 	errors := &boundedLeadershipError{}
 	command.Stderr = errors
 	output, err := command.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, command.Start())
 	return command, output, errors
 }
 

@@ -22,6 +22,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -69,22 +70,14 @@ type videoAutoencoderReference struct {
 func servedReconstruction(t *testing.T, directory string) servedPictures {
 	t.Helper()
 	resolved, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := resolved.Inventory.Manifest.ID
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
 	return servedPictures{store: store, directory: directory, execution: modelrecipetest.CandidateExecution(t, store, program)}
@@ -110,34 +103,24 @@ func TestVideoAutoencoderRoundTripMatchesItsOwnCode(t *testing.T) {
 	read := func(tensor roundTripTensor) (image.Image, []byte) {
 		t.Helper()
 		data, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		picture, err := png.Decode(bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return picture, data
 	}
 	source, sourceBytes := read(reference.Picture)
 	want, _ := read(reference.Image)
 	autoencoder := servedReconstruction(t, directory)
 	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: sourceBytes})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := Catalog[recipe.TaskReconstruction].Execute(t.Context(), autoencoder.store, directory, autoencoder.execution, string(request))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("reconstruction output type=%T", output)
 	}
 	served, err := png.Decode(bytes.NewReader(reconstruction.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if served.Bounds() != source.Bounds() || want.Bounds() != source.Bounds() {
 		t.Fatalf("the frame is %v, the served one %v and the reference's %v", source.Bounds(), served.Bounds(), want.Bounds())
 	}

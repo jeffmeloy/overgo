@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestResolveGenerationSource(t *testing.T) {
 	}
 	for _, test := range tests {
 		profile, err := ResolveGenerationSource(test.task, test.identity)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if profile.Prepare != test.prepare {
 			t.Fatalf("prepare=%q want %q", profile.Prepare, test.prepare)
 		}
@@ -38,9 +37,7 @@ func TestResolveGenerationSource(t *testing.T) {
 			profileID = artifact.ID{}
 		}
 		definition, err := GenerationDefinition(profile.Prepare, modelID, profileID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if definition.Task != test.task || !slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool {
 			return node.Module == test.prepare
 		}) {

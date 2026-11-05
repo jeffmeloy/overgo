@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -51,20 +52,14 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	var retained struct {
@@ -87,9 +82,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	// The conversion's activation is retired since Qwen2.5-0.5B is served from its own files
 	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.
 	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if served, found := activated.PrimaryDependency(recipe.DependencyModel); !found || served != model {
 		t.Fatal("the recipe is not Qwen2.5-0.5B's conversion's")
 	}
@@ -98,9 +91,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 		t.Fatal("original acquisition authority or disposition differs")
 	}
 	data, err := os.ReadFile(filepath.Join(root, "fixtures/qwen25_serving_golden.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(data)) != "b6d7d8c8f35aa9dce6ada81aca2ddafbdeefba5ff25305312c57d1fac9f02a1e" {
 		t.Fatal("native exact fixture differs")
 	}
@@ -109,17 +100,13 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	exact, err := CompileExact(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := BindExact(exact, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: activated.ID, CodeCommit: acquisition.Producer, Environment: acquisition.Environment, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 	if err != nil || plan.Identity() != retained.Plan {
 		t.Fatalf("current exact protocol differs: %v", err)
 	}
 	shards, err := compileExactShards(exact, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reports, err := loadShardReports(t.Context(), store, plan, shards)
 	if err != nil || len(reports) != len(fixture.Cases) || len(reports) != 4 {
 		t.Fatalf("retained case denominator differs: %v", err)
@@ -151,9 +138,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 		t.Fatal("recovery repeated acquisition or replaced report")
 	}
 	nativeBytes, err := os.ReadFile(filepath.Join(root, "docs/verification/smoke-qwen05-reference.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(nativeBytes)) != "8fef088cb5b14b85c5e2f877f0bc432ef8aceca3750b6b10c57f0261c49773a0" {
 		t.Fatal("native likelihood reference differs")
 	}
@@ -168,9 +153,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 		t.Fatal("native sequence denominator differs")
 	}
 	for i, c := range native.Cases {
-		if err := checkRetainedNativeSequence(c, acquisition.Likelihoods[i]); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkRetainedNativeSequence(c, acquisition.Likelihoods[i]))
 		for _, mutation := range []string{"omitted", "token", "position", "order", "nonfinite"} {
 			t.Run(fmt.Sprintf("sequence %d rejects %s", i, mutation), func(t *testing.T) {
 				altered := acquisition.Likelihoods[i]
@@ -244,9 +227,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	}
 	readRetainedEvidence(t, store, retained.Inputs["qwen-metadata-binding.json"], &metadata)
 	resolved, err := modelrecipe.ResolveModelDefinition(t.Context(), store, definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if metadata.Model != model || metadata.Inventory != resolved.Document.TensorInventory || len(metadata.Components) != 1 || metadata.Components[0].Role != "weights" || metadata.Components[0].Artifact.String() != "tensor-set:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471" {
 		t.Fatal("converted container does not bind the activated model")
 	}

@@ -7,18 +7,15 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestFirstASRArtifactElection(t *testing.T) {
 	t.Parallel()
 	encoded, err := os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	election, err := NormalizeElection(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, want := election.ID.String(), "evidence:sha256:ea234b4a2df12eb45c6487146a8d88ec11b492ce829b4f5568aab4b2a5e33f91"; got != want {
 		t.Fatalf("election identity = %s, want %s", got, want)
 	}
@@ -35,13 +32,9 @@ func TestFirstASRArtifactElection(t *testing.T) {
 	}
 
 	batch, err := election.Batch("audio/oracle/granite-speech-5")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)

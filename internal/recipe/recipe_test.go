@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 			Outputs: []Port{{Name: "logits", Data: DataLogits, Cardinality: CardinalityOne}},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := Node{ID: "source", Module: fixtureSourceModule, Placement: PlacementHost}
 	sink := Node{ID: "sink", Module: fixtureSinkModule, Placement: PlacementHost}
 	definition, err := NewDefinitionWithDependencies(
@@ -39,25 +38,19 @@ func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 		nil,
 		[]Output{{Name: "logits", Data: DataLogits, Source: Endpoint{Node: sink.ID, Port: "logits"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return definition, catalog
 }
 
 func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	definition, catalog := fixtureRecipe(t)
-	if err := definition.Validate(catalog); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, definition.Validate(catalog))
 	nodes := slices.Clone(definition.Nodes)
 	slices.Reverse(nodes)
 	rebuilt, err := NewDefinitionWithDependencies(
 		definition.Task, definition.Dependencies, nodes, definition.Edges, definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if rebuilt.ID != definition.ID {
 		t.Fatalf("canonical IDs differ: %s != %s", rebuilt.ID, definition.ID)
 	}
@@ -103,17 +96,13 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slices.Reverse(dependencies)
 	reordered, err := NewDefinitionWithDependencies(
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if reordered.ID != bound.ID {
 		t.Fatal("dependency order changed recipe identity")
 	}
@@ -126,9 +115,7 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if changed.ID == bound.ID {
 		t.Fatal("profile change preserved recipe identity")
 	}
@@ -195,9 +182,7 @@ func TestSameComputationIgnoresOnlyTheSessionPolicy(t *testing.T) {
 	rebuild := func(nodes []Node, dependencies []Dependency) Definition {
 		t.Helper()
 		value, err := NewDefinitionWithDependencies(base.Task, dependencies, nodes, base.Edges, base.Inputs, base.Outputs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	session := slices.Clone(base.Nodes)

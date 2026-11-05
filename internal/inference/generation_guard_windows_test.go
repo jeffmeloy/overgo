@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -17,9 +18,7 @@ func TestHermeticCUDAFixedBudgetEOGPreservesDeviceGreedy(t *testing.T) {
 	generate := func(continueAfterEOG bool, budget int) []tokenizer.TokenID {
 		t.Helper()
 		sampler, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens: budget, Sampler: sampler, DeviceGreedy: true,
 			ContinueAfterEOG: continueAfterEOG, PromptTokenIDs: prompt,
@@ -30,9 +29,7 @@ func TestHermeticCUDAFixedBudgetEOGPreservesDeviceGreedy(t *testing.T) {
 				return nil
 			},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids
 	}
 	reference := generate(true, outputTokens)

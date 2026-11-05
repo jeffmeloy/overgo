@@ -12,6 +12,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // syntheticVAEDecoder builds a tiny but structurally faithful QwenImage spatial
@@ -221,9 +222,7 @@ func TestCompileVAEProgramRefusesUnrepresentableExtents(t *testing.T) {
 	packed := *plain
 	packed.patch = tensor.PairedExtent
 	width, err := media.PatchVectorWidth(plain.ZDim, packed.patch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	packed.LatentsMean, packed.latentVariance = make([]float32, width), make([]float32, width)
 	if _, err := CompileVAEProgram(&packed, huge, huge, dtype.F32); err == nil {
 		t.Fatal("packed decoder compiled an unrepresentable extent")

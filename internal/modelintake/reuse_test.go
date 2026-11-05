@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -12,13 +13,9 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteImageInventoryFixture(t, root)
 	inspection, err := InspectImport(t.Context(), root, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var description importDescription
-	if err := json.Unmarshal(inspection.Content.Data, &description); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(inspection.Content.Data, &description))
 	if description.Qualification != "structural-only" || len(description.Components) != 5 || len(inspection.Inventory.TensorInventory.Tensors) != 4 {
 		t.Fatal("incomplete structural description", description)
 	}
@@ -42,13 +39,9 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 		}
 	}
 	gguf, err := InspectImport(t.Context(), testutil.HermeticLlamaGGUF(t, 16), "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	description = importDescription{}
-	if err := json.Unmarshal(gguf.Content.Data, &description); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(gguf.Content.Data, &description))
 	if len(description.Components) != 1 || description.Components[0].Unsupported != "" || len(description.Components[0].Operations) == 0 {
 		t.Fatal("registered GGUF mapping lost", description)
 	}

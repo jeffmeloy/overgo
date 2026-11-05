@@ -15,6 +15,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -50,9 +51,7 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	open := func() *Runner {
 		t.Helper()
 		runner, err := openF32FixtureRunner(path, OpenOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)
@@ -87,12 +86,8 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	step := func(runner *Runner, tokens []tokenizer.TokenID, past **deviceKVCache) {
 		t.Helper()
 		next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokens, *past, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := (*past).Release(ctx); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, (*past).Release(ctx))
 		*past = next
 	}
 	argmax := func(logits []float32) (int, float64) {
@@ -144,9 +139,7 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	cells := qsaPast.storage.qsa
 	control := make([]byte, tensor.QSAStreamControlInts*i32Bytes)
 	at := cells.layers[flashNextAttention].streamMap.Pointer + driver.DevicePtr(tensor.QSAStreamSlotArrays*uint64(cells.slots)*i32Bytes)
-	if err := qsa.cuda.ReadDeviceBytes(ctx, []executor.DeviceBytes{{Pointer: at, Data: control}}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, qsa.cuda.ReadDeviceBytes(ctx, []executor.DeviceBytes{{Pointer: at, Data: control}}))
 	misses, lookups, calls := binary.LittleEndian.Uint64(control[4*i32Bytes:]), binary.LittleEndian.Uint64(control[6*i32Bytes:]), binary.LittleEndian.Uint64(control[8*i32Bytes:])
 	t.Logf("the attention layer's resolve: %d calls, %d block lookups, %d misses", calls, lookups, misses)
 	if overflow := binary.LittleEndian.Uint32(control[3*i32Bytes:]); overflow != 0 || calls == 0 || misses == 0 {
@@ -164,14 +157,10 @@ func TestQSACellsHoldOneCapacity(t *testing.T) {
 	const ring = 4096
 	trunk := writeFlashNextFixture(t, strataFlashNext)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := openFixtureRunnerWithResidency(trunk,
 		OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, false, strataFlashNext), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -210,9 +199,7 @@ func TestQSACellsHoldOneCapacity(t *testing.T) {
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true, CachePrompt: true,
 			PromptTokenIDs: input, ContinueAfterEOG: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if cells, slots := capacity(); cells != ring || slots != 0 {
 			t.Fatalf("turn %d: the sequence holds %d cells (%d slots), want the ring's %d on the card", turn, cells, slots, ring)
 		}
@@ -241,14 +228,10 @@ func TestQSABranchReadsOnFromAHeldBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := openFixtureRunnerWithResidency(writeFlashNextFixture(t, strataFlashNextWindows), OpenOptions{PromptCacheEntries: 1},
 		recipe.ResidencyDeviceNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -260,9 +243,7 @@ func TestQSABranchReadsOnFromAHeldBoundary(t *testing.T) {
 			MaxNewTokens: 12, Sampler: greedy, DeviceGreedy: true, CachePrompt: cached, PromptTokenIDs: prompt,
 			ContinueAfterEOG: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids
 	}
 	history := make([]tokenizer.TokenID, 40)

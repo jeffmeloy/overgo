@@ -14,6 +14,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentimage"
+	"overgo/internal/testcheck"
 )
 
 func TestSenseNovaCancellationRecovery(t *testing.T) {
@@ -21,14 +22,10 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 	// Assertions use owned allocations and exact outputs; shared admission suffices.
 	_, _, generator := newProductionGenerationFixture(t)
 	var oracle generationLeadershipOracle
-	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(senseNovaGenerationGold, &oracle))
 	request := GenerationRequest{Prompt: oracle.Request.Prompt, Width: oracle.Request.Width, Height: oracle.Request.Height, Steps: oracle.Request.Steps, Seed: oracle.Request.Seed, CFGScale: oracle.Request.CFGScale, TimestepShift: oracle.Request.TimestepShift}
 	var library *driver.Library
-	if err := generator.worker.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, generator.worker.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }))
 	checkImage := func(t testing.TB, image latentimage.EncodedImage) {
 		t.Helper()
 		if hash := fmt.Sprintf("%x", sha256.Sum256(image.Data)); hash != senseNovaProductionPNG || image.Width != request.Width || image.Height != request.Height {
@@ -38,17 +35,11 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 	generate := func(t testing.TB) generationFeatures {
 		t.Helper()
 		plan, err := generator.prepare(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		features, err := generator.integrate(t.Context(), plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		image, err := generator.decode(t.Context(), features)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		checkImage(t, image)
 		return features
 	}
@@ -61,9 +52,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 			var err error
 			if phase == "integrate" {
 				plan, err = generator.prepare(t.Context(), request)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 			}
 			probe, cancel := cudatest.CancelAfterDeviceWork(t.Context(), library)
 			defer cancel(context.Canceled)
@@ -75,9 +64,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("%s did not cancel after executed device work: %v", phase, err)
 			}
-			if err := generator.Reset(t.Context(), request); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, generator.Reset(t.Context(), request))
 			after := library.MemoryStats()
 			if after.CurrentBytes != idle.CurrentBytes {
 				t.Errorf("%s cancellation retained device allocation: before=%d after=%d", phase, idle.CurrentBytes, after.CurrentBytes)
@@ -96,9 +83,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 		t.Fatal("decode ignored canceled request", err)
 	}
 	image, err := generator.decode(t.Context(), features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkImage(t, image)
 	if err := generator.Close(canceled); err != nil {
 		t.Fatal("close failed with canceled request context", err)

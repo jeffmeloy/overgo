@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,9 +21,7 @@ func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
 	decision, commit, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !commit.Valid() || decision.Disposition != runrecord.RouteSelected || decision.Winner != fixture.wantWinner {
 		t.Fatalf("decision = %+v, want dominant stored selection %s", decision, fixture.wantWinner)
 	}
@@ -31,9 +30,7 @@ func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 		t.Fatalf("loaded decision = %+v, %v", loaded, err)
 	}
 	parents, err := fixture.store.Parents(t.Context(), decision.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.ContainsFunc(parents, func(edge artifact.Lineage) bool { return edge.Parent == fixture.wantWinner }) {
 		t.Fatal("derived selection was published as document lineage")
 	}
@@ -43,9 +40,7 @@ func TestEvidenceRouteRefusesIncomparableFrontier(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, false)
 	decision, _, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if decision.Disposition != runrecord.RouteDecisionRequired || decision.Winner.Valid() {
 		t.Fatalf("decision = %+v, want explicit decision requirement", decision)
 	}
@@ -71,13 +66,9 @@ func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
 	declaration.Effect = agenttool.EffectInspection
 	declaration.Transport.Kind = agenttool.TransportBuiltin
 	manual, err := agenttool.NewManual(declaration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := manual.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content := artifact.Content{Descriptor: artifact.Descriptor{
 		ID: manual.ID, Size: uint64(len(data)), MediaType: agenttool.ManualMediaType, Schema: agenttool.ManualSchema,
 	}, Data: data}
@@ -96,9 +87,7 @@ func TestEvidenceRouteFallbackUsesTypedFailure(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
 	selected, _, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	failedIndex := slices.IndexFunc(selected.Candidates, func(candidate runrecord.RoutingCandidateObservation) bool {
 		return candidate.Selection == selected.Winner
 	})
@@ -140,9 +129,7 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 	observations := make([]runrecord.ServingObservation, len(fixtures))
 	for index, fixture := range fixtures {
 		observations[index], err = runrecord.RequireServingAttemptObservation(t.Context(), store, fixture.request.Observation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	low, high := 0, 1
 	if observations[1].MeasuredNS < observations[0].MeasuredNS {
@@ -192,9 +179,7 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 			Transport:  agenttool.Transport{Kind: agenttool.TransportBuiltin, Protocol: "probe-model/1"},
 			Capability: fixture.request.Placement.Capability.ID,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatalf("publish route manuals: %v", err)
@@ -206,13 +191,9 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 		first.testCase.ID, recipe.DecisionAccepted, recipe.EvidenceProduction, "",
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation}, authorityEvidence,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorityBatch, err := authority.Batch("route/authority")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, authorityBatch); err != nil {
 		t.Fatalf("publish route authority: %v", err)
 	}
@@ -237,9 +218,7 @@ func publishRouteFailure(
 	observation, err := runrecord.PublishFailureObservation(t.Context(), store, runrecord.FailureObservation{
 		Source: "evidence-route", Message: "connection refused", ObservedUnixNS: 1_700_000_000_000_000_001,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	normalization := runrecord.NormalizeFailureObservation(observation)
 	// Bind the requested deterministic cause without asking fallback callers to
 	// classify free-form errors. Tests use the classifier's own cause below.
@@ -247,9 +226,7 @@ func publishRouteFailure(
 		cause = normalization.Cause
 	}
 	normalization, err = runrecord.PublishFailureNormalization(t.Context(), store, normalization)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	disposition := executionfailure.Decide(executionfailure.Situation{Cause: cause, Attempts: 1, MaxAttempts: maxAttempts})
 	receipt, err := runrecord.PublishTerminalAttemptReceipt(t.Context(), store, runrecord.TerminalAttemptReceipt{
 		Operation: operation, Capability: capability, Outcome: runrecord.OutcomeFailed,
@@ -257,8 +234,6 @@ func publishRouteFailure(
 		Gaps:           []string{runrecord.GapProcessTermination, runrecord.GapResources, runrecord.GapToolOutput, runrecord.GapTranscript},
 		ObservedUnixNS: 1_700_000_000_000_000_002,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return receipt
 }

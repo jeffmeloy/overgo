@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and the model is loaded alone.
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The model is read where the roots find it first, beside the store before the configured root.
 	var path string
 	for _, root := range roots.ModelRoots() {
@@ -47,9 +46,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 		t.Skipf("Qwen3.8-27B's held-out check needs %s beneath one of %q", kQuantModel, roots.ModelRoots())
 	}
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suites := map[string]CompiledSuite{}
 	for _, family := range []string{"mmlu-pro", "ifeval"} {
 		authorities := ExactAuthorities{
@@ -63,15 +60,11 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 		}
 		suites[family] = derived[0]
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	right := map[bool]map[string]map[string]bool{}
 	for _, span := range []bool{false, true} {
 		runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{SpanKernels: span})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)
@@ -81,9 +74,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 		for family, suite := range suites {
 			right[span][family] = answerCells(t, suite, cellsRuntime{runner})
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 	}
 	for family := range suites {
 		losses, wins := 0, 0

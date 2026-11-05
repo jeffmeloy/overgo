@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 )
 
 // TestProfileDocumentsBeforeALaterFact holds a profile document written before a later fact of its schema
@@ -16,9 +17,7 @@ func TestProfileDocumentsBeforeALaterFact(t *testing.T) {
 		t.Fatal("baichuan profile absent")
 	}
 	current, err := CatalogProfileProvenance(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.ContainsFunc(current, func(item ProfileFactProvenance) bool { return slices.Contains(laterProfileFacts, item.Fact) }) {
 		t.Fatal("a profile derived now records no provenance for the later facts")
 	}
@@ -31,9 +30,7 @@ func TestProfileDocumentsBeforeALaterFact(t *testing.T) {
 		return slices.Contains(laterProfileFacts, spec.Fact)
 	})
 	derivation, err := catalogProfileDerivation(profile, earlier)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var written []ProfileFactProvenance
 	for _, spec := range earlier {
 		written = append(written, ProfileFactProvenance{

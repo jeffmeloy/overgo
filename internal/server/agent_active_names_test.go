@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,9 +30,7 @@ func TestActiveAgentNamesReadOnlyTheActivationRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	names, err := fixture.handler.activeAgentNames(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(names, []string{"research-agent"}) {
 		t.Fatalf("active agent names = %v, want [research-agent]", names)
 	}

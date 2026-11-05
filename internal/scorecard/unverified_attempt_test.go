@@ -9,6 +9,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "attempted-model")
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "attempted-profile")
@@ -36,9 +35,7 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		model, profile, definitionID, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/attempted/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +43,7 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/attempted/evidence", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/attempted/active", definition, verification, recipe.EvidenceVerified, "attempted fixture", nil, nil,
 	); err != nil {
@@ -60,13 +55,9 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 			Model: model, Recipe: definition.ID, Environment: environment, Task: recipe.TaskInference, Run: run,
 			Verification: state, Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("fixture/attempted/" + name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -74,9 +65,7 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	failures := func() int {
 		t.Helper()
 		summaries, err := servingByRecipe(ctx, store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		summary := summaries[definition.ID]
 		if summary == nil {
 			return 0

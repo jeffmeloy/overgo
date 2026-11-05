@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -12,15 +13,11 @@ func TestAgentObligationEvidence(t *testing.T) {
 		Task: testutil.ArtifactID(t, artifact.KindRecipe, "task"), Name: "tests", Scope: "internal/agentloop",
 		MutationEpoch: 3, Sources: []artifact.ID{source},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolution, err := NewAgentObligationResolution(AgentObligationResolution{
 		Obligation: obligation.ID, Scope: obligation.Scope, MutationEpoch: obligation.MutationEpoch, Evidence: []artifact.ID{source},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !AgentObligationSatisfied(obligation, []AgentObligationResolution{resolution}) {
 		t.Fatal("exact resolution remained open")
 	}

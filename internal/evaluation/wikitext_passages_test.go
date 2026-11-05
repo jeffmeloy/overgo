@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWikiTextPassagesSpanTheSplitWithoutOverlap holds the suite to its
@@ -19,9 +21,7 @@ func TestWikiTextPassagesSpanTheSplitWithoutOverlap(t *testing.T) {
 		lines = append(lines, fmt.Sprintf(" line %d holds a café, a naïve piñata and some filler words to read \n", line))
 	}
 	built, count, err := BuildWikiTextPassages(lines)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite := built.(sequenceScoringSuite)
 	if count != wikitextPassages || len(suite.Cases) != wikitextPassages || suite.Kind != sequenceScoringKind {
 		t.Fatalf("suite = %d cases of kind %q, want %d", len(suite.Cases), suite.Kind, wikitextPassages)

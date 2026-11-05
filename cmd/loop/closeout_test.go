@@ -15,6 +15,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestCloseoutRefusesFinishedLeftovers builds, under a temporary directory, a repository with a
@@ -38,23 +39,17 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	t.Parallel()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string {
 		t.Helper()
-		if err := os.MkdirAll(at(slash), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
 		return at(slash)
 	}
 	write := func(slash, content string) {
 		t.Helper()
 		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		if err := os.WriteFile(at(slash), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
 	}
 
 	// The trunk's checkout: a record that names one experiment, and a plan of one open row. The two
@@ -69,22 +64,16 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 		Items: []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "the fixture's open row",
 		}}}}}
-	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	gitFixture(t, repo, "add", "-A")
 	gitFixture(t, repo, "commit", "-q", "-m", "base")
 	trunk := gitFixture(t, repo, "rev-parse", "HEAD")
-	if err := processlock.EnsureStateDirectory(repo); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(repo))
 	clean := at("temporary/sessions/s1/scratchpad/clean")
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", clean, "master")
 	// A commit ran in the clean copy and left the record of its run in its process state: a copy
 	// with none is of unknown state, and unknown never refuses.
-	if err := processlock.EnsureStateDirectory(clean); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(clean))
 	write("temporary/sessions/s1/scratchpad/clean/"+processlock.StateDirectory+"/landing_waits.json", "[]\n")
 	ahead := at("temporary/sessions/s1/scratchpad/ahead")
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", ahead, "master")
@@ -101,9 +90,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	write("outside/large.bin", "bytes behind a link")
 	if !fixtureLink(at("outside"), filepath.Join(folder("repo/tmp/linked-row"), "out")) {
 		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
-		if err := os.RemoveAll(at("repo/tmp/linked-row")); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(at("repo/tmp/linked-row")))
 	}
 
 	h := hygiene{
@@ -179,9 +166,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	counted := func(h hygiene) string {
 		t.Helper()
 		found, err := listLeftovers(h, false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		states := map[string]int{}
 		for _, entry := range found {
 			states[entry.state]++
@@ -191,9 +176,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	unknownOf := func(h hygiene) (unknown int) {
 		t.Helper()
 		found, err := listLeftovers(h, false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, entry := range found {
 			if entry.state == stateUnknown {
 				unknown++
@@ -204,9 +187,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 
 	// The measured listing of the same commit is written first; the close-out must leave it.
 	var listing bytes.Buffer
-	if err := leftoversCommand(h, false, &listing); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, leftoversCommand(h, false, &listing))
 	measured, err := os.ReadFile(measuredReceipt)
 	if err != nil || !strings.Contains(string(measured), "report\tfinished\t7\tbin\t") {
 		t.Fatalf("the measured listing's receipt holds\n%s\n(%v), want the listing with its sizes", measured, err)
@@ -244,9 +225,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	// A listing that does not measure reads the files only of what a delete could take: the walk
 	// of the build cache and the data root is what a close-out is spared.
 	unmeasured, err := listLeftovers(h, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range unmeasured {
 		if deletable := entry.action == actionDelete && entry.state == stateFinished; entry.measured || entry.bytes != 0 && !deletable {
 			t.Errorf("a listing that does not measure read %d bytes of %s %s (measured: %v), which no delete could take", entry.bytes, entry.place, entry.path, entry.measured)
@@ -289,9 +268,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	gitFixture(t, repo, "worktree", "remove", clean)
 	gitFixture(t, repo, "branch", "-d", "merged-free")
 	for _, slash := range []string{"data/experiments/done/weights", "temporary/go-build1", "repo/tmp/landed-row", "cache"} {
-		if err := os.RemoveAll(at(slash)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(at(slash)))
 	}
 	text, last, failure = closeout(h)
 	if failure != nil || len(last) != 0 || !strings.Contains(text, counted(h)) {

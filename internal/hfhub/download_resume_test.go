@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 func downloadFixture(t *testing.T, weights []byte, transfer http.HandlerFunc) (*Client, DownloadRequest, RepoFile) {
@@ -47,9 +48,7 @@ func downloadFixtureForFile(t *testing.T, file RepoFile, transfer http.HandlerFu
 	}))
 	t.Cleanup(hub.Close)
 	client, err := New(hub.URL, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return client, DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Revision: "main", Destination: t.TempDir()}
 }
 
@@ -57,24 +56,16 @@ func downloadFixtureForFile(t *testing.T, file RepoFile, transfer http.HandlerFu
 func bookkeepingFor(t *testing.T, request DownloadRequest, file RepoFile) string {
 	t.Helper()
 	book, err := bookkeepingPath(request.Destination, file.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(book), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(book), 0o755))
 	return book
 }
 
 func seedDownloadPrefix(t *testing.T, client *Client, request DownloadRequest, file RepoFile, prefix []byte) string {
 	t.Helper()
 	path := client.partialPath(bookkeepingFor(t, request, file), request, "commit1", file)
-	if err := os.WriteFile(path, prefix, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path+".etag", []byte(`"weights-v1"`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, prefix, 0o600))
+	testcheck.NoError(t, os.WriteFile(path+".etag", []byte(`"weights-v1"`), 0o600))
 	return path
 }
 
@@ -254,12 +245,8 @@ func TestDownloadWithoutDigestRestartsValidPrefix(t *testing.T) {
 			})
 			file.SHA256 = ""
 			partial := seedDownloadPrefix(t, client, request, file, weights[:len(weights)/2])
-			if err := os.WriteFile(partial+".etag", []byte(etag), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if err := client.downloadFile(t.Context(), request, "commit1", file); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(partial+".etag", []byte(etag), 0o600))
+			testcheck.NoError(t, client.downloadFile(t.Context(), request, "commit1", file))
 			got, err := os.ReadFile(filepath.Join(request.Destination, file.Path))
 			if err != nil || !bytes.Equal(got, weights) {
 				t.Fatalf("bytes=%q: %v", got, err)
@@ -296,9 +283,7 @@ func TestDownloadIdentitySeparatesSources(t *testing.T) {
 				priorFile.Size++
 			}
 			foreign := priorClient.partialPath(bookkeepingFor(t, request, file), priorRequest, revision, priorFile)
-			if err := os.WriteFile(foreign, weights[:len(weights)/2], 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(foreign, weights[:len(weights)/2], 0o600))
 			if _, err := client.Download(t.Context(), request); err != nil {
 				t.Fatal(err)
 			}
@@ -317,9 +302,7 @@ func TestDownloadSameTargetSerializationAndWaitCancellation(t *testing.T) {
 		serveDownloadBytes(w, r, weights)
 	})
 	lock, err := processlock.Acquire(bookkeepingFor(t, request, file)+".lock", 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 	if _, err := client.Download(ctx, request); !errors.Is(err, context.Canceled) {
@@ -335,9 +318,7 @@ func TestDownloadSameTargetSerializationAndWaitCancellation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, processlock.ErrBusy) || transfers.Load() != 0 {
 		t.Fatalf("contended cancellation: transfers=%d err=%v", transfers.Load(), err)
 	}
-	if err := lock.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lock.Close())
 	results := make(chan error, 2)
 	for range cap(results) {
 		go func() { _, err := client.Download(t.Context(), request); results <- err }()

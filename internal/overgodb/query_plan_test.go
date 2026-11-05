@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ import (
 func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	t.Parallel()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	wide := make([]artifact.Descriptor, 0, 8)
@@ -44,44 +43,34 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	}
 
 	media, err := store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if media.Plan.Index != "media" || media.Plan.Inspected != 2 || media.Plan.Matched != 2 ||
 		media.Plan.Returned != 2 || media.Plan.Loaded != 2 {
 		t.Fatalf("media plan = %+v", media.Plan)
 	}
 	kind, err := store.Query(ctx, Query{Kind: artifact.KindEvidence, MaxResults: 10, Projection: ProjectArtifacts})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if kind.Plan.Index != "kind" || kind.Plan.Inspected != 2 || kind.Plan.Returned != 2 {
 		t.Fatalf("kind plan scans beyond its projection: %+v", kind.Plan)
 	}
 	pair, err := store.Query(ctx, Query{
 		MediaType: "application/narrow", Schema: "overgo/wide/v1", MaxResults: 10, Projection: ProjectArtifacts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if pair.Plan.Index != "media" || pair.Plan.Inspected != 2 || pair.Plan.Matched != 1 || pair.Plan.Returned != 1 {
 		t.Fatalf("pair plan did not ride the narrower index: %+v", pair.Plan)
 	}
 	solo, err := store.Query(ctx, Query{
 		MediaType: "application/wide", Schema: "overgo/solo/v1", MaxResults: 10, Projection: ProjectArtifacts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if solo.Plan.Index != "schema" || solo.Plan.Inspected != 1 || solo.Plan.Matched != 0 {
 		t.Fatalf("pair plan tie-break is not head-measured: %+v", solo.Plan)
 	}
 	seeded, err := store.Query(ctx, Query{
 		Artifact: &narrowOne.ID, MaxResults: 10, Projection: ProjectArtifacts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if seeded.Plan.Index != "seed" || seeded.Plan.Inspected != 1 || seeded.Plan.Matched != 1 ||
 		seeded.Plan.Returned != 1 || seeded.Plan.Loaded != 1 {
 		t.Fatalf("seed plan = %+v", seeded.Plan)
@@ -89,9 +78,7 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 
 	unowned := Query{MaxResults: 100, Projection: ProjectArtifacts}
 	scan, err := store.Query(ctx, unowned)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scan.Plan.Index != "catalog" || scan.Plan.Inspected != 8 {
 		t.Fatalf("catalog plan = %+v", scan.Plan)
 	}
@@ -102,9 +89,7 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	}
 
 	repeat, err := store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if repeat.Plan != media.Plan {
 		t.Fatalf("equal contract and head produced unequal plans: %+v vs %+v", repeat.Plan, media.Plan)
 	}

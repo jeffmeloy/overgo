@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAPictureIsHeldOutByItsBytes: a held-out picture that is a copy of a trained one under another name is refused, naming
@@ -16,9 +18,7 @@ func TestAPictureIsHeldOutByItsBytes(t *testing.T) {
 	write := func(name, content string) mossPicture {
 		t.Helper()
 		path := filepath.Join(directory, name)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 		return mossPicture{path: path, caption: name}
 	}
 	trained := []mossPicture{write("fox.png", "a fox"), write("owl.png", "an owl")}
@@ -43,9 +43,7 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 	directory := filepath.Dir(manifest)
 	write := func(path, content string) {
 		t.Helper()
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	const unreadable = "no picture"
 	write(filepath.Join(directory, "picture-0.png"), unreadable)
@@ -65,18 +63,12 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 	}
 	scheduler := filepath.Join(root, "scheduler", "scheduler_config.json")
 	raw, err := os.ReadFile(scheduler)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var config map[string]any
-	if err := json.Unmarshal(raw, &config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &config))
 	config["training_shift"] = 3
 	shifted, err := json.Marshal(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write(scheduler, string(shifted))
 	if err := route(); err == nil || !strings.Contains(err.Error(), "training_shift") {
 		t.Fatalf("a shifted training grid = %v, want it refused before preparation", err)

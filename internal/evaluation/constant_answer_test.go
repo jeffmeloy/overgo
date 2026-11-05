@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -38,13 +39,9 @@ func TestHeldoutReadingStatesWhatAConstantAnswerScores(t *testing.T) {
 			cases, observations = append(cases, target), append(observations, observation)
 		}
 		plan, err := CompileHeldoutPlan(table.objective, table.view, cases)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		report, err := plan.Score(observations)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return report
 	}
 	// Every third record expects bad and the rest good.

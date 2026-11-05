@@ -4,24 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestProductionConsumerCensus(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644))
 	path := filepath.Join(root, "p", "p.go")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("package p\nfunc F() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	testcheck.NoError(t, os.WriteFile(path, []byte("package p\nfunc F() {}\n"), 0o644))
 	selection, err := HostBuildSelection(root, "./...")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !selection.Files["p/p.go"] || selection.Packages["p/p.go"] != "example/p" || selection.Context == "" {
 		t.Fatalf("selection = %+v", selection)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -51,9 +52,7 @@ func TestGrammarVocabularyBindingReuse(t *testing.T) {
 		}
 		callers.Wait()
 		binding, err := runner.grammarVocabulary()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// A second decode of ANY token would now fail. This probe makes zero
 		// second-compile DecodePiece calls observable without runtime test hooks.
 		for i := range runner.vocab.Tokens {
@@ -71,9 +70,7 @@ func TestGrammarVocabularyBindingReuse(t *testing.T) {
 		other.vocab.Tokens[1].Text = "different"
 		assertSample(other, `root ::= "different"`, 1)
 		otherBinding, err := other.grammarVocabulary()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if otherBinding == binding {
 			t.Fatal("different runners shared a vocabulary binding")
 		}
@@ -116,25 +113,17 @@ func TestCompileGBNFUsesDecodedVocabularyAndEOG(t *testing.T) {
 		Mask: tokenizer.NullToken,
 	}}}
 	grammar, err := runner.CompileGBNF(`root ::= "a"`, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampler, err := sampling.New(sampling.Config{GBNF: grammar})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{1, 100, 10}
 	token, err := sampler.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if token != 0 {
 		t.Fatalf("GBNF vocabulary first token = %d, want 0", token)
 	}
 	token, err = sampler.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if token != 1 {
 		t.Fatalf("GBNF vocabulary terminal token = %d, want 1", token)
 	}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -21,9 +22,7 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 		ugmMaxLen: len("▁hi"),
 	}
 	got, err := vocab.Encode("hi", EncodeOptions{AddSpecial: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []TokenID{6, 1}; !slices.Equal(got, want) {
 		t.Fatalf("UGM IDs = %v, want %v", got, want)
 	}
@@ -34,18 +33,12 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 func TestRealUMT5Tokenization(t *testing.T) {
 	testskip.Short(t, "requires a real UMT5 model")
 	file, err := gguf.Open(modeltest.Directory(t, "umt5-xxl-encoder-Q5_K_S.gguf"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	vocab, err := Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := vocab.Encode("Hello world!", EncodeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []TokenID{23231, 3914, 332}; !slices.Equal(got, want) {
 		t.Fatalf("UMT5 IDs = %v, want pinned llama.cpp %v", got, want)
 	}

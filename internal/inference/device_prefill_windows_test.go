@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -24,20 +25,14 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 	}{{"dense", func(t *testing.T) string { return testutil.HermeticLlamaGGUF(t, hermeticContext) }}, {"recurrent", writeHermeticQwen35GGUF}} {
 		t.Run(fixture.name, func(t *testing.T) {
 			runner, err := openF32FixtureRunner(fixture.path(t), OpenOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer runner.Close()
 			ctx := t.Context()
 			plan, err := compileDeviceOutputPlan(deviceOutputGreedy, 0, runner.spec.VocabularySize)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			tokens := []tokenizer.TokenID{1, 4, 5, 6, 7}
 			whole, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer whole[0].Release(context.Background())
 			// A prompt's read appends at most the runner's chunk bound a chunk: three chunks launch more than one, to
 			// the same state.
@@ -45,17 +40,11 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 				t.Helper()
 				runner.promptChunkTokens = chunk
 				before, err := runner.DeviceExecutionStats(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				read, err := runner.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				after, err := runner.DeviceExecutionStats(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				return read[0], after.KernelLaunches + after.GraphLaunches - before.KernelLaunches - before.GraphLaunches
 			}
 			split, chunked := launches(2)
@@ -66,13 +55,9 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 					t.Fatalf("cache positions differ: %d/%d and %d/%d", left.Tokens, left.Position, right.Tokens, right.Position)
 				}
 				l, err := runner.downloadDeviceCache(ctx, left)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				r, err := runner.downloadDeviceCache(ctx, right)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				for i, layer := range l.Layers {
 					pairs := [][2]reference.Value{{layer.Key, r.Layers[i].Key}, {layer.Value, r.Layers[i].Value}}
 					for name, state := range layer.States {
@@ -99,16 +84,12 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			// writes into it rather than into a new storage beside it.
 			reserve := uint32(len(tokens))
 			first, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[:2], Reserve: reserve}}, plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer first[0].Release(context.Background())
 			prefix := *first[0]
 			prefix.Selection = executor.DeviceValue{}
 			second, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[2:4], Past: &prefix, Reserve: reserve}}, plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer second[0].Release(context.Background())
 			if first[0].storedCapacity() < reserve || second[0].storage != first[0].storage {
 				t.Fatalf("the first chunk holds %d tokens and the second chunk shares its storage: %t", first[0].storedCapacity(), second[0].storage == first[0].storage)
@@ -128,9 +109,7 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			var continued [2]*deviceKVCache
 			for i, past := range []*deviceKVCache{split, whole[0]} {
 				continued[i], err = runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{3}, past, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer continued[i].Release(context.Background())
 			}
 			compare(continued[0], continued[1])

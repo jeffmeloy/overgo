@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,29 +46,21 @@ func TestRepresentationContract(t *testing.T) {
 		Tensor: tensorContract, Sequence: sequence, Normalization: normalization,
 		Authorities: authorities,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if contract.ID.Kind() != artifact.KindProfile || contract.Version != ContractVersion {
 		t.Fatalf("identity/version = %s/%d", contract.ID, contract.Version)
 	}
 	if contract.Authorities[0].Role != AuthorityProcessor || contract.Sequence.SpecialTokens[0].Role != SpecialTokenBOS {
 		t.Fatalf("contract is not canonical: %+v", contract)
 	}
-	if err := contract.ValidateIdentity(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, contract.ValidateIdentity())
 	content, err := contract.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.ID != contract.ID || content.Descriptor.MediaType != ContractMediaType || content.Descriptor.Schema != ContractSchema {
 		t.Fatalf("descriptor = %+v", content.Descriptor)
 	}
 	parsed, err := contractCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != contract.ID || !slices.Equal(parsed.Lineage(), contract.Lineage()) {
 		t.Fatalf("round trip identity/lineage differs")
 	}
@@ -154,14 +147,10 @@ func TestRepresentationContract(t *testing.T) {
 
 	t.Run("rejects noncanonical and unknown JSON", func(t *testing.T) {
 		var body map[string]any
-		if err := json.Unmarshal(content.Data, &body); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(content.Data, &body))
 		body["unknown"] = true
 		data, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := contractCodec.Parse(data); err == nil {
 			t.Fatal("unknown field accepted")
 		}

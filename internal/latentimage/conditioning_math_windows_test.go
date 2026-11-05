@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestMOSSConditioningMathGolden(t *testing.T) {
@@ -30,9 +31,7 @@ func conditioningMathGolden(t *testing.T, file, digest string, cases int) {
 	t.Helper()
 	mossFixtureBytes(t, file, digest)
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	run, _, close := cudaVAERunner(t)
 	defer close()
@@ -80,13 +79,9 @@ func conditioningMathGolden(t *testing.T, file, digest string, cases int) {
 				nodes = append(nodes, n)
 			}
 			got, err := run(nodes, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			again, err := run(nodes, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for label, node := range outputs {
 				want := refinementValues(t, s, name+"."+label)
 				actual := got[node].Data

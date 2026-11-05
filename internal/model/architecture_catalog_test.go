@@ -3,6 +3,8 @@ package model
 import (
 	"encoding/json"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -72,9 +74,7 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 			profile := ArchitectureProfile{Name: fixtureArchitectureName}
 			mutate(&profile)
 			content, err := json.Marshal([]ArchitectureProfile{profile})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := parseArchitectureRegistry(content); err == nil {
 				t.Fatal("invalid profile accepted")
 			}

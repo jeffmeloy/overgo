@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -22,13 +23,9 @@ const (
 func TestDatasetCatalogPublishReplayAndLocations(t *testing.T) {
 	legacyRoot, contentRoot := legacyCatalogFixture(t)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stale, err := artifact.IdentifyBytes(artifact.KindDataset, []byte("stale"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/stale-dataset-alias", Artifacts: []artifact.Descriptor{{ID: stale}},
 		Aliases: []artifact.AliasBinding{{Name: registeredAlias(fixtureDatasetName), Target: stale}},
@@ -36,33 +33,23 @@ func TestDatasetCatalogPublishReplayAndLocations(t *testing.T) {
 		t.Fatal(err)
 	}
 	publication, err := PublishLegacyCatalog(t.Context(), store, legacyRoot, contentRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !publication.Changed || !publication.Coverage.Complete || publication.Coverage.Registered != len([]string{fixtureDatasetName, fixtureDirectoryName}) {
 		t.Fatalf("publication = %+v", publication)
 	}
 	replay, err := PublishLegacyCatalog(t.Context(), store, legacyRoot, contentRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if replay.Changed || replay.Commit != publication.Commit {
 		t.Fatalf("replay = %+v", replay)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 }
 
 func TestDatasetCatalogIncludesRootOnlyContentWithoutSemanticInference(t *testing.T) {
 	legacyRoot, contentRoot := legacyCatalogFixture(t)
-	if err := os.WriteFile(filepath.Join(contentRoot, "uncataloged.txt"), []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(contentRoot, "uncataloged.txt"), []byte("x"), 0o600))
 	bundle, err := CompileLegacyCatalog(legacyRoot, contentRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	entry := bundle.Catalog.Catalog[len(bundle.Catalog.Catalog)-1]
 	if entry.Name != "uncataloged.txt" || entry.Source != "content-root" || entry.Modality != legacyUnknownFact ||
 		len(entry.Formats) != 1 || entry.Formats[0] != legacyUnknownFact {
@@ -73,15 +60,9 @@ func TestDatasetCatalogIncludesRootOnlyContentWithoutSemanticInference(t *testin
 func legacyCatalogFixture(t *testing.T) (string, string) {
 	t.Helper()
 	legacyRoot, contentRoot := t.TempDir(), t.TempDir()
-	if err := os.Mkdir(filepath.Join(contentRoot, fixtureDirectoryName), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(contentRoot, fixtureDirectoryName, "part.txt"), []byte("part"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(contentRoot, fixtureFileName), []byte(fixtureFileBody), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(filepath.Join(contentRoot, fixtureDirectoryName), 0o700))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(contentRoot, fixtureDirectoryName, "part.txt"), []byte("part"), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(contentRoot, fixtureFileName), []byte(fixtureFileBody), 0o600))
 	var log bytes.Buffer
 	writeLegacyRecord(t, &log, legacyDatasetRecord, encodeLegacyDatasetFixture(legacyDataset{
 		ID: 1, Name: fixtureDirectoryName, Kind: "directory", Source: "loose", Modality: "text", FileCount: 1, ByteCount: 4,
@@ -97,9 +78,7 @@ func legacyCatalogFixture(t *testing.T) (string, string) {
 		ID: 2, DatasetID: 2, Path: fixtureFileName, OriginalName: fixtureFileName, Extension: ".jsonl",
 		Modality: "structured", Format: "jsonl", Bytes: int64(len(fixtureFileBody)), Structured: true,
 	}))
-	if err := os.WriteFile(filepath.Join(legacyRoot, legacyRegistryName), log.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(legacyRoot, legacyRegistryName), log.Bytes(), 0o600))
 	return legacyRoot, contentRoot
 }
 
@@ -110,9 +89,7 @@ func writeLegacyRecord(t *testing.T, output *bytes.Buffer, kind byte, payload []
 	output.Write(header)
 	output.Write(payload)
 	checksum := crc32.Update(crc32.Update(0, legacyChecksumTable, header), legacyChecksumTable, payload)
-	if err := binary.Write(output, binary.LittleEndian, checksum); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, binary.Write(output, binary.LittleEndian, checksum))
 }
 
 type legacyFixtureEncoder struct{ bytes.Buffer }
@@ -162,24 +139,16 @@ func testCompiledCatalog(t *testing.T, path string) CompiledCatalog {
 	inventory, err := NewInventory([]InventoryFile{{
 		Path: filepath.Base(path), OriginalName: filepath.Base(path), Modality: "text", Format: "txt", Bytes: 1,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	version, err := NewVersion([]Asset{{Name: "inventory", Artifact: inventory.ID, Records: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := NewCatalog([]CatalogEntry{{
 		Name: "fixture", Dataset: version.ID, Inventory: inventory.ID, StorageKind: "file",
 		Source: "fixture", Modality: "text", Formats: []string{"txt"}, Files: 1, Bytes: 1,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	location, err := artifact.CanonicalLocalLocation(version.ID, artifact.LocationFile, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return CompiledCatalog{Catalog: catalog, Datasets: []Document{version}, Inventories: []Inventory{inventory}, Locations: []artifact.Location{location}}
 }
 
@@ -191,24 +160,16 @@ func TestDatasetCatalogPublishRecordsLateArrivals(t *testing.T) {
 	ctx := t.Context()
 	legacyRoot, contentRoot := legacyCatalogFixture(t)
 	moved := filepath.Join(t.TempDir(), fixtureFileName)
-	if err := os.Rename(filepath.Join(contentRoot, fixtureFileName), moved); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(filepath.Join(contentRoot, fixtureFileName), moved))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	first, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !first.Changed || !first.Coverage.Complete || first.Coverage.Available >= first.Coverage.Registered {
 		t.Fatalf("first publication = %+v, want complete aliases with the moved dataset unavailable", first)
 	}
-	if err := os.Rename(moved, filepath.Join(contentRoot, fixtureFileName)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(moved, filepath.Join(contentRoot, fixtureFileName)))
 	second, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
 	if err != nil {
 		t.Fatalf("republication after arrival failed: %v", err)
@@ -217,9 +178,7 @@ func TestDatasetCatalogPublishRecordsLateArrivals(t *testing.T) {
 		t.Fatalf("second publication = %+v, want the late arrival recorded", second)
 	}
 	third, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if third.Changed {
 		t.Fatalf("converged catalog changed again: %+v", third)
 	}

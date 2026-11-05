@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // benchmarkBPEEncoder keeps the vocabulary and declared no-regex ByteLevel
@@ -38,9 +40,7 @@ func BenchmarkEncodeSharedBPE(b *testing.B) {
 		text := strings.Repeat("abcde ", units)
 		b.Run(fmt.Sprintf("bytes=%d", len(text)), func(b *testing.B) {
 			ids, err := tok.Encode(text)
-			if err != nil {
-				b.Fatal(err)
-			}
+			testcheck.NoError(b, err)
 			b.ReportMetric(float64(len(ids)), "tokens/op")
 			b.ReportAllocs()
 			b.ResetTimer()

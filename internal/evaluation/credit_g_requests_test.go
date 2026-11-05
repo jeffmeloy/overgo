@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // creditGFixture is a table of the credit-g shape: an identifying text
@@ -43,9 +45,7 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 	t.Parallel()
 	table := creditGFixture()
 	built, err := BuildCreditGRequests(table)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if again, _ := BuildCreditGRequests(table); len(built) != creditGRequests || !slices.EqualFunc(built, again, slices.Equal[[]byte]) {
 		t.Fatalf("the same table built %d requests, and not the same bytes twice", len(built))
 	}
@@ -62,9 +62,7 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 			TrainRows   int       `json:"train_rows"`
 			Categorical []int     `json:"categorical_columns"`
 		}
-		if err := json.Unmarshal(document, &request); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(document, &request))
 		rows := context + query
 		if request.Task != "classification" || request.Rows != rows || request.Cols != 3 || request.TrainRows != context ||
 			len(request.X) != rows*request.Cols || len(request.Y) != rows || !slices.Equal(request.Categorical, []int{0, 1}) {

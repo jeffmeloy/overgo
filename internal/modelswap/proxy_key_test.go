@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // keyRecorder: the proxy's provider-key intake under test.
@@ -28,9 +30,7 @@ func (k *keyRecorder) SetKey(_ context.Context, reference, key string) error {
 func TestModelSwapProxyTakesProviderKeys(t *testing.T) {
 	launcher := &upstreamLauncher{}
 	supervisor, err := New(launcher, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	keys := &keyRecorder{}
 	alpha := Servable{Name: "alpha", Location: "alpha.gguf"}
@@ -39,9 +39,7 @@ func TestModelSwapProxyTakesProviderKeys(t *testing.T) {
 	defer front.Close()
 	body := `{"location":"remote://fake/vendor/model","key":"secret"}`
 	placed, err := http.Post(front.URL+"/providers/key", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	placedBody, _ := io.ReadAll(placed.Body)
 	placed.Body.Close()
 	if placed.StatusCode != http.StatusOK || keys.reference != "remote://fake/vendor/model" || keys.key != "secret" ||
@@ -50,9 +48,7 @@ func TestModelSwapProxyTakesProviderKeys(t *testing.T) {
 	}
 	keys.err = errors.New("no declared model")
 	refused, err := http.Post(front.URL+"/providers/key", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refused.Body.Close()
 	if refused.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("refused status=%d", refused.StatusCode)
@@ -60,9 +56,7 @@ func TestModelSwapProxyTakesProviderKeys(t *testing.T) {
 	keyless := httptest.NewServer(&Proxy{Supervisor: supervisor, Resolver: mapResolver{"alpha": alpha}, Default: alpha})
 	defer keyless.Close()
 	absent, err := http.Post(keyless.URL+"/providers/key", "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	absent.Body.Close()
 	if absent.StatusCode != http.StatusNotImplemented {
 		t.Fatalf("proxy without an intake status=%d", absent.StatusCode)

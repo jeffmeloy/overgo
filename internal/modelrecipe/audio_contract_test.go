@@ -8,14 +8,13 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	contextContent := audioParentContent(t, artifact.KindProfile, "context")
@@ -23,9 +22,7 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 	parents, err := artifact.NewDocumentBatch(
 		"fixture/audio-contract-parents", []artifact.Content{contextContent, stateContent}, nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, parents); err != nil {
 		t.Fatal(err)
 	}
@@ -35,13 +32,9 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 		Context: contextContent.Descriptor.ID,
 		State:   stateContent.Descriptor.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := contract.Batch("fixture/audio-contract")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -76,42 +69,30 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 
 func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	contract, err := NewAudioContract(
 		recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 80},
 		artifact.ID{}, artifact.ID{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contractContent, err := contract.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := audioParentContent(t, artifact.KindModel, "transcription-model")
 	processor := audioParentContent(t, artifact.KindProfile, "transcription-processor")
 	tokenizer := audioParentContent(t, artifact.KindTokenizer, "transcription-tokenizer")
 	inventory := audioParentContent(t, artifact.KindTensorInventory, "transcription-tensors")
 	dependencies, err := artifact.NewDocumentBatch("fixture/transcription/dependencies",
 		[]artifact.Content{model, contractContent, processor, tokenizer, inventory}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err = artifact.CommitBatch(t.Context(), store, dependencies); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := TranscriptionDefinition(model.Descriptor.ID, contract.ID, processor.Descriptor.ID, tokenizer.Descriptor.ID, inventory.Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if program.Definition().ID != definition.ID || len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleTranscribeAudio ||
 		definition.Nodes[0].Placement != recipe.PlacementHost || definition.Nodes[0].Session != recipe.SessionCapacity ||
 		definition.Nodes[0].Residency != recipe.ResidencyHostCache {
@@ -121,9 +102,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	parents, err := store.Parents(t.Context(), definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, dependency := range definition.Dependencies {
 		edge := artifact.Lineage{Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn}
 		if !slices.Contains(parents, edge) {
@@ -136,9 +115,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	}
 	checkpoint := audioParentContent(t, artifact.KindCheckpoint, "adapter")
 	adapted, err := AdaptedTranscriptionDefinition(definition, checkpoint.Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileCapability(adapted); err != nil {
 		t.Fatal(err)
 	}
@@ -158,9 +135,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 		t.Fatal("mutated base topology accepted")
 	}
 	resident, err := DeviceTranscriptionDefinition(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileCapability(resident); err != nil {
 		t.Fatal(err)
 	}
@@ -176,9 +151,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 
 func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	contextID := testutil.ArtifactID(t, artifact.KindProfile, "missing-context")
 	contract, err := audioContractCodec.NewInitial(AudioContractDocument{
@@ -186,17 +159,11 @@ func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {
 		Frame:   recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160},
 		Context: contextID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := contract.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	unbound, err := artifact.NewDocumentBatch("fixture/unbound-audio-contract", []artifact.Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, unbound); err != nil {
 		t.Fatal(err)
 	}
@@ -214,12 +181,8 @@ func audioParentContent(t *testing.T, kind artifact.Kind, name string) artifact.
 	}
 	data := []byte(`{"name":"` + name + `"}`)
 	id, err := contract.Identify(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := contract.Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }

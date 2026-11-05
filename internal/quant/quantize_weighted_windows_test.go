@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -32,9 +33,7 @@ func TestQuantizeWeightedMatchesPinnedGGML(t *testing.T) {
 				t.Fatalf("ggml_quantize_init result/error = %d/%v", result, callErr)
 			}
 			got, err := QuantizeWeighted(dataType, values, weights)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want := make([]byte, len(got))
 			function := library.NewProc("quantize_" + dataType.String())
 			written, _, callErr := function.Call(

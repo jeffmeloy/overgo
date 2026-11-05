@@ -22,6 +22,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -59,9 +60,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 	t.Helper()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	image, audio := []byte("image-output"), tinyPCM16WAV()
 	imageID := testutil.ArtifactBytesID(t, artifact.KindOutput, image)
 	audioID := testutil.ArtifactBytesID(t, artifact.KindOutput, audio)
@@ -102,9 +101,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 		},
 	}
 	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -122,9 +119,7 @@ func TestNativeImageProtocolUsesActiveRecipeSession(t *testing.T) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 	var result nativeImageResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	if len(result.Data) != 1 {
 		t.Fatalf("images=%+v", result.Data)
 	}
@@ -162,12 +157,8 @@ func TestNativeAudioProtocolUsesActiveRecipeSession(t *testing.T) {
 			t.Fatalf("executed=%v", workspace.executed)
 		}
 		var got, want map[string]any
-		if err := json.Unmarshal(workspace.inputs[index], &got); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal([]byte(`{"input":"test",`+fields+`}`), &want); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(workspace.inputs[index], &got))
+		testcheck.NoError(t, json.Unmarshal([]byte(`{"input":"test",`+fields+`}`), &want))
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("voice selection changed: %v != %v", got, want)
 		}
@@ -237,9 +228,7 @@ func TestAbortedContentResponsesReleaseTheirFiles(t *testing.T) {
 func TestMediaRequestResolvesItsCapabilityOnce(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	activatedImageModel(t, store)
 	var listings, executions atomic.Int32
@@ -255,9 +244,7 @@ func TestMediaRequestResolvesItsCapabilityOnce(t *testing.T) {
 	}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, controls, mediacapability.OutputContent), 16)
 	handler, err := New(Config{Repository: store, Workflows: WorkflowWorkspaceSet{workspace}}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodPost, "/v1/images/generations", `{"class":1,"seed":7}`)
 	if response.Code != http.StatusOK {

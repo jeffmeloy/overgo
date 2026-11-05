@@ -3,6 +3,8 @@ package diffusionimage
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRealCheckpointDerivedConfig: the derivation must reconstruct the
@@ -56,9 +58,7 @@ func TestRealCheckpointVendorParity(t *testing.T) {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", artifactDir(t), err)
 	}
 	got, err := m.Forward(g.X, g.B, g.H, g.W)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "real forward", got, g.Out, tolReal)
 }
 
@@ -68,9 +68,7 @@ func TestRealCheckpointSample(t *testing.T) {
 	m := loadArtifactModel(t)
 	const steps = 4
 	img, err := m.Sample(t.Context(), 1, 32, 32, steps, 42)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var sum float64
 	for _, v := range img {
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {

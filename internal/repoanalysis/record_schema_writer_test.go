@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // schemaNamed returns the schema a string literal names, as the gate counts one.
@@ -710,9 +711,7 @@ func TestEveryProcessRecordSchemaHasAProductionWriter(t *testing.T) {
 			contents[name] = []byte(content)
 		}
 		snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if found, _, _, err := unwrittenRecordSchemas(snapshot, nil); err != nil || !slices.Equal(found, row.want) {
 			t.Errorf("%s: unwritten = %q, %v, want %q", row.rule, found, err, row.want)
 		}

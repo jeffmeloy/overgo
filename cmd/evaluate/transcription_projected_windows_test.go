@@ -21,6 +21,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,33 +33,23 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	canonical, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer canonical.Close()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	location := func(value string, kind artifact.LocationKind) string {
 		t.Helper()
 		path, err := artifact.AvailablePath(ctx, canonical, parse(value), kind)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return path
 	}
 	modelPath := location("tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501", artifact.LocationFile)
@@ -66,9 +57,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	datasetID := parse("dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3")
 	corpus := filepath.Join(location(datasetID.String(), artifact.LocationDirectory), "0000.parquet")
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, canonical, modelPath, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
 		t.Fatal(err)
 	}
@@ -76,9 +65,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 		t.Fatal(err)
 	}
 	projection, err := modelintake.PrepareProjectionCandidate(ctx, canonical, modelPath, projectorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = modelintake.RegisterProjectionCandidate(ctx, store, projection); err != nil {
 		t.Fatal(err)
 	}
@@ -96,9 +83,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 		} `json:"cases"`
 	}
 	data, err := os.ReadFile(testutil.FixturePath(t, "e4b_audio_validation_golden.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = json.Unmarshal(data, &oracle); err != nil {
 		t.Fatal(err)
 	}
@@ -109,13 +94,9 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	// Source bytes stay external; production preparation derives an independent
 	// selected membership rather than treating this container as the split.
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "hybrid-native")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := environment.Batch("transcription-fixture/environment")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: datasetID}, artifact.Descriptor{ID: container})
 	if _, err = artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
@@ -132,9 +113,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	// This is an admission bound, not a measured host or device peak.
 	const sourceMemoryBytes = 4 << 30
 	rows, err := dataset.OpenParquetRows(ctx, corpus, []string{"bytes"}, sourceMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rows.Close()
 	var inputs []evaluation.TranscriptionResourceInput
 	for _, row := range oracle.Cases {
@@ -143,20 +122,14 @@ func TestE4BProjectedTranscription(t *testing.T) {
 			t.Fatalf("source row %d unavailable: %v", row.Row, err)
 		}
 		audio, err := artifact.IdentifyBytes(artifact.KindFile, []byte(*values["bytes"]))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inputs = append(inputs, evaluation.TranscriptionResourceInput{Name: row.Name, Policy: policy,
 			Reference: dataset.AudioPayloadReference{Path: corpus, Audio: audio,
 				Origin: dataset.AudioPayloadOrigin{Container: container, Column: "bytes", Row: new(row.Row)}}})
 	}
-	if err := rows.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rows.Close())
 	source, err := dataset.NewAudioPayloadReader(sourceMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "overgo/e4b-audio-validation/v1",
 		Source:  "Eight pinned LibriSpeech validation cases; native FP32/BF16 SDPA full-transcript oracle; held-out excluded",
@@ -166,20 +139,14 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	for index, input := range inputs {
 		row := oracle.Cases[index]
 		encoded, err := source.Read(ctx, input.Reference, input.Policy.MaximumEncodedBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inspection, err := dataset.InspectAudio(ctx, store, encoded, input.Reference.Origin, input.Policy)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted || uint64(len(inspection.Samples)) != row.Samples {
 			t.Fatalf("source admission differs for %s: %+v", row.Name, inspection.Decision)
 		}
 		wav, err := media.EncodeWAVPCM16(inspection.Samples, int(inspection.Signal.Format.SampleRate))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		wavID, err := artifact.IdentifyBytes(artifact.KindFile, wav)
 		if err != nil || wavID.DigestHex() != row.WAVSHA {
 			t.Fatalf("native waveform differs for %s: %s %v", row.Name, wavID, err)
@@ -188,35 +155,23 @@ func TestE4BProjectedTranscription(t *testing.T) {
 			Reference: row.Reference, SampleCount: row.Samples, SampleRate: inspection.Signal.Format.SampleRate})
 		expected[row.Name] = row.Outputs
 	}
-	if err := prepareTranscriptionSelection(ctx, store, &suite, inputs, sourceMemoryBytes); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prepareTranscriptionSelection(ctx, store, &suite, inputs, sourceMemoryBytes))
 	compiled, err := evaluation.CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := evaluation.ExactAuthorities{ModelDefinition: candidate.Resolved.Document.ID, RuntimeRecipe: projection.Definition.ID,
 		CodeCommit: "0123456789abcdef0123456789abcdef01234567", Environment: environment.ID,
 		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: evaluation.PromptingChatTemplate}}
 	plan, err := evaluation.BindTranscription(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, source.Close())
 	report, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs, evaluation.TranscriptionResourceOptions{TimedRuns: 2}, sourceMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Summary.Runs != 16 || report.Summary.AdmissionFailures != 0 || report.Summary.InferenceFailures != 0 || report.QualityScore.Utterances != 8 {
 		t.Fatalf("incorrect execution denominator: %+v quality=%+v", report.Summary, report.QualityScore)
 	}
 	for _, execution := range report.Executions {
 		output, err := speechrecognition.RequireTranscription(ctx, store, execution.Output)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Contains(expected[execution.Name], output.Text) {
 			t.Fatalf("%s transcript differs from both native precisions: %q", execution.Name, output.Text)
 		}
@@ -227,17 +182,11 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	suite.Cases = suite.Cases[:1]
 	suite.MaxTokens = 1
 	compiled, err = evaluation.CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err = evaluation.BindTranscription(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	truncated, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs[:1], evaluation.TranscriptionResourceOptions{TimedRuns: 1}, sourceMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if truncated.Summary.InferenceFailures != 1 || truncated.QualityScore.InferenceFailures != 1 || truncated.QualityScore.WordErrorRate != 1 {
 		t.Fatalf("truncated transcript escaped the failure denominator: %+v", truncated)
 	}

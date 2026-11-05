@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -28,25 +29,19 @@ func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
 	suite.Prompt, suite.MaxTokens = "Transcribe the speech exactly.", 128
 	suite.DecodeRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "exact decoder")
 	first, err := CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.identity == fixture.compiled.identity {
 		t.Fatal("projection protocol reused the native speech suite identity")
 	}
 	suite.MaxTokens++
 	second, err := CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.identity == second.identity {
 		t.Fatal("token budget is absent from the suite identity")
 	}
 	suite.Prompt += " Return only the transcript."
 	third, err := CompileTranscription(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.identity == third.identity {
 		t.Fatal("prompt is absent from the suite identity")
 	}
@@ -62,9 +57,7 @@ func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
 	}
 	authorities.Execution.Prompting = PromptingChatTemplate
 	plan, err := BindTranscription(fourth, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prediction := fixture.successfulPrediction(t, "pinned", "reference stays outside prediction")
 	if _, err := EvaluateTranscription(t.Context(), fixture.store, fourth, plan, []TranscriptionPrediction{prediction}); err == nil {
 		t.Fatal("unbound native speech run was admitted as projected transcription")

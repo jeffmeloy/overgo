@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestRepairRefusesACorruptJournal holds repair to the canonical reader. A
@@ -34,27 +35,19 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 	)
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, text := range []string{"first commit", "second commit"} {
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "repair/" + text, Contents: []artifact.Content{textContent(t, text)}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	journal := filepath.Join(root, "overgodb.log")
 	clean, err := os.ReadFile(journal)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write := func(data []byte) {
 		t.Helper()
-		if err := os.WriteFile(journal, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(journal, data, 0o644))
 	}
 	journalIs := func(want []byte, state string) {
 		t.Helper()
@@ -99,9 +92,7 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 		}
 	}
 	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "overgodb.log.") {
 			t.Fatalf("repair left %s beside the journal", entry.Name())

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/gosyntax"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // tuningPackages are the packages whose named values trade the serving's measured costs.
@@ -198,9 +199,7 @@ const format = 32
 		t.Fatal(err)
 	}
 	fixture, err := gosyntax.DiscoverGo(root, ".")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	table := []tuningValue{
 		{file: "values.go", name: "derived", trades: "a copy against a miss"},
 		{file: "values.go", name: "pending", trades: "a chunk's reads", basis: "measured here", step: "chunk"},
@@ -211,9 +210,7 @@ const format = 32
 		{file: "values.go", name: "widthGB", fixed: "a unit"},
 	}
 	found, err := tuningTableFindings(fixture, table, map[string]bool{"chunk": true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{
 		"values.go#absent: the tree holds no such numeric value",
 		"values.go#copied: its comment cites a measurement or Strata and the table holds no row of it",
@@ -227,13 +224,9 @@ const format = 32
 	}
 
 	repository, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := plan.Load(filepath.Join(repository, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	open := map[string]bool{}
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
@@ -243,9 +236,7 @@ const format = 32
 		}
 	}
 	live, err := gosyntax.DiscoverGo(repository, tuningPackages...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if found, err = tuningTableFindings(live, tuningTable, open); err != nil {
 		t.Fatal(err)
 	}

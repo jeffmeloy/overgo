@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestWriteAdmissionBindsKindsToProducers holds the commit door to the
@@ -21,9 +22,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	kind := producerKinds[0]
 	guarded := retentionContent(t, artifact.KindEvidence, map[string]any{"claim": "guarded"})
@@ -43,9 +42,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 		t.Fatalf("a refused batch advanced the head to %d", sequence)
 	}
 	committed, err := store.CommitAs(ctx, NewProducer(kind.producer), batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Who asked is no part of what was asked: the repeat replays and mints nothing.
 	if repeat, err := store.Commit(ctx, batch); err != nil || repeat != committed {
 		t.Fatalf("a repeat through the plain door = %s, %v; want the committed %s", repeat, err, committed)
@@ -62,14 +59,10 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("an unproduced batch that only names a held guarded artifact was refused: %v", err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	for sequence, producer := range map[uint64]string{1: kind.producer, 2: ""} {
 		frame, found, err := store.CommitDeltaAt(ctx, sequence)
@@ -83,9 +76,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 		t.Fatalf("rebuild could not transplant a guarded kind: %v", err)
 	}
 	rebuilt, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = rebuilt.Close() })
 	if held, err := rebuilt.HasContent(ctx, guarded.Descriptor.ID); err != nil || !held {
 		t.Fatalf("rebuilt store holds the guarded content = %v, %v", held, err)

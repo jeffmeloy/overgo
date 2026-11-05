@@ -13,6 +13,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -39,29 +40,21 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 			values = append(values, float64(sample), 500, float64(100*curve+sample), 0.1)
 		}
 		data := fmt.Sprintf(`{"x":%s}`, jsonFloats(values))
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("curve-%02d.json", curve)), []byte(data), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("curve-%02d.json", curve)), []byte(data), 0o600))
 	}
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "curves", corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var records []dataset.Record
 	for index := range uint64(curves) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
 		records = append(records, dataset.Record{ID: id, Group: id})
 	}
 	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memberships := map[string]dataset.Membership{}
 	for _, membership := range split.Memberships {
 		memberships[membership.Partition] = membership
@@ -70,9 +63,7 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 	derive := func(kind artifact.Kind, role string) artifact.ID {
 		t.Helper()
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/forecast-probe-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
@@ -82,9 +73,7 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 		Metric: trainingprogram.MetricForecastMAE, Evidence: []artifact.ID{derive(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const alias = "objective.registered.forecast-probe"
 	modelPath := commitForecastObjective(t, ctx, store, root, split, objective, alias)
 
@@ -125,9 +114,7 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 			return trainingworkflow.HeldoutPrediction{Values: slices.Repeat([]float64{level}, len(example.Target))}, nil
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, id := range trained {
 		if !trainingIDs[id] {
 			t.Fatalf("training was shown %s, which is not a training record", id)
@@ -150,28 +137,20 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 func commitForecastObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, split dataset.SplitPlan, objective trainingprogram.ObjectiveDocument, alias string) string {
 	t.Helper()
 	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
 	modelPath := filepath.Join(root, "model.safetensors")
-	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("model"), 0o600))
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenced := []artifact.ID{objective.Loss, objective.Evaluation}
 	referenced = append(referenced, objective.Processors...)
 	referenced = append(referenced, objective.Evidence...)
 	for _, name := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
 		id, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		referenced = append(referenced, id)
 	}
 	descriptors := make([]artifact.Descriptor, 0, len(referenced))

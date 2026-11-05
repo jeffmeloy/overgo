@@ -18,6 +18,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -133,22 +134,16 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/answer_log_probabilities/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's reference answers are on file (%v); write them with %s", err, answersScript)
 	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, fixture := range fixtures {
 		raw, err := os.ReadFile(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var reference answerReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -163,9 +158,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 				tolerance, margin = known.tolerance, known.margin
 			}
 			asked, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(reference.Prompts)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if digest := sha256.Sum256(asked); hex.EncodeToString(digest[:]) != reference.PromptsSHA256 {
 				t.Fatalf("%s is not the file the reference answered: write the answers again with %s", reference.Prompts, answersScript)
 			}
@@ -179,9 +172,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
 			runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			t.Cleanup(func() { _ = runner.Close() })
 			widest, same, tokens := 0.0, 0, 0
 			for index, own := range reference.Cases {

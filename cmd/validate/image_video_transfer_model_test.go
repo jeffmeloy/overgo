@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -147,27 +148,17 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_transfers.json")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoTransferSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoTransferSHA256))
 	var comparison mediaTransferComparison
-	if err := jsonfile.DecodeStrict(path, &comparison); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &comparison))
 	if comparison.Version != artifact.InitialDocumentVersion || comparison.Rationale == "" || len(comparison.Cases) != 2 || len(comparison.Quality) == 0 || len(comparison.Evidence) == 0 || len(comparison.Sources) == 0 {
 		t.Fatal("incomplete comparison")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -189,12 +180,8 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 	}
 	for _, check := range comparison.Quality {
 		report, err := testevidence.GoTestJSONReport(string(read(check.Evidence)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 || check.Name == "" || check.Command == "" {
 			t.Fatal("empty quality acquisition")
 		}
@@ -206,19 +193,13 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 			t.Fatal("missing or duplicate workload")
 		}
 		var before, after mediaTransferRecord
-		if err := json.Unmarshal(read(entry.Baseline), &before); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(read(entry.Candidate), &after); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(entry.Baseline), &before))
+		testcheck.NoError(t, json.Unmarshal(read(entry.Candidate), &after))
 		if before.Acceptance != acceptance {
 			t.Fatal("acquisition changed frozen acceptance")
 		}
 		accepted, err := compareMediaTransfers(before, after, entry.Steps, entry.StepInputBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if name == "full" {
 			efficient = accepted
 		}
@@ -250,9 +231,7 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 		}
 		if name == "g4" {
 			var ablation mediaTransferRecord
-			if err := json.Unmarshal(read(entry.Ablation), &ablation); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(read(entry.Ablation), &ablation))
 			if _, err := compareMediaTransfers(ablation, after, entry.Steps, entry.StepInputBytes); err != nil {
 				t.Fatalf("causal ablation: %v", err)
 			}

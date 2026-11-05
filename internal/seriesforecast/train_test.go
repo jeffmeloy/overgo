@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -64,31 +65,23 @@ func tinyTrainableModel() *Model {
 func testOptimizerConfig(t *testing.T, model *Model) optimizer.Config {
 	t.Helper()
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return config
 }
 
 func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	input := []float32{0.4, 0.9, 1.3, 1.1, 0.8, 1.6, 2.1, 1.9, 1.4, 2.3}
 	target := []float32{2.6, 2.2}
 	before, err := trainer.Loss(input, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var first, last TrainStepResult
 	for step := range 6 {
 		result, err := trainer.Step(input, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(result.Total) || math.IsInf(result.Total, 0) {
 			t.Fatalf("step %d loss is non-finite: %+v", step, result)
 		}
@@ -104,9 +97,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 		t.Fatalf("optimizer step facts are wrong: first=%+v last=%+v", first, last)
 	}
 	after, err := trainer.Loss(input, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Total != before || !(after < before) {
 		t.Fatalf("loss evaluation disagrees with training: before=%.6f first=%.6f after=%.6f", before, first.Total, after)
 	}
@@ -115,9 +106,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
 	if trainer.ParameterCount() == 0 || len(parameters) != len(model.trainableNames()) {
@@ -136,9 +125,7 @@ func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	if _, err := trainer.Step([]float32{0.4, 0.9, 1.3, 1.1, 0.8, 1.6, 2.1, 1.9, 1.4, 2.3}, []float32{2.6, 2.2}); err != nil {
 		t.Fatal(err)
@@ -153,9 +140,7 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	trainer.grads["stacked_xf.0.attn.stray.weight"] = make([]float32, 4)
 	_, err = trainer.Step([]float32{1, 2, 3, 4, 5}, []float32{1, 2})

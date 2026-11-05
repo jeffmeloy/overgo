@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // Exercise the wire result and its durable projection with the same generation.
@@ -31,9 +32,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 			for _, stored := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/stream=%t/store=%t", tc.name, stream, stored), func(t *testing.T) {
 					store, err := overgodb.Open(t.TempDir())
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					defer store.Close()
 					handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 					input := map[string]any{"input": requestMessages, "max_output_tokens": tc.limit, "stream": stream, "store": stored}
@@ -41,9 +40,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 						input["stop"] = tc.stop
 					}
 					body, err := json.Marshal(input)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					response := serveTestRequest(handler, http.MethodPost, "/v1/responses", string(body))
 					if response.Code != http.StatusOK {
 						t.Fatalf("response: %d %s", response.Code, response.Body)
@@ -136,9 +133,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 							checkDetails(history.Messages[len(requestMessages)].IncompleteDetails)
 						}
 						checkHistory(handler)
-						if err := handler.Close(); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, handler.Close())
 						restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 						checkHistory(restarted)
 						continuation := serveTestRequest(restarted, http.MethodPost, "/v1/responses", `{"input":"continue","previous_response_id":"`+final.ID+`","max_output_tokens":3}`)

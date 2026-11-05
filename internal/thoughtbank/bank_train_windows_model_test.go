@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 )
 
@@ -49,18 +50,12 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 		}
 	}
 	weights, _, err := LoadCheckpoint(filepath.Join(modelDirectory, "model.pt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenizer, err := hfbpe.Load(modelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := orderedWikiTextRecord(t, datasetPath)
 	tokens, err := tokenizer.Encode(text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(tokens) < 4 {
 		t.Fatalf("ordered WikiText record produced %d tokens, want at least 4", len(tokens))
 	}
@@ -82,9 +77,7 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 	original := cloneBankWeights(weights.Blocks[0].Bank)
 	config := optimizer.Config{BaseLearningRate: 1e-5, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
 	deviceTrainer, err := deviceWeights.NewTrainer(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer deviceTrainer.Close()
 	hostTrainer, err := newFastWeightBankTrainer(hostWeights, config, func(pack *optimizer.TensorPack, config optimizer.Config) (optimizer.Stepper, error) {
 		host, err := pack.NewOptimizer(config)
@@ -93,19 +86,13 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 		}
 		return hostBankStepper{optimizer: host}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer hostTrainer.Close()
 
 	deviceResult, err := deviceTrainer.Step(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostResult, err := hostTrainer.Step(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if deviceResult.ProgramID == "" || deviceResult.ProgramID != hostResult.ProgramID {
 		t.Fatalf("compiled program identity differs: device=%q host=%q", deviceResult.ProgramID, hostResult.ProgramID)
 	}
@@ -126,9 +113,7 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 func orderedWikiTextRecord(t *testing.T, path string) string {
 	t.Helper()
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	records := make([]trainingdata.RawRecord, 0, 8)
 	scanner := bufio.NewScanner(file)
@@ -138,9 +123,7 @@ func orderedWikiTextRecord(t *testing.T, path string) string {
 			records = append(records, trainingdata.RawRecord{ID: "wikitext/" + string(rune('a'+len(records))), Data: []byte(line)})
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, scanner.Err())
 	datasetID := trainingArtifactID(t, artifact.KindDataset, "wikitext-2-raw")
 	splitID := trainingArtifactID(t, artifact.KindDatasetShard, "ordered-head")
 	processorID := trainingArtifactID(t, artifact.KindProfile, "utf8-text")
@@ -155,31 +138,21 @@ func orderedWikiTextRecord(t *testing.T, path string) string {
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
 		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, trainingdata.EncodingUTF8),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer dataset.Close()
 	stream, err := trainingdata.NewStream(dataset, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := batcher.Next(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(batch.Examples[0].Values[0].Data)
 }
 
 func trainingArtifactID(t *testing.T, kind artifact.Kind, name string) artifact.ID {
 	t.Helper()
 	id, err := artifact.JSONID(kind, map[string]string{"name": name})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 

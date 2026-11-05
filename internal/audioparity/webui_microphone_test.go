@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/server"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
@@ -26,36 +27,24 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 	// source clip. This isolated fixture retains all native signal admission.
 	policyPath := filepath.Join(filepath.Dir(f.path), "transcription_policy.json")
 	policyBytes, err := os.ReadFile(policyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var policy server.TranscriptionPolicy
-	if err := json.Unmarshal(policyBytes, &policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(policyBytes, &policy))
 	policy.Inspection.MaximumSamples *= 2
 	policy.Inspection.MaximumEncodedBytes = 44 + 2*policy.Inspection.MaximumSamples
 	policyBytes, err = json.Marshal(policy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(policyPath, policyBytes, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(policyPath, policyBytes, 0600))
 	_, front := f.proxy(t)
 	browserURL := front.URL
 	executable, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, name := range []string{"granite", "nemotron"} {
 		t.Run(name, func(t *testing.T) {
 			want := strings.TrimSpace(f.transcribe(t, front, index))
 			ctx := t.Context()
 			browser, err := webuilane.Open(ctx, executable, browserURL)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer browser.Close()
 			check := func(expression string) {
 				t.Helper()
@@ -90,9 +79,7 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 					if kind == "keyDown" {
 						event["text"] = "\r"
 					}
-					if err := browser.Call(ctx, "Input.dispatchKeyEvent", event, nil); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, browser.Call(ctx, "Input.dispatchKeyEvent", event, nil))
 				}
 			}
 			activate("Record audio")
@@ -112,9 +99,7 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 			activate("Attach recording")
 			settle(`document.querySelector('[aria-label="Transcription options"] input, .mode-controls input').value.startsWith('file:') && !document.querySelector('.composer .send-button').disabled`)
 			settle(`!!document.querySelector('.attachment-preview audio') && document.querySelector('.attachment-preview audio').readyState>=2 && document.querySelector('.attachment-preview audio').duration>0`)
-			if err := browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `(()=>{const audio=document.querySelector('.attachment-preview audio');audio.muted=true;return audio.play();})()`, "userGesture": true, "awaitPromise": true}, nil); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `(()=>{const audio=document.querySelector('.attachment-preview audio');audio.muted=true;return audio.play();})()`, "userGesture": true, "awaitPromise": true}, nil))
 			settle(`document.querySelector('.attachment-preview audio').currentTime>0`)
 			check(`(()=>{document.querySelector('.attachment-preview audio').pause();return true;})()`)
 			for _, viewport := range append(append([]webuilane.Viewport(nil), webuilane.ScreenViewports...), webuilane.Viewport{Name: "phone-keyboard", Width: 390, Height: 480}) {
@@ -129,9 +114,7 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 				if kind == "keyDown" {
 					event["text"] = "\r"
 				}
-				if err := browser.Call(ctx, "Input.dispatchKeyEvent", event, nil); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, browser.Call(ctx, "Input.dispatchKeyEvent", event, nil))
 			}
 			settle(`!!document.querySelector('.chat-log .msg.assistant .body') && document.querySelector('.chat-log .msg.assistant .body').textContent.trim()===` + strconv.Quote(want))
 			check(`overgo.errors.length===0 && !document.body.textContent.includes('Cannot read properties')`)

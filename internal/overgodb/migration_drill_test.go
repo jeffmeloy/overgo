@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // drillSurfaceDigest reduces the corpus-visible query surface — aliases,
@@ -24,9 +25,7 @@ func drillSurfaceDigest(t *testing.T, store *Store) string {
 	var out strings.Builder
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)
@@ -67,9 +66,7 @@ func drillTreeHash(t *testing.T, root string) string {
 		entries = append(entries, entry{path: filepath.ToSlash(relative), sum: sha256.Sum256(data)})
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slices.SortFunc(entries, func(left, right entry) int { return strings.Compare(left.path, right.path) })
 	hash := sha256.New()
 	for _, item := range entries {
@@ -99,9 +96,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	ctx := t.Context()
 
 	source, err := OpenReadOnly(sourceRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	digest := drillSurfaceDigest(t, source)
 	head, sequence := source.Head()
@@ -113,16 +108,12 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// read-only.
 	rebuiltRoot := filepath.Join(base, "rebuilt")
 	report, err := Rebuild(ctx, source, rebuiltRoot, nil, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Batches == 0 {
 		t.Fatalf("rebuild moved nothing: %+v", report)
 	}
 	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	if drillSurfaceDigest(t, rebuilt) != digest {
 		t.Fatal("rebuilt store answers a different query surface")
@@ -133,16 +124,12 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	backupRoot := filepath.Join(base, "backup")
 	backupReport, err := source.Backup(t.Context(), backupRoot)
 	backupHead := backupReport.Head
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if backupHead != head {
 		t.Fatalf("backup head %s differs from source head %s", backupHead, head)
 	}
 	restored, err := OpenReadOnly(backupRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restored.Close()
 	if drillSurfaceDigest(t, restored) != digest {
 		t.Fatal("restored backup answers a different query surface")
@@ -153,9 +140,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	releaseRoot := filepath.Join(base, "released")
 	drillCopyStore(t, rebuiltRoot, releaseRoot)
 	released, err := Create(releaseRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer released.Close()
 	if _, err := Release(ctx, released, nil, RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
@@ -178,9 +163,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		drillRoot := filepath.Join(base, fmt.Sprintf("interrupt-%d", int(fraction*100)))
 		drillCopyStore(t, rebuiltRoot, drillRoot)
 		cut := storeHeaderBytes + int64(float64(activeSize-storeHeaderBytes)*fraction)
-		if err := os.Truncate(filepath.Join(drillRoot, storeFilename), cut); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Truncate(filepath.Join(drillRoot, storeFilename), cut))
 		recovered, err := Create(drillRoot)
 		if err != nil {
 			t.Fatalf("interrupted store at %d bytes did not recover: %v", cut, err)
@@ -202,9 +185,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	drillCopyStore(t, sourceRoot, prefixRoot)
 	if info, statErr := os.Stat(filepath.Join(prefixRoot, storeFilename)); statErr == nil {
 		cut := storeHeaderBytes + (info.Size()-storeHeaderBytes)/2
-		if err := os.Truncate(filepath.Join(prefixRoot, storeFilename), cut); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Truncate(filepath.Join(prefixRoot, storeFilename), cut))
 	}
 	prefix, err := Create(prefixRoot)
 	if err != nil {
@@ -215,9 +196,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		t.Fatalf("recovered prefix sequence = %d", prefixSequence)
 	}
 	querySurfaceDigestBounded(t, prefix, int(prefixSequence))
-	if err := prefix.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, prefix.Close())
 
 	// A torn sealed segment refuses instead of serving a corrupt surface.
 	segments, _ := os.ReadDir(filepath.Join(rebuiltRoot, segmentDirectory))
@@ -226,12 +205,8 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		drillCopyStore(t, rebuiltRoot, tornRoot)
 		sealed := filepath.Join(tornRoot, segmentDirectory, segments[0].Name())
 		info, err := os.Stat(sealed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Truncate(sealed, info.Size()-1); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.Truncate(sealed, info.Size()-1))
 		if torn, err := OpenReadOnly(tornRoot); err == nil {
 			_ = torn.Close()
 			t.Fatal("torn sealed segment opened")

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -45,9 +46,7 @@ func TestSlowPublicationProcess(t *testing.T) {
 	// Both streams feed the parser, so the fixture announces its drained
 	// output by connecting to the parent's listener.
 	connection, err := net.Dial("tcp", announce)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_ = connection.Close()
 	os.Exit(0)
 }
@@ -55,9 +54,7 @@ func TestSlowPublicationProcess(t *testing.T) {
 func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	ctx := t.Context()
 	drained, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer drained.Close()
 	release, entered, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
@@ -87,9 +84,7 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	// The fixture drains its whole output while the first publication is
 	// still held; its connection proves the output was never blocked.
 	connection, err := drained.Accept()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_ = connection.Close()
 	select {
 	case <-done:

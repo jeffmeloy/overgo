@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestCheckoutRootsUnionDocumentsAndCommitMessages collects the identities a
@@ -32,12 +33,8 @@ func TestCheckoutRootsUnionDocumentsAndCommitMessages(t *testing.T) {
 	write := func(relative, text string) {
 		t.Helper()
 		path := filepath.Join(checkout, relative)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(text), 0o644))
 	}
 	receipt := "evidence:sha256:" + strings.Repeat("a", 64)
 	model := "model:sha256:" + strings.Repeat("b", 64)
@@ -54,15 +51,11 @@ func TestCheckoutRootsUnionDocumentsAndCommitMessages(t *testing.T) {
 	git("commit", "-q", "-m", "second\n\nOvergo-Gate-Preparation: "+preparation+"\nOvergo-Evidence: "+receipt)
 
 	roots, documents, messages, err := CheckoutRoots(t.Context(), checkout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var want []artifact.ID
 	for _, text := range []string{receipt, model, preparation} {
 		id, err := artifact.ParseID(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want = append(want, id)
 	}
 	slices.SortFunc(want, artifact.CompareID)

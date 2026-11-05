@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestReverifyInvokesLiveCommands closes the rename-residue finding: a
@@ -13,9 +15,7 @@ import (
 // evidence-recovery time.
 func TestReverifyInvokesLiveCommands(t *testing.T) {
 	source, err := os.ReadFile("main.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	invoked := regexp.MustCompile(`"\./(cmd/[a-z0-9-]+)"`).FindAllStringSubmatch(string(source), -1)
 	if len(invoked) == 0 {
 		t.Fatal("no invoked commands found; the recovery path changed shape")

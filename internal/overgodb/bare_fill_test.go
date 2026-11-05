@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestBatchFillsBareRecord holds the store to the one way a declared identity
@@ -22,9 +23,7 @@ func TestBatchFillsBareRecord(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content := retentionContent(t, artifact.KindEvidence, "an environment first declared bare")
 	id := content.Descriptor.ID
 	bareBatch := func(key string) artifact.Batch {
@@ -73,13 +72,9 @@ func TestBatchFillsBareRecord(t *testing.T) {
 		}
 	}
 	served(store)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	served(reopened)
 }

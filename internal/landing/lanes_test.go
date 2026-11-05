@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"overgo/internal/gosource"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -46,12 +47,8 @@ func writeModule(t *testing.T, repo string, files map[string]string) {
 	t.Helper()
 	for name, content := range files {
 		path := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 }
 
@@ -77,9 +74,7 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 	})
 	candidate := lane{packages: []string{"./a"}, prefixes: []string{"web/"}}
 	reaches, err := discover(repo, candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, change := range []struct {
 		paths []string
 		want  string
@@ -147,9 +142,7 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 			untagged := lane{name: "untagged", packages: own.packages}
 			neighbour := lane{name: "neighbour", packages: []string{"./c"}, tags: tags}
 			reaches, err := discover(repo, own, untagged, neighbour)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, selection := range []struct {
 				selected lane
 				changed  string
@@ -217,9 +210,7 @@ var (
 func TestReachInvariants(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	everyLane := slices.Concat(lanes, cycleLanes)
 	for _, name := range slices.Concat(servingLanes, browserOnlyLanes) {
 		if !slices.ContainsFunc(everyLane, func(candidate lane) bool { return candidate.name == name }) {
@@ -323,13 +314,9 @@ func TestReachInvariants(t *testing.T) {
 		{"internal/seq2seq/upstream_calls_model_test.go", gateLanes, false, "needle-reference", "the needle reference compares 400 cases without selecting training experiments"},
 	}
 	gateReaches, err := discover(repo, lanes...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cycleReaches, err := discover(repo, cycleLanes...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reaches := func(candidate lane, paths []string) bool {
 		if slices.ContainsFunc(lanes, func(gate lane) bool { return gate.name == candidate.name }) {
 			return gateReaches(candidate, paths).by != ""
@@ -354,9 +341,7 @@ func TestReachInvariants(t *testing.T) {
 				production, listed := productions[candidate.name]
 				if !listed {
 					production, err = gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					productions[candidate.name] = production
 				}
 				if !production.Files[row.path] {
@@ -386,9 +371,7 @@ func TestCUDATestsNeedALane(t *testing.T) {
 		"cmd/hostonly/f_test.go":          "package main\n",
 	})
 	uncovered, err := uncoveredCUDATests(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(uncovered, []string{"internal/unlaned"}) {
 		t.Fatalf("uncovered CUDA tests = %q, want only internal/unlaned", uncovered)
 	}

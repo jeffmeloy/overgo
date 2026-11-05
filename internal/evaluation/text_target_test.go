@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -52,9 +53,7 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 		Scorers: []textScorerSpec{{Kind: textGeneratedAnswer}},
 		Cases:   []textTargetCase{{Record: "heldout", Answers: []string{"answer"}}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	report, err := scoreTextTargets(plan, []textTargetObservation{{Record: "heldout", Raw: "answer", ContinuationLogLikelihood: &likelihood}})
 	if err != nil || len(report.Metrics) != 1 || report.Metrics[0].Name != string(textGeneratedAnswer) {
 		t.Fatalf("undeclared scorer affected report: %+v, err=%v", report, err)
@@ -75,8 +74,6 @@ func textTargetView(t *testing.T, input recipecontract.Modality) SFTEvaluationVi
 		},
 		Records: []dataset.Record{{ID: "heldout", Group: "heldout"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return view
 }

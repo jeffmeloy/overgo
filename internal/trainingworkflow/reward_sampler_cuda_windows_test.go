@@ -13,6 +13,7 @@ import (
 	"overgo/internal/densecausaltrain"
 	"overgo/internal/evaluation"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -68,9 +69,7 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 	ctx := t.Context()
 	root := filepath.Dir(request.ModelDirectory)
 	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run := func(request Request, name, resume string, steps int) Result {
 		t.Helper()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(filepath.Dir(request.DatasetPath), name)
@@ -78,9 +77,7 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 			request.ModelDirectory, request.ResumeDirectory = "", filepath.Join(filepath.Dir(request.DatasetPath), resume)
 		}
 		result, err := Execute(ctx, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	const groups = 4
@@ -90,21 +87,15 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 		t.Fatalf("the session = %+v at step %d, want %d groups sampled, some stepped, and their answers moved under the weights after", trace, whole.Checkpoint.Optimizer.Step, groups)
 	}
 	file, err := gguf.Open(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vocabulary, err := tokenizer.Load(file)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
 	base, err := identifyModel(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := evaluation.ParseInstructionPrompts([]byte(rewardPrompts))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	name := suite.Names()[0]
 	asked, limit, _ := suite.Asked(name)
 	first := evaluation.SampledGroup{
@@ -112,9 +103,7 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 		Ends: []tokenizer.TokenID{tokenizer.TokenID(tokens.end)}, Temperature: 1, Seed: request.Rewards.Seed, MaxTokens: limit,
 	}
 	encoded, err := tokens.encode(asked)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, id := range encoded {
 		first.Prompt = append(first.Prompt, tokenizer.TokenID(id))
 	}
@@ -126,9 +115,7 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 		var text strings.Builder
 		for _, id := range answer.Completion {
 			piece, err := vocabulary.DecodePiece(id, false)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			text.WriteString(piece)
 		}
 		if answer.Text != text.String() || len(answer.Completion) == 0 {
@@ -144,9 +131,7 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 	trained := func(request Request, name string) map[string][]float32 {
 		t.Helper()
 		model, err := loadTrainableModel(filepath.Join(filepath.Dir(request.DatasetPath), name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return model.Weights
 	}
 	resumed := trained(other, "resumed")

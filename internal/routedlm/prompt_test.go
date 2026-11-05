@@ -1,6 +1,10 @@
 package routedlm
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestVisualSegmentsWidensImageSpans(t *testing.T) {
 	// Text runs of >=2 zeros are separators; the spans between them (the
@@ -36,9 +40,7 @@ func TestSegmentRangeCausalOutsideSegments(t *testing.T) {
 func TestRopeInvFreqBaseDynamicAlpha(t *testing.T) {
 	cfg := Config{HeadDim: 128, RopeTheta: 10000, RopeScaling: map[string]any{"type": "dynamic", "alpha": 1000.0}}
 	base, err := RopeInvFreqBase(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// theta * alpha^(d/(d-2)) with d=128: 1e4 * 1000^(128/126).
 	if base <= 1e7 || base >= 1.2e7 {
 		t.Fatalf("dynamic base = %g", base)

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ func TestTextMatchesUpstream(t *testing.T) {
 			Written string `json:"written"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if len(fixture.Cases) == 0 {
 		t.Fatal("the fixture holds no text")
 	}

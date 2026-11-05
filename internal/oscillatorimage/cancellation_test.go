@@ -6,6 +6,8 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type phaseCancellation struct {
@@ -27,18 +29,12 @@ func TestStagedCancellationKeepsOutputs(t *testing.T) {
 	model := tinyModel()
 	request := Request{Class: 0, Seed: 42}
 	plan, err := model.prepare(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state := slices.Clone(plan.state)
 	features, err := model.integrate(t.Context(), plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := model.decode(t.Context(), features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, phase := range []string{"prepare", "integrate", "decode"} {
 		t.Run(phase, func(t *testing.T) {
 			ctx, cancel := context.WithCancelCause(t.Context())
@@ -56,9 +52,7 @@ func TestStagedCancellationKeepsOutputs(t *testing.T) {
 				t.Fatalf("canceled %s: %v", phase, err)
 			}
 			again, err := model.integrate(t.Context(), plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got, err := model.decode(t.Context(), again)
 			if err != nil || !slices.Equal(plan.state, state) || !slices.Equal(again, features) || !bytes.Equal(got.Data, want.Data) {
 				t.Fatal("cancellation changed reusable input, features or PNG", err)
@@ -89,17 +83,11 @@ func TestVideoCancellationKeepsOutputs(t *testing.T) {
 	model := tinyModel()
 	request := VideoRequest{Class: 0, Seed: 42, Frames: model.Cfg.NClasses, Scale: 1}
 	plan, err := model.prepareVideo(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	features, err := model.integrateVideo(t.Context(), plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := model.decodeVideo(t.Context(), features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, phase := range []string{"prepare", "integrate", "decode"} {
 		t.Run(phase, func(t *testing.T) {
 			ctx, cancel := context.WithCancelCause(t.Context())
@@ -138,9 +126,7 @@ func TestVideoCancellationKeepsOutputs(t *testing.T) {
 				t.Fatalf("video %s cancellation: %v", phase, err)
 			}
 			again, err := model.integrateVideo(t.Context(), plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got, err := model.decodeVideo(t.Context(), again)
 			if err != nil || !bytes.Equal(got.Data, want.Data) || got.ChangedPixels != want.ChangedPixels {
 				t.Fatal("video cancellation changed subsequent GIF", err)

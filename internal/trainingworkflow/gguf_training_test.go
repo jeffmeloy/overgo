@@ -11,6 +11,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -66,16 +67,12 @@ func writeTrainingGGUF(t *testing.T) string {
 	}
 	path := filepath.Join(t.TempDir(), "training-fixture.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	return path
 }
 
@@ -91,13 +88,9 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 	modelPath := writeTrainingGGUF(t)
 	datasetPath := filepath.Join(root, "dataset.txt")
 	corpus := bytes.Repeat([]byte("a b c d "), 64)
-	if err := os.WriteFile(datasetPath, corpus, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(datasetPath, corpus, 0o600))
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	// The trained model registers against the store's architecture profiles.
@@ -105,25 +98,19 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 		t.Fatal(err)
 	}
 	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := Execute(ctx, Request{
 		Repository: store, Recipe: recipeID, Observations: store,
 		ModelDirectory: modelPath, DatasetPath: datasetPath,
 		OutputDirectory: filepath.Join(root, "out"),
 		Steps:           1, MaximumSequence: 16, Host: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Losses) == 0 || math.IsNaN(result.Losses[0]) || math.IsInf(result.Losses[0], 0) {
 		t.Fatalf("gguf training losses = %v", result.Losses)
 	}
 	expected, err := identifyModel(modelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Checkpoint.Model != expected {
 		t.Fatalf("checkpoint model = %s, want the GGUF file identity %s", result.Checkpoint.Model, expected)
 	}
@@ -149,55 +136,31 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 func legacySingleGGUFCheckpoint(t *testing.T, directory string, checkpoint trainingprogram.Checkpoint) trainingprogram.Checkpoint {
 	t.Helper()
 	model, err := gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var weights bytes.Buffer
-	if err := model.WriteTo(&weights, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := model.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "model.gguf"), weights.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, model.WriteTo(&weights, gguf.WriteOptions{}))
+	testcheck.NoError(t, model.Close())
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.gguf"), weights.Bytes(), 0o644))
 	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, weights.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumePath := filepath.Join(directory, "resume.json")
 	resume, err := os.ReadFile(resumePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resume = bytes.ReplaceAll(resume, []byte(checkpoint.Weights.String()), []byte(id.String()))
 	resumeID, err := artifact.IdentifyBytes(artifact.KindCheckpoint, resume)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(resumePath, resume, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(resumePath, resume, 0o644))
 	documentPath := filepath.Join(directory, trainingprogram.CheckpointFilename)
 	document, err := os.ReadFile(documentPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document = bytes.Replace(document, []byte(`"version":3`), []byte(`"version":2`), 1)
 	document = bytes.ReplaceAll(document, []byte(checkpoint.Weights.String()), []byte(id.String()))
 	document = bytes.ReplaceAll(document, []byte(checkpoint.Resume.String()), []byte(resumeID.String()))
-	if err := os.WriteFile(documentPath, document, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(documentPath, document, 0o644))
 	for _, name := range []string{trainingprogram.CheckpointModel, trainingprogram.CheckpointFrozenShard} {
-		if err := os.Remove(filepath.Join(directory, name)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(directory, name)))
 	}
 	legacy, err := trainingprogram.LoadCheckpoint(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return legacy
 }

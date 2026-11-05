@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestPocketTTSLanguageContract(t *testing.T) {
@@ -23,26 +25,18 @@ func TestPocketTTSLanguageContract(t *testing.T) {
 		}
 	}](t, "german_contract.json")
 	var config artifactConfig
-	if err := json.Unmarshal(fixture.Config, &config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(fixture.Config, &config))
 	dims, err := deriveDims(fixture.Shapes, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
 	path := filepath.Join(directory, "tokenizer.model")
-	if err := os.WriteFile(path, fixture.Tokenizer, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, fixture.Tokenizer, 0o600))
 	sum := sha256.Sum256(fixture.Tokenizer)
 	if hex.EncodeToString(sum[:]) != fixture.Identities["tokenizer.model"] {
 		t.Fatal("tokenizer differs from independent package")
 	}
 	tokenizer, err := LoadTokenizer(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var policy struct {
 		RemoveSemicolons bool `json:"remove_semicolons"`
 	}

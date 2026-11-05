@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -29,14 +30,10 @@ func (t *mimoVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 
 func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(4, 4)) || !slices.Equal(output.Embeddings.Data, make([]float32, 16)) {
 		t.Fatalf("output = shape %v values %v", output.Embeddings.Shape, output.Embeddings.Data)
 	}
@@ -47,9 +44,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*miMoVLRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
@@ -58,17 +53,13 @@ func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
 
 func TestMiMoVLPromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	tok := &mimoVLPromptTokenizer{}
 	prompt, err := testSession(t, runner).BuildImagePrompt(
 		t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<|im_start|>system\n"+miMoVLSystemPrompt+"<|im_end|>") ||
 		!strings.Contains(tok.texts[0], "<|vision_start|>"+strings.Repeat(qwen3VLImagePad, 4)+"<|vision_end|>") {
 		t.Fatalf("prompt text = %q", tok.texts)
@@ -103,13 +94,9 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 		}
 	}
 	want, err := cpu.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, "MiMo-VL", got.Embeddings.Data, want.Embeddings.Data, 3e-3)
 }
 

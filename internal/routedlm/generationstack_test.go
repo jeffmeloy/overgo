@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestGenerationRetainedPrefixDirectBinding(t *testing.T) {
@@ -19,9 +20,7 @@ func TestGenerationRetainedPrefixDirectBinding(t *testing.T) {
 	prefixValue := b.Input("prefix-value", dtype.F32, tensor.MustShape(1))
 	output := b.Add(b.Add(row, prefixKey), prefixValue)
 	indexed, err := executor.CompileIndexed(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rowSlot, _ := indexed.Graph.InputSlot(row)
 	keySlot, _ := indexed.Graph.InputSlot(prefixKey)
 	valueSlot, _ := indexed.Graph.InputSlot(prefixValue)

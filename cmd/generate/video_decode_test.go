@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -25,9 +26,7 @@ func TestDecodeVideoFileFFmpeg(t *testing.T) {
 		t.Fatalf("create test video: %v: %s", err, output)
 	}
 	frames, err := media.DecodeVideoFile(t.Context(), path, ffmpeg, 2, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(frames) != 2 {
 		t.Fatalf("decoded frames = %d, want 2", len(frames))
 	}

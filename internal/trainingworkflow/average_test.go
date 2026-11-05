@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -39,9 +40,7 @@ func TestAveragedTrainingPublishesTheAverage(t *testing.T) {
 			t.Fatalf("average %v: run = (%+v, %v), want a verdict", decay, result, err)
 		}
 		path, err := trainingprogram.CheckpointWeightsPath(output)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if weights[index], err = os.ReadFile(path); err != nil {
 			t.Fatal(err)
 		}
@@ -65,32 +64,22 @@ func TestAveragedAdapterMergesToThePublishedModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	merged := filepath.Join(t.TempDir(), "merged")
 	if _, err := peft.Merge(adapter, text.model, merged); err != nil {
 		t.Fatal(err)
 	}
 	fromAdapter, err := safetensors.OpenSource(merged)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fromAdapter.Close()
 	fromCheckpoint, err := safetensors.OpenSource(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fromCheckpoint.Close()
 	for name, tensor := range fromCheckpoint.Tensors {
 		got, err := safetensors.ReadF32(fromAdapter.Tensors[name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want, err := safetensors.ReadF32(tensor)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range want {
 			if math.Abs(float64(got[index]-want[index])) > 1e-5 {
 				t.Fatalf("%s[%d]: merged adapter %v, published model %v", name, index, got[index], want[index])
@@ -131,9 +120,7 @@ func TestAveragedAdapterIsNotTheRawAdapter(t *testing.T) {
 			t.Fatal(err)
 		}
 		adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		adapters[index] = adapter
 	}
 	for name, raw := range adapters[0].Modules {

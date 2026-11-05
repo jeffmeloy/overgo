@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -79,16 +80,12 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	grantedThen := func(store *overgodb.Store, unit string, part artifact.ID, issued uint64, authority artifact.ID) runrecord.Budget {
 		t.Helper()
 		granted, err := runrecord.NewBudget(unit, part, issued, authority)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		grant, err := granted.Batch("test/granted-before-names/" + granted.ID.String())
 		if err == nil {
 			_, err = artifact.Publish(ctx, store, grant)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return granted
 	}
 	// chargedThen charges a grant directly, as a confirmation was charged before a part without names was refused one.
@@ -96,17 +93,11 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 		t.Helper()
 		granted := grantedThen(store, unit, part, issued, authority)
 		confirmer, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolConfirmer+owner.String()))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		charge, err := runrecord.NewBudgetCharge(granted.ID, 1, confirmer, purpose)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := charge.Batch("test/charged-before-names/" + charge.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: confirmer})
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
@@ -116,9 +107,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	namedAs := func(store *overgodb.Store, part artifact.ID, today []artifact.ID) bool {
 		t.Helper()
 		published, err := partContents(ctx, store, part)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		order := func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) }
 		slices.SortFunc(published, order)
 		today = slices.Clone(today)
@@ -146,9 +135,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	answered := func() uint64 {
 		t.Helper()
 		spent, _, _, _, err := exposure(ctx, store, later.Partition, artifact.ID{}, membership)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return spent
 	}
 	if answered() != 0 {
@@ -177,9 +164,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	// files stands for a file registered with no digest: the naming reads a
 	// record's content from the same mapping, which has none for either.
 	recorded, err := recordContents(ctx, store, earlier.Partition.Dataset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promoted, found, err := dataset.LoadMembership(ctx, store, earlier.Partition.Promotion)
 	if err != nil || !found {
 		t.Fatalf("the earlier pool's promotion part is not committed (%v)", err)
@@ -196,20 +181,14 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	partThen := func(records ...dataset.Record) (dataset.Membership, artifact.Batch) {
 		t.Helper()
 		part, err := dataset.NewMembership(earlier.Partition.Dataset, 0, PoolParts[poolPromotion], records)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := part.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "test/part-before-names/" + part.ID.String(), Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{part.Lineage()}}); err != nil {
 			t.Fatal(err)
 		}
 		names := artifact.Batch{Key: "test/named-for-some/" + part.ID.String()}
-		if err := containContents(&names, []dataset.Membership{part}, recorded); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, containContents(&names, []dataset.Membership{part}, recorded))
 		return part, names
 	}
 	// A charged part of a document and its copy holds two records under one name, and is whole.
@@ -261,9 +240,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	acceptance, batch, err := BuildInstructionAcceptance(fixed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var partition runrecord.SplitPartition
 	for _, content := range batch.Contents {
 		if content.Descriptor.ID == acceptance.Split {

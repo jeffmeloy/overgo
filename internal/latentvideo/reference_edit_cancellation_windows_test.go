@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func TestLiveEditCancellationRecovery(t *testing.T) {
@@ -19,9 +20,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 	workers := []*device.Worker{runtime.encoder.codec.worker, runtime.denoiser.worker, runtime.decoder.worker}
 	libraries := make([]*driver.Library, len(workers))
 	for index, worker := range workers {
-		if err := worker.Do(t.Context(), func(state *device.State) error { libraries[index] = state.Driver; return nil }); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, worker.Do(t.Context(), func(state *device.State) error { libraries[index] = state.Driver; return nil }))
 	}
 	generate := func(t testing.TB) {
 		t.Helper()
@@ -30,9 +29,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 			frames = append(frames, append([]float32(nil), frame...))
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(frames) != runtime.sourcePlan.Source.Frames || hashReferenceEditValues(result.Latent) != liveEditDeviceLatentOracle || hashReferenceEditFrames(frames) != liveEditDeviceFrameOracle {
 			t.Fatal("recovery changed the native latent or decoded frames")
 		}
@@ -78,9 +75,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 		}
 		generate(t)
 	})
-	if err := runtime.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runtime.Close())
 	for owner, library := range libraries {
 		stats := library.MemoryStats()
 		if stats.CurrentBytes != 0 {

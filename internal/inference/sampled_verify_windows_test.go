@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -34,18 +35,14 @@ func TestSampledVerifyWindowsKeepTheDistribution(t *testing.T) {
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	for _, copyTrunk := range []bool{false, true} {
 		runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var drafted, kept, same int
 		counts := [2]map[tokenizer.TokenID]int{{}, {}}
 		for seed := range int64(seeds) {
 			generate := func(plain bool) []tokenizer.TokenID {
 				t.Helper()
 				sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				options := GenerateOptions{
 					MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: true, PlainDecode: plain,
 				}
@@ -69,9 +66,7 @@ func TestSampledVerifyWindowsKeepTheDistribution(t *testing.T) {
 				}
 			}
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		distance := 0.0
 		for token := range tokenizer.TokenID(flashNextVocab) {
 			difference := float64(counts[0][token]-counts[1][token]) / float64(seeds*generated)

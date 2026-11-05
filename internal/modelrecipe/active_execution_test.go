@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestResolveActiveExecutionServesInference(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "active-execution-model")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -31,9 +30,7 @@ func TestResolveActiveExecutionServesInference(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/active-execution/candidate", definition); err != nil {
 		t.Fatal(err)
 	}

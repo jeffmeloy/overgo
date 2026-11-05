@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -30,9 +31,7 @@ func TestModelConfigArtifactContract(t *testing.T) {
 		{Name: "dna_config.json", SHA256: digest},
 	}
 	document, err := NewModelConfigDocument(model, sequence, generation, sources)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Sources[0].Name != "dna_config.json" {
 		t.Fatalf("sources not sorted: %+v", document.Sources)
 	}
@@ -41,9 +40,7 @@ func TestModelConfigArtifactContract(t *testing.T) {
 		t.Fatalf("identity not order-canonical: (%v, %v)", replay.ID, err)
 	}
 	content, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseModelConfigDocument(content.Data)
 	if err != nil || parsed.ID != document.ID || parsed.Sequence.K != 2 ||
 		parsed.Generation.ContextLength != 4096 {
@@ -85,9 +82,7 @@ func TestModelConfigArtifactFromFiles(t *testing.T) {
 	directory := t.TempDir()
 	write := func(name, content string) string {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o644))
 		digest := sha256.Sum256([]byte(content))
 		return hex.EncodeToString(digest[:])
 	}
@@ -97,9 +92,7 @@ func TestModelConfigArtifactFromFiles(t *testing.T) {
 	write("config.json", `{"architectures":["LlamaForCausalLM"],"max_position_embeddings":8192}`)
 
 	sequence, generation, sources, err := ReadModelConfigComponents(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sequence == nil || sequence.K != 6 || sequence.StartID != 151669 ||
 		sequence.Vocabulary != 4107 || len(sequence.SpecialTokens) != 3 || sequence.AutoTags {
 		t.Fatalf("sequence = %+v", sequence)
@@ -114,9 +107,7 @@ func TestModelConfigArtifactFromFiles(t *testing.T) {
 	}
 	model := testutil.ArtifactID(t, artifact.KindModel, "extracted-model")
 	document, err := NewModelConfigDocument(model, sequence, generation, sources)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, source := range document.Sources {
 		if source.Name == "dna_config.json" && source.SHA256 != dnaDigest {
 			t.Fatalf("dna_config digest = %s, want %s", source.SHA256, dnaDigest)
@@ -129,9 +120,7 @@ func TestModelConfigArtifactFromFiles(t *testing.T) {
 		t.Fatalf("empty directory = (%v, %v, %v, %v), want absent components", sequence, generation, sources, err)
 	}
 
-	if err := os.WriteFile(filepath.Join(empty, "generation_config.json"), []byte(`{"eos_token_id":"seven"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(empty, "generation_config.json"), []byte(`{"eos_token_id":"seven"}`), 0o644))
 	if _, _, _, err := ReadModelConfigComponents(empty); err == nil {
 		t.Fatal("malformed token declaration accepted")
 	}

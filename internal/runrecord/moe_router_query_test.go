@@ -5,14 +5,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	targetModel := id(artifact.KindModel, "query target model")
@@ -37,21 +36,13 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 			Rows: 1, Experts: 2, TopK: 1, Selections: []uint32{1}, CombineWeights: []float32{1},
 			Accepted: []bool{true}, Margins: []MoERouterMargin{{Observed: true}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		chunk, err := NewMoERouterObservationChunk([]MoERouterObservation{observation}, artifact.ID{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		coverage, err := NewMoERouterObservationCoverage(chunk, observation.Step, 1, []uint32{0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := coverage.Batch(t.Context(), store, chunk)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
@@ -64,9 +55,7 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 	summaries, err := QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
 		Model: targetModel, Dataset: parents[4], Limit: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if summaries.Plan.Index != "seed" || summaries.Plan.Inspected != 2 || summaries.Plan.Matched != 1 ||
 		summaries.Plan.Returned != 1 || summaries.Plan.Loaded != 1 ||
 		len(summaries.Summaries) != 1 || len(summaries.Chunks) != 0 ||
@@ -80,9 +69,7 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 	raw, err := QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
 		Model: targetModel, IncludeSamples: true, Limit: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(raw.Chunks) != 1 || len(raw.Chunks[0].Observations) != 1 ||
 		raw.Work.RawChunksLoaded != 1 || raw.Work.RawBytesLoaded != raw.Summaries[0].ObservationBytes {
 		t.Fatalf("sample router query = %+v", raw)

@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // fakeWorld scripts the driver's environment: a queue of plan steps, a worker
@@ -80,9 +82,7 @@ func TestLoopDriverCycle(t *testing.T) {
 		},
 	}
 	outcome, err := Run(world, Config{MaxAttemptsPerStep: 3, MaxInvocations: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if outcome.Reason != ReasonPlanComplete || outcome.Invocations != 3 || len(outcome.Parked) != 0 {
 		t.Fatalf("outcome = %+v, want plan-complete after 3 invocations", outcome)
 	}
@@ -97,9 +97,7 @@ func TestLoopDriverCycle(t *testing.T) {
 		},
 	}
 	outcome, err = Run(stuck, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if outcome.Reason != ReasonParked || len(stuck.parked) != 1 ||
 		!strings.Contains(stuck.parked[0], "oracle NOT satisfied") {
 		t.Fatalf("stuck step not parked with evidence: %+v %v", outcome, stuck.parked)
@@ -113,9 +111,7 @@ func TestLoopDriverCycle(t *testing.T) {
 		},
 	}
 	outcome, err = Run(budget, Config{MaxAttemptsPerStep: 100, MaxInvocations: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if outcome.Reason != ReasonBudget || outcome.Invocations != 1 {
 		t.Fatalf("budget stop = %+v", outcome)
 	}
@@ -187,9 +183,7 @@ func TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt(t *testing.T) {
 		}},
 	}}
 	outcome, err := Run(world, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if outcome.Reason != ReasonParked || !slices.Equal(outcome.Parked, []string{"failing/do"}) || len(world.parked) != 1 {
 		t.Fatalf("outcome = %+v, parked %v; want one row parked once", outcome, world.parked)
 	}

@@ -4,6 +4,8 @@ import (
 	"math"
 	"math/rand/v2"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // smallDecoder is a decoder of two blocks with random weights, small enough
@@ -68,9 +70,7 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 	pixelWeights := direction(3 * side * side)
 	loss := func() float64 {
 		pixels, err := d.decodeTokens(rows)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var total float64
 		for index, value := range pixels {
 			total += float64(value) * float64(pixelWeights[index])
@@ -78,13 +78,9 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 		return total
 	}
 	plain, err := d.decodeTokens(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	traced, trace, err := d.decodeTraced(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, value := range plain {
 		if traced[index] != value {
 			t.Fatalf("the traced forward pass decodes pixel %d as %v, the plain one as %v", index, traced[index], value)
@@ -92,14 +88,10 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 	}
 	gradients := d.newGradients()
 	dRows, err := d.backward(trace, pixelWeights, gradients)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Without kept gradients the token gradient is the same.
 	bare, err := d.backward(trace, pixelWeights, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, value := range dRows {
 		if bare[index] != value {
 			t.Fatalf("the token gradient differs when no weight gradient is kept: %v and %v", bare[index], value)

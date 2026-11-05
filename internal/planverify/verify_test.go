@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func TestMixedVerifierRepeatEvidence(t *testing.T) {
@@ -55,9 +56,7 @@ func TestBehavior(t *testing.T) {
 				"go.mod":        "module example.com/probe\n\ngo 1.26\n",
 				"probe_test.go": test.source,
 			} {
-				if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0600))
 			}
 			verdict, err := Execute(t.Context(), directory, "go test ./... -count=1 && "+test.auxiliary, nil)
 			if test.wantError != "" {

@@ -8,6 +8,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -58,9 +59,7 @@ func TestPortedMechanismsFollowModelFacts(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			runner, err := openF32FixtureRunner(c.path(t), c.options)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer runner.Close()
 			got := facts{
 				cells: slices.Contains(runner.cellLayers, true), qsa: slices.Contains(runner.qsaLayers, true),

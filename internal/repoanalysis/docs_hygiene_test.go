@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestDocsHoldNothingSupersededOrDangling holds the documents to what is read
@@ -47,9 +48,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 			"internal/frozen/frozen_test.go": []byte("package frozen\n" +
 				"var want = map[string]string{\"" + worded + "\": \"" + filed + ".gif\"}\n"),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		texts := map[string]string{
 			"docs/verification/coverage.json": `{"bound": "output:sha256:` + identity + `", "left": "A` + embedded + `", "right": "` + embedded + `0", "ran": "cmd/gone TestGone"}`,
 			"docs/validation.json":            `{"sample": "` + samples + located + `.gif"}`,
@@ -77,12 +76,8 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 		}
 		slices.Sort(documents)
 		census, err := TrackedDocumentCensus(snapshot, documents)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := DocumentReferences(census, func(document string) ([]byte, error) { return []byte(texts[document]), nil }); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, DocumentReferences(census, func(document string) ([]byte, error) { return []byte(texts[document]), nil }))
 		var refused []string
 		for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
 			document, _, _ := strings.Cut(strings.TrimPrefix(finding.Error(), "tracked document "), " ")
@@ -111,12 +106,8 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 			"fixtures/kept/prompts.jsonl": "{}\n",
 		} {
 			file := filepath.Join(root, filepath.FromSlash(name))
-			if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+			testcheck.NoError(t, os.WriteFile(file, []byte(content), 0o644))
 		}
 		record := "docs/verification/probe-of-a-removed-tool.txt"
 		texts := map[string]string{
@@ -133,9 +124,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 	t.Run("the checkout's samples, pages and records are measured", func(t *testing.T) {
 		root := "../.."
 		documents, err := TrackedDocuments(t.Context(), root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		texts, held, records, pages := map[string]string{}, 0, 0, 0
 		for _, document := range documents {
 			record, page := strings.HasPrefix(document, "docs/verification/"), path.Dir(document) == documentsRoot && path.Ext(document) == ".md"
@@ -151,9 +140,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 				continue
 			}
 			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			// A record that is a picture names nothing.
 			if utf8.Valid(data) {
 				texts[document] = string(data)

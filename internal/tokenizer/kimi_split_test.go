@@ -9,13 +9,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestKimiDeclaredSplit(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "kimi-declared-split.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Source          string    `json:"source"`
 		SourceSHA256    string    `json:"source_sha256"`
@@ -28,9 +28,7 @@ func TestKimiDeclaredSplit(t *testing.T) {
 			Pieces []string `json:"pieces"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if fixture.Source != "colibri/c/tests/tok_kimi_tiny.json" ||
 		fixture.SourceSHA256 != "99b5ff4e6cc9f14bcdc9c4e1d854c35d4afc087af8e825f3264b1ebbc10132eb" ||
 		fixture.PatternSHA256 != "de5781783b193d5ccf5b1b28edfa70fa816ce78d54603fdc422cfd8d4ea4411f" ||

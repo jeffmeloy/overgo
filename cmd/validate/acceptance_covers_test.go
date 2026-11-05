@@ -8,6 +8,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,24 +20,18 @@ func TestAcceptanceCoversARecipeReplacedForItsSession(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "acceptance-covers")
 	testutil.PublishArtifact(t, store, model)
 	accepted, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	variant := func(change func(*recipe.Node)) recipe.Definition {
 		t.Helper()
 		nodes := slices.Clone(accepted.Nodes)
 		change(&nodes[0])
 		value, err := recipe.NewDefinitionWithDependencies(accepted.Task, accepted.Dependencies, nodes, accepted.Edges, accepted.Inputs, accepted.Outputs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	session := variant(func(node *recipe.Node) { node.Session = recipe.SessionRequest })

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -42,22 +43,16 @@ func componentFixture(t *testing.T, store *overgodb.Store, binding componentBind
 	modelPath := filepath.Join(t.TempDir(), "model.gguf")
 	componentPath := filepath.Join(t.TempDir(), binding.name+".gguf")
 	for path, payload := range map[string][]byte{modelPath: modelPayload, componentPath: componentPayload} {
-		if err := os.WriteFile(path, payload, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 	}
 	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: modelComponent,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	component, err := artifact.NewManifest(binding.kind, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: componentWeights,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	key := "fixture/discovery/" + binding.name + "/" + suffix
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: key,
@@ -74,9 +69,7 @@ func componentFixture(t *testing.T, store *overgodb.Store, binding componentBind
 		t.Fatal(err)
 	}
 	definition, err := binding.define(model.ID, component.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, key+"/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -84,9 +77,7 @@ func componentFixture(t *testing.T, store *overgodb.Store, binding componentBind
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, key+"/evidence", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, key+"/active", definition, verification, recipe.EvidenceVerified, "discovery "+binding.name+" fixture", nil, nil,
 	); err != nil {
@@ -104,9 +95,7 @@ func TestActiveComponentsResolveDeclaredBytes(t *testing.T) {
 		t.Run(binding.name, func(t *testing.T) {
 			ctx := t.Context()
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			modelID, componentPath := componentFixture(t, store, binding, "bound")
 			location, ok, err := binding.resolve(ctx, store, modelID, LoadMemo(ctx, store))
@@ -114,9 +103,7 @@ func TestActiveComponentsResolveDeclaredBytes(t *testing.T) {
 				t.Fatalf("resolution = (%q, %v, %v), want %q", location, ok, err, componentPath)
 			}
 			// Replaced bytes at the recorded path are not the recorded component.
-			if err := os.WriteFile(componentPath, []byte("replacement"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(componentPath, []byte("replacement"), 0o600))
 			if _, ok, err := binding.resolve(ctx, store, modelID, LoadMemo(ctx, store)); ok || err == nil || !strings.Contains(err.Error(), "no recorded bytes") {
 				t.Fatalf("replaced %s bytes resolved: ok=%v err=%v", binding.name, ok, err)
 			}
@@ -127,9 +114,7 @@ func TestActiveComponentsResolveDeclaredBytes(t *testing.T) {
 func TestActiveComponentsAbsentWithoutActivation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "text-only-model")
 	for _, binding := range componentBindings {

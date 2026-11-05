@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // PyTorch golden values: torch.manual_seed(31) on CUDA, two successive
@@ -45,9 +46,7 @@ func requireExact(t *testing.T, got, want []float32) {
 func TestTorchRNGStreamMatchesSequentialPyTorch(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	first := make([]float32, len(goldenSeed31First))
@@ -66,9 +65,7 @@ func TestTorchRNGStreamMatchesSequentialPyTorch(t *testing.T) {
 		finalOffset = stream.Offset()
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireExact(t, first, goldenSeed31First)
 	requireExact(t, second, goldenSeed31Second)
 	if firstOffset == 0 || finalOffset <= firstOffset {
@@ -84,9 +81,7 @@ func TestTorchRNGStreamMatchesSequentialPyTorch(t *testing.T) {
 func TestTorchRNGDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const first, second = 40, 24
@@ -126,9 +121,7 @@ func TestTorchRNGDeviceMatchesHost(t *testing.T) {
 		deviceOffset = deviceStream.Offset()
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireExact(t, fromDevice, host)
 	if deviceOffset != hostOffset {
 		t.Fatalf("device offset=%d host offset=%d (must match)", deviceOffset, hostOffset)

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -91,9 +92,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	lifecycle := func() map[string]float64 {
 		t.Helper()
 		var counts map[string]float64
-		if err := browser.Evaluate(ctx, `fetch('/__lifecycle').then((answer) => answer.json())`, &counts); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `fetch('/__lifecycle').then((answer) => answer.json())`, &counts))
 		return counts
 	}
 	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.runtime >= 2)`)
@@ -133,9 +132,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 			}
 			return operation.Completion{Run: testutil.ArtifactID(t, artifact.KindRun, "stream-lifecycle-run")}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	settle(`window.laneSeen.has(` + strconv.Quote(submitted.String()) + `)`)
 	close(seen)
 	settle(`window.laneSeen.has(` + strconv.Quote("completed:"+submitted.String()) + `) && overgo.api.inFlight() === 0`)
@@ -172,9 +169,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 })()`, &hiddenFrom); err != nil {
 		t.Fatal(err)
 	}
-	if err := browser.Evaluate(ctx, `new Promise((resolve) => setTimeout(resolve, 11000)).then(() => fetch('/__lifecycle')).then((answer) => answer.json())`, &hidden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `new Promise((resolve) => setTimeout(resolve, 11000)).then(() => fetch('/__lifecycle')).then((answer) => answer.json())`, &hidden))
 	if hidden["health"] != hiddenFrom["health"] || hidden["catalog"] != hiddenFrom["catalog"] {
 		t.Errorf("a hidden page probed the server: before %v, after %v", hiddenFrom, hidden)
 	}

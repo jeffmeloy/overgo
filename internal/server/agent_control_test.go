@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -86,9 +87,7 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "agent-retrieval-dataset")
 	model := testutil.ArtifactID(t, artifact.KindModel, "response-model")
@@ -105,18 +104,14 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		t.Context(), store, artifact.KindFile,
 		[]dataset.AgentRetrievalDocument{{Text: "cited evidence for retrieval"}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := documents[0].Source
 	projection, err := (dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: documents,
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: agentWorkspaceChunkRunes, CandidateLimit: agentWorkspaceCandidates},
 		Embedder: embedder, RerankPolicy: policy,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := newAgentWorkspaceFixture(t, store, embedder, reranker)
 	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}))
 	request := marshalTestJSON(t, map[string]any{
@@ -129,9 +124,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		t.Fatalf("agent retrieval status=%d body=%s", search.Code, search.Body.String())
 	}
 	receiptID, err := artifact.ParseID(search.Header().Get(agentRetrievalReceiptHeader))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runrecord.RequireConsumedRetrievalReceipt(t.Context(), store, receiptID); err != nil {
 		t.Fatalf("agent retrieval receipt is not replayable: %v", err)
 	}
@@ -177,15 +170,11 @@ func newAgentWorkspaceFixture(
 	if store == nil {
 		var err error
 		store, err = overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/serving-recipe/" + description.Identity.Recipe.String(),
 		Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}, {ID: description.Identity.Model}},
@@ -193,9 +182,7 @@ func newAgentWorkspaceFixture(
 		t.Fatal(err)
 	}
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
@@ -206,9 +193,7 @@ func newAgentWorkspaceFixture(
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Repository: store,
 		AgentEmbedder: embedder, AgentReranker: reranker,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	return agentWorkspaceFixture{
 		handler: handler, store: store, generator: generator, prompt: prompt, policy: policy, manual: manuals[0].ID,

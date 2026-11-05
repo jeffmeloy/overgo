@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -32,9 +33,7 @@ func TestExecuteHashesAndChecksManifest(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(t.TempDir(), "hashes.txt")
-	if err := os.WriteFile(manifestPath, generated.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(manifestPath, generated.Bytes(), 0o600))
 	params.manifest = manifestPath
 	params.xxh64 = false
 	params.sha1 = false
@@ -48,9 +47,7 @@ func TestExecuteHashesAndChecksManifest(t *testing.T) {
 	}
 
 	corrupt := strings.Replace(generated.String(), "sha256    ", "sha256    00", 1)
-	if err := os.WriteFile(manifestPath, []byte(corrupt), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(manifestPath, []byte(corrupt), 0o600))
 	params.sha256 = true
 	code, err = execute(params, &bytes.Buffer{})
 	if err != nil || code != exitFailure {
@@ -92,9 +89,7 @@ func writeHashFixture(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "hash.gguf")
 	destination, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload := make([]byte, 18)
 	for index := range payload {
 		payload[index] = byte(index*19 + 5)
@@ -113,8 +108,6 @@ func writeHashFixture(t *testing.T) string {
 	if closeErr := destination.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return path
 }

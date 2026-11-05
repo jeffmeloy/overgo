@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,31 +21,21 @@ func TestRealTransformerBlockCUDAParity(t *testing.T) {
 		X       []float32
 	}](t, "real_forward")
 	_, trace, err := model.forward(golden.X, golden.B, golden.H, golden.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(model.middle) == 0 || len(trace.middleInputs) == 0 {
 		t.Fatal("real artifact has no middle transformer block")
 	}
 	block, input := model.middle[0], trace.middleInputs[0]
 	program, err := compileTransformerBlockProgram(block, model.Cfg, trace.middleC, trace.middleH*trace.middleW)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := block.forward(model, input, golden.B, trace.middleC, trace.middleH, trace.middleW)
 	referenceOutput, err := program.execute(context.Background(), nil, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer device.Close()
 	deviceOutput, err := program.execute(context.Background(), device, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenceDiff := testutil.MaxAbsDiff(referenceOutput, want)
 	deviceDiff := testutil.MaxAbsDiff(deviceOutput, want)
 	for index, value := range deviceOutput {

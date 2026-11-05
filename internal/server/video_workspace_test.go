@@ -10,15 +10,14 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	video := []byte("mp4-output-bytes")
 	videoID := testutil.ArtifactBytesID(t, artifact.KindOutput, video)
 	generateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "video-generate-recipe")
@@ -46,9 +45,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 		},
 	}
 	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -70,9 +67,7 @@ func TestVideoGenerationWorkspace(t *testing.T) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 	var result nativeImageResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	if len(result.Data) != 1 {
 		t.Fatalf("videos=%+v", result.Data)
 	}

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		},
 	}
 	plan, err := fixtureModelPlan(spec, model.Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "external-target")
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "external-source")
 	adapterID := testutil.ArtifactID(t, artifact.KindAdapter, "external-adapter")
@@ -36,9 +35,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		Layers: []uint32{1}, SourceChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
 	}
 	identityID, err := artifact.JSONID(artifact.KindProfile, definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program := ExternalCrossAttentionProgram{
 		identity: identityID, definition: definition,
 		targetChannels: uint64(plan.Spec().EmbeddingLength), headChannels: uint64(plan.Spec().EmbeddingLength),
@@ -62,9 +59,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		Target: target, TargetTokens: 2, Source: &source,
 		SourceIdentity: sourceRepresentation, SourceTokens: 2,
 	}, weights, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(output.Data, target.Data) {
 		t.Fatalf("zero-gated output=%v want identity=%v", output.Data, target.Data)
 	}
@@ -77,9 +72,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 	conditioned, reused, err := program.Apply(t.Context(), 1, ExternalCrossAttentionInput{
 		Target: target, TargetTokens: 2, SourceIdentity: sourceRepresentation,
 	}, weights, &external)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.Equal(conditioned.Data, target.Data) || !reflect.DeepEqual(reused, external) ||
 		!reflect.DeepEqual(targetCache, cacheBefore) {
 		t.Fatalf("cached external attention=%v cache=%+v target-cache=%+v", conditioned.Data, reused, targetCache)

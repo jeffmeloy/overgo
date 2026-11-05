@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestFusionProgramMasksTextPadding(t *testing.T) {
@@ -16,9 +17,7 @@ func TestFusionProgramMasksTextPadding(t *testing.T) {
 		syntheticSpec(), 1e-5,
 		[]bool{true, false, true}, dtype.F32,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if program.keyBias == nil || len(program.keyData) != 3 || program.keyData[1] != padKeyBias {
 		t.Fatalf("key bias = %v", program.keyData)
 	}

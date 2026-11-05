@@ -11,6 +11,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler, artifact.ID) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	outputID := testutil.ArtifactBytesID(t, artifact.KindOutput, output)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "video-generate-"+mediaType)
 	runID := testutil.ArtifactID(t, artifact.KindRun, "video-generate-run-"+mediaType)
@@ -42,9 +41,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 		completion: map[recipe.Task]operation.Completion{recipe.TaskVideoGen: {Run: runID, Outputs: []artifact.ID{outputID}}},
 	}
 	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -65,9 +62,7 @@ func TestVideoRoutesDeliverDeclaredOutput(t *testing.T) {
 			t.Fatalf("%s: status=%d body=%s", mediaType, response.Code, response.Body.String())
 		}
 		var result nativeImageResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 		if len(result.Data) != 1 {
 			t.Fatalf("%s: videos=%+v", mediaType, result.Data)
 		}

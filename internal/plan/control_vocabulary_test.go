@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestControlVocabularyNamesNoPerson holds the control records' codes free of persons, as the doctrine is.
@@ -32,26 +33,16 @@ func TestLegacyStopKeepsItsIdentity(t *testing.T) {
 	root, event := stopFixture(t)
 	event.ReasonCode = "user-stop"
 	stop, err := identify(event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grant := event
 	grant.Kind, grant.ReasonCode, grant.Detail, grant.Task, grant.Previous = ControlMaintenance, "operator-maintenance", "repair", "row/do", stop.ID
 	issued, err := identify(grant)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := json.MarshalIndent(stopState{Current: event, Maintenance: []ControlEvent{grant}}, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := processlock.EnsureStateDirectory(root); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
 	path := filepath.Join(root, processlock.StateDirectory, stopFile)
-	if err := os.WriteFile(path, data, stopFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, stopFileMode))
 	read := func() StopStatus {
 		t.Helper()
 		current, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionInteractive)
@@ -74,9 +65,7 @@ func TestLegacyStopKeepsItsIdentity(t *testing.T) {
 	resume.Kind, resume.ReasonCode, resume.Detail, resume.Previous = ControlResume, ResumeCode, "continue", stop.ID
 	recordStop(t, resume)
 	written, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if strings.Contains(string(written), "user-stop") || !strings.Contains(string(written), `"reason_code": "resume"`) {
 		t.Fatalf("the resume wrote %s, want the current codes alone", written)
 	}

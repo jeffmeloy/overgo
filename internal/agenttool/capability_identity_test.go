@@ -6,15 +6,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestCapabilityIdentityContract(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "tool-capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "tool-capability-schema")
@@ -33,9 +32,7 @@ func TestCapabilityIdentityContract(t *testing.T) {
 		Name: "capability.inspect", Description: "Inspect through one exact capability.", Effect: EffectInspection,
 		Transport: Transport{Kind: TransportHTTP, URL: "https://tool.example/run", Protocol: "strict-json/1"}, CapabilityIdentity: &identity,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PublishManualCatalog(ctx, store, []Manual{manual}); err != nil {
 		t.Fatal(err)
 	}

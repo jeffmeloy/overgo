@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -59,13 +60,9 @@ func TestPieceMergesSegmentAsByteMergesDo(t *testing.T) {
 	load := func(modelType int, collapse *bool) (*pieceMerges, bool) {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), "tokenizer.model")
-		if err := os.WriteFile(path, modelBytes(texts, kinds, modelType, collapse), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, modelBytes(texts, kinds, modelType, collapse), 0o600))
 		table, merges, err := loadPieceMerges(path, pieces, id("<unk>"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return table, merges
 	}
 	table, merges := load(modelTypeMerges, nil)
@@ -81,9 +78,7 @@ func TestPieceMergesSegmentAsByteMergesDo(t *testing.T) {
 		"</s>":      {spaceMarker, "<", "/", "s", ">"},
 	} {
 		ids, err := table.encode(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		expected := make([]int, len(want))
 		for index, piece := range want {
 			expected[index] = id(piece)

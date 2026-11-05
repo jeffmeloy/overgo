@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRecoveryDrills replays the device collisions landings met, on a
@@ -75,15 +77,11 @@ func TestRecoveryDrills(t *testing.T) {
 				}()
 				<-contended
 				// The guard run ends only after the context met its hold.
-				if err := guard.input.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, guard.input.Close())
 				if err := <-done; err != nil || attempts < 2 {
 					t.Fatalf("the context's claim after %d attempts: %v", attempts, err)
 				}
-				if err := release(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, release())
 			},
 		},
 	} {

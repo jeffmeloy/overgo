@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ func visibilityProgram(t *testing.T) Program {
 			Inputs:  []Port{{Name: valuesPort, Data: DataTensor, Cardinality: CardinalityMany}},
 			Outputs: []Port{{Name: valuePort, Data: DataTensor, Cardinality: CardinalityOne}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "visibility-model")
 	nodes := []Node{
 		{ID: visibilityRoot, Module: sourceModule, Placement: PlacementHost},
@@ -59,13 +58,9 @@ func visibilityProgram(t *testing.T) Program {
 		}, nil,
 		[]Output{{Name: valuePort, Data: DataTensor, Source: Endpoint{Node: visibilityJoin, Port: valuePort}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return program
 }
 
@@ -94,9 +89,7 @@ func TestInteractionVisibility(t *testing.T) {
 func TestSiblingHistoryIsolation(t *testing.T) {
 	program := visibilityProgram(t)
 	scope, err := program.InteractionScope(visibilityLeft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scope.Visibility.Allows(
 		visibilityActivation(t, program, visibilityLeft),
 		visibilityActivation(t, program, visibilityRight),
@@ -108,9 +101,7 @@ func TestSiblingHistoryIsolation(t *testing.T) {
 func TestAncestorHistoryVisibility(t *testing.T) {
 	program := visibilityProgram(t)
 	scope, err := program.InteractionScope(visibilityLeft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	current := visibilityActivation(t, program, visibilityLeft)
 	if !scope.Visibility.Allows(current, current) ||
 		!scope.Visibility.Allows(current, visibilityActivation(t, program, visibilityRoot)) {

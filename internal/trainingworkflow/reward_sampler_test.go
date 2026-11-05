@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
@@ -37,9 +38,7 @@ func rewardGGUFFixture(t *testing.T) Request {
 	t.Helper()
 	model := writeTrainingGGUF(t)
 	prompts := filepath.Join(filepath.Dir(model), "prompts.json")
-	if err := os.WriteFile(prompts, []byte(rewardPrompts), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(prompts, []byte(rewardPrompts), 0o600))
 	store, recipeID := trainingAuthority(t, model, "", prompts, trainingprogram.ObjectiveGRPO)
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
@@ -86,17 +85,13 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 	ctx := t.Context()
 	root := filepath.Dir(request.ModelDirectory)
 	model, err := loadTrainableModel(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
 	if err != nil || !slices.Equal(tokens.ends, []int{tokens.end}) {
 		t.Fatalf("the fixture's ending tokens = (%v, %v), want its one end token %d", tokens.ends, err, tokens.end)
 	}
 	encoded, err := tokens.encode("ab")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt := make([]tokenizer.TokenID, len(encoded))
 	for index, id := range encoded {
 		prompt[index] = tokenizer.TokenID(id)
@@ -104,9 +99,7 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 	draw := func(generator evaluation.Generator, seed int64) (ids []tokenizer.TokenID, chances []float64) {
 		t.Helper()
 		sampler, err := sampling.New(sampling.Config{Temperature: 1, Seed: seed})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		returned, _, err := generator.Generate(ctx, "", inference.GenerateOptions{
 			MaxNewTokens: 8, Sampler: sampler, PromptTokenIDs: prompt, PostSamplingProbabilities: 1,
 			OnToken: func(event inference.TokenEvent) error {
@@ -128,9 +121,7 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 	agree := func(weights string) (drawn [][]tokenizer.TokenID, ended int) {
 		t.Helper()
 		generator, err := served.generator()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if again, err := served.generator(); err != nil || again != generator {
 			t.Fatalf("%s were opened twice with no step between (%v)", weights, err)
 		}
@@ -164,14 +155,10 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 		}
 		// An answer stands under the weights it was drawn from where it was drawn, and where the host scores it.
 		standing, err := served.standing(prompt, answers, rollouts)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index, got := range standing {
 			scored, err := model.SequenceLogProb(rollouts[index].Sequence)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if bound := agreement * math.Abs(scored.LogProbability); math.Abs(got-scored.LogProbability) > bound || math.Abs(got-sampled[index]) > bound {
 				t.Fatalf("%s, seed %d: the answer stands at %v by the runtime, %v by the host, and was drawn at %v", weights, index, got, scored.LogProbability, sampled[index])
 			}
@@ -187,16 +174,12 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 			values[index] *= 1.5
 		}
 	}
-	if err := served.release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, served.release())
 	after, _ := agree("the moved weights")
 	if slices.EqualFunc(before, after, func(one, other []tokenizer.TokenID) bool { return slices.Equal(one, other) }) {
 		t.Fatal("the moved weights draw what the base's drew: they were not the weights opened")
 	}
-	if err := served.release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, served.release())
 	if left, err := filepath.Glob(filepath.Join(root, "reward-weights-*")); err != nil || len(left) != 0 {
 		t.Fatalf("released weights left %v behind (%v)", left, err)
 	}
@@ -219,21 +202,15 @@ func bootstrappedRewardSession(t *testing.T, model string) Request {
 	ctx := t.Context()
 	root := t.TempDir()
 	prompts := filepath.Join(root, "prompts.json")
-	if err := os.WriteFile(prompts, []byte(rewardPrompts), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(prompts, []byte(rewardPrompts), 0o600))
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	recipeID, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if again, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts)); err != nil || again != recipeID {
 		t.Fatalf("published again the recipe is %s (%v), want %s", again, err, recipeID)
 	}
@@ -279,9 +256,7 @@ func TestBootstrappedRewardRecipeRunsARewardSession(t *testing.T) {
 	_, fixture := rewardFixture(t)
 	// A directory's recipe is published for its weights file, as a training command names it.
 	weights, err := IdentifyModelWeights(fixture.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := bootstrappedRewardSession(t, weights)
 	request.ModelDirectory, request.Device = fixture.ModelDirectory, hostWeightedStep
 	heldToARewardSession(t, request)

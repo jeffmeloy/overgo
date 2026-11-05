@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -25,9 +26,7 @@ func TestWebUIBrowserAudioWhileModelsLoad(t *testing.T) {
 	requireWebUILane(t, "the audio while models load leg uses Chromium through cmd/webui-lane")
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	handler, err := New(Config{Repository: fixture.store, RuntimePolicy: testRuntimePolicy(), Workflows: fixture.workspace}, GenerationRefused{Reason: "no chat model is loaded"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	asked, held := make(chan struct{}), make(chan struct{})
 	ask, release := sync.OnceFunc(func() { close(asked) }), sync.OnceFunc(func() { close(held) })

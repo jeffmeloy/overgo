@@ -4,6 +4,7 @@ package inference
 
 import (
 	"math"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 
@@ -24,9 +25,7 @@ func openHermeticScoringRunner(t *testing.T) *Runner {
 	cudatest.Require(t)
 	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = runner.Close() })
 	if !runner.hasPreloadedWeights() || !runner.forwardProgram().PersistentDeviceCache() {
 		t.Fatal("fixture runner does not hold a resident device cache")
@@ -41,13 +40,9 @@ func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	host, err := runner.scoreContinuationsHostLocked(t.Context(), prompt, continuations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(host) != len(continuations) || len(device) != len(continuations) {
 		t.Fatalf("score counts = %d/%d", len(host), len(device))
 	}
@@ -64,9 +59,7 @@ func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
 	// A second scoring of the same prompt must not read the first one's
 	// candidate positions: the prompt cache is released and rebuilt.
 	again, err := runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index := range continuations {
 		if again[index] != device[index] {
 			t.Fatalf("candidate %d rescored %+v, first %+v", index, again[index], device[index])

@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -25,18 +26,14 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			}},
 		}}
 		stream, err := runner.NewChatOutputStreamForPrompt("assistant", nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		options := GenerateOptions{OnToken: func(event TokenEvent) error { _, err := stream.Accept(event.Piece); return err }}
 		options.TokenEventDecoder = stream.(ChatOutputTokenDecoder).TokenEventDecoder()
 		var generated strings.Builder
 		for index := range len(runner.vocab.Tokens) {
 			event := TokenEvent{ID: tokenizer.TokenID(index)}
 			stopped, err := runner.deliverGenerationToken(&event, options, &generated)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if stopped != (index == len(runner.vocab.Tokens)-1) {
 				t.Fatalf("stop changed at %d", index)
 			}
@@ -48,18 +45,14 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 	})
 	t.Run("public_tool_stream_byte_boundaries", func(t *testing.T) {
 		stream, err := NewChatOutputStreamForPrompt("<think></think>", "assistant<think>\n", []ChatTool{toolWeatherDefinition()})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		thought := `example <tool_call>{"name":"example","arguments":{}}</tool_call>`
 		output := thought + `</think> Hello <tool_call>{"name":"weather","arguments":{"city":"東京"}}</tool_call>`
 		var reasoning, content, arguments strings.Builder
 		starts := 0
 		for index := range len(output) {
 			deltas, err := stream.Accept(output[index : index+1])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, delta := range deltas {
 				reasoning.WriteString(delta.ReasoningContent)
 				content.WriteString(delta.Content)
@@ -73,9 +66,7 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			}
 		}
 		message, err := stream.Finish()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !message.ReasoningClosed || starts != 1 || reasoning.String() != thought || content.String() != " Hello " || arguments.String() != `{"city":"東京"}` || message.ReasoningContent != reasoning.String() || message.Content != content.String() || len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Arguments != arguments.String() {
 			t.Fatalf("stream/final mismatch: starts=%d reasoning=%q content=%q args=%q final=%+v", starts, reasoning.String(), content.String(), arguments.String(), message)
 		}
@@ -92,13 +83,9 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			}},
 		}}
 		stream, err := runner.NewChatOutputStreamForPrompt("original unprojected text", []tokenizer.TokenID{0}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		deltas, err := stream.Accept("確認<channel|>answer")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(deltas) != 1 || deltas[0].ReasoningContent != "確認" || deltas[0].Content != "answer" || deltas[0].Started {
 			t.Fatalf("actual token state: %+v", deltas)
 		}
@@ -107,23 +94,17 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			t.Fatalf("finish: %+v %v", message, err)
 		}
 		stream, err = runner.NewChatOutputStreamForPrompt("original text", []tokenizer.TokenID{1}, []ChatTool{toolWeatherDefinition()})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		thought := `example <tool_call>{"name":"example","arguments":{}}</tool_call>`
 		deltas, err = stream.Accept(thought)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, delta := range deltas {
 			if delta.Started || delta.Name != "" || delta.Arguments != "" {
 				t.Fatalf("thought emitted tool: %+v", delta)
 			}
 		}
 		_, err = stream.Accept(`</think><tool_call>{"name":"weather","arguments":{"city":"Paris"}}</tool_call>`)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		message, err = stream.Finish()
 		if err != nil || message.ReasoningContent != thought || len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Name != "weather" {
 			t.Fatalf("named template: %+v %v", message, err)
@@ -134,16 +115,12 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 	})
 	t.Run("progress_before_finish", func(t *testing.T) {
 		plain, err := newReasoningChannelStream(template, "assistant")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if r, c := plain.accept("answer", false); r != "" || c != "answer" {
 			t.Fatalf("ordinary text withheld: %q / %q", r, c)
 		}
 		thinking, err := newReasoningChannelStream(template, "assistant<|channel>thought\n")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if r, c := thinking.accept("確認", false); r != "確認" || c != "" {
 			t.Fatalf("reasoning withheld: %q / %q", r, c)
 		}
@@ -168,9 +145,7 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			check := func(pieces []string) {
 				stream, err := newReasoningChannelStream(test.template, test.prompt)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				var reasoning, content strings.Builder
 				for _, piece := range pieces {
 					r, c := stream.accept(piece, false)

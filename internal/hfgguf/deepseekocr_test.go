@@ -7,6 +7,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 // deepSeekOCRCheckpoint locates a DeepSeek-OCR family checkpoint for the
@@ -14,9 +15,7 @@ import (
 func deepSeekOCRCheckpoint(t *testing.T) *hfrepo.Repository {
 	t.Helper()
 	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	return repository
 }
@@ -31,16 +30,12 @@ func TestDeepSeekOCRConversionValidatesCheckpoint(t *testing.T) {
 		t.Fatalf("identity %+v is not the DeepSeek-OCR family", repository.Identity)
 	}
 	spec, err := ValidateDeepSeekOCRRepository(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.BlockCount == 0 || spec.ExpertCount == 0 || spec.ExpertUsedCount == 0 || spec.SharedExpertCount == 0 || spec.LeadingDenseBlocks == 0 {
 		t.Fatalf("spec = %+v", spec)
 	}
 	metadata, tensors, err := DeepSeekOCRConversion(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(metadata) == 0 || len(tensors) == 0 {
 		t.Fatal("conversion produced nothing")
 	}
@@ -69,9 +64,7 @@ func TestDeepSeekOCRConversionValidatesCheckpoint(t *testing.T) {
 func TestDeepSeekOCRProjectorConversionValidatesCheckpoint(t *testing.T) {
 	repository := deepSeekOCRCheckpoint(t)
 	metadata, tensors, err := DeepSeekOCRProjectorConversion(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	window, samBlocks := uint32(0), uint32(0)
 	for _, item := range metadata {
 		switch item.Key {

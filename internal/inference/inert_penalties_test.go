@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 )
 
 // TestInertPenaltiesStayOnTheCard: a request whose penalties its window leaves inert - Qwen's presence penalty over
@@ -20,18 +21,14 @@ func TestInertPenaltiesStayOnTheCard(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			greedy, err := sampling.New(sampling.Config{Temperature: 0, PresencePenalty: 1.5, RepeatPenalty: 1, RepeatLastN: test.window})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if greedy.IsRawGreedy() != test.card {
 				t.Fatalf("a greedy sampler with a presence penalty over a window of %d is raw greedy %t", test.window, !test.card)
 			}
 			drawn, err := sampling.New(sampling.Config{
 				Temperature: 0.7, TopK: 20, TopP: 0.8, PresencePenalty: 1.5, RepeatPenalty: 1, RepeatLastN: test.window,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, ok := strataSamplingOf(GenerateOptions{Sampler: drawn}); ok != test.card {
 				t.Fatalf("the round's sampler takes a draw with a presence penalty over a window of %d: %t", test.window, ok)
 			}
@@ -71,9 +68,7 @@ func TestStrataRoundSamplesOnlyItsOwnChain(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			sampler, err := sampling.New(test.config)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, round := strataSamplingOf(GenerateOptions{Sampler: sampler}); round != test.round {
 				t.Fatalf("the round takes this chain: %t, want %t", round, test.round)
 			}

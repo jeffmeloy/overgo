@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 // A byte-complete vocabulary exposes the normalized input directly as IDs;
@@ -80,13 +81,9 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 	// Existing literal space replacement still selects the marker scheme.
 	directory := t.TempDir()
 	fixture := `{"model":{"type":"BPE","vocab":{"a":0,"▁":1,"b":2},"merges":[]},"normalizer":{"type":"Replace","pattern":{"String":" "},"content":"▁"}}`
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(fixture), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(fixture), 0600))
 	marker, err := Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, err := marker.Encode("a b"); err != nil || !slices.Equal(got, []int{0, 1, 2}) {
 		t.Fatalf("legacy marker encoding changed: %v %v", got, err)
 	}
@@ -109,16 +106,12 @@ func TestKreaDeclaredNFCParity(t *testing.T) {
 	dir := modeltest.Directory(t, "Krea-2-Turbo")
 	tokenizerPath := filepath.Join(dir, "tokenizer", "tokenizer.json")
 	data, err := os.ReadFile(tokenizerPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506" {
 		t.Fatalf("Krea tokenizer drifted: %s", got)
 	}
 	tokenizer, err := Load(filepath.Dir(tokenizerPath))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range []struct {
 		input string
 		ids   []int
@@ -155,16 +148,10 @@ func loadTokenizerFixture(t *testing.T, normalizer, pre any, added []map[string]
 		"normalizer": normalizer, "pre_tokenizer": pre, "added_tokens": added,
 	}
 	data, err := json.Marshal(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600))
 	tokenizer, err := Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return tokenizer
 }

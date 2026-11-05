@@ -11,6 +11,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // hostBridgeOperation finds an operation among the outputs' inputs that the CUDA executor computes on the host.
@@ -40,9 +41,7 @@ func hostBridgeOperation(outputs ...*tensor.Tensor) (tensor.Op, bool) {
 // and holds the block to operations the device computes itself.
 func TestFlashNextGatedBlocks(t *testing.T) {
 	data, err := os.ReadFile("testdata/flashnext_gated.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Tolerance float64
 		Weights   map[string]struct {
@@ -55,9 +54,7 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 			Input, Output, Conv, State []float32
 		}
 	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &fixture))
 	spec := qwen35TestSpec()
 	spec.Architecture, spec.BlockCount, spec.VocabularySize = "qwen4exp", 1, 32
 	spec.HyperConnectionCount, spec.HyperConnectionRank = 4, 3
@@ -70,9 +67,7 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 		file.Tensors = append(file.Tensors, tensorInfo(name, value.Shape...))
 	}
 	inventory, err := ReadWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var conv, state reference.Value
 	for _, test := range fixture.Cases {
 		t.Run(fmt.Sprintf("%s/%d", test.Name, test.Start), func(t *testing.T) {
@@ -111,16 +106,12 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 					PastKey: input("conv", conv), PastValue: input("state", state),
 				},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if op, found := hostBridgeOperation(result.Output, result.Key, result.Value); found {
 				t.Fatalf("the gated block holds %s, which the device runs through the host bridge", op)
 			}
 			values, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, check := range []struct {
 				name string
 				node *tensor.Tensor

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func adapterSessionRunner(t *testing.T) *inference.Runner {
 	t.Helper()
 	tensor := func(name string, shape []uint64, values []float32) gguf.TensorData {
 		var data bytes.Buffer
-		if err := binary.Write(&data, binary.LittleEndian, values); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Write(&data, binary.LittleEndian, values))
 		return gguf.TensorData{Name: name, Shape: shape, Type: gguf.DTypeF32, Data: bytes.NewReader(data.Bytes())}
 	}
 	moved := make([]float32, 8)
@@ -74,9 +73,7 @@ func responseText(t *testing.T, body []byte) (string, string) {
 func TestAdapterComparisonTurn(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, adapterSessionRunner(t))
 	listed := serveTestRequest(handler, http.MethodGet, "/lora-adapters", "")

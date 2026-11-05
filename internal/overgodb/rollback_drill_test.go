@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	modelContent := func(payload string) artifact.Content {
@@ -61,9 +60,7 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 		"challenger promoted over champion", decider,
 		[]artifact.ID{champion.Descriptor.ID},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if promotion.Decider != decider {
 		t.Fatal("promotion decision lost its decider identity")
 	}
@@ -109,13 +106,9 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 		"rollback drill restores the prior champion", decider,
 		[]artifact.ID{promotion.ID},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rollbackContent, err := rollback.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promoted := challenger.Descriptor.ID
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "drill/rollback",

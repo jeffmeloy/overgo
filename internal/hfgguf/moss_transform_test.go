@@ -14,22 +14,19 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 func TestMOSSTransformGolden(t *testing.T) {
 	root := filepath.Join("..", "..", "fixtures", "moss")
 	path := filepath.Join(root, "import-transforms.safetensors")
 	encoded, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(encoded)) != "f568ae58eb27427734a9e8d31fb19944b152aeedc41e6e6fe13039291b79b88f" {
 		t.Fatal("upstream golden changed identity")
 	}
 	source, err := safetensors.OpenFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	if len(source.Metadata) != 1 {
 		t.Fatal("missing provenance")
@@ -44,21 +41,13 @@ func TestMOSSTransformGolden(t *testing.T) {
 		}
 	}
 	groups, err := strconv.ParseUint(metadata["groups"], 10, 64)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	heads, err := strconv.ParseUint(metadata["heads"], 10, 64)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var names map[string]string
-	if err := json.Unmarshal([]byte(metadata["source_tensors"]), &names); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(metadata["source_tensors"]), &names))
 	contract, err := os.ReadFile(filepath.Join(root, "oracle-contract.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(contract)) != "0c2767456a75075671de88538d8c1ce0f673ef41c2bae897c4e59449fad0ca86" {
 		t.Fatal("frozen acceptance changed")
 	}
@@ -70,9 +59,7 @@ func TestMOSSTransformGolden(t *testing.T) {
 			} `json:"dtype_tolerances"`
 		} `json:"comparison"`
 	}
-	if err := json.Unmarshal(contract, &acceptance); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(contract, &acceptance))
 	tolerance, ok := acceptance.Comparison.DTypes["F32"]
 	if !ok {
 		t.Fatal("missing F32 tolerance")
@@ -91,17 +78,11 @@ func TestMOSSTransformGolden(t *testing.T) {
 			}
 			input.Name = names[name]
 			mapped, err := mappedTensorData([]tensorMapping{{name: name, tensor: input, shape: input.Shape, storage: gguf.DTypeF32, transforms: transforms(input.Name)}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			actual, err := io.ReadAll(mapped[0].Data)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want, err := io.ReadAll(expected.Reader())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(actual) != len(want) {
 				t.Fatalf("payload size %d != %d", len(actual), len(want))
 			}

@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,13 +30,9 @@ func recordRecipeRoutingDecision(
 		Task: recipe.TaskInference, Capability: "replay-capability",
 		QualityThreshold: threshold, ThresholdEvidence: thresholdEvidence,
 	}, candidates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := decision.Batch("routing/replay-fixture/" + name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -52,9 +49,7 @@ func recordRecipeRoutingDecision(
 func TestRoutingCounterfactualReplay(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	cheap := routingCandidateFixture(t, "first-cheap", 1024)
 	costly := RoutingCandidate{
@@ -71,9 +66,7 @@ func TestRoutingCounterfactualReplay(t *testing.T) {
 	corpus := []artifact.ID{first.ID, second.ID}
 
 	report, err := ReplayRoutingDecisions(ctx, store, RoutingDerivationBestQualityEligible, corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Changed != 1 || report.Coverage != 2 ||
 		report.QualityDelta != costly.Quality-cheap.Quality ||
 		report.ResourceDelta != int64(costly.ResourceBytes)-int64(cheap.ResourceBytes) {

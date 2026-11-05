@@ -6,15 +6,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestCapabilityIdentityContract(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "capability-schema")
@@ -33,17 +32,11 @@ func TestCapabilityIdentityContract(t *testing.T) {
 			MaxInputBytes: 4096, MaxOutputBytes: 8192, MaxConcurrent: 2, CPUThreads: 2, HostBytes: 1 << 30,
 		},
 	}).Identify()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := identity.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("capability/identity", []artifact.Content{content}, identity.Lineage(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

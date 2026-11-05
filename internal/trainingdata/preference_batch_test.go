@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestDPOPreferenceBatchCompilesExactPrefixAndMasks(t *testing.T) {
 		}
 		return result, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(batch.Pairs) != 1 || batch.State.Identity != identity || batch.Pairs[0].SharedPrefix != 2 ||
 		!batch.Pairs[0].Chosen.Completion[2] || !batch.Pairs[0].Rejected.Completion[2] {
 		t.Fatalf("compiled batch=%+v", batch)
@@ -44,9 +43,7 @@ func TestUnpairedBatchSplicesEachPromptWithTheNextCompletion(t *testing.T) {
 			mask[index] = true
 		}
 		result, err := TokenValue(role, tokens, mask)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	examples := []Example{
@@ -55,9 +52,7 @@ func TestUnpairedBatchSplicesEachPromptWithTheNextCompletion(t *testing.T) {
 		{ID: "c", Values: []Value{value(RoleChosen, []int{4, 5, 6, 10}, 3)}},
 	}
 	batch, err := CompileUnpairedBatch(Batch{Examples: examples, State: StreamState{Identity: identity, Position: 3}}, TokenIDs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []PreferenceSequence{
 		{Tokens: []int{1, 2, 8, 9}, Completion: []bool{false, false, true, true}},
 		{Tokens: []int{3, 10}, Completion: []bool{false, true}},

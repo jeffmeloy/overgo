@@ -8,6 +8,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -57,9 +58,7 @@ func TestScorecardMarksAReadingOutsideItsModelsUse(t *testing.T) {
 	}
 
 	held, err := scorecard.ModelUses()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(held) == 0 {
 		t.Fatal("the repository records no model's use")
 	}

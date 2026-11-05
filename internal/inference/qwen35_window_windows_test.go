@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -29,9 +30,7 @@ func TestQwen35DraftsVerifyInAWindow(t *testing.T) {
 	open := func(f32 bool) *Runner {
 		t.Helper()
 		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = runner.Close() })
 		return runner
 	}
@@ -40,9 +39,7 @@ func TestQwen35DraftsVerifyInAWindow(t *testing.T) {
 		t.Fatalf("the hybrid over cells %v decodes outside Strata's window verifier", runner.cellLayers)
 	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const promptTokens = 8
 	prompt := make([]tokenizer.TokenID, promptTokens)
 	for index := range prompt {
@@ -54,18 +51,14 @@ func TestQwen35DraftsVerifyInAWindow(t *testing.T) {
 		OnDraftSpan: func(drafts, _ int) { drafted += drafts },
 	}
 	speculated, _, err := runner.Generate(t.Context(), "", options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(runner.spanned.layers) != 0 {
 		t.Fatalf("a verify window kept %d layers' state at its positions", len(runner.spanned.layers))
 	}
 	plain := options
 	plain.SpeculativeDecode, plain.PlainDecode, plain.OnDraftSpan = false, true, nil
 	decoded, _, err := f32.Generate(t.Context(), "", plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if f32.windowsDecode() || drafted == 0 || !slices.Equal(speculated, decoded) {
 		t.Fatalf("in windows %d drafts emit %v, plain decoding over the F32 cache %v", drafted, speculated, decoded)
 	}

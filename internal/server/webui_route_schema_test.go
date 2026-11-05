@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWebUIRouteSchemasMatchHandlerBodies holds every schema the API
@@ -16,9 +18,7 @@ func TestWebUIRouteSchemasMatchHandlerBodies(t *testing.T) {
 		"/agents/definitions": reflect.TypeFor[agentDefinitionInput](),
 	}
 	catalog, err := parseWorkspaceSchema()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	schemas := make(map[string]workspaceObjectSchema, len(catalog.Schemas))
 	for _, schema := range catalog.Schemas {
 		schemas[schema.ID] = schema

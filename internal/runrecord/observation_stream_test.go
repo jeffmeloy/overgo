@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -44,9 +45,7 @@ func (r observationStreamOverrideReader) OpenContent(
 func TestLoadObservationStream(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	id := func(kind artifact.Kind, label string) artifact.ID {
@@ -81,13 +80,9 @@ func TestLoadObservationStream(t *testing.T) {
 			{Metric: ResourcePeakHostBytes, Value: 80},
 		}, Interactions: &observedZero},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	firstSummary, err := commitObservationChunk(t, ctx, store, first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observedWork := InteractionWork{Failures: 1, Retries: 2}
 	second, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{
 		{Ordinal: 3, ElapsedNS: 30, Kind: observationSampleMessage, Measures: []ResourceMeasure{
@@ -95,13 +90,9 @@ func TestLoadObservationStream(t *testing.T) {
 			{Metric: ResourceWallNS, Value: 7},
 		}, Interactions: &observedWork},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondSummary, err := commitObservationChunk(t, ctx, store, second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	wantSummaryIDs := []artifact.ID{firstSummary.ID, secondSummary.ID}
 	wantChunkIDs := []artifact.ID{firstSummary.Chunk, secondSummary.Chunk}
@@ -182,9 +173,7 @@ func TestLoadObservationStream(t *testing.T) {
 	}
 
 	secondContent, err := second.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondContent.Data[0] ^= byte(traceSequenceStart)
 	corrupt := observationStreamOverrideReader{
 		Reader: store, contents: map[artifact.ID]artifact.Content{second.ID: secondContent},
@@ -212,21 +201,13 @@ func TestLoadObservationStream(t *testing.T) {
 				Kind:     ObservationSampleExecution,
 				Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}},
 			}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			forgedSummary, err := SummarizeObservationChunk(forgedChunk)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			chunkContent, err := forgedChunk.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			summaryContent, err := forgedSummary.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			reader := observationStreamOverrideReader{
 				Reader: store,
 				aliases: map[string]artifact.ID{
@@ -247,9 +228,7 @@ func TestLoadObservationStream(t *testing.T) {
 		Ordinal: 4, ElapsedNS: 40, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 100}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := commitObservationChunk(t, ctx, store, third); err != nil {
 		t.Fatal(err)
 	}
@@ -281,13 +260,9 @@ func TestLoadObservationStream(t *testing.T) {
 			Measures: []ResourceMeasure{{Metric: resourceCPUNS, Value: 0}},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hardwareSummary, err := commitObservationChunk(t, ctx, store, hardwareChunk)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hardwareStream, found, err := LoadObservationStream(ctx, store, hardwareScope.Attempt, ObservationStreamBounds{
 		MaxChunks: 1, MaxRawBytes: hardwareSummary.Stats.Bytes,
 	})

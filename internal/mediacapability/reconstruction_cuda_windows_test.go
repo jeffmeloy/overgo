@@ -20,6 +20,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // reconstructionFloorDB is the least peak signal-to-noise ratio the round
@@ -39,48 +40,32 @@ func TestPictureRoundTripsThroughAnInstalledAutoencoder(t *testing.T) {
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	capability := Catalog[recipe.TaskReconstruction]
 	source, err := capability.Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := source.Inventory.Manifest.ID
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	reconstruct := func(picture *image.RGBA) []byte {
 		t.Helper()
 		var encoded bytes.Buffer
-		if err := png.Encode(&encoded, picture); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, png.Encode(&encoded, picture))
 		request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := capability.Execute(t.Context(), store, directory, execution, string(request))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 		if !ok {
 			t.Fatalf("reconstruction output type=%T", output)
 		}
 		height, width := picture.Bounds().Dy(), picture.Bounds().Dx()
 		decoded, err := png.Decode(bytes.NewReader(reconstruction.Data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if reconstruction.Height != height || reconstruction.Width != width || decoded.Bounds() != picture.Bounds() {
 			t.Fatalf("a %dx%d picture came back as %dx%d, PNG %v", height, width, reconstruction.Height, reconstruction.Width, decoded.Bounds())
 		}

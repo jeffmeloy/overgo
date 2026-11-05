@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -20,39 +21,25 @@ func TestAResumeRefusesAnAverageItsCheckpointDoesNotName(t *testing.T) {
 		_, err := RunTextHeldout(t.Context(), text.store, request)
 		return err
 	}
-	if err := run("saved", TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 3}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run("saved", TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 3}))
 	checkpoint := filepath.Join(text.root, "saved"+stepCheckpointInfix+"000004")
 	weights, state := filepath.Join(checkpoint, averageDirectory, averageWeightsFile), filepath.Join(checkpoint, averageDirectory, averageStateFile)
 	saved, err := os.ReadFile(weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	flipped := append([]byte(nil), saved...)
 	flipped[len(flipped)-1] ^= 0xff
-	if err := os.WriteFile(weights, flipped, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, flipped, 0o600))
 	if err := run("from-flipped", TextHeldoutRequest{Resume: checkpoint}); err == nil || !strings.Contains(err.Error(), averageDirectory+"/"+averageWeightsFile) {
 		t.Fatalf("a resume from an average with a flipped byte answered %v, want a refusal naming its weights", err)
 	}
-	if err := os.WriteFile(weights, saved, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, saved, 0o600))
 	kept, err := os.ReadFile(state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.Remove(state))
 	if err := run("from-stateless", TextHeldoutRequest{Resume: checkpoint}); err == nil || !strings.Contains(err.Error(), averageDirectory+"/"+averageStateFile) {
 		t.Fatalf("a resume from an average whose state is gone answered %v, want a refusal naming it", err)
 	}
-	if err := os.WriteFile(state, kept, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(state, kept, 0o600))
 	if err := run("from-saved", TextHeldoutRequest{Resume: checkpoint}); err != nil {
 		t.Fatalf("a resume from the checkpoint as it was saved: %v", err)
 	}

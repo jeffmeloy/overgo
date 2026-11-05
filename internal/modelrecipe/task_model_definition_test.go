@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func publishedGenerationRecipe(t *testing.T, store *overgodb.Store, name string)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "test/task-definition-model/" + manifest.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}}, Manifests: []artifact.Manifest{manifest},
@@ -28,17 +27,11 @@ func publishedGenerationRecipe(t *testing.T, store *overgodb.Store, name string)
 		t.Fatal(err)
 	}
 	definition, err := CapabilityDefinition(recipe.TaskGeneration, manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := Content(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("test/task-definition-recipe/"+definition.ID.String(), []artifact.Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -51,15 +44,11 @@ func publishedGenerationRecipe(t *testing.T, store *overgodb.Store, name string)
 func TestTaskModelDefinitionOfAModelOnlyRecipeBindsItsModelAndRecipe(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	definition := publishedGenerationRecipe(t, store, "bound")
 	id, err := PublishTaskModelDefinition(t.Context(), store, definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := RequireModelDefinitionBinding(t.Context(), store, id, definition.Model, definition.ID); err != nil {
 		t.Fatalf("the definition does not bind the model and recipe it was published for: %v", err)
 	}
@@ -79,22 +68,14 @@ func TestTaskModelDefinitionOfAModelOnlyRecipeBindsItsModelAndRecipe(t *testing.
 func TestTaskModelDefinitionRefusesARecipeOverAModelNoManifestHolds(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	definition, err := CapabilityDefinition(recipe.TaskGeneration, testutil.ArtifactID(t, artifact.KindModel, "unpublished-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := Content(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("test/task-definition-recipe/"+definition.ID.String(), []artifact.Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

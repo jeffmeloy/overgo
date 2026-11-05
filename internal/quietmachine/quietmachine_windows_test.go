@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // workloadTestMachine is the machine this test holds, not the host's own, so
@@ -117,9 +119,7 @@ func TestOvergoWorkloadsShareTheQuietMachine(t *testing.T) {
 	}
 
 	measured.Store(false)
-	if err := measuring(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, measuring())
 	group.Wait()
 	if !ran.Load() || !strings.Contains(output.String(), "train: waited ") {
 		t.Fatalf("after the measurement the workload ran: %t, and said %q; want it to run once the machine was released and to say how long it waited", ran.Load(), output.String())

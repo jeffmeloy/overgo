@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ func TestScorecardReadingStatesItsStanding(t *testing.T) {
 			continue
 		}
 		files, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(entry.Package), "*_test.go"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.ContainsFunc(files, func(file string) bool {
 			source, err := os.ReadFile(file)
 			return err == nil && strings.Contains(string(source), "\nfunc "+entry.Test+"(t *testing.T)")
@@ -65,9 +64,7 @@ func TestScorecardReadingStatesItsStanding(t *testing.T) {
 		row("a deferred model", recipe.TaskImageGen, deferred),
 		row("another unnamed model", recipe.TaskImageGen, measured),
 	}
-	if err := comparePaths(rows); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, comparePaths(rows))
 	if got, want := rows[0].Cells[metric.Quality].Compared, named.Package+" "+named.Test; got != want || rows[0].PathUnchecked() {
 		t.Fatalf("the named model's reading is compared by %q, want %q", got, want)
 	}

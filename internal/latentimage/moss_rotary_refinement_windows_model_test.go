@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"os"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"testing"
@@ -54,7 +55,5 @@ func verifyMOSSModelStage(t *testing.T, stage string) {
 	var report bytes.Buffer
 	err := VerifyMOSSTransformer(t.Context(), modelRoot, referenceRoot, filepath.Join("..", "..", "fixtures", "moss"), stage, &report)
 	t.Log(report.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type publishRepository struct {
@@ -23,9 +25,7 @@ func TestPublishTreatsARepeatAsSuccess(t *testing.T) {
 	t.Parallel()
 	refusal := errors.New("refused")
 	id, err := IdentifyBytes(KindEvidence, []byte("published"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := Batch{Key: "k", Aliases: []AliasBinding{{Name: "a", Target: id}}}
 	for _, test := range []struct {
 		outcome error
@@ -46,13 +46,9 @@ func TestPublishTreatsARepeatAsSuccess(t *testing.T) {
 func TestAliasMoveOwnsTheCompareAndSwap(t *testing.T) {
 	t.Parallel()
 	held, err := IdentifyBytes(KindEvidence, []byte("held"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	next, err := IdentifyBytes(KindEvidence, []byte("next"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first := AliasMove("a", next, ID{}); first.Previous != nil || first.Target != next || first.Remove {
 		t.Fatalf("first binding = %+v", first)
 	}

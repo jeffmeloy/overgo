@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -12,9 +13,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "draft lifecycle runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Stored answer"}}))
 	defer handler.Close()
@@ -70,9 +69,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
    return !document.querySelector('.send-button').disabled && draftField('system').value==='Be concise' && draftField('temperature').value==='0.25' && draftField('tokens').value==='4';
  })()`)
 	// Reload the actual page: module memory is gone, session storage must restore it.
-	if err := browser.Call(ctx, "Page.reload", map[string]any{}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Page.reload", map[string]any{}, nil))
 	settle(`!!document.querySelector('.composer textarea') && document.querySelector('.composer textarea').value==='Keep the new conversation draft'`)
 	check(`(() => {
    window.draftInput=()=>document.querySelector('#panel-chat .composer textarea');window.draftField=name=>document.querySelector('[data-draft-setting="'+name+'"]');

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,23 +30,15 @@ func TestRealResBlockCUDAParity(t *testing.T) {
 		t.Fatal("first encoder block is not residual")
 	}
 	program, err := compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := block.forward(model, input, 1, model.Cfg.BaseChannels, height, width)
 	referenceOutput, err := program.execute(context.Background(), nil, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer device.Close()
 	deviceOutput, err := program.execute(context.Background(), device, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenceDiff := testutil.MaxAbsDiff(referenceOutput, want)
 	deviceDiff := testutil.MaxAbsDiff(deviceOutput, want)
 	for index, value := range deviceOutput {

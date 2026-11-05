@@ -20,6 +20,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -68,12 +69,8 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	var evidence gemma4FP8PerformanceEvidence
 	evidencePath := filepath.Join(root, "fixtures", "adaptive_gemma4_fp8_performance.json")
 	evidenceBytes, err := os.ReadFile(evidencePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := strictjson.DecodeBytes(evidenceBytes, &evidence); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, strictjson.DecodeBytes(evidenceBytes, &evidence))
 	if evidence.Schema != "overgo/adaptive-gemma4-fp8-performance/v1" || evidence.SourceCommit == "" ||
 		evidence.SourceEntrypoint != "go/extmodel/alternating_window_decoder_cuda_windows_test.go:TestGemma4Device_GoldenGate" ||
 		evidence.Protocol != "case=0;greedy=true;max_new_tokens=16;wall=generation;candidate_cache_page_tokens=32;reference_cache_tokens=256;peak=runtime_owned_cuda" ||
@@ -100,32 +97,22 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	slices.Sort(referenceWalls)
 	referenceWall := referenceWalls[len(referenceWalls)/2]
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-native.gguf")
 	assertSHA256(t, modelPath, evidence.CandidateArtifactSHA256)
 	started := time.Now()
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyDeviceNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	loadWall := time.Since(started)
 	loadMemory, err := runner.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The reference wall is the MEDIAN of its five recorded runs, so the
 	// candidate measures the same statistic: three greedy generations,
 	// each token-exact, compared by median -- one cold-clock or
@@ -142,9 +129,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 			PromptTokenIDs: evidence.InputIDs,
 		})
 		generationWalls = append(generationWalls, uint64(time.Since(generationStarted)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		generated = ids[len(evidence.InputIDs):]
 		if !slices.Equal(generated, evidence.OutputIDs) {
 			t.Fatalf("Gemma4 run %d generated IDs %v, want %v", run, generated, evidence.OutputIDs)

@@ -14,23 +14,20 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestCandidateDomainPluginsCompileWithoutParallelRuntime(t *testing.T) {
 	fixture, err := newSameBaseCandidateFixture(t, sameBaseCandidateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fixture.store.Close()
 
 	spy := &candidatePluginSpy{delegate: SameBaseCandidatePlugin{}, mutateFacts: true}
 	compiled, err := modelrecipe.CompileAdmittedCandidate(
 		t.Context(), fixture.store, fixture.candidate.ID(), fixture.admission.ID, spy,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spy.calls != 1 || len(compiled.Components) != 1 || len(compiled.Ablations) != 1 {
 		t.Fatalf("plugin dispatch = calls %d, components %d, ablations %d",
 			spy.calls, len(compiled.Components), len(compiled.Ablations))
@@ -83,18 +80,14 @@ func TestCandidateDomainPluginsCompileWithoutParallelRuntime(t *testing.T) {
 
 func TestPrototypeCompilesClosedWorldTrial(t *testing.T) {
 	fixture, err := newSameBaseCandidateFixture(t, sameBaseCandidateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer fixture.store.Close()
 
 	first, err := modelrecipe.CompileAdmittedCandidate(
 		t.Context(), fixture.store, fixture.candidate.ID(), fixture.admission.ID,
 		SameBaseCandidatePlugin{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := modelrecipe.CompileAdmittedCandidate(
 		t.Context(), fixture.store, fixture.candidate.ID(), fixture.admission.ID,
 		SameBaseCandidatePlugin{},
@@ -276,9 +269,7 @@ func newSameBaseCandidateFixture(
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	deltaWidth := cmp.Or(options.deltaWidth, offlineTensorWidth)
 	baseID := publishOfflineModel(t, store, "candidate-base", offlineTensorWidth, false)
 	deltaID := publishOfflineModel(t, store, "candidate-delta", deltaWidth, false)

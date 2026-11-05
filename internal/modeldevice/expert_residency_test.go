@@ -16,6 +16,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // fakeExpertDevice adds pinned host memory to fakeDevice: a host allocation
@@ -168,9 +169,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		t.Helper()
 		mem := newFakeExpertDevice()
 		weights, err := mem.loadExperts(t.Context(), file, limit, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cache := weights.experts
 		t.Cleanup(func() {
 			if err := cache.close(); err != nil {
@@ -217,9 +216,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	route := func(t *testing.T, cache *expertResidency, indices ...uint32) {
 		t.Helper()
 		bitmap, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes(t))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, index := range indices {
 			cache.routed[uint64(bitmap-cache.routedMap)+uint64(index)] = 1
 		}
@@ -227,9 +224,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	// advance applies a decode run's routes.
 	advance := func(t *testing.T, cache *expertResidency) {
 		t.Helper()
-		if err := cache.advance(t.Context(), false); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.advance(t.Context(), false))
 	}
 	t.Run("fill-splits-card-and-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
@@ -277,9 +272,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		}
 		pinned := len(cache.pinned)
 		for len(cache.cards) > 0 {
-			if err := cache.release(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.release(t.Context()))
 		}
 		readable(t, cache, mem, map[string][]uint32{})
 		if len(cache.pinned) != pinned {
@@ -330,16 +323,12 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("experts-on-host-follow-moves", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		flags, err := (&DeviceWeights{experts: cache}).ExpertsOnHost(nil, nodes(t))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// onCard holds the card's flags to the experts every bank holds on the card, and no other.
 		onCard := func(t *testing.T, card ...uint32) {
 			t.Helper()
 			got, err := mem.at(flags, experts)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for index := range uint32(experts) {
 				if want := !slices.Contains(card, index); (got[index] == 1) != want {
 					t.Fatalf("expert %d on host %t, want %t", index, got[index] == 1, want)
@@ -391,9 +380,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		writes := mem.writes
 		route(t, cache, 1)
-		if err := cache.advance(t.Context(), true); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.advance(t.Context(), true))
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
 		if mem.writes != writes || bytes.IndexByte(cache.routed, 1) >= 0 {
 			t.Fatal("a prompt's routes moved experts or stayed marked")
@@ -411,9 +398,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		route(t, cache, 0)
 		advance(t, cache)
-		if err := cache.release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.release(t.Context()))
 		if len(cache.cards) != 1 || cache.bytes != tableBytes+downStride && cache.bytes != tableBytes+gateStride {
 			t.Fatalf("release left %d card allocations of %d bytes", len(cache.cards), cache.bytes)
 		}
@@ -425,9 +410,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			}
 		}
 		readable(t, cache, mem, card)
-		if err := cache.release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.release(t.Context()))
 		readable(t, cache, mem, map[string][]uint32{})
 		if cache.bytes != tableBytes {
 			t.Fatal("releasing every card allocation left card bytes")
@@ -445,9 +428,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("%d promotions in flight before the release (%v), want one a bank", len(cache.promoting), err)
 		}
 		for range 2 {
-			if err := cache.release(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.release(t.Context()))
 		}
 		mem.hold = false
 		readable(t, cache, mem, map[string][]uint32{})
@@ -569,22 +550,16 @@ func TestExpertAdmissionTakesTheMostUsed(t *testing.T) {
 	file := f.parse(t)
 	mem := newFakeExpertDevice()
 	weights, err := mem.loadExperts(t.Context(), file, 3*8+3*256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache := weights.experts
 	defer cache.close()
 	node := tensor.NewBuilder().Input("gate", file.Tensors[0].Type, tensor.MustShape(file.Tensors[0].Shape[:file.Tensors[0].Dimensions]...))
 	run := func(prompt bool) {
 		t.Helper()
 		flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, []*tensor.Tensor{node})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cache.routed[uint64(flags-cache.routedMap)] = 1
-		if err := cache.advance(t.Context(), prompt); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.advance(t.Context(), prompt))
 	}
 	usage := cache.banks["gate"].usage
 	run(true)
@@ -637,9 +612,7 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		mem := newFakeExpertDevice()
 		mem.freeBytes = held
 		weights, err := mem.loadExperts(t.Context(), file, limit, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cache := weights.experts
 		t.Cleanup(func() {
 			if err := cache.close(); err != nil || mem.liveCount() != 0 {
@@ -653,16 +626,12 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	admit := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice) uint64 {
 		t.Helper()
 		flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for range 3 {
 			for _, index := range []uint64{1, 2} {
 				cache.routed[uint64(flags-cache.routedMap)+index] = 1
 			}
-			if err := cache.advance(t.Context(), false); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.advance(t.Context(), false))
 		}
 		readsItsBytes(t, cache, mem, f.payloads)
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
@@ -711,18 +680,14 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	mem.freeBytes = expertSpareHeadroomBytes
 	const lentBytes = expertSpareSlots * (gateStride + downStride)
 	loan, err := mem.alloc(t.Context(), lentBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := mem.free(context.Background(), []driver.DevicePtr{loan}); err != nil {
 			t.Error(err)
 		}
 	})
 	lender := &DeviceWeights{experts: lending}
-	if err := lender.LendExpertMemory(t.Context(), nil, loan, lentBytes); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lender.LendExpertMemory(t.Context(), nil, loan, lentBytes))
 	allocs, live := mem.allocs, mem.liveCount()
 	if card := admit(t, lending, mem); card != 2*experts || mem.allocs != allocs {
 		t.Fatalf("lent memory holds %d experts after %d allocations, want every expert in it and none", card, mem.allocs-allocs)
@@ -733,9 +698,7 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		bytes uint64
 		card  int
 	}{{1, 2 * experts}, {lentBytes, 2}} {
-		if err := lender.ReclaimExpertMemory(t.Context(), nil, loan, taken.bytes); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, lender.ReclaimExpertMemory(t.Context(), nil, loan, taken.bytes))
 		readsItsBytes(t, lending, mem, f.payloads)
 		if card := len(onCard(lending, "gate")) + len(onCard(lending, "down")); card != taken.card || mem.liveCount() != live {
 			t.Fatalf("taking back %d bytes left %d experts on the card and %d allocations of %d, want %d and none freed", taken.bytes, card, mem.liveCount(), live, taken.card)
@@ -752,9 +715,7 @@ func readsItsBytes(t *testing.T, cache *expertResidency, mem *fakeExpertDevice, 
 	for name, bank := range cache.banks {
 		experts := uint64(len(bank.pointers))
 		table, err := mem.at(bank.table, experts*8)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range experts {
 			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
 			if err != nil || !bytes.Equal(actual, payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
@@ -795,9 +756,7 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 		t.Run("hot="+hot, func(t *testing.T) {
 			mem := newFakeExpertDevice()
 			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			cache := weights.experts
 			t.Cleanup(func() {
 				if err := cache.close(); err != nil || mem.liveCount() != 0 {
@@ -812,9 +771,7 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 				cache.banks[hot].usage[index] = 5
 			}
 			// The up bank's allocation is the last, which the release frees.
-			if err := cache.release(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.release(t.Context()))
 			kept, gone := "up", "gate"
 			if hot == "gate" {
 				kept, gone = "gate", "up"
@@ -843,9 +800,7 @@ func TestRefillKeepsWhatItCannotPlace(t *testing.T) {
 	file := f.parse(t)
 	mem := newFakeExpertDevice()
 	weights, err := mem.loadExperts(t.Context(), file, experts*8+experts*stride, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache := weights.experts
 	t.Cleanup(func() {
 		if err := cache.close(); err != nil || mem.liveCount() != 0 {
@@ -853,9 +808,7 @@ func TestRefillKeepsWhatItCannotPlace(t *testing.T) {
 		}
 	})
 	copy(cache.banks["gate"].usage, []float32{3, 0, 5})
-	if err := cache.release(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cache.release(t.Context()))
 	if got := onCard(cache, "gate"); len(got) != 0 {
 		t.Fatalf("the release kept %v on the card", got)
 	}
@@ -897,9 +850,7 @@ func TestReleaseFreesTheColdestClass(t *testing.T) {
 		t.Run("hot="+hot, func(t *testing.T) {
 			mem := newFakeExpertDevice()
 			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			cache := weights.experts
 			t.Cleanup(func() {
 				if err := cache.close(); err != nil || mem.liveCount() != 0 {
@@ -914,9 +865,7 @@ func TestReleaseFreesTheColdestClass(t *testing.T) {
 				cache.banks[hot].usage[index] = 5
 			}
 			// The up bank's allocation is the last; the release frees the colder bank's.
-			if err := cache.release(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.release(t.Context()))
 			cold := map[string]string{"up": "gate", "gate": "up"}[hot]
 			if got := onCard(cache, hot); !slices.Equal(got, placed[hot]) {
 				t.Fatalf("the release left %s's experts %v on the card, want %v", hot, got, placed[hot])
@@ -947,9 +896,7 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 	)
 	mem := newFakeExpertDevice()
 	weights, err := mem.loadExperts(t.Context(), file, oneEach, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache := weights.experts
 	t.Cleanup(func() {
 		if err := cache.close(); err != nil || mem.liveCount() != 0 {
@@ -962,15 +909,11 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 		nodes = append(nodes, builder.Input(bank.Name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
 	}
 	flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	advance := func() {
 		t.Helper()
 		cache.routed[uint64(flags-cache.routedMap)+2] = 1
-		if err := cache.advance(t.Context(), false); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.advance(t.Context(), false))
 	}
 	writes, ordered := mem.writes, mem.ordered
 	advance()
@@ -1004,9 +947,7 @@ func TestALayersBanksShareOneBlob(t *testing.T) {
 	names := []string{"blk.0.ffn_gate_exps.weight", "blk.0.ffn_up_exps.weight", "blk.0.ffn_down_exps.weight"}
 	mem := newFakeExpertDevice()
 	weights, err := mem.loadExperts(t.Context(), file, tableBytes+stride, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache := weights.experts
 	t.Cleanup(func() {
 		if err := cache.close(); err != nil {
@@ -1050,20 +991,14 @@ func TestALayersBanksShareOneBlob(t *testing.T) {
 		nodes = append(nodes, builder.Input(name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
 	}
 	routes, _, err := weights.ExpertRoutes(nil, nodes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache.routed[uint64(routes-cache.routedMap)+2] = 1
-	if err := cache.advance(t.Context(), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cache.advance(t.Context(), false))
 	if len(cache.promoting) != 1 {
 		t.Fatalf("%d moves promote one expert of three banks, want one", len(cache.promoting))
 	}
 	together(t, nil)
-	if err := cache.advance(t.Context(), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cache.advance(t.Context(), false))
 	together(t, []uint32{2})
 	if downBytes != cache.banks[names[2]].bytes {
 		t.Fatalf("the down bank holds %d bytes an expert", cache.banks[names[2]].bytes)

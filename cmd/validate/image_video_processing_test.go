@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -76,12 +77,8 @@ func TestMediaReportOwnersKeepTheMemo(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	for _, owner := range []string{"cmd/validate/media.go", "cmd/validate/samples.go"} {
 		current, err := os.ReadFile(filepath.Join(root, owner))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := checkMediaMemoOptimisation(owner, current); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, checkMediaMemoOptimisation(owner, current))
 		withoutMemo := bytes.ReplaceAll(current, []byte("discovery.LoadMemo(ctx, store)"), []byte("nil"))
 		if bytes.Equal(withoutMemo, current) {
 			t.Fatalf("%s: memo-removal mutation did not change the source", owner)

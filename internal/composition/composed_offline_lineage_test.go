@@ -7,14 +7,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	ctx := t.Context()
 	base := testutil.ArtifactID(t, artifact.KindModel, "offline base model")
@@ -34,9 +33,7 @@ func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 		Architecture: "llama", Recipe: recipeID, Parents: []artifact.ID{base},
 		Operation: OfflineCompositionPassthrough, Compatibility: []artifact.ID{compatibility},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	arithmetic, err := NewComposedModel(ComposedModelDocument{
 		Architecture: "llama", Recipe: recipeID, Parents: []artifact.ID{base},
 		Components: []artifact.ID{first, second}, Operation: OfflineCompositionTaskArithmetic,
@@ -46,9 +43,7 @@ func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 			{Component: second, Numerator: -int64(tensor.SingletonExtent), Denominator: uint64(tensor.PairedExtent)},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for key, document := range map[string]ComposedModelDocument{
 		"fixture/offline/passthrough": passthrough,
 		"fixture/offline/arithmetic":  arithmetic,

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/devicescope"
+	"overgo/internal/testcheck"
 )
 
 func inferenceDeviceStep(t *testing.T, plan devicescope.VerificationPlan) []string {
@@ -47,9 +48,7 @@ func TestDeviceDeclaredEvidence(t *testing.T) {
 		encoder := json.NewEncoder(&output)
 		event := func(action, name string) {
 			t.Helper()
-			if err := encoder.Encode(map[string]string{"Action": action, "Package": "overgo/internal/inference", "Test": name}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, encoder.Encode(map[string]string{"Action": action, "Package": "overgo/internal/inference", "Test": name}))
 		}
 		event("start", "")
 		for _, name := range names {
@@ -66,9 +65,7 @@ func TestDeviceDeclaredEvidence(t *testing.T) {
 		event("pass", "")
 		return output.String()
 	}
-	if err := verifyDeviceContracts(step, stream("", "")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, verifyDeviceContracts(step, stream("", "")))
 	for _, name := range names {
 		if err := verifyDeviceContracts(step, stream(name, "")); err == nil || !strings.Contains(err.Error(), name) {
 			t.Fatalf("missing %s accepted: %v", name, err)
@@ -86,10 +83,6 @@ func TestDeviceDeclaredEvidence(t *testing.T) {
 	// Last -run wins, as in go test. Each side of a measurement split only
 	// requires its own selected tests, while the complete step owns both sides.
 	correctness, measurement := splitTestStep(step, names[:1])
-	if err := verifyDeviceContracts(correctness, stream(names[0], "")); err != nil {
-		t.Fatal(err)
-	}
-	if err := verifyDeviceContracts(measurement, stream(names[1], "")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, verifyDeviceContracts(correctness, stream(names[0], "")))
+	testcheck.NoError(t, verifyDeviceContracts(measurement, stream(names[1], "")))
 }

@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func TestMediaTargetMetricsRequireExplicitVerifierAuthority(t *testing.T) {
 		view := textTargetView(t, recipecontract.ModalityText)
 		view.Signature.Outputs[0] = modality
 		view, err := sftEvaluationViewCodec.New(view)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		expected := testutil.ArtifactID(t, artifact.KindOutput, "expected "+string(modality))
 		output := testutil.ArtifactID(t, artifact.KindOutput, "output "+string(modality))
 		plan, err := compileMediaTargetPlan(view, mediaTargetSuite{
@@ -31,9 +30,7 @@ func TestMediaTargetMetricsRequireExplicitVerifierAuthority(t *testing.T) {
 			}},
 			Cases: []mediaTargetCase{{Record: "heldout", Expected: expected}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		observation := mediaTargetObservation{
 			Record: "heldout", Output: output,
 			Oracles:   []mediaOracleResult{{Kind: mediaArtifactIdentity, Passed: true}, {Kind: mediaDecode, Passed: true}},

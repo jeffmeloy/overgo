@@ -4,6 +4,8 @@ import (
 	"maps"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // absentGeometry is the shape of each of the fixture's tensors.
@@ -14,18 +16,14 @@ func absentGeometry(string, int) (int, int, error) { return 2, 2, nil }
 func stepAbsentGradient(t *testing.T, tensors map[string][]float32, pack *TensorPack, step func()) {
 	t.Helper()
 	gradient := []float32{1, 2, 3, 4}
-	if err := pack.GatherGradients(map[string][]float32{"absent": gradient, "present": gradient}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pack.GatherGradients(map[string][]float32{"absent": gradient, "present": gradient}))
 	step()
 	pack.Scatter()
 	stepped := maps.Clone(tensors)
 	for name, values := range tensors {
 		stepped[name] = slices.Clone(values)
 	}
-	if err := pack.GatherGradients(map[string][]float32{"present": gradient}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pack.GatherGradients(map[string][]float32{"present": gradient}))
 	step()
 	pack.Scatter()
 	if !slices.Equal(tensors["absent"], stepped["absent"]) {
@@ -35,9 +33,7 @@ func stepAbsentGradient(t *testing.T, tensors map[string][]float32, pack *Tensor
 		t.Errorf("the tensor with a gradient stayed at %v", tensors["present"])
 	}
 	// A gather that holds it again steps it.
-	if err := pack.GatherGradients(map[string][]float32{"absent": gradient, "present": gradient}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pack.GatherGradients(map[string][]float32{"absent": gradient, "present": gradient}))
 	before := slices.Clone(tensors["absent"])
 	step()
 	pack.Scatter()
@@ -51,12 +47,8 @@ func TestAbsentGradientKeepsItsTensorOnTheHost(t *testing.T) {
 	t.Parallel()
 	tensors := map[string][]float32{"absent": {1, 1, 1, 1}, "present": {1, 1, 1, 1}}
 	pack, err := NewTensorPack(tensors, absentGeometry)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizer, err := pack.NewOptimizer(Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stepAbsentGradient(t, tensors, pack, func() { optimizer.Step() })
 }

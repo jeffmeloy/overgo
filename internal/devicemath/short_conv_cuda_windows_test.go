@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 func TestShortConvBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	cases := []struct {
@@ -54,9 +53,7 @@ func TestShortConvBackwardDeviceMatchesHost(t *testing.T) {
 
 			wantDX, wantDW, wantDBias := hostmath.ShortConvBackward(x, dY, tc.channels, tc.tokens, w, bias, tc.k)
 			gotDX, gotDW, gotDBias, err := ShortConvBackwardDevice(worker, x, dY, tc.channels, tc.tokens, w, bias, tc.k)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			const tol = 1e-5
 			dxDiff := testutil.MaxAbsDiff(gotDX, wantDX)
 			dwDiff := testutil.MaxAbsDiff(gotDW, wantDW)

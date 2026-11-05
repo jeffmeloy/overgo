@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -22,18 +23,12 @@ func generateCapacityPagingRepro(
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		path, recipe.PlacementHybrid, session, recipe.ResidencyDeviceF32,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !greedy.IsRawGreedy() {
 		t.Fatal("sampler is not raw greedy")
 	}

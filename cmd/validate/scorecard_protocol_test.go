@@ -9,6 +9,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -127,9 +128,7 @@ func TestScorecardSetsASampleAskedAnotherWayBesideItsReading(t *testing.T) {
 	}
 
 	held, err := scorecard.ProtocolSamples()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(held) == 0 {
 		t.Fatal("the repository holds no sample asked another way")
 	}

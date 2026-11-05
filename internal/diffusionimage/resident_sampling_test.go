@@ -10,6 +10,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // samplingCancellation stops at a check count learned from a completed
@@ -34,9 +35,7 @@ func TestHostSamplingCancellationRecovery(t *testing.T) {
 	// Two iterations provide a boundary after one completed forward pass.
 	const steps, seed = 2, int64(7)
 	want, err := model.Sample(t.Context(), fixture.B, fixture.H, fixture.W, steps, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	probe := &samplingCancellation{Context: t.Context()}
 	if _, err := model.Sample(probe, fixture.B, fixture.H, fixture.W, 1, seed); err != nil {
 		t.Fatal(err)
@@ -74,9 +73,7 @@ func TestResidentSamplingContractAcceptance(t *testing.T) {
 	input := builder.Input("input", dtype.F32, shape)
 	velocity := builder.Input("velocity", dtype.F32, shape)
 	delta, next := samplingUpdate(builder, input, velocity)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	x := []float32{1, -2, 0, 7, -8, 0.125}
 	v := []float32{-3, 2, 9, -0.125, 4, 11}
 	for _, steps := range []int{1, 3, 8} {
@@ -85,9 +82,7 @@ func TestResidentSamplingContractAcceptance(t *testing.T) {
 			input: {Shape: shape, Data: x}, velocity: {Shape: shape, Data: v},
 			delta: {Shape: delta.Shape, Data: []float32{dt}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index, value := range result[next].Data {
 			if want := x[index] + float32(v[index]*dt); value != want {
 				t.Fatalf("steps=%d element=%d got=%g want=%g", steps, index, value, want)
@@ -98,7 +93,5 @@ func TestResidentSamplingContractAcceptance(t *testing.T) {
 	if _, err := unavailable.Sample(t.Context(), 1, 0); err == nil {
 		t.Fatal("unavailable sampler accepted")
 	}
-	if err := unavailable.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, unavailable.Close(t.Context()))
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestReplaceRequestsWriteThrough(t *testing.T) {
@@ -31,21 +33,13 @@ func TestReplaceSupportsExtendedLengthPath(t *testing.T) {
 	for range 3 {
 		directory = filepath.Join(directory, strings.Repeat("segment", 14))
 	}
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
 	source := filepath.Join(directory, "source")
 	target := filepath.Join(directory, "target")
-	if err := os.WriteFile(source, []byte("after"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := Replace(source, target); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(source, []byte("after"), 0o600))
+	testcheck.NoError(t, Replace(source, target))
 	got, err := os.ReadFile(target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(got) != "after" {
 		t.Fatalf("target = %q, want after", got)
 	}
@@ -61,12 +55,8 @@ func TestReplaceRejectsEmbeddedNUL(t *testing.T) {
 func TestRemoveCleansInterruptedTombstone(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "document")
 	tombstone := removalTombstone(path)
-	if err := os.WriteFile(tombstone, []byte("retired"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := Remove(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(tombstone, []byte("retired"), 0o600))
+	testcheck.NoError(t, Remove(path))
 	if _, err := os.Stat(tombstone); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("tombstone state = %v, want absent", err)
 	}
@@ -75,15 +65,9 @@ func TestRemoveCleansInterruptedTombstone(t *testing.T) {
 func TestRemoveReusesStaleTombstone(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "document")
 	tombstone := removalTombstone(path)
-	if err := os.WriteFile(tombstone, []byte("prior"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("current"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := Remove(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(tombstone, []byte("prior"), 0o600))
+	testcheck.NoError(t, os.WriteFile(path, []byte("current"), 0o600))
+	testcheck.NoError(t, Remove(path))
 	for _, candidate := range []string{path, tombstone} {
 		if _, err := os.Stat(candidate); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("removed state for %s = %v, want absent", candidate, err)

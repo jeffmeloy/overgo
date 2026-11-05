@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ type smallFixture struct {
 func smallEncoder(t *testing.T) (smallFixture, *safetensors.Source, *Encoder) {
 	t.Helper()
 	encoded, err := os.ReadFile("testdata/encoder.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture smallFixture
 	if err = json.Unmarshal(encoded, &fixture); err != nil {
 		t.Fatal(err)
@@ -57,14 +56,10 @@ func smallEncoder(t *testing.T) (smallFixture, *safetensors.Source, *Encoder) {
 		t.Fatal(err)
 	}
 	source, err := safetensors.OpenSource(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = source.Close() })
 	e, err := LoadEncoder(t.Context(), source, fixture.Declaration, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return fixture, source, e
 }
 
@@ -90,13 +85,9 @@ func TestEncoderNativeOracle(t *testing.T) {
 				seen++
 				return nil
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			logits, err := e.Project(t.Context(), hidden, frames, &w)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if seen != len(tc.Traces) || len(hidden) != frames*e.input.out || frames != len(tc.Tokens) {
 				t.Fatal("incomplete forward")
 			}
@@ -111,9 +102,7 @@ func TestEncoderNativeOracle(t *testing.T) {
 			before := slices.Clone(logits)
 			pointer := &w.x[0]
 			againHidden, againFrames, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			again, err := e.Project(t.Context(), againHidden, againFrames, &w)
 			if err != nil || !slices.Equal(before, again) || pointer != &w.x[0] {
 				t.Fatalf("replay differs or reallocates backing storage: %v", err)
@@ -179,9 +168,7 @@ func TestEncoderWeightAndWorkspaceBudgets(t *testing.T) {
 		t.Fatal("accepted weight budget shortfall")
 	}
 	exact, err := LoadEncoder(t.Context(), source, fixture.Declaration, e.weightBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var w Workspace
 	tc := fixture.Cases[0]
 	if _, _, err = exact.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {

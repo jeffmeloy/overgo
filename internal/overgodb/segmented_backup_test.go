@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestSegmentedBackupAndReadOnlyRefresh holds maintenance to the
@@ -22,24 +23,18 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	copyScaleCorpus(t, root)
 
 	writer, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	if sealed, err := filepath.Glob(filepath.Join(root, segmentDirectory, "*"+segmentExtension)); err != nil || len(sealed) == 0 {
 		t.Fatalf("snapshot boundary did not seal: (%v, %v)", sealed, err)
 	}
 	reader, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 
 	tailPayload := []byte("segmented-backup tail")
 	tailID, err := artifact.IdentifyBytes(artifact.KindRun, tailPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tailDescriptor := artifact.Descriptor{ID: tailID, Size: uint64(len(tailPayload)), MediaType: "text/plain"}
 	if _, err := writer.Commit(ctx, artifact.Batch{
 		Key:      "segmented/tail",
@@ -52,9 +47,7 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	}
 	postPayload := []byte("segmented-backup post-rotation")
 	postID, err := artifact.IdentifyBytes(artifact.KindRun, postPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	postDescriptor := artifact.Descriptor{ID: postID, Size: uint64(len(postPayload)), MediaType: "text/plain"}
 	if _, err := writer.Commit(ctx, artifact.Batch{
 		Key:      "segmented/post-rotation",
@@ -62,9 +55,7 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := reader.Refresh(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reader.Refresh(ctx))
 	writerHead, writerSequence := writer.Head()
 	if head, sequence := reader.Head(); head != writerHead || sequence != writerSequence {
 		t.Fatalf("reader (%s, %d) behind writer (%s, %d) across snapshot rotation", head, sequence, writerHead, writerSequence)
@@ -73,16 +64,12 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	destination := filepath.Join(t.TempDir(), "segmented-backup")
 	backupReport, err := writer.Backup(t.Context(), destination)
 	backupHead, backupSequence := backupReport.Head, backupReport.Sequence
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if backupHead != writerHead || backupSequence != writerSequence {
 		t.Fatalf("backup (%s, %d) differs from writer (%s, %d)", backupHead, backupSequence, writerHead, writerSequence)
 	}
 	restored, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restored.Close()
 	if !restored.SnapshotReplay().Loaded {
 		t.Fatal("captured checkpoint anchors did not accelerate the restored open")
@@ -112,8 +99,6 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 func mustScaleID(t *testing.T, payload string) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(artifact.KindRun, []byte(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }

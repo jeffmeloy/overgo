@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ import (
 func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	mHost := tinyMuonModel(t)
@@ -29,13 +28,9 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 
 	batches := slices.Repeat([][]int{tokens}, steps)
 	trajHost, _, err := mHost.Train(batches, derivedTestLearningRate(t, mHost), 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	deviceResult, err := TrainDeviceResidentWeighted(mDev, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, mDev), 0.9, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trajDev := deviceResult.Losses
 
 	if len(trajHost) != len(trajDev) {
@@ -61,22 +56,16 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	golden := readQwen2Golden(t)
 	host := modelFromGolden(t, golden)
 	resident := modelFromGolden(t, golden)
 	batches := slices.Repeat([][]int{golden.Tokens}, 2)
 	wantTrajectory, wantState, err := host.Train(batches, derivedTestLearningRate(t, host), 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	deviceResult, err := TrainDeviceResidentWeighted(resident, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, resident), 0.9, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gotTrajectory, gotState := deviceResult.Losses, deviceResult.State
 	if !strings.Contains(gotState.Schedule, "4+2") {
 		t.Fatalf("the resident state records schedule %q, want the 4+2 it stepped by", gotState.Schedule)
@@ -104,9 +93,7 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 func TestTrainDeviceResidentUntiedHeadMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const (
 		momentum        = 0.9
@@ -123,13 +110,9 @@ func TestTrainDeviceResidentUntiedHeadMatchesHost(t *testing.T) {
 		before := map[string][]float32{embeddingName: slices.Clone(resident.Weights[embeddingName]), headName: slices.Clone(resident.Weights[headName])}
 		batches := slices.Repeat([][]int{tokens}, steps)
 		wantTrajectory, wantState, err := host.Train(batches, derivedTestLearningRate(t, host), momentum, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		deviceResult, err := TrainDeviceResidentWeighted(resident, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, resident), momentum, Options{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if delta := testutil.MaxAbsDiff(wantTrajectory, deviceResult.Losses); delta > trajectoryLimit {
 			t.Fatalf("%d step(s): untied trajectory delta %.3e", steps, delta)
 		}
@@ -159,23 +142,17 @@ func TestTrainDeviceResidentUntiedHeadMatchesHost(t *testing.T) {
 func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	model := tinyMuonModel(t)
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	want, _, err := model.Loss(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	embedding, _, _ := model.LexicalTensorNames()
 	embedBefore := slices.Clone(model.Weights[embedding])
 	deviceResult, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(slices.Repeat([][]int{tokens}, 8)), derivedTestLearningRate(t, model), 0.9, Options{FrozenLexical: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trajectory := deviceResult.Losses
 	if delta := math.Abs(trajectory[0] - want); delta > 2e-4 {
 		t.Fatalf("initial loss delta %.3e exceeds device floor", delta)
@@ -191,25 +168,17 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 func TestTrainDeviceResidentResumeExact(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}}
 	uninterrupted := tinyMuonModel(t)
 	want, err := TrainDeviceResidentWeighted(uninterrupted, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, uninterrupted), 0.9, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumed := tinyMuonModel(t)
 	first, err := TrainDeviceResidentWeighted(resumed, worker, oneSequenceGroups(batches[:1]), derivedTestLearningRate(t, resumed), 0.9, Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := TrainDeviceResidentWeighted(resumed, worker, oneSequenceGroups(batches[1:]), derivedTestLearningRate(t, resumed), 0.9, Options{Resume: &first.State})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(want.State.Momentum, got.State.Momentum) {
 		t.Fatal("resumed device Muon momentum differs")
 	}

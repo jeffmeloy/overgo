@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 // TestLayerStreamPlansPartitionSlabs proves the per-layer stream plans are an
@@ -21,13 +22,9 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 		GDNKeyHeads: 2, GDNValueHeads: 2, GDNHeadDim: 4, GDNConvK: 3,
 	}
 	m, err := BuildModel(cfg, 7)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plans, err := m.layerStreamPlans()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(plans) != len(cfg.Types) {
 		t.Fatalf("plans cover %d layers, want %d", len(plans), len(cfg.Types))
 	}
@@ -53,9 +50,7 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 	}
 
 	budget, err := m.LayerStreamedBudget()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	maxLayer := 0
 	for _, p := range plans {
 		maxLayer = max(maxLayer, p.matSize)

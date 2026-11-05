@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 // A suite whose candidates are answer texts is asked as lettered options;
@@ -18,9 +19,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 		Candidates: []string{" False", " True"}, Answer: 0,
 	}
 	prompt, letters, err := chatChoicePrompt(textCase, chatChoiceInstruction)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(prompt, "\nOptions:\nA. False\nB. True") || !strings.HasSuffix(prompt, chatChoiceInstruction) {
 		t.Fatalf("prompt = %q", prompt)
 	}
@@ -109,9 +108,7 @@ func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
 		wide.Cases[0].Candidates[index] = fmt.Sprintf(" option %d", index)
 	}
 	compiled, err := CompileMultipleChoice(wide)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	templated := ListingAuthorities()
 	templated.Execution.Prompting = PromptingChatTemplate
 	if _, err := BindMultipleChoice(compiled, templated); err == nil {

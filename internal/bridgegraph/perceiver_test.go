@@ -10,6 +10,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestPerceiverResampler(t *testing.T) {
@@ -25,22 +26,16 @@ func TestPerceiverResampler(t *testing.T) {
 	target.Sequence.Mask = representation.MaskNone
 	target.Sequence.Padding = representation.PaddingNone
 	encodedTarget, err := json.Marshal(target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	target, err = representation.ParseContract(encodedTarget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetContent = encodedTarget
 	definition := Definition{
 		Source: source.ID, Target: target.ID, Operator: OperatorPerceiver,
 		LatentCount: 2, HeadCount: 1, SourceTokenLimit: 3,
 	}
 	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(2, 3))
 	mask := builder.Input("mask", dtype.F32, tensor.MustShape(3))
@@ -52,9 +47,7 @@ func TestPerceiverResampler(t *testing.T) {
 	output, err := program.Build(builder, input, Weights{
 		Mask: mask, Latents: latents, Query: query, Key: key, Value: value, Output: projection,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attentionFound := false
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).HasKeyBias {
@@ -77,13 +70,9 @@ func TestPerceiverResampler(t *testing.T) {
 	firstFeeds[input] = inferenceValue(t, input.Shape, []float32{1, 0, 0, 1, 10, 10})
 	secondFeeds[input] = inferenceValue(t, input.Shape, []float32{1, 0, 0, 1, 1000, -1000})
 	first, err := reference.Execute([]*tensor.Tensor{output}, firstFeeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := reference.Execute([]*tensor.Tensor{output}, secondFeeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(first[output].Data) != len(second[output].Data) {
 		t.Fatalf("Perceiver output extents differ: %v %v", first[output], second[output])
 	}

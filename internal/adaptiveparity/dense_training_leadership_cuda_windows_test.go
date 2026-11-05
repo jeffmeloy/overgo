@@ -20,6 +20,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/densecausaltrain"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -80,23 +81,17 @@ func TestDenseTrainingLeadership(t *testing.T) {
 		t.Fatalf("Qwen evidence identity drift: checkpoint=%s config=%s corpus=%s protocol=%s", checkpoint, config, corpus, protocol)
 	}
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	warm, err := densecausal.Load(modelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := densecausaltrain.TrainDeviceResidentWeighted(warm, worker, [][]densecausal.WeightedSequence{{{Tokens: qwenAdaptiveProfileTokens}}}, qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true}); err != nil {
 		t.Fatal(err)
 	}
 	warm = nil
 	runtime.GC()
 	model, err := densecausal.Load(modelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := worker.Do(t.Context(), func(state *device.State) error {
 		state.Driver.ResetPeakBytes()
 		return nil
@@ -106,9 +101,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	started := time.Now()
 	result, err := densecausaltrain.TrainDeviceResidentWeighted(model, worker, slices.Repeat([][]densecausal.WeightedSequence{{{Tokens: qwenAdaptiveProfileTokens}}}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true, Measure: true})
 	wall := time.Since(started)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trajectory, measurement := result.Losses, result.Measurement
 	testutil.RequireFiniteDecrease(t, "Qwen trajectory", trajectory, qwenTrainingSteps)
 	testutil.RequireClose(t, "Qwen initial loss", trajectory[qwenInitialStep], qwenInitialLoss, qwenInitialLossLimit)
@@ -119,9 +112,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	cold := measurement.ForwardBackwardSteps[qwenInitialStep] + measurement.DeviceUpdateSteps[qwenInitialStep]
 	warmStep := measurement.ForwardBackwardSteps[qwenUpdatedStep] + measurement.DeviceUpdateSteps[qwenUpdatedStep]
 	memory, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("Qwen evidence loss=%v cold=%s warm=%s loop=%s lifecycle=%s peak=%.3fGiB", trajectory, cold, warmStep, measurement.Loop, wall, float64(memory.PeakBytes)/bytesPerGiB)
 	if cold >= 2*qwenAdaptiveWarm {
 		t.Fatalf("Qwen cold execution %s exceeds twice the adaptive %s warm reference", cold, qwenAdaptiveWarm)
@@ -137,9 +128,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 func qwenFileSHA256(t *testing.T, path string) string {
 	t.Helper()
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {

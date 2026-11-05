@@ -7,23 +7,18 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestRealCheckpointPublishesReferencePNG(t *testing.T) {
 	model := loadArtifactModel(t)
 	plan, err := model.prepare(t.Context(), Request{Seed: 7, Steps: 2, Height: 64, Width: 64})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	features, err := model.integrate(t.Context(), plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded, err := model.decode(t.Context(), features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referencePath := testutil.FixturePath(t, "simplediffusion", "uvit_direct_seed7_steps2_64.png")
 	reference, err := os.ReadFile(referencePath)
 	if err != nil {

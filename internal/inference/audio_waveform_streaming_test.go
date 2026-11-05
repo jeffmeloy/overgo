@@ -8,6 +8,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestStreamedWaveformReconstruction proves the slab-streamed overlap-add is
@@ -50,22 +51,16 @@ func TestStreamedWaveformReconstruction(t *testing.T) {
 	tables := newAudioWaveformTables(compiled)
 	features := syntheticAudioFeatures(compiled, 3)
 	got, err := audioFeaturesToWaveform(compiled, tables, features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireBitIdentical(t, got, fullBufferWaveform(compiled, tables, features), 3)
 
 	tight := small
 	tight.MagnitudeLimit = 50
 	features = syntheticAudioFeatures(small, 4)
 	loose, err := audioFeaturesToWaveform(small, first, features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	clamped, err := audioFeaturesToWaveform(tight, first, features)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireBitIdentical(t, clamped, fullBufferWaveform(tight, first, features), 4)
 	differs := false
 	for index := range clamped {

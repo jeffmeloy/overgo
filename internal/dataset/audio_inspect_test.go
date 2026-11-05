@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func inspectionPolicy() AudioInspectionPolicy {
 
 func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, test := range []struct {
 		name      string
@@ -41,9 +40,7 @@ func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
 			data := floatWAV(test.samples)
 			source := publishInspectionSource(t, store, data)
 			result, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: source}, inspectionPolicy())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if test.violation == "" {
 				if result.Decision.Outcome != recipecontract.AudioAdmissionAccepted || !slices.Equal(result.Samples, test.samples) {
 					t.Fatalf("accepted result=%+v", result)
@@ -74,9 +71,7 @@ func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
 
 func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	valid := floatWAV([]float32{.5, -.5})
 	for _, test := range []struct {
@@ -94,9 +89,7 @@ func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
 			policy := inspectionPolicy()
 			policy.MaximumSamples = test.bound
 			result, err := InspectAudio(t.Context(), store, test.data, AudioPayloadOrigin{Container: source}, policy)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if result.Signal.DecodeStatus != test.status || result.Decision.Outcome != recipecontract.AudioAdmissionQuarantined || result.Samples != nil || result.Signal.SampleCount != 0 || result.DecodeError == "" {
 				t.Fatalf("failure=%+v", result)
 			}
@@ -124,16 +117,12 @@ func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
 
 func TestAudioDecodeEmbeddedSelectorLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	container := publishInspectionSource(t, store, []byte("parquet-container"))
 	data := floatWAV([]float32{.5, -.5})
 	first, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, _ := store.Head()
 	replay, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy())
 	after, _ := store.Head()
@@ -141,16 +130,12 @@ func TestAudioDecodeEmbeddedSelectorLineage(t *testing.T) {
 		t.Fatalf("embedded replay changed publication: %v", err)
 	}
 	second, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 1}, inspectionPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.SignalID == second.SignalID || first.Signal.Source.Audio != second.Signal.Source.Audio {
 		t.Fatal("selector or payload identity lost")
 	}
 	parents, err := store.Parents(t.Context(), first.Signal.Source.Profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(parents) != 2 {
 		t.Fatalf("decode profile parents=%v", parents)
 	}

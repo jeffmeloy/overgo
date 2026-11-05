@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,9 +30,7 @@ func TestModelVerificationLedger(t *testing.T) {
 			Dataset: dataset, SpanSteps: 60, SpanTokens: 480_000, Evidence: []artifact.ID{smoke}},
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
 		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: commit,
@@ -44,9 +43,7 @@ func TestModelVerificationLedger(t *testing.T) {
 		t.Fatalf("claims not sorted: %+v", record.Claims)
 	}
 	content, err := record.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseModelVerification(content.Data)
 	if err != nil || parsed.ID != record.ID || len(parsed.Claims) != 2 {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)
@@ -97,13 +94,9 @@ func TestModelVerificationLedger(t *testing.T) {
 			ContextTokens: 8192, WallNS: 4_750_000_000, PeakDeviceBytes: 2 << 30,
 			Evidence: []artifact.ID{floor}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sibling, err := NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{valid})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	matrix := VerificationMatrix([]ModelVerification{record, upgrade, sibling})
 	if len(matrix) != 2 || matrix[0].Name != "Carbon-500M" || matrix[1].Name != "Qwen2.5-0.5B" {
 		t.Fatalf("matrix rows = %+v", matrix)
@@ -128,9 +121,7 @@ func TestModelVerificationLedger(t *testing.T) {
 			ContextTokens: 2625, WallNS: 2_983_801_000, PeakDeviceBytes: 1_368_364_544,
 			Evidence: []artifact.ID{smoke}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	displaced := VerificationMatrix([]ModelVerification{sibling, measuredSibling})
 	cell := displaced[0].Capabilities[0]
 	if cell.Tier != TierExactGolden || cell.WallNS != 2_983_801_000 || len(cell.Evidence) != 2 {
@@ -151,9 +142,7 @@ func TestModelVerificationLedger(t *testing.T) {
 		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: correctedCommit,
 			Dataset: dataset, SpanSteps: 60, SpanTokens: 480_000, Evidence: []artifact.ID{smoke}},
 	}, []artifact.ID{record.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	corrected := VerificationMatrix([]ModelVerification{record, correction})
 	if len(corrected) != 1 || len(corrected[0].Capabilities) != 2 ||
 		corrected[0].Capabilities[1].Commit != correctedCommit {

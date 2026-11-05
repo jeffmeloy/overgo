@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -16,9 +17,7 @@ func TestChatMessageDecodesTextContentParts(t *testing.T) {
 		[]byte(`{"role":"user","content":[{"type":"text","text":"Hello"},{"type":"input_text","text":" world"}]}`),
 		&message,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if message.Role != "user" || message.Content != "Hello world" {
 		t.Fatalf("message = %+v", message)
 	}
@@ -27,9 +26,7 @@ func TestChatMessageDecodesTextContentParts(t *testing.T) {
 		[]byte(`{"role":"user","content":[{"type":"text","text":"before"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AA==","detail":"auto"}},{"type":"input_text","text":"after"},{"type":"input_audio","input_audio":{"data":"AA==","format":"wav"}}]}`),
 		&multimodal,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if multimodal.Content != "beforeafter" || len(multimodal.Media) != 2 {
 		t.Fatalf("multimodal message = %+v", multimodal)
 	}
@@ -70,9 +67,7 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 		[]byte(`{"role":"assistant","content":null,"reasoning_content":"check","tool_calls":[{"id":"call_1","type":"function","function":{"name":"weather","arguments":{"city":"Paris"}}}]}`),
 		&assistant,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if assistant.Role != "assistant" ||
 		assistant.Content != "" ||
 		assistant.ReasoningContent != "check" ||
@@ -82,9 +77,7 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 		t.Fatalf("assistant message = %+v", assistant)
 	}
 	encoded, err := json.Marshal(assistant)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(encoded), `"content":null`) {
 		t.Fatalf("encoded assistant tool call = %s", encoded)
 	}
@@ -117,9 +110,7 @@ func TestFormatChatML(t *testing.T) {
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := "<|im_start|>system\nBe concise.<|im_end|>\n" +
 		"<|im_start|>user\nHello<|im_end|>\n" +
 		"<|im_start|>assistant\n"
@@ -178,9 +169,7 @@ func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) 
 		{Role: "system", Content: "rules"},
 		{Role: "user", Content: "hello"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := "[system]rules</s>[user]hello</s>[assistant]"
 	if got != want {
 		t.Fatalf("Jinja prompt = %q, want %q", got, want)
@@ -204,9 +193,7 @@ func TestFormatJinjaChatSupportsPinnedRuntimeExtensions(t *testing.T) {
 			`{% endfor %}{{ ns.hit }}`,
 	)
 	got, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != "10:True" {
 		t.Fatalf("extension prompt = %q, want %q", got, "10:True")
 	}
@@ -224,9 +211,7 @@ func TestFormatChatTemplateTimeMatchesPinnedDirectives(t *testing.T) {
 		value,
 		"%a|%A|%b|%B|%c|%d|%e|%H|%I|%j|%m|%M|%p|%S|%u|%w|%x|%X|%y|%Y|%z|%Z|%%",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := "Sun|Sunday|Aug|August|Sun Aug 02 17:04:05 2026|02| 2|17|05|214|08|04|PM|05|7|0|08/02/26|17:04:05|26|2026|-0400|EDT|%"
 	if got != want {
 		t.Fatalf("strftime_now = %q, want %q", got, want)
@@ -273,9 +258,7 @@ func TestFormatJinjaChatSuppliesToolsAndToolCalls(t *testing.T) {
 			EnableThinking:      false,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The call's arguments reach a template as the mapping they hold, and a
 	// mapping printed bare is printed as Python prints a dict.
 	want := `weather={"type": "object"};user:weather?;assistant:[call_1:weather({'city': 'Paris'})];tool:sunny;thinking=False;generate=True`
@@ -302,9 +285,7 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 		},
 	})
 	plain, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plain != "default" {
 		t.Fatalf("plain prompt = %q", plain)
 	}
@@ -316,9 +297,7 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 			EnableThinking:      true,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if withTool != "tool=weather" {
 		t.Fatalf("tool-use prompt = %q", withTool)
 	}
@@ -421,9 +400,7 @@ func TestFormatGemmaChatMatchesPinnedOracle(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := runner.FormatChat(test.messages)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if got != test.want {
 				t.Fatalf("Gemma prompt = %q, want %q", got, test.want)
 			}
@@ -455,9 +432,7 @@ func TestFormatLlama3ChatMatchesPinnedTemplateVector(t *testing.T) {
 		{Role: "assistant", Content: "Hi there"},
 		{Role: "user", Content: "Who are you"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := "<|start_header_id|>system<|end_header_id|>\n\n" +
 		"You are a helpful assistant<|eot_id|>" +
 		"<|start_header_id|>user<|end_header_id|>\n\nHello<|eot_id|>" +
@@ -522,9 +497,7 @@ func chatTestVocab(t *testing.T) *tokenizer.Vocab {
 		},
 	}}
 	vocab, err := tokenizer.Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }
 
@@ -595,9 +568,7 @@ func gemmaChatTestVocab(t *testing.T) *tokenizer.Vocab {
 		},
 	}}
 	vocab, err := tokenizer.Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }
 
@@ -654,8 +625,6 @@ func llama3ChatTestVocab(t *testing.T) *tokenizer.Vocab {
 		},
 	}}
 	vocab, err := tokenizer.Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }

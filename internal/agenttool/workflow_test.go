@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,13 +19,9 @@ func TestCompileToolWorkflowUsesExactManualDependencies(t *testing.T) {
 		{ID: "inspect", Manual: inspect.ID},
 	}}
 	first, err := CompileToolWorkflow(proposal, []Manual{mutate, inspect})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := CompileToolWorkflow(proposal, []Manual{inspect, mutate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Program().Definition().ID != second.Program().Definition().ID ||
 		len(first.Program().Stages()) != 2 || first.Program().Stages()[0].Node.ID != "inspect" {
 		t.Fatalf("compiled workflows differ: %+v %+v", first.Program().Definition(), second.Program().Definition())
@@ -51,8 +48,6 @@ func workflowManual(t *testing.T, name string, effect Effect) Manual {
 		Name: name, Description: "Workflow test tool.", Effect: effect,
 		Transport: Transport{Kind: TransportHTTP, URL: "https://example.test/" + name},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return manual
 }

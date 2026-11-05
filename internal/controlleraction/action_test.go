@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -31,18 +32,14 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	drafter := testutil.ArtifactID(t, artifact.KindModel, "action-drafter")
 	chain := Action{Version: ActionVersion, Kind: KindChainRecipes, Chain: &ChainAction{Scorer: scorer, Drafter: drafter}}
 	first, err := compile(chain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := compile(chain)
 	if err != nil || len(first) != 2 || len(second) != 2 ||
 		first[0].Descriptor.ID != second[0].Descriptor.ID || first[1].Descriptor.ID != second[1].Descriptor.ID {
 		t.Fatalf("chain compile not deterministic: (%v, %v)", second, err)
 	}
 	definition, err := recipe.ParseDefinition(first[0].Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := recipe.CompileProgram(definition, workflowrecipe.Catalog()); err != nil {
 		t.Fatalf("emitted chain recipe is not executable through the catalog: %v", err)
 	}
@@ -185,9 +182,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	}
 
 	serialized, err := json.Marshal(chain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	roundtrip, err := ParseAction(serialized)
 	if err != nil || roundtrip.Kind != KindChainRecipes || roundtrip.Chain == nil {
 		t.Fatalf("roundtrip = (%+v, %v)", roundtrip, err)

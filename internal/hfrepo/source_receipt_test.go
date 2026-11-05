@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestSourceReceipt(t *testing.T) {
@@ -19,9 +21,7 @@ func TestSourceReceipt(t *testing.T) {
 		receipt := SourceReceipt{Source: "https://www.modelscope.cn/openmoss/tiny.git", Revision: "797fa8e678b4f0a766271bf5103e6cd7a2faa999"}
 		for _, name := range []string{"weights.bin", "config.json"} {
 			data := []byte(name)
-			if err := os.WriteFile(filepath.Join(root, name), data, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), data, 0600))
 			receipt.Files = append(receipt.Files, SourceFile{Path: name, Bytes: int64(len(data)), SHA256: fmt.Sprintf("%x", sha256.Sum256(data))})
 		}
 		return root, receipt
@@ -31,13 +31,9 @@ func TestSourceReceipt(t *testing.T) {
 		second, b := makeSource(t)
 		slices.Reverse(b.Files)
 		a, err := a.Verify(t.Context(), first)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		b, err = b.Verify(t.Context(), second)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		left, _ := json.Marshal(a)
 		right, _ := json.Marshal(b)
 		if string(left) != string(right) {
@@ -53,13 +49,9 @@ func TestSourceReceipt(t *testing.T) {
 			ctx := t.Context()
 			switch failure {
 			case "changed bytes":
-				if err := os.WriteFile(filepath.Join(root, receipt.Files[0].Path), []byte("WEIGHTS.BIN"), 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(root, receipt.Files[0].Path), []byte("WEIGHTS.BIN"), 0600))
 			case "missing file":
-				if err := os.Remove(filepath.Join(root, receipt.Files[0].Path)); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.Remove(filepath.Join(root, receipt.Files[0].Path)))
 			case "wrong size":
 				receipt.Files[0].Bytes++
 			case "invalid digest":

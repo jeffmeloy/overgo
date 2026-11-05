@@ -3,6 +3,8 @@ package hostoptimizer
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAStepReportsANonFiniteDirection: a gradient holding a NaN or an infinity moves no weight of its group and says so,
@@ -20,13 +22,9 @@ func TestAStepReportsANonFiniteDirection(t *testing.T) {
 			{Name: "broken", Start: 0, End: elements / 2, Rows: side, Cols: side},
 			{Name: "finite", Start: elements / 2, End: elements, Rows: side, Cols: side},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		optimizer, err := New(weights, gradients, plan, Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !optimizer.Step().Nonfinite {
 			t.Errorf("%s: the step reports a finite direction", name)
 		}
@@ -41,13 +39,9 @@ func TestAStepReportsANonFiniteDirection(t *testing.T) {
 	}
 	weights, gradients := []float32{1, 1, 1, 1}, []float32{1, 2, 3, 4}
 	plan, err := CompilePlan(len(weights), []GroupSpec{{Name: "finite", Start: 0, End: len(weights), Rows: side, Cols: side}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizer, err := New(weights, gradients, plan, Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if optimizer.Step().Nonfinite {
 		t.Error("a finite step reports a non-finite direction")
 	}

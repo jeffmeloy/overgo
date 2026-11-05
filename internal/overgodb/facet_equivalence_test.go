@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // catalogDigest reduces every facet to one deterministic digest:
@@ -66,9 +67,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	head, _, _ := copyScaleCorpus(t, root)
 
 	live, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer live.Close()
 	snapshotReplay := live.SnapshotReplay()
 	if !snapshotReplay.Loaded {
@@ -85,9 +84,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(logRoot, blobDirectory))
 	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(logRoot, segmentDirectory))
 	logOnly, err := OpenReadOnly(logRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer logOnly.Close()
 	if logOnly.SnapshotReplay().Loaded {
 		t.Fatal("journal-only path unexpectedly loaded a snapshot")

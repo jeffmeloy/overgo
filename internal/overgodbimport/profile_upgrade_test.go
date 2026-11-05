@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 // renamedProfileFixture is the exact shape published under the v2 label before
@@ -31,13 +32,9 @@ func renamedProfileFixture(t *testing.T, applied bool) []byte {
 		t.Fatal("the embedded catalog registers no resolvable architecture")
 	}
 	encoded, err := json.Marshal(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var policy map[string]any
-	if err := json.Unmarshal(encoded, &policy); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &policy))
 	stages, ok := policy["DenseStages"].(map[string]any)
 	if !ok {
 		t.Fatalf("dense stages absent from %q", profile.Name)
@@ -50,27 +47,21 @@ func renamedProfileFixture(t *testing.T, applied bool) []byte {
 	document, err := json.Marshal(map[string]any{
 		"architecture": profile.Name, "policy": policy,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return document
 }
 
 func upgradedExcludedExperts(t *testing.T, applied bool) uint32 {
 	t.Helper()
 	content, err := upgradeRenamedProfile(renamedProfileFixture(t, applied))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var body struct {
 		Version      uint16                    `json:"version"`
 		Architecture string                    `json:"architecture"`
 		Policy       model.ArchitectureProfile `json:"policy"`
 		Provenance   []json.RawMessage         `json:"provenance,omitempty"`
 	}
-	if err := strictjson.DecodeBytes(content, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(content, &body))
 	if body.Version != modelrecipe.ProfileVersion {
 		t.Fatalf("upgraded version = %d, want %d", body.Version, modelrecipe.ProfileVersion)
 	}
@@ -133,9 +124,7 @@ func TestProfileSchemaVersion(t *testing.T) {
 func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 	document := renamedProfileFixture(t, false)
 	var body map[string]any
-	if err := json.Unmarshal(document, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(document, &body))
 	policy, ok := body["policy"].(map[string]any)
 	if !ok {
 		t.Fatal("fixture policy is absent")
@@ -149,9 +138,7 @@ func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 	policy["Name"] = name
 	policy["DenseStages"] = stages
 	sparse, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	upgraded, err := upgradeRenamedProfile(sparse)
 	if err != nil {
 		t.Fatalf("sparse published document refused: %v", err)
@@ -162,9 +149,7 @@ func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 		Policy       model.ArchitectureProfile `json:"policy"`
 		Provenance   []json.RawMessage         `json:"provenance,omitempty"`
 	}
-	if err := strictjson.DecodeBytes(upgraded, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(upgraded, &decoded))
 	registered, found := model.LookupArchitecture(decoded.Architecture)
 	if !found {
 		t.Fatalf("upgraded architecture %q is not registered", decoded.Architecture)

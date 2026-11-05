@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 // TestMultiHeadAttentionForwardResidentMatchesHost checks the resident device
@@ -18,9 +19,7 @@ import (
 func TestMultiHeadAttentionForwardResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 24, 8, 2, 16
@@ -30,9 +29,7 @@ func TestMultiHeadAttentionForwardResidentMatchesHost(t *testing.T) {
 	v := randSlice(rng, seq*nkv*hd)
 
 	got, err := MultiHeadAttentionForwardResident(worker, q, k, v, seq, nh, nkv, hd)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := make([]float32, seq*nh*hd)
 	hostmath.CausalAttention(want, q, k, v, seq, nh, nkv, hd)
 

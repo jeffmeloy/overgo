@@ -16,6 +16,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // Only target-free inputs cross this child boundary. Profiling measurements
@@ -35,35 +36,23 @@ type audioProfilePrediction struct {
 func runAudioProfile(t *testing.T, path string) {
 	t.Helper()
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var request audioProfileRequest
-	if err := strictjson.DecodeBytes(data, &request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(data, &request))
 	if request.Profile == "" || request.Predictions == "" || len(request.Inputs) == 0 {
 		t.Fatal("incomplete profile request")
 	}
 	store, err := overgodb.Create(request.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	session, err := speechrecognition.LoadSession(t.Context(), store, request.Recipe, adapterAcceptanceMemory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close(context.WithoutCancel(t.Context()))
 	source, err := dataset.NewAudioPayloadReader(adapterAcceptanceMemory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	profile, err := os.Create(request.Profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := pprof.StartCPUProfile(profile); err != nil {
 		profile.Close()
 		t.Fatal(err)
@@ -77,19 +66,13 @@ func runAudioProfile(t *testing.T, path string) {
 	var predictions []audioProfilePrediction
 	for _, input := range request.Inputs {
 		payload, err := source.Read(t.Context(), input.Reference, input.Policy.MaximumEncodedBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lease, err := session.Lease(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		binding := request.Binding
 		binding.Key = "audio-profile/" + input.Name
 		transcript, run, executeErr := lease.Transcribe(t.Context(), payload, input.Reference.Origin, input.Policy, binding)
-		if err := lease.Release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, lease.Release())
 		if !run.ID.Valid() || executeErr != nil && run.Outcome != runrecord.OutcomeFailed {
 			t.Fatalf("profile execution: %v", executeErr)
 		}
@@ -103,13 +86,9 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 	profilePath, predictionsPath := filepath.Join(f.directory, "inference.pprof"), filepath.Join(f.directory, "profile-predictions.json")
 	requestPath := filepath.Join(f.directory, "profile-request.json")
 	writeAudioMeasurementJSON(t, requestPath, audioProfileRequest{Store: f.l.storePath, Profile: profilePath, Predictions: predictionsPath, Recipe: f.l.base.ID, Inputs: f.corpus.inputs, Binding: f.binding})
-	if err := f.l.store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, f.l.store.Close())
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	command := exec.CommandContext(t.Context(), executable, "-test.run=^"+audioProfileOwner+"$", "-test.v")
 	command.Env = append(os.Environ(), audioProfileRequestEnvironment+"="+requestPath)
 	output, err := command.CombinedOutput()
@@ -117,17 +96,11 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 		t.Fatalf("profile child: %v\n%s", err, output)
 	}
 	f.l.store, err = overgodb.Create(f.l.storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := os.ReadFile(predictionsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var predictions []audioProfilePrediction
-	if err := strictjson.DecodeBytes(data, &predictions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(data, &predictions))
 	if len(predictions) != len(f.corpus.inputs) {
 		t.Fatal("profile skipped inputs")
 	}

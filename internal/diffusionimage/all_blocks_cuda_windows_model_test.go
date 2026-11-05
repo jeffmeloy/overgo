@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,13 +25,9 @@ func TestAllRealBlocksCUDAParity(t *testing.T) {
 		t.Fatalf("block graph currently requires batch 1, got %d", golden.B)
 	}
 	_, trace, err := model.forward(golden.X, 1, golden.H, golden.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer device.Close()
 	count := 0
 	checkLevels := func(family string, levels []level, traces []levelTrace) {
@@ -81,9 +78,7 @@ func checkRealBlockCUDA(
 	default:
 		t.Fatalf("%s has unsupported block type %T", name, block)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	difference := testutil.MaxAbsDiff(got, want)
 	for index, value := range got {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {

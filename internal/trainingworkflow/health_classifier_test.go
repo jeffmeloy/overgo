@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func TestTrainingHealthClassifiersArePhaseAwareRobustAndReopenable(t *testing.T)
 		Version: artifact.InitialDocumentVersion, Run: id(artifact.KindRun, "run"), HealthEvidence: id(artifact.KindEvidence, "health"),
 		Policy: id(artifact.KindProfile, "classifier policy"), Facts: []healthClassifierFact{regression, nonfinite, absent, stall},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := healthClassificationCodec.Content(classification)
 	if err != nil || content.Descriptor.ID != classification.ID || len(healthClassificationLineage(classification)) != 34 {
 		t.Fatalf("health classification = (%+v, %v)", classification, err)

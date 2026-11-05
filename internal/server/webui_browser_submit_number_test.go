@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -17,9 +18,7 @@ func TestWebUIBrowserSubmitKeepsItsNumberThroughAGatewayAnswer(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the submit number leg uses Chromium through cmd/webui-lane")
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()

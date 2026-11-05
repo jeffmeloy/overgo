@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func sizedPool(t *testing.T, store *overgodb.Store, request HeldoutPoolRequest, 
 	ctx := t.Context()
 	request.Gain = 1
 	sized, err := BuildHeldoutPool(ctx, store, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	missed := normalQuantile(1 - missedGain)
 	request.Gain = (poolCritical(confirmations) + poolCritical(confirmations+1) + missed + missed) / 2 / math.Sqrt(float64(sized.Documents[poolPromotion]))
 	pool, err := BuildHeldoutPool(ctx, store, request)
@@ -74,14 +73,10 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 		promotion = append(promotion, record.ID)
 	}
 	budget, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	charged := func() int {
 		_, charges, err := runrecord.BudgetCharges(ctx, store, budget.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return len(charges)
 	}
 	// reading answers with one difference a document, and holds that it was
@@ -147,21 +142,13 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 	// A second pool of the same documents, whose promotion part the proposer charges.
 	blinded := publishedPool(t, store, request, issued+1)
 	proposer, err := changeProposer(objective.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	granted, err := runrecord.NewBudget(poolUnit, blinded.Partition.Promotion, blinded.Acceptance.Confirmations, blinded.Acceptance.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	peek, err := runrecord.NewBudgetCharge(granted.ID, 1, proposer, "a reading by the proposer")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := peek.Batch("pool-fixture/proposer-charge")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestIdleShellDelegatesWorkbenchRoutes: with a workbench behind it the
@@ -15,9 +16,7 @@ import (
 func TestIdleShellDelegatesWorkbenchRoutes(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	workbench := newTestHandlerForRepository(t, store, &fakeGenerator{})
 	defer workbench.Close()

@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -32,41 +33,29 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 		{Name: "second", Prompt: "Second answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}}
 	compiled, err := compileInstructionRules(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishPlanFixtureAuthorities(t, store, plan)
 	interrupted := &interruptedInstructionFixture{instructionChatFixture: instructionChatFixture{answer: "OK"}, stopPrompt: "<user>Second answer.<model>"}
 	_, runErr := evaluateInstructionRules(t.Context(), store, interrupted, compiled, plan)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	if !errors.Is(runErr, context.Canceled) || len(interrupted.prompts) != 1 {
 		t.Fatalf("first attempt: err=%v prompts=%v", runErr, interrupted.prompts)
 	}
 	store, err = overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	resumed := &instructionChatFixture{answer: "OK"}
 	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(resumed.prompts) != 1 || resumed.prompts[0] != "<user>Second answer.<model>" || len(report.Observations) != len(suite.Cases) {
 		t.Fatalf("restart reacquired completed work: generated=%v report_cases=%d", resumed.prompts, len(report.Observations))
 	}
@@ -114,21 +103,15 @@ func instructionResumeFixture(t *testing.T) (*overgodb.Store, instructionRulesPl
 	compiled, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []instructionRulesCase{
 		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -136,12 +119,8 @@ func instructionResumeFixture(t *testing.T) (*overgodb.Store, instructionRulesPl
 	})
 	publishPlanFixtureAuthorities(t, store, plan)
 	contents, err := datasetContents(compiled.dataset, compiled.split, compiled.suite.Cases, instructionRulesDatasetContract, instructionRulesSplitContract)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := publishPlanAuthorities(t.Context(), store, plan, contents); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, publishPlanAuthorities(t.Context(), store, plan, contents))
 	return store, compiled, plan
 }
 
@@ -150,14 +129,10 @@ func TestInstructionResumeRetainsQualityFailure(t *testing.T) {
 	store, compiled, plan := instructionResumeFixture(t)
 	failed := &instructionChatFixture{answer: "lowercase"}
 	first, err := evaluateInstructionRules(t.Context(), store, failed, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	improved := &instructionChatFixture{answer: "UPPERCASE"}
 	replay, err := evaluateInstructionRules(t.Context(), store, improved, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.PromptStrict != 0 || replay.ID != first.ID || len(improved.prompts) != 0 {
 		t.Fatalf("replaced retained failure: first=%+v replay=%+v generated=%v", first, replay, improved.prompts)
 	}
@@ -175,9 +150,7 @@ func TestInstructionResumeFinishesPublicationAfterCancellation(t *testing.T) {
 	}
 	resumed := &instructionChatFixture{answer: "WRONG"}
 	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(resumed.prompts) != 0 || report.Observations[0].Raw != "OK" {
 		t.Fatalf("completed response lost: %+v prompts=%v", report, resumed.prompts)
 	}
@@ -223,9 +196,7 @@ func TestInstructionResumeConcurrentPublication(t *testing.T) {
 			}
 			replay := &instructionChatFixture{answer: "REPLACEMENT"}
 			report, err := evaluateInstructionRules(t.Context(), store, replay, compiled, plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if report.Observations[0].Raw != winner.answer || len(replay.prompts) != 0 {
 				t.Fatalf("winner replaced: %+v", report.Observations[0])
 			}
@@ -263,13 +234,9 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 				compiled.suite.Cases[0].MaxTokens++
 			}
 			changed, err := compileInstructionRules(compiled.suite)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			changedPlan, err := bindInstructionRules(changed, authorities)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if changedPlan.identity == plan.identity {
 				t.Fatal("changed authority did not alter plan")
 			}
@@ -297,22 +264,14 @@ func TestInstructionResumeRejectsMisboundRecord(t *testing.T) {
 		Prompt    string `json:"prompt"`
 		MaxTokens int    `json:"max_tokens"`
 	}{{testCase.Name, testCase.Prompt, testCase.MaxTokens}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A record that says it answers something else is filed under it.
 	answer, err := json.Marshal(ExactResult{Name: testCase.Name, PromptTokens: 1, GeneratedTokens: 1, Text: "OK"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	misbound, err := caseAnswersCodec.NewInitial(caseAnswers{Observed: planID(t, artifact.KindProfile, "asked-of-another"), Cases: []json.RawMessage{answer}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := caseAnswersCodec.Batch("misbound-answers", misbound, artifact.DependencyLineage(misbound.ID, observed), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: observed})
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)

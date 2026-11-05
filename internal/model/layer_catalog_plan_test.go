@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
@@ -27,13 +28,9 @@ func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
 		tensorInfo("blk.0.rope_factors_long.weight", 16),
 		tensorInfo("blk.0.rope_factors_short.weight", 16),
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var layer LayerWeights
-	if err := plan.bind(catalog, "fixture", &layer); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.bind(catalog, "fixture", &layer))
 	if layer.RopeFactors == nil || layer.RopeFactors.Name != "blk.0.rope_factors_long.weight" {
 		t.Fatalf("selected factors = %+v", layer.RopeFactors)
 	}

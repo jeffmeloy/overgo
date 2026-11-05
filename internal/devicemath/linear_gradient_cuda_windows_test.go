@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,38 +32,26 @@ func TestLinearBackwardResidentGradient(t *testing.T) {
 		}
 	}
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	for _, shape := range [][3]int{{1, 3, 5}, {7, 8, 3}} {
 		rows, in, out := shape[0], shape[1], shape[2]
 		rng := rand.New(rand.NewSource(77))
 		x, weight := randSlice(rng, rows*in), randSlice(rng, in*out)
 		dWeight, err := AllocResidentF32(worker, len(weight), weight)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		dGradient, err := AllocResidentF32(worker, len(weight), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for range 2 {
 			incoming := randSlice(rng, rows*out)
 			wantX, wantWeight := make([]float32, len(x)), make([]float32, len(weight))
 			hostmath.LinearBackward(wantX, wantWeight, nil, x, weight, incoming, rows, in, out, false)
 			before, err := worker.ExecutionStats(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			gotX, gotWeight, err := linearBackwardTW(worker, x, linWeight{dev: dWeight, gradient: dGradient}, incoming, rows, in, out)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			after, err := worker.ExecutionStats(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if gotWeight != nil || after.DeviceToHostBytes-before.DeviceToHostBytes != uint64(len(x))*f32Bytes {
 				t.Fatal("matrix VJP crossed the host boundary")
 			}
@@ -70,18 +59,14 @@ func TestLinearBackwardResidentGradient(t *testing.T) {
 				t.Fatal("resident weight was uploaded")
 			}
 			gotWeight = make([]float32, len(weight))
-			if err := ReadResident(worker, dGradient, ResidentSlice{Data: gotWeight}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, ReadResident(worker, dGradient, ResidentSlice{Data: gotWeight}))
 			for _, values := range [][2][]float32{{gotX, wantX}, {gotWeight, wantWeight}} {
 				if difference := testutil.MaxAbsDiff(values[0], values[1]); difference > 1e-4 {
 					t.Fatalf("shape=%v gradient error=%g", shape, difference)
 				}
 			}
 			gotWeight = make([]float32, len(weight))
-			if err := ReadResident(worker, dWeight, ResidentSlice{Data: gotWeight}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, ReadResident(worker, dWeight, ResidentSlice{Data: gotWeight}))
 			if !slices.Equal(gotWeight, weight) {
 				t.Fatal("borrowed matrix weights changed")
 			}
@@ -89,14 +74,10 @@ func TestLinearBackwardResidentGradient(t *testing.T) {
 				t.Fatal("aliased weight and gradient accepted")
 			}
 		}
-		if err := FreeResident(worker, dWeight, dGradient); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, FreeResident(worker, dWeight, dGradient))
 	}
 	stats, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("VJP retained %d bytes after caller release", stats.CurrentBytes)
 	}

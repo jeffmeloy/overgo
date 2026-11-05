@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDeclaredNormalizationPrecision(t *testing.T) {
@@ -12,9 +14,7 @@ func TestDeclaredNormalizationPrecision(t *testing.T) {
 	for _, precision := range []bool{false, true} {
 		p := &Frontend{bands: 1, config: FrontendConfig{Log: LogConfig{Scale: 1}, Normalize: &NormalizeConfig{Mode: "all", Epsilon: 1, Float32: precision}}}
 		values := []float32{1 << 24, 1, -1 << 24}
-		if err := p.transform(t.Context(), values, 3); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, p.transform(t.Context(), values, 3))
 		if precision {
 			if values[0] != -values[2] || values[1] <= 0 {
 				t.Fatalf("float32 statistics: %v", values)
@@ -45,9 +45,7 @@ func TestDeclaredPreemphasisPrecision(t *testing.T) {
 	c.WaveformPreemphasis = &coefficient
 	c.PreemphasisFloat32 = true
 	p, err := NewFrontend(c, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wave := []float32{.3, .1, .2, .4}
 	original := slices.Clone(wave)
 	want := []float64{float64(wave[0]), float64(wave[1] - float32(float32(coefficient)*wave[0])), float64(wave[2] - float32(float32(coefficient)*wave[1])), float64(wave[3] - float32(float32(coefficient)*wave[2]))}
@@ -58,9 +56,7 @@ func TestDeclaredPreemphasisPrecision(t *testing.T) {
 		}
 		return nil
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(wave, original) {
 		t.Fatal("modified input")
 	}

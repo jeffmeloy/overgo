@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const holderEnvironment = "OVERGO_FSATOMIC_HOLDER"
@@ -22,22 +24,14 @@ const holderEnvironment = "OVERGO_FSATOMIC_HOLDER"
 func mapForReading(t *testing.T, path string) func() {
 	t.Helper()
 	name, err := syscall.UTF16PtrFromString(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ,
 		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil, syscall.OPEN_EXISTING, 0, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mapping, err := syscall.CreateFileMapping(handle, nil, syscall.PAGE_READONLY, 0, 0, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := syscall.MapViewOfFile(mapping, syscall.FILE_MAP_READ, 0, 0, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return func() {
 		_ = syscall.UnmapViewOfFile(view)
 		_ = syscall.CloseHandle(mapping)
@@ -61,9 +55,7 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 			release()
 		} else {
 			file, err := os.Open(target) // no delete sharing
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fmt.Println("holding")
 			_, _ = input.ReadString('\n')
 			_ = file.Close()
@@ -74,14 +66,10 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 	}
 	directory := t.TempDir()
 	target := filepath.Join(directory, "compatibility.json")
-	if err := os.WriteFile(target, []byte("before"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(target, []byte("before"), 0o600))
 	replaceWith := func(content string) error {
 		source := filepath.Join(directory, "next.json")
-		if err := os.WriteFile(source, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(source, []byte(content), 0o600))
 		return Replace(source, target)
 	}
 	requireTarget := func(want string) {
@@ -95,16 +83,10 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 			child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive$")
 			child.Env = append(os.Environ(), holderEnvironment+"="+target)
 			stdin, err := child.StdinPipe()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			stdout, err := child.StdoutPipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := child.Start(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, child.Start())
 			defer func() { _ = stdin.Close(); _ = child.Wait() }()
 			lines := bufio.NewReader(stdout)
 			expect := func(want string) {
@@ -141,9 +123,7 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 	}
 	t.Run("this process", func(t *testing.T) {
 		held, err := os.Open(target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer held.Close()
 		if err := replaceWith("again"); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("process %d", os.Getpid())) {
 			t.Fatalf("a holder in this process was not named: %v", err)

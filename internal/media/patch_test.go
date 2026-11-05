@@ -1,12 +1,14 @@
 package media
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestPatchGrid(t *testing.T) {
 	height, width, err := PatchGrid(16, 8, 4)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if height != 4 || width != 2 {
 		t.Fatalf("grid=%dx%d", height, width)
 	}

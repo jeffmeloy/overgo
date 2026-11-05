@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -73,13 +74,9 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 		t.Fatalf("the upstream deferred turns are absent (%v); write them with %s", err, carriedGainScript)
 	}
 	var fixture carriedGain
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suitePath := filepath.Join(roots.Datasets, filepath.FromSlash(carriedSuite))
 	data, err := os.ReadFile(suitePath)
 	if err != nil {
@@ -93,9 +90,7 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 			Text string `json:"text"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(data, &suite); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &suite))
 	texts := map[string]string{}
 	for _, document := range suite.Cases {
 		texts[document.Name] = document.Text
@@ -121,9 +116,7 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 			t.Fatalf("%s: the suite's document is not the one the fixture's losses are of; write the fixture again with %s", reference.Name, carriedGainScript)
 		}
 		encoded, err := generator.tokenizer.Encode(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids := make([]string, len(encoded))
 		for position, token := range encoded {
 			ids[position] = strconv.Itoa(token)
@@ -144,9 +137,7 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 			continue
 		}
 		carried, reset, err := generator.ScoreCarried(t.Context(), text, fixture.Chunks, fixture.Opening)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		apart := max(math.Abs(-carried.LogProbability-reference.Carried), math.Abs(-reset.LogProbability-reference.Reset)) / tokens
 		if carried.Tokens != reference.Tokens || reset.Tokens != reference.Tokens || apart > carriedTolerance {
 			t.Fatalf("%s: the deferred turn loses %.4f nats a token carried and %.4f reset, and the model's own code reads %.4f and %.4f, %.4f apart where %.4f is allowed",

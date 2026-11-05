@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,9 +38,7 @@ func (g *protocolAdmissionGenerator) Generate(ctx context.Context, prompt string
 func TestProtocolContextOverflow(t *testing.T) {
 	t.Parallel()
 	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))))
 	imageData := base64.StdEncoding.EncodeToString(encoded.Bytes())
 	dataURI := "data:image/png;base64," + imageData
 	for _, media := range []bool{false, true} {

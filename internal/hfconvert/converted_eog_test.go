@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -33,13 +34,9 @@ func TestConvertedEOGTokenList(t *testing.T) {
 					testutil.WriteTextFile(t, directory, "generation_config.json", `{"eos_token_id":`+declaration.generation+`}`)
 				}
 				metadata, err := tokenizerMetadata(directory, 4, json.RawMessage(declaration.model))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if actual := vocab.EOGTokens(); !slices.Equal(actual, declaration.want) {
 					t.Fatalf("token-content fallback stops=%v, want %v", actual, declaration.want)
 				}
@@ -62,21 +59,13 @@ func TestConvertedEOGTokenList(t *testing.T) {
 					testutil.WriteTextFile(t, directory, "generation_config.json", declaration.generation)
 				}
 				var root map[string]json.RawMessage
-				if err := json.Unmarshal([]byte(declaration.source), &root); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal([]byte(declaration.source), &root))
 				var text qwen35TokenConfig
-				if err := json.Unmarshal(root["text_config"], &text); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(root["text_config"], &text))
 				metadata, err := tokenizerMetadata(directory, text.Vocabulary, text.EOS)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if actual := vocab.EOGTokens(); !slices.Equal(actual, declaration.want) {
 					t.Fatalf("nested Qwen stops=%v, want %v", actual, declaration.want)
 				}
@@ -116,29 +105,19 @@ func TestConvertedEOGTokenList(t *testing.T) {
 				if content == "" {
 					continue
 				}
-				if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0600))
 			}
 			var config modelConfig
-			if err := json.Unmarshal([]byte(test.config), &config); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(test.config), &config))
 			config.ModelType, config.Vocabulary, config.HeadDim = "llama", 12, 2
 			config.HiddenSize, config.IntermediateSize = 2, 2
 			config.AttentionHeads, config.KVHeads, config.HiddenLayers = 1, 1, 1
 			config.MaxPositions, config.RMSEpsilon, config.RopeTheta, config.TiedEmbeddings = 16, 1e-5, 10000, true
 			encoded, err := json.Marshal(config)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(directory, "config.json"), encoded, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), encoded, 0600))
 			weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{Vocab: int(config.Vocabulary), Hidden: int(config.HiddenSize), Heads: int(config.AttentionHeads), HeadDim: int(config.HeadDim), KVHeads: int(config.KVHeads), Intermediate: int(config.IntermediateSize), Layers: int(config.HiddenLayers)})
-			if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
 			path := filepath.Join(directory, "converted.gguf")
 			_, err = Convert(Options{Directory: directory, OutputPath: path})
 			if test.invalid {
@@ -150,18 +129,12 @@ func TestConvertedEOGTokenList(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			file, err := gguf.Open(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer file.Close()
 			vocabulary, err := tokenizer.Load(file)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if actual := vocabulary.EOGTokens(); !slices.Equal(actual, test.want) {
 				t.Fatalf("converted declared stop IDs = %v; want %v", actual, test.want)
 			}

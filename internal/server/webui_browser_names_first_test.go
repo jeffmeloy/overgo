@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -30,9 +31,7 @@ func TestWebUIBrowserNamesFirst(t *testing.T) {
 		entry("model:shard", "C:/models/big-model/model-00001-of-00008.safetensors"),
 		entry("model:solo", "C:/models/solo.gguf"),
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/catalog/models" {
 			w.Header().Set("Content-Type", "application/json")

@@ -20,6 +20,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -49,59 +50,39 @@ func (validationFixtureRuntime) ScoreContinuations(context.Context, string, []st
 func TestE4BValidationAcceptanceContract(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	model, projector, definition := id(artifact.KindModel, "model"), id(artifact.KindProjector, "projector"), id(artifact.KindModelDefinition, "definition")
 	projection, err := modelrecipe.ProjectionDefinition(model, projector, artifact.ID{}, recipe.DataImage)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := projection.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "fixture/models", Artifacts: []artifact.Descriptor{{ID: model}, {ID: projector}, {ID: definition}}, Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec := modelValidationSpecification{Model: model, Projector: projector, CodeCommit: strings.Repeat("a", 40)}
 	campaign, err := evaluation.NewIsolatedCampaign(store, validationFixtureRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: projection.ID}, environment, spec.CodeCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// These are host evidence fixtures, not claims of real multimodal quality.
 	required := []string{"quality/video/native", "quality/image/native"}
 	for _, name := range required {
 		data, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: name, Cases: []evaluation.ExactCase{{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2}}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite, err := evaluation.CompileSuite(data, campaign.Authorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err := campaign.Evaluate(t.Context(), suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		evidence, err := evaluation.RequireEvaluationEvidence(t.Context(), store, result.Evidence)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		metric := evidence.Metrics[0]
 		spec.Cells = append(spec.Cells, modelValidationCell{Name: name, Evidence: evidence.ID, Plan: evidence.Plan, ModelDefinition: definition, Recipe: projection.ID, Environment: environment.ID, Dataset: evidence.Dataset, Split: evidence.Split, Shards: evidence.Shards,
 			Bounds: []modelValidationBound{{Metric: metric.Name, Unit: metric.Unit, Direction: metric.Direction, Minimum: metric.Value, Maximum: metric.Value}}})
 	}
 	head, sequence := store.Head()
-	if err := checkModelValidation(t.Context(), store, spec, required); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkModelValidation(t.Context(), store, spec, required))
 	if after, n := store.Head(); after != head || n != sequence {
 		t.Fatal("read-only acceptance wrote evidence")
 	}
@@ -156,13 +137,9 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 		record, err := runrecord.NewGateRecord(projection.ID, environment.ID, spec.CodeCommit, runrecord.OutcomeSucceeded, "", 1,
 			[]runrecord.GateStep{{Name: "candidate-execution", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1,
 				Evidence: fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%s;model_definition=%s;cases=18", oracle, definition)}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := record.Batch("fixture/protocol-gate")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -176,9 +153,7 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 					OracleSHA256: oracle, ModelDefinition: definition, Recipe: projection.ID, Environment: environment.ID})
 			}
 		}
-		if err := checkModelValidation(t.Context(), store, protocols, names); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkModelValidation(t.Context(), store, protocols, names))
 		for _, mutate := range []func(*modelValidationCell){
 			func(c *modelValidationCell) { c.OracleSHA256 = strings.Repeat("d", 64) },
 			func(c *modelValidationCell) { c.Run = id(artifact.KindRun, "missing") },
@@ -216,47 +191,31 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 			Dataset: dataset, Split: split, Normalization: []evaluation.TranscriptionNormalization{evaluation.TranscriptionLowercase},
 			Cases: []evaluation.TranscriptionCase{{Name: "one", Group: "fixture", Source: source, Reference: "hello", SampleCount: 16000, SampleRate: 16000}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: projection.ID, CodeCommit: spec.CodeCommit,
 			Environment: environment.ID, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema), recipecontract.Transcription{Source: source, Text: "hello"})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		run, err := runrecord.NewBoundRun(projection.ID, runrecord.OutcomeSucceeded, []artifact.ID{dataset, split, source.Audio, source.Profile}, []artifact.ID{output.Descriptor.ID}, "",
 			spec.CodeCommit, environment.ID, 1, []runrecord.PhaseMetric{{Phase: runrecord.PhaseGenerate, DurationNS: 1}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		runContent, err := run.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := artifact.NewDocumentBatch("fixture/audio-output", []artifact.Content{output, runContent}, run.Lineage(), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
 		report, err := evaluation.EvaluateTranscription(t.Context(), store, compiled, plan, []evaluation.TranscriptionPrediction{{Name: "one", Run: run.ID}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cell := modelValidationCell{Name: "quality/audio/native", Evidence: report.ID, Plan: plan.Identity(), ModelDefinition: definition, Recipe: projection.ID,
 			Environment: environment.ID, Dataset: dataset, Split: split, Cases: []string{"one"}, Bounds: []modelValidationBound{
 				{Metric: "wer", Unit: "ratio", Direction: runrecord.DirectionMinimize}, {Metric: "cer", Unit: "ratio", Direction: runrecord.DirectionMinimize},
 			}}
 		audioSpec := spec
 		audioSpec.Cells = []modelValidationCell{cell}
-		if err := checkModelValidation(t.Context(), store, audioSpec, []string{cell.Name}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkModelValidation(t.Context(), store, audioSpec, []string{cell.Name}))
 		for _, bad := range []modelValidationCell{
 			func() modelValidationCell { v := cell; v.Cases = nil; return v }(),
 			func() modelValidationCell { v := cell; v.Cases = []string{"one", "one"}; return v }(),
@@ -272,9 +231,7 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 	resource := spec.Cells[0]
 	resource.Name = "resources/image/native"
 	value, err := evaluation.RequireEvaluationEvidence(t.Context(), store, resource.Evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := checkModelValidationCell(spec, resource, value); err == nil {
 		t.Fatal("unmeasured GPU peak accepted")
 	}

@@ -6,6 +6,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -74,18 +75,12 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
 	path := modeltest.GGUF(t, "qwen3")
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	spec, err := model.ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vocab, err := tokenizer.Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner := &Runner{preparedModel: preparedModel{path: path,
 		file:  file,
 		spec:  spec,

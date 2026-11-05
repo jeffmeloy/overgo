@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestTranspose2D(t *testing.T) {
@@ -32,9 +34,7 @@ func TestChannelMixF64Into(t *testing.T) {
 	identity := []float32{1, 0, 0, 1}
 	bias := []float32{5, 6}
 	output := make([]float32, channels*positions)
-	if err := ChannelMixF64Into(output, input, identity, bias, channels, channels, positions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ChannelMixF64Into(output, input, identity, bias, channels, channels, positions))
 	if want := []float32{6, 7, 9, 10}; !slices.Equal(output, want) {
 		t.Fatalf("channel mix = %v, want %v", output, want)
 	}

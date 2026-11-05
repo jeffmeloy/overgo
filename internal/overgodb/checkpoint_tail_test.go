@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	write := func(records int) {
 		t.Helper()
 		store, err := Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if store.tail != checkpointTail {
 			t.Fatalf("an open gave its handle the tail %d, want the store's own %d", store.tail, checkpointTail)
 		}
@@ -37,18 +36,14 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 	}
 	// read opens the store to read it and returns the handle with how many records it replayed
 	// past its checkpoint, and whether it was loaded from one.
 	read := func() (*Store, uint64, bool) {
 		t.Helper()
 		store, err := OpenReadOnly(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		store.tail = 0
 		return store, store.sequence - store.anchored, store.SnapshotReplay().Loaded
 	}
@@ -85,37 +80,27 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	if !anchored || replayed != 0 || fresh.sequence != tail+1 {
 		t.Fatalf("the open after the checkpoint was anchored: %t, replayed %d records and stands at %d; want it anchored at %d with nothing to replay", anchored, replayed, fresh.sequence, tail+1)
 	}
-	if err := reader.Refresh(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reader.Refresh(ctx))
 	if replay := reader.SnapshotReplay(); !replay.Loaded || reader.anchored != tail+1 || reader.sequence != tail+1 {
 		t.Fatalf("the reader held across the checkpoint rebuilt as %+v, anchored at %d and standing at %d; want it loaded from the checkpoint at %d", replay, reader.anchored, reader.sequence, tail+1)
 	}
 	if catalogDigest(t, reader.state) != catalogDigest(t, fresh.state) {
 		t.Fatal("the reader held across the checkpoint holds another catalog than a fresh open")
 	}
-	if err := reader.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := fresh.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reader.Close())
+	testcheck.NoError(t, fresh.Close())
 
 	write(tail - 1)
 	last, replayed, anchored := read()
 	if !anchored || replayed != tail-1 || len(generations()) != 1 || generations()[0] != checkpointGeneration(tail+1) {
 		t.Fatalf("after a writer left %d records past the checkpoint the open was anchored: %t and replayed %d, with the generations %q; want the one checkpoint and %d records replayed", tail-1, anchored, replayed, generations(), tail-1)
 	}
-	if err := last.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, last.Close())
 
 	// A writer that wrote a checkpoint itself counts its tail from that one: with one record
 	// after it, it closes without writing another, however many it wrote before it.
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store.tail = tail
 	for record := range tail {
 		id := testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("before-snapshot-%d", record))
@@ -124,15 +109,11 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 		}
 	}
 	info, err := store.Snapshot(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "tail/after-snapshot", Artifacts: []artifact.Descriptor{{ID: testutil.ArtifactID(t, artifact.KindEvidence, "after-snapshot")}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	if got := generations(); len(got) != 1 || got[0] != checkpointGeneration(info.Sequence) {
 		t.Fatalf("a writer that wrote the checkpoint at %d and one record after it left the generations %q, want that checkpoint alone", info.Sequence, got)
 	}

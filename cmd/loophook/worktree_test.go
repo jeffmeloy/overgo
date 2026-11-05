@@ -10,6 +10,7 @@ import (
 	"overgo/internal/guard"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn begins implementing
@@ -43,9 +44,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	}
 	write := sessionCheckout(t)
 	first, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The sessions that implement here have landed here; one that has not takes no hold
 	// (TestOnlyAnImplementingSessionTakesTheHold).
 	recordImplementer("one")
@@ -62,9 +61,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	refused := func(session, tool, command, path string) string {
 		t.Helper()
 		root, err := os.Getwd()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		call := guard.ToolCall{ToolName: tool, Session: session}
 		call.ToolInput.Command, call.ToolInput.Path = command, path
 		if path != "" && !filepath.IsAbs(path) {
@@ -129,9 +126,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 		t.Fatalf("after a turn of the first session that a valve let end, the next session is told %q holds the worktree; want the first", holder("three"))
 	}
 	// A turn that ends with the plan complete and nothing uncommitted gives it back.
-	if err := plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Lane: "master-lead"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Lane: "master-lead"}))
 	if stopHook("one") != 0 {
 		t.Fatal("the plan complete did not let the turn end")
 	}

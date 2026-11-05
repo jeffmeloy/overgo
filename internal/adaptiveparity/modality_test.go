@@ -8,6 +8,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,20 +27,14 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		definition, err := modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		before, err := compileModalitySignature(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
 		after, err := compileModalitySignature(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(before.Inputs, test.want) || !slices.Equal(after.Inputs, test.want) || !slices.Equal(before.Outputs, after.Outputs) {
 			t.Fatalf("modality before=%+v after=%+v want inputs=%v", before, after, test.want)
 		}
@@ -61,20 +56,14 @@ func TestTypedVideoRecipeSelectsSemanticsWithoutPlacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		definition, err := test.define(modelID, profileID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		before, err := compileModalitySignature(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
 		after, err := compileModalitySignature(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(before.Inputs, test.want) || !slices.Equal(after.Inputs, test.want) || !slices.Equal(before.Outputs, []recipecontract.Modality{recipecontract.ModalityVideo}) || !slices.Equal(before.Outputs, after.Outputs) {
 			t.Fatalf("modality before=%+v after=%+v want inputs=%v", before, after, test.want)
 		}

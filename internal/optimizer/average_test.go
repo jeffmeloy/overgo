@@ -3,6 +3,8 @@ package optimizer
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // averageClosedForm is the average after the weights in sequence, from the
@@ -39,13 +41,9 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 	}
 	for _, decay := range []float64{0.99, 0.5, 0.1} {
 		average, err := NewAverage([]float32{2, -1}, decay)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, weight := range sequence {
-			if err := average.Update([]float32{float32(weight), float32(-weight)}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, average.Update([]float32{float32(weight), float32(-weight)}))
 		}
 		for index, start := range []float64{2, -1} {
 			signed := make([]float64, len(sequence))
@@ -61,13 +59,9 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 		}
 	}
 	constant, err := NewAverage([]float32{3}, 0.99)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 25 {
-		if err := constant.Update([]float32{3}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, constant.Update([]float32{3}))
 	}
 	if got := constant.Values()[0]; math.Abs(float64(got)-3) > 1e-6 {
 		t.Errorf("an average of constant weights is %v, want 3", got)
@@ -79,12 +73,8 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 // leave it nearly where it began.
 func TestWeightAverageWarmsUp(t *testing.T) {
 	average, err := NewAverage([]float32{0}, 0.99)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := average.Update([]float32{1}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, average.Update([]float32{1}))
 	if got := average.Values()[0]; math.Abs(float64(got)-9.0/11) > 1e-6 {
 		t.Fatalf("after one update the average is %v, want 9/11 (decay 2/11)", got)
 	}
@@ -100,9 +90,7 @@ func TestWeightAverageRefusesWhatItCannotAverage(t *testing.T) {
 	}
 	start := []float32{1, 2}
 	average, err := NewAverage(start, 0.9)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := average.Update([]float32{1}); err == nil {
 		t.Error("weights of another length were accepted")
 	}
@@ -123,31 +111,19 @@ func TestWeightAverageResumesWhereItStopped(t *testing.T) {
 		sequence[index] = []float32{float32(math.Sin(float64(index))), float32(index) / 7}
 	}
 	whole, err := NewAverage([]float32{1, -1}, decay)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, weights := range sequence {
-		if err := whole.Update(weights); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, whole.Update(weights))
 	}
 	first, err := NewAverage([]float32{1, -1}, decay)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, weights := range sequence[:8] {
-		if err := first.Update(weights); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, first.Update(weights))
 	}
 	resumed, err := RestoreAverage(append([]float32(nil), first.Values()...), first.Updates(), first.Decay())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, weights := range sequence[8:] {
-		if err := resumed.Update(weights); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, resumed.Update(weights))
 	}
 	if resumed.Updates() != whole.Updates() || resumed.Values()[0] != whole.Values()[0] || resumed.Values()[1] != whole.Values()[1] {
 		t.Fatalf("resumed average %v after %d updates, uninterrupted %v after %d", resumed.Values(), resumed.Updates(), whole.Values(), whole.Updates())

@@ -7,15 +7,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func openGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
 	t.Helper()
 	file, err := gguf.Open(testutil.TempGGUF(t, "fixture.gguf", nil, tensors))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { file.Close() })
 	return file
 }
@@ -23,13 +22,9 @@ func openGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
 func measure(t *testing.T, file *gguf.File, policy MeasurementPolicy) map[string]TensorMeasurement {
 	t.Helper()
 	inventory, err := FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := MeasureGGUF(inventory.TensorInventory, file, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	byName := map[string]TensorMeasurement{}
 	for _, m := range document.Measurements {
 		byName[m.Name] = m

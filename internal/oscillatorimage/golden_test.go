@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -29,9 +30,7 @@ const (
 func referenceFixturePath(t *testing.T, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return filepath.Join(roots.References(), "fixtures", name)
 }
 
@@ -103,9 +102,7 @@ func artifactDir(t *testing.T) string {
 		t.Skip(testskip.ShortIntegration + ": requires the Un-0 model artifact")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return roots.ResolveModelPath("Un-0")
 }
 

@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,18 +18,14 @@ import (
 func TestPublishRemoteModelDefinitionBindsRelayRecipe(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "hosted-model")
 	providerID := testutil.ArtifactID(t, artifact.KindProfile, "hosted-provider")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, providerID)
 	definition, err := RemoteInferenceDefinition(modelID, providerID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/remote/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +44,7 @@ func TestPublishRemoteModelDefinitionBindsRelayRecipe(t *testing.T) {
 		t.Fatalf("binding to another model: %v", err)
 	}
 	local, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/remote/local-candidate", local); err != nil {
 		t.Fatal(err)
 	}

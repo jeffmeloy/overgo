@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -107,9 +108,7 @@ func TestAnalyzeVocabUnsupportedWhenNoVocabulary(t *testing.T) {
 		t.Fatalf("status = %d, want 501", response.Code)
 	}
 	var envelope apiErrorEnvelope
-	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &envelope))
 	if envelope.Error.Type != errorCodeUnsupportedOperation {
 		t.Fatalf("error type = %q", envelope.Error.Type)
 	}

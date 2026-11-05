@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
@@ -20,9 +21,7 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 	current, err := draft.BuildDraftInput(builder, token, hidden, norm, norm, projection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQ = nil
 	weights.AttentionK = nil
@@ -36,14 +35,10 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	block, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
 	}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 32))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, norm, head)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !logits.Shape.Equal(tensor.MustShape(32, 2)) || !nextHidden.Shape.Equal(token.Shape) ||
 		!block.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) {
 		t.Fatalf("unexpected GLM4 NextN outputs: logits=%v hidden=%v key=%v", logits.Shape, nextHidden.Shape, block.Key.Shape)
@@ -71,9 +66,7 @@ func TestBuildEXAONE4NextNMTPBlock(t *testing.T) {
 	result, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: input, Positions: []uint32{0, 1}, Layer: plan.Layer,
 	}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) {
 		t.Fatalf("unexpected EXAONE 4 NextN block: %+v", result)
 	}

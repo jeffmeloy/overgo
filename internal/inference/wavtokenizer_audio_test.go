@@ -7,6 +7,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestAudioFeaturesToWaveformDCFrame(t *testing.T) {
@@ -19,9 +20,7 @@ func TestAudioFeaturesToWaveformDCFrame(t *testing.T) {
 	audio, err := audioFeaturesToWaveform(plan, newAudioWaveformTables(plan), reference.Value{
 		Shape: tensor.MustShape(uint64(plan.FrameWidth()), 1), Data: data,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(audio) != plan.HopSize {
 		t.Fatalf("waveform length = %d, want %d", len(audio), plan.HopSize)
 	}
@@ -54,8 +53,6 @@ func testAudioWaveformPlan(t *testing.T) model.AudioWaveformPlan {
 	plan, err := model.CompileModelPlanWithProfile(
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: profile.Name}}, model.Weights{}, profile,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan.AudioWaveform()
 }

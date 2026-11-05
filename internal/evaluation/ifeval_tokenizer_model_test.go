@@ -11,31 +11,24 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestIFEvalTokenizerAcceptance(t *testing.T) {
 	t.Parallel()
 	tokenizer, err := compiledIFEvalTokenizer()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var selection struct {
 		Oracle   artifact.ID
@@ -72,16 +65,12 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 	compare := func(name, raw string, want observation) {
 		t.Helper()
 		sentences, err := tokenizer.sentences(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(sentences, want.Sentences) {
 			t.Errorf("%s sentence tokens differ", name)
 		}
 		words, err := tokenizer.words(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(words, want.Words) {
 			t.Errorf("%s word tokens differ", name)
 		}

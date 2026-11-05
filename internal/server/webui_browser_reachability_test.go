@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -15,9 +16,7 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "workspace reachability runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, &fakeGenerator{})
 	handler.config.Evaluation = launchEvaluationWorkspace(t)

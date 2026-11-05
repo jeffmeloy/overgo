@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestConvertedChatTemplateSources(t *testing.T) {
@@ -40,21 +42,13 @@ func TestConvertedChatTemplateSources(t *testing.T) {
 			directory := t.TempDir()
 			if test.config != nil {
 				data, err := json.Marshal(map[string]any{"chat_template": test.config})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(directory, "tokenizer_config.json"), data, 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
+				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer_config.json"), data, 0600))
 			}
 			for name, content := range test.files {
 				path := filepath.Join(directory, filepath.FromSlash(name))
-				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
+				testcheck.NoError(t, os.WriteFile(path, []byte(content), 0600))
 			}
 			metadata, err := chatTemplateMetadata(directory)
 			if test.invalid {
@@ -63,9 +57,7 @@ func TestConvertedChatTemplateSources(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			count := len(test.want)
 			if len(test.names) != 0 {
 				count++

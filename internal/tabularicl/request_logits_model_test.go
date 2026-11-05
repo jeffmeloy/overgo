@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -61,13 +62,9 @@ func TestRequestLogitsMatchUpstream(t *testing.T) {
 			Outputs     [][]float64 `json:"outputs"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := filepath.Join(roots.Datasets, requestDirectory)
 	if _, err := os.Stat(directory); err != nil {
 		t.Skipf("UNAVAILABLE: held-out requests absent at %s; parity NOT verified", directory)
@@ -83,9 +80,7 @@ func TestRequestLogitsMatchUpstream(t *testing.T) {
 	var worst float64
 	for index, reference := range fixture.Cases {
 		document, err := os.ReadFile(filepath.Join(directory, reference.Name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if sum := sha256.Sum256(document); hex.EncodeToString(sum[:]) != reference.SHA256 {
 			t.Fatalf("%s is not the request the fixture's outputs are of; write the fixture again with %s", reference.Name, requestLogitsScript)
 		}
@@ -93,15 +88,11 @@ func TestRequestLogitsMatchUpstream(t *testing.T) {
 			continue
 		}
 		var request Request
-		if err := json.Unmarshal(document, &request); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(document, &request))
 		request.Y = slices.Clone(request.Y)
 		clear(request.Y[request.TrainRows:])
 		outputs, width, err := model.Predict(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if request.TrainRows != reference.ContextRows || width != fixture.Classes || len(reference.Outputs) != request.Rows-request.TrainRows {
 			t.Fatalf("%s: %d context rows and %d outputs a row, and the fixture holds %d and %d over %d query rows", reference.Name, request.TrainRows, width, reference.ContextRows, fixture.Classes, len(reference.Outputs))
 		}

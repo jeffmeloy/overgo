@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 // gcStep / gradCheckTol: the reference finite-diff step and tolerance
@@ -331,17 +332,13 @@ func TestJointLossAndGradsFiniteDifference(t *testing.T) {
 
 	loss := func() float64 {
 		l, err := m.LossAndGrads(ids, z, frames, seed, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return l
 	}
 
 	g := Grads{}
 	analytic, err := m.LossAndGrads(ids, z, frames, seed, g)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := loss(); got != analytic {
 		t.Fatalf("loss-only path %.9g != grad path %.9g", got, analytic)
 	}

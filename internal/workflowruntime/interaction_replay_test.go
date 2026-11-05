@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,8 +46,6 @@ func replayTraceFixture(t *testing.T) runrecord.InteractionTrace {
 	}, testutil.ArtifactID(t, artifact.KindEvidence, "replay request"), []runrecord.InteractionMessage{
 		{Role: "assistant", Content: "answer"},
 	}, nil, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return trace
 }

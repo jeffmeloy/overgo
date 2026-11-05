@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRootDocumentsNameOnlyWhatTheTreeHolds holds the documents a session or a person opens first to the tree.
@@ -24,9 +26,7 @@ func TestRootDocumentsNameOnlyWhatTheTreeHolds(t *testing.T) {
 	texts := map[string]string{}
 	for _, document := range []string{"skill.md", "README.md", figure} {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		texts[document] = string(data)
 	}
 	if !json.Valid([]byte(texts[figure])) {

@@ -7,6 +7,8 @@ import (
 	"io"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type codecFixture struct {
@@ -73,17 +75,13 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	}
 	input := codecFixture{Names: []string{"second", "first"}}
 	document, err := codec.New(input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if input.Names[0] != "second" || !slices.Equal(document.Names, []string{"first", "second"}) {
 		t.Fatalf("input/document names = %v/%v", input.Names, document.Names)
 	}
 	encodeCalls = 0
 	content, err := codec.Content(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if encodeCalls != expectedEncodesPerOperation {
 		t.Fatalf("content encoded %d times", encodeCalls)
 	}
@@ -131,9 +129,7 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 		t.Fatal("nil document verifier accepted")
 	}
 	parent, err := IdentifyBytes(KindEvidence, []byte("codec lineage parent"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineage := DependencyLineage(document.ID, parent)
 	lineageReader := codecLineageReader{
 		documentReader: documentReader{content: content}, parents: lineage, known: map[ID]bool{parent: true},

@@ -5,20 +5,17 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAgentDefinitionAuthority(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	definition := agentDefinitionFixture(t)
 	content, err := definition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	artifacts := agentDefinitionDependencies(definition)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "agent/definition", Artifacts: artifacts, Contents: []artifact.Content{content}, Lineage: definition.Lineage(),
@@ -62,9 +59,7 @@ func agentDefinitionFixture(t *testing.T) AgentDefinition {
 		Datasets:          []artifact.ID{testutil.ArtifactID(t, artifact.KindDataset, "agent-dataset")},
 		Policies:          []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "agent-policy")},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }
 

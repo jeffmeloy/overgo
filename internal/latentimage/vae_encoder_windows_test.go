@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // encoderTolerance bounds the device's F32 encoder against the CPU's: two
@@ -31,22 +32,16 @@ func encoderGoldenCheck(t *testing.T, root, fixture, digest string, height, widt
 	t.Helper()
 	mossFixtureBytes(t, fixture, digest)
 	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	read := func(name string) []float32 {
 		t.Helper()
 		values, err := safetensors.ReadF32(source.Tensors[name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return values
 	}
 	encoder, err := NewPictureEncoder(t.Context(), root, height, width)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := encoder.Close(t.Context()); err != nil {
 			t.Error(err)
@@ -73,14 +68,10 @@ func encoderGoldenCheck(t *testing.T, root, fixture, digest string, height, widt
 		}
 	}
 	mean, err := encoder.mean(t.Context(), pixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compare("moments mean", mean, interleaved(read("moments_mean"), latent))
 	rows, gridHeight, gridWidth, err := encoder.Encode(t.Context(), pixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if gridHeight != height/16 || gridWidth != width/16 {
 		t.Fatalf("grid %dx%d of a %dx%d picture", gridWidth, gridHeight, width, height)
 	}

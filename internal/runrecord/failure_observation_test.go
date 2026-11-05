@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 const failureFixtureObservedNS = int64(1_700_000_000_000_000_000)
@@ -17,9 +18,7 @@ const failureFixtureObservedNS = int64(1_700_000_000_000_000_000)
 // stay identical.
 func TestFailureNormalizationCorpus(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 
@@ -47,9 +46,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 			t.Fatalf("%s: publish observation: %v", sample.name, err)
 		}
 		before, err := observation.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		derived := NormalizeFailureObservation(observation)
 		if derived.Cause != sample.cause || derived.ClassifierVersion != executionfailure.ClassifierVersion {
 			t.Fatalf("%s: derived classification = %+v", sample.name, derived)
@@ -83,13 +80,9 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 
 		// The raw observation is untouched by both classifications.
 		reread, err := failureObservationCodec.Require(ctx, store, observation.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		after, err := reread.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !bytes.Equal(before.Data, after.Data) {
 			t.Fatalf("%s: raw evidence changed under reclassification", sample.name)
 		}
@@ -103,9 +96,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		{"zero classifier", FailureNormalization{Cause: executionfailure.CauseUnknown, Rule: "unmatched"}},
 	}
 	anchor, err := PublishFailureObservation(ctx, store, corpus[0].value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, refusal := range refusals {
 		refusal.value.Observation = anchor.ID
 		if _, err := PublishFailureNormalization(ctx, store, refusal.value); err == nil {

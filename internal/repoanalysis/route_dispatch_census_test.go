@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestServerRouteTableIsTheOnlyDispatcher holds the server's route table to
@@ -19,14 +21,10 @@ import (
 func TestServerRouteTableIsTheOnlyDispatcher(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dir := filepath.Join(root, "internal", "server")
 	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	idleDispatch := map[string]bool{"idle_shell.go": true, "library_workspace.go": true, "http_helpers.go": true}
 	files := token.NewFileSet()
 	switches := 0
@@ -36,9 +34,7 @@ func TestServerRouteTableIsTheOnlyDispatcher(t *testing.T) {
 			continue
 		}
 		parsed, err := parser.ParseFile(files, filepath.Join(dir, name), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		methodChecks := 0
 		ast.Inspect(parsed, func(node ast.Node) bool {
 			switch node := node.(type) {

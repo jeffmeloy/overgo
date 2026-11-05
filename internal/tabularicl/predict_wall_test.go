@@ -3,6 +3,7 @@
 package tabularicl
 
 import (
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"slices"
 	"testing"
@@ -23,9 +24,7 @@ func TestPredictWall(t *testing.T) {
 	for _, task := range Tasks() {
 		loadStart := time.Now()
 		head, err := LoadHead(headDir(t, task))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Logf("%s: load %.2fs", task, time.Since(loadStart).Seconds())
 		for _, c := range golden.Cases {
 			if c.Task != task {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func BenchmarkEncodeSharedBPE(b *testing.B) {
@@ -12,9 +14,7 @@ func BenchmarkEncodeSharedBPE(b *testing.B) {
 		text := strings.Repeat("abcde ", units)
 		b.Run(fmt.Sprintf("bytes=%d", len(text)), func(b *testing.B) {
 			ids, err := vocab.Encode(text, EncodeOptions{})
-			if err != nil {
-				b.Fatal(err)
-			}
+			testcheck.NoError(b, err)
 			b.ReportMetric(float64(len(ids)), "tokens/op")
 			b.ReportAllocs()
 			b.ResetTimer()

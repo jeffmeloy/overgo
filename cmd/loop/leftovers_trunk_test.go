@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/landing"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestOneListAnswersWhetherEachWorktreeIsOnTheTrunk(t *testing.T) {
 	git(ahead, "add", "-A")
 	git(ahead, "commit", "-q", "-m", "a commit of its own")
 	trees, err := landing.Worktrees(t.Context(), repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head := func(root string) string {
 		t.Helper()
 		for _, tree := range trees {

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestTrainingRopeMatchesServingNeoX locks the SERVING-vs-TRAINING RoPE
@@ -52,20 +53,14 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 			output := builder.RoPEWithOptions(
 				input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(tc.ropeDim), FrequencyBase: float32(tc.theta), FrequencyScale: 1})
 
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, builder.Err())
 			inValue, err := NewValue(input.Shape, append([]float32(nil), data...))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			results, err := Execute(
 				[]*tensor.Tensor{output},
 				map[*tensor.Tensor]Value{input: inValue},
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			serving := results[output].Data
 
 			// TRAINING: hostmath rotate-half over the first RopeWidth dims.

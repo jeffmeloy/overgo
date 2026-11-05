@@ -8,18 +8,15 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestLaneOutcomeContract(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(dataroot.Env, root)
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	err = runArgs(t.Context(), []string{"-smoke"}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "outcome=empty") {
 		t.Fatalf("empty smoke outcome = %v", err)
@@ -33,12 +30,8 @@ func TestRepoSelectsTheStore(t *testing.T) {
 	t.Setenv(dataroot.Env, t.TempDir())
 	selected := filepath.Join(t.TempDir(), "selected-store")
 	store, err := overgodb.Create(selected)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	if err := runArgs(t.Context(), []string{"-smoke", "-repo", selected}, io.Discard); err == nil || !strings.Contains(err.Error(), "outcome=empty") {
 		t.Fatalf("smoke over the -repo store = %v", err)
 	}
@@ -48,12 +41,8 @@ func TestSelectedModelPublicationAdmission(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(dataroot.Env, root)
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	// A selected publication reaches the same catalog admission as a full
 	// pass. An empty catalog still fails; selecting a model grants no credit.
 	model := "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32"

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 // TestQLoRAQueryNormBindsOwnTensor pins the fix for the QLoRA pointer-aliasing
@@ -28,9 +29,7 @@ func TestQLoRAQueryNormBindsOwnTensor(t *testing.T) {
 		catalog.tensors[item.Name] = index
 	}
 	var layer LayerWeights
-	if err := bindTensorProgram(catalog, "blk.0.", qLoRAQueryBindings(spec, queryLength, &layer)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, bindTensorProgram(catalog, "blk.0.", qLoRAQueryBindings(spec, queryLength, &layer)))
 	if layer.AttentionQ == nil || layer.AttentionQ.Name != "blk.0.attn_q_a.weight" {
 		t.Fatalf("AttentionQ binds %+v", layer.AttentionQ)
 	}

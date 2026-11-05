@@ -13,6 +13,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -65,9 +66,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "graphical speech form probe")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &speechSurfaceGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-surface"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
@@ -87,9 +86,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -105,18 +102,14 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`(()=>{const input=document.querySelector('.composer textarea');input.value='Read this document aloud.';input.dispatchEvent(new Event('input'));return true;})()`)
 	for _, viewport := range append(webuilane.ScreenViewports, webuilane.Viewport{Name: "phone-keyboard", Width: 390, Height: 380}) {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-primary-controls")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Logf("%s: layout findings %v", viewport.Name, findings)
 		check(`(()=>{const voice=document.querySelector('.mode-controls select[aria-label="voice"]'),r=voice.getBoundingClientRect();return r.height>0 && r.top>=0 && r.bottom<=innerHeight && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===voice;})()`)
 		check(`(()=>{const button=document.querySelector('[aria-label="Open speech options"]');button.focus();return document.activeElement===button;})()`)
 		pressKey(t, ctx, browser, "Enter", 13)
 		settle(`document.querySelector('#settings-dialog').open && !document.querySelector('[aria-label="Speech options"]').hidden`)
 		findings, err = webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-options")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Logf("%s options: layout findings %v", viewport.Name, findings)
 		check(`(()=>{const button=document.querySelector('#settings-dialog [data-close-dialog]'),r=button.getBoundingClientRect();button.focus();return r.height>0 && r.top>=0 && r.bottom<=innerHeight && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===button;})()`)
 		pressKey(t, ctx, browser, "Enter", 13)
@@ -130,9 +123,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`document.querySelector('.composer textarea').value==='Read this document aloud.'`)
 	for _, field := range []struct{ label, value string }{{"seed", "7"}, {"temperature", "0.7"}} {
 		check(`(()=>{speechControl('` + field.label + `').focus();return true;})()`)
-		if err := browser.Call(ctx, "Input.insertText", map[string]any{"text": field.value}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Call(ctx, "Input.insertText", map[string]any{"text": field.value}, nil))
 	}
 	check(`(()=>{document.querySelector('#settings-dialog [data-close-dialog]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "Enter", 13)
@@ -202,9 +193,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`(()=>{speechCatalogCalls[4].resolve([]);return true;})()`)
 	check(`!document.querySelector('.mode-controls').textContent.includes('No model is available')`)
 	check(`(()=>{overgo.api.get=speechOriginalGet;const input=document.querySelector('.composer textarea');input.value='Saved without a chat model';input.dispatchEvent(new Event('input'));return !document.querySelector('.composer').textContent.includes('Draft cannot be restored');})()`)
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	settle(`document.querySelector('.composer textarea')?.value==='Saved without a chat model'`)
 	check(`!document.querySelector('.composer').textContent.includes('Draft cannot be restored') && !document.querySelector('.composer').textContent.includes('server has not declared')`)
 	webuilane.Leg(t, "speech controls leg", "keyboard voice/options/Close, required options and task-local validation, native selected recipe/voice request and failure recovery, retirement/reselection, catalog cancellation/stale refusal/retry/disposal; synthesis deliberately refused by fixture")

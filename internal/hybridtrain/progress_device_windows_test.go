@@ -7,6 +7,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 func deviceSegmentTrainers(worker *device.Worker) []segmentTrainer {
@@ -34,9 +35,7 @@ func deviceSegmentTrainers(worker *device.Worker) []segmentTrainer {
 func TestHybridOptimizerResumeDevice(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(device.DefaultOrdinal())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	for index, train := range deviceSegmentTrainers(worker) {
 		t.Logf("backend %d", index)
@@ -44,9 +43,7 @@ func TestHybridOptimizerResumeDevice(t *testing.T) {
 		verifyOptimizerStop(t, train)
 	}
 	stats, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("retained %d device bytes", stats.CurrentBytes)
 	}

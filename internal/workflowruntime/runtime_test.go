@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
@@ -19,9 +20,7 @@ func TestCancellationWhileWaitingForStageLock(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	executor, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	started := false
 	if err := executor.Register(workflowrecipe.ModuleTokenize, AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
 		started = true
@@ -69,9 +68,7 @@ func TestCancellationWhileWaitingForStageLock(t *testing.T) {
 		t.Fatalf("canceled waiter: started=%t occupied=%d error=%v", started, len(executor.slots), err)
 	}
 	recovered, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, recovered, false)
 	result, err := recovered.ExecuteProgram(t.Context(), key, operation, nil, program, inputs)
 	if err != nil || result.Run.Outcome != runrecord.OutcomeSucceeded {
@@ -84,9 +81,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
 	const key = "runtime/success"
@@ -95,9 +90,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 	}
 	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("result = %+v", result)
 	}
@@ -124,9 +117,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, true)
 	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", runtimeExecutionID(t, program, "runtime/failure"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
@@ -164,9 +155,7 @@ func TestRuntimeResultDoesNotClaimRefusedRunPublication(t *testing.T) {
 	refusal := errors.New("fixture run publication refused")
 	repository := &runPublicationRepository{Repository: store, refusal: refusal}
 	runtime, err := NewForProgram(repository, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, false)
 	const key = "runtime/publication-refusal"
 	operation := runtimeExecutionID(t, program, key)
@@ -195,9 +184,7 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, false)
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
@@ -218,9 +205,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/restart")
 	first, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, first, true)
 	prompt := fixtureContent(t, artifact.KindFile, "restart")
 	inputs := map[recipe.PortName]Value{
@@ -230,9 +215,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 		t.Fatal("interrupted workflow succeeded")
 	}
 	second, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenizeRuns := 0
 	if err := second.Register(workflowrecipe.ModuleTokenize, AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
 		tokenizeRuns++
@@ -243,9 +226,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	copyTokens := AdapterFunc(func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
 		return map[recipe.PortName]Value{"tokens": {Kind: recipe.DataTokens, Items: request.Inputs["tokens"].Items}}, nil
 	})
-	if err := second.Register(workflowrecipe.ModuleGenerate, copyTokens); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, second.Register(workflowrecipe.ModuleGenerate, copyTokens))
 	if err := second.Register(workflowrecipe.ModuleDetokenize, AdapterFunc(func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
 		text := request.Inputs["tokens"].Items[0]
 		content := fixtureContent(t, artifact.KindOutput, strings.ToUpper(text.Value.(string)))
@@ -266,9 +247,7 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/drift")
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, true)
 	if _, err := runtime.ExecuteProgram(ctx, "runtime/drift", operation, nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
@@ -280,17 +259,11 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 	drifted, err := recipe.NewDefinitionWithDependencies(
 		definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	driftedProgram, err := recipe.CompileProgram(drifted, workflowrecipe.Catalog())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	driftedRuntime, err := NewForProgram(store, driftedProgram)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, driftedRuntime, false)
 	if _, err := driftedRuntime.ExecuteProgram(ctx, "runtime/drift", operation, nil, driftedProgram, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
@@ -312,17 +285,11 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 		[]recipe.Node{batch}, nil, nil,
 		[]recipe.Output{{Name: "batch", Data: recipe.DataBatch, Source: recipe.Endpoint{Node: batch.ID, Port: "batch"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
 		t.Fatal("orchestration-only program executed")
 	}
@@ -332,17 +299,11 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreign, err := recipe.NewCatalog(workflowrecipe.Catalog().Modules()...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err = recipe.CompileProgram(program.Definition(), foreign)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
 		t.Fatal("program compiled by another catalog accepted")
 	}
@@ -351,9 +312,7 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 func runtimeExecutionID(t testing.TB, program recipe.Program, key string) artifact.ID {
 	t.Helper()
 	id, err := ExecutionID(program.Definition().ID, key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -364,9 +323,7 @@ func TestRuntimeCollapsesRepeatedArtifactFacts(t *testing.T) {
 		"right": {Kind: recipe.DataText, Items: []Datum{{Artifact: content.Descriptor}}},
 	}
 	ids, facts, err := externalFacts(values, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(ids) != 1 || len(facts.descriptors) != 1 || len(facts.contents) != 1 {
 		t.Fatalf("facts = (%d IDs, %d descriptors, %d contents)", len(ids), len(facts.descriptors), len(facts.contents))
 	}
@@ -388,9 +345,7 @@ func TestValidateOutputsAllowsAbsentOptionalPort(t *testing.T) {
 func runtimeFixture(t *testing.T) (*overgodb.Store, recipe.Program) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -439,18 +394,14 @@ func registerGenerationAdapters(t *testing.T, runtime *Runtime, fail bool) {
 			return nil, errors.New("missing input")
 		}
 	}
-	if err := runtime.Register(workflowrecipe.ModuleTokenize, copyAdapter(recipe.DataTokens, "tokens")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runtime.Register(workflowrecipe.ModuleTokenize, copyAdapter(recipe.DataTokens, "tokens")))
 	generate := copyAdapter(recipe.DataTokens, "tokens")
 	if fail {
 		generate = func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
 			return nil, errors.New("fixture failure")
 		}
 	}
-	if err := runtime.Register(workflowrecipe.ModuleGenerate, generate); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runtime.Register(workflowrecipe.ModuleGenerate, generate))
 	if err := runtime.Register(workflowrecipe.ModuleDetokenize, AdapterFunc(
 		func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
 			text := request.Inputs["tokens"].Items[0]

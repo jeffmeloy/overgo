@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // audioPublication is the shared idempotent publication boundary for real-model
@@ -14,9 +15,7 @@ type audioPublication struct{ store *overgodb.Store }
 
 func (p *audioPublication) commit(t *testing.T, batch artifact.Batch, err error) {
 	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), p.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}

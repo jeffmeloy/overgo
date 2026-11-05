@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/landing"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestSmallGateLandsAChange holds the small gate to its contract on a fixture
@@ -22,12 +23,8 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		full := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		testcheck.NoError(t, os.WriteFile(full, []byte(content), 0o644))
 	}
 	git := func(arguments ...string) string {
 		t.Helper()
@@ -52,12 +49,8 @@ func TestSmallGateLandsAChange(t *testing.T) {
 		}}}
 	}
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first"), row("second")}}
-	if err := os.MkdirAll(filepath.Join(repo, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(repo, "docs"), 0o755))
+	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document))
 	git("init", "-q")
 	git("config", "user.name", "Fixture")
 	git("config", "user.email", "fixture@example.invalid")
@@ -112,13 +105,9 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	// A change to the plan alone runs only the row's verify.
 	git("checkout", "--", "internal/p")
 	edited, err := plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	edited.Items[0].Title = "second, retitled"
-	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), edited); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), edited))
 	if _, err := land("second/do", message); err != nil {
 		t.Fatalf("a plan-only change was refused: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 func TestOpenContextWriterAdmission(t *testing.T) {
@@ -16,21 +17,15 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 		t.Run(map[bool]string{false: "release resumes opening", true: "cancel leaves owner intact"}[cancelWait], func(t *testing.T) {
 			root := t.TempDir()
 			owner, err := Create(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			batch := fixtureBatch(t)
 			if _, err := owner.Commit(t.Context(), batch); err != nil {
 				t.Fatal(err)
 			}
-			if err := owner.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, owner.Close())
 			lockPath := writerLockPath(root)
 			lock, err := processlock.Acquire(lockPath, storeFileMode)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer lock.Close()
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(context.Canceled)
@@ -95,9 +90,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatalf("cancelled replay retained writer admission: %v", err)
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 	})
 	t.Run("invalid context and path", func(t *testing.T) {
 		if _, err := OpenContext(nil, t.TempDir()); err == nil {
@@ -118,9 +111,7 @@ func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
@@ -129,14 +120,10 @@ func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 	store.tail = 0
 	journal := store.log.file
 	lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	for range 2 {
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 		if _, err := journal.ReadAt(make([]byte, 1), 0); !errors.Is(err, os.ErrClosed) {
 			t.Fatalf("close retained journal handle: %v", err)
 		}
@@ -145,13 +132,9 @@ func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 			t.Fatalf("close changed foreign ownership: %v", err)
 		}
 	}
-	if err := lock.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lock.Close())
 	reader, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	if _, found, err := reader.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !found {
 		t.Fatalf("closing without a checkpoint lost committed data: %v, %v", found, err)

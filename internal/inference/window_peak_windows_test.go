@@ -8,6 +8,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -22,17 +23,13 @@ func TestACellRunnerDecodesPlainlyOutsideWindows(t *testing.T) {
 	family := qwen35Geometry{embedding: 64, ffn: 64, inner: 256, state: 128, groups: 1, rank: 2, gates: dtype.Q8_0}
 	path := writeQwen35Fixture(t, family, "p", qwen35CellsContext, qwen35CellsWidth, qwen35CellsHeads, qwen35CellsKVHeads)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = runner.Close() })
 	if !runner.windowsDecode() {
 		t.Fatal("the hybrid over cells verifies outside Strata's window verifier")
 	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	options := GenerateOptions{
 		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: []tokenizer.TokenID{3, 5, 7, 4, 6}, PlainDecode: true,
 		ContinueAfterEOG: true,

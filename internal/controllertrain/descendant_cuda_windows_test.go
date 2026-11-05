@@ -17,6 +17,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
@@ -28,21 +29,15 @@ func TestDescendantBeatsParent(t *testing.T) {
 	corpus, err := controllertrain.Compile(controllertrain.Spec{
 		Train: controllerRecords(commit, false), Holdout: controllerRecords(commit, true),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const steps = 800
 	runs := make([]controllertrain.SeedRun, 3)
 	profile := scratchmodeltest.Profile(t)
 	for index, seed := range []int64{17, 29, 43} {
 		construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: steps}, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		runs[index], err = controllertrain.TrainSeed(corpus, construction, trainingprogram.BuiltinOptimizerPolicy(), steps)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Logf("seed %d: loss %.6f -> %.6f; action %.3f -> %.3f; modality %.3f -> %.3f",
 			seed, runs[index].Evidence.Initial.Loss, runs[index].Evidence.Final.Loss,
 			runs[index].Evidence.Initial.ActionAccuracy, runs[index].Evidence.Final.ActionAccuracy,
@@ -72,20 +67,14 @@ func TestDescendantBeatsParent(t *testing.T) {
 		initial[index] = runs[index].Evidence.Initial
 	}
 	noise, err := controllertrain.ObservedNoise(initial)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluator := pretrainedEvidence(t, "heldout-evaluator")
 	budget, err := runrecord.NewBudget("queries", corpus.Split(), uint64(len(runs)), pretrainedEvidence(t, "budget-authority"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	charges := make([]runrecord.BudgetCharge, len(runs))
 	for index := range charges {
 		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	decision, err := controllertrain.Decide(controllertrain.DecisionSpec{
 		Dataset: corpus.Dataset(), Split: corpus.Split(),
@@ -99,9 +88,7 @@ func TestDescendantBeatsParent(t *testing.T) {
 		},
 		Evaluator: evaluator, ObservedNoise: noise, Stochastic: true, Budget: budget, Charges: charges,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if decision.State != controllertrain.DecisionPromote || decision.Rollback != runs[0].InitialModel {
 		t.Fatalf("controller promotion = %s; rollback = %s", decision.State, decision.Rollback)
 	}
@@ -111,9 +98,7 @@ func TestDescendantBeatsParent(t *testing.T) {
 func pretrainedEvidence(t *testing.T, name string) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -173,9 +158,7 @@ func verifyControllerSources(t *testing.T, commit string) {
 	command := exec.Command("git", "show", commit+":internal/workflowrecipe/catalog.go")
 	command.Dir = "../.."
 	output, err := command.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, module := range []recipe.ModuleID{
 		workflowrecipe.ModuleGenerate, workflowrecipe.ModuleProjectImage,
 		workflowrecipe.ModuleProjectAudio, workflowrecipe.ModuleProjectVideo,
@@ -198,14 +181,10 @@ func publishControllerEvidence(
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch, err := corpus.PublicationBatch("controller/corpus")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -230,17 +209,13 @@ func publishControllerEvidence(
 		t.Fatal(err)
 	}
 	budgetBatch, err := budget.Batch("controller/budget")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, budgetBatch); err != nil {
 		t.Fatal(err)
 	}
 	for index, charge := range charges {
 		batch, err := charge.Batch(fmt.Sprintf("controller/budget/charge-%d", index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -255,25 +230,19 @@ func publishControllerEvidence(
 			{"final", run.Run.Batch, run.Evaluation.Batch},
 		} {
 			runBatch, err := value.runBatch(fmt.Sprintf("controller/seed-%d/%s/run", index, value.suffix))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := store.Commit(ctx, runBatch); err != nil {
 				t.Fatal(err)
 			}
 			evaluationBatch, err := value.evalBatch(fmt.Sprintf("controller/seed-%d/%s/evaluation", index, value.suffix))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := store.Commit(ctx, evaluationBatch); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	decisionBatch, err := decision.Batch("controller/promotion")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, decisionBatch); err != nil {
 		t.Fatal(err)
 	}

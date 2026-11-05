@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/testcheck"
 )
 
 // TestARefusalRecordsTheRuleThatRefused holds a refusal of the rules stage to naming every rule it broke, read from the
@@ -17,9 +18,7 @@ func TestARefusalRecordsTheRuleThatRefused(t *testing.T) {
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	base := snapshot("// Package p is a fixture.\npackage p\n")

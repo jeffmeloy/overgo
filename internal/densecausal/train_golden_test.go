@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,9 +46,7 @@ func readGolden(t *testing.T, file, schema string) *tinyGolden {
 		t.Skipf("UNAVAILABLE: %s absent; training parity NOT verified", path)
 	}
 	var g tinyGolden
-	if err := json.Unmarshal(raw, &g); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g))
 	if g.Schema != schema {
 		t.Fatalf("golden schema %q, want %q", g.Schema, schema)
 	}
@@ -72,9 +71,7 @@ func modelFromGolden(t *testing.T, g *tinyGolden) *Model {
 		shapes[name] = p.Shape
 	}
 	m, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := Dims{
 		Vocab: g.Config.VocabSize, Hidden: g.Config.HiddenSize,
 		Layers: g.Config.NumHiddenLayers, Heads: g.Config.NumAttentionHeads,
@@ -107,9 +104,7 @@ func TestTinyModelLossAndGradsMatchGolden(t *testing.T) {
 func assertTrainGoldenParity(t *testing.T, g *tinyGolden, m *Model) {
 	t.Helper()
 	loss, logits, grads, err := m.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if rel := math.Abs(loss-g.Loss) / math.Abs(g.Loss); rel > lossRelTol {
 		t.Fatalf("loss %g vs golden %g (rel %g > %g)", loss, g.Loss, rel, lossRelTol)
 	}
@@ -150,13 +145,9 @@ func TestTinyModelForwardOnlyLossAgrees(t *testing.T) {
 	g := readTinyGolden(t)
 	m := modelFromGolden(t, g)
 	lossForward, _, err := m.Loss(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lossGrad, _, _, err := m.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if lossForward != lossGrad {
 		t.Fatalf("forward-only loss %g != gradient-path loss %g", lossForward, lossGrad)
 	}

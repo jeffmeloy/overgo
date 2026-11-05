@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,13 +33,9 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 			ctx := t.Context()
 			directory := speechCheckpoint(t, modelType)
 			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			definition, facts, err := source.Define(source.Inventory.Manifest.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, _, err := modelrecipe.SpeechComponents(definition); err != nil {
 				t.Fatalf("the speech runtime refuses the compiled recipe: %v", err)
 			}
@@ -49,14 +46,10 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 					model, inventory, source.Inventory.Manifest.ID, source.Inventory.TensorInventory.ID)
 			}
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			registration, err := source.Inventory.Batch("transcription/registration")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			registration.Contents = append(registration.Contents, facts...)
 			if _, err := artifact.Publish(ctx, store, registration); err != nil {
 				t.Fatal(err)
@@ -65,9 +58,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 				t.Fatal(err)
 			}
 			program, err := modelrecipe.CompileCapability(definition)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := modelrecipe.CompileCandidateExecution(ctx, store, program); err != nil {
 				t.Fatalf("recipe verify cannot plan the candidate's execution: %v", err)
 			}
@@ -96,21 +87,15 @@ func TestWholeClipTranscriptionServesTheResidentRecipe(t *testing.T) {
 			t.Parallel()
 			directory := speechCheckpoint(t, modelType)
 			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			definition, _, err := source.Define(source.Inventory.Manifest.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var dependencies [5]artifact.ID
 			for index, role := range []recipe.DependencyRole{recipe.DependencyModel, recipe.DependencyProfile, recipe.DependencyProcessorProfile, recipe.DependencyTokenizer, recipe.DependencyTensorInventory} {
 				dependencies[index], _ = definition.PrimaryDependency(role)
 			}
 			host, err := modelrecipe.TranscriptionDefinition(dependencies[0], dependencies[1], dependencies[2], dependencies[3], dependencies[4])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			served := host
 			if placement == recipe.PlacementHybrid {
 				if served, err = modelrecipe.DeviceTranscriptionDefinition(host); err != nil {
@@ -132,16 +117,12 @@ func TestWholeClipTranscriptionServesTheResidentRecipe(t *testing.T) {
 func speechCheckpoint(t *testing.T, modelType string) string {
 	t.Helper()
 	directory := t.TempDir()
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil))
 	for name, body := range map[string]string{
 		"config.json":    `{"model_type":"` + modelType + `"}`,
 		"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0},"merges":[],"byte_fallback":false}}`,
 	} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600))
 	}
 	return directory
 }

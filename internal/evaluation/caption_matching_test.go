@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // captionFixture writes clips and a caption file: sources of scenes each, the
@@ -20,20 +22,14 @@ func captionFixture(t *testing.T, sources, scenes int) CaptionMatchingSpec {
 			vid := fmt.Sprintf("src%02d%s%04d", source, sceneMarker, scene)
 			rows = append(rows, captionRow{Vid: vid, Caption: "caption of " + vid})
 			if source < sources/2 {
-				if err := os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600))
 			}
 		}
 	}
 	data, err := json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	captions := filepath.Join(t.TempDir(), "captions.json")
-	if err := os.WriteFile(captions, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	return CaptionMatchingSpec{Clips: directory, Captions: captions, Cases: 5, Seed: 17}
 }
 
@@ -45,9 +41,7 @@ func TestCaptionMatchingAnswersAreTheTrueCaptionsLetter(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 4, 6)
 	suite, err := BuildCaptionMatching(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if suite.Kind != GeneratedAnswerKind || len(suite.Cases) != spec.Cases {
 		t.Fatalf("suite = %s with %d cases, want %s with %d", suite.Kind, len(suite.Cases), GeneratedAnswerKind, spec.Cases)
 	}
@@ -84,18 +78,12 @@ func TestCaptionMatchingIsReproducible(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 6, 6)
 	first, err := BuildCaptionMatching(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := BuildCaptionMatching(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec.Seed++
 	other, err := BuildCaptionMatching(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	firstJSON, _ := json.Marshal(first)
 	againJSON, _ := json.Marshal(again)
 	otherJSON, _ := json.Marshal(other)

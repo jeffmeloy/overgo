@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/optimizer"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -34,9 +35,7 @@ type linearCTCOracleCase struct {
 func linearCTCOracle(t *testing.T) []linearCTCOracleCase {
 	t.Helper()
 	data, err := os.ReadFile("testdata/linear_ctc_oracle.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Schema          string                `json:"schema"`
 		Revision        string                `json:"torch_revision"`
@@ -46,9 +45,7 @@ func linearCTCOracle(t *testing.T) []linearCTCOracleCase {
 		GeneratorSHA256 string                `json:"generator_sha256"`
 		Cases           []linearCTCOracleCase `json:"cases"`
 	}
-	if err := strictjson.DecodeBytes(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(data, &fixture))
 	if fixture.Schema != "overgo/linear-ctc-oracle/v1" || fixture.Revision != "7661cd9c6b841b62b7f411aa52ec51f05457263b" ||
 		fixture.Device != "cpu" || fixture.DType != "float64-from-float32" || fixture.Reduction != "sum" ||
 		fixture.GeneratorSHA256 != "b59580cbf005ecbdb590accd638aafedd192be933a265e6e44cb4ad03f50c33f" {
@@ -79,27 +76,17 @@ func TestLinearCTCReference(t *testing.T) {
 	for _, tc := range linearCTCOracle(t) {
 		t.Run(tc.Name, func(t *testing.T) {
 			m, err := NewLinearCTC(linearCTCSpec(tc))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			copy(m.weights, tc.Projection)
 			frozenWeight, frozenBias := slices.Clone(tc.OutputWeight), slices.Clone(tc.OutputBias)
 			execution, err := m.Bind(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			gradients, err := execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			forward, err := execution.Select(trainingprogram.PhaseForward)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
-			if err := gradients.Run(&example); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, gradients.Run(&example))
 			// Reduction-scaled float32 comparison protocol; the independent
 			// CPU oracle retains float64 intermediates after float32 input quantization.
 			epsilon := float64(math.Nextafter32(1, 2) - 1)
@@ -112,14 +99,10 @@ func TestLinearCTCReference(t *testing.T) {
 			for index, value := range m.weights {
 				const perturbation = float32(1.0 / 256)
 				m.weights[index] = value + perturbation
-				if err := forward.Run(&example); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, forward.Run(&example))
 				plus := example.Loss
 				m.weights[index] = value - perturbation
-				if err := forward.Run(&example); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, forward.Run(&example))
 				minus := example.Loss
 				m.weights[index] = value
 				span := 2 * float64(perturbation)
@@ -128,9 +111,7 @@ func TestLinearCTCReference(t *testing.T) {
 				allowance := 2*tolerance/span + span*span
 				testutil.RequireWithin(t, "projection finite difference", []float32{gradient[index]}, []float64{(plus - minus) / span}, allowance)
 			}
-			if err := forward.Run(&example); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, forward.Run(&example))
 			before := example.Loss
 			for step := range tc.Width {
 				if err := execution.Run(&example); err != nil || example.Update.Step != step+1 {
@@ -152,9 +133,7 @@ func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 	tc := linearCTCOracle(t)[0]
 	spec := linearCTCSpec(tc)
 	m, err := NewLinearCTC(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec.MemoryBytes = m.StorageBytes()
 	if _, err := NewLinearCTC(spec); err != nil {
 		t.Fatal(err)
@@ -164,41 +143,27 @@ func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 		t.Fatal("insufficient memory admitted")
 	}
 	execution, err := m.Bind(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gradient, err := execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	update, err := execution.Select(trainingprogram.PhaseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
 	if err := update.Run(&example); err == nil {
 		t.Fatal("optimizer accepted an absent gradient phase")
 	}
-	if err := gradient.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gradient.Run(&example))
 	stale := example
-	if err := gradient.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gradient.Run(&example))
 	if err := update.Run(&stale); err == nil {
 		t.Fatal("stale gradient accepted")
 	}
 	duplicate := example
-	if err := update.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, update.Run(&example))
 	if err := update.Run(&duplicate); err == nil {
 		t.Fatal("gradient consumed twice")
 	}
-	if err := gradient.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gradient.Run(&example))
 	if _, err := m.Bind(t.Context()); err != nil {
 		t.Fatal(err)
 	}
@@ -211,9 +176,7 @@ func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	bound, err := m.Bind(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := m.WeightSnapshot()
 	cancel(nil)
 	if err := bound.Run(&example); !errors.Is(err, context.Canceled) || !slices.Equal(weights, m.WeightSnapshot()) {
@@ -252,9 +215,7 @@ func TestLinearCTCRefusals(t *testing.T) {
 	spec := linearCTCSpec(tc)
 	spec.MaxTargets = spec.MaxFrames
 	m, err := NewLinearCTC(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := m.Bind(nil); err == nil {
 		t.Fatal("nil context admitted")
 	}
@@ -262,9 +223,7 @@ func TestLinearCTCRefusals(t *testing.T) {
 		t.Fatal("nil component admitted")
 	}
 	execution, err := m.Bind(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before := m.WeightSnapshot()
 	for name, change := range map[string]func(*LinearCTCExample){
 		"empty-frames":    func(e *LinearCTCExample) { e.Frames = 0 },

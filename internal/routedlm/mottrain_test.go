@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -79,9 +80,7 @@ func motTestTrainer(t *testing.T) (*ModalityTransformerTrainer, []float32, []int
 		headValues[i] = float32(rng.NormFloat64()) * 0.3
 	}
 	trainer, err := NewModalityTransformerTrainer(cfg, layers, finalNorm, bf16Encode(headValues), trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { trainer.Close() })
 	// Mixed prompt: text, text, vision, vision, vision, text, text.
 	mask := []int{0, 0, 1, 1, 1, 0, 0}
@@ -145,14 +144,10 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 			}
 			shift(1)
 			plus, err := trainer.Loss(hidden, mask, targets)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			shift(-1)
 			minus, err := trainer.Loss(hidden, mask, targets)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			copy(values, saved)
 			numeric := (plus - minus) / (2 * epsilon)
 			var got float64
@@ -172,23 +167,17 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 func TestModalityTransformerStepDescends(t *testing.T) {
 	trainer, hidden, mask, targets := motTestTrainer(t)
 	first, err := trainer.Loss(hidden, mask, targets)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var last MoTTrainStepResult
 	for step := range 5 {
 		last, err = trainer.Step(hidden, mask, targets)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if last.GradientL2 <= 0 {
 			t.Fatalf("step %d: gradient norm %g", step, last.GradientL2)
 		}
 	}
 	final, err := trainer.Loss(hidden, mask, targets)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
@@ -203,9 +192,7 @@ func TestModalityTransformerCheckpointRoundTripIsBitExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trained := map[string][]float32{}
 	for layer, spans := range trainer.spans {
 		for suffix, section := range map[string]int{

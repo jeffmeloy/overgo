@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
@@ -36,16 +37,12 @@ func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 		stream, err := operatorStreamAdapter().openStream(t.Context(), manual, json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
 			MaxEvents: row.maxEvents, MaxEventBytes: 256, MaxBytes: 512,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer stream.Close()
 		var events []StreamEvent
 		for range row.maxEvents {
 			event, err := stream.Receive(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			events = append(events, event)
 		}
 		if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
@@ -61,9 +58,7 @@ func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 			}
 		}
 		terminal, err := stream.Terminal()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if terminal.State != row.state || terminal.Events != row.maxEvents || terminal.Bytes == 0 || !strings.Contains(terminal.Error, row.failure) {
 			t.Fatalf("terminal = %+v", terminal)
 		}
@@ -84,16 +79,10 @@ func TestHTTPJSONStreamCancellationProducesTerminal(t *testing.T) {
 	stream, err := operatorStreamAdapter().openStream(t.Context(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
 		MaxEvents: 1, MaxEventBytes: 128, MaxBytes: 128,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, stream.Close())
 	terminal, err := stream.Terminal()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if terminal.State != StreamCancelled || terminal.Events != 0 {
 		t.Fatalf("terminal = %+v", terminal)
 	}
@@ -147,9 +136,7 @@ func TestHTTPJSONStreamManualInvokesCollected(t *testing.T) {
 	}
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	manuals := make([]Manual, len(rows))
 	for index, row := range rows {
@@ -166,9 +153,7 @@ func TestHTTPJSONStreamManualInvokesCollected(t *testing.T) {
 	executor := NewOperatorExecutor()
 	for _, row := range rows {
 		manual, err := ResolveRegisteredManual(ctx, store, row.name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The cancelled row's caller leaves once its first event arrived, while the server holds the stream open.
 		invocation, cancel := context.WithCancelCause(ctx)
 		var observed []string

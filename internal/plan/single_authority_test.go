@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestSinglePlanAuthority pins the owner directive (2026-08-16): one skill.md
@@ -23,10 +25,6 @@ func TestSinglePlanAuthority(t *testing.T) {
 		}
 	}
 	document, err := Load(filepath.Join(root, filepath.FromSlash(Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := Validate(document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, Validate(document))
 }

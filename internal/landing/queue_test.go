@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestTwoWorktreesLandThroughOneQueue holds two sessions, each in a worktree
@@ -129,9 +130,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	one.write("a.txt", "the first worktree's\n")
 	holder := &landing{Options: Options{Repo: fixture.repo, Log: io.Discard}}
 	held, err := holder.holdTurn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stopping, stop := context.WithCancel(ctx)
 	defer stop()
 	where := one.git("rev-parse", "HEAD")

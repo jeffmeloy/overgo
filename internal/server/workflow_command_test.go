@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestWorkflowSubmissionCommand(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "workflow-command-recipe")
 	generator := &generationWorkspaceGenerator{
@@ -38,9 +37,7 @@ func TestWorkflowSubmissionCommand(t *testing.T) {
 		},
 	}
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	submission := `{"task":"speech","recipe":"` + recipeID.String() + `","input":{"text":"it's here","seed":17}}`
 	answered := serveTestRequest(handler, http.MethodPost, "/generation/command", submission)

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/processlock"
 	"overgo/internal/quietmachine"
+	"overgo/internal/testcheck"
 )
 
 // firstWrite is a log that says when it is first written to.
@@ -84,9 +85,7 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 	// A landing that finds a timed measurement running waits for it, and the
 	// wait is its record's.
 	measuring, _, err := quietmachine.Await(ctx, quietTestMachine, true, noWait)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	waiting := make(chan struct{})
 	l := &landing{Options: Options{Log: firstWrite{sync.OnceFunc(func() { close(waiting) })}}}
 	var group sync.WaitGroup
@@ -102,13 +101,9 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 		}
 	})
 	release, err := l.holdQuiet(ctx, quietTestMachine)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	group.Wait()
-	if err := release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, release())
 	if l.spent.Measurement <= 0 {
 		t.Fatalf("a landing that waited for a timed measurement recorded a wait of %s", l.spent.Measurement)
 	}

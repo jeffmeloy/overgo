@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 		Audit:       id(artifact.KindDatasetShard, "audit"),
 		Proposer:    proposer,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	duplicate := partition
 	duplicate.ID = artifact.ID{}
@@ -41,17 +40,13 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 		Version: artifact.InitialDocumentVersion, Unit: "queries", Split: partition.Promotion,
 		Issued: 5, Authority: id(artifact.KindEvidence, "authority"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	charge := func(amount uint64, purpose string) BudgetCharge {
 		value, err := budgetChargeCodec.New(BudgetCharge{
 			Version: artifact.InitialDocumentVersion, Budget: budget.ID, Amount: amount,
 			Consumer: evaluator, Purpose: purpose,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	remaining, err := BudgetBalance(budget, []BudgetCharge{charge(2, "selection eval"), charge(3, "promotion eval")})
@@ -66,9 +61,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	foreign.Budget = id(artifact.KindEvidence, "other-budget")
 	foreign.ID = artifact.ID{}
 	foreign, err = budgetChargeCodec.New(foreign)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := BudgetBalance(budget, []BudgetCharge{foreign}); err == nil {
 		t.Fatal("charge against another budget accepted")
 	}
@@ -81,17 +74,13 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	proposerCharge.Consumer = proposer
 	proposerCharge.ID = artifact.ID{}
 	proposerCharge, err = budgetChargeCodec.New(proposerCharge)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	blindedBudget := func(split artifact.ID, name string) Budget {
 		value, err := budgetCodec.New(Budget{
 			Version: artifact.InitialDocumentVersion, Unit: "queries", Split: split,
 			Issued: 5, Authority: id(artifact.KindEvidence, "authority-"+name),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	if err := ValidateBlinding(partition, blindedBudget(partition.Promotion, "promotion"), []BudgetCharge{proposerCharge}); err == nil {
@@ -117,8 +106,6 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 func mustContent(t *testing.T, budget Budget) []byte {
 	t.Helper()
 	content, err := budgetCodec.Content(budget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content.Data
 }

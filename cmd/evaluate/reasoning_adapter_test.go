@@ -6,6 +6,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -15,9 +16,7 @@ func TestReasoningAdapterUsesDeclaredClosure(t *testing.T) {
 		t.Run(markers[0], func(t *testing.T) {
 			path := testutil.HermeticLlamaGGUFWith(t, 64, gguf.StringMetadata("tokenizer.chat_template", markers[0]+markers[1]))
 			loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHost, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 			if err != nil {
 				_ = loaded.Close()

@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 func cpuJointFixture(t *testing.T) (*Model, *JointTrainer, TrainingExample) {
@@ -17,9 +18,7 @@ func cpuJointFixture(t *testing.T) (*Model, *JointTrainer, TrainingExample) {
 	rng := rand.New(rand.NewSource(31))
 	model := tinyJointModel(rng)
 	trainer, err := NewJointTrainer(model, optimizer.Config{Steps: 3, BaseLearningRate: 1e-3, Momentum: 0.95, Schedule: optimizer.ScheduleLinearDecay}, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = trainer.Close() })
 	return model, trainer, TrainingExample{TextIDs: []int{2, 4, 1}, Frames: 2, Seed: 91, Latents: normVec(rng, 2*model.Dims.LatentDim, 0, 1)}
 }
@@ -37,9 +36,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 	initial := jointWeightSnapshot(model)
 	frozenText, frozenInput := slices.Clone(model.condEmbed), slices.Clone(model.inputLinear)
 	firstLoss, err := trainer.Step(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := model.LossAndGrads(example.TextIDs, example.Latents, example.Frames, example.Seed, nil)
 	if err != nil || !(after < firstLoss) || maps.EqualFunc(initial, jointWeightSnapshot(model), slices.Equal[[]float32]) {
 		t.Fatalf("CPU update: loss %g -> %g, error=%v", firstLoss, after, err)
@@ -53,9 +50,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 	for range 2 {
 		example.Seed++
 		loss, err := trainer.Step(example)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		wantLosses = append(wantLosses, loss)
 	}
 	for name, values := range trainer.gradients {
@@ -67,9 +62,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 		t.Fatal("frozen input tensors changed")
 	}
 	resumedModel, resumed, next := cpuJointFixture(t)
-	if err := resumed.Restore(weights, state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, resumed.Restore(weights, state))
 	for index := range 2 {
 		next.Seed++
 		loss, err := resumed.Step(next)
@@ -80,15 +73,11 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 	if !maps.EqualFunc(jointWeightSnapshot(model), jointWeightSnapshot(resumedModel), slices.Equal[[]float32]) || !reflect.DeepEqual(mustJointState(t, trainer), mustJointState(t, resumed)) {
 		t.Fatal("CPU weights or optimizer/scheduler state differ after resume")
 	}
-	if err := resumed.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, resumed.Close())
 	if resumed.model != nil || resumed.weights != nil || resumed.gradients != nil {
 		t.Fatal("closed trainer retains model or numeric buffers")
 	}
-	if err := resumed.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, resumed.Close())
 	if _, err := resumed.Step(next); err == nil {
 		t.Fatal("closed trainer stepped")
 	}
@@ -103,9 +92,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 func mustJointState(t *testing.T, trainer *JointTrainer) optimizer.State {
 	t.Helper()
 	state, err := trainer.OptimizerSnapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return state
 }
 
@@ -113,9 +100,7 @@ func TestCPUJointTrainerFailedUpdateRequiresRestore(t *testing.T) {
 	model, _, example := cpuJointFixture(t)
 	// A finite but unrepresentable F32 update exercises post-update refusal.
 	trainer, err := NewJointTrainer(model, optimizer.Config{Steps: 1, BaseLearningRate: math.MaxFloat64, Momentum: 0.95}, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = trainer.Close() })
 	weights, state := jointWeightSnapshot(model), mustJointState(t, trainer)
 	if _, err := trainer.Step(example); err == nil {
@@ -127,9 +112,7 @@ func TestCPUJointTrainerFailedUpdateRequiresRestore(t *testing.T) {
 	if _, err := trainer.Step(example); err == nil {
 		t.Fatal("failed update admitted another step")
 	}
-	if err := trainer.Restore(weights, state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, trainer.Restore(weights, state))
 	if !maps.EqualFunc(weights, jointWeightSnapshot(model), slices.Equal[[]float32]) || !reflect.DeepEqual(state, mustJointState(t, trainer)) {
 		t.Fatal("restore did not recover the last valid boundary")
 	}

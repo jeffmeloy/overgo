@@ -15,31 +15,24 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestIFEvalLanguageAcceptance(t *testing.T) {
 	t.Parallel()
 	p, err := compiledIFEvalLanguage()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var selection struct {
 		Oracle   artifact.ID
@@ -130,9 +123,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 	compare := func(name, raw string, want observation) {
 		t.Helper()
 		clean, grams, err := p.features(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if fmt.Sprintf("%x", sha256.Sum256([]byte(clean))) != want.Cleaned || len(grams) != want.NGrams || ngramHash(grams) != want.NGramHash {
 			t.Fatalf("%s normalization or ngrams differ", name)
 		}
@@ -140,9 +131,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 			t.Fatalf("%s native case predicate differs", name)
 		}
 		label, features, err := p.detect(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !features {
 			if want.Exception == 0 {
 				t.Fatalf("%s missing native no-feature disposition", name)
@@ -153,9 +142,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 			t.Fatalf("%s detected=%s/%s", name, label, want.Detected)
 		}
 		prob, err := p.probabilities(grams)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(prob) != len(want.Probabilities) {
 			t.Fatal("language probability denominator differs")
 		}
@@ -179,13 +166,9 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 			t.Fatal("native language instruction missing or duplicated")
 		}
 		rule, err := compileInstructionRule(rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		strict, loose, err := evaluateInstructionViews(oracle.Boundary[c.Boundary].Response, []compiledInstructionRule{rule})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("boundary check %d %s strict=%v/%v loose=%v/%v", index, c.Instruction, strict, c.Strict, loose, c.Loose)
 		}

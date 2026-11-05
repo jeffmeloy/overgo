@@ -13,6 +13,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds runs a lane over a module of three packages, in the
@@ -26,32 +27,22 @@ func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	write("go.mod", "module lanefixture\n\ngo 1.26\n")
 	write("first/first_test.go", "package first\n\nimport \"testing\"\n\nfunc TestFails(t *testing.T) { t.Fatal(\"the answer is 5, want 4\") }\n")
 	write("long/long_test.go", "package long\n\nimport \"testing\"\n\nfunc TestWaits(t *testing.T) { <-t.Context().Done() }\n")
 	write("short/short_test.go", "package short\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n"+
 		"func TestRuns(t *testing.T) {\n\tif os.Getenv(\""+clioptions.MeasurementRunEnvironment+"\") != \"\" {\n\t\tt.Fatal(\"the lane's test was given the run record\")\n\t}\n}\n")
-	if err := processlock.EnsureStateDirectory(root); err != nil {
-		t.Fatal(err)
-	}
-	if err := jsonfile.Write(filepath.Join(root, processlock.StateDirectory, laneWallsFile), laneWalls{"lanefixture/long TestWaits": {3600}}, clioptions.PrivateFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(root, processlock.StateDirectory, laneWallsFile), laneWalls{"lanefixture/long TestWaits": {3600}}, clioptions.PrivateFileMode))
 	record := filepath.Join(t.TempDir(), "measurement_run.json")
 	started := time.Now()
 	running := plan.MeasurementRun{Commit: "measured", Process: os.Getpid(), Started: started, Phases: []plan.MeasurementPhase{
 		{Name: "preflight", Started: started, Ended: started, Passed: true}, {Name: "lanes", Started: started},
 	}}
-	if err := jsonfile.Write(record, running, clioptions.PrivateFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(record, running, clioptions.PrivateFileMode))
 	t.Setenv(clioptions.MeasurementRunEnvironment, record)
 
 	var output bytes.Buffer
@@ -67,9 +58,7 @@ func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 		t.Fatalf("the long package ran, or the short one did not pass, after the failure:\n%s", reported)
 	}
 	var kept plan.MeasurementRun
-	if err := jsonfile.Decode(record, &kept); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(record, &kept))
 	if lanes := kept.Phases[1]; !slices.Equal(lanes.Failed, []string{"lanefixture/first TestFails"}) || len(kept.Phases[0].Failed) != 0 {
 		t.Fatalf("the run record's phases = %+v, want the failed test in the running lanes phase alone", kept.Phases)
 	}

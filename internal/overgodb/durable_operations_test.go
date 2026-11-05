@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // crashpointsTag is the build tag under which the crash recorder (crash_record_test.go) and the crash harness
@@ -82,13 +84,9 @@ func runCrashHarness(t *testing.T, harnesses ...string) {
 func crashOverlay(t *testing.T) string {
 	t.Helper()
 	directory, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	entries, err := os.ReadDir(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	out := t.TempDir()
 	replace := map[string]string{}
 	for _, entry := range entries {
@@ -98,34 +96,24 @@ func crashOverlay(t *testing.T) string {
 		}
 		files := token.NewFileSet()
 		file, err := parser.ParseFile(files, filepath.Join(directory, name), nil, parser.ParseComments)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !rewriteDurableCalls(file) {
 			continue
 		}
 		dropUnusedImports(file)
 		var text bytes.Buffer
-		if err := format.Node(&text, files, file); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, format.Node(&text, files, file))
 		rewritten := filepath.Join(out, name)
-		if err := os.WriteFile(rewritten, text.Bytes(), storeFileMode); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(rewritten, text.Bytes(), storeFileMode))
 		replace[filepath.Join(directory, name)] = rewritten
 	}
 	if len(replace) == 0 {
 		t.Fatal("no production file of the package makes a durable call")
 	}
 	document, err := json.Marshal(map[string]any{"Replace": replace})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	overlay := filepath.Join(out, "overlay.json")
-	if err := os.WriteFile(overlay, document, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(overlay, document, storeFileMode))
 	return overlay
 }
 

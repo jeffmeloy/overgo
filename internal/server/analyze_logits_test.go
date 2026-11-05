@@ -3,6 +3,8 @@ package server
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // The entropy attached to the raw-logits probability output is the full-vocab
@@ -48,13 +50,9 @@ func TestNativeTokenProbabilityEntropyBoundedByUniform(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	uniform, err := handler.nativeTokenProbability(0, []float32{0, 0, 0, 0}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	skewed, err := handler.nativeTokenProbability(0, []float32{3, 0, 0, 0}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	maxEntropy := math.Log(4)
 	if *uniform.Entropy > maxEntropy+1e-9 {
 		t.Fatalf("uniform entropy %v exceeds ln(4) %v", *uniform.Entropy, maxEntropy)

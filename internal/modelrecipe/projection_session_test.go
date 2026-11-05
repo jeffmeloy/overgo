@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestProjectionSessionPlanBindsProjector pins the first projection
@@ -16,21 +17,13 @@ import (
 // pair compiles a non-empty session policy instead of refusing.
 func TestProjectionSessionPlanBindsProjector(t *testing.T) {
 	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("language-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	projectorID, err := artifact.IdentifyBytes(artifact.KindProjector, []byte("vision-projector"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := ProjectionDefinition(modelID, projectorID, artifact.ID{}, recipe.DataImage, recipe.DataVideo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const projectorBytes = 931
 	plan, err := CompileComponentSessionPlanWithExtents(
 		t.Context(), program,

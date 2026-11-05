@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDecodeTextChunkUTF8Restart(t *testing.T) {
@@ -24,13 +26,9 @@ func TestDecodeTextChunkUTF8Restart(t *testing.T) {
 		var output strings.Builder
 		for start := 0; start < len(ids); start += size {
 			encoded, err := json.Marshal(state)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var restored DecodeState
-			if err := json.Unmarshal(encoded, &restored); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 			before := slices.Clone(restored.Pending)
 			end := min(len(ids), start+size)
 			text, next, err := tokenizer.DecodeTextChunk(ids[start:end], restored, end == len(ids))

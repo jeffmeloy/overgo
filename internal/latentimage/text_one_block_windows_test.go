@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
 	"overgo/internal/hfgguf"
+	"overgo/internal/testcheck"
 )
 
 // TestATextEncoderHoldsOneBlockOnTheCard: the text encoder runs a block at a time, two prompts of different lengths
@@ -19,9 +20,7 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	cudatest.Require(t)
 	s, root, catalog := mossSmallEncoder(t, "model-small-v3-cuda.safetensors", "c96f1e0e709c9569840b10356bc55a47fd002585477fbe2e2692c37bb150786b")
 	session, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close(t.Context())
 	conditioner := modelConditioner{catalog: catalog, root: root}
 	var texts []textInput
@@ -38,9 +37,7 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	before := session.StaticBytes()
 	held := func(encode func()) uint64 {
 		t.Helper()
-		if err := session.ReleaseStageMemory(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, session.ReleaseStageMemory(t.Context()))
 		base := driver.ProcessCurrentBytes()
 		driver.ResetStagePeakBytes()
 		encode()
@@ -49,9 +46,7 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	whole := held(func() {
 		for index, text := range texts {
 			hidden, err := conditioner.encode(t.Context(), session, text, embeddings[index], nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, unequal, _ := compareMOSSValues(hidden, want[index], mossStageTolerance{}); unequal != 0 {
 				t.Fatalf("prompt %d: the whole encoder differs from its reference in %d values", index, unequal)
 			}
@@ -59,9 +54,7 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	})
 	each := held(func() {
 		hidden, err := conditioner.encodeEach(t.Context(), session, texts, embeddings)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range texts {
 			if _, unequal, _ := compareMOSSValues(hidden[index], want[index], mossStageTolerance{}); unequal != 0 {
 				t.Fatalf("prompt %d: the encoder a block at a time differs from its reference in %d values", index, unequal)
@@ -85,15 +78,11 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 func encoderWeightBytes(t *testing.T, catalog hfgguf.LanguageCatalog, first, end int) uint64 {
 	t.Helper()
 	p, err := compileModelEncoder(catalog, 1, first, end)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var total uint64
 	for _, node := range p.weights {
 		bytes, err := node.Shape.Bytes(node.Type)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		total += bytes
 	}
 	return total

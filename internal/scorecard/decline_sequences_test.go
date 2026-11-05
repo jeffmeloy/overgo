@@ -16,6 +16,7 @@ import (
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tensorstats"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      testutil.ArtifactID(t, artifact.KindModel, "slow model"),
 		Definition: testutil.ArtifactID(t, artifact.KindModelDefinition, "slow definition"),
@@ -40,18 +39,14 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const cases, perReading, readings = 100, 5, 12
 	suite := evaluation.MultipleChoiceSuite{Kind: evaluation.MultipleChoiceKind, Schema: "fixture/slow/v1", Source: "slow", Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy}
 	for index := range cases {
 		suite.Cases = append(suite.Cases, evaluation.MultipleChoiceCase{Name: fmt.Sprintf("case-%03d", index), Prompt: fmt.Sprintf("Question %d\nAnswer:", index), Candidates: []string{" A", " B"}})
 	}
 	source, err := json.Marshal(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract := Contract{Metric: shareMetric, Origin: originEvaluation, Suite: "slow", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "slow comparison")}
 	row := func(quality Cell) Row {
 		cells := map[metric.Name]Cell{}
@@ -69,25 +64,17 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 			wrong[testCase.Prompt] = true
 		}
 		campaign, err := evaluation.NewCampaign(store, answerer{wrong}, identity, environment, strings.Repeat(commit, 40/len(commit)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		compiled, err := evaluation.CompileSuite(source, campaign.Authorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err := campaign.Evaluate(ctx, compiled)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		value := float64(cases-reading*perReading) / cases
 		cell := Cell{Value: value, Source: result.Evaluation, Direction: runrecord.DirectionMaximize, Cases: cases, Noise: shareError(value, cases), Contract: contract,
 			Compared: "internal/fixture TestPairedPathMatchesItsReference"}
 		records = append(records, Record{Commit: commit, Rows: []Row{row(cell)}})
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	filed := 0
 	for reading := 1; reading < readings; reading++ {
 		kept, dropped := Supported(ctx, root, records[reading].Gaps(Reference(records[:reading+1])))

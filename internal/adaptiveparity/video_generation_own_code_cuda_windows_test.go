@@ -19,6 +19,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -91,26 +92,16 @@ func TestServedGenerationMatchesTheModelsOwnClip(t *testing.T) {
 		return
 	}
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-own-generation")
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/own-generation", Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, wan)}}, Contents: []artifact.Content{profileContent},
@@ -123,13 +114,9 @@ func TestServedGenerationMatchesTheModelsOwnClip(t *testing.T) {
 			Prompt: clip.Prompt, Seed: uint64(clip.Seed), Frames: clip.Frames, Width: own.Width, Height: own.Height,
 			Steps: own.Steps, Shift: own.Shift, GuideScale: clip.GuideScale,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, wan, execution, string(raw))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("a served clip is %T", capabilityruntime.Unwrap(output))

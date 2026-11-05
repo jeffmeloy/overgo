@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -25,9 +26,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 		return nil
 	}
 	report, err := readGoTestJSON(strings.NewReader(stream(skipEvent("example", "TestElsewhere", testskip.KindInapplicable))), false, false, 0, observe, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.PassedPackages != 1 || report.PassedTests != 1 || len(report.ClassifiedSkipped) != 1 || len(report.Skipped) != 0 {
 		t.Fatalf("declared exclusion report = %+v", report)
 	}
@@ -39,9 +38,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 	}
 	observed = nil
 	report, err = readGoTestJSON(strings.NewReader(stream(packageEvent("output", "example", "TestElsewhere", "integration: needs a device"))), false, false, 0, observe, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(report.Skipped) != 1 || len(report.ClassifiedSkipped) != 0 || len(observed) != 0 {
 		t.Fatalf("unowned skip report = %+v observed = %v", report, observed)
 	}

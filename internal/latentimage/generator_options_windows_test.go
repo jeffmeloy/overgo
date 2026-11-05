@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 func TestMOSSImageGenerationContract(t *testing.T) {
@@ -22,9 +23,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal("native options identity", err)
 	}
 	source, err := safetensors.OpenFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	var contract struct {
 		Comparison struct {

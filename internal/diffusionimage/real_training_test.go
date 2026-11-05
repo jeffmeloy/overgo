@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -26,35 +27,25 @@ func TestRealCheckpointStructuredImageTraining(t *testing.T) {
 	sources := make([]trainingdata.RawRecord, len(paths))
 	for index, path := range paths {
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sources[index] = trainingdata.RawRecord{ID: filepath.Base(path), Group: filepath.Base(path), Data: data}
 	}
 	records, err := trainingdata.SelectStructuredImageCrops(sources, 32, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	train := materializeImageBatch(t, records[:6], "train", 1)
 	heldout := materializeImageBatch(t, records[6:], "heldout", 1)
 
 	model, err := Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parameters := 0
 	for _, values := range model.raw {
 		parameters += len(values)
 	}
 	baseLR := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(parameters)
 	trainer, err := NewTrainer(model, optimizer.Config{BaseLearningRate: baseLR, Momentum: 0.9, Schedule: optimizer.ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := trainer.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, trainer.Close())
 	}()
 
 	const sigmaMin = 0.001
@@ -101,34 +92,22 @@ func materializeImageBatch(t *testing.T, records []trainingdata.RawRecord, split
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityImage},
 		Process: trainingdata.ImageProcessor(trainingdata.RoleTarget),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
-		if err := dataset.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, dataset.Close())
 	})
 	stream, err := trainingdata.NewStream(dataset, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: examples, MicrobatchExamples: examples, DecodeWorkers: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := batcher.Next(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return batch
 }
 
 func oneLoss(t *testing.T, losses []float64, err error) float64 {
 	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(losses) != 1 || !finiteLoss(losses[0]) {
 		t.Fatalf("losses = %v", losses)
 	}

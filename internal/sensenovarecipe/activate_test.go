@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,9 +26,7 @@ const activationReason = "SenseNova compiled text request, retained prefix/body,
 func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-u1-8b-mot-infographic-v3")
@@ -35,9 +34,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	flowProfile := publishFlowProfileFixture(t, ctx, store)
 
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(
 		ctx, store, "fixture/sensenova/candidate", definition,
 	); err != nil {
@@ -46,9 +43,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	verification, err := modelrecipetest.PublishVerification(
 		ctx, store, "fixture/sensenova/verification", definition.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
@@ -73,17 +68,11 @@ func publishFlowProfileFixture(t *testing.T, ctx context.Context, store *overgod
 	t.Helper()
 	directory := t.TempDir()
 	const metadata = `{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(metadata), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(metadata), 0o600))
 	profile, err := routedlm.InspectFlowProfile(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/sensenova/flow-profile", Contents: []artifact.Content{content},
 	}); err != nil {

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,16 +34,12 @@ func attemptTools(t *testing.T, store *overgodb.Store, handle http.HandlerFunc) 
 		Name: "attempt.look", Description: "Read the state file.", Effect: agenttool.EffectInspection, Ceiling: ceiling,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/look"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	change, err := agenttool.NewManual(agenttool.Manual{
 		Name: "attempt.change", Description: "Change the state file.", Effect: agenttool.EffectMutation, Ceiling: ceiling,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/change"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{look, change}); err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +70,9 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 		w.Write([]byte(`{"done":true}`))
 	})
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, attemptTarget), []byte("state"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, attemptTarget), []byte("state"), 0o600))
 	checkpoints, err := NewMutationCheckpointRuntime(root, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session := &Session{ID: "attempts", Checkpoints: checkpoints}
 
 	failing.Store(true)
@@ -94,13 +87,9 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 	}
 
 	preview, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refused, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.look", noArguments)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	agent := testutil.ArtifactID(t, artifact.KindRecipe, "attempt-agent")
 	if _, err := coordinator.ApproveMutationWithManuals(ctx, session, "attempt.change", noArguments, preview.Operation, agent, []artifact.ID{refused.Manual}); err == nil {
 		t.Fatal("an approval outside the agent's manuals was granted")
@@ -140,9 +129,7 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 		t.Fatalf("interaction = %+v, found=%t, err=%v", interaction, found, err)
 	}
 	checkpoint, err := runrecord.RequireAgentMutationCheckpoint(ctx, store, interaction.Tools[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, store, preview.Operation, checkpoint.Attempt)
 	if err != nil || !found || stimulus.ID != interaction.Stimulus || tip.Invocation.Preflight != stimulus.ID {
 		t.Fatalf("checkpoint attempt %d, stimulus %+v, found=%t, err=%v", checkpoint.Attempt, stimulus, found, err)
@@ -171,9 +158,7 @@ func TestACancelledMutationClosesItsReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	preview, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	approveChange(t, coordinator, session)
 	cancelling.Store(true)
 	if _, err := coordinator.Propose(ctx, session, "attempt.change", noArguments); err == nil {
@@ -200,13 +185,9 @@ func TestASessionTipReadsWhatARestoreFinds(t *testing.T) {
 	agrees := func(step int) {
 		t.Helper()
 		tip, err := coordinator.ReadSessionTip(ctx, session.ID, step)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		restored, err := coordinator.RestoreSession(ctx, session.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if tip.Steps != restored.Steps || tip.Interaction != restored.Interaction || tip.Inspected != restored.Inspection.Valid() {
 			t.Fatalf("tip %+v, restored %+v", tip, restored)
 		}

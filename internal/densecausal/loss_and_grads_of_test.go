@@ -3,6 +3,8 @@ package densecausal
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestLossAndGradsOfKeepsOnlyTheNamedGradients holds a run that trains some of
@@ -13,15 +15,11 @@ func TestLossAndGradsOfKeepsOnlyTheNamedGradients(t *testing.T) {
 	g := readTinyGolden(t)
 	model := modelFromGolden(t, g)
 	wantLoss, _, want, err := model.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	embedding, finalNorm, head := model.LexicalTensorNames()
 	train := func(name string) bool { return name != embedding && name != finalNorm && name != head }
 	loss, got, err := model.MaskedLossAndLayerGradsOf(g.Tokens, nil, train, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loss != wantLoss {
 		t.Fatalf("loss %v, the full backward's is %v", loss, wantLoss)
 	}

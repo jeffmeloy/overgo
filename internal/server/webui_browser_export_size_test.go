@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -68,13 +69,9 @@ func TestWebUIBrowserExportSizePreview(t *testing.T) {
 		check(`(() => { [...document.querySelectorAll('#panel-` + panel + ` button')].find(button => button.textContent === 'Run').click(); return true; })()`)
 		settle(`document.querySelector('#panel-` + panel + ` [aria-label="run status"]').textContent.startsWith('completed / ')`)
 		info, err := os.Stat(file)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var text string
-		if err := browser.Evaluate(ctx, `window.`+kept, &text); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Evaluate(ctx, `window.`+kept, &text))
 		if want := strconv.FormatInt(info.Size(), 10) + " bytes"; !strings.Contains(strings.ReplaceAll(text, ",", ""), want) {
 			t.Fatalf("the form showed %q before the run, and the run wrote %s of %s", text, filepath.Base(file), want)
 		}
@@ -90,9 +87,7 @@ func TestWebUIBrowserExportSizePreview(t *testing.T) {
 	entered("export-jobs", [3]string{"change", "type", "f16"})
 	settle(shown("export-jobs") + ` === window.sizeHalf`)
 	for _, scheme := range webuilane.ColourSchemes {
-		if err := browser.SetColorScheme(ctx, scheme); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 		for _, viewport := range webuilane.ScreenViewports {
 			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "export-size-"+scheme)
 			if err != nil || len(findings) != 0 {

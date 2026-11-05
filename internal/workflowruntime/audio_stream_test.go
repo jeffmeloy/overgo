@@ -7,15 +7,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func audioCursorFixture(t *testing.T) (*overgodb.Store, recipecontract.AudioReference, AudioStreamResult, *AudioStreamCursor) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	model := testutil.ArtifactID(t, artifact.KindModel, "stream-model")
 	source := recipecontract.AudioReference{Audio: testutil.ArtifactID(t, artifact.KindFile, "source")}
@@ -30,17 +29,13 @@ func audioCursorFixture(t *testing.T) (*overgodb.Store, recipecontract.AudioRefe
 		Model: model, Format: recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		MaxChunkSamples: 8, MaxOverlapSamples: 2,
 	}).Batch("stream-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	source.Profile = batch.Contents[0].Descriptor.ID
 	cursor, err := LoadAudioStream(t.Context(), store, source, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return store, source, result, cursor
 }
 
@@ -68,25 +63,19 @@ func TestAudioStreamOverlapDiscontinuityAndRestart(t *testing.T) {
 			t.Fatalf("step %d: reset/state conflict %+v", index, work)
 		}
 		batch, err := cursor.Batch("before/" + chunk.Audio.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Key = batch.Contents[0].Descriptor.ID.String()
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
 		restored, err := LoadAudioStream(t.Context(), store, source, batch.Contents[0].Descriptor.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		replayed, err := restored.Prepare(chunk)
 		if err != nil || replayed != work {
 			t.Fatalf("step %d: restart differs: %+v %v", index, replayed, err)
 		}
 		for _, active := range []*AudioStreamCursor{cursor, restored} {
-			if err := active.Complete(work, result); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, active.Complete(work, result))
 		}
 		if cursor.state != restored.state {
 			t.Fatal("restored completion differs")
@@ -101,9 +90,7 @@ func TestAudioStreamRejectsInvalidTransitions(t *testing.T) {
 	_, source, result, cursor := audioCursorFixture(t)
 	first := AudioStreamChunk{Span: recipecontract.SampleSpan{End: 8}, Audio: source.Audio}
 	work, err := cursor.Prepare(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	altered := work
 	altered.Reset = false
 	if err := cursor.Complete(altered, result); err == nil {
@@ -112,9 +99,7 @@ func TestAudioStreamRejectsInvalidTransitions(t *testing.T) {
 	if err := cursor.Complete(work, AudioStreamResult{}); err == nil {
 		t.Fatal("untyped result accepted")
 	}
-	if err := cursor.Complete(work, result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cursor.Complete(work, result))
 	before := cursor.state
 	for _, tc := range []struct {
 		name  string
@@ -147,9 +132,7 @@ func TestAudioStreamRejectsInvalidTransitions(t *testing.T) {
 func TestAudioStreamRejectsUnboundRestart(t *testing.T) {
 	store, source, _, cursor := audioCursorFixture(t)
 	batch, err := cursor.Batch("restart")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Lineage = nil
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
@@ -158,9 +141,7 @@ func TestAudioStreamRejectsUnboundRestart(t *testing.T) {
 		t.Fatal("missing checkpoint lineage accepted")
 	}
 	batch, err = cursor.Batch("bound-restart")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -177,9 +158,7 @@ func TestAudioStreamEmptyFinalAndZeroValue(t *testing.T) {
 	if err != nil || !work.Reset || work.NewSpan != (recipecontract.SampleSpan{}) {
 		t.Fatalf("empty final: %+v %v", work, err)
 	}
-	if err := cursor.Complete(work, result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, cursor.Complete(work, result))
 	var zero AudioStreamCursor
 	if _, err := zero.Prepare(AudioStreamChunk{}); err == nil {
 		t.Fatal("zero cursor admitted work")
@@ -209,18 +188,14 @@ func TestAudioStreamPolicyAuthority(t *testing.T) {
 		})
 	}
 	checkpoint, err := cursor.Batch("checkpoint")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, checkpoint); err != nil {
 		t.Fatal(err)
 	}
 	policy := cursor.policy
 	policy.MaxChunkSamples++
 	batch, err := policy.Batch("changed-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineage := batch.Lineage
 	batch.Lineage = nil
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
@@ -254,24 +229,16 @@ func TestAudioStreamOverlapCannotCrossDiscontinuity(t *testing.T) {
 		{Sequence: 1, Span: recipecontract.SampleSpan{Start: 20, End: 21}, Audio: source.Audio, Discontinuity: true},
 	} {
 		work, err := cursor.Prepare(chunk)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := cursor.Complete(work, result); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, cursor.Complete(work, result))
 	}
 	batch, err := cursor.Batch("discontinuity")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	restored, err := LoadAudioStream(t.Context(), store, source, batch.Contents[0].Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, active := range []*AudioStreamCursor{cursor, restored} {
 		crossing := AudioStreamChunk{Sequence: 2, Span: recipecontract.SampleSpan{Start: 19, End: 24}, Audio: source.Audio}
 		if _, err := active.Prepare(crossing); err == nil {

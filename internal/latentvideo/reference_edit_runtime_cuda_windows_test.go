@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -42,16 +43,12 @@ func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, 
 		VAEStride: [3]int{4, 8, 8},
 	}
 	base, err := LoadDenoiserConfig(wanDir, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sigmas, err := CompileEditFlowSigmas(EditFlowConfig{
 		InferenceSteps: 2, TrainTimesteps: policy.NumTrainTimesteps, Shift: 5,
 		SigmaMin: 0, SigmaMax: 1, ExtraStep: true,
 	}, []int64{900})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
 	runtime, err := NewReferenceEditRuntime(ReferenceEditRuntimeConfig{
 		WanDirectory: wanDir, EditCheckpoint: filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"),
@@ -61,9 +58,7 @@ func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, 
 		Timesteps: []int64{900}, Sigmas: sigmas, ContextTimestep: 0,
 		Layers: base.NumLayers, DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runtime.Close(); err != nil {
 			t.Error(err)
@@ -88,9 +83,7 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 			frames = append(frames, append([]float32(nil), frame...))
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if result.Sampler.DenoiseCalls != 2 || result.Sampler.ContextRefreshCalls != 2 ||
 			result.Source.SourceChunks != 2 || result.Decode.OutputFrames != 5 || len(frames) != 5 {
 			t.Fatalf("runtime result sampler=%+v source=%+v decode=%+v frames=%d", result.Sampler, result.Source, result.Decode, len(frames))

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -24,18 +25,14 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 	// A mutation manual whose only role is the approval gate; its argv
 	// transport runs only under the committed policy naming its program.
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write, err := agenttool.NewManual(agenttool.Manual{
 		Name: "store.commit", Description: "A mutation manual for the approval gate.",
 		Effect:    agenttool.EffectMutation,
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), fixture.store, []string{"git"}); err != nil {
 		t.Fatal(err)
 	}

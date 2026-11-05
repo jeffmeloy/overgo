@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,31 +28,19 @@ func TestAQualityCellsPreflightReachesItsSetup(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := testutil.HermeticLlamaGGUF(t, 64)
-	if err := servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, model, recipe.PlacementHost, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, model, recipe.PlacementHost, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	fixture, err := os.ReadFile(filepath.Join(root, "internal", "dataset", "testdata", "mmlu-dev.arrow"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache := t.TempDir()
 	target := filepath.Join(cache, "cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
-	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(target, fixture, clioptions.OutputFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o700))
+	testcheck.NoError(t, os.WriteFile(target, fixture, clioptions.OutputFileMode))
 	if _, _, err := evaluation.CatalogHFCacheBenchmarks(t.Context(), store, cache); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	shared := manifest{Repository: repository, CodeCommit: hostedTestCommit}
 	if err := derivedReady(t.Context(), shared, model, "mmlu"); err != nil {

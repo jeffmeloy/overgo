@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const qwen38ReasoningXHigh = "Reasoning effort is set to xhigh. Please think carefully through the task, " +
@@ -18,9 +20,7 @@ const qwen38ReasoningXHigh = "Reasoning effort is set to xhigh. Please think car
 // the exact conversation framing the model documentation prescribes.
 func TestChatJinjaQwen38Template(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join("testdata", "chat_templates", "qwen38.jinja"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner := jinjaChatTestRunner(t, string(source))
 
 	thinking, err := runner.FormatChatWithOptions(

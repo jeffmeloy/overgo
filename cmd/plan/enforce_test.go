@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -19,9 +20,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 	}}
 	top, err := insertItem(base, "new", "do the thing", "", "", "go test ./...")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
@@ -29,9 +28,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "", "b", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if mid.Items[1].ID != "x" {
 		t.Fatalf("insert -before b should land at index 1, got %s", mid.Items[1].ID)
 	}
@@ -128,9 +125,7 @@ func TestEnforceSetVerify(t *testing.T) {
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s1", Status: "open"}, {ID: "s2", Status: "open"}}},
 	}}
 	got, err := assignVerify(base, "a", "s2", "  go test ./x  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got.Items[0].Steps[1].Verify != "go test ./x" {
 		t.Fatalf("verify not set/trimmed: %q", got.Items[0].Steps[1].Verify)
 	}

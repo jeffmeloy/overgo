@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestPastHeldoutVerdictsQuery(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindEvidence, "an earlier record"))
 	_, earlier := store.Head()
@@ -34,9 +33,7 @@ func TestPastHeldoutVerdictsQuery(t *testing.T) {
 			arguments, want = append(arguments, "-to-sequence", fmt.Sprint(through)), through
 		}
 		var output bytes.Buffer
-		if err := runQuery(arguments, &output); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runQuery(arguments, &output))
 		if got := strings.TrimSpace(output.String()); got != fmt.Sprintf("0 held-out verdict(s) through sequence %d; 0 bytes of verdict documents", want) {
 			t.Fatalf("%v printed %q, want no verdict through sequence %d", arguments, got, want)
 		}

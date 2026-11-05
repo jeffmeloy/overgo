@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -69,9 +70,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 	ctx := t.Context()
 	root := t.TempDir()
 	database, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store := &publicationFaultStore{Store: database, fail: failPublication}
 	t.Cleanup(func() { _ = store.Close() })
 	identity := modelrecipe.ProgramIdentity{
@@ -91,22 +90,14 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture",
 		Backend: "fixture", Driver: "fixture",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &observedRuntime{}
 	campaign, err := newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := json.Marshal(exactFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := CompileSuite(source, campaign.Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := campaign.Evaluate(ctx, suite)
 	if failPublication {
 		if !errors.Is(err, errPublicationFixture) || result.Report.Kind() != artifact.KindEvaluation ||
@@ -114,30 +105,20 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 			t.Fatalf("publication failure lost report or claimed completion: %+v, %v", result, err)
 		}
 		retained := result.Report
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 		database, err = overgodb.Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		store = &publicationFaultStore{Store: database}
 		campaign, err = newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err = campaign.Evaluate(ctx, suite)
 		if result.Report != retained || runtime.generateCalls != len(exactFixture().Cases) {
 			t.Fatalf("restart reacquired completed generation: report=%s, calls=%d", result.Report, runtime.generateCalls)
 		}
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidence, err := RequireEvaluationEvidence(ctx, store, result.Evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wall, wallObserved := result.Resources.Measure(runrecord.ResourceWallNS)
 	_, gpuObserved := result.Resources.Measure(runrecord.ResourceGPUNS)
 	if !wallObserved || wall == 0 || gpuObserved ||
@@ -154,9 +135,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 			t.Fatal("resident evaluation claimed isolated resources")
 		}
 		run, err := runrecord.RequireRun(ctx, store, result.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		observationID, found, err := artifact.ResolveAlias(ctx, store, runrecord.ObservationChunkAlias(run.ID))
 		if err != nil || !found {
 			t.Fatalf("resident observation absent: %v", err)
@@ -166,18 +145,14 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 			t.Fatalf("resident observation differs: %+v, %v", observation, err)
 		}
 		record, err := runrecord.NewEvaluation(identity.Recipe, run.ID, suite.plan.Dataset(), result.Metrics)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := newEvaluationEvidence(ctx, store, suite.plan, suite.acceptance, suite.evaluator,
 			result.Report, run, record, &observation); err == nil {
 			t.Fatal("resident observation accepted as isolated proof")
 		}
 	}
 	history, err := campaign.History(ctx, []CompiledSuite{suite}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runtime.generateCalls != len(exactFixture().Cases) || len(history) != 1 {
 		t.Fatalf("runtime calls/history = %d/%d", runtime.generateCalls, len(history))
 	}

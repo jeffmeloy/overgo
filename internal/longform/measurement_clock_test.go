@@ -9,6 +9,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -16,18 +17,12 @@ import (
 func TestGenerationMeasurementClock(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 16)
 	program, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	before, err := processmeasure.Counter()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generated, err := Run(t.Context(), runner, []tokenizer.TokenID{1, 4}, 3, GuardContinuation)
 	after, clockErr := processmeasure.Counter()
 	if err != nil || clockErr != nil {

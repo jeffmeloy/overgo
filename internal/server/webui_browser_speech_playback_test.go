@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -59,9 +60,7 @@ func TestWebUIBrowserSpeechPlayback(t *testing.T) {
 					Scheduled float64 `json:"scheduled"`
 					Buffers   int     `json:"buffers"`
 				}
-				if err := browser.Evaluate(ctx, `({first:audioProbe.starts[0].scheduled-audioProbe.submitted,scheduled:audioProbe.starts.at(-1).scheduled-audioProbe.submitted,buffers:audioProbe.maxLive})`, &measurement); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, browser.Evaluate(ctx, `({first:audioProbe.starts[0].scheduled-audioProbe.submitted,scheduled:audioProbe.starts.at(-1).scheduled-audioProbe.submitted,buffers:audioProbe.maxLive})`, &measurement))
 				t.Logf("fixture first scheduled audio %.3fms, final buffer scheduled %.3fms, peak scheduled buffers %d; generator intentionally held after first chunk, no model throughput claim", measurement.First, measurement.Scheduled, measurement.Buffers)
 				say(t, ctx, browser, "Read the complete fixture.")
 				settle(`audioProbe.closes===2 && document.querySelectorAll('.audio-result').length===2`)

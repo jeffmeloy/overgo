@@ -13,6 +13,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensorstats"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -113,20 +114,14 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	publish := func(request InstructionAcceptanceRequest) (InstructionAcceptance, runrecord.SplitPartition) {
 		t.Helper()
 		acceptance, batch, err := BuildInstructionAcceptance(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
 		content, _, err := artifact.ReadContent(ctx, store, acceptance.Split)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		partition, err := runrecord.ParseSplitPartition(content.Data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return acceptance, partition
 	}
 	acceptance, partition := publish(request)
@@ -200,13 +195,9 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	charged := func(acceptance InstructionAcceptance, partition runrecord.SplitPartition) int {
 		t.Helper()
 		granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return len(charges)
 	}
 	readings := 0
@@ -233,42 +224,28 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	stray, err := dataset.SplitOf(objective.Dataset, request.Seed, []dataset.PartitionRecords{
 		{Name: "development", Records: []dataset.Record{promoted}}, {Name: "rest", Records: []dataset.Record{developed}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := stray.PublicationBatch("instruction-fixture/stray", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	development := stray.Memberships[slices.IndexFunc(stray.Memberships, func(membership dataset.Membership) bool { return membership.Partition == "development" })]
 	leaking, err := runrecord.NewSplitPartition(objective.Dataset, development.ID, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	leaked := acceptance
 	leaked.Split, leaked.ID = leaking.ID, artifact.ID{}
 	part, err := leaking.Batch("instruction-fixture/leaking")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Contents, batch.Lineage = append(batch.Contents, part.Contents...), append(batch.Lineage, part.Lineage...)
 	for name, tampered := range map[string]*InstructionAcceptance{"miscounted": &miscounted, "leaked": &leaked} {
 		if *tampered, err = instructionAcceptanceCodec.NewInitial(*tampered); err != nil {
 			t.Fatal(err)
 		}
 		part, err := instructionAcceptanceCodec.Batch("instruction-fixture/"+name, *tampered, artifact.DependencyLineage(tampered.ID, tampered.Split), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Each is published with the grant an acceptance has, so that it is its own fault it is refused for.
 		granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(tampered.Comparisons)), tampered.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		grant, err := granted.Batch("instruction-fixture/" + name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Contents, batch.Lineage = append(append(batch.Contents, part.Contents...), grant.Contents...), append(append(batch.Lineage, part.Lineage...), grant.Lineage...)
 	}
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
@@ -302,9 +279,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	var gain PoolConfirmation
 	var left uint64
 	issued, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contested := &overtaken{Repository: store, grant: issued.ID}
 	contested.between = func() {
 		contested.between = nil
@@ -350,9 +325,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	// what else the prompts have answered. The first counted one left; it reads
 	// again, finds none, and is refused unread (oneDecision).
 	replacement, err := runrecord.NewBudget(poolUnit, same.Promotion, uint64(len(second.Comparisons)), second.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	skewed := &overtaken{Repository: store, grant: replacement.ID, skip: 1}
 	skewed.between = func() {
 		skewed.between = nil
@@ -372,9 +345,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	stood := map[string]bool{}
 	for _, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
 		membership, _, err := dataset.LoadMembership(ctx, store, shard)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, record := range membership.Records {
 			stood[record.ID] = true
 		}

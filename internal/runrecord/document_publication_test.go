@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,13 +16,9 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 	split := testutil.ArtifactBytesID(t, artifact.KindDatasetShard, []byte("publication-split"))
 	authority := testutil.ArtifactBytesID(t, artifact.KindEvidence, []byte("publication-authority"))
 	budget, err := NewBudget("queries", split, 16, authority)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := budget.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.ID != budget.ID {
 		t.Fatalf("content identity %s differs from document %s", content.Descriptor.ID, budget.ID)
 	}

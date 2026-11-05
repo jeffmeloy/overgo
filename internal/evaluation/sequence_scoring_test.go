@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 // TestSequenceScoringPerplexity pins the held-out-corpus suite: each
@@ -24,9 +25,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 			{Name: "seq-2", Group: "mrna_evo2", Text: "TTGGCCAA"},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
@@ -34,13 +33,9 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
 	plan, err := bindSequenceScoring(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 
@@ -50,9 +45,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 		{LogProbability: -4, Tokens: 4}, {LogProbability: -8, Tokens: 4},
 	}}
 	report, err := evaluateSequenceScoring(t.Context(), store, scorer, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.TokensScored != 8 || math.Abs(report.MeanNLLPerToken-1.5) > 1e-12 ||
 		math.Abs(report.Perplexity-math.Exp(1.5)) > 1e-9 {
 		t.Fatalf("report = %+v", report)

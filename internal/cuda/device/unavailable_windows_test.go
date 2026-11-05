@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func TestUnavailableDeviceAllowsRecovery(t *testing.T) {
@@ -15,13 +16,9 @@ func TestUnavailableDeviceAllowsRecovery(t *testing.T) {
 		return
 	}
 	library, err := driver.Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer library.Close()
-	if err := library.Init(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, library.Init())
 	count, err := library.DeviceCount()
 	if err != nil || count <= 0 {
 		t.Fatal("missing admitted device", count, err)
@@ -52,9 +49,7 @@ func TestUnavailableDeviceAllowsRecovery(t *testing.T) {
 		_ = worker.Close()
 		t.Fatal(err)
 	}
-	if err := worker.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, worker.Close())
 	if stats := owner.MemoryStats(); stats.CurrentBytes != 0 {
 		t.Fatal("recovered device retained allocation", stats.CurrentBytes)
 	}

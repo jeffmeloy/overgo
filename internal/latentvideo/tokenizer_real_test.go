@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRealTokenizerParity: real umt5-format tokenizer ids vs the reference
@@ -13,9 +15,7 @@ import (
 func TestRealTokenizerParity(t *testing.T) {
 	modelDir := wanModelDir(t)
 	tok, err := loadFixedUnigramTokenizer(filepath.Join(modelDir, "google", "umt5-xxl"), 16)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cases := []struct {
 		text string
 		ids  []int
@@ -39,9 +39,7 @@ func TestRealTokenizerParity(t *testing.T) {
 	}
 	for _, tc := range cases {
 		ids, mask, err := tok.EncodeWithMask(tc.text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !reflect.DeepEqual(ids, tc.ids) || !reflect.DeepEqual(mask, tc.mask) {
 			t.Fatalf("%q ids=%v mask=%v", tc.text, ids, mask)
 		}

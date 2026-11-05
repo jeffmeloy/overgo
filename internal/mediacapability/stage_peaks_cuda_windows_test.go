@@ -28,6 +28,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -59,29 +60,19 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	cudatest.RequireProbe(t)
 	root := testutil.RepoRoot(t)
 	commit, err := gitauthority.Query(t.Context(), root, "rev-parse", "HEAD")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	library, err := driver.Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer library.Close()
-	if err := library.Init(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, library.Init())
 	device, err := library.DeviceInfo(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record := stagePeaksRecord{Commit: strings.TrimSpace(string(commit)), Device: device.Name, Protocol: stagePeaksProtocol}
 	// read serves one request under a ledger that reads the device, and keeps what each part held.
 	read := func(family, label string, request any, served servedPictures, service capabilityruntime.Executor) {
 		t.Helper()
 		raw, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ctx, stages := processmeasure.WithDeviceStages(capabilityruntime.FreshRun(t.Context()), driver.StagePeakBytes, driver.ResetStagePeakBytes)
 		clock := processmeasure.NewStopwatch()
 		whole := processmeasure.Stage(ctx, wholeRequest)
@@ -109,9 +100,7 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	// closed gives back a family's sessions before the next family loads.
 	closed := func(director interface{ Close(context.Context) error }) {
 		t.Helper()
-		if err := director.Close(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, director.Close(t.Context()))
 	}
 
 	krea, pictures := servePictures(t, "krea-stage-peaks"), pictureService(t)
@@ -134,14 +123,10 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	closed(clips)
 
 	width, height, err := latentvideo.EditSourceSize(modeltest.Directory(t, "LiveEdit"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	edits := serveEdits(t, "liveedit-stage-peaks", stripedClip(stagePeaksClipFrames, height, width))
 	editor, err := editSessions()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	read("liveedit", "81 frames", latentvideo.ReferenceEditRequest{Prompt: stagePeaksEdit, Seed: 1, SourceArtifact: edits.clip},
 		servedPictures{store: edits.store, directory: edits.directory, execution: edits.execution}, editExecutor(editor, nil))
 	closed(editor)
@@ -149,9 +134,7 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	read("wan-vae", "round trip", latentvideo.ReconstructionRequest{Image: roundTripFrame(t)}, servedReconstruction(t, directory), Catalog[recipe.TaskReconstruction].Execute)
 
-	if err := jsonfile.Write(filepath.Join(root, stagePeaksRecordPath), record, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(root, stagePeaksRecordPath), record, 0o644))
 }
 
 // servedClips is a store a clip by the installed Wan model is served from: the model's artifact and its profile.
@@ -162,26 +145,16 @@ func servedClips(t *testing.T) servedPictures {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-stage-peaks")
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	publishArtifactExtent(t, store, modelID, wan)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/wan-stage-peaks", Contents: []artifact.Content{profileContent}}); err != nil {
@@ -194,9 +167,7 @@ func servedClips(t *testing.T) servedPictures {
 func wanService(t *testing.T) *wanDirector {
 	t.Helper()
 	director, err := wanSessions()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := director.Close(context.Background()); err != nil {
 			t.Error(err)
@@ -214,8 +185,6 @@ func roundTripFrame(t *testing.T) []byte {
 		t.Fatalf("the reference round trip is absent (%v); write it with %s", err, videoAutoencoderScript)
 	}
 	frame, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(reference.Picture.File)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return frame
 }

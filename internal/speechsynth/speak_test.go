@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 	"slices"
 	"strings"
 	"testing"
@@ -36,9 +37,7 @@ func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 	synth := loadArtifactSynthesizer(t)
 	request := DocumentRequest{Text: speakOrderText, Voice: "alba", Seed: 7, Temperature: speakOrderTemperature}
 	plan, err := synth.PlanDocument(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(plan.Segments) < 2 {
 		t.Fatalf("the text is planned as %d segments, and an order needs two", len(plan.Segments))
 	}
@@ -76,9 +75,7 @@ func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 		emitted = append(emitted, chunk.Samples...)
 		return nil
 	}), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !whole.Complete || !slices.Equal(whole.PCM, want) {
 		same := 0
 		for same < min(len(whole.PCM), len(want)) && whole.PCM[same] == want[same] {

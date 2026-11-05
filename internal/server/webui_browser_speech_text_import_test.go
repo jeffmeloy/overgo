@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
@@ -15,9 +16,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "graphical speech form probe")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &speechSurfaceGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-surface"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
@@ -32,9 +31,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -155,9 +152,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle(`document.body.textContent.includes('speech fixture stopped before synthesis')&&textInput.value==='Send the complete edited text. An edit.'`)
 	check(`importRequest.sources.length===1&&importRequest.sources[0]===sourceID&&importRequest.input.text==='Send the complete edited text. An edit.'&&overgo.errors.length===0`)
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	settle(`document.querySelector('.composer textarea')?.value==='Send the complete edited text. An edit.'&&[...document.querySelectorAll('.attachment-row button')].some(button=>button.textContent==='Reload stored file')`)
 	check(`(()=>{const button=[...document.querySelectorAll('.attachment-row button')].find(button=>button.textContent==='Reload stored file');button.focus();return true;})()`)
 	pressKey(t, ctx, browser, "Enter", 13)

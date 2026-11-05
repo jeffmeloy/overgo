@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/hfrepo"
+	"overgo/internal/testcheck"
 )
 
 func TestDownloadReceipt(t *testing.T) {
@@ -35,30 +36,20 @@ func TestDownloadReceipt(t *testing.T) {
 	destination := filepath.Join(root, "model")
 	output := filepath.Join(root, "source.json")
 	args := []string{"download", "-provider", "modelscope", "-endpoint", hub.URL, "-revision", revision, "-dest", destination, "-receipt", output, "openmoss/tiny"}
-	if err := runArguments(t.Context(), args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArguments(t.Context(), args))
 	data, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var receipt hfrepo.SourceReceipt
-	if err := json.Unmarshal(data, &receipt); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &receipt))
 	if receipt.Source != hub.URL+"/openmoss/tiny.git" || receipt.Revision != revision || len(receipt.Files) != 1 {
 		t.Fatalf("wrong source receipt: %+v", receipt)
 	}
 	if _, err := receipt.Verify(t.Context(), destination); err != nil {
 		t.Fatal(err)
 	}
-	if err := runArguments(t.Context(), args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArguments(t.Context(), args))
 	repeat, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(data, repeat) || transfers != 1 {
 		t.Fatalf("repeat changed receipt or redownloaded verified bytes: transfers=%d", transfers)
 	}

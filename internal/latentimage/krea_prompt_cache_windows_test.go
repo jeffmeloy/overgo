@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestAKreaPromptMetAgainPlacesNoTextEncoder: a Krea session given back a prompt it has drawn keeps that prompt's text
@@ -20,9 +21,7 @@ func TestAKreaPromptMetAgainPlacesNoTextEncoder(t *testing.T) {
 	other := first
 	other.Prompt = "a lighthouse on a cliff at dusk"
 	generator, err := LoadGenerator(ctx, kreaDirOrSkip(t), kreaProfileOrSkip(t), first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := generator.Close(ctx); err != nil {
 			t.Errorf("close: %v", err)
@@ -33,18 +32,12 @@ func TestAKreaPromptMetAgainPlacesNoTextEncoder(t *testing.T) {
 	copied := func(request Request) (uint64, time.Duration) {
 		t.Helper()
 		before, err := generator.pipeline.runtime.Stats(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		started := time.Now()
-		if err := generator.Reset(ctx, request); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, generator.Reset(ctx, request))
 		wall := time.Since(started)
 		after, err := generator.pipeline.runtime.Stats(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return after.Execution.HostToDeviceBytes - before.Execution.HostToDeviceBytes, wall
 	}
 	encoded, encodedWall := copied(other)

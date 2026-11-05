@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // servedTemplates are the chat templates the served models ship, as the
@@ -23,9 +25,7 @@ var testLimits = Limits{Steps: 200_000, Bytes: 4 << 20}
 func servedContexts(t testing.TB) []map[string]any {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(servedTemplates, "conversations.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var battery struct {
 		BOS           string                     `json:"bos_token"`
 		EOS           string                     `json:"eos_token"`
@@ -43,9 +43,7 @@ func servedContexts(t testing.TB) []map[string]any {
 	var contexts []map[string]any
 	for _, conversation := range battery.Conversations {
 		messages, err := DecodeJSON(conversation.Messages)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		context := map[string]any{
 			"bos_token": battery.BOS, "eos_token": battery.EOS, "messages": messages,
 			"add_generation_prompt": conversation.AddGenerationPrompt, "enable_thinking": conversation.EnableThinking,
@@ -53,9 +51,7 @@ func servedContexts(t testing.TB) []map[string]any {
 		var tools []any
 		for _, name := range conversation.Tools {
 			tool, err := DecodeJSON(battery.Tools[name])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			tools = append(tools, tool)
 		}
 		if tools != nil {
@@ -76,9 +72,7 @@ func servedSources(t testing.TB) map[string]string {
 	sources := map[string]string{}
 	for _, path := range paths {
 		source, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sources[filepath.Base(path)] = string(source)
 	}
 	return sources
@@ -239,9 +233,7 @@ func TestJSONIsChargedBeforeItIsBuilt(t *testing.T) {
 	value := map[string]any{"kéy": []any{"a\"b\\c\n\x01", "\U0001F600", 1.5, true, None, []any{}, map[string]any{}, []any{[]any{2}}}}
 	for _, kwargs := range []map[string]any{{}, {"indent": 3}, {"indent": "\t"}, {"ensure_ascii": true, "indent": 1}, {"sort_keys": true, "separators": []any{";", "="}}} {
 		bytes, write, err := planJSON(value, nil, kwargs)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if text := write().(string); len(text) != bytes || bytes == 0 {
 			t.Errorf("tojson with %v counted %d bytes and wrote %d: %s", kwargs, bytes, len(text), text)
 		}

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,23 +38,17 @@ func TestExactFailureRetention(t *testing.T) {
 			second.Name, second.Prompt = "second", "second prompt"
 			suite.Cases = append(suite.Cases, second)
 			exact, err := CompileExact(suite)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			_, base := ledgerFixture(t, "retained-failure")
 			plan, err := BindExact(exact, ExactAuthorities{
 				ModelDefinition: base.body.ModelDefinition, RuntimeRecipe: base.body.RuntimeRecipe,
 				CodeCommit: base.body.CodeCommit, Environment: base.body.Environment,
 				Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			root := t.TempDir()
 			store, err := overgodb.Create(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() { store.Close() }()
 			publishPlanFixtureAuthorities(t, store, plan)
 			generator := &countingExactGenerator{results: map[string]exactGenerator{
@@ -87,13 +82,9 @@ func TestExactFailureRetention(t *testing.T) {
 				}
 			}
 			shards, err := compileExactShards(exact, plan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			stored, err := loadShardReports(t.Context(), store, plan, shards)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			failed, ok := stored[0]
 			if !ok || failed.Observations[0].Passed || failed.Observations[0].Failure == "" || failed.Metrics[0].Sum != 0 || failed.Metrics[0].Count != 1 {
 				t.Fatalf("failed acquisition not retained: %+v", stored)
@@ -102,13 +93,9 @@ func TestExactFailureRetention(t *testing.T) {
 				t.Fatalf("unfinished case cached: %+v", stored)
 			}
 			calls := generator.calls
-			if err := store.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, store.Close())
 			store, err = overgodb.Create(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			delete(generator.results, second.Prompt)
 			resumed, err := EvaluateExactSharded(t.Context(), store, generator, exact, plan, nil)
 			if !resumed.Valid() || !errors.Is(err, errExactMismatch) {
@@ -119,9 +106,7 @@ func TestExactFailureRetention(t *testing.T) {
 				t.Fatalf("repeated acquisition: calls=%d want=%d", generator.calls, calls+missing)
 			}
 			stored, err = loadShardReports(t.Context(), store, plan, shards)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(stored) != len(shards) || !stored[1].Observations[0].Passed {
 				t.Fatalf("independent case did not finish: %+v", stored)
 			}
@@ -141,20 +126,14 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 
 	t.Run("resume", func(t *testing.T) {
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		publishPlanFixtureAuthorities(t, store, plan)
 		generator := &countingExactGenerator{}
 		first, err := EvaluateExactSharded(ctx, store, generator, exact, plan, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		second, err := EvaluateExactSharded(ctx, store, generator, exact, plan, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if first != second || generator.calls != len(exact.suite.Cases) {
 			t.Fatalf("resume report/calls = %s/%s/%d", first, second, generator.calls)
 		}
@@ -170,14 +149,10 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 
 	t.Run("partial", func(t *testing.T) {
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		shards, err := compileExactShards(exact, plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		missing := planID(t, artifact.KindEvaluation, "missing-report")
 		alias := shardAlias(plan.identity, shards[0].ID)
 		if _, err := store.Commit(ctx, artifact.Batch{
@@ -194,14 +169,10 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 
 	t.Run("foreign", func(t *testing.T) {
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		shards, err := compileExactShards(exact, plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, foreignPlan := ledgerFixture(t, "foreign-environment")
 		foreignShard := shards[0]
 		foreignShard.Plan = foreignPlan.identity
@@ -212,13 +183,9 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 			[]caseObservation{{Case: foreignShard.Cases[0], Output: foreignOutput, Passed: true}},
 			[]metricState{{Name: exactMetricName, Sum: 1, Count: 1}},
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := shardReportContract.ContentJSON(foreignReport.ID, foreignReport)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		alias := shardAlias(plan.identity, shards[0].ID)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key: alias, Contents: []artifact.Content{content},
@@ -236,9 +203,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 func ledgerFixture(t testing.TB, environment string) (ExactPlan, Plan) {
 	t.Helper()
 	exact, err := CompileExact(exactFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
@@ -246,8 +211,6 @@ func ledgerFixture(t testing.TB, environment string) (ExactPlan, Plan) {
 		Environment:     planID(t, artifact.KindEvidence, environment),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleIsolated},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return exact, plan
 }

@@ -3,6 +3,8 @@ package seriesforecast
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestForecastLossMatchesReference pins the objective and its analytic
@@ -37,9 +39,7 @@ func TestForecastLossMatchesReference(t *testing.T) {
 	forecast := flatten(g.Cases[ref.Case].Forecast)
 	quantiles := 1 + len(g.Quantiles)
 	mse, quant, total, grad, err := ForecastLoss(forecast, ref.Target, g.Quantiles, g.Horizon, quantiles)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Loss terms: pure f64 reductions; only f32 input rounding differs.
 	const lossTol = 1e-5
 	if math.Abs(mse-ref.MSE) > lossTol || math.Abs(quant-ref.Quant) > lossTol || math.Abs(total-ref.Total) > lossTol {

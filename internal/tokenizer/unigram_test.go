@@ -1,6 +1,10 @@
 package tokenizer
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestUnigramDecodeRestoresTextAndBytes(t *testing.T) {
 	table, err := NewUnigram([]UnigramPiece{
@@ -11,9 +15,7 @@ func TestUnigramDecodeRestoresTextAndBytes(t *testing.T) {
 		{Piece: "<0x82>"},
 		{Piece: "<0xAC>"},
 	}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := table.Decode([]int{1, 2, 3, 4, 5}); got != "hello world€" {
 		t.Fatalf("decoded text = %q", got)
 	}

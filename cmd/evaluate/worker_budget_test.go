@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWorkerBudgetBoundsThePass(t *testing.T) {
@@ -23,9 +25,7 @@ func TestWorkerBudgetBoundsThePass(t *testing.T) {
 		t.Fatalf("pass failure returned %v, want %v", err, failure)
 	}
 	// A pass that completes inside the budget completes.
-	if err := runBudgetedPass(t.Context(), time.Hour, "model.gguf", func(context.Context) error { return nil }); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runBudgetedPass(t.Context(), time.Hour, "model.gguf", func(context.Context) error { return nil }))
 	if err := runBudgetedPass(t.Context(), 0, "model.gguf", func(context.Context) error { return nil }); err == nil {
 		t.Fatal("a zero budget was accepted")
 	}

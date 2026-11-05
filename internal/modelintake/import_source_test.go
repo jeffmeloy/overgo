@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestComponentImportSourceBinding(t *testing.T) {
@@ -16,22 +17,14 @@ func TestComponentImportSourceBinding(t *testing.T) {
 		t.Run(problem, func(t *testing.T) {
 			root := importFixture(t)
 			inspection, err := InspectImport(t.Context(), root, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			path := filepath.Join(root, "model.safetensors")
 			original, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			info, err := os.Stat(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			before, sequence := store.Head()
 			ctx := t.Context()
@@ -41,16 +34,10 @@ func TestComponentImportSourceBinding(t *testing.T) {
 			case "same-size-corruption":
 				changed := append([]byte(nil), original...)
 				changed[len(changed)-1] ^= 1
-				if err := os.WriteFile(path, changed, 0600); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(path, changed, 0600))
+				testcheck.NoError(t, os.Chtimes(path, info.ModTime(), info.ModTime()))
 			case "missing-file":
-				if err := os.Remove(path); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.Remove(path))
 			case "missing-location":
 				inspection.Inventory.Locations = nil
 			case "cancelled":
@@ -67,17 +54,13 @@ func TestComponentImportSourceBinding(t *testing.T) {
 			if before != after || sequence != afterSequence {
 				t.Fatal("failed import changed the catalog")
 			}
-			if err := os.WriteFile(path, original, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, original, 0600))
 			inspection.Inventory.Locations = locations
 			if err := RegisterImport(t.Context(), store, inspection); err != nil {
 				t.Fatalf("valid retry: %v", err)
 			}
 			before, sequence = store.Head()
-			if err := RegisterImport(t.Context(), store, inspection); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, RegisterImport(t.Context(), store, inspection))
 			after, afterSequence = store.Head()
 			if before != after || sequence != afterSequence {
 				t.Fatal("successful retry changed published facts")
@@ -86,36 +69,22 @@ func TestComponentImportSourceBinding(t *testing.T) {
 	}
 	t.Run("existing-source-provenance", func(t *testing.T) {
 		root := t.TempDir()
-		if err := os.CopyFS(filepath.Join(root, "encoder"), os.DirFS(importFixture(t))); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "model_index.json"), []byte(`{"_class_name":"Fixture","encoder":["upstream","LlamaForCausalLM"]}`), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.CopyFS(filepath.Join(root, "encoder"), os.DirFS(importFixture(t))))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "model_index.json"), []byte(`{"_class_name":"Fixture","encoder":["upstream","LlamaForCausalLM"]}`), 0600))
 		code := []byte("# retained upstream source\n")
-		if err := os.WriteFile(filepath.Join(root, "upstream.py"), code, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "upstream.py"), code, 0600))
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		id, err := artifact.IdentifyBytes(artifact.KindFile, code)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		original := artifact.Descriptor{ID: id, Size: uint64(len(code)), MediaType: "text/plain"}
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "upstream-source", Artifacts: []artifact.Descriptor{original}}); err != nil {
 			t.Fatal(err)
 		}
 		inspection, err := InspectImport(t.Context(), root, "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := RegisterImport(t.Context(), store, inspection); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, RegisterImport(t.Context(), store, inspection))
 		retained, found, err := store.Artifact(t.Context(), id)
 		if err != nil || !found || retained != original {
 			t.Fatalf("source provenance changed: %+v %v", retained, err)

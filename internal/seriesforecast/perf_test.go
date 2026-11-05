@@ -3,6 +3,7 @@
 package seriesforecast
 
 import (
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"slices"
 	"testing"
@@ -22,9 +23,7 @@ func TestForecastWallDecomposition(t *testing.T) {
 
 	loadStart := time.Now()
 	model, err := Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loadWall := time.Since(loadStart)
 
 	const repeats = 9

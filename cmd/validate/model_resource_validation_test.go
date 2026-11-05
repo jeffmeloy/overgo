@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"slices"
 	"strings"
 	"testing"
@@ -213,13 +214,9 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 							}
 						}
 						observation, err := runrecord.NewServingObservation(value)
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						content, err := observation.Content()
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						batch.Contents = append(batch.Contents, content)
 						batch.Lineage = append(batch.Lineage, observation.Lineage()...)
 						id := observation.ID
@@ -234,9 +231,7 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 							input = digest("different request")
 						}
 						evidence, err := json.Marshal(map[string]any{"observation": id, "input_sha256": input, "prompt_sha256": digest("prompt/" + mode), "output_sha256": digest("output/" + mode), "mode": mode, "reload": reload, "cycle": cycle, "action": action})
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						if target && fault == "omitted mode" {
 							continue
 						}
@@ -251,13 +246,9 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 			steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-release-%d", reload), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1, Evidence: release})
 		}
 		record, err := runrecord.NewGateRecord(projection, environment, base.CodeCommit, runrecord.OutcomeSucceeded, "", uint64(len(steps)), steps)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		documents, err := record.Batch("fixture/media-resource/" + record.Result.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Key = documents.Key
 		batch.Contents = append(batch.Contents, documents.Contents...)
 		batch.Lineage = append(batch.Lineage, documents.Lineage...)
@@ -290,9 +281,7 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 		names = append(names, cell.Name)
 	}
 	before, sequence := store.Head()
-	if err := checkModelValidation(t.Context(), store, good, names); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkModelValidation(t.Context(), store, good, names))
 	if after, n := store.Head(); after != before || n != sequence {
 		t.Fatal("resource acceptance mutated store")
 	}

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func derivationResolvedDefinition(t *testing.T, name string) ResolvedModelDefini
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
 	profileDocument, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		testutil.ArtifactID(t, artifact.KindModel, name), modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{
@@ -47,13 +46,9 @@ func derivationResolvedDefinition(t *testing.T, name string) ResolvedModelDefini
 			Storage: "f32", Bytes: definitionTensorBytes,
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := NewModelDefinitionDocument(profileDocument, tensors, definitionSpec())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return ResolvedModelDefinition{
 		Document: document, Profile: profileDocument, Tensors: tensors, Spec: definitionSpec(),
 	}
@@ -68,9 +63,7 @@ func TestPrototypeRecipeDerivation(t *testing.T) {
 		resolved, recipe.PlacementHybrid, recipe.SessionCapacity, recipe.ResidencyHybridNative,
 		[]recipe.Task{recipe.TaskForecast},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(candidates) != 2 {
 		t.Fatalf("candidate set = %d recipes", len(candidates))
 	}

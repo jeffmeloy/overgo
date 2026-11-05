@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 )
 
 // TestAServedModelDraftsOnlyWhereDraftingIsFaster: a runner opened as a served model is (OpenOptions.JudgeOwnDrafts)
@@ -20,9 +21,7 @@ func TestAServedModelDraftsOnlyWhereDraftingIsFaster(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, test := range []struct {
 		name   string
 		drafts bool
@@ -32,9 +31,7 @@ func TestAServedModelDraftsOnlyWhereDraftingIsFaster(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			runner, err := openNativeFixtureRunner(modeltest.Directory(t, test.name), OpenOptions{JudgeOwnDrafts: true})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer runner.Close()
 			if runner.SpeculatesByDefault() != test.drafts {
 				t.Fatalf("judged at open, %s drafts by default %t, want %t", test.name, runner.SpeculatesByDefault(), test.drafts)
@@ -46,15 +43,11 @@ func TestAServedModelDraftsOnlyWhereDraftingIsFaster(t *testing.T) {
 			}
 			const prompt = "Explain, step by step, why the sum of the first n odd numbers is n squared."
 			speculated, _, err := runner.Generate(t.Context(), prompt, asked)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			plain := asked
 			plain.SpeculativeDecode, plain.PlainDecode, plain.OnDraftSpan = false, true, nil
 			decoded, _, err := runner.Generate(t.Context(), prompt, plain)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if drafted == 0 || !slices.Equal(speculated, decoded) {
 				t.Fatalf("a request that asks to speculate drafted %d tokens and emits %v, the plain decode %v", drafted, speculated, decoded)
 			}

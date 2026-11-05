@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestHostDependencySourceSelection(t *testing.T) {
@@ -20,17 +22,11 @@ func TestHostDependencySourceSelection(t *testing.T) {
 		"foreign/foreign.go":    "package foreign\nfunc Value() {}\n",
 	} {
 		path := filepath.Join(root, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
+		testcheck.NoError(t, os.WriteFile(path, []byte(body), 0600))
 	}
 	selected, err := HostBuildSelection(root, "-deps", "-test", "./client")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(selected.Files) != 3 || !selected.Files["reader/reader.go"] || !selected.Files["client/client.go"] || !selected.Files["client/client_test.go"] {
 		t.Fatalf("dependency selection includes foreign tests, inactive sources or generated drivers: %+v", selected)
 	}
@@ -45,9 +41,7 @@ func TestHostDependencySourceSelection(t *testing.T) {
 	if err != nil || !legacy.Files["reader/reader_test.go"] {
 		t.Fatalf("AST census lost test membership: %+v, %v", legacy, err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "client/client.go"), []byte("package client\nimport _ \"example/missing\"\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "client/client.go"), []byte("package client\nimport _ \"example/missing\"\n"), 0600))
 	if _, err := HostBuildSelection(root, "-deps", "./client"); err == nil || !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("unresolved dependency accepted or unexplained: %v", err)
 	}

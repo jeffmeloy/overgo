@@ -10,6 +10,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestAlignVocabularyProjection(t *testing.T) {
@@ -26,13 +27,9 @@ func TestAlignVocabularyProjection(t *testing.T) {
 		Role: representation.AuthorityTokenizer, Artifact: vocabulary,
 	}}
 	encodedTarget, err := json.Marshal(target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	target, err = representation.ParseContract(encodedTarget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetContent = encodedTarget
 	head := bridgeTestID(t, artifact.KindTensorSet, "align-head")
 	embedding := bridgeTestID(t, artifact.KindTensorSet, "target-embedding")
@@ -42,9 +39,7 @@ func TestAlignVocabularyProjection(t *testing.T) {
 		VocabularySize: 4, VocabularyLimit: 4, EmbeddingMode: EmbeddingUntied, Bias: true,
 	}
 	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(2, 2))
 	vocabularyHead := builder.Input("vocabulary-head", dtype.F32, tensor.MustShape(2, 4))
@@ -53,9 +48,7 @@ func TestAlignVocabularyProjection(t *testing.T) {
 	output, err := program.Build(builder, input, Weights{
 		First: vocabularyHead, FirstBias: vocabularyBias, Embedding: targetEmbedding,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ops := make([]tensor.Op, 0, len(builder.Nodes()))
 	for _, node := range builder.Nodes() {
 		ops = append(ops, node.Op)
@@ -73,9 +66,7 @@ func TestAlignVocabularyProjection(t *testing.T) {
 			3, 3, 3, 3,
 		}),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(values[output].Data, []float32{1, 2, 3, 1, 2, 3}) {
 		t.Fatalf("embedding-basis output=%v", values[output].Data)
 	}
@@ -100,8 +91,6 @@ func TestAlignVocabularyProjection(t *testing.T) {
 func inferenceValue(t *testing.T, shape tensor.Shape, data []float32) reference.Value {
 	t.Helper()
 	value, err := reference.NewValue(shape, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }

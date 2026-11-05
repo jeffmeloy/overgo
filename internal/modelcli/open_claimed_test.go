@@ -17,6 +17,7 @@ import (
 	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -58,9 +59,7 @@ func writeServingFixture(t *testing.T, path string, seed int) {
 		testutil.GGUFTensorF32("blk.0.ffn_up.weight", []uint64{width, ffn}, seed+11),
 		testutil.GGUFTensorF32("blk.0.ffn_down.weight", []uint64{ffn, width}, seed+12),
 	}
-	if err := gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.WriteFileExclusive(path, metadata, tensors, gguf.WriteOptions{}))
 }
 
 // capturedStderr runs open with the process's standard error redirected and
@@ -68,20 +67,14 @@ func writeServingFixture(t *testing.T, path string, seed int) {
 func capturedStderr(t *testing.T, open func()) string {
 	t.Helper()
 	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	original := os.Stderr
 	os.Stderr = writer
 	open()
 	os.Stderr = original
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.Close())
 	text, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(text)
 }
 
@@ -102,44 +95,30 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 
 	ctx := t.Context()
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, published := range []string{path, rewritten} {
 		err := servingtest.PublishActiveGGUFWithPolicy(
 			ctx, store, published, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	identityOf := func(file string) artifact.ID {
 		inventory, err := modelartifact.FromGGUFPath(file)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return inventory.Manifest.ID
 	}
 	original, replacement := identityOf(path), identityOf(rewritten)
 	canonical, err := pathidentity.Canonical(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memo := discovery.NewMemo()
 	if _, err := discovery.WeightsIdentity(canonical, memo); err != nil {
 		t.Fatal(err)
 	}
-	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, discovery.PublishMemo(ctx, store, memo))
+	testcheck.NoError(t, store.Close())
 	modified, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	open := func(file string) (*inference.Runner, error, string) {
 		var runner *inference.Runner
 		var openErr error
@@ -150,40 +129,26 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 	}
 
 	runner, err, stderr := open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runner.ModelID() != original || stderr != "" {
 		t.Fatalf("true memo: opened %s with stderr %q, want %s and none", runner.ModelID(), stderr, original)
 	}
-	if err := runner.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.Close())
 
 	// The same size and modification time over other bytes: the memo cannot tell.
 	replaceInPlace := func(source string) {
 		data, err := os.ReadFile(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Chtimes(path, modified.ModTime(), modified.ModTime()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
+		testcheck.NoError(t, os.Chtimes(path, modified.ModTime(), modified.ModTime()))
 	}
 	replaceInPlace(rewritten)
 	runner, err, stderr = open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runner.ModelID() != replacement || !strings.Contains(stderr, "remembered identity") {
 		t.Fatalf("stale memo: opened %s with stderr %q, want %s under the fallback notice", runner.ModelID(), stderr, replacement)
 	}
-	if err := runner.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.Close())
 
 	replaceInPlace(unknown)
 	runner, err, _ = open(path)
@@ -204,47 +169,31 @@ func TestAnOpenRemembersTheFileItHashed(t *testing.T) {
 	path, copied := filepath.Join(root, "model.gguf"), filepath.Join(root, "copy.gguf")
 	writeServingFixture(t, path, 0)
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(copied, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(copied, data, 0o600))
 	ctx := t.Context()
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := servingtest.PublishActiveGGUFWithPolicy(
 		ctx, store, path, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	inventory, err := modelartifact.FromGGUFPath(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := OpenRunner(ctx, storeRoot, copied, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runner.ModelID() != inventory.Manifest.ID {
 		t.Fatalf("the copy served as %s, want the registered model %s", runner.ModelID(), inventory.Manifest.ID)
 	}
-	if err := runner.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.Close())
 	if store, err = overgodb.OpenReadOnly(storeRoot); err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	canonical, err := pathidentity.Canonical(copied)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if id, size, claimed := discovery.LoadMemo(ctx, store).Claim(canonical); !claimed || size != uint64(len(data)) || id != inventory.Components[0].ID {
 		t.Fatalf("after its open the memo claims the copy %t as %s of %d bytes, want %s of %d", claimed, id, size, inventory.Components[0].ID, len(data))
 	}

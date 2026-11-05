@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +23,7 @@ func TestDecodedAudioSignalProfileDerivesDurationAndAdmission(t *testing.T) {
 		MaximumClippedFraction: 0.01, MaximumAbsoluteDCOffset: 0.1,
 	}
 	decision, err := policy.Evaluate(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if decision.Outcome != AudioAdmissionAccepted || len(decision.Violations) != 0 {
 		t.Fatalf("decision = %+v", decision)
 	}
@@ -43,9 +42,7 @@ func TestAudioAdmissionQuarantinesEveryMeasuredFailureClass(t *testing.T) {
 		SilenceRMSThreshold: 0.01, MaximumAbsoluteDCOffset: 0.01,
 	}
 	decision, err := policy.Evaluate(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []AudioSignalViolation{AudioViolationDecodeIncomplete, AudioViolationSchemaInvalid}
 	slices.Sort(want)
 	if decision.Outcome != AudioAdmissionQuarantined || !slices.Equal(decision.Violations, want) {
@@ -64,9 +61,7 @@ func TestAudioAdmissionQuarantinesEveryMeasuredFailureClass(t *testing.T) {
 	policy.MinimumDurationNanoseconds = uint64(time.Second)
 	policy.MaximumAbsoluteDCOffset = 0.0005
 	decision, err = policy.Evaluate(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want = []AudioSignalViolation{
 		AudioViolationClipped, AudioViolationDCOffset, AudioViolationDurationBelowMinimum,
 		AudioViolationNonFiniteSamples, AudioViolationSilent,

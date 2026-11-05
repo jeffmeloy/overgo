@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // compactInt is one 32-bit field of a compact-protocol struct: its header,
@@ -60,13 +62,9 @@ func TestPlainIntegerPageAfterADictionaryReadsItsDecimalText(t *testing.T) {
 			chunk = append(chunk, pageHeader(parquetPageData, len(column.data), int64(len(column.want)))...)
 			chunk = append(chunk, column.data...)
 			path := filepath.Join(t.TempDir(), "column.parquet")
-			if err := os.WriteFile(path, append([]byte(parquetMagic), chunk...), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, append([]byte(parquetMagic), chunk...), 0o600))
 			file, err := os.Open(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer file.Close()
 			start := int64(len(parquetMagic))
 			var read []parquetValue

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ import (
 func TestAgentSessionList(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	stray := testutil.ArtifactID(t, artifact.KindEvidence, "not-an-interaction")
@@ -37,16 +36,12 @@ func TestAgentSessionList(t *testing.T) {
 		t.Fatal(err)
 	}
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
 	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
 		if code := serveTestRequest(first, http.MethodPost, "/agents/step", step); code.Code != http.StatusOK {
 			t.Fatalf("step status=%d body=%s", code.Code, code.Body.String())
@@ -60,13 +55,9 @@ func TestAgentSessionList(t *testing.T) {
 		!strings.Contains(body, `"inspected":true`) || strings.Contains(body, `"id":"stray"`) {
 		t.Fatalf("session list status=%d body=%s", list.Code, body)
 	}
-	if err := first.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, first.Close())
 	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restarted.Close()
 	survived := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
 	if survived.Code != http.StatusOK ||
@@ -87,9 +78,7 @@ func TestAgentSessionList(t *testing.T) {
 func TestListingAgentSessionsRestoresNone(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -98,16 +87,12 @@ func TestListingAgentSessionsRestoresNone(t *testing.T) {
 		t.Fatal(err)
 	}
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
 	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer first.Close()
 	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
 		if response := serveTestRequest(first, http.MethodPost, "/agents/step", step); response.Code != http.StatusOK {
@@ -116,9 +101,7 @@ func TestListingAgentSessionsRestoresNone(t *testing.T) {
 	}
 	listed := serveTestRequest(first, http.MethodGet, "/agents/sessions", "")
 	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restarted.Close()
 	again := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
 	if again.Code != http.StatusOK || again.Body.String() != listed.Body.String() {

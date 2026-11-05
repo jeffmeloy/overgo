@@ -11,6 +11,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -52,28 +53,20 @@ func TestCarriedContinuationScoresWhatAMemoryCarried(t *testing.T) {
 		{Name: "sixteen words", Text: "a b c d e f g h i j k l m n o p"},
 	}}
 	compiled, err := compileCarriedContinuation(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindCarriedContinuation(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	var asked []string
 	report, err := evaluateCarriedContinuation(t.Context(), store, wordMemory{&asked}, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A token, the first document loses 4 fresh and 1 carried, the second 8 and
 	// 2: gains of 3 and 6, whose mean is 4.5 and whose standard error is 1.5.
 	near := func(got, want float64) bool { return math.Abs(got-want) < 1e-12 }
@@ -126,9 +119,7 @@ func TestWikiTextDocumentsAreTheStartsOfLongArticles(t *testing.T) {
 		" = Another Long One = \n", long,
 	}
 	built, count, err := BuildWikiTextDocuments(lines)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite := built.(CarriedContinuationSuite)
 	if count != 2 || len(suite.Cases) != 2 || suite.Chunks != carriedChunks || suite.Opening != carriedOpening || suite.Kind != carriedContinuationKind {
 		t.Fatalf("the suite holds %d documents of %d chunks and an opening of %d, want the two long articles", count, suite.Chunks, suite.Opening)

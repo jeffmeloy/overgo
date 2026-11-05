@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact/repositorytest"
+	"overgo/internal/testcheck"
 )
 
 // TestSemanticTransitionUsesOneCommit proves a human-decision
@@ -12,9 +13,7 @@ import (
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	store, request, decision := humanDecisionFixture(t)
 	counting := &repositorytest.CountingRepository{Repository: store}
-	if err := PublishHumanDecision(t.Context(), counting, request, decision); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, PublishHumanDecision(t.Context(), counting, request, decision))
 	if counting.Commits != 1 {
 		t.Fatalf("decision publication used %d commits, want 1", counting.Commits)
 	}

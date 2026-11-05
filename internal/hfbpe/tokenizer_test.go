@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestDecodeStrictRejectsUnknownToken(t *testing.T) {
@@ -24,13 +26,9 @@ func TestDeclaredMetaspaceDecoder(t *testing.T) {
 	for _, scheme := range []string{"always", "first", "never"} {
 		t.Run(scheme, func(t *testing.T) {
 			directory := t.TempDir()
-			if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(strings.ReplaceAll(fixture, "SCHEME", scheme)), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(strings.ReplaceAll(fixture, "SCHEME", scheme)), 0600))
 			tokenizer, err := Load(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			prefix := ""
 			if scheme == "never" {
 				prefix = " "
@@ -47,9 +45,7 @@ func TestDeclaredMetaspaceDecoder(t *testing.T) {
 				for start := 0; start < len(ids); start += size {
 					end := min(start+size, len(ids))
 					part, next, err := tokenizer.DecodeTextChunk(ids[start:end], state, end == len(ids))
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					result.WriteString(part)
 					state = next
 				}
@@ -71,9 +67,7 @@ func TestDeclaredMetaspaceDecoder(t *testing.T) {
 	}
 	for _, change := range []string{"unknown", ""} {
 		directory := t.TempDir()
-		if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(strings.ReplaceAll(fixture, "SCHEME", change)), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(strings.ReplaceAll(fixture, "SCHEME", change)), 0600))
 		if _, err := Load(directory); err == nil {
 			t.Fatal("accepted undefined Metaspace prepend policy")
 		}

@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestSourceSnapshotParseReuse(t *testing.T) {
@@ -13,17 +15,11 @@ func TestSourceSnapshotParseReuse(t *testing.T) {
 	content := []byte("package p\nfunc same(v int) int { return v + 1 }\n")
 	for _, relative := range []string{"a/a.go", "b/b.go"} {
 		path := filepath.Join(root, filepath.FromSlash(relative))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, content, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, content, 0o644))
 	}
 	snapshot, err := DiscoverGo(root, "a", "b")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, _ := snapshot.Files[0].Syntax()
 	second, _ := snapshot.Files[1].Syntax()
 	if len(snapshot.Files) != 2 || first != second || snapshot.Files[0].ContentID != snapshot.Files[1].ContentID {
@@ -39,25 +35,17 @@ func TestSourceSnapshotOverlay(t *testing.T) {
 		"b/b.go": "package b\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	snapshot, err := DiscoverGo(root, "a", "b")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	overlaid, err := snapshot.Overlay(map[string][]byte{
 		"a/a.go":      []byte("package a\nfunc After() {}\n"),
 		"b/b.go":      nil,
 		"c/c_test.go": []byte("package c\nfunc TestAdded() {}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(snapshot.Files) != 2 || len(overlaid.Files) != 2 || overlaid.Files[0].Path != "a/a.go" ||
 		overlaid.Files[1].Path != "c/c_test.go" || !overlaid.Files[1].Test {
 		t.Fatalf("overlay = %+v; original = %+v", overlaid.Files, snapshot.Files)
@@ -76,15 +64,11 @@ func TestSnapshotLinesAndIdentity(t *testing.T) {
 	base, err := (Snapshot{}).Overlay(map[string][]byte{
 		"p/p.go": []byte("package p\nfunc before() {}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidate, err := base.Overlay(map[string][]byte{
 		"p/p.go": []byte("package p\nfunc after() {}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file, err := candidate.Files[0].Syntax()
 	if err != nil || candidate.Files[0].Line(file.Decls[0].Pos()) != 2 {
 		t.Fatalf("declaration line = %d, %v", candidate.Files[0].Line(file.Decls[0].Pos()), err)

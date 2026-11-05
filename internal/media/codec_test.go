@@ -3,17 +3,15 @@ package media
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestExecuteCodecProgram(t *testing.T) {
 	project, err := BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, err := BindCodecWeights(CodecHead, false, []struct{}{{}, {}, {}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	projectOp := NewCodecOperation[struct{}](CodecPointwise, "project", 2, 3)
 	projectOp.Bindings = project
 	headOp := NewCodecOperation[struct{}](CodecHead, "head", 3, 1)
@@ -28,9 +26,7 @@ func TestExecuteCodecProgram(t *testing.T) {
 		current.Channels = operation.OutputChannels
 		return current, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if output.Channels != 1 || !slices.Equal(visited, program.Names()) {
 		t.Fatalf("output=%+v visited=%v program=%v", output, visited, program.Names())
 	}
@@ -44,9 +40,7 @@ func TestExecuteCodecProgram(t *testing.T) {
 
 func TestDownsampledPlanarGeometry(t *testing.T) {
 	channels, height, width, err := DownsampledPlanarGeometry(16, 2048, 1024, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if channels != 16 || height != 256 || width != 128 {
 		t.Fatalf("geometry=[%d,%d,%d]", channels, height, width)
 	}
@@ -58,9 +52,7 @@ func TestDownsampledPlanarGeometry(t *testing.T) {
 }
 
 func TestValidatePlanarGeometry(t *testing.T) {
-	if err := ValidatePlanarGeometry(4, 8, 8); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidatePlanarGeometry(4, 8, 8))
 	if err := ValidatePlanarGeometry(0, 8, 8); err == nil {
 		t.Fatal("accepted zero channels")
 	}
@@ -98,9 +90,7 @@ func TestConvolutionGeometryMatches(t *testing.T) {
 
 func TestUpsampledCausalVolume(t *testing.T) {
 	got, err := UpsampledCausalVolume(3, 4, 5, [3]int{2, 4, 4})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != (VolumeGeometry{Frames: 5, Height: 16, Width: 20}) {
 		t.Fatalf("volume = %+v", got)
 	}

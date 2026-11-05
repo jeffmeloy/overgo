@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
@@ -16,15 +17,11 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload, err := (artifact.DocumentContract{
 		Kind: artifact.KindFile, MediaType: "application/octet-stream", Schema: "overgo/webhook-payload/v1",
 	}).ContentBytes(bytes.Repeat([]byte("webhook-payload"), 512))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	records := make([]artifact.Content, 2)
 	for index := range records {
 		records[index], err = artifact.JSONContent(
@@ -34,9 +31,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 				Payload   artifact.ID `json:"payload"`
 			}{Contender: index, Payload: payload.Descriptor.ID},
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	const alias = "automation/webhook-delivery/cas-fixture"
 	start := make(chan struct{})
@@ -100,13 +95,9 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 		t.Fatal("conflicting payload bytes committed")
 	}
 	assertBlobBytes(t, store, payload.Descriptor.ID, payload.Data)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	bound, found, err = store.ResolveAlias(ctx, alias)
 	if err != nil || !found || bound != records[winner].Descriptor.ID {

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay/relaytest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,14 +24,10 @@ func testProvider(t *testing.T, endpoint string) (remoteprovider.Provider, recip
 	provider, err := remoteprovider.New(remoteprovider.Provider{
 		Name: "fake", Endpoint: endpoint + "/api/v1/", KeyEnvironment: "OVERGO_REMOTE_RELAY_TEST_KEY", Model: "fake/model", ContextLength: 4096,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "remote-relay-model")
 	definition, err := modelrecipe.RemoteInferenceDefinition(modelID, provider.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return provider, definition
 }
 
@@ -44,16 +41,12 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "test-key")
 	provider, definition := testProvider(t, server.URL)
 	generator, err := New(provider, definition, server.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt, err := generator.FormatChat([]inference.ChatMessage{
 		{Role: inference.ChatRoleSystem, Content: "be brief"},
 		{Role: inference.ChatRoleUser, Content: "hello?"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var pieces []string
 	var usage inference.Usage
 	_, text, err := generator.Generate(t.Context(), prompt, inference.GenerateOptions{
@@ -107,9 +100,7 @@ func TestGeneratorRefusesTruncatedCancelledAndErroredStreams(t *testing.T) {
 		server, _ := relaytest.ServeBehaviour(t, "/api/v1", "test-key", []string{"par", "tial"}, nil, behaviour)
 		provider, definition := testProvider(t, server.URL)
 		generator, err := New(provider, definition, server.Client())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return generator
 	}
 	t.Run("truncated", func(t *testing.T) {
@@ -148,9 +139,7 @@ func TestGeneratorRefusesTruncatedCancelledAndErroredStreams(t *testing.T) {
 		defer server.Close()
 		provider, definition := testProvider(t, server.URL)
 		generator, err := New(provider, definition, server.Client())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, text, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err != nil || text != "done" {
 			t.Fatalf("finished stream = %q, %v", text, err)
 		}
@@ -171,9 +160,7 @@ func TestGeneratorRefusesWithoutKeyAndReportsProviderErrors(t *testing.T) {
 	}
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "wrong-key")
 	generator, err := New(provider, definition, server.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil ||
 		!strings.Contains(err.Error(), "401") || !strings.Contains(err.Error(), "missing key") {
 		t.Fatalf("provider error = %v", err)
@@ -188,9 +175,7 @@ func TestGeneratorUsesUpdatedKey(t *testing.T) {
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "old-key")
 	provider, definition := testProvider(t, server.URL)
 	generator, err := New(provider, definition, server.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil {
 		t.Fatal("old key unexpectedly accepted")
 	}

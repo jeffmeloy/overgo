@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -13,21 +14,15 @@ func TestWebUIBrowserTurnLimit(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "turn limit runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Partial answer", " continued"}}))
 	server := httptest.NewServer(handler)
 	defer func() { _ = handler.Close(); server.Close() }()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	browser, err := webuilane.Open(t.Context(), path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	settle := func(predicate string) {
 		t.Helper()

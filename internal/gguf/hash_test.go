@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestXXH64VectorsAndIncrementalWrites(t *testing.T) {
@@ -64,9 +66,7 @@ func TestHashMatchesConcatenatedTensorPayloads(t *testing.T) {
 		uint64(encoded.Len()),
 		DefaultOptions(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := file.Hash(HashOptions{
 		XXH64:     true,
 		SHA1:      true,
@@ -74,9 +74,7 @@ func TestHashMatchesConcatenatedTensorPayloads(t *testing.T) {
 		UUID:      true,
 		PerTensor: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	combined := append(append([]byte(nil), payloads[0]...), payloads[1]...)
 	wantSHA1 := sha1.Sum(combined)
 	wantSHA256 := sha256.Sum256(combined)

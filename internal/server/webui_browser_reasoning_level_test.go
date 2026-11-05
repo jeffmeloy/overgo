@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -19,9 +20,7 @@ func TestWebUIBrowserReasoningLevel(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the reasoning level leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recorder := &promptRecorder{Runner: openTemplateRunner(t, 64, reasoningTemplate)}
 	reasoned := httptest.NewServer(newTestHandlerForRepository(t, store, recorder))
@@ -64,9 +63,7 @@ func TestWebUIBrowserReasoningLevel(t *testing.T) {
 	}
 
 	// A template reading no reasoning offers no control.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`" + ` && !!document.querySelector('#conversation-settings input[aria-label="temperature"]')`)
 	check(`!` + control)
 	webuilane.Leg(t, "reasoning level leg", "a model whose chat template reads a reasoning level offered the model default, off and the levels that change its prompt, and a turn's chosen level reached the template; a template reading none offered no control")

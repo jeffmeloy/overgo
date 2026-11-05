@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -47,26 +48,18 @@ func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInsp
 		ID: moduleID, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Outputs: []recipe.Port{{Name: portName, Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 		[]recipe.Node{{ID: nodeID, Module: moduleID, Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: portName, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: nodeID, Port: portName}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scope, err := program.InteractionScope(nodeID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return &recipeInspectorGenerator{fakeGenerator: generator, description: modelrecipe.RuntimeDescription{
 		Task:     recipe.TaskInference,
 		Identity: modelrecipe.ProgramIdentity{Model: modelID, Profile: testutil.ArtifactID(t, artifact.KindProfile, "response-profile"), Definition: definition.ID, Recipe: definition.ID},
@@ -120,9 +113,7 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 	var result activeRecipeResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	if !result.Admitted || result.Recipe == nil || result.Recipe.CacheIdentity != recipeID {
 		t.Fatalf("inspection = %+v", result)
 	}
@@ -138,9 +129,7 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 	refused := newTestHandler(t, &recipeInspectorGenerator{fakeGenerator: &fakeGenerator{}, err: errors.New(refusalText)})
 	refusal := serveTestRequest(refused, http.MethodGet, "/recipes/active?task=inference", "")
 	var refusedResult activeRecipeResponse
-	if err := json.Unmarshal(refusal.Body.Bytes(), &refusedResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(refusal.Body.Bytes(), &refusedResult))
 	if refusedResult.Admitted || refusedResult.Refusal != refusalText {
 		t.Fatalf("refusal = %+v", refusedResult)
 	}

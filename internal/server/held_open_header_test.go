@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/apimanifest"
+	"overgo/internal/testcheck"
 )
 
 // TestActivityStreamNamesItselfHeldOpen holds the server's side of the swap proxy's drain: the workbench's activity
@@ -19,13 +20,9 @@ func TestActivityStreamNamesItselfHeldOpen(t *testing.T) {
 	defer server.Close()
 	for path, held := range map[string]bool{"/runtime/activity/stream": true, "/v1/models": false} {
 		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		response, err := server.Client().Do(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_ = response.Body.Close()
 		if got := response.Header.Get(apimanifest.HeldOpenHeader) != ""; got != held {
 			t.Errorf("%s names itself held open = %t, want %t", path, got, held)

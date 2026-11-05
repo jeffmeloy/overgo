@@ -3,6 +3,8 @@ package agenttool
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestExternalProcessLifecycle proves argv tool invocation rides the
@@ -11,9 +13,7 @@ import (
 func TestExternalProcessLifecycle(t *testing.T) {
 	manual := Manual{Name: "go-version", Transport: Transport{Program: "go", Args: []string{"version"}}}
 	result, err := argvAdapter{}.invoke(t.Context(), manual, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(result), "go version") {
 		t.Fatalf("tool result = %s", result)
 	}

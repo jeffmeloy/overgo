@@ -8,6 +8,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,9 +16,7 @@ func TestActivationMatrixCoverage(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "matrix-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "matrix-schema")
@@ -36,46 +35,30 @@ func TestActivationMatrixCoverage(t *testing.T) {
 		Schema:    schema, Platform: runrecord.CapabilityPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		Resources: runrecord.CapabilityResourceEnvelope{MaxInputBytes: 1, MaxOutputBytes: 1, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 1},
 	}).Identify()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := capability.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("matrix/capability", []artifact.Content{content}, capability.Lineage(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	registry, _, err := PublishActivationCaseRegistry(ctx, store, []ActivationCase{{
 		Name: "generate", Task: recipe.TaskGeneration, Contract: contract, Input: input, EvidenceCheck: check,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	local, err := NewActivationProfile(ActivationProfile{Name: "local", Kind: ActivationProfileLocalModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	peer, err := NewActivationProfile(ActivationProfile{Name: "peer", Kind: activationProfilePeerModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	matrix, _, err := PublishActivationMatrix(ctx, store, []ActivationProfile{peer, local}, []ActivationCoverageResult{{
 		Case: registry.Cases[0], Profile: local.ID, Evidence: evidence,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if matrix.Denominator != 2 || matrix.Covered != 1 {
 		t.Fatalf("matrix totals = %+v", matrix)
 	}
-	if err := AdmitActivationProfile(matrix, local.ID); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, AdmitActivationProfile(matrix, local.ID))
 	if err := AdmitActivationProfile(matrix, peer.ID); err == nil {
 		t.Fatal("profile with a coverage gap was admitted")
 	}

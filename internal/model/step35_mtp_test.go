@@ -7,6 +7,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildStep35MTPPipeline(t *testing.T) {
@@ -27,9 +28,7 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 	projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 1)
 	current, err := draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
 		AttentionQ:      builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
@@ -45,23 +44,17 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 	block, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{7}, Layer: plan.Layer,
 	}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if nextHidden != block.Output {
 		t.Fatal("Step3.5 MTP hidden state was normalized")
 	}
 	outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
 	nodes, err := tensor.Topological(outputs...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	for _, node := range nodes {
 		if node.Op != tensor.OpInput {
@@ -78,9 +71,7 @@ func TestBuildStep35MTPPipeline(t *testing.T) {
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
 	results, err := reference.Execute(outputs, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !results[logits].Shape.Equal(tensor.MustShape(13, 1)) ||
 		!results[nextHidden].Shape.Equal(tensor.MustShape(8, 1)) ||
 		!results[block.Key].Shape.Equal(tensor.MustShape(4, 1, 1)) {

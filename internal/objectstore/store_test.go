@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 var errStreamFixture = errors.New("stream fixture failed")
@@ -51,9 +52,7 @@ func TestStreamPublicationContract(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer repository.Close()
 		objectRoot := filepath.Join(root, "objects")
 		observed := observedRepository{Repository: repository, beforeCommit: func(batch artifact.Batch) error {
@@ -69,24 +68,18 @@ func TestStreamPublicationContract(t *testing.T) {
 			return nil
 		}}
 		store, err := New(objectRoot, observed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		streamSize := int64(artifact.MaxContentBytes) + 1
 		publication, err := store.Publish(ctx, PublishRequest{
 			Kind: artifact.KindModel, MediaType: "application/octet-stream",
 			Reader: io.LimitReader(zeroReader{}, streamSize),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if publication.Descriptor.Size != uint64(streamSize) || !publication.Commit.Valid() {
 			t.Fatalf("publication = %+v", publication)
 		}
 		descriptor, reader, err := store.Open(ctx, publication.Descriptor.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		read, copyErr := io.Copy(io.Discard, reader)
 		closeErr := reader.Close()
 		if copyErr != nil || closeErr != nil || read != streamSize || descriptor != publication.Descriptor {
@@ -99,21 +92,15 @@ func TestStreamPublicationContract(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer repository.Close()
 		objectRoot := filepath.Join(root, "objects")
 		store, err := New(objectRoot, repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		payload := []byte("idempotent object")
 		request := PublishRequest{Kind: artifact.KindDataset, Reader: bytes.NewReader(payload)}
 		first, err := store.Publish(ctx, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		request.Reader = bytes.NewReader(payload)
 		second, err := store.Publish(ctx, request)
 		if err != nil || first != second {
@@ -126,9 +113,7 @@ func TestStreamPublicationContract(t *testing.T) {
 			t.Fatalf("failed stream error = %v", err)
 		}
 		expected, err := artifact.IdentifyBytes(artifact.KindCheckpoint, []byte("expected"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Publish(ctx, PublishRequest{
 			Kind: artifact.KindCheckpoint, Expected: &expected, Reader: bytes.NewBufferString("different"),
 		}); err == nil {
@@ -144,9 +129,7 @@ func TestStreamPublicationContract(t *testing.T) {
 func assertStagingEmpty(t *testing.T, root string) {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Join(root, stagingDirectory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(entries) != 0 {
 		t.Fatalf("staging entries remain: %v", entries)
 	}

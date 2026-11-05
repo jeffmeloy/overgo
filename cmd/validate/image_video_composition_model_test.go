@@ -21,6 +21,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -60,27 +61,17 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var bundle mediaCompositionBundle
 	path := filepath.Join(root, "docs/image_video_composition.json")
-	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoCompositionSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCompositionSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Scope == "" {
 		t.Fatal("incomplete composition bundle")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -92,12 +83,8 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	}
 	for _, id := range []artifact.ID{bundle.NativeTest, bundle.OwnerTest} {
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 {
 			t.Fatal("empty composition test")
 		}
@@ -112,9 +99,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		}
 	}
 	var inventory imageVideoInventory
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory))
 	if len(bundle.Cells) != len(inventory.Cells) {
 		t.Fatal("composition scope omits inventory cells")
 	}
@@ -123,9 +108,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		Recipe       artifact.ID         `json:"recipe"`
 		Dependencies []recipe.Dependency `json:"dependencies"`
 	}
-	if err := json.Unmarshal(read(bundle.ScopeEvidence), &scope); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(bundle.ScopeEvidence), &scope))
 	if len(scope) != len(inventory.Cells) {
 		t.Fatal("scope evidence omits recipes")
 	}
@@ -140,9 +123,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 			t.Fatal("active recipe changed", err)
 		}
 		definition, err := recipe.RequireDefinition(t.Context(), store, cell.Recipe)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if scope[index].Model != cell.Model || scope[index].Recipe != cell.Recipe || !slices.Equal(scope[index].Dependencies, definition.Dependencies) {
 			t.Fatal("retained scope differs from actual dependencies")
 		}
@@ -179,9 +160,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal("parent manifest missing", err)
 	}
-	if err := parent.Validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, parent.Validate())
 	var bindings []modelrecipe.ComponentBinding
 	for _, component := range bundle.Components {
 		var members []artifact.Component
@@ -191,16 +170,12 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 			}
 		}
 		expected, err := artifact.NewManifest(artifact.KindModel, members)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		child, found, err := store.Manifest(t.Context(), component.Model)
 		if err != nil || !found {
 			t.Fatal("child manifest missing", err)
 		}
-		if err := child.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, child.Validate())
 		if len(members) == 0 || len(members) != component.Members || child.ID != expected.ID || !slices.Equal(child.Components, expected.Components) {
 			t.Fatal("component files, identities, roles or ordinals differ from native parent")
 		}
@@ -215,13 +190,9 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		t.Fatal("typed ports, stage binding or profile differ from native chain", err)
 	}
 	program, err := modelrecipe.CompileCapability(composed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	workflow, err := workflowruntime.NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stages := program.Stages()
 	if len(stages) != len(bindings) {
 		t.Fatal("unexpected conversion stage")
@@ -244,16 +215,12 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		Acceptance          string      `json:"acceptance"`
 	}
 	protocolRaw := read(bundle.Protocol)
-	if err := json.Unmarshal(protocolRaw, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(protocolRaw, &protocol))
 	if protocol.Source != bundle.Source || protocol.Model != composed.Model || protocol.Recipe != composed.ID || protocol.Quality != imageVideoProtocolSHA256 || protocol.RetainedRun != bundle.RetainedRun || protocol.RetainedAcquisition != bundle.RetainedAcquisition || protocol.Acceptance == "" || protocol.Harness != fmt.Sprintf("%x", sha256.Sum256(read(bundle.Harness))) {
 		t.Fatal("native comparison protocol changed")
 	}
 	retained, err := runrecord.RequireExactRun(t.Context(), store, bundle.RetainedRun)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if retained.Recipe != composed.ID || retained.Outcome != runrecord.OutcomeSucceeded || !slices.Equal(retained.Inputs, []artifact.ID{protocol.Input}) || !slices.Equal(retained.Outputs, []artifact.ID{protocol.Output}) {
 		t.Fatal("native comparison uses unrelated input or output")
 	}
@@ -263,9 +230,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		Output   artifact.ID     `json:"output"`
 		Resolved json.RawMessage `json:"resolved_request"`
 	}
-	if err := json.Unmarshal(read(bundle.RetainedAcquisition), &prior); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(bundle.RetainedAcquisition), &prior))
 	if prior.Run != retained.ID || prior.Source != retained.CodeCommit || prior.Output != protocol.Output {
 		t.Fatal("retained acquisition binding differs")
 	}
@@ -294,9 +259,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		Memory      driver.MemoryStats    `json:"after_memory"`
 		Closed      driver.MemoryStats    `json:"closed_memory"`
 	}
-	if err := json.Unmarshal(read(bundle.Acquisition), &native); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(bundle.Acquisition), &native))
 	if native.Source != bundle.Source || native.Protocol != fmt.Sprintf("%x", sha256.Sum256(protocolRaw)) || native.Model != protocol.Model || native.Recipe != protocol.Recipe || native.Input != protocol.Input || native.Output != protocol.Output || !native.Exact || string(native.Resolved) != string(prior.Resolved) {
 		t.Fatal("native acquisition differs from fixed composed request")
 	}
@@ -304,9 +267,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		Width  int `json:"width"`
 		Height int `json:"height"`
 	}
-	if err := json.Unmarshal(read(protocol.Input), &request); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(protocol.Input), &request))
 	if native.Width != request.Width || native.Height != request.Height || math.IsNaN(native.Min) || math.IsInf(native.Min, 0) || math.IsNaN(native.Max) || math.IsInf(native.Max, 0) || native.Min > native.Max || native.Load == 0 || native.Request == 0 || native.Close == 0 || native.Total < native.Load+native.Request+native.Close || native.Allocated == 0 || native.Peak == 0 || native.Memory.PeakBytes == 0 || native.Closed.CurrentBytes != 0 || native.After.KernelLaunches+native.After.GraphLaunches <= native.Before.KernelLaunches+native.Before.GraphLaunches {
 		t.Fatal("native measurements or cleanup incomplete")
 	}

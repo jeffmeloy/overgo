@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCapabilityGapTargetsFromEvalStore pins the target derivation the
@@ -20,9 +21,7 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	incumbentFirst, incumbentDefinition := publishSelectionEvidence(t, store, "gap-incumbent", 8192, 0.5)
 	strongEvidence, strongDefinition := publishSelectionEvidence(t, store, "gap-strong", 16384, 0.9)
@@ -33,9 +32,7 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 	corpus := []artifact.ID{incumbentFirst, strongEvidence, weakEvidence, incumbentLatest}
 
 	targets, err := DeriveCapabilityGapTargets(ctx, store, corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	byKind := map[capabilityGapKind][]capabilityGapTarget{}
 	for _, target := range targets {
 		byKind[target.Kind] = append(byKind[target.Kind], target)

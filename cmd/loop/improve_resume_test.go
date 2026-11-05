@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/testcheck"
 )
 
 // TestCycleReportsWhatItCreditedAndEachPhaseWall holds a cycle to saying what it did with
@@ -135,9 +136,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 	digest := func(cell string) string {
 		t.Helper()
 		value, err := obligationsDigest([]byte(`{"run":[{"model":"m","kind":"training","validation":"training-proof","recipe":"r1"` + cell + `}],"background":[]}`))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	base := digest("")
@@ -197,9 +196,7 @@ func TestObligationsDigestIgnoresWhatARunChanges(t *testing.T) {
 	digest := func(plan string) string {
 		t.Helper()
 		value, err := obligationsDigest([]byte(plan))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	base := digest(`{"run":[{"model":"m","kind":"inference","validation":"guard","recipe":"r1","cost_ns":5,"replay":"x"}],"background":[]}`)

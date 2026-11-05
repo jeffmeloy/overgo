@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,32 +37,22 @@ func TestATrainedModelIsListedWhenItsTrainingEnds(t *testing.T) {
 			root := t.TempDir()
 			model := base(t)
 			dataset := filepath.Join(root, "dataset.txt")
-			if err := os.WriteFile(dataset, bytes.Repeat([]byte("abcd"), 64), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("abcd"), 64), 0o600))
 			store, err := overgodb.Create(filepath.Join(root, "store"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}
 			weights, err := IdentifyModelWeights(model)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			recipeID, err := BootstrapTokenRecipe(ctx, store, weights, dataset)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			result, err := Execute(ctx, Request{
 				Repository: store, Recipe: recipeID, Observations: store, ModelDirectory: model, DatasetPath: dataset,
 				OutputDirectory: filepath.Join(root, "out"), Steps: 1, MaximumSequence: 8, Host: true,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			definition, err := recipe.RequireDefinition(ctx, store, result.Candidate)
 			if err != nil {
 				t.Fatalf("the run published no recipe for the model it trained: %v", err)
@@ -83,9 +74,7 @@ func TestATrainedModelIsListedWhenItsTrainingEnds(t *testing.T) {
 			}
 			measure := func() {
 				t.Helper()
-				if err := modelrecipe.MarkMeasured(ctx, store, definition.Model, definition.Task, definition.ID); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, modelrecipe.MarkMeasured(ctx, store, definition.Model, definition.Task, definition.ID))
 			}
 			measure()
 			measure()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 
 	"overgo/internal/tensor/dtype"
 
@@ -55,9 +56,7 @@ func TestReadWeightsRWKV7Family(t *testing.T) {
 				)
 			}
 			weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			layer := weights.Layers[0]
 			if !layer.Recurrent || layer.TimeMixW0 == nil || layer.TimeMixA2 == nil ||
 				layer.TimeMixV2 == nil || layer.TimeMixKK == nil || layer.TimeMixRK == nil ||
@@ -103,9 +102,7 @@ func TestReadWeightsQwen35MoEAttention(t *testing.T) {
 		tensorInfo("blk.0.ffn_down_shexp.weight", 10, 8),
 	}}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[0]
 	if layer.Recurrent || layer.FeedForwardRouter == nil ||
 		layer.FeedForwardGateUpExperts == nil || layer.FeedForwardDownExperts == nil ||
@@ -157,9 +154,7 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 				)
 			}
 			weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			layer := weights.Layers[0]
 			if !layer.Recurrent || layer.AttentionQKV == nil || layer.SSMBetaAlpha == nil ||
 				(layer.AttentionGate == nil) != legacy || layer.FeedForwardGateUpExperts == nil ||
@@ -196,9 +191,7 @@ func TestReadWeightsT5Encoder(t *testing.T) {
 		tensorInfo("enc.blk.0.ffn_down.weight", 16, 8),
 	}}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.OutputNorm.Name != "enc.output_norm.weight" ||
 		len(weights.Layers) != 1 ||
 		weights.Layers[0].AttentionRelativeBias == nil {
@@ -245,9 +238,7 @@ func TestReadWeightsT5EncoderDecoder(t *testing.T) {
 		)
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(weights.EncoderLayers) != 2 || len(weights.Layers) != 2 ||
 		weights.EncoderOutputNorm == nil || weights.Layers[0].CrossAttentionQ == nil ||
 		weights.EncoderLayers[1].AttentionRelativeBias == nil ||
@@ -298,9 +289,7 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 		)
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.AudioDecoder == nil || len(weights.AudioDecoder.PosNet) != 6 ||
 		len(weights.AudioDecoder.ConvNext) != 2 || weights.AudioDecoder.PosNet[2].AttentionQ.Name == "" ||
 		weights.AudioDecoder.PosNet[5].AttentionNorm.Name == "" || weights.Output == nil ||
@@ -331,9 +320,7 @@ func TestReadWeightsDFlash(t *testing.T) {
 		)
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.FeatureProjection == nil || weights.EncoderOutputNorm == nil ||
 		weights.TokenEmbedding.Name != "" || len(weights.Layers) != 2 ||
 		weights.Layers[1].AttentionQNorm == nil || weights.Layers[1].AttentionKNorm == nil {
@@ -361,9 +348,7 @@ func TestReadWeightsEagle3(t *testing.T) {
 	}
 	tensors[0].Type = dtype.I64
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.DraftToTarget == nil || weights.FeatureProjection == nil ||
 		weights.TokenEmbedding.Name == "" || weights.Output == nil || len(weights.Layers) != 1 ||
 		weights.Layers[0].AttentionNorm2 == nil || weights.Layers[0].RopeFactors == nil {
@@ -414,9 +399,7 @@ func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 		}
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for block, layer := range weights.Layers {
 		if layer.AttentionOutputBias != nil {
 			t.Fatalf("ERNIE layer %d retained ignored attention output bias", block)
@@ -496,9 +479,7 @@ func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 		}
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.PerLayerTokenEmbedding == nil || weights.Layers[0].AttentionV != nil ||
 		weights.Layers[0].FeedForwardGate == nil || weights.Layers[2].FeedForwardGate == nil ||
 		weights.Layers[2].AttentionK != nil || weights.Layers[2].FeedForwardRouter == nil ||
@@ -542,9 +523,7 @@ func TestReadWeightsGemma4Assistant(t *testing.T) {
 		)
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.FeatureProjection == nil || weights.FeatureProjectionPost == nil ||
 		weights.Output != nil || weights.Layers[0].AttentionK != nil ||
 		weights.Layers[0].RopeFactors != nil || weights.Layers[1].RopeFactors == nil ||
@@ -605,9 +584,7 @@ func TestReadWeightsGemma3nAltUpAndLaurel(t *testing.T) {
 		}
 	}
 	weights, err := readFixtureWeights(&gguf.File{Tensors: tensors}, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[20]
 	if weights.AltUpProjection == nil || weights.AltUpUnembedding == nil ||
 		layer.AltUpCorrectCoefficient == nil || layer.AltUpPredictCoefficient == nil ||
@@ -636,9 +613,7 @@ func TestReadWeightsQwen3VLMoE(t *testing.T) {
 		tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
 	}}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[0]
 	if layer.AttentionQKV == nil || layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
 		layer.FeedForwardRouter == nil || layer.FeedForwardGateExperts == nil ||
@@ -676,9 +651,7 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 		spec.ClassifierLabels = []string{"no", "yes"}
 	}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[0]
 	if weights.Output != nil || layer.AttentionQKV == nil || layer.AttentionOutputBias == nil ||
 		layer.FeedForwardNorm == nil || layer.FeedForwardGate == nil ||
@@ -702,9 +675,7 @@ func TestReadWeightsTalkieUsesEmbeddingSkipCatalog(t *testing.T) {
 		tensorInfo("blk.0.ffn_down.weight", 12, 8), tensorInfo("blk.0.layer_out_scale.weight", 1),
 	}}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[0]
 	if weights.Output == nil || weights.OutputNorm.Name != "" || layer.AttentionNorm != nil ||
 		layer.FeedForwardNorm != nil || layer.AttentionQKV == nil ||
@@ -745,9 +716,7 @@ func TestReadWeightsAcceptsDenseProjectionBiases(t *testing.T) {
 		tensorInfo("blk.0.ffn_down.bias", 8),
 	}}
 	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer := weights.Layers[0]
 	if layer.AttentionQBias == nil ||
 		layer.AttentionKBias == nil ||

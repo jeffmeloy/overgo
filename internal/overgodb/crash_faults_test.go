@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // The journal's own faults, each the refusal of one durable operation of an append through the crash recorder, as a
@@ -33,9 +34,7 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 	recorder := newCrashRecorder(root)
 	t.Cleanup(crashAttach(recorder))
 	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_CREATE|os.O_RDWR, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	payload := []byte(`{"streamed":true}`)
 	log := recordLog{file: file}
@@ -61,9 +60,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
@@ -87,14 +84,10 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 		t.Fatal("the blob was not durable before the append")
 	}
 	assertFaultedStoreSurfaces(t, store, pending.Descriptor)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	store, err = Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, ok, err := store.Artifact(t.Context(), pending.Descriptor.ID); err != nil || ok {
 		t.Fatalf("partial artifact after recovery = (%v, %v)", ok, err)
@@ -110,9 +103,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	crashRefuseJournal(t, root, crashFsync)
 	pending := fixtureDescriptor(t, artifact.KindEvidence, "sync-uncertain")
 	id, err := store.Commit(t.Context(), artifact.Batch{
@@ -121,13 +112,9 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	if !id.Valid() || !errors.Is(err, ErrStoreFaulted) || !errors.Is(err, errCrashInjected) {
 		t.Fatalf("sync append = (%s, %v)", id, err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if descriptor, ok, err := store.Artifact(t.Context(), pending.ID); err != nil || !ok || descriptor.ID != pending.ID {
 		t.Fatalf("uncertain commit replay = (%+v, %v, %v)", descriptor, ok, err)

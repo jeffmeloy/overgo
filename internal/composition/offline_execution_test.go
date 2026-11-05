@@ -10,15 +10,14 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineTensorExecutionPlan(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	base := publishOfflineModel(t, store, "execution-base", offlineTensorWidth, false)
@@ -31,9 +30,7 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 	policy := publishOfflineTensorPolicy(t, store, tensorBytes*uint64(tensor.PairedExtent), tensorBytes)
 
 	execution, err := CompileOfflineTensorExecutionPlan(ctx, store, artifactPlan, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if execution.Operator != OfflineArtifactTaskArithmetic || execution.ArtifactPlan != artifactPlan.ID ||
 		execution.ResourcePolicy != policy.ID || execution.PeakResidentBytes != tensorBytes*uint64(tensor.PairedExtent) ||
 		len(execution.Operations) != tensor.SingletonExtent || len(execution.Shards) != tensor.SingletonExtent {
@@ -47,9 +44,7 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 		t.Fatalf("operation = %+v", operation)
 	}
 	batch, err := execution.Batch("composition/offline/execution")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(batch.Contents) != tensor.SingletonExtent || len(batch.Lineage) < tensor.PairedExtent {
 		t.Fatalf("execution publication = contents %d lineage %d", len(batch.Contents), len(batch.Lineage))
 	}
@@ -60,9 +55,7 @@ func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
 	for _, width := range []uint64{offlineTensorWidth, 256} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 
 			definition := publishOfflineModel(t, store, "resource-derived", width, false)
@@ -72,9 +65,7 @@ func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
 			tensorBytes := width * width * offlineFloatBytes
 			policy := publishOfflineTensorPolicy(t, store, safetensors.StreamingBufferBytes(tensorBytes), tensorBytes)
 			execution, err := CompileOfflineTensorExecutionPlan(t.Context(), store, artifactPlan, policy)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			operation := execution.Operations[tensor.FirstOffset]
 			if execution.PeakResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) || operation.ResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) ||
 				execution.Shards[tensor.FirstOffset].Bytes != tensorBytes {
@@ -96,9 +87,7 @@ func TestOfflinePlanRejectsLiteralPolicy(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	definition := publishOfflineModel(t, store, "resource-refusal", offlineTensorWidth, false)
 	artifactPlan := publishOfflineArtifactPlan(t, store, OfflineArtifactExactPassthrough, []OfflineArtifactInput{
@@ -125,13 +114,9 @@ func publishOfflineArtifactPlan(
 ) OfflineArtifactPlan {
 	t.Helper()
 	plan, err := CompileOfflineArtifactPlan(t.Context(), store, operator, inputs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := plan.Batch("composition/offline/artifact-plan")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -149,13 +134,9 @@ func publishOfflineTensorPolicy(
 		"bounded by the selected host-memory resource decision",
 		"recompile when the selected memory budget or artifact inventory changes",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := policy.Batch("composition/offline/resource-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

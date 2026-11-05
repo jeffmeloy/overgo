@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,41 +29,29 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 		started := time.Now()
 		var err error
 		hostOutput, err = model.Forward(golden.X, 1, golden.H, golden.W)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		hostDurations[index] = time.Since(started)
 	}
 	compileStarted := time.Now()
 	forward, err := CompileResidentForward(t.Context(), model, 0, golden.H, golden.W)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer forward.Close(context.Background())
 	compileWall := time.Since(compileStarted)
 	before, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coldStarted := time.Now()
 	deviceOutput, err := forward.Execute(t.Context(), golden.X)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coldWall := time.Since(coldStarted)
 	warmDurations := make([]time.Duration, 3)
 	for index := range warmDurations {
 		started := time.Now()
 		deviceOutput, err = forward.Execute(t.Context(), golden.X)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		warmDurations[index] = time.Since(started)
 	}
 	after, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slices.Sort(hostDurations)
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]

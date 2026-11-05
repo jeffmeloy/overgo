@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
@@ -43,9 +44,7 @@ func movingClip(frames, height, width int) [][]float32 {
 func writeTestClip(t *testing.T, format ClipFormat, fps int, clip [][]float32, height, width int) EncodedVideo {
 	t.Helper()
 	encoder, err := newServedEncoder(t.Context(), format, fps, UnitPixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	video, err := writeClip(t.Context(), encoder, func(sink VideoFrameSink) error {
 		for index, frame := range clip {
 			if err := sink(index, frame, height, width); err != nil {
@@ -79,13 +78,9 @@ func TestMP4ClipContent(t *testing.T) {
 	named, moving := plain, plain
 	named.Format, moving.Format = gifClip, mp4Clip
 	plainBytes, err := json.Marshal(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	namedBytes, err := json.Marshal(named)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(plainBytes, namedBytes) || bytes.Contains(plainBytes, []byte(`"format"`)) {
 		t.Fatalf("a request naming GIF is %s, one naming no format %s", namedBytes, plainBytes)
 	}
@@ -100,9 +95,7 @@ func TestMP4ClipContent(t *testing.T) {
 	records := make([][]byte, 0, 3)
 	for _, each := range []ReferenceEditCondition{condition, namedCondition, mp4Condition} {
 		record, err := json.Marshal(each.Record())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		records = append(records, record)
 	}
 	if !bytes.Equal(records[0], records[1]) || bytes.Contains(records[0], []byte(`"format"`)) || bytes.Equal(records[0], records[2]) {
@@ -129,13 +122,9 @@ func TestMP4ClipContent(t *testing.T) {
 		t.Fatalf("clips written as %q and %q", gifVideo.MediaType, mp4Video.MediaType)
 	}
 	gifFrames, err := media.DecodeGIF(bytes.NewReader(gifVideo.Data), 2*frames)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mp4Frames, err := media.DecodeEncodedVideo(t.Context(), mp4Video.Data, ffmpeg, fps, 2*frames)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ratio := func(decoded []image.Image) float64 {
 		var squared float64
 		for frame, picture := range decoded {
@@ -164,13 +153,9 @@ func TestMP4ClipContent(t *testing.T) {
 
 	for _, video := range []EncodedVideo{gifVideo, mp4Video} {
 		published, err := VideoContent(video)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var replayed EncodedVideo
-		if err := replayed.DecodeContent(published); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, replayed.DecodeContent(published))
 		again, err := VideoContent(replayed)
 		if err != nil {
 			t.Fatalf("a stored %s answer does not publish: %v", video.MediaType, err)
@@ -182,15 +167,11 @@ func TestMP4ClipContent(t *testing.T) {
 	}
 
 	odd, err := newServedEncoder(t.Context(), mp4Clip, fps, UnitPixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := odd.add(t.Context(), 0, make([]float32, media.RGBChannels*15*16), 15, 16); err == nil {
 		t.Fatal("an MP4 frame of 16 by 15 pixels was taken")
 	}
-	if err := odd.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, odd.Close())
 	mislabelled := gifVideo
 	mislabelled.MediaType = media.MP4MediaType
 	if _, err := VideoContent(mislabelled); err == nil {
@@ -206,16 +187,12 @@ func TestMP4ClipContent(t *testing.T) {
 	// when it attends to eight: the nine-frame clip is cut to five, and is kept
 	// whole.
 	source, err := VideoContent(mp4Video)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := Profile{SampleFPS: fps, Policy: DenoiserPolicy{VAEStride: [3]int{4, 8, 8}}}
 	for attended, want := range map[int]int{1: 5, 8: frames} {
 		policy := editPolicy{FramesPerChunk: 1, LocalAttentionFrames: attended, SourceWidth: 48, SourceHeight: 64}
 		cut, err := sourceVideoFromContent(t.Context(), source, policy, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if cut.Frames != want || cut.Width != policy.SourceWidth || cut.Height != policy.SourceHeight || cut.Channels != media.RGBChannels {
 			t.Fatalf("attending to %d frames, the MP4 source is cut to %d frames of %dx%d, want %d of %dx%d",
 				attended, cut.Frames, cut.Width, cut.Height, want, policy.SourceWidth, policy.SourceHeight)
@@ -233,22 +210,16 @@ func TestMP4ClipContent(t *testing.T) {
 func TestRepeatedGIFRequestReplaysAndPublishes(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	}()
 	profile, err := declaredProfile()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := testutil.ArtifactID(t, artifact.KindModel, "wan-gif-replay-fixture")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/artifact/" + model.String(), Artifacts: []artifact.Descriptor{{ID: model}}, Contents: []artifact.Content{profileContent},
@@ -256,19 +227,13 @@ func TestRepeatedGIFRequestReplaysAndPublishes(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, model, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const frames, height, width = 5, 16, 32
 	request := WanRequest{Prompt: "a fox", Seed: 7, Frames: frames, Width: width, Height: height, Steps: 2}
 	content, err := capabilityruntime.InputContent("overgo.video-gen-input.v1", request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := definition.Inputs[0]
 	inputs := map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)}
 	key := capabilityruntime.RunKeyOf[WanRequest](definition, content)
@@ -289,20 +254,14 @@ func TestRepeatedGIFRequestReplaysAndPublishes(t *testing.T) {
 			})
 		})
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replayed, _, err := capabilityruntime.ExecuteMeasured[EncodedVideo](t.Context(), store, model, program, key, inputs, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if replayed.Data == nil {
 		t.Fatal("the store holds no answer to the request it served")
 	}
 	first, err := VideoContent(served)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := VideoContent(replayed)
 	if err != nil {
 		t.Fatalf("the repeated request's GIF, read back at %d frames a second, does not publish: %v", replayed.FPS, err)

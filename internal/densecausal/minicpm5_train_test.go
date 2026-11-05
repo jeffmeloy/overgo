@@ -3,6 +3,8 @@ package densecausal
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // Untied-head coverage strategy: NO new tiny torch golden. The llama math
@@ -18,9 +20,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	embeddingName := tied.tensors.embedding.name
 	const headName = "lm_head.weight"
 	lossTied, _, gradsTied, err := tied.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	weights := make(map[string][]float32, len(g.Params)+1)
 	shapes := make(map[string][]int, len(g.Params)+1)
@@ -36,17 +36,13 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	weights[headName] = head
 	shapes[headName] = append([]int(nil), shapes[embeddingName]...)
 	untied, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if untied.tensors.head.name != headName {
 		t.Fatalf("head name %q, want %s", untied.tensors.head.name, headName)
 	}
 
 	lossUntied, _, gradsUntied, err := untied.LossAndGrads(g.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if lossUntied != lossTied {
 		t.Fatalf("untied loss %.9f != tied %.9f", lossUntied, lossTied)
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -41,9 +42,7 @@ func TestWebUIBrowserDatasetLibrary(t *testing.T) {
 	hub := httptest.NewServer(mux)
 	defer hub.Close()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	root := t.TempDir()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}), func(config *Config) {
@@ -89,9 +88,7 @@ func TestWebUIBrowserDatasetLibrary(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"datasets"`
 	}
-	if err := json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/datasets", "").Body.Bytes(), &listed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/datasets", "").Body.Bytes(), &listed))
 	names := []string{}
 	for _, dataset := range listed.Datasets {
 		names = append(names, dataset.Name)

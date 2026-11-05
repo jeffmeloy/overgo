@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // intakeRequest: POST body under its media type through handler.
@@ -29,9 +30,7 @@ func intakeRequest(handler http.Handler, mediaType, body string) *httptest.Respo
 func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 	t.Parallel()
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	response := intakeRequest(handler, "text/plain; charset=utf-8", "an attached note")
@@ -54,9 +53,7 @@ func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 		t.Fatalf("second intake status=%d body=%s", again.Code, again.Body.String())
 	}
 	png, err := base64.StdEncoding.DecodeString(tinyPNGBase64(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if image := intakeRequest(handler, "image/png", string(png)); image.Code != http.StatusOK || !strings.Contains(image.Body.String(), `"media_type":"image/png"`) {
 		t.Fatalf("image intake status=%d body=%s", image.Code, image.Body.String())
 	}
@@ -107,9 +104,7 @@ func TestArtifactIntakePreservesNativeAudio(t *testing.T) {
 				upload()
 			}
 			id, err := artifact.IdentifyBytes(artifact.KindFile, fixture.wave)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			before, found, err := artifact.ReadContent(t.Context(), fixture.store, id)
 			if err != nil || !found {
 				t.Fatalf("original recording: %v", err)

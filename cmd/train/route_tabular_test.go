@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -81,9 +82,7 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objective, modelPath := registerTableSplit(t, ctx, store, root, tables, nil, metric)
 
@@ -130,9 +129,7 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
 	document, err := io.ReadAll(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
 		t.Fatalf("verdict = %+v (%v), want %s from %g to %g", verdict, err, metric, base, trained)
 	}
@@ -154,13 +151,9 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 	corpus := t.TempDir()
 	for table, request := range tables {
 		data, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Names that sort in table order keep record i table i.
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%04d.json", table)), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%04d.json", table)), data, 0o600))
 	}
 	source, training := registerSplit(t, ctx, store, "tables", corpus, len(tables), groups)
 	return registerTableObjective(t, ctx, store, root, source, training, metric)
@@ -173,9 +166,7 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 func registerSplit(t *testing.T, ctx context.Context, store *overgodb.Store, name, corpus string, count int, groups []string) (source, training artifact.ID) {
 	t.Helper()
 	registered, err := dataset.RegisterDirectoryDataset(ctx, store, name, corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var records []dataset.Record
 	for index := range uint64(count) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
@@ -186,13 +177,9 @@ func registerSplit(t *testing.T, ctx context.Context, store *overgodb.Store, nam
 		records = append(records, dataset.Record{ID: id, Group: group})
 	}
 	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -224,9 +211,7 @@ func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store,
 	var referenced []artifact.ID
 	stand := func(kind artifact.Kind, name string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte(name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		referenced = append(referenced, id)
 		return id
 	}
@@ -234,16 +219,12 @@ func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store,
 	spec.Loss, spec.Evaluation = stand(artifact.KindProfile, "overgo/objective-test/loss"), stand(artifact.KindProfile, "overgo/objective-test/evaluation")
 	spec.Evidence, spec.Authority = []artifact.ID{stand(artifact.KindEvidence, "overgo/objective-test/note")}, trainingprogram.ObjectiveDeclared
 	objective, err := trainingprogram.NewObjective(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, name := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
 		stand(artifact.KindProfile, "overgo/training-bootstrap/"+name)
 	}
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := artifact.Batch{
 		Key: "test-objective", Contents: []artifact.Content{content},
 		Aliases: []artifact.AliasBinding{{Name: alias, Target: objective.ID}},
@@ -255,8 +236,6 @@ func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store,
 		t.Fatal(err)
 	}
 	modelPath := filepath.Join(root, "head.safetensors")
-	if err := os.WriteFile(modelPath, []byte("head"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("head"), 0o600))
 	return objective, modelPath
 }

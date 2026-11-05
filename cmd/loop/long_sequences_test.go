@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/landing"
+	"overgo/internal/testcheck"
 )
 
 // TestChecksRunTheLongSequences holds a full run's checks to the long generated sequences a commit's checks leave
@@ -26,9 +27,7 @@ func TestChecksRunTheLongSequences(t *testing.T) {
 		t.Fatalf("the lane runs %v, want it under the cycle's tags %s", arguments, landing.CycleTags)
 	}
 	source, err := os.ReadFile(filepath.Join("..", "..", "internal", "overgodb", "long_sequences_test.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(source), "//go:build integration") || !strings.Contains(string(source), "func TestLongStoreLifecycles(") {
 		t.Fatal("the store's long lifecycles are not a test the cycle's tags alone compile")
 	}

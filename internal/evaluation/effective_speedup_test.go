@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -43,9 +44,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 				ReopenTrigger: id(artifact.KindRecipe, name+" assumption reopen"),
 			}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return fit
 	}
 	baseline, candidate := makeFit("baseline", []string{"100", "200", "300"}), makeFit("candidate", []string{"50", "100", "150"})
@@ -65,9 +64,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 	wrongUnits := candidate
 	wrongUnits.ID, wrongUnits.CostAxis = artifact.ID{}, scalingCostWallNS
 	wrongUnits, err = scalingFitCodec.New(wrongUnits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := buildEffectiveSpeedup(baseline, wrongUnits); err == nil {
 		t.Fatal("incompatible cost units admitted")
 	}
@@ -82,9 +79,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 	noQualityMatch.Holdouts[0].Observed.Numerator, noQualityMatch.Holdouts[0].Predicted.Numerator = "99", "99"
 	noQualityMatch.Holdouts[0].Uncertainty.Lower.Numerator, noQualityMatch.Holdouts[0].Uncertainty.Upper.Numerator = "99", "99"
 	noQualityMatch, err = scalingFitCodec.New(noQualityMatch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := buildEffectiveSpeedup(baseline, noQualityMatch); err == nil {
 		t.Fatal("predicted or unmatched quality produced speedup")
 	}
@@ -126,9 +121,7 @@ func TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant(t *testing.T) {
 		candidate := base
 		candidate.Pairs = permutation
 		identified, err := effectiveSpeedupCodec.New(candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.IsSortedFunc(identified.Pairs, compareEffectiveSpeedupPairs) {
 			t.Fatal("effective speedup pairs are not in canonical total order")
 		}

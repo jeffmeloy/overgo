@@ -16,6 +16,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -31,19 +32,13 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 	r.program.Decode.Session = modelrecipe.DecodeSessionCapacity
 	var err error
 	r.cuda, err = executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer r.cuda.Close()
 	_, schema, err := r.cacheSchema(0, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	filled := func(shape tensor.Shape, value float32) reference.Value {
 		elements, err := shape.Elements()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result := reference.Value{Shape: shape, Data: make([]float32, elements)}
 		for i := range result.Data {
 			result.Data[i] = value
@@ -55,9 +50,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		expected.Layers[0].States[name] = LayerState{Mode: state.Mode, Value: filled(state.Value.Shape, 3)}
 	})
 	past, err := r.uploadDeviceCache(t.Context(), expected)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if past != nil {
 			if err := past.Release(context.Background()); err != nil {
@@ -68,9 +61,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 	check := func(cache *deviceKVCache, want *KVCache) {
 		t.Helper()
 		got, err := r.downloadDeviceCache(t.Context(), cache)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("active cache differs: got=%+v want=%+v", got, want)
 		}
@@ -87,9 +78,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		feeds := make(map[*tensor.Tensor]reference.Value)
 		var bindings tensor.InputBindings[driver.DevicePtr]
 		input, err := r.deviceBatchLayerCacheInputs(builder, "", 0, past, feeds, &bindings)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		add := func(name string, node *tensor.Tensor) *tensor.Tensor {
 			shape, _ := tensor.WithTrailingExtent(node.Shape, 1)
 			next := builder.Input(name, dtype.F32, shape)
@@ -108,26 +97,16 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		}
 		graph.logits = builder.Input("logits", dtype.F32, tensor.MustShape(1))
 		feeds[graph.logits] = filled(graph.logits.Shape, 0)
-		if err := builder.Err(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, builder.Err())
 		execution, err := executor.CompileIndexed(decodeGraphOutputs(graph, deviceOutputPlan{})...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := execution.Inputs.Bind(bindings); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, execution.Inputs.Bind(bindings))
 		graphs := []deviceBatchGraph{graph}
 		plans, err := r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		before := past.storage.refs
 		targets, storages, err := r.prepareDeviceCacheTargets(t.Context(), execution.Graph, execution.Inputs, graphs, appends, plans)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ctx := t.Context()
 		if cancel {
 			var stop context.CancelFunc
@@ -140,9 +119,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 				t.Fatalf("canceled append error=%v", err)
 			}
 			for _, storage := range storages {
-				if err := storage.release(context.Background()); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, storage.release(context.Background()))
 			}
 			if past.storage.refs != before {
 				t.Fatalf("canceled append retained storage refs=%d want=%d", past.storage.refs, before)
@@ -150,13 +127,9 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 			check(past, expected)
 			return nil
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		next, err := r.assembleDeviceBatchCaches(ctx, retained, storages, graphs, appends, plans, nil, nil, deviceOutputPlan{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return next[0]
 	}
 	for total := uint32(3); total <= 6; total++ {
@@ -173,9 +146,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		}
 		if total == 6 {
 			check(past, expected)
-			if err := past.storage.release(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, past.storage.release(t.Context()))
 		}
 		advance := func(value reference.Value) reference.Value {
 			shape, _ := tensor.WithTrailingExtent(value.Shape, uint64(total))
@@ -198,9 +169,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 			expected.Layers[0].States[name] = state
 		}
 		check(next, expected)
-		if err := past.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, past.Release(t.Context()))
 		past = next
 	}
 }

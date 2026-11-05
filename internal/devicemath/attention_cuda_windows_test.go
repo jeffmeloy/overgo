@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -53,9 +54,7 @@ func hostAttention(q, k, v []float32, seq, hd int, scale float64) (p []float32, 
 func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const seq, headDim = 8, 6
 	scale := 1 / math.Sqrt(float64(headDim))
@@ -63,16 +62,12 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 	q, k, v, dOut := randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim)
 	probability, _ := hostAttention(q, k, v, seq, headDim, scale)
 	want, err := AttentionCoreBackward(worker, q, k, v, probability, dOut, seq, headDim, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var pointers []driver.DevicePtr
 	allocate := func(count int, initial []float32) driver.DevicePtr {
 		t.Helper()
 		pointer, err := AllocResidentF32(worker, count, initial)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		pointers = append(pointers, pointer)
 		return pointer
 	}
@@ -96,9 +91,7 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 		pointer driver.DevicePtr
 		data    []float32
 	}{{dQPtr, gotQ}, {dKPtr, gotK}, {dVPtr, gotV}, {dScoresPtr, gotScores}} {
-		if err := ReadResident(worker, read.pointer, ResidentSlice{Data: read.data}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, ReadResident(worker, read.pointer, ResidentSlice{Data: read.data}))
 	}
 	qDelta, kDelta := testutil.MaxAbsDiff(gotQ, want.DQ), testutil.MaxAbsDiff(gotK, want.DK)
 	vDelta, scoreDelta := testutil.MaxAbsDiff(gotV, want.DV), testutil.MaxAbsDiff(gotScores, want.DScores)
@@ -113,9 +106,7 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, hd = 6, 4
@@ -128,9 +119,7 @@ func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 
 	p, _ := hostAttention(q, k, v, seq, hd, scale)
 	grads, err := AttentionCoreBackward(worker, q, k, v, p, dOut, seq, hd, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		_, out := hostAttention(q, k, v, seq, hd, scale)

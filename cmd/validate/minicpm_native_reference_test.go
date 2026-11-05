@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -24,22 +25,14 @@ const (
 func readMiniNativeCaptures(t testing.TB) {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id, err := artifact.ParseID("evidence:sha256:39ce1caf0a126eb35fb73510350972a27d6acf8a483e326e80b80425b1311d5a")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root, err := artifact.RequireTypedContent(t.Context(), store, id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var provenance struct {
 		Schema       string                 `json:"schema"`
 		Model        string                 `json:"model"`
@@ -48,9 +41,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		NativeCommit string                 `json:"native_commit"`
 		Inputs       map[string]artifact.ID `json:"inputs"`
 	}
-	if err := json.Unmarshal(root.Data, &provenance); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(root.Data, &provenance))
 	if provenance.Schema != "overgo/native-reference-provenance/v1" ||
 		provenance.Model != miniNativeModel ||
 		provenance.Recipe != miniNativeRecipe ||
@@ -60,9 +51,7 @@ func readMiniNativeCaptures(t testing.TB) {
 	var goCapture, native nativeTextCapture
 	for _, name := range []string{"go_capture", "native_capture", "native_input", "go_source", "native_source", "native_build", "conversion_source", "conversion_verifier", "conversion_verification"} {
 		content, err := artifact.RequireTypedContent(t.Context(), store, provenance.Inputs[name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		switch name {
 		case "go_capture":
 			err = json.Unmarshal(content.Data, &goCapture)
@@ -78,30 +67,20 @@ func readMiniNativeCaptures(t testing.TB) {
 				t.Fatal("MiniCPM native reference: value-preserving conversion differs")
 			}
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
-	if err := checkNativeTextCaptures(goCapture, native, 48, 82); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkNativeTextCaptures(goCapture, native, 48, 82))
 	deviceID, err := artifact.ParseID("evidence:sha256:2b3944a01a6fad3a8db1c5742aea84ea95ffccccd0929c4730b15196f33ef7d9")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	deviceRoot, err := artifact.RequireTypedContent(t.Context(), store, deviceID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var deviceBinding struct {
 		Schema          string                 `json:"schema"`
 		NativeReference artifact.ID            `json:"native_reference"`
 		Producer        string                 `json:"producer"`
 		Inputs          map[string]artifact.ID `json:"inputs"`
 	}
-	if err := json.Unmarshal(deviceRoot.Data, &deviceBinding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(deviceRoot.Data, &deviceBinding))
 	if deviceBinding.Schema != "overgo/native-device-reference/v1" || deviceBinding.NativeReference != id || deviceBinding.Producer != provenance.GoCommit {
 		t.Fatal("MiniCPM device reference: native or producer authority differs")
 	}
@@ -109,9 +88,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		t.Fatal(err)
 	}
 	deviceContent, err := artifact.RequireTypedContent(t.Context(), store, deviceBinding.Inputs["capture"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var device struct {
 		nativeTextCapture
 		Identity    modelrecipe.ProgramIdentity `json:"identity"`
@@ -119,9 +96,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		Source      string                      `json:"source"`
 		Sampling    string                      `json:"sampling"`
 	}
-	if err := json.Unmarshal(deviceContent.Data, &device); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(deviceContent.Data, &device))
 	if device.Identity.Model.String() != miniNativeModel || device.Identity.Recipe.String() != miniNativeRecipe || device.Source != provenance.GoCommit || device.Sampling != "device-greedy" || device.Environment.Backend != "cuda" {
 		t.Fatal("MiniCPM device reference: executed model, recipe or protocol differs")
 	}
@@ -129,9 +104,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		t.Fatal(err)
 	}
 	definition, err := recipe.RequireDefinition(t.Context(), store, device.Identity.Recipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for role, expected := range map[recipe.DependencyRole]artifact.ID{
 		recipe.DependencyModel:      device.Identity.Model,
 		recipe.DependencyProfile:    device.Identity.Profile,
@@ -141,9 +114,7 @@ func readMiniNativeCaptures(t testing.TB) {
 			t.Fatalf("MiniCPM device reference: recipe %s binding differs", role)
 		}
 	}
-	if err := checkNativeTextCaptures(device.nativeTextCapture, native, 48, 82); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkNativeTextCaptures(device.nativeTextCapture, native, 48, 82))
 }
 
 func TestAcceptedMiniCPMNativeReference(t *testing.T) {

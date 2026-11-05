@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestExportUseCountsConsumers holds the export rule to consumers: another
@@ -27,9 +28,7 @@ func TestExportUseCountsConsumers(t *testing.T) {
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	for _, test := range []struct {
@@ -95,13 +94,9 @@ func Name(name string, values []string, count *int, fallback *config, load func(
 }
 `
 	base, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n")})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidate, err := base.Overlay(map[string][]byte{"internal/p/p.go": []byte(lazy)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if findings := newLegacyForms(base, candidate); len(findings) != 0 {
 		t.Fatalf("lazy fallbacks were refused: %q", findings)
 	}
@@ -130,9 +125,7 @@ var twice sync.Once
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	if findings := newLegacyForms(snapshot(held), snapshot(held)); len(findings) != 0 {
@@ -156,9 +149,7 @@ func TestNewPolicyLiteralsIgnoresRenames(t *testing.T) {
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n\n" + source)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	base := snapshot("func half(n int) int { return n / 2 }\n")
@@ -197,9 +188,7 @@ func TestWrittenCodeIsCountedByKind(t *testing.T) {
 	snapshot := func(files map[string][]byte) gosyntax.Snapshot {
 		t.Helper()
 		out, err := gosyntax.Snapshot{}.Overlay(files)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return out
 	}
 	base := snapshot(map[string][]byte{"p/p.go": []byte(small), "p/old.go": []byte(large)})
@@ -232,24 +221,18 @@ func TestLandingSaysWhatAChangeAddsOfEachKind(t *testing.T) {
 	fixture.write("internal/p/p_test.go", "package p\n\nconst again = recordSchema\n")
 	fixture.write("internal/p/testdata/new.json", "{\"a\": 1}\n")
 	fixture.write("fixtures/root.bin", "ab")
-	if err := os.Remove(filepath.Join(fixture.repo, "internal", "p", "testdata", "old.json")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(fixture.repo, "internal", "p", "testdata", "old.json")))
 	fixture.write("kernels/cuda/ops.cu", "__global__ void one() {}\n__global__ void two() {}\n__global__ void three() {}\n")
 	fixture.write("kernels/cuda/tables_generated.cuh", "// Tables the __global__ kernels read.\nstatic const float table[] = {\n0,\n};\n")
 	l := fixture.candidate()
 	candidate, base, err := l.changedSource(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	production, tests := writtenNodes(candidate, false)-writtenNodes(base, false), writtenNodes(candidate, true)-writtenNodes(base, true)
 	if production <= 0 || tests <= 0 {
 		t.Fatalf("the change adds %d production and %d test nodes, want some of each", production, tests)
 	}
 	l.terms.Items[0].Budget.Nodes = production
-	if err := l.rules(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, l.rules(t.Context()))
 	want := fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas +1, CUDA source +2 lines and +2 entry points, fixtures +1 files and +8 bytes", production, production, tests)
 	if l.details["rules"] != want {
 		t.Fatalf("the rules stage says %q, want %q", l.details["rules"], want)

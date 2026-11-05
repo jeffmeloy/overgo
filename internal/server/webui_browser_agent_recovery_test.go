@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -16,9 +17,7 @@ func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	// Serial: the fixture sets PATH.
 	requireWebUILane(t, "the agent recovery leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fixture, release := streamingAgentFixture(t, store)
 	server := httptest.NewServer(fixture.handler)
@@ -56,9 +55,7 @@ func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	settle(`recoveryCards('store.head').length === 1 && recoveryState(recoveryCards('store.head')[0]).startsWith('done') && recoveryGuard().startsWith('steps 1 / ')`)
 
 	// Reloaded, the session's turn and step return with its count.
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	open()
 	settle(`[...document.querySelectorAll('.msg.user')].some(message => message.textContent.includes('hello agent')) && [...document.querySelectorAll('.msg.assistant .body')].some(body => body.textContent.trim() !== '') &&
   recoveryCards('store.head').length === 1 && recoveryState(recoveryCards('store.head')[0]) === 'done' && recoveryGuard().startsWith('steps 1 / ')`)

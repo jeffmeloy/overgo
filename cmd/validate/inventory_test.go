@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestModelInventory(t *testing.T) {
 	t.Parallel()
 	identify := func(kind artifact.Kind, text string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte(text))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	activation := identify(artifact.KindRecipe, "accepted")
@@ -70,21 +69,15 @@ func TestModelInventory(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	write("Model/config.json", `{"model_type": "llama"}`)
 	write("Model/shards/part-1.safetensors", "weights")
 	write("notes/README.md", "no weights here")
 	write("loose.gguf", "a file beside the directories is not a directory")
 	read, err := modelDirectories([]string{root})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(read) != 2 || filepath.Base(read[0].Path) != "Model" || !read[0].Weights || read[0].ModelType != "llama" || len(read[0].ConfigDigests) == 0 {
 		t.Fatalf("model directory = %+v", read)
 	}

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -45,9 +46,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 	}
 	snapshot := textStructuredSnapshot(t)
 	store, err := overgodb.Create(filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	goldenPaths := map[string]string{
 		"dense-carbon": "carbon_serving_golden.json", "dense-minicpm5": "minicpm5_serving_golden.json",
@@ -63,9 +62,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 			t.Fatalf("row %q evidence cardinality is not singular", capability.ID)
 		}
 		artifactPath, err := artifact.AvailablePath(t.Context(), store, capability.Artifacts[0].Identity, artifact.LocationFile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		assertFileIdentity(t, artifactPath, capability.Artifacts[0].Identity)
 		golden := testutil.FixturePath(t, goldenPaths[capability.ID])
 		assertFileIdentity(t, golden, capability.Corpora[0].Identity)
@@ -80,9 +77,7 @@ func textStructuredSnapshot(t *testing.T) Snapshot {
 		t.Fatalf("UNAVAILABLE: text/structured snapshot absent; parity NOT verified: %v", err)
 	}
 	snapshot, _, err := Normalize(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return snapshot
 }
 
@@ -114,20 +109,14 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		recipe.TaskSpeech, recipe.TaskVQA,
 	} {
 		definition, err := modelrecipe.CapabilityDefinition(task, model)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		definitions = append(definitions, definition)
 	}
 	oscillatorImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitions = append(definitions, oscillatorImage)
 	latentImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, model, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitions = append(definitions, latentImage)
 
 	required := []Contract{
@@ -141,9 +130,7 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		{Task: recipe.TaskVideoGen, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityVideo}}},
 	}
 	rows, err := InferenceModalityMatrix(definitions, required)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(rows) != len(required) {
 		t.Fatalf("matrix rows = %d, want %d", len(rows), len(required))
 	}

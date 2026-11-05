@@ -6,15 +6,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestInteractionTerminalReason(t *testing.T) {
 	path := t.TempDir()
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() { _ = store.Close() }()
 	value := Interaction{Response: "limited", Node: interactionTestNode,
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "limited-recipe"),
@@ -24,9 +23,7 @@ func TestInteractionTerminalReason(t *testing.T) {
 	}
 	prompt := []InteractionMessage{{Role: "user", Content: "question"}}
 	reserved, err := PublishInteraction(t.Context(), store, value, prompt, OutcomeInconclusive)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value.TerminalReason = InteractionOutputLimit
 	messages := append(prompt, InteractionMessage{Role: "assistant", Content: "partial answer"})
 	for _, outcome := range []Outcome{"", OutcomeInconclusive, OutcomeCancelled, OutcomeFailed} {
@@ -47,13 +44,9 @@ func TestInteractionTerminalReason(t *testing.T) {
 	if err != nil || final.ID == reserved.ID {
 		t.Fatalf("terminal publication = %+v, %v", final, err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded, found, err := ResolveInteraction(t.Context(), store, value.Response)
 	if err != nil || !found || loaded.ID != final.ID || loaded.TerminalReason != InteractionOutputLimit {
 		t.Fatalf("reopened interaction = %+v, %v, %v", loaded, found, err)
@@ -68,13 +61,9 @@ func TestInteractionTerminalReason(t *testing.T) {
 	}
 	// Existing records omit the optional reason and retain their exact identity.
 	legacy, err := interactionCodec.NewInitial(Interaction{Response: "legacy", Node: interactionTestNode, Recipe: value.Recipe, Model: value.Model, Message: final.Message, Trace: final.Trace})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := interactionCodec.Content(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bytes.Contains(content.Data, []byte("terminal_reason")) {
 		t.Fatal("optional reason changed legacy document bytes")
 	}
@@ -87,9 +76,7 @@ func TestInteractionTerminalReason(t *testing.T) {
 	value.Tools = []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "tool action")}
 	decisions := []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "decision")}
 	trace, err := NewInteractionTrace(value, final.Message, messages, decisions, OutcomeSucceeded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value.Tools[0], decisions[0] = artifact.ID{}, artifact.ID{}
 	if err := trace.ValidateIdentity(); err != nil {
 		t.Fatalf("trace retained caller-owned slices: %v", err)

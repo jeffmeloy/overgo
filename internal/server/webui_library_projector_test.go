@@ -13,6 +13,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/libraryintake"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -33,9 +34,7 @@ func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 	ctx := t.Context()
 	memo := discovery.LoadMemo(ctx, store)
 	entries, _, err := discovery.CapabilityCatalog(ctx, store, 256, memo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		if !entry.Present || entry.Location == "" {
 			continue
@@ -66,9 +65,7 @@ func TestFrontPageLibraryProjector(t *testing.T) {
 		t.Fatal("a projector registered as the model")
 	}
 	notes := filepath.Join(t.TempDir(), "notes.txt")
-	if err := os.WriteFile(notes, []byte("not a projector"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(notes, []byte("not a projector"), 0o600))
 	if _, _, err := libraryintake.ModelFiles(modelPath, notes); err == nil {
 		t.Fatal("a text file passed as the projector")
 	}

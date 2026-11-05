@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"overgo/internal/testcheck"
 )
 
 // personWords are the words that state a rule as a person's: the doctrine states every rule as the system's own.
@@ -34,9 +36,7 @@ func TestDoctrineNamesNoPerson(t *testing.T) {
 	read := func(path string) string {
 		t.Helper()
 		data, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return string(data)
 	}
 	texts := map[string]string{"skill.md": read("skill.md")}
@@ -46,9 +46,7 @@ func TestDoctrineNamesNoPerson(t *testing.T) {
 			Text    string `json:"text"`
 		} `json:"paragraphs"`
 	}
-	if err := json.Unmarshal([]byte(read("docs/plan.json")), &plan); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(read("docs/plan.json")), &plan))
 	for index, paragraph := range plan.Paragraphs {
 		if paragraph.Governs == "standing" || paragraph.Governs == "campaign" {
 			texts[fmt.Sprintf("docs/plan.json paragraph %d", index)] = paragraph.Text
@@ -57,18 +55,14 @@ func TestDoctrineNamesNoPerson(t *testing.T) {
 	for _, path := range doctrineSources {
 		files := token.NewFileSet()
 		file, err := parser.ParseFile(files, filepath.Join(root, path), nil, parser.ParseComments)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, group := range file.Comments {
 			texts[files.Position(group.Pos()).String()] = group.Text()
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
 				value, err := strconv.Unquote(literal.Value)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				texts[files.Position(literal.Pos()).String()] = value
 			}
 			return true

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestCommitsOfTwoWorktreesTakeTurns holds the commits begun in a
@@ -36,9 +37,7 @@ func TestCommitsOfTwoWorktreesTakeTurns(t *testing.T) {
 	linked := &sliceFixture{t: t, repo: filepath.Join(t.TempDir(), "linked")}
 	fixture.git("worktree", "add", "-q", "--detach", linked.repo, "HEAD")
 	main, err := os.Stat(fixture.repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, checkout := range []*sliceFixture{fixture, linked} {
 		root, branch, err := trunkOf(ctx, checkout.repo)
 		if err != nil || branch != "refs/heads/trunk" {
@@ -108,7 +107,5 @@ func TestCommitsOfTwoWorktreesTakeTurns(t *testing.T) {
 	if err != nil || after.spent.Queue != 0 {
 		t.Fatalf("after the commit the turn was taken after waiting %s (%v), want it given back", after.spent.Queue, err)
 	}
-	if err := free(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, free())
 }

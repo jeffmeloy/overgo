@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -33,9 +35,7 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 		{Name: "vector", Start: MatrixElements, End: parameterCount, Rows: 1, Cols: vectorCols},
 	}
 	plan, err := CompilePlan(parameterCount, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.ParameterCount() != parameterCount || plan.GroupCount() != len(specs) {
 		t.Fatalf("plan dimensions = (%d,%d), want (%d,%d)", plan.ParameterCount(), plan.GroupCount(), parameterCount, len(specs))
 	}
@@ -45,17 +45,13 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 		t.Fatalf("compiled geometry = %dx%d / %dx%d", matrix.Rows, matrix.Cols, vector.Rows, vector.Cols)
 	}
 	duplicate, err := CompilePlan(parameterCount, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.Identity() == "" || plan.Identity() != duplicate.Identity() {
 		t.Fatal("equivalent plans lack a stable identity")
 	}
 	specs[1].Frozen = true
 	frozen, err := CompilePlan(parameterCount, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frozen.Identity() == plan.Identity() {
 		t.Fatal("frozen policy is absent from plan identity")
 	}
@@ -68,9 +64,7 @@ func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
 		{Name: "scalar", Start: 7, End: 8, Rows: 1, Cols: 1},
 	}
 	plan, err := CompilePlan(8, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := []float32{1, 2, 3, 4, 5, 6, 7, 8}
 	before := append([]float32(nil), weights...)
 	gradients := []float32{1, -2, 3, -4, 2, -3, 4, -5}
@@ -79,9 +73,7 @@ func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
 		Momentum:         0.9,
 		Schedule:         ScheduleConstant,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if muon.scratch.input != nil {
 		t.Fatal("constructor allocated step scratch")
 	}
@@ -241,9 +233,7 @@ func TestStateRestoresExactContinuation(t *testing.T) {
 	secondWeights := slices.Clone(firstWeights)
 	secondGradients := make([]float32, parameterCount)
 	second := mustOptimizer(t, secondWeights, secondGradients, plan, fixtureConfig)
-	if err := second.Restore(first.Snapshot()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, second.Restore(first.Snapshot()))
 	nextGradient := []float32{-2, 3, -4, 5}
 	copy(firstGradients, nextGradient)
 	copy(secondGradients, nextGradient)
@@ -264,9 +254,7 @@ func TestStateRestoresExactContinuation(t *testing.T) {
 	// lands on its own parameters.
 	state = first.Snapshot()
 	state.Momentum, state.MomentumF32 = []float64{0.25, 3}, []float32{0.5, -1.5}
-	if err := second.Restore(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, second.Restore(state))
 	if got := second.Snapshot().Momentum; !slices.Equal(got, []float64{0.5, -1.5, 0.25, 3}) {
 		t.Fatalf("a state of f32 then f64 momentum restored as %v", got)
 	}
@@ -275,17 +263,13 @@ func TestStateRestoresExactContinuation(t *testing.T) {
 func mustPlan(t *testing.T, parameterCount int, specs []GroupSpec) Plan {
 	t.Helper()
 	plan, err := CompilePlan(parameterCount, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan
 }
 
 func mustOptimizer(t *testing.T, weights, gradients []float32, plan Plan, config Config) *Optimizer {
 	t.Helper()
 	optimizer, err := New(weights, gradients, plan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return optimizer
 }

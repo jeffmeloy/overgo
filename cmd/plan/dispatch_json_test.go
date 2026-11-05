@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -21,13 +22,9 @@ func TestDispatchJSONMatchesProse(t *testing.T) {
 	}}}
 	dispatch := plan.DispatchOf(document, worklease.UnassignedRole)
 	encoded, err := json.Marshal(dispatch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decoded plan.Dispatch
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 	prose, open := nextAction(document, worklease.UnassignedRole)
 	if !open || decoded.Complete || decoded.Line != prose || decoded.Item != "item" || decoded.Step != "do" || decoded.Verify != "go test ./x -run '^TestX$'" {
 		t.Fatalf("dispatch %s does not match the prose %q", encoded, prose)

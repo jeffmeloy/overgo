@@ -3,19 +3,17 @@ package agenttool
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const openAPIFixture = `{"openapi":"3.1.0","info":{"title":"Weather","version":"1"},"paths":{"/forecast":{"post":{"summary":"Forecast weather.","operationId":"weather.forecast","responses":{"200":{"description":"ok"}},"x-overgo-effect":"inspection","requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"days":{"type":"integer","description":"forecast days"},"place":{"type":"string"}},"required":["place"]}}}}}}}}`
 
 func TestCompileOpenAPICanonicalCandidateManuals(t *testing.T) {
 	first, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Source != second.Source || len(first.Manuals) != 1 || first.Manuals[0].ID != second.Manuals[0].ID {
 		t.Fatalf("compilations differ: %+v %+v", first, second)
 	}

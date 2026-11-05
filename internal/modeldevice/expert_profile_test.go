@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestExpertProfile: a profile keeps its ranking through Strata's file; a load given one places the experts it ranks
@@ -37,13 +38,9 @@ func TestExpertProfile(t *testing.T) {
 			}
 		}
 		path := filepath.Join(t.TempDir(), "profile.strp")
-		if err := profile.Write(path); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, profile.Write(path))
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The header's 24 bytes, then the pairs' four bytes each, then each layer's experts' ranks, as Strata writes them.
 		const header, pair = 24, 4
 		ranks := make([]int32, 6)
@@ -55,9 +52,7 @@ func TestExpertProfile(t *testing.T) {
 			t.Fatalf("read %+v: %v", read, err)
 		}
 		binary.LittleEndian.PutUint16(data[header:], 2)
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, data, 0o644))
 		if _, err := ReadExpertProfile(path); err == nil {
 			t.Fatal("a pair outside the profile's layers was read")
 		}
@@ -94,9 +89,7 @@ func TestExpertProfile(t *testing.T) {
 	profile := ExpertProfile{Layers: 2, Experts: 3, Pairs: ranked}
 	t.Run("ranked-fill", func(t *testing.T) {
 		cache, mem, err := open(t, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Layer 0 holds experts 0 and 2 on the card around expert 1 in host memory, whose bytes the file holds between.
 		card := map[string][]uint32{"blk.0.ffn_gate_exps.weight": {0, 2}, "blk.0.ffn_down_exps.weight": {0, 2}, "blk.1.ffn_down_exps.weight": {1}}
 		for name, want := range card {
@@ -123,9 +116,7 @@ func TestExpertProfile(t *testing.T) {
 	})
 	t.Run("decode-runs-rank", func(t *testing.T) {
 		cache, _, err := open(t, profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		weights := &DeviceWeights{experts: cache}
 		route := func(prompt bool, layer []string, index uint32) {
 			t.Helper()
@@ -136,13 +127,9 @@ func TestExpertProfile(t *testing.T) {
 				nodes = append(nodes, builder.Input(name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
 			}
 			bitmap, _, err := weights.ExpertRoutes(nil, nodes)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			cache.routed[uint64(bitmap-cache.routedMap)+uint64(index)] = 1
-			if err := cache.advance(t.Context(), prompt); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, cache.advance(t.Context(), prompt))
 		}
 		first := []string{"blk.0.ffn_gate_exps.weight", "blk.0.ffn_down_exps.weight"}
 		second := []string{"blk.1.ffn_down_exps.weight"}

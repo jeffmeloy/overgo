@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // A committed run reads back by its weights location as the latest
@@ -17,23 +18,15 @@ import (
 func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit := strings.Repeat("ab", 20)
 	surface := strings.Repeat("5e", 32)
 
@@ -50,9 +43,7 @@ func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 		t.Fatalf("fixture verdict passed: %+v", failing.Verdict)
 	}
 	claim, _, evidence, err := Claim(failing)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if claim.Capability != Capability || claim.Tier != runrecord.TierCapabilityMeasured || claim.Commit != commit ||
 		claim.ContextTokens != 2000 || claim.WallNS != 7_000_000_000 || len(claim.Evidence) != 1 || claim.Evidence[0] != evidence {
 		t.Fatalf("claim = %+v", claim)
@@ -66,9 +57,7 @@ func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	passing.Measure.PromptTokensPerSecond = 2400
 	passing.Verdict = Judge(passing.Measure, passing.Short, floors)
 	record, err := Publish(ctx, store, model, passing)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	byLocation := LatestByLocation(ctx, store, 0)
 	summary, found := byLocation[Key(strings.ToUpper(filepath.ToSlash(weightsPath)))]
 	if !found || summary.Record != record || !summary.Result.Verdict.Passed || summary.Result.Measure.PromptTokensPerSecond != 2400 {

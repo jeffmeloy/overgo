@@ -1,6 +1,10 @@
 package sampling
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestOrderedJSONPreservesSchemaPropertyAndConstantOrder(t *testing.T) {
 	source := []byte(
@@ -8,13 +12,9 @@ func TestOrderedJSONPreservesSchemaPropertyAndConstantOrder(t *testing.T) {
 			`"required":["z"]}`,
 	)
 	value, err := parseOrderedJSON(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded, err := marshalOrderedJSON(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if encoded != string(source) {
 		t.Fatalf("round trip = %s, want %s", encoded, source)
 	}
@@ -53,9 +53,7 @@ func TestOrderedJSONRejectsDuplicateKeysTrailingDataAndExcessDepth(t *testing.T)
 func TestOrderedJSONAcceptsUTF8BOM(t *testing.T) {
 	input := append([]byte{0xef, 0xbb, 0xbf}, []byte(`{"type":"boolean"}`)...)
 	value, err := parseOrderedJSON(input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, ok := value.(orderedJSONObject); !ok {
 		t.Fatalf("value type = %T", value)
 	}

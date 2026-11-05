@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -14,9 +15,7 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "conversation control runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &responseControlGenerator{
 		recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Recovered answer"}}),

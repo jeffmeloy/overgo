@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func TestBoundedTrainingEvidencePreservesFacts(t *testing.T) {
@@ -16,15 +17,11 @@ func TestBoundedTrainingEvidencePreservesFacts(t *testing.T) {
 		ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "bounded-evidence"), Steps: 2, Host: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(
 		t.Context(), store, result.RouterObservationCoverage,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.RouterObservations) != 1 || result.RouterObservations[0] != chunk.ID ||
 		coverage.ObservationCount != uint64(len(chunk.Observations)) || len(chunk.Observations) != 2 {
 		t.Fatalf("bounded router evidence = result=%v coverage=%+v observations=%d", result.RouterObservations, coverage, len(chunk.Observations))
@@ -59,9 +56,7 @@ func TestTrainingEvidenceJournalAmplificationBound(t *testing.T) {
 		_, before := store.Head()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(root, output)
 		result, err := Execute(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, after := store.Head()
 		return result, after - before
 	}

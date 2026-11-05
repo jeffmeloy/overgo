@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -13,9 +14,7 @@ const benchmarkReplayCommits = 256
 func BenchmarkSnapshotReplay(b *testing.B) {
 	root := b.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	for sequence := range benchmarkReplayCommits {
 		payload := fmt.Appendf(nil, "benchmark-artifact-%d", sequence)
 		id := testutil.ArtifactBytesID(b, artifact.KindRun, payload)
@@ -25,16 +24,12 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 				ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream",
 			}},
 		})
-		if err != nil {
-			b.Fatal(err)
-		}
+		testcheck.NoError(b, err)
 	}
 	if _, err := store.Snapshot(b.Context()); err != nil {
 		b.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, store.Close())
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
@@ -51,9 +46,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 func BenchmarkCompaction(b *testing.B) {
 	ctx := b.Context()
 	source, err := Create(b.TempDir())
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	defer source.Close()
 	var previous artifact.ID
 	for sequence := range benchmarkReplayCommits {

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 )
 
 // publishTranscriptionBase binds the same real model and processor for training,
@@ -22,15 +23,11 @@ func (p *audioPublication) publishTranscriptionBase(t *testing.T, fixture ctcTra
 	batch, err := inventory.Batch("adapter/base")
 	p.commit(t, batch, err)
 	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: fixture.frontend, Grouping: fixture.grouping, Encoder: fixture.declaration, BlankToken: fixture.blank, Language: "en"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err = profile.Batch("adapter/profile")
 	p.commit(t, batch, err)
 	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(fixture.frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, fixture.frontend.Geometry, artifact.ID{}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err = contract.Batch("adapter/contract")
 	p.commit(t, batch, err)
 	var tokenizerID artifact.ID
@@ -40,9 +37,7 @@ func (p *audioPublication) publishTranscriptionBase(t *testing.T, fixture ctcTra
 		}
 	}
 	base, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), p.store, "adapter/base-recipe", base); err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,9 +39,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 			}
 			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	<-started
 	status, ok := manager.Status(id)
 	if !ok || status.State != StateRunning || status.Progress.Completed != 1 || len(status.Metrics) != 1 {
@@ -54,9 +53,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	}
 	close(commit)
 	status, err = manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status.State != StateCompleted || status.Run == nil || *status.Run != runID || len(status.Outputs) != 1 || status.Outputs[0] != outputID {
 		t.Fatalf("completed status = %+v", status)
 	}
@@ -73,13 +70,9 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 			}
 			return Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status, err := manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(status.Metrics) != 1 || status.Metrics[0].Name != "loss" || status.Metrics[0].Value != 99 {
 		t.Fatalf("metrics=%+v", status.Metrics)
 	}
@@ -135,9 +128,7 @@ func TestReporterTextStaysBounded(t *testing.T) {
 			}
 			return Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	<-started
 	status, ok := manager.Status(id)
 	if !ok || status.State != StateRunning || status.Text != atBound {
@@ -162,9 +153,7 @@ func TestReporterTextStaysBounded(t *testing.T) {
 	running := len(seen())
 	close(release)
 	status, err = manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status.State != StateCompleted || status.Text != "" {
 		t.Fatalf("finished status is %q with a text of %d bytes, want completed and no text", status.State, len(status.Text))
 	}
@@ -204,9 +193,7 @@ func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {
 			reporter.Attempt(second)
 			return Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status, err := manager.Wait(t.Context(), id)
 	if err != nil || !slices.Equal(status.Attempts, []artifact.ID{first, second}) {
 		t.Fatalf("attempt evidence = (%v, %v)", status.Attempts, err)
@@ -227,9 +214,7 @@ func TestOperationTransitionsReachTheObserverInOrder(t *testing.T) {
 			reporter.Publishing()
 			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := manager.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
@@ -263,17 +248,13 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 			<-ctx.Done()
 			return Completion{Run: runID}, ctx.Err()
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	<-started
 	if !manager.Cancel(id) {
 		t.Fatal("active operation was not cancelled")
 	}
 	status, err := manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	<-released
 	if status.State != StateCancelled || status.Run == nil || *status.Run != runID {
 		t.Fatalf("cancelled status = %+v", status)
@@ -283,9 +264,7 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
 	manager, err := NewManager(8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(manager.Close)
 	return manager
 }

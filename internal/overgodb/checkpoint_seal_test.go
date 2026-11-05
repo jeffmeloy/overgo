@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,9 +36,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 		}
 	}
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit(store, 20)
 	if _, err := store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
@@ -45,20 +44,14 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 	commit(store, 20)
 	before, _ := store.Head()
 	blocked := filepath.Join(root, checkpointDirectory, checkpointGeneration(40))
-	if err := os.WriteFile(blocked, nil, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(blocked, nil, storeFileMode))
 	store.tail = 1
 	if err := store.Close(); err == nil {
 		t.Fatal("Close did not report the checkpoint it could not write")
 	}
-	if err := os.Remove(blocked); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(blocked))
 	reopened, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if head, sequence := reopened.Head(); head != before || sequence != 40 {
 		t.Fatalf("an open stopped at sequence %d, head %s, after commits through 40, head %s", sequence, head, before)
 	}
@@ -71,16 +64,10 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 		t.Fatalf("the next commit took sequence %d, want 41", sequence)
 	}
 	reopened.tail = ^uint64(0)
-	if err := reopened.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reopened.Close())
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, checkpointDirectory)))
 	replayed, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer replayed.Close()
 	if head, sequence := replayed.Head(); head != after || sequence != 41 {
 		t.Fatalf("a full replay reached sequence %d, head %s, want 41, head %s", sequence, head, after)

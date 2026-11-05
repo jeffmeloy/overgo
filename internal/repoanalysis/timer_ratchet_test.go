@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
@@ -22,9 +23,7 @@ func TestNoFixedTimers(t *testing.T) {
 	root := t.TempDir()
 	write := func(name, content string) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(content), 0o644))
 	}
 	write("fixed.go", `package probe
 import ("context"; "time")
@@ -73,13 +72,9 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 }
 `)
 	snapshot, err := gosyntax.DiscoverGo(root, ".")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	census, err := FixedTimerCensus(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(census, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}) {
 		t.Fatalf("fixture census = %+v", census)
 	}
@@ -91,18 +86,10 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	}
 
 	repository, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	live, err := gosyntax.DiscoverGo(repository, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	liveCensus, err := FixedTimerCensus(live)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := RefuseFixedTimers(liveCensus); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, RefuseFixedTimers(liveCensus))
 }

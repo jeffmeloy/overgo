@@ -13,6 +13,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestExpertPromotionsCopyBesideTheRunsOnTheCard drives a residency of two
@@ -35,19 +36,13 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 		gateStride, downStride = 256, 1024
 	)
 	worker, err := device.New(modelTestDeviceOrdinal)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	weights, err := NewDeviceWeights(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loader := NewLoader(file)
 	loader.Experts(weights, file.Tensors, tableBytes+2*(gateStride+downStride))
-	if err := loader.Load(t.Context(), nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loader.Load(t.Context(), nil))
 	defer weights.Close()
 	cache := weights.experts
 	builder := tensor.NewBuilder()
@@ -96,9 +91,7 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 			}
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	advance := func(*device.State) error { return cache.advance(t.Context(), false) }
 	landed := func(*device.State) error {

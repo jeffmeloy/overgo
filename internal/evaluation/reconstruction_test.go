@@ -19,6 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -71,28 +72,20 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 	t.Parallel()
 	suite := reconstructionFixture()
 	compiled, err := compileReconstruction(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindReconstruction(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	autoencoder := &levelShift{levels: map[string]uint8{"one.mp4": 1, "ten.mp4": 10}}
 	report, err := evaluateReconstruction(t.Context(), store, autoencoder, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Every value off by one level is a mean squared error of 1, and by ten of 100. Sums of
 	// whole squares are exact, so the errors are held to their values and not to a tolerance.
 	if len(report.Observations) != 2 || report.Observations[0].LevelError != 1 || report.Observations[1].LevelError != 100 ||
@@ -115,9 +108,7 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 	}
 	// The suite file compiles through the same door every suite does.
 	data, err := json.Marshal(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := compileSuite(data, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
@@ -135,18 +126,14 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 	t.Parallel()
 	source, err := json.Marshal(reconstructionFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "autoencoder"),
 		Definition: planID(t, artifact.KindModelDefinition, "autoencoder definition"),
 		Recipe:     planID(t, artifact.KindRecipe, "autoencoder recipe"),
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, test := range map[string]struct {
 		autoencoder *levelShift
 		clips       [2]float64
@@ -158,21 +145,15 @@ func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/autoencoder", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 				t.Fatal(err)
 			}
 			campaign, err := NewCampaign(store, test.autoencoder, identity, environment, planTestCommit)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			suite, err := CompileSuite(source, campaign.Authorities())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			result, err := campaign.Evaluate(t.Context(), suite)
 			if err != nil {
 				t.Fatalf("the suite was not published: %v", err)
@@ -195,9 +176,7 @@ func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 				LevelError  *float64 `json:"mean_squared_level_error"`
 				LatentShare float64  `json:"latent_share"`
 			}
-			if err := json.Unmarshal(content.Data, &stored); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(content.Data, &stored))
 			if content.Descriptor.Schema != "overgo/reconstruction-report/v2" || stored.Version != artifact.SecondDocumentVersion ||
 				len(stored.Observations) != len(test.clips) || stored.LevelError == nil || *stored.LevelError != want.Value ||
 				math.Abs(stored.LatentShare-1.0/12) > 1e-12 {
@@ -232,17 +211,13 @@ func (r *oneTrip) Reconstruct(context.Context, ReconstructionCase, ClipCut) (Rou
 func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
 	t.Parallel()
 	compiled, err := compileReconstruction(reconstructionFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindReconstruction(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	failed := errors.New("the autoencoder failed")
 	went := []float32{0, 0.5}
 	for name, test := range map[string]struct {
@@ -257,9 +232,7 @@ func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
 		"a clip of no values":                        {oneTrip{trip: RoundTrip{LatentValues: 1}}, "0 values went in and 0 came back"},
 	} {
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { store.Close() })
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := evaluateReconstruction(t.Context(), store, &test.autoencoder, compiled, plan)
@@ -342,13 +315,9 @@ func TestReconstructionRefusesWhatItCannotCompile(t *testing.T) {
 	wider := reconstructionFixture()
 	wider.Cut.Width = 16
 	left, err := compileReconstruction(reconstructionFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	right, err := compileReconstruction(wider)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if left.dataset == right.dataset {
 		t.Fatal("two cuts of the same clips are one dataset")
 	}
@@ -362,15 +331,11 @@ func TestClipReconstructionSuiteBindsEachClipToItsBytes(t *testing.T) {
 	directory := t.TempDir()
 	contents := map[string]string{"a-Scene-0001.mp4": "first", "b-Scene-0001.mp4": "second", "c-Scene-0002.mp4": "third", "notes.txt": "no clip"}
 	for name, content := range contents {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
 	cut := ClipCut{Frames: 21, FPS: 16, Width: 832, Height: 480}
 	suite, err := BuildClipReconstruction(directory, 2, 17, cut)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if suite.Source != "vidgen-1m/reconstruction/21x480x832" || suite.Cut != cut || len(suite.Cases) != 2 {
 		t.Fatalf("suite = %+v, want two clips under a source that names the cut", suite)
 	}
@@ -400,13 +365,9 @@ func TestClipReconstructionSuiteBindsEachClipToItsBytes(t *testing.T) {
 	stretched := cropped
 	stretched.Cut.Crop = false
 	left, err := compileReconstruction(cropped)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	right, err := compileReconstruction(stretched)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if left.dataset == right.dataset {
 		t.Fatal("a cropped and a stretched cut of the same clips are one dataset")
 	}

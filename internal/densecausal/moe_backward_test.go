@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // tinyMixture builds a deterministic small mixture exercising every gradient
@@ -37,9 +39,7 @@ func tinyMixture(seed uint32, hidden, inter, experts int, shared bool) moeWeight
 func mixtureLoss(t *testing.T, x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy, probe []float32) float64 {
 	t.Helper()
 	out, _, _, err := moeForward(x, w, rows, hidden, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var total float64
 	for i := range out {
 		total += float64(out[i]) * float64(probe[i])
@@ -74,17 +74,11 @@ func TestMoEBackwardMatchesFiniteDifference(t *testing.T) {
 				probe[i] = (float32(seed%701)/350 - 1)
 			}
 			_, route, _, err := moeForward(x, w, rows, hidden, tc.policy)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			dx, grads, err := moeBackward(x, w, rows, hidden, tc.policy, route, probe, true)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			dxOnly, omitted, err := moeBackward(x, w, rows, hidden, tc.policy, route, probe, false)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(dxOnly, dx) || omitted.dRouter != nil || omitted.dExperts != nil || omitted.dShared != nil {
 				t.Fatalf("activation-only VJP differs or retained parameter gradients")
 			}

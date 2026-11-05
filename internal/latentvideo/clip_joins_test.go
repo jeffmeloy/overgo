@@ -10,6 +10,7 @@ import (
 	"testing/synctest"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 // TestVideoWorkIsJoinedOnEveryExit holds the workers that draw a clip's
@@ -40,9 +41,7 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 		held := func() (encoder *gifEncoder, gate chan struct{}, entered, drawn *atomic.Int32) {
 			t.Helper()
 			encoder, err := NewClipEncoder(fps, UnitPixels)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			gate, entered, drawn = make(chan struct{}), &atomic.Int32{}, &atomic.Int32{}
 			t.Cleanup(func() {
 				select {
@@ -103,9 +102,7 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 		encoder, gate, entered, _ := held()
 		ctx, stop := context.WithCancelCause(t.Context())
 		for index := range workers {
-			if err := encoder.add(ctx, index, frame(float32(index+1)/workers), height, width); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, encoder.add(ctx, index, frame(float32(index+1)/workers), height, width))
 		}
 		synctest.Wait()
 		waited := make(chan error, 1)
@@ -120,17 +117,11 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 		}
 		close(gate)
 		bounded, err := encoder.Finish()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inTurn, err := NewClipEncoder(fps, UnitPixels)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range workers {
-			if err := inTurn.Add(index, frame(float32(index+1)/workers), height, width); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, inTurn.Add(index, frame(float32(index+1)/workers), height, width))
 		}
 		want, err := inTurn.Finish()
 		if err != nil || !bytes.Equal(bounded.Data, want.Data) || bounded.Frames != workers {

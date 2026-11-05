@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestTheRewardPilotIsRetired holds train to the reward pilot's retirement: the pilot's one run neither gained nor
@@ -20,9 +21,7 @@ func TestTheRewardPilotIsRetired(t *testing.T) {
 			Path: os.Args[0], Args: []string{"-" + retired, "evidence"}, Stderr: &refusal,
 			Env: append(os.Environ(), commandChildEnvironment+"="+childStandIn),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if receipt.ExitCode == 0 || !strings.Contains(refusal.String(), "flag provided but not defined: -"+retired) {
 			t.Errorf("train -%s ended with status %d and %q; want it refused as a flag train does not have", retired, receipt.ExitCode, refusal.String())
 		}

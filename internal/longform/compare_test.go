@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -64,9 +65,7 @@ func TestCompareNamesTheShapeThatMoved(t *testing.T) {
 		Rungs:             []Rung{rung(1024, 3000, 70), rung(2048, 3100, 68), rung(4096, 3200, 66)},
 	}
 	model, _, err := artifact.Identify(artifact.KindModel, strings.NewReader("model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record.Inputs = BindInputs(model, "corpus", []tokenizer.TokenID{1, 2, 3}, RawContinuation)
 	if verdict := Compare(record, record, floors, 0); !verdict.Passed {
 		t.Fatalf("identical run = %+v", verdict)

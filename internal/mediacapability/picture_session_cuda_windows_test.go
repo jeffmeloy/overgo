@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,26 +36,16 @@ func servePictures(t *testing.T, name string) servedPictures {
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "Krea-2-Turbo")
 	profile, err := latentimage.ResolveProfile(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	publishArtifactExtent(t, store, modelID, directory)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/" + name, Contents: []artifact.Content{profileContent}}); err != nil {
@@ -70,9 +61,7 @@ func servePictures(t *testing.T, name string) servedPictures {
 func pictureService(t *testing.T) *pictureDirector {
 	t.Helper()
 	director, err := pictureSessions()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := director.Close(context.Background()); err != nil {
 			t.Error(err)
@@ -86,9 +75,7 @@ func pictureService(t *testing.T) *pictureDirector {
 func (servedPictures) request(t *testing.T, prompt string, seed int64) string {
 	t.Helper()
 	raw, err := json.Marshal(latentimage.Request{Prompt: prompt, Width: 256, Height: 256, Steps: 8, Seed: seed, DynamicShiftMu: 1.15})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(raw)
 }
 
@@ -97,9 +84,7 @@ func (servedPictures) request(t *testing.T, prompt string, seed int64) string {
 func (pictures servedPictures) serve(ctx context.Context, t *testing.T, service capabilityruntime.Executor, prompt string, seed int64) (capabilityruntime.Measured, latentimage.EncodedImage) {
 	t.Helper()
 	output, err := service(ctx, pictures.store, pictures.directory, pictures.execution, pictures.request(t, prompt, seed))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measured, _ := output.(capabilityruntime.Measured)
 	picture, ok := measured.Output.(latentimage.EncodedImage)
 	if !ok {
@@ -177,9 +162,7 @@ func TestServedPictureKeepsItsSession(t *testing.T) {
 	}
 	// The others from a session loaded for the last of them, once the first
 	// director has given the device back.
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	alone := pictureService(t).Executor()
 	for index := len(requests) - 1; index > 0; index-- {
 		if _, picture := pictures.serve(capabilityruntime.FreshRun(t.Context()), t, alone, requests[index].prompt, requests[index].seed); !bytes.Equal(picture.Data, kept[index].Data) {

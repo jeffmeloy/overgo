@@ -11,6 +11,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestTheRunRecordHoldsEachPackagesWallAndPeak runs a lane over a module of two packages, one at a time as the long
@@ -24,12 +25,8 @@ func TestTheRunRecordHoldsEachPackagesWallAndPeak(t *testing.T) {
 	writeFixture := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	writeFixture("go.mod", "module lanefixture\n\ngo 1.26\n")
 	writeFixture("small/small_test.go", "package small\n\nimport \"testing\"\n\nfunc TestRuns(t *testing.T) {}\n")
@@ -39,9 +36,7 @@ func TestTheRunRecordHoldsEachPackagesWallAndPeak(t *testing.T) {
 	running := plan.MeasurementRun{Commit: "measured", Process: os.Getpid(), Started: started, Phases: []plan.MeasurementPhase{
 		{Name: "preflight", Started: started, Ended: started, Passed: true}, {Name: "lanes", Started: started},
 	}}
-	if err := jsonfile.Write(record, running, clioptions.PrivateFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(record, running, clioptions.PrivateFileMode))
 	t.Setenv(clioptions.MeasurementRunEnvironment, record)
 
 	var output bytes.Buffer
@@ -49,9 +44,7 @@ func TestTheRunRecordHoldsEachPackagesWallAndPeak(t *testing.T) {
 		t.Fatalf("the lane failed: %v\n%s", err, output.String())
 	}
 	var kept plan.MeasurementRun
-	if err := jsonfile.Decode(record, &kept); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(record, &kept))
 	ran := kept.Phases[1].Packages
 	if len(kept.Phases[0].Packages) != 0 || len(ran) != 2 || ran[0].Package != "lanefixture/small" || ran[1].Package != "lanefixture/large" {
 		t.Fatalf("the run record's phases hold packages %+v and %+v, want the lane's two in the running lanes phase", kept.Phases[0].Packages, ran)

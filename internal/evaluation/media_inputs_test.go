@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 type mediaInputRuntime struct {
@@ -34,25 +35,19 @@ func (r *mediaInputRuntime) ProducingRun() artifact.ID { return r.producer }
 func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &mediaInputRuntime{producer: planID(t, artifact.KindRun, "answer producer")}
 	campaign, err := NewCampaign(store, runtime, modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "candidate"),
 		Definition: planID(t, artifact.KindModelDefinition, "candidate definition"),
 		Recipe:     planID(t, artifact.KindRecipe, "candidate recipe"),
 	}, environment, planTestCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base := MediaInput{
 		Content:  planID(t, artifact.KindOutput, "pixels"),
 		Runtime:  MediaRuntime{Model: planID(t, artifact.KindModel, "judge"), Recipe: planID(t, artifact.KindRecipe, "judge recipe")},
@@ -71,22 +66,16 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 		t.Helper()
 		runtime.input, runtime.resolves = input, 0
 		data, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		compiled, err := campaign.CompileSuite(t.Context(), data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if runtime.resolves != 1 {
 			t.Fatalf("one shared input resolved %d times", runtime.resolves)
 		}
 		var bound GeneratedAnswerSuite
 		for _, content := range compiled.plan.authorities {
 			if content.Descriptor.ID == compiled.plan.body.CaseProfile {
-				if err := json.Unmarshal(content.Data, &bound); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(content.Data, &bound))
 			}
 		}
 		asked := make([]string, len(bound.Cases))
@@ -94,13 +83,9 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 			asked[i] = testCase.Prompt
 		}
 		observed, err := compiled.plan.observed(asked)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		method, err := compiled.plan.comparisonIdentity()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return compiled, method, observed
 	}
 	for _, generated := range []bool{false, true} {
@@ -176,9 +161,7 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := campaign.Evaluate(t.Context(), current)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record, err := runrecord.RequireEvaluation(t.Context(), store, result.Evaluation)
 	if err != nil || !recordExecution(t.Context(), store, record).ExecutionKnown {
 		t.Fatalf("bound media is unknown: %v", err)
@@ -194,25 +177,17 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	}
 	value.Judge = runtime.Judge()
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	legacy, err := CompileSuite(data, campaign.Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	calls := runtime.generateCalls
 	if _, err := campaign.Evaluate(t.Context(), legacy); err == nil || runtime.generateCalls != calls {
 		t.Fatal("unbound media executed")
 	}
 	oldResult, err := executeSuite(t.Context(), store, runtime, legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained, err := campaign.finishEvaluation(t.Context(), legacy, oldResult, nil, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	oldRecord, err := runrecord.RequireEvaluation(t.Context(), store, retained.Evaluation)
 	if err != nil || recordExecution(t.Context(), store, oldRecord).ExecutionKnown {
 		t.Fatalf("legacy media qualified: %v", err)

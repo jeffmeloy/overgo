@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func f64to32(v []float64) []float32 {
@@ -79,9 +80,7 @@ func hostLayer(x []float32, w LayerWeights, dims LayerDims) (c LayerCache, y []f
 func TestLayerBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	dims := LayerDims{Seq: 4, D: 8, NH: 2, NKV: 1, HD: 4, Inter: 12, Eps: 1e-6}
@@ -99,9 +98,7 @@ func TestLayerBackwardGradCheck(t *testing.T) {
 
 	cache, _ := hostLayer(x, w, dims)
 	grads, err := LayerBackward(worker, x, w, cache, dy, dims)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		_, y := hostLayer(x, w, dims)

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -63,9 +64,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 	}
 	started := time.Now()
 	result, err := trainingworkflow.RunGraftViability(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Outcomes) != len(retrialSeeds) {
 		t.Fatalf("outcomes = %d, want one per seed", len(result.Outcomes))
 	}
@@ -75,14 +74,10 @@ func TestAdapterRetrialProbe(t *testing.T) {
 		}
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	record, err := trainingworkflow.RecordGraftViability(store, config, result)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record.Outcome != runrecord.OutcomeSucceeded && record.Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("generation record outcome = %q", record.Outcome)
 	}

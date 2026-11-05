@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestAppendFrameDeltas(t *testing.T) {
@@ -22,9 +24,7 @@ func TestAppendFrameDeltas(t *testing.T) {
 		t.Run(probe.name, func(t *testing.T) {
 			original := slices.Clone(probe.input)
 			out := make([]float32, len(probe.want))
-			if err := AppendFrameDeltas(t.Context(), out, probe.input, probe.bands, probe.radius); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, AppendFrameDeltas(t.Context(), out, probe.input, probe.bands, probe.radius))
 			if !slices.Equal(out, probe.want) || !slices.Equal(original, probe.input) {
 				t.Fatalf("got %v, want %v; source %v", out, probe.want, probe.input)
 			}

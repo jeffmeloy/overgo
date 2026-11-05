@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -38,9 +39,7 @@ func TestRunDiffusionTimestepConfidenceTransfer(t *testing.T) {
 	got, err := runDiffusion(
 		t.Context(), []tokenizer.TokenID{0}, mask, vocabularySize, options, evaluate,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []tokenizer.TokenID{0, 2, 3, 4, 1}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("tokens = %v, want %v", got, want)
@@ -75,9 +74,7 @@ func TestRunDiffusionShiftedLogits(t *testing.T) {
 		got, err := runDiffusion(
 			t.Context(), []tokenizer.TokenID{0}, 3, vocabularySize, options, evaluate,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if got[1] != test.want {
 			t.Fatalf("shift %v token = %d, want %d", test.shift, got[1], test.want)
 		}
@@ -138,9 +135,7 @@ func TestRunDiffusionBlockCFG(t *testing.T) {
 		},
 		evaluate,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []tokenizer.TokenID{0, 1, 1, 1}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("tokens = %v, want %v", got, want)
 	}
@@ -325,9 +320,7 @@ func diffusionMetadataFile(t *testing.T, value gguf.Value) *gguf.File {
 		t.Fatal(err)
 	}
 	file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return file
 }
 

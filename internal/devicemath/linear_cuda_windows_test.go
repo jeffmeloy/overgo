@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,24 +27,18 @@ func randSlice(rng *rand.Rand, n int) []float32 {
 func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const rows, in, out = 7, 5, 9
 	rng := rand.New(rand.NewSource(41))
 	x, weight, dY := randSlice(rng, rows*in), randSlice(rng, out*in), randSlice(rng, rows*out)
 	wantX, wantWeight, err := LinearBackwardT(worker, x, weight, dY, rows, in, out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var pointers []driver.DevicePtr
 	allocate := func(count int, initial []float32) driver.DevicePtr {
 		t.Helper()
 		pointer, err := AllocResidentF32(worker, count, initial)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		pointers = append(pointers, pointer)
 		return pointer
 	}
@@ -57,16 +52,10 @@ func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 	dYPtr := allocate(len(dY), dY)
 	dXPtr := allocate(len(wantX), nil)
 	dWeightPtr := allocate(len(wantWeight), nil)
-	if err := LinearBackwardTResident(worker, xPtr, weightPtr, dYPtr, dXPtr, dWeightPtr, rows, in, out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, LinearBackwardTResident(worker, xPtr, weightPtr, dYPtr, dXPtr, dWeightPtr, rows, in, out))
 	gotX, gotWeight := make([]float32, len(wantX)), make([]float32, len(wantWeight))
-	if err := ReadResident(worker, dXPtr, ResidentSlice{Data: gotX}); err != nil {
-		t.Fatal(err)
-	}
-	if err := ReadResident(worker, dWeightPtr, ResidentSlice{Data: gotWeight}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ReadResident(worker, dXPtr, ResidentSlice{Data: gotX}))
+	testcheck.NoError(t, ReadResident(worker, dWeightPtr, ResidentSlice{Data: gotWeight}))
 	xDelta, weightDelta := testutil.MaxAbsDiff(gotX, wantX), testutil.MaxAbsDiff(gotWeight, wantWeight)
 	t.Logf("resident/shared linear VJP dX=%.3e dW=%.3e", xDelta, weightDelta)
 	if xDelta != 0 || weightDelta != 0 {
@@ -95,9 +84,7 @@ func hostLinearLoss(x, w, dY []float32, rows, in, out int) float64 {
 func TestLinearForwardTMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, in, outDim = 12, 20, 16
@@ -106,9 +93,7 @@ func TestLinearForwardTMatchesHost(t *testing.T) {
 	w := randSlice(rng, outDim*in) // [outDim, in]
 
 	got, err := LinearForwardT(worker, x, w, rows, in, outDim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var maxDiff float64
 	for r := range rows {
 		for o := range outDim {
@@ -134,9 +119,7 @@ func TestLinearForwardTMatchesHost(t *testing.T) {
 func TestLinearBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, in, out = 6, 5, 4
@@ -146,9 +129,7 @@ func TestLinearBackwardGradCheck(t *testing.T) {
 	dY := randSlice(rng, rows*out)
 
 	dX, dW, err := LinearBackward(worker, x, w, dY, rows, in, out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	const eps = 1e-2
 	fd := func(perturb []float32, idx int) float64 {
@@ -199,9 +180,7 @@ func hostLinearLossT(x, w, dY []float32, rows, in, outDim int) float64 {
 func TestLinearBackwardTGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, in, outDim = 6, 5, 4
@@ -211,9 +190,7 @@ func TestLinearBackwardTGradCheck(t *testing.T) {
 	dY := randSlice(rng, rows*outDim)
 
 	dX, dW, err := LinearBackwardT(worker, x, w, dY, rows, in, outDim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	const eps = 1e-2
 	fd := func(perturb []float32, idx int) float64 {

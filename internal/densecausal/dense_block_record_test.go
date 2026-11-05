@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ import (
 func TestDenseBlockRecordIsWhole(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", "dense-block-program.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fields := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

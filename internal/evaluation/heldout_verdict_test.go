@@ -15,6 +15,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -33,9 +34,7 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 	t.Helper()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/heldout-verdict-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	source := derived(artifact.KindDataset, "dataset")
@@ -44,9 +43,7 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 		records = append(records, dataset.Record{ID: fmt.Sprintf("series/%02d", index), Group: fmt.Sprintf("series-%02d", index)})
 	}
 	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var training, heldout dataset.Membership
 	for _, membership := range split.Memberships {
 		switch membership.Partition {
@@ -73,21 +70,15 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 		Metric: metric, Evidence: []artifact.ID{derived(artifact.KindEvidence, "observation")},
 		Authority: trainingprogram.ObjectiveAdaptive,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := CompileSFTEvaluationView(objective, training, heldout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var cases []HeldoutCase
 	for index, record := range view.Records {
 		cases = append(cases, HeldoutCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
 	}
 	plan, err := CompileHeldoutPlan(objective, view, cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return heldoutFixture{objective: objective, view: view, plan: plan, cases: cases, split: split}
 }
 
@@ -100,24 +91,16 @@ func heldoutTraining(t *testing.T, store artifact.Repository, source, training a
 	ctx := t.Context()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/heldout-training-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	const parameters = 4
 	plan, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(parameters)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muon, err := hostoptimizer.New(make([]float32, parameters), slices.Repeat([]float32{1}, parameters), plan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muon.Step()
 	state := muon.Snapshot()
 	model, rng := derived(artifact.KindModel, "model"), derived(artifact.KindProfile, "rng")
@@ -132,25 +115,17 @@ func heldoutTraining(t *testing.T, store artifact.Repository, source, training a
 	}, func(stage string) error {
 		return os.WriteFile(filepath.Join(stage, trainingprogram.CheckpointWeights), []byte("trained weights"), 0o600)
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result := HeldoutTraining{Observation: derived(artifact.KindEvidence, "observation"), Model: model, Trained: checkpoint, Inputs: derived(artifact.KindProfile, "inputs")}
 	if store == nil {
 		return result
 	}
 	record, err := checkpoint.Batch("test-checkpoint/"+checkpoint.ID().String(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environment, err := runrecord.CurrentEnvironment("cpu", "host")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environmentContent, err := environment.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID := derived(artifact.KindRecipe, "recipe")
 	record.Artifacts = append(record.Artifacts, artifact.Descriptor{ID: model}, artifact.Descriptor{ID: recipeID})
 	record.Contents = append(record.Contents, environmentContent)
@@ -161,9 +136,7 @@ func heldoutTraining(t *testing.T, store artifact.Repository, source, training a
 		Model: model, Recipe: recipeID, Environment: environment.ID,
 		Task: recipe.TaskTraining, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result.Observation = observation.ID
 	return result
 }
@@ -181,9 +154,7 @@ func (f heldoutFixture) score(t *testing.T, offset float64, label string) Heldou
 		observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: label})
 	}
 	report, err := f.plan.Score(observations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return report
 }
 
@@ -255,9 +226,7 @@ func TestAVerdictNeedsAGainItsCasesSupport(t *testing.T) {
 			observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: "falling"})
 		}
 		report, err := forecast.plan.Score(observations)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return report
 	}
 	for _, test := range []struct {
@@ -311,17 +280,13 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
 	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
 		t.Helper()
 		batch, err := stage(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, id := range declared {
 			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
 		}
@@ -338,9 +303,7 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	spec := forecast.objective.ObjectiveSpec
 	spec.Evidence = append(slices.Clone(spec.Evidence), session.Observation)
 	current, err := trainingprogram.NewObjective(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, better := forecast.score(t, 2, "falling"), forecast.score(t, 1, "falling")
 	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)
 	commit("test-plan", forecast.plan.Batch)
@@ -382,9 +345,7 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 		t.Fatalf("the valid losing verdict = (%t, %v), want measured but not passed", passed, err)
 	}
 	retained, err := numericTargetReportCodec.Require(ctx, store, better.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	omitted := numericTargetReportCodec.Clone(retained)
 	omitted.Records = omitted.Records[1:]
 	omitted.Metrics[0].Value = 0
@@ -395,9 +356,7 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	lowered.Metrics[0].Value /= 2
 	for name, report := range map[string]numericTargetReport{"omitted": omitted, "lowered": lowered} {
 		tampered, err := numericTargetReportCodec.New(report)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if passed, err := judge("test-"+name, tampered.heldout(), true); err == nil || passed || !strings.Contains(err.Error(), "does not rescore") {
 			t.Fatalf("a committed verdict on the %s report = (%t, %v), want it refused", name, passed, err)
 		}

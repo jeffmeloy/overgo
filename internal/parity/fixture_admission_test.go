@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // fixtureBytes refuses absent or changed oracle artifacts. A missing external
@@ -34,16 +36,12 @@ func TestParityFixtureAdmission(t *testing.T) {
 	// This pins an independent reference, not Overgo real-model parity.
 	realPath := filepath.Join("testdata", "olmoe_real_reference.json")
 	real, err := fixtureBytes(realPath, "8f8f3140615b0033dd3d31624bab979b0737b91cda0300a64756bd039a459037")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reference struct {
 		PromptIDs []int `json:"prompt_ids"`
 		FullIDs   []int `json:"full_ids"`
 	}
-	if err := json.Unmarshal(real, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(real, &reference))
 	if !slices.Equal(reference.PromptIDs, []int{510, 5347, 273, 6181, 310}) ||
 		len(reference.FullIDs) != len(reference.PromptIDs)+12 ||
 		!slices.Equal(reference.FullIDs[:len(reference.PromptIDs)], reference.PromptIDs) ||
@@ -64,9 +62,7 @@ func TestParityFixtureAdmission(t *testing.T) {
 		t.Fatalf("missing fixture admitted: %v", err)
 	}
 	changed := filepath.Join(t.TempDir(), "changed.gguf")
-	if err := os.WriteFile(changed, []byte("wrong"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(changed, []byte("wrong"), 0600))
 	if _, err := fixtureBytes(changed, "191e65fe8477cd1e50a9d14ee832aa6bf10b39980b61189831f2f44f2a05a5d1"); err == nil {
 		t.Fatal("changed fixture admitted")
 	}

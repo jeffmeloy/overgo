@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestRetainedProjectionPublications(t *testing.T) {
 		Suite    artifact.ID `json:"suite"`
 	}
 	root := testutil.RepoRoot(t)
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/projection_publications.json"), &projections); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/projection_publications.json"), &projections))
 	if len(projections) == 0 {
 		t.Fatal("projection publications are empty")
 	}
@@ -34,9 +33,7 @@ func TestRetainedProjectionPublications(t *testing.T) {
 			}
 			checkRetainedModelPublication(t, fixtures[index])
 			var spec verificationSpecification
-			if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification", fixtures[index].Specification), &spec); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/verification", fixtures[index].Specification), &spec))
 			if !slices.ContainsFunc(spec.Claims, func(c runrecord.CapabilityClaim) bool {
 				return c.Capability == "projection-grounded-colors-positions" && c.Tier == runrecord.TierExactGolden && c.WallNS > 0 && slices.Contains(c.Evidence, projection.Evidence)
 			}) {

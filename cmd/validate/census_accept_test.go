@@ -14,6 +14,7 @@ import (
 	"overgo/internal/finding"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCensusAcceptanceIsOneCommand holds that accepting a changed census is
@@ -33,9 +34,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	ctx := t.Context()
 	storePath := t.TempDir()
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -44,21 +43,15 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	commit := strings.Repeat("b", 40)
 	registerCensusModel(t, store, "frozen", true, true)
 	base, err := buildCapabilityCensus(ctx, store, commit, catalogLimit, discovery.NewMemo())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	baseBatch, err := capabilityCensusBatch(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, baseBatch); err != nil {
 		t.Fatal(err)
 	}
 	// A binding starts as its base alone: the census an acceptance froze.
 	path := filepath.Join(t.TempDir(), "binding.json")
-	if err := os.WriteFile(path, []byte(`{"Base": "`+base.ID.String()+`"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(`{"Base": "`+base.ID.String()+`"}`), 0o600))
 
 	// written is everything a call may write: the binding file and the store.
 	type written struct {
@@ -68,13 +61,9 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	read := func() written {
 		t.Helper()
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The command commits through its own handle; this one catches up.
-		if err := store.Refresh(ctx); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Refresh(ctx))
 		head, _ := store.Head()
 		return written{string(data), head}
 	}
@@ -107,9 +96,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 			t.Fatal("an acceptance left the binding file or the store as it was")
 		}
 		var binding acceptedCensus
-		if err := jsonfile.DecodeStrict(path, &binding); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.DecodeStrict(path, &binding))
 		if binding.Base != base.ID || binding.Current == previous || binding.Current == base.ID {
 			t.Fatalf("binding = %+v, want the base kept and a new current census", binding)
 		}
@@ -117,9 +104,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 			t.Fatalf("the written binding fails the acceptance tests' check: %v", err)
 		}
 		current, err := capabilityCensusCodec.Require(ctx, store, binding.Current)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if current.ProducerCommit != commit {
 			t.Fatalf("the census names producer %q, want the commit given", current.ProducerCommit)
 		}
@@ -131,9 +116,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 			t.Fatalf("the finding is not in the store: found=%t: %v", found, err)
 		}
 		filed, err := finding.Parse(content.Data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want := []artifact.ID{base.ID, binding.Current}
 		if previous != base.ID {
 			want = append(want, previous)
@@ -145,9 +128,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 		// as its owner surface, the one command as its closure path, and the
 		// check of the new census as the check that fails while it stands.
 		owner, err := artifact.IdentifyBytes(artifact.KindFile, []byte(path))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if filed.Status != finding.StatusOpen || filed.Severity != finding.SeverityLow || !slices.Equal(filed.OwnerSurfaces, []artifact.ID{owner}) ||
 			!strings.Contains(filed.ClosurePath, "-accept-census "+path) || !strings.HasSuffix(filed.FailableCheck, "-check-census "+binding.Current.String()) {
 			t.Fatalf("the command left a part of the finding to its caller, or named another file or census: %+v", filed)
@@ -157,9 +138,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 			t.Fatalf("the finding has no disposition: found=%t: %v", found, err)
 		}
 		resolution, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(reason))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if closed.ID != binding.Disposition || closed.Status != finding.StatusClosed || !slices.Contains(closed.Evidence, resolution) {
 			t.Fatalf("the disposition %+v is not the bound closing with the reason given", closed)
 		}
@@ -178,9 +157,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 			}
 			commits[introduced.Commit] = true
 			edges, err := store.Parents(ctx, child)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, parent := range parents {
 				if !slices.ContainsFunc(edges, func(edge artifact.Lineage) bool { return edge.Parent == parent }) {
 					t.Fatalf("the store holds no edge from %s to %s", child, parent)
@@ -240,9 +217,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	second := accepted("the later model was activated for forecasting", first.Current)
 
 	// A model whose file is gone reads as its old entry removed and its new one added.
-	if err := os.Remove(laterPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(laterPath))
 	output, err = writesNothing("")
 	entry := laterID.String() + " " + laterPath + " present="
 	if err != nil || !strings.Contains(output, "- "+entry+"true") || !strings.Contains(output, "+ "+entry+"false") {

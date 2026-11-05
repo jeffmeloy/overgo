@@ -5,6 +5,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"path/filepath"
 	"testing"
 )
@@ -12,18 +13,12 @@ import (
 func loadASRModel(t *testing.T, store *overgodb.Store, election Election) (string, *safetensors.Source) {
 	t.Helper()
 	modelRoot, err := artifact.AvailablePath(t.Context(), store, election.Model.ID, artifact.LocationDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights, err := safetensors.OpenSource(modelRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = weights.Close() })
 	digests, err := weights.ShardDigests()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weightCount := 0
 	for _, file := range election.Files {
 		if file.Role == "weights" {

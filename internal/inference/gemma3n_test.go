@@ -7,6 +7,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestGemma3nPredictCoefficientLayout(t *testing.T) {
@@ -36,9 +37,7 @@ func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 	got, err := predictAlternateStates(
 		states, layer, spec.AltUpActive, spec.EmbeddingLength, spec.RMSNormEpsilon,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modality := float32(math.Tanh(float64((1 / float32(math.Sqrt(0.5+1e-6))) / 2)))
 	if math.Abs(float64(got[0].Data[0]-(1+modality))) > 1e-6 || got[0].Data[1] != 0 ||
 		got[1].Data[0] != 0 || math.Abs(float64(got[1].Data[1]-(1+2*modality))) > 1e-6 {
@@ -59,9 +58,7 @@ func TestGemma3nMagnitudeMatchAndMerge(t *testing.T) {
 		Data:  []float32{1, 0, 0, 1},
 	}
 	merged, err := mergeAlternateStates([]reference.Value{active, mergeInput}, unembedding, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(float64(merged.Data[0]-1.5)) > 1e-6 || math.Abs(float64(merged.Data[1]-4.5)) > 1e-6 {
 		t.Fatalf("merged = %v", merged.Data)
 	}
@@ -71,9 +68,7 @@ func TestGemma3nGaussianSparsity(t *testing.T) {
 	gate := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{0, 1, 10}}
 	up := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{1, 1, 1}}
 	got, err := activateAlternateFFN(gate, up, true, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got.Data[0] != 0 || got.Data[1] != 0 || got.Data[2] < 6.3 || got.Data[2] > 6.34 {
 		t.Fatalf("sparse activation = %v", got.Data)
 	}

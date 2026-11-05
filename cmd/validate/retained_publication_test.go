@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -28,16 +29,12 @@ type retainedPublicationFixture struct {
 func retainedPublicationFixtures(t *testing.T) []retainedPublicationFixture {
 	t.Helper()
 	var fixtures []retainedPublicationFixture
-	if err := jsonfile.DecodeStrict(filepath.Join(testutil.RepoRoot(t), "docs/verification/retained_publications.json"), &fixtures); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(testutil.RepoRoot(t), "docs/verification/retained_publications.json"), &fixtures))
 	if len(fixtures) == 0 {
 		t.Fatal("retained publication denominator is empty")
 	}
 	paths, err := filepath.Glob(filepath.Join(testutil.RepoRoot(t), "docs/verification/*-retained.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	declared := map[string]bool{}
 	for _, path := range paths {
 		declared[filepath.Base(path)] = true
@@ -88,9 +85,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/verification", fixture.Specification)
 	var spec verificationSpecification
-	if err := jsonfile.DecodeStrict(path, &spec); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &spec))
 	// Canonical identity freezes the complete reviewed claim set, not JSON layout.
 	check := func(spec verificationSpecification) (runrecord.ModelVerification, error) {
 		record, err := runrecord.NewModelVerificationCorrection(spec.Model, spec.Name, spec.Claims, spec.Supersedes)
@@ -100,9 +95,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 		return record, err
 	}
 	record, err := check(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, mutate := range []func(*verificationSpecification){
 		func(s *verificationSpecification) { s.Claims = s.Claims[1:] },
 		func(s *verificationSpecification) { s.Claims = append(s.Claims, s.Claims[0]) },
@@ -122,13 +115,9 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 		}
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, id := range append(slices.Clone(fixture.Preserve), record.ID) {
 		if _, err := artifact.RequireTypedContent(t.Context(), store, id); err != nil {
@@ -178,9 +167,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 	// Tiny fixture exercises the real publisher without copying model or response data.
 	fixtureRoot := t.TempDir()
 	fixtureStore, err := overgodb.Create(fixtureRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	seed := artifact.Batch{Key: "publication-fixture"}
 	seedIDs := append(slices.Clone(refs), record.Model)
 	for _, claim := range record.Claims {
@@ -194,32 +181,22 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 	}
 	for _, id := range record.Supersedes {
 		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		seed.Contents = append(seed.Contents, content)
 	}
 	_, seedErr := fixtureStore.Commit(t.Context(), seed)
-	if err := errors.Join(seedErr, fixtureStore.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(seedErr, fixtureStore.Close()))
 	head := func() artifact.CommitID {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(fixtureRoot)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		id, _ := store.Head()
 		return id
 	}
-	if err := runRecordVerification(path, fixtureRoot, io.Discard); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runRecordVerification(path, fixtureRoot, io.Discard))
 	first := head()
-	if err := runRecordVerification(path, fixtureRoot, io.Discard); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runRecordVerification(path, fixtureRoot, io.Discard))
 	if head() != first {
 		t.Fatal("exact publication replay appended another store transaction")
 	}

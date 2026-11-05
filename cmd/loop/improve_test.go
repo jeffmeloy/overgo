@@ -21,6 +21,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -46,9 +47,7 @@ func scoredRow(t *testing.T, source artifact.ID, name string, task recipe.Task, 
 func emptyPlan(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "plan.json")
-	if err := plan.Save(path, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(path, plan.Plan{Campaign: "improvement", Lane: "master-lead"}))
 	return path
 }
 
@@ -78,9 +77,7 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 		t.Fatalf("proposed %d rows, %v; want four", added, err)
 	}
 	document, err := plan.Load(improver.plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decline string
 	for _, gap := range published.Gaps(&baseline) {
 		if gap.Restore {
@@ -157,9 +154,7 @@ func TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain(t *testing.T) {
 		_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, accuracy, 0, scorecard.Cell{Value: 1, Source: source})}})
 		return err
 	}
-	if err := publish(0.5); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, publish(0.5))
 	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string, func() error) error { return publish(0.4) }, fill: func(string) error { return nil }}
 	added, err := loop.Improve(improver)
 	if err != nil || added != 1 {
@@ -186,9 +181,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(repository, "init", "-q", "-b", "master")
 	planPath := filepath.Join(repository, "plan.json")
-	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}))
 	git(repository, "add", "plan.json")
 	git(repository, "commit", "-q", "-m", "measured")
 	mainCheckout := git(repository, "rev-parse", "--show-toplevel")
@@ -250,19 +243,13 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 		return nil
 	}
 	held, err := processlock.Acquire(filepath.Join(repository, processlock.StateDirectory, cycleLock), cycleLockMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := loop.Improve(improver); !errors.Is(err, processlock.ErrBusy) {
 		t.Fatalf("a cycle checkout another cycle holds gave %v; want a refusal", err)
 	}
-	if err := held.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, held.Close())
 	stray := filepath.Join(cycle, "stray.txt")
-	if err := os.WriteFile(stray, []byte("a run left this"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(stray, []byte("a run left this"), 0o600))
 	if _, err := loop.Improve(improver); err == nil || !strings.Contains(err.Error(), "stray.txt") {
 		t.Fatalf("a cycle checkout holding a change gave %v; want a refusal naming the change", err)
 	}
@@ -285,9 +272,7 @@ func TestUnfinishedCycleContinuesAtItsOwnCommit(t *testing.T) {
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(repository, "init", "-q", "-b", "master")
 	planPath := filepath.Join(repository, "plan.json")
-	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}))
 	git(repository, "add", "plan.json")
 	git(repository, "commit", "-q", "-m", "begun")
 	begun := git(repository, "rev-parse", "HEAD")
@@ -415,9 +400,7 @@ func TestADeclineBecomesTheRowTheLoopWorks(t *testing.T) {
 		}
 		return err
 	}
-	if err := publish(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, publish())
 	fills := 0
 	fill := func(string) error {
 		fills++

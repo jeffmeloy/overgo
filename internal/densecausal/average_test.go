@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 // averageDecay is the decay an averaged training test runs under; with six
@@ -37,9 +38,7 @@ func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
 	var state *TrainState
 	for update, batch := range batches {
 		_, next, err := stepped.Train([][]int{batch}, rate, momentum, state, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		state = &next
 		keep := min(averageDecay, float64(1+update+1)/float64(10+update+1))
 		for name, values := range stepped.Weights {

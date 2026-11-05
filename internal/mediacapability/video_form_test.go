@@ -12,6 +12,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,9 +30,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 		Seed:   7, SourceArtifact: testutil.ArtifactID(t, artifact.KindFile, "source clip"),
 	}
 	raw, err := json.Marshal(clip)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved := latentvideo.ReferenceEditRequest{
 		Condition: latentvideo.ReferenceEditCondition{
 			TextContext: []float32{0.5}, FramesPerChunk: 3, LocalAttention: 6,
@@ -58,9 +57,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 	}
 	serve := resolveEditForm(resolve, text, value)
 	output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measured, ok := output.(capabilityruntime.Measured)
 	if !ok || measured.Output != "edited clip" || passed != "" {
 		t.Fatalf("output = %#v with %q passed on as text, want the director's measured edit of the value", output, passed)
@@ -72,9 +69,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 			request, retained, measured.Input.Descriptor.Schema, raw)
 	}
 	whole, err := json.Marshal(resolved)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(whole)); err != nil || output != "edited from text" || passed != string(whole) {
 		t.Fatalf("a resolved request gave %v (%v), want it passed on as its text", output, err)
 	}

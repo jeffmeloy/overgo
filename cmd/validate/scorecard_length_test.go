@@ -9,6 +9,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -41,9 +42,7 @@ func TestALongerPromptsFirstOutputIsPrintedBesideTheRows(t *testing.T) {
 	after := scorecard.Record{Rows: []scorecard.Row{row(timing(2500, 4096), timing(9000, 16384))}}
 
 	var table strings.Builder
-	if err := printScorecard(t.Context(), before.Rows, t.TempDir(), &table); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, printScorecard(t.Context(), before.Rows, t.TempDir(), &table))
 	if !strings.Contains(table.String(), "| 40 ms; 3.1 s at 4096 tokens |") {
 		t.Fatalf("table = %q, want the first output's cell to read 40 ms, then 3.1 s at 4096 tokens", table.String())
 	}

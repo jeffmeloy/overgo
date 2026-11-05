@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestSenseNovaGenerationLayerGraph(t *testing.T) {
@@ -24,30 +25,18 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 		{Width: 2, Theta: 1e4, Axis: AxisHeight},
 		{Width: 2, Theta: 1e4, Axis: AxisWidth},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	referenceGraph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	indexed, err := executor.CompileIndexed(graph.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	cuda, err := executor.NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cuda.Close()
 	feeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	referenceFeeds := make(map[*tensor.Tensor]reference.Value)
@@ -91,24 +80,16 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 			feeds[node] = pointer
 			return state.Driver.MemcpyHtoD(pointer, raw)
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	for node, pointer := range feeds {
-		if err := indexed.Inputs.Set(node, pointer); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, indexed.Inputs.Set(node, pointer))
 	}
 	result, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), indexed.Graph, nil, indexed.Inputs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got := result[graph.Output].Data
 	wantResult, err := reference.Execute([]*tensor.Tensor{referenceGraph.Output}, referenceFeeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := wantResult[referenceGraph.Output].Data
 	if len(got) != cfg.HiddenSize*graph.Tokens {
 		t.Fatalf("generation output elements=%d", len(got))

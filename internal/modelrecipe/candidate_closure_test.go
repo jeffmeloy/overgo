@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -41,9 +42,7 @@ func TestACandidateValidatesInEveryDeclaredOrder(t *testing.T) {
 					Omitted:     id(artifact.KindRecipe, fmt.Sprintf("%s omitted %d", name, delta)),
 					Realization: id(artifact.KindProfile, fmt.Sprintf("%s without %d", name, delta)),
 				})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				ablations, ablationIDs = append(ablations, ablation), append(ablationIDs, ablation.ID)
 			}
 			realization, policy := id(artifact.KindProfile, name+" realization"), id(artifact.KindProfile, name+" policy")
@@ -53,9 +52,7 @@ func TestACandidateValidatesInEveryDeclaredOrder(t *testing.T) {
 				Inputs: []artifact.ID{id(artifact.KindModel, name+" input")}, Documents: []artifact.ID{realization, policy},
 				Ablations: ablationIDs, PeakResidentBytes: 1, ArtifactBytes: 1,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return plan, ablations
 		}
 		one, oneAblations := component("one", 1)
@@ -66,13 +63,9 @@ func TestACandidateValidatesInEveryDeclaredOrder(t *testing.T) {
 				{twoAblations[0], oneAblations[0], twoAblations[1]},
 			} {
 				plan, err := newCandidateEvaluationPlan(facts, components, ablations)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				trial, err := newCandidateTrial(facts, plan.ID, components, ablations)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				compilation := CandidateCompilation{Trial: trial, EvaluationPlan: plan, Components: components, Ablations: ablations}
 				if err := compilation.ValidateIdentity(); err != nil {
 					t.Fatalf("seed %d: %v", seed, err)
@@ -89,9 +82,7 @@ func TestAnUnloadableRecipeIsNotRunnable(t *testing.T) {
 	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "unloadable")
 	whole, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if closure := ValidateCandidateRecipe(whole); !closure.Runnable {
 		t.Fatalf("a whole recipe: %+v", closure)
 	}
@@ -101,9 +92,7 @@ func TestAnUnloadableRecipeIsNotRunnable(t *testing.T) {
 		[]recipe.Edge{{From: recipe.Endpoint{Node: compile.ID, Port: "plan"}, To: recipe.Endpoint{Node: decode.ID, Port: "plan"}}},
 		nil, []recipe.Output{{Name: "session", Data: recipe.DataSessionPlan, Source: recipe.Endpoint{Node: decode.ID, Port: "session"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if closure := ValidateCandidateRecipe(partial); closure.Runnable {
 		t.Fatalf("a recipe with no forward stage reads as runnable: %+v", closure)
 	}
@@ -113,9 +102,7 @@ func TestAnUnloadableRecipeIsNotRunnable(t *testing.T) {
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}).Definition(modelID, testutil.ArtifactID(t, artifact.KindModel, "target"), testutil.ArtifactID(t, artifact.KindProfile, "source contract"),
 		testutil.ArtifactID(t, artifact.KindProfile, "target contract"), testutil.ArtifactID(t, artifact.KindAdapter, "bridge"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if closure := ValidateCandidateRecipe(bridge); !closure.Runnable {
 		t.Fatalf("a representation bridge: %+v", closure)
 	}

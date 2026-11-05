@@ -10,6 +10,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/planner"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -29,25 +30,17 @@ func TestDecodeStateOutputsDoNotRetainLayerHistories(t *testing.T) {
 		t.Fatalf("decode outputs duplicated or omitted: %d", len(outputs))
 	}
 	contract, err := tensor.CompileOutputTargetContract(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained := make(map[*tensor.Tensor]struct{}, len(outputs))
 	for _, output := range outputs {
 		retained[output] = struct{}{}
 	}
 	plan, err := planner.BuildWithRewrites(outputs, contract.Alignment, nil, retained)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	historyBytes, err := firstHistory.Shape.Bytes(dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stateBytes, err := firstState.Shape.Bytes(dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if limit := 2*historyBytes + 2*stateBytes; plan.ArenaSize > limit {
 		t.Fatalf("state collection retains full histories: arena=%d, live working-set bound=%d", plan.ArenaSize, limit)
 	}
@@ -162,24 +155,16 @@ func TestFlashNextDecodeReplaysItsStepInputs(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(width, 1, 1))
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(width, 1, uint64(blocks*budget)))
 	attention := builder.SparseAttentionWithOffset(query, cache, cache, selected, 1, true, pastTokens)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(attention)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := compileDecodeSessionPlan(
 		compiled, []deviceBatchGraph{{logits: attention, tokenInput: scores}}, []deviceCacheTargetPlan{{}},
 		decodeSessionIdentity{capacity: blocks * budget, branches: 1, tokenCount: 1, blockSelection: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	next := pastTokens - 1
-	if err := program.updateBranch(0, []uint32{0}, next, next); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, program.updateBranch(0, []uint32{0}, next, next))
 	refreshed := map[tensor.Op]uint32{}
 	for _, slot := range program.dynamic {
 		if slot.kind == decodeDynamicQueryStart {
@@ -202,22 +187,16 @@ func TestParameterizedDecodeRefreshesPerLayerRows(t *testing.T) {
 	tokenRows := builder.GetRows(table, []uint32{1})
 	perLayerRows := builder.GetRows(perLayerTable, []uint32{1})
 	logits := builder.Add(tokenRows, perLayerRows)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := compileDecodeSessionPlan(
 		compiled,
 		[]deviceBatchGraph{{logits: logits, tokenInput: tokenRows, perLayerRows: perLayerRows}},
 		[]deviceCacheTargetPlan{{}},
 		decodeSessionIdentity{capacity: 8, branches: 1, tokenCount: 1},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = program.updateBranch(0, []uint32{3}, 5, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -254,13 +233,9 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	query := builder.Reshape(tokenRows, 2, 1, 1)
 	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{activeTokens}, RotaryDimensions: 2, FrequencyBase: 10_000, FrequencyScale: 1})
 	output := builder.AttentionWithOptions(query, key, key, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: activeTokens})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(output, key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := compileDecodeSessionPlan(
 		compiled,
 		[]deviceBatchGraph{{
@@ -275,9 +250,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 			branches: 1, tokenCount: 1,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rows := []uint32{2}
 	if err = program.updateBranch(0, rows, 3, 3); err != nil {
 		t.Fatal(err)

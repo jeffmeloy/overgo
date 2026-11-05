@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 // golden is what the reference produced for the synthetic image: the resized
@@ -51,35 +52,25 @@ func syntheticImage(height, width int) []uint8 {
 func TestDinov2MatchesReference(t *testing.T) {
 	t.Parallel()
 	var reference golden
-	if err := jsonfile.Decode(filepath.Join("testdata", "dinov2_golden.json"), &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join("testdata", "dinov2_golden.json"), &reference))
 	image := syntheticImage(256, 320)
 	resized, err := resizeBicubic(image, 256, 320, reference.Resized.Height, reference.Resized.Width)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	digest := sha256.Sum256(resized)
 	if hex.EncodeToString(digest[:]) != reference.Resized.SHA256 {
 		t.Fatal("the bicubic resize differs from PIL's")
 	}
 	encoder, err := Load(modeltest.Directory(t, "webssl-dino300m-full2b-224"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pixels, err := encoder.preprocess.pixels(image, 256, 320)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, at := range reference.PixelIndices {
 		if pixels[at] != reference.Pixels[index] {
 			t.Fatalf("normalized pixel %d = %v, reference %v", at, pixels[at], reference.Pixels[index])
 		}
 	}
 	tokens, err := encoder.encode(pixels, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hidden := encoder.geometry.Hidden
 	last := len(tokens)/hidden - 1
 	for _, check := range []struct {

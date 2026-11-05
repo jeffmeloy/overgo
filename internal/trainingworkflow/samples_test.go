@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -51,9 +52,7 @@ func TestTrainingSamplesRunInStepOrder(t *testing.T) {
 		t.Fatalf("a sampled run = (%+v, %v), want the samples it published", result, err)
 	}
 	samples, err := trainingSamplesCodec.Require(ctx, run.store, result.Samples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if samples.Trained != result.Trained || len(samples.Strips) == 0 || len(samples.Strips) > sampleRecords {
 		t.Fatalf("samples = %+v, want 1 to %d strips about the trained model %v", samples, sampleRecords, result.Trained)
 	}
@@ -152,9 +151,7 @@ func TestSampleStripCostIsBounded(t *testing.T) {
 	}
 
 	model, err := loadTrainableModel(run.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cancelled, cancel := context.WithCancel(ctx)
 	defer cancel()
 	pieces, handed := 0, 0

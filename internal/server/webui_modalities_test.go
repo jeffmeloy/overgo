@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageModalities holds the server's side of modality-adaptive
@@ -26,9 +27,7 @@ func TestFrontPageModalities(t *testing.T) {
 
 	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
 	var document workspaceManifestResponse
-	if err := json.Unmarshal(manifest.Body.Bytes(), &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(manifest.Body.Bytes(), &document))
 	if document.Model == nil {
 		t.Fatalf("manifest carries no capability document: %s", manifest.Body.String())
 	}

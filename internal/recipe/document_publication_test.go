@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,13 +20,9 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
 		[]artifact.ID{derivation},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.ID != decision.ID {
 		t.Fatalf("content identity %s differs from document %s", content.Descriptor.ID, decision.ID)
 	}

@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 			Model: model, Recipe: recipeID, Environment: environment, Operation: operation,
 			Task: task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return observation
 	}
 	capability := RemotePeerCapability{
@@ -66,13 +65,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 
 	foreignModel := id(artifact.KindModel, "reference-foreign-model")
 	foreignDefinition, err := CapabilityDefinition(recipe.TaskGeneration, foreignModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignDefinitionContent, err := foreignDefinition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{
 		Key: "reference/foreign-definition", Artifacts: []artifact.Descriptor{{ID: foreignModel}},
 		Contents: []artifact.Content{foreignDefinitionContent},
@@ -93,13 +88,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		t.Fatal("well-formed foreign recipe definition was admitted for another model")
 	}
 	foreignTaskDefinition, err := CapabilityDefinition(recipe.TaskForecast, fixture.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignTaskContent, err := foreignTaskDefinition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{
 		Key: "reference/foreign-task-definition", Contents: []artifact.Content{foreignTaskContent},
 	}); err != nil {
@@ -148,20 +139,14 @@ func commitUnboundPeerTestObservation(
 ) runrecord.ServingObservation {
 	t.Helper()
 	observation, err := runrecord.NewServingObservation(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := observation.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(
 		"test/peer-observation/"+observation.ID.String(),
 		[]artifact.Content{content}, observation.Lineage(), nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/speechactivity"
+	"overgo/internal/testcheck"
 )
 
 type vadBoundaryCase struct {
@@ -38,9 +39,7 @@ func verifyVADStreamBoundaries(t *testing.T) {
 	for _, fixture := range vadBoundaryCases(t) {
 		t.Run(fixture.Name, func(t *testing.T) {
 			policy, err := speechactivity.NewBoundaryPolicy(fixture.Config, vadReferenceBytes)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var state speechactivity.BoundaryState
 			for index, probability := range fixture.Probabilities {
 				calls := 0
@@ -56,13 +55,9 @@ func verifyVADStreamBoundaries(t *testing.T) {
 					t.Fatalf("boundary execution: %v calls=%d", err, calls)
 				}
 				encoded, err := json.Marshal(state)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				var restored speechactivity.BoundaryState
-				if err := json.Unmarshal(encoded, &restored); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 				if !reflect.DeepEqual(state, restored) {
 					t.Fatal("boundary checkpoint differs")
 				}
@@ -92,9 +87,7 @@ func verifyVADOfflineBoundaries(t *testing.T) {
 			c := fixture.Config
 			config := speechactivity.OfflineConfig{Smoothing: c.Smoothing, Threshold: c.Threshold, MinSpeech: int(c.MinSpeech), MaxSpeech: int(c.MaxSpeech), MinSilence: int(c.MinSilence), MergeSilence: fixture.MergeSilence, ExtendSpeech: fixture.ExtendSpeech}
 			got, err := speechactivity.OfflineDecisions(t.Context(), fixture.Probabilities, config, vadReferenceBytes)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(got) != len(fixture.Offline) {
 				t.Fatal("offline frame count differs")
 			}

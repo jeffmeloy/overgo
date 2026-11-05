@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 const fixtureDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -31,18 +32,14 @@ func fixtureManifest(t *testing.T) Manifest {
 		Workspaces:  []Workspace{{Name: "fixture", Path: "internal/server/workspace_manifest.json", ContentID: fixtureDigest}},
 		Authorities: []Authority{{Name: "kernel", Path: "kernels/manifest.json", ContentID: fixtureDigest}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }
 
 func TestManifestCanonicalRoundTrip(t *testing.T) {
 	manifest := fixtureManifest(t)
 	content, err := manifest.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := Parse(content.Data)
 	if err != nil || parsed.ID != manifest.ID || !reflect.DeepEqual(parsed.Routes, manifest.Routes) {
 		t.Fatalf("round trip = %+v/%v", parsed, err)
@@ -75,9 +72,7 @@ func TestCompareReportsCurrentSurfaceChangesWithoutTombstones(t *testing.T) {
 		Path: "/new", Method: "POST", Authentication: "key", Request: &fixtureContract,
 	})
 	current, err := New(current)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	changes, err := Compare(previous, current)
 	if err != nil || len(changes) != 1 || changes[0] != (Change{Class: ChangeAdd, Kind: "route", Key: "POST /new"}) {
 		t.Fatalf("changes = %+v/%v", changes, err)

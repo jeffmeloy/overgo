@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,34 +23,22 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	store := handler.config.Repository
 
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(weightsPath, []byte("catalog evidence weights"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("catalog evidence weights"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceData := []byte(`{"summary":{"decode_tokens_per_second_p50":491.35}}`)
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567",
 		WallNS: 220_000_000, PeakDeviceBytes: 512, Evidence: []artifact.ID{evidence},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "catalog-evidence-recipe")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "catalog-evidence-dataset")
@@ -57,13 +46,9 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	evaluation, err := runrecord.NewEvaluation(recipeID, runID, datasetID, []runrecord.Metric{
 		{Name: "accuracy", Value: 0.42, Direction: runrecord.DirectionMaximize},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluationContent, err := evaluation.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/catalog-evidence/evaluation", Contents: []artifact.Content{evaluationContent},
 	}); err != nil {
@@ -75,9 +60,7 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	// is the weights digest, the catalog's is the manifest, and the
 	// on-disk file is the identity both register.
 	registered, err := filepath.Abs(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	benchmark, measured := index.BenchmarksByLocation[registered]
 	if !measured || benchmark.Tier != string(runrecord.TierCapabilityMeasured) ||
 		benchmark.DecodeTokensPerSecond != 491.35 || benchmark.WallNS != 220_000_000 {

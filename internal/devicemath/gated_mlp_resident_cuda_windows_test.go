@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestGatedMLPBackwardTResidentMatchesPerOp checks the resident SwiGLU MLP
@@ -19,9 +20,7 @@ import (
 func TestGatedMLPBackwardTResidentMatchesPerOp(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, d, inter = 32, 64, 128
@@ -34,13 +33,9 @@ func TestGatedMLPBackwardTResidentMatchesPerOp(t *testing.T) {
 	g, a, u, h := hostGatedMLPT32(x, wGate, wUp, wDown, rows, d, inter)
 
 	perOp, err := GatedMLPBackwardT(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	res, err := GatedMLPBackwardTResident(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	maxAbs := func(p, q []float32) float64 {
 		var m float64
@@ -68,9 +63,7 @@ func TestGatedMLPBackwardTResidentMatchesPerOp(t *testing.T) {
 		}
 		start := time.Now()
 		for range iters {
-			if err := fn(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, fn())
 		}
 		return time.Since(start) / iters
 	}

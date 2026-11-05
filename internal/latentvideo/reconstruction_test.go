@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 // TestAPictureIsExtendedToTheStrideAndCroppedBack holds the two host steps
@@ -27,13 +28,9 @@ func TestAPictureIsExtendedToTheStrideAndCroppedBack(t *testing.T) {
 		}
 	}
 	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, picture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&encoded, picture))
 	source, gotHeight, gotWidth, err := sourcePicture(encoded.Bytes(), 8, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if gotHeight != height || gotWidth != width || source.Height != 8 || source.Width != 16 ||
 		source.Channels != media.RGBChannels || source.Frames != 1 || len(source.Pixels) != media.RGBChannels*8*16 {
 		t.Fatalf("a %dx%d picture became %dx%d of %dx%dx%d with %d values", height, width, gotHeight, gotWidth,

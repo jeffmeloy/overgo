@@ -8,23 +8,18 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	const fixtureSigma = 0.9
 	spec := syntheticSpec()
 	denoiser, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := compileTimestepProgram(spec, dtype.F32, fixtureTimestepProgram(spec))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sinusoid, err := program.sinusoid(fixtureSigma)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	feeds := make(map[*tensor.Tensor]reference.Value, len(program.weightInputs)+1)
 	feeds[program.Input] = reference.Value{Shape: program.Input.Shape, Data: sinusoid}
 	for _, node := range program.weightInputs {
@@ -33,13 +28,9 @@ func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	results, err := reference.Execute(
 		[]*tensor.Tensor{program.Embedding, program.Modulation}, feeds,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantEmbedding, wantModulation, err := denoiser.timestepConditioning(fixtureSigma)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	assertFloat64Near(t, results[program.Embedding].Data, wantEmbedding)
 	assertFloat64Near(t, results[program.Modulation].Data, wantModulation)
 }

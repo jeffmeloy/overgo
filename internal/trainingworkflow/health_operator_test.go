@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestHealthEvidenceCannotMutateRunsOutsideLifecycleAuthority(t *testing.T) {
 		Version: artifact.InitialDocumentVersion, Run: id(artifact.KindRun, "run"),
 		HealthEvidence: id(artifact.KindEvidence, "health"), Policy: id(artifact.KindProfile, "policy"), Facts: facts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	advisory, err := buildHealthOperatorDecision(classification, healthOperatorAdvisory, nil)
 	if err != nil || !advisory.AdvisoryOnly || len(healthOperatorDecisionLineage(advisory)) != 4 {
 		t.Fatalf("health advisory = (%+v, %v)", advisory, err)
@@ -42,21 +41,15 @@ func TestHealthEvidenceCannotMutateRunsOutsideLifecycleAuthority(t *testing.T) {
 	proposed, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentProposed, Experiment: experiment, Evidence: id(artifact.KindEvidence, "proposal"),
 	}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	admitted, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentAdmitted, Experiment: experiment, Evidence: id(artifact.KindEvidence, "admission"),
 	}, &proposed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contained, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentContained, Experiment: experiment, Evidence: classification.ID,
 	}, &admitted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorized, err := buildHealthOperatorDecision(classification, healthOperatorContainment, &contained)
 	if err != nil || authorized.AdvisoryOnly || authorized.Lifecycle != contained.ID || len(healthOperatorDecisionLineage(authorized)) != 6 {
 		t.Fatalf("authorized containment = (%+v, %v)", authorized, err)
@@ -64,9 +57,7 @@ func TestHealthEvidenceCannotMutateRunsOutsideLifecycleAuthority(t *testing.T) {
 	foreign, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentContained, Experiment: experiment, Evidence: id(artifact.KindEvidence, "foreign classification"),
 	}, &admitted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := buildHealthOperatorDecision(classification, healthOperatorContainment, &foreign); err == nil {
 		t.Fatal("foreign lifecycle evidence authorized health mutation")
 	}

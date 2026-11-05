@@ -3,14 +3,14 @@ package seriesforecast
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestPadToPatchesFrontPadsWithMaskOnes(t *testing.T) {
 	series := []float32{1, 2, 3, 4, 5}
 	padded, masks, err := padToPatches(series, nil, 4)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(padded) != 8 || len(masks) != 8 {
 		t.Fatalf("padded=%d masks=%d, want 8", len(padded), len(masks))
 	}
@@ -82,9 +82,7 @@ func TestResidualBlockTinyCase(t *testing.T) {
 		},
 	}
 	dst := make([]float32, 1)
-	if err := model.residualBlock(dst, "blk", []float32{3, 1}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, model.residualBlock(dst, "blk", []float32{3, 1}))
 	// hidden = 4; SiLU(4) = 4/(1+e^-4); out = 2*SiLU(4); residual = 2.
 	want := float32(2*(4/(1+math.Exp(-4))) + 2)
 	if math.Abs(float64(dst[0]-want)) > 1e-6 {

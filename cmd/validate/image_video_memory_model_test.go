@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -136,27 +137,17 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_memory.json")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoMemorySHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoMemorySHA256))
 	var comparison mediaMemoryComparison
-	if err := jsonfile.DecodeStrict(path, &comparison); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &comparison))
 	if comparison.Version != artifact.InitialDocumentVersion || comparison.Rationale == "" || len(comparison.Cases) != 2 || len(comparison.Quality) == 0 || len(comparison.Sources) == 0 {
 		t.Fatal("incomplete memory comparison")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -178,12 +169,8 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	}
 	for _, check := range comparison.Quality {
 		report, err := testevidence.GoTestJSONReport(string(read(check.Evidence)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 || check.Name == "" || check.Command == "" {
 			t.Fatal("empty quality acquisition")
 		}
@@ -196,30 +183,20 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 		}
 		beforeData, afterData := read(entry.Baseline), read(entry.Candidate)
 		beforeProbe, err := checkMediaMemoryStorage(beforeData)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		afterProbe, err := checkMediaMemoryStorage(afterData)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if beforeProbe != afterProbe {
 			t.Fatal("memory comparison changed its pool instrumentation")
 		}
 		var before, after mediaTransferRecord
-		if err := json.Unmarshal(beforeData, &before); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(afterData, &after); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(beforeData, &before))
+		testcheck.NoError(t, json.Unmarshal(afterData, &after))
 		if before.Acceptance != acceptance {
 			t.Fatal("changed frozen memory acceptance")
 		}
 		result, err := compareMediaMemory(before, after)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if name == "full" {
 			accepted = result
 		}
@@ -246,15 +223,9 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 		}
 	}
 	var baseline, candidate, ablation []mediaLayoutLifetime
-	if err := json.Unmarshal(read(comparison.LayoutBaseline), &baseline); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(read(comparison.LayoutCandidate), &candidate); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(read(comparison.LayoutAblation), &ablation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(comparison.LayoutBaseline), &baseline))
+	testcheck.NoError(t, json.Unmarshal(read(comparison.LayoutCandidate), &candidate))
+	testcheck.NoError(t, json.Unmarshal(read(comparison.LayoutAblation), &ablation))
 	if len(baseline) != 2 || len(candidate) != 2 || len(ablation) != 2 {
 		t.Fatal("missing trace-state allocation ablation")
 	}

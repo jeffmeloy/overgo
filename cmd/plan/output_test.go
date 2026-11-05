@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 )
 
@@ -74,22 +75,14 @@ func TestStatusCountsRetainedOpenRows(t *testing.T) {
 func captureStdout(t *testing.T, run func()) string {
 	t.Helper()
 	read, write, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	original := os.Stdout
 	os.Stdout = write
 	defer func() { os.Stdout = original }()
 	run()
-	if err := write.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, write.Close())
 	data, err := io.ReadAll(read)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := read.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, read.Close())
 	return string(data)
 }

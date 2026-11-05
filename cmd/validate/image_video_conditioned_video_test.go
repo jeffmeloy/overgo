@@ -17,6 +17,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -95,27 +96,17 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var bundle mediaConditionedBundle
 	path := filepath.Join(root, "docs/image_video_conditioned_videos.json")
-	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoConditionedSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoConditionedSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Scope == "" || len(bundle.Cases) != 4 || len(bundle.Numerical) != 3 || len(bundle.Inspection) == 0 {
 		t.Fatal("incomplete conditioned video bundle")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -127,9 +118,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	}
 	decode := func(id artifact.ID, value any) {
 		t.Helper()
-		if err := json.Unmarshal(read(id), value); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(id), value))
 	}
 	sample := func(id artifact.ID) []byte {
 		t.Helper()
@@ -146,12 +135,8 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	checkTest := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty passing evidence")
 		}
@@ -197,16 +182,10 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		t.Fatal("lost failed reference-reading attempt", err)
 	}
 	raw, err = os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoProtocolIdentity(raw); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoProtocolIdentity(raw))
 	var protocol imageVideoProtocol
-	if err := json.Unmarshal(raw, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &protocol))
 	expected, seen := 0, map[string]bool{}
 	for _, c := range protocol.Cases {
 		if !strings.Contains(c.ID, "/video-gen/") || strings.HasPrefix(c.ID, "Wan") {
@@ -220,9 +199,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		seen[c.ID] = true
 		entry := bundle.Cases[index]
 		run, err := runrecord.RequireExactRun(t.Context(), store, entry.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if run.CodeCommit != bundle.Source || run.Recipe != c.Recipe || !slices.Equal(run.Inputs, c.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{entry.Output}) || run.Outcome != runrecord.OutcomeSucceeded || run.MeasuredNS == 0 || len(run.Phases) == 0 {
 			t.Fatal("conditioned run identity differs")
 		}
@@ -266,9 +243,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 			if group.Loads != 1 || len(row.Before) != 0 || len(row.Memory) != 0 || !row.Same || len(row.FrameSHA) != row.Frames || math.IsNaN(row.Minimum) || math.IsInf(row.Minimum, 0) || math.IsNaN(row.Maximum) || math.IsInf(row.Maximum, 0) || row.Minimum > row.Maximum {
 				t.Fatal("CPU video audit differs")
 			}
-			if err := checkMediaWanGIF(current, historical, c.Observations[0]); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, checkMediaWanGIF(current, historical, c.Observations[0]))
 		case "acquired-cuda-corrected":
 			if group.Loads != 2 || row.Load == 0 || row.Close == 0 || len(row.Before) != 3 || len(row.After) != 3 || len(row.Closed) != 3 || row.Same || !row.OldMatch || !row.CorrectMatch || row.NativeFrameSHA != fix.NativeFrameSHA || len(entry.RawFrames) != row.Frames {
 				t.Fatal("missing corrected CUDA evidence")
@@ -286,17 +261,11 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 			if err != nil || baseline.CodeCommit != bundle.Source || !slices.Equal(baseline.Inputs, c.Inputs) {
 				t.Fatal("missing original encoding baseline", err)
 			}
-			if err := checkMediaWanGIF(sample(baseline.Outputs[0]), historical, c.Observations[0]); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, checkMediaWanGIF(sample(baseline.Outputs[0]), historical, c.Observations[0]))
 			oldEncoder, err := latentvideo.NewGIFEncoder(row.FPS, latentvideo.UnitPixels)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fixedEncoder, err := latentvideo.NewGIFEncoder(row.FPS, latentvideo.SignedUnitPixels)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			aggregate := sha256.New()
 			for i, id := range entry.RawFrames {
 				raw := read(id)
@@ -312,41 +281,25 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 				}
 				digest := sha256.Sum256(raw)
 				aggregate.Write(digest[:])
-				if err := oldEncoder.Add(i, values, row.Height, row.Width); err != nil {
-					t.Fatal(err)
-				}
-				if err := fixedEncoder.Add(i, values, row.Height, row.Width); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, oldEncoder.Add(i, values, row.Height, row.Width))
+				testcheck.NoError(t, fixedEncoder.Add(i, values, row.Height, row.Width))
 			}
 			if hex.EncodeToString(aggregate.Sum(nil)) != fix.NativeFrameSHA {
 				t.Fatal("native float frame sequence changed")
 			}
 			oldEncoded, err := oldEncoder.Finish()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fixedEncoded, err := fixedEncoder.Finish()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := checkMediaWanGIF(oldEncoded.Data, historical, c.Observations[0]); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, checkMediaWanGIF(oldEncoded.Data, historical, c.Observations[0]))
 			if !bytes.Equal(fixedEncoded.Data, current) || bytes.Equal(oldEncoded.Data, current) {
 				t.Fatal("corrected encoding does not follow signed float range")
 			}
-			if err := checkMediaWanGIF(current, current, c.Observations[0]); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, checkMediaWanGIF(current, current, c.Observations[0]))
 			oldGIF, err := gif.DecodeAll(bytes.NewReader(oldEncoded.Data))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			newGIF, err := gif.DecodeAll(bytes.NewReader(current))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if reflect.DeepEqual(oldGIF, newGIF) {
 				t.Fatal("encoding defect not corrected")
 			}

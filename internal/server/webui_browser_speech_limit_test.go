@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -24,9 +25,7 @@ func TestWebUIBrowserSpeechSendsNoFrameLimit(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the speech limit leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	capability := WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-limit"), Name: "Speech (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
@@ -43,9 +42,7 @@ func TestWebUIBrowserSpeechSendsNoFrameLimit(t *testing.T) {
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-limit"), capability: capability,
 	}}
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()

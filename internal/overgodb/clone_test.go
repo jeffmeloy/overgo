@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCloneStoreSharesBlobsAndKeepsTheChain clones a snapshotted store: the
@@ -20,15 +22,11 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 	}
 	// Old backups may still carry the former in-store writer lock.
 	// Make its exclusion a real clone input rather than a missing-file check.
-	if err := os.WriteFile(filepath.Join(fixture.root, lockFilename), nil, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(fixture.root, lockFilename), nil, storeFileMode))
 	head, sequence := fixture.store.Head()
 	destination := filepath.Join(t.TempDir(), "candidate")
 	report, err := CloneStore(fixture.root, destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.LinkedBlobs != 3 || report.CopiedFiles == 0 || report.CopiedBytes == 0 {
 		t.Fatalf("clone report = %+v", report)
 	}
@@ -40,22 +38,16 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 	}
 
 	candidate, err := Create(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer candidate.Close()
 	if cloneHead, cloneSequence := candidate.Head(); cloneHead != head || cloneSequence != sequence {
 		t.Fatalf("clone head (%s, %d), want (%s, %d)", cloneHead, cloneSequence, head, sequence)
 	}
 	orphan := fixture.orphan.Descriptor.ID
 	sourceBlob, err := fixture.store.blobs.path(orphan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cloneBlob, err := candidate.blobs.path(orphan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sourceInfo, sourceErr := os.Stat(sourceBlob)
 	cloneInfo, cloneErr := os.Stat(cloneBlob)
 	if sourceErr != nil || cloneErr != nil || !os.SameFile(sourceInfo, cloneInfo) {

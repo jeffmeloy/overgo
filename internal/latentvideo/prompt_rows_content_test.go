@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // syntheticEncoder is a umT5 encoder checkpoint as bytes: one block, four
@@ -96,17 +97,13 @@ func syntheticEncoder(t *testing.T, seed int) []byte {
 		if err == nil {
 			_, err = writer.Write(body)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	entry("archive/data.pkl", pickle.Bytes())
 	for index, storage := range storages {
 		entry("archive/data/"+strconv.Itoa(index), storage)
 	}
-	if err := written.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, written.Close())
 	return archive.Bytes()
 }
 
@@ -139,13 +136,9 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	const length = 6
 	spec := WanTextConditioningSpec(directory, length)
 	table, roles := filepath.Join(spec.TokenizerDir, tokenizerTable), filepath.Join(spec.TokenizerDir, tokenizerRoles)
-	if err := os.MkdirAll(spec.TokenizerDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(spec.TokenizerDir, 0o755))
 	writeSyntheticTokenizer(t, spec.TokenizerDir)
-	if err := os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644))
 	square, row := arithmeticFloat32Sequence(-0.5, 0.0625, 16), arithmeticFloat32Sequence(0.25, -0.125, 4)
 	if err := safetensors.Save(filepath.Join(directory, "diffusion_pytorch_model.safetensors"),
 		map[string][]float32{projectionTensorNames[0]: square, projectionTensorNames[1]: row, projectionTensorNames[2]: square, projectionTensorNames[3]: row},
@@ -153,9 +146,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	spec.Common, spec.Kept, spec.KeptUnder = "world", store, "identity"
 	request := WanRequest{Prompt: "hello world", NegativePrompt: spec.Common}
@@ -177,22 +168,16 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	named := func() string {
 		t.Helper()
 		name, err := TextPipelineIdentity(t.Context(), nil, directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return name
 	}
 	// kept reports whether the store holds the common prompt's rows under the name the files as they stand give.
 	kept := func() bool {
 		t.Helper()
 		encoder, err := promptEncoderFor(spec)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, bound, err := artifact.ResolveAlias(ctx, store, encoder.commonRowsName(spec))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return bound
 	}
 	// cold is what a process that has just started, with no store to read rows from, makes of the files as they stand.
@@ -206,13 +191,9 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	replaced := func(path string, other func(was []byte) []byte) {
 		t.Helper()
 		before, err := os.Stat(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		was, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		now := other(was)
 		if len(now) != len(was) || bytes.Equal(now, was) {
 			t.Fatalf("%s: %d other bytes for %d, the same bytes: %t; want other bytes of the same length", filepath.Base(path), len(now), len(was), bytes.Equal(now, was))
@@ -234,12 +215,8 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 			}
 			promptEncoders.Unlock()
 		}
-		if err := os.WriteFile(path, now, 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Chtimes(path, before.ModTime(), before.ModTime()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, now, 0o644))
+		testcheck.NoError(t, os.Chtimes(path, before.ModTime(), before.ModTime()))
 		if after, err := os.Stat(path); err != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
 			t.Fatalf("%s: its size or time moved with its bytes: %v", filepath.Base(path), err)
 		}
@@ -261,9 +238,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	// The resident session, and nothing changed.
 	var session wanConditioning
 	cond, uncond, err := session.contexts(ctx, spec, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if passes() != 1 || !kept() {
 		t.Fatalf("the first request made %d passes and kept the common prompt's rows in the store: %t; want one pass, and kept", passes(), kept())
 	}
@@ -284,15 +259,11 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 			was = bytes.Clone(was)
 			other := syntheticEncoder(t, 3)
 			archive, err := zip.NewReader(bytes.NewReader(was), int64(len(was)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, entry := range archive.File {
 				if strings.HasPrefix(entry.Name, "archive/data/") {
 					offset, err := entry.DataOffset()
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					end := offset + int64(entry.UncompressedSize64)
 					copy(was[offset:end], other[offset:end])
 				}
@@ -312,25 +283,17 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		}
 		made := passes()
 		warm, warmUncond, err := session.contexts(ctx, spec, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if passes() != made+1 || !kept() {
 			t.Fatalf("%s: the resident session made %d passes and kept the common prompt's rows under the new name: %t; want one pass, and kept", change.what, passes()-made, kept())
 		}
 		renewed, renewedUncond, err := new(wanConditioning).contexts(ctx, spec, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		forget()
 		next, nextUncond, err := new(wanConditioning).contexts(ctx, spec, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want, wantUncond, err := cold()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if slices.Equal(want, cond) && slices.Equal(wantUncond, uncond) {
 			t.Fatalf("%s: a process that has just started makes the contexts made before the change, so the change shows nothing", change.what)
 		}
@@ -360,9 +323,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		t.Fatalf("rows asked of a pipeline that is not there = %v, want it refused as not there", err)
 	}
 	forget()
-	if err := os.WriteFile(spec.EncoderCheckpoint, []byte("no archive"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, []byte("no archive"), 0o644))
 	if name, err := TextPipelineIdentity(t.Context(), nil, directory); err == nil {
 		t.Fatalf("a checkpoint that is no archive is named %q; want no name, and so no answer kept under one", name)
 	}
@@ -377,47 +338,31 @@ func TestTextPipelineNamesItsCheckpointThroughTheStore(t *testing.T) {
 	// Not parallel: the admissions this process keeps are this test's to forget.
 	directory := t.TempDir()
 	spec := WanTextConditioningSpec(directory, 1)
-	if err := os.MkdirAll(spec.TokenizerDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(spec.TokenizerDir, 0o755))
 	writeSyntheticTokenizer(t, spec.TokenizerDir)
-	if err := os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// named is what a process names the pipeline, with the store or without one, before it ends and lets the checkpoint go.
 	named := func(store artifact.Repository) string {
 		t.Helper()
 		name, err := TextPipelineIdentity(t.Context(), store, directory)
 		forgetPromptEncoders(t)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return name
 	}
 	first := named(store)
 	before, err := os.Stat(spec.EncoderCheckpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 2), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chtimes(spec.EncoderCheckpoint, before.ModTime(), before.ModTime()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 2), 0o644))
+	testcheck.NoError(t, os.Chtimes(spec.EncoderCheckpoint, before.ModTime(), before.ModTime()))
 	read := named(nil)
 	if kept := named(store); kept != first || read == first {
 		t.Fatalf("other bytes at the kept size and time: the next process keeps the first name %t, and reading them names them anew %t", kept == first, read != first)
 	}
 	later := before.ModTime().Add(time.Second)
-	if err := os.Chtimes(spec.EncoderCheckpoint, later, later); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(spec.EncoderCheckpoint, later, later))
 	if moved := named(store); moved != read {
 		t.Fatal("a checkpoint whose modification time moved is named by the digest kept for the old time, not read again")
 	}

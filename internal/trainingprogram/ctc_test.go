@@ -12,6 +12,7 @@ import (
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -30,9 +31,7 @@ type ctcOracleCase struct {
 func ctcOracleCases(t *testing.T) []ctcOracleCase {
 	t.Helper()
 	data, err := os.ReadFile("testdata/ctc_oracle.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Schema        string          `json:"schema"`
 		TorchVersion  string          `json:"torch_version"`
@@ -44,9 +43,7 @@ func ctcOracleCases(t *testing.T) []ctcOracleCase {
 		Source        string          `json:"source"`
 		Cases         []ctcOracleCase `json:"cases"`
 	}
-	if err := strictjson.DecodeBytes(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(data, &fixture))
 	if fixture.Schema != "overgo/ctc-objective-oracle/v1" || fixture.Device != "cpu" || fixture.DType != "float64-from-float32" ||
 		fixture.Reduction != "sum" || fixture.ZeroInfinity || fixture.TorchVersion != "2.12.0+cu126" ||
 		fixture.TorchRevision != "7661cd9c6b841b62b7f411aa52ec51f05457263b" ||
@@ -74,9 +71,7 @@ func ctcOracleCases(t *testing.T) []ctcOracleCase {
 func ctcScratch(t testing.TB, test ctcOracleCase) []float64 {
 	t.Helper()
 	count, err := CTCLossWorkspaceSize(test.Frames, test.Vocabulary, len(test.Targets))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return make([]float64, count)
 }
 
@@ -95,9 +90,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 				gradient := make([]float32, len(test.Logits))
 				original := slices.Clone(test.Logits)
 				loss, err := CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				// Float64 accumulation allowance scales with the DP geometry and
 				// loss magnitude; gradient comparison below allows one float32 ULP at 1.
 				tolerance := 32 * (math.Nextafter(1, 2) - 1) * float64(len(workspace)) * max(1, math.Abs(*test.Loss))
@@ -117,9 +110,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 				}
 			}
 			plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			program, err := CompileObjectiveProgram(ObjectiveCTC, nil, plan)
 			if err != nil || program.Objective() != ObjectiveCTC {
 				t.Fatalf("CTC program = %+v, %v", program, err)
@@ -135,9 +126,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 				workspace := ctcScratch(t, test)
 				gradient := make([]float32, len(test.Logits))
 				loss, err := CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				epsilon := float64(math.Nextafter32(1, 2) - 1)
 				testutil.RequireElementsWithin(t, "CTC logits gradient", gradient, test.Gradient, epsilon)
 				probe := slices.Clone(test.Logits)
@@ -148,9 +137,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 					probe[index] = value + step
 					upper := probe[index]
 					plus, err := CTCLossF32(t.Context(), nil, probe, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					probe[index] = value - step
 					span := float64(upper) - float64(probe[index])
 					minus, err := CTCLossF32(t.Context(), nil, probe, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
@@ -241,9 +228,7 @@ func ctcAdmission(t *testing.T, test ctcOracleCase) {
 			}
 		}
 		if allocations := testing.AllocsPerRun(100, func() {
-			if err := call(t.Context(), gradient, test.Logits, workspace); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, call(t.Context(), gradient, test.Logits, workspace))
 		}); allocations != 0 {
 			t.Fatalf("CTC allocated beyond caller-owned storage: %g", allocations)
 		}

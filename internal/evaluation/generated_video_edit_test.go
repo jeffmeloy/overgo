@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestGeneratedVideoEditAsksWhatChangedAndWhatStayed holds the suite to its
@@ -22,9 +24,7 @@ func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 6, 6)
 	items, err := PickVideoEdits(spec.Clips, spec.Captions, 5, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, _ := PickVideoEdits(spec.Clips, spec.Captions, 5, 17)
 	if len(items) != 5 || fmt.Sprint(items) != fmt.Sprint(again) {
 		t.Fatalf("the same seed picked %v and then %v", items, again)
@@ -60,9 +60,7 @@ func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 		}
 	}
 	suite, err := BuildGeneratedVideoEdit(items, videos, "judge-a")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != len(items) {
 		t.Fatalf("suite = %d cases judged by %q (%v), want one a clip that compile", len(suite.Cases), suite.Judge, err)
 	}
@@ -97,24 +95,16 @@ func TestVideoEditsPassOverClipsThatShowAChangeAlready(t *testing.T) {
 	} {
 		vid := fmt.Sprintf("clip%02d%s0001", index, sceneMarker)
 		rows = append(rows, captionRow{Vid: vid, Caption: caption})
-		if err := os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600))
 	}
 	data, err := json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	captions := filepath.Join(t.TempDir(), "captions.json")
-	if err := os.WriteFile(captions, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	// Six of the twelve captions say snow, night, a cartoon, fog, a sketch or rain.
 	const unchanged = 6
 	items, err := PickVideoEdits(directory, captions, unchanged, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, item := range items {
 		for _, word := range []string{"snow", "night", "cartoon", "fog", "sketch", "Rain"} {
 			if strings.Contains(item.Caption, word) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"overgo/internal/checked"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"runtime"
 	"time"
 
@@ -65,9 +66,7 @@ func TestChannelRMSNormMatchesTorchFixture(t *testing.T) {
 		-1, 2, -3, 4, -5, 6, -7, 8,
 	}
 	got := make([]float32, len(x))
-	if err := hostmath.ChannelRMSNormF64Into(got, x, []float32{1.5, 0.5}, 2, 8); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, hostmath.ChannelRMSNormF64Into(got, x, []float32{1.5, 0.5}, 2, 8))
 	want := []float32{
 		1.4999998807907104, -1.4999998807907104, 1.5, 1.4999998807907104,
 		1.4999998807907104, -1.5, 1.4999998807907104, 1.4999998807907104,
@@ -126,9 +125,7 @@ func TestVAEResidualBlockMatchesTorchIdentityShortcutFixture(t *testing.T) {
 	x := vaeFixtureInputDims(2, 2, 2, 2, -0.5)
 	op, values, state := residualFixtureOp(2, 2)
 	got, frames, h, w, err := runVAEOp(op, values, state, 0, x, 2, 2, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 2 || h != 2 || w != 2 {
 		t.Fatalf("shape=(%d,%d,%d)", frames, h, w)
 	}
@@ -147,9 +144,7 @@ func TestVAEResidualBlockMatchesTorchConvShortcutFixture(t *testing.T) {
 	x := vaeFixtureInputDims(2, 2, 2, 2, -0.5)
 	op, values, state := residualFixtureOp(2, 3)
 	got, _, _, _, err := runVAEOp(op, values, state, 0, x, 2, 2, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{
 		170.98739624023438, 171.88536071777344, 172.0513153076172, 172.94927978515625,
 		315.05364990234375, 315.25006103515625, 314.01287841796875, 314.2093200683594,
@@ -174,9 +169,7 @@ func TestVAESpatialAttentionMatchesTorchFixture(t *testing.T) {
 		take(3),         // proj b
 	})
 	got, _, _, _, err := runVAEOp(op, values, &vaeOpState{}, 0, x, 2, 2, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{
 		1.4898173809051514, 1.5898265838623047, 1.689834475517273, 1.7898414134979248,
 		1.7219865322113037, 1.8219873905181885, 1.9219878911972046, 2.0219883918762207,
@@ -218,9 +211,7 @@ func TestVAETimeInterleaveMatchesReferenceLayout(t *testing.T) {
 	// convolved [2c=2][frames=2][spatial=1]: channel half selects parity.
 	convolved := []float32{10, 11, 20, 21}
 	out := make([]float32, 4)
-	if err := timeInterleaveInto(out, convolved, 1, 2, 1); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, timeInterleaveInto(out, convolved, 1, 2, 1))
 	want := []float32{10, 20, 11, 21}
 	requireVAEClose(t, out, want, 0)
 }
@@ -239,17 +230,13 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 	values := fixtureCodecWeights(op, [][]float32{timeW, make([]float32, 2*c), resampleW, make([]float32, c)})
 	state := &vaeOpState{}
 	out, frames, h, w, err := runVAEOp(op, values, state, 0, []float32{3}, 1, 1, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 1 || h != 2 || w != 2 || !state.cache0.rep {
 		t.Fatalf("chunk0 frames=%d h=%d w=%d rep=%t", frames, h, w, state.cache0.rep)
 	}
 	requireVAEClose(t, out, []float32{3, 3, 3, 3}, 0)
 	out, frames, _, _, err = runVAEOp(op, values, state, 1, []float32{5}, 1, 1, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frames != 2 || state.cache0.rep || state.cache0.frames != 2 || state.cache0.data[0] != 0 || state.cache0.data[1] != 5 {
 		t.Fatalf("chunk1 frames=%d cache=%+v", frames, state.cache0)
 	}

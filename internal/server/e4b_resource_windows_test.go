@@ -27,6 +27,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -47,25 +48,17 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	if publish {
 		var err error
 		revision, err = runrecord.VerifyingCommit(testutil.RepoRoot(t))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var observations []runrecord.ServingObservation
 	var steps []runrecord.GateStep
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var paths []string
 	for _, input := range []struct {
@@ -77,33 +70,21 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 		{"dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3", artifact.LocationDirectory},
 	} {
 		id, err := artifact.ParseID(input.id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path, err := artifact.AvailablePath(ctx, store, id, input.kind)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		paths = append(paths, path)
 	}
 	candidate, err := modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cases, oracleBytes := prepareE4BServingCases(t, ctx, paths[2])
 	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, paths[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity, err := loaded.Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	steps = append(steps, runrecord.GateStep{Name: "media-resource-contract", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Since(startedAll)), Evidence: fmt.Sprintf("contract=e4b-media-resources-v1;oracle_sha256=%x;model_definition=%s;modes=6;reloads=3;cycles=3;actions=5", sha256.Sum256(oracleBytes), identity.Definition)})
 	observer, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := observer.Close(); err != nil {
 			t.Error(err)
@@ -125,18 +106,14 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	for reload := range 3 {
 		t.Run(fmt.Sprintf("reload-%d", reload), func(t *testing.T) {
 			runner, err := modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() {
 				if err := runner.Close(); err != nil {
 					t.Error(err)
 				}
 			}()
 			projection, err := projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() {
 				if err := projection.Close(); err != nil {
 					t.Error(err)
@@ -144,9 +121,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			}()
 			trace := &e4bServingTrace{Runner: runner}
 			handler, err := New(Config{RuntimePolicy: runner.RuntimePolicy(), MaxConcurrent: 1, MaxTokens: 128, ImageProjector: projection, AudioProjector: projection, VideoFPS: 1, VideoMaxFrames: 2}, trace)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer func() {
 				if err := handler.Close(); err != nil {
 					t.Error(err)
@@ -155,13 +130,9 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			memory := func() (driver.MemoryStats, driver.MemoryStats) {
 				t.Helper()
 				language, err := runner.DeviceMemoryStats(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				media, err := projection.DeviceMemoryStats(ctx, false)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				return language, media
 			}
 			var projectionPeak uint64
@@ -196,9 +167,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			}
 			request := func(test e4bServingCase, interrupt string) {
 				t.Helper()
-				if err := runner.ResetDeviceMemoryPeak(ctx); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, runner.ResetDeviceMemoryPeak(ctx))
 				if _, err := projection.DeviceMemoryStats(ctx, true); err != nil {
 					t.Fatal(err)
 				}
@@ -247,9 +216,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 							FinishReason string `json:"finish_reason"`
 						}
 					}
-					if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 					if response.Code != http.StatusOK || len(result.Choices) != 1 || result.Choices[0].FinishReason != "stop" || !slices.Contains(test.outputs, result.Choices[0].Message.Content) {
 						t.Fatalf("%s recovery differs from complete native output: HTTP %d %s", test.name, response.Code, response.Body.String())
 					}
@@ -274,18 +241,12 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 						{Stage: runrecord.ServingHardwareFinish, ElapsedNS: duration, DeviceCurrentBytes: language.CurrentBytes + media.CurrentBytes, DevicePeakBytes: peak, DeviceAllocations: language.Allocations + media.Allocations},
 					},
 				})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				observations = append(observations, observation)
 				promptBytes, err := json.Marshal(trace.ids)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				evidence, err := json.Marshal(map[string]any{"observation": observation.ID, "output_sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(actual))), "input_sha256": fmt.Sprintf("%x", sha256.Sum256(encoded)), "prompt_sha256": fmt.Sprintf("%x", sha256.Sum256(promptBytes)), "mode": test.name, "reload": reload, "cycle": currentCycle, "action": action})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-r%d-c%d-%s-a%d", reload, currentCycle, test.name, action), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: duration, Evidence: string(evidence)})
 				action++
 				t.Logf("mode=%s interrupt=%q wall=%s peak=%d retained=%d allocations=%d", test.name, interrupt, time.Since(started), peak, language.CurrentBytes+media.CurrentBytes, language.Allocations+media.Allocations)
@@ -314,9 +275,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			owned := language.CurrentBytes + media.CurrentBytes
 			releaseStarted := time.Now()
 			before := freeDevice()
-			if err := errors.Join(handler.Close(), projection.Close(), runner.Close()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, errors.Join(handler.Close(), projection.Close(), runner.Close()))
 			after := freeDevice()
 			if after < before || after-before < owned {
 				t.Fatalf("close failed to release allocations: free %d -> %d owned=%d", before, after, owned)
@@ -329,9 +288,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			}
 			t.Logf("reload=%d released=%d owned=%d", reload, after-before, owned)
 			release, err := json.Marshal(map[string]uint64{"before": before, "after": after, "owned": owned})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-release-%d", reload), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Since(releaseStarted)), Evidence: string(release)})
 		})
 		if t.Failed() {
@@ -344,31 +301,19 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			t.Fatalf("resource producer source changed: %v", err)
 		}
 		writer, err := overgodb.Create(roots.Store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer writer.Close()
-		if err := modelintake.RegisterProjectionCandidate(ctx, writer, candidate); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, modelintake.RegisterProjectionCandidate(ctx, writer, candidate))
 		record, err := runrecord.NewGateRecord(candidate.Definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", uint64(time.Since(startedAll)), steps)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := record.Batch("validation/media-resources/" + record.Result.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := environment.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Contents = append(batch.Contents, content)
 		for _, observation := range observations {
 			content, err := observation.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			batch.Contents = append(batch.Contents, content)
 			batch.Lineage = append(batch.Lineage, observation.Lineage()...)
 			batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(record.Result.ID, observation.ID)...)

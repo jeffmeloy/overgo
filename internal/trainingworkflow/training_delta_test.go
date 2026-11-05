@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func TestTrainingEvidenceDeltaIsSummaryOnly(t *testing.T) {
@@ -21,15 +22,11 @@ func TestTrainingEvidenceDeltaIsSummaryOnly(t *testing.T) {
 		ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "delta-evidence"), Steps: 2, Host: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(
 		t.Context(), store, result.RouterObservationCoverage,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	delta, resync, err := store.DeltasSince(
 		t.Context(), anchorHead, anchorSequence, overgodb.ProjectionContractVersion(), 8,
 	)
@@ -45,13 +42,9 @@ func TestTrainingEvidenceDeltaIsSummaryOnly(t *testing.T) {
 		}
 	}
 	raw, err := chunk.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wire, err := json.Marshal(delta)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bytes.Contains(wire, raw.Data) || bytes.Contains(wire, []byte(`"observations"`)) ||
 		bytes.Contains(wire, []byte(`"selections"`)) {
 		t.Fatalf("training delta embedded raw router payload: %s", wire)

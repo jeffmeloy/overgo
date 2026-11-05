@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -46,9 +47,7 @@ func TestSessionThatCannotTakeARequestIsReplaced(t *testing.T) {
 			)
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer director.Close(t.Context())
 	execute := director.Executor()
 	execution := modelrecipetest.CandidateExecution(t, store, program)

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestArtifactGalleryListsNewestFirstByMedia pins the slot strip's listing:
@@ -16,15 +17,11 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit := func(key, mediaType string, data []byte) artifact.ID {
 		t.Helper()
 		id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 			Key:      key,
 			Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: mediaType}, Data: data}},
@@ -39,13 +36,9 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	// A generated output carries the run that produced it, the record a gallery opens.
 	output := []byte("a generated image")
 	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	producer, err := artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:       "server/gallery-newest/4",
 		Artifacts: []artifact.Descriptor{{ID: producer, Size: 1}},
@@ -54,13 +47,9 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	list := func(query string) []artifact.ID {
 		t.Helper()

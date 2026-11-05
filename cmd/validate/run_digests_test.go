@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,14 +23,10 @@ import (
 func TestARunHashesEachModelFileOnce(t *testing.T) {
 	// Serial: it names the measurement run's record in the process environment.
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	weights := filepath.Join(t.TempDir(), "model.gguf")
-	if err := os.WriteFile(weights, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, []byte("weights"), 0o600))
 	model := creditModel(t, store, weights)
 	bound := func() string {
 		t.Helper()
@@ -37,9 +34,7 @@ func TestARunHashesEachModelFileOnce(t *testing.T) {
 			Model: model, ModelName: "hashed", Kind: recipe.TaskInference, Validation: guardValidation,
 			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "hashed"), Location: weights,
 		}}
-		if err := bindCells(t.Context(), testutil.RepoRoot(t), store, cells, "fixture-execution"); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, bindCells(t.Context(), testutil.RepoRoot(t), store, cells, "fixture-execution"))
 		return cells[0].Consumed
 	}
 	record := filepath.Join(t.TempDir(), "measurement_run.json")
@@ -56,15 +51,11 @@ func TestARunHashesEachModelFileOnce(t *testing.T) {
 	begin()
 	first := bound()
 	var run plan.MeasurementRun
-	if err := jsonfile.Decode(record, &run); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(record, &run))
 	if len(run.Digests) == 0 {
 		t.Fatal("the first phase to bind the cell kept no digest in the run's record")
 	}
-	if err := os.WriteFile(weights, []byte("changed"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, []byte("changed"), 0o600))
 	if later := bound(); later != first {
 		t.Fatal("a later phase of the run read the model's file again")
 	}
@@ -73,9 +64,7 @@ func TestARunHashesEachModelFileOnce(t *testing.T) {
 		t.Fatal("a run begun again bound the cell from the run before's digests")
 	}
 	keepDigests(map[string]string{"unhashed.gguf": "not a digest"})
-	if err := jsonfile.Decode(record, &run); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(record, &run))
 	if _, kept := run.Digests["unhashed.gguf"]; kept {
 		t.Fatal("a file that could not be hashed kept a digest")
 	}

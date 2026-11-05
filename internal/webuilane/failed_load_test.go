@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -22,9 +23,7 @@ func TestFailedLoadsKeepTheNewestFew(t *testing.T) {
 	socket := &webSocket{}
 	logged := func(source, level, address string) {
 		params, err := json.Marshal(map[string]any{"entry": map[string]string{"source": source, "level": level, "text": "Failed to load resource: net::ERR_EMPTY_RESPONSE", "url": address}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		socket.retainEvent(cdpEvent{Method: "Log.entryAdded", Params: params})
 	}
 	logged("javascript", "error", "/thrown.js")
@@ -88,13 +87,9 @@ addEventListener("load", () => setTimeout(() => { loaded = true; show(); }));
 	}))
 	defer server.Close()
 	executable, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	browser, err := Open(t.Context(), executable, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	err = browser.Eventually(t.Context(), `!!document.querySelector('.composer textarea')`)
 	if err == nil || !strings.Contains(err.Error(), "shell failed to start") {
@@ -108,9 +103,7 @@ addEventListener("load", () => setTimeout(() => { loaded = true; show(); }));
 
 	// A shell that failed with every load answered names no load.
 	quiet, err := Open(t.Context(), executable, server.URL+"/quiet")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer quiet.Close()
 	if err := quiet.Eventually(t.Context(), `false`); err == nil || !strings.Contains(err.Error(), "shell failed to start") || strings.Contains(err.Error(), "failed load") {
 		t.Fatalf("a wait on a shell that failed with no load failing = %v, want it to end on the failed shell and name no load", err)

@@ -11,13 +11,12 @@ import (
 	"testing"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/testcheck"
 )
 
 func TestCTCAlignmentOracle(t *testing.T) {
 	data, err := os.ReadFile("testdata/ctc_alignment.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Commit string
 		Cases  []struct {
@@ -28,9 +27,7 @@ func TestCTCAlignmentOracle(t *testing.T) {
 			Score                     float32
 		}
 	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &fixture))
 	if fixture.Commit != "3497b7cc44753e2c141d8fe60ac42cec433e3281" || len(fixture.Cases) != 5 {
 		t.Fatal("missing pinned oracle cases")
 	}
@@ -38,9 +35,7 @@ func TestCTCAlignmentOracle(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			var workspace CTCAlignmentWorkspace
 			_, _, budget, err := alignmentStorage(test.Frames, len(test.Targets))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for range 2 {
 				got, err := workspace.Align(t.Context(), test.Emissions, test.Targets, test.Frames, test.Vocabulary, test.Blank, budget)
 				if err != nil || !slices.Equal(got.States, test.States) || math.Float32bits(got.Score) != math.Float32bits(test.Score) {
@@ -116,9 +111,7 @@ func TestCTCAlignmentWorkspaceAdmission(t *testing.T) {
 			targets[i] = 1 + i%2
 		}
 		_, _, budget, err := alignmentStorage(frames, count)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := workspace.Align(t.Context(), make([]float32, frames*3), targets, frames, 3, 0, budget); err != nil {
 			t.Fatal(err)
 		}
@@ -131,9 +124,7 @@ func TestCTCAlignmentWorkspaceAdmission(t *testing.T) {
 		t.Fatal("target/path overlap accepted")
 	}
 	_, _, budget, err := alignmentStorage(1, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	workspace.discardExcess(budget)
 	if cap(workspace.path) != 1 {
 		t.Fatal("fitting workspace was discarded")

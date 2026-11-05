@@ -17,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,17 +34,13 @@ import (
 // to price the future pair.
 func TestCarbonSpeculativeChain(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Skipf("UNAVAILABLE: converted Carbon artifact absent at %s", modelPath)
 	}
 	var golden evaluation.ExactSuite
-	if err := jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden))
 	// The 96-base corpus prompt: sixteen full 6-mers, k-aligned by
 	// construction, so the text boundary crossing is exact.
 	prompt := ""
@@ -58,21 +55,15 @@ func TestCarbonSpeculativeChain(t *testing.T) {
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 
 	generate := func(from string, tokens int) (string, time.Duration) {
 		t.Helper()
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		text := ""
 		started := time.Now()
 		_, _, err = runner.Generate(context.Background(), from, inference.GenerateOptions{
@@ -82,9 +73,7 @@ func TestCarbonSpeculativeChain(t *testing.T) {
 				return nil
 			},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return text, time.Since(started)
 	}
 

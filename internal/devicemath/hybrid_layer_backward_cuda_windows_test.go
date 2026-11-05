@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const tol = 1e-3
@@ -60,9 +59,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		_, c := hostmath.HybridDecoderLayerForward(x, w, d, nil)
 		want := hostmath.HybridDecoderLayerBackward(x, w, d, nil, dOut, c)
 		got, err := HybridDecoderLayerBackwardDevice(worker, x, w, d, nil, dOut)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		verifyHybridCachedBackward(t, worker, x, w, d, nil, dOut, got)
 
 		check := func(name string, a, b []float32) {
@@ -130,9 +127,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		_, c := hostmath.HybridDecoderLayerForward(x, w, d, state)
 		want := hostmath.HybridDecoderLayerBackward(x, w, d, state, dOut, c)
 		got, err := HybridDecoderLayerBackwardDevice(worker, x, w, d, state, dOut)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		verifyHybridCachedBackward(t, worker, x, w, d, state, dOut, got)
 		if !got.IsLinear {
 			t.Fatal("device grads not flagged IsLinear for the GDN mix")

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/testcheck"
 
 	"math"
 	"math/rand"
@@ -21,9 +22,7 @@ import (
 func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const rows, classes = 11, 17
 	logits := randSlice(rand.New(rand.NewSource(53)), rows*classes)
@@ -35,9 +34,7 @@ func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	want := make([]float32, len(logits))
 	wantLoss := hostmath.SoftmaxCrossEntropy(want, logits, targets, rows, classes)
 	logitsPtr, err := AllocResidentF32(worker, len(logits), logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetsPtr, err := AllocResidentU32(worker, targetU32)
 	if err != nil {
 		_ = FreeResident(worker, logitsPtr)
@@ -49,16 +46,10 @@ func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer FreeResident(worker, logitsPtr, targetsPtr, lossesPtr)
-	if err := SoftmaxCrossEntropyBackwardResident(worker, logitsPtr, targetsPtr, lossesPtr, rows, classes); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, SoftmaxCrossEntropyBackwardResident(worker, logitsPtr, targetsPtr, lossesPtr, rows, classes))
 	got, losses := make([]float32, len(logits)), make([]float32, rows)
-	if err := ReadResident(worker, logitsPtr, ResidentSlice{Data: got}); err != nil {
-		t.Fatal(err)
-	}
-	if err := ReadResident(worker, lossesPtr, ResidentSlice{Data: losses}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ReadResident(worker, logitsPtr, ResidentSlice{Data: got}))
+	testcheck.NoError(t, ReadResident(worker, lossesPtr, ResidentSlice{Data: losses}))
 	var gotLoss float64
 	for _, loss := range losses {
 		gotLoss += float64(loss)

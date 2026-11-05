@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -25,9 +26,7 @@ func TestPromptCacheRetainsDecodedTokensDevice(t *testing.T) {
 func TestRecurrentPromptCacheReadsOnFromItsTurn(t *testing.T) {
 	cudatest.Require(t)
 	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUFLast(t, chatMLStart), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	// Token 7 opens a turn: the prompt's history is 1 4 5 and the follow-up keeps it and that turn's opening token.
 	prompt, followUp := []tokenizer.TokenID{1, 4, 5, 7, 6, 4}, []tokenizer.TokenID{1, 4, 5, 7, 5, 6, 7, 4}

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 type agentRetrievalRuntimeStub struct {
@@ -34,21 +35,15 @@ func (stub *agentRetrievalRuntimeStub) SupportsRank() bool { return stub.rankSup
 
 func TestAgentRetrievalProviderUsesRuntimeRankCapability(t *testing.T) {
 	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &agentRetrievalRuntimeStub{
 		rankSupported: true,
 		rank:          inference.RankResult{Scores: []float32{0.75}},
 	}
 	provider, err := newAgentRetrievalProvider(runtime, model, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if provider.ModelIdentity() != model || provider.PolicyIdentity() != policy {
 		t.Fatalf("provider identity = (%s, %s)", provider.ModelIdentity(), provider.PolicyIdentity())
 	}
@@ -60,20 +55,14 @@ func TestAgentRetrievalProviderUsesRuntimeRankCapability(t *testing.T) {
 
 func TestAgentRetrievalProviderUsesExistingNormalizedEmbeddingFallback(t *testing.T) {
 	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &agentRetrievalRuntimeStub{embeddings: map[string][]float32{
 		"query": {1, 0}, "document": {0.6, 0.8},
 	}}
 	provider, err := newAgentRetrievalProvider(runtime, model, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	score, err := provider.Score(t.Context(), "query", "document")
 	if err != nil || math.Abs(score-0.6) > 1e-6 || runtime.rankCalled {
 		t.Fatalf("embedding fallback score = (%f, %v, rank-called=%v)", score, err, runtime.rankCalled)

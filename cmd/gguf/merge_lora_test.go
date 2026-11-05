@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 const loRAModule = "model.layers.0.self_attn.q_proj"
@@ -19,41 +20,27 @@ const loRAModule = "model.layers.0.self_attn.q_proj"
 func TestMergeLoRAWritesTheMergedCheckpoint(t *testing.T) {
 	root := t.TempDir()
 	base, adapterDirectory, output := filepath.Join(root, "base"), filepath.Join(root, "adapter"), filepath.Join(root, "merged")
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(base, 0o755))
 	weights := map[string][]float32{loRAModule + ".weight": {1, 2, 3, 4, 5, 6}, "model.norm.weight": {1, 1, 1}}
 	shapes := map[string][]int{loRAModule + ".weight": {2, 3}, "model.norm.weight": {3}}
-	if err := safetensors.Save(filepath.Join(base, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(base, "model.safetensors"), weights, shapes, nil))
 	for name, contents := range map[string]string{"config.json": `{"model_type":"llama"}`, "tokenizer.json": `{"model":{}}`} {
-		if err := os.WriteFile(filepath.Join(base, name), []byte(contents), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(base, name), []byte(contents), 0o600))
 	}
 	// Alpha 6 over rank 2 scales the product by three.
 	adapter := peft.Adapter{
 		Config:  peft.Config{Rank: 2, Alpha: 6},
 		Modules: map[string]peft.Module{loRAModule: {Rank: 2, In: 3, Out: 2, Alpha: 6, Down: []float32{1, 0, 2, 0, 1, -1}, Up: []float32{1, 2, 0, 1}}},
 	}
-	if err := peft.Save(adapterDirectory, adapter); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, peft.Save(adapterDirectory, adapter))
 	// Up·Down by hand: up rows (1, 2) and (0, 1) over down rows (1, 0, 2) and (0, 1, -1).
 	update := []float64{1, 2, 0, 0, 1, -1}
-	if err := runSubcommand([]string{"merge-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runSubcommand([]string{"merge-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}))
 	source, err := safetensors.OpenSource(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	got, err := safetensors.ReadF32(source.Tensors[loRAModule+".weight"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, value := range got {
 		want := float64(weights[loRAModule+".weight"][index]) + 3*update[index]
 		if math.Abs(float64(value)-want) > 1e-5 {

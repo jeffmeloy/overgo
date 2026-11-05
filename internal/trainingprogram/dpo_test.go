@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,20 +16,14 @@ func continuationScore(value float64) sequencescore.Score {
 
 func TestContinuationScoreSharedAcrossEvaluationPerplexityAndDPO(t *testing.T) {
 	chosen, err := sequencescore.Selected([]float64{-5, -2}, []bool{false, true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rejected, err := sequencescore.Selected([]float64{-5, -3}, []bool{false, true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := DPOLoss(PreferenceScores{
 		PolicyChosen: chosen, PolicyRejected: rejected,
 		ReferenceChosen: chosen, ReferenceRejected: rejected,
 	}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if chosen.Tokens != rejected.Tokens || result.Loss != math.Log(2) {
 		t.Fatalf("continuation/DPO result = %+v/%+v/%+v", chosen, rejected, result)
 	}
@@ -41,9 +36,7 @@ func TestDPOLossMatchesClosedForm(t *testing.T) {
 	}
 	const scale = 0.25
 	got, err := DPOLoss(scores, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	margin := scale * ((scores.PolicyChosen.LogProbability - scores.PolicyRejected.LogProbability) -
 		(scores.ReferenceChosen.LogProbability - scores.ReferenceRejected.LogProbability))
 	want := math.Log1p(math.Exp(-margin))
@@ -59,9 +52,7 @@ func TestDPOGradientFiniteDifference(t *testing.T) {
 	}
 	const scale, epsilon = 0.4, 1e-6
 	result, err := DPOLoss(scores, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plus, minus := scores, scores
 	plus.PolicyChosen.LogProbability += epsilon
 	minus.PolicyChosen.LogProbability -= epsilon
@@ -78,9 +69,7 @@ func TestDPOPreferredUpdateDirection(t *testing.T) {
 	result, err := DPOLoss(PreferenceScores{
 		PolicyChosen: zero, PolicyRejected: zero, ReferenceChosen: zero, ReferenceRejected: zero,
 	}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.ChosenGradient >= 0 || result.RejectedGradient <= 0 {
 		t.Fatalf("score gradients=%+v", result)
 	}
@@ -140,9 +129,7 @@ func TestORPOLossMatchesHandComputedValues(t *testing.T) {
 func requirePreferenceLoss(t *testing.T, policy PreferencePolicy, scores PreferenceScores, want DPOResult) {
 	t.Helper()
 	got, err := policy.Loss(scores)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const tolerance = 1e-12
 	if math.Abs(got.Loss-want.Loss) > tolerance || math.Abs(got.ChosenGradient-want.ChosenGradient) > tolerance ||
 		math.Abs(got.RejectedGradient-want.RejectedGradient) > tolerance {
@@ -164,9 +151,7 @@ func TestPreferenceModeGradientsFiniteDifference(t *testing.T) {
 		{Scale: 0.4}, {Mode: PreferenceSimPO, Scale: 2, Margin: 0.5}, {Mode: PreferenceORPO, Scale: 0.1},
 	} {
 		result, err := policy.Loss(scores)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if dpo, _ := DPOLoss(scores, policy.Scale); policy.Mode == "" && dpo != result {
 			t.Fatalf("DPO mode = %+v, DPOLoss = %+v", result, dpo)
 		}
@@ -179,9 +164,7 @@ func TestPreferenceModeGradientsFiniteDifference(t *testing.T) {
 					moved.PolicyRejected.LogProbability += delta
 				}
 				value, err := policy.Loss(moved)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				return value.Loss
 			}
 			if want := (shifted(epsilon) - shifted(-epsilon)) / (2 * epsilon); math.Abs(gradient-want) > 1e-8 {

@@ -14,54 +14,37 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestScratchTensorForwardDeviceParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
 	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slab := construction.InitialWeights()
 	cuda, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cuda.Close()
 	hostModel, err := construction.BindMADTransformer(slab)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worstLogit, worstReferenceLoss, worstDeviceLoss := 0.0, 0.0, 0.0
 	for document, text := range oracle.Train {
 		tokens, err := construction.Tokens(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		graph, err := construction.CompileForwardGraph(tokens)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		feeds, err := graph.Feeds(construction, slab)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want, err := reference.Execute([]*tensor.Tensor{graph.Output}, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{graph.Output}, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range want[graph.Output].Data {
 			worstLogit = max(worstLogit, math.Abs(float64(got[graph.Output].Data[index]-want[graph.Output].Data[index])))
 		}
 		hostLoss, _, err := hostmath.MADTransformerForward(hostModel, tokens)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		referenceLoss := scratchGraphLoss(want[graph.Output].Data, tokens, construction.config.VocabSize)
 		deviceLoss := scratchGraphLoss(got[graph.Output].Data, tokens, construction.config.VocabSize)
 		worstReferenceLoss = max(worstReferenceLoss, math.Abs(referenceLoss-hostLoss))

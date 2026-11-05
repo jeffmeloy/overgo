@@ -9,33 +9,24 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestFrozenComponentImportRegistration(t *testing.T) {
 	root, _ := registrationFixture(t)
 	path := filepath.Join(root, "fixture")
-	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	frozen := filepath.Join(t.TempDir(), "inspection.json")
-	if err := inspectModel([]string{"-output", frozen, path}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, inspectModel([]string{"-output", frozen, path}))
 	expected, err := modelintake.InspectImport(t.Context(), path, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repository := t.TempDir()
 	args := []string{"-repo", repository, "-inspection", frozen, path}
-	if err := registerModels(args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registerModels(args))
 	readHead := func() artifact.CommitID {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		retained, found, err := artifact.ReadContent(t.Context(), store, expected.Content.Descriptor.ID)
 		if err != nil || !found || !bytes.Equal(retained.Data, expected.Content.Data) {
@@ -49,15 +40,11 @@ func TestFrozenComponentImportRegistration(t *testing.T) {
 		return head
 	}
 	head := readHead()
-	if err := registerModels(args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registerModels(args))
 	if readHead() != head {
 		t.Fatal("repeat import changed database")
 	}
-	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"different","architectures":["RemoteModel"]}`), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"different","architectures":["RemoteModel"]}`), 0600))
 	if err := registerModels(args); err == nil {
 		t.Fatal("changed source was silently re-inspected and registered")
 	}

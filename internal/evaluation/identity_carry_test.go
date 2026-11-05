@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 // carriedModel is a model's type in this package, which the fixture's build
@@ -41,9 +42,7 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const cases = observedPending + 3
 	suite := MultipleChoiceSuite{
@@ -57,9 +56,7 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 		scores[prompt] = []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}
 	}
 	source, err := json.Marshal(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "carry model"),
 		Definition: planID(t, artifact.KindModelDefinition, "carry definition"),
@@ -71,9 +68,7 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 	platform := func(backend, driver string) runrecord.Environment {
 		t.Helper()
 		value, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: backend, Driver: driver})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	device, other, hosted := platform("fixture", "fixture"), platform("fixture", "other"), platform(runrecord.BackendRemote, "fixture")
@@ -88,20 +83,14 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 		t.Helper()
 		tally := &choiceTally{scores: scores}
 		campaign, err := newCampaign(store, tally, identity, environment, strings.Repeat(commit, 40), LifecycleIsolated)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if told {
 			campaign.answeredBy(reflect.TypeFor[carriedModel]().PkgPath(), build)
 		}
 		compiled, err := CompileSuite(source, campaign.Authorities())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result, err := campaign.Evaluate(ctx, compiled)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result, compiled, len(tally.asked)
 	}
 

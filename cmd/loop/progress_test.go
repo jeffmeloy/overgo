@@ -9,6 +9,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestCampaignAcceptedProgress exercises execWorld against real Git
@@ -31,17 +32,13 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 	git("init", "-q")
 	git("config", "user.name", "progress-test")
 	git("config", "user.email", "progress@test.invalid")
-	if err := os.MkdirAll("docs", 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll("docs", 0o700))
 	const verify = "go test ./..."
 	document := plan.Plan{Campaign: "progress fixture", Items: []plan.Item{{ID: "grammar", Owner: "colibri", Status: plan.StatusOpen, Steps: []plan.Step{
 		{ID: "do", Status: plan.StatusOpen, Verify: verify, DependsOn: []string{"grammar/binding"}},
 		{ID: "binding", Status: plan.StatusOpen, Verify: verify},
 	}}}}
-	if err := plan.Save(plan.Path, document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(plan.Path, document))
 	git("add", "--", plan.Path)
 	git("commit", "-qm", "baseline")
 	world := &execWorld{}

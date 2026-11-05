@@ -10,6 +10,7 @@ import (
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 func TestPublicationStoreLifetime(t *testing.T) {
@@ -49,16 +50,12 @@ func TestPublicationStoreLifetime(t *testing.T) {
 		_, err = publish(t.Context(), record.Inputs.Model, record)
 		return err
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := retained(t.Context(), record.Inputs.Model, record); !errors.Is(err, overgodb.ErrClosed) {
 		t.Fatalf("publisher outlived command scope: %v", err)
 	}
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	latest := longform.LatestByLocation(t.Context(), store, 0)
 	for _, result := range []longform.Result{record, otherRecord} {
@@ -68,9 +65,7 @@ func TestPublicationStoreLifetime(t *testing.T) {
 	}
 	t.Run("admission precedes measurement", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "not-a-store")
-		if err := os.WriteFile(path, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, nil, 0o600))
 		called := false
 		if err := withPublisher(options{Publish: true, Repository: path}, func(publishModel) error { called = true; return nil }); err == nil || called {
 			t.Fatalf("measurement started without publication admission: called=%t err=%v", called, err)

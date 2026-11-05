@@ -6,15 +6,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	target := testutil.ArtifactID(t, artifact.KindModel, "ranking-target")
 	bad := BridgeCandidate{
@@ -26,15 +25,11 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 		Component: "model.layers.11.mlp.gate_proj.weight", Distance: 0.2,
 	}
 	cold, err := TrainProposalRanker(nil, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verifier := "go test ./internal/composition -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1"
 	proposal := func(candidate BridgeCandidate, blocker string) BridgeProposal {
 		value, err := NewBridgeProposal(target, []BridgeCandidate{candidate}, cold, verifier, blocker)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	refusedProposal := proposal(bad, "measured operator mismatch")
@@ -44,18 +39,12 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	decider := recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation}
 	refused, err := recipe.NewDecision(refusedProposal.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
 		"operator contract mismatch", decider, []artifact.ID{evidence})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observed, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionObserved, recipe.EvidenceVerified,
 		"bounded trial completed", decider, []artifact.ID{evidence})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	coldContent, err := cold.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refusedContent, _ := refusedProposal.Content()
 	observedContent, _ := observedProposal.Content()
 	refusedDecision, _ := refused.Content()
@@ -76,9 +65,7 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	}
 
 	ranker, err := TrainProposalRankerFromStore(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ranked := ranker.Rank([]BridgeCandidate{bad, good})
 	if len(ranked) != 2 || ranked[0].Donor != good.Donor || ranked[1].Donor != bad.Donor {
 		t.Fatalf("refusal-ledger ranking = %+v", ranked)
@@ -88,13 +75,9 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	}
 	accepted, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionAccepted, recipe.EvidenceParity,
 		"promotion result", decider, []artifact.ID{evidence})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	acceptedBatch, err := accepted.Batch("proposal-ranking-promotion")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, acceptedBatch); err != nil {
 		t.Fatal(err)
 	}

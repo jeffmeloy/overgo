@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -39,9 +40,7 @@ func TestQwen35CellsMatchF32Decoding(t *testing.T) {
 	open := func(f32 bool) *Runner {
 		t.Helper()
 		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = runner.Close() })
 		return runner
 	}
@@ -100,24 +99,18 @@ func TestQwen35CellsMatchF32Decoding(t *testing.T) {
 	}
 
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	drafted := 0
 	options := GenerateOptions{
 		MaxNewTokens: 24, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt[:8], SpeculativeDecode: true, ContinueAfterEOG: true,
 		OnDraftSpan: func(drafts, _ int) { drafted += drafts },
 	}
 	speculated, _, err := cells.Generate(t.Context(), "", options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plain := options
 	plain.SpeculativeDecode, plain.PlainDecode, plain.OnDraftSpan = false, true, nil
 	decoded, _, err := cells.Generate(t.Context(), "", plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if drafted == 0 || !slices.Equal(speculated, decoded) {
 		t.Fatalf("over the cells %d drafts emit %v, plain decoding %v", drafted, speculated, decoded)
 	}

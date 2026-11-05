@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/pytorchzip"
 	"overgo/internal/representation"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -61,24 +62,16 @@ func TestEncoderBlockMatchesTorchFixture(t *testing.T) {
 		PosEmbedding: arithmeticFloat32Sequence(0.10, 0.02, 8),
 	}
 	positive, err := representation.RelativePositionBuckets(1, 3, 4, 8, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	negative, err := representation.RelativePositionBuckets(2, 1, 4, 8, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := append(positive, negative[1]); !reflect.DeepEqual(got, []int{0, 3, 3, 1}) {
 		t.Fatalf("relative buckets=%v", got)
 	}
 	buckets, err := representation.RelativePositionBuckets(3, 3, 4, referenceEncoderPolicy.RelativeMaxDistance, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := encoderBlockForward(x, []int{1, 1, 0}, buckets, 1, 3, 4, 2, 6, 4, w, 1e-6, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{-0.4968312084674835, -0.39273759722709656, -0.2886439859867096, -0.18455031514167786, -0.09616664052009583, 0.008644644170999527, 0.11345595866441727, 0.21826721727848053, 0.3046256899833679, 0.40998393297195435, 0.5153422355651855, 0.6207005977630615}
 	requireFloat32MaxAbs(t, "encoder block", got, want, 2e-6)
 }
@@ -87,9 +80,7 @@ func TestCompileEncoderPlanRejectsIncomplete(t *testing.T) {
 	plan, err := CompileEncoderPlan([]pytorchzip.TensorMeta{
 		{Name: "token_embedding.weight", DType: "BFloat16Storage", Shape: []int64{256384, 4096}, Numel: 256384 * 4096},
 	}, referenceEncoderPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.OK || len(plan.Missing) == 0 {
 		t.Fatalf("expected incomplete plan to fail, got %+v", plan)
 	}
@@ -126,28 +117,18 @@ func writeSyntheticTokenizer(t *testing.T, dir string) {
 		},
 	}
 	b, err := json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "special_tokens_map.json"), []byte(`{"pad_token":"<pad>","eos_token":"</s>","unk_token":"<unk>"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), b, 0o644))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "special_tokens_map.json"), []byte(`{"pad_token":"<pad>","eos_token":"</s>","unk_token":"<unk>"}`), 0o644))
 }
 
 func TestFixedUnigramTokenizerSyntheticEncodeWithMask(t *testing.T) {
 	dir := t.TempDir()
 	writeSyntheticTokenizer(t, dir)
 	tok, err := loadFixedUnigramTokenizer(dir, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, mask, err := tok.EncodeWithMask("  hello   world  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(ids, []int{4, 5, 1, 0, 0}) || !reflect.DeepEqual(mask, []int{1, 1, 1, 0, 0}) {
 		t.Fatalf("ids=%v mask=%v", ids, mask)
 	}

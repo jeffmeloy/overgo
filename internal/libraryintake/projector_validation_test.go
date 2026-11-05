@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func writeProjectorFixture(t *testing.T, name string, projector bool) string {
@@ -16,9 +17,7 @@ func writeProjectorFixture(t *testing.T, name string, projector bool) string {
 	if projector {
 		metadata = append(metadata, gguf.Metadata{Key: "clip.projector_type", Value: gguf.Value{Type: gguf.ValueTypeString, Data: "mlp"}})
 	}
-	if err := gguf.WriteFileExclusive(path, metadata, nil, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.WriteFileExclusive(path, metadata, nil, gguf.WriteOptions{}))
 	return path
 }
 

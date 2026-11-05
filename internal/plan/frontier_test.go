@@ -2,6 +2,8 @@ package plan
 
 import (
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func frontierTestPlan() Plan {
@@ -28,9 +30,7 @@ func TestReadyFrontierMembership(t *testing.T) {
 	t.Parallel()
 	document := frontierTestPlan()
 	frontier, err := ReadyFrontier(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(frontier) != 3 || frontier[0].String() != "alpha/one" || frontier[1].String() != "beta/solo" || frontier[2].String() != "beta/after" {
 		t.Fatalf("ready frontier = %v", frontier)
 	}

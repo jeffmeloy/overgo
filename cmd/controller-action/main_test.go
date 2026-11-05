@@ -11,25 +11,18 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/controlleraction"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/testcheck"
 )
 
 func TestPersistedDecisionMaterializationCommand(t *testing.T) {
 	decision, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("decision"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	closure, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("materialization"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("first"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("second"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	outputRoot := filepath.Join(t.TempDir(), "outputs")
 	recordRoot := t.TempDir()
 	original := materializeCandidateTrial
@@ -65,9 +58,7 @@ func TestPersistedDecisionMaterializationCommand(t *testing.T) {
 		"-output", outputRoot,
 	}
 	var output bytes.Buffer
-	if err := run(args, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(args, &output))
 	text := output.String()
 	ordered := []artifact.ID{first, second}
 	slices.SortFunc(ordered, artifact.CompareID)
@@ -78,9 +69,7 @@ func TestPersistedDecisionMaterializationCommand(t *testing.T) {
 		t.Fatalf("command output = %q", text)
 	}
 	output.Reset()
-	if err := run(args, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(args, &output))
 	if recovered := output.String(); !strings.Contains(recovered, " recovered arms=2") ||
 		strings.Contains(recovered, "commit=") {
 		t.Fatalf("recovery output = %q", recovered)

@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // The file digest is a function of root-relative paths and contents:
@@ -22,12 +24,8 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 		var files []string
 		for name, content := range contents {
 			path := filepath.Join(root, name)
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+			testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 			files = append(files, path)
 		}
 		return files
@@ -36,23 +34,15 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 	first, second := t.TempDir(), t.TempDir()
 	firstFiles, secondFiles := write(first, contents), write(second, contents)
 	firstDigest, err := digestFiles(first, firstFiles)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondDigest, err := digestFiles(second, []string{secondFiles[1], secondFiles[0]})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if firstDigest != secondDigest || len(firstDigest) != 64 {
 		t.Fatalf("digests differ across roots: %s vs %s", firstDigest, secondDigest)
 	}
-	if err := os.WriteFile(filepath.Join(first, "a/x.go"), []byte("package a // changed\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(first, "a/x.go"), []byte("package a // changed\n"), 0o644))
 	changed, err := digestFiles(first, firstFiles)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if changed == firstDigest {
 		t.Fatal("a changed file left the digest unchanged")
 	}
@@ -63,9 +53,7 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 	ctx := t.Context()
 	first, err := Digest(ctx, "../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := Digest(ctx, "../..")
 	if err != nil || first != second || len(first) != 64 {
 		t.Fatalf("surface = %q, %q, %v", first, second, err)
@@ -85,17 +73,11 @@ func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 // package, or delete the row with it.
 func TestSurfaceInvariants(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	module, err := modulePath(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	packages, err := Packages(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	surface := map[string]bool{}
 	for _, pkg := range packages {
 		surface[pkg.ImportPath] = true
@@ -137,12 +119,8 @@ func TestSurfaceCoversEmbeddedInputsAndModules(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/inference/inference.go", "package inference\n\nimport _ \"embed\"\n\n//go:embed profile.json\nvar profile []byte\n")
@@ -153,9 +131,7 @@ func TestSurfaceCoversEmbeddedInputsAndModules(t *testing.T) {
 	write("kernels/cuda/ops.cu", "")
 	ctx := t.Context()
 	before, err := computeSurface(ctx, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write("internal/inference/profile.json", `{"heads":4}`)
 	after, err := computeSurface(ctx, root)
 	if err != nil || after == before {

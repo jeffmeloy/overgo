@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestBuildFlagsMatchTheManifest: the flags each module builds with are the ones the manifest records for it, and the table
@@ -13,9 +15,7 @@ import (
 func TestBuildFlagsMatchTheManifest(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("..", "..", "kernels", "manifest.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type recorded struct {
 		Source        string   `json:"source"`
 		CompilerFlags []string `json:"compilerFlags"`
@@ -24,9 +24,7 @@ func TestBuildFlagsMatchTheManifest(t *testing.T) {
 		CompilerFlags []string   `json:"compilerFlags"`
 		Modules       []recorded `json:"modules"`
 	}
-	if err := json.Unmarshal(data, &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &document))
 	if len(document.Modules) != len(kernels) {
 		t.Fatalf("the manifest holds %d modules and the build table %d", len(document.Modules), len(kernels))
 	}
@@ -49,16 +47,10 @@ func TestBuildFlagsMatchTheManifest(t *testing.T) {
 // writes from the manifest hash whatever nvcc wrote.
 func TestNormalizePTXRewritesLineEnds(t *testing.T) {
 	asset := filepath.Join(t.TempDir(), "kernel.ptx")
-	if err := os.WriteFile(asset, []byte("first\r\nsecond\r\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := normalizePTX(asset); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(asset, []byte("first\r\nsecond\r\n"), 0o644))
+	testcheck.NoError(t, normalizePTX(asset))
 	payload, err := os.ReadFile(asset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(payload) != "first\nsecond\n" {
 		t.Fatalf("payload = %q, want Unix line ends", payload)
 	}

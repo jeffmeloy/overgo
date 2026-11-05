@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/model"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -141,9 +142,7 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	if greedy != 2 {
 		t.Fatalf("device-greedy steps = %d, want 2", greedy)
 	}
-	if err := generator.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, generator.Close(t.Context()))
 }
 
 func TestGenerationFixedBudgetPreservesGreedyAndExplicitStops(t *testing.T) {
@@ -181,9 +180,7 @@ func TestGenerationFixedBudgetPreservesGreedyAndExplicitStops(t *testing.T) {
 				}
 			})
 			sampler, err := sampling.New(sampling.Config{Temperature: 0})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			observed := 0
 			options := GenerateOptions{MaxNewTokens: 4, Sampler: sampler, DeviceGreedy: true,
 				ContinueAfterEOG: test.continueAfterEOG, PromptTokenIDs: []tokenizer.TokenID{2},
@@ -234,9 +231,7 @@ func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
 			config.Samplers = []sampling.SamplerStage{sampling.SamplerTopK, sampling.SamplerTemperature}
 		}
 		sampler, err := sampling.New(config)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return &continuousGenerateState{request: continuousGenerateRequest{options: GenerateOptions{
 			Sampler: sampler, DeviceTopK: true,
 		}}}
@@ -325,7 +320,5 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 	if !slices.Equal(stepSizes, []int{2, 1}) {
 		t.Fatalf("step sizes = %v", stepSizes)
 	}
-	if err := generator.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, generator.Close(t.Context()))
 }

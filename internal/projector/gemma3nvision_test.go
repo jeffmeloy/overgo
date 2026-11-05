@@ -12,6 +12,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -32,14 +33,10 @@ func (t *gemma3nPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 
 func TestGemma3nVisionTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Shape.Equal(mustShape(4, 256)) || !slices.Equal(output.Data, make([]float32, 1024)) {
 		t.Fatalf("output = shape %v values %v", output.Shape, output.Data[:min(16, len(output.Data))])
 	}
@@ -47,15 +44,11 @@ func TestGemma3nVisionTinyFixture(t *testing.T) {
 
 func TestGemma3nVisionPromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	tok := &gemma3nPromptTokenizer{}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<start_of_image>"+strings.Repeat(gemma3nImagePad, 256)+"<end_of_image>") ||
 		!strings.HasPrefix(tok.texts[0], "<bos><start_of_turn>user\n") {
 		t.Fatalf("prompt text = %q", tok.texts)
@@ -67,9 +60,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyGemma3nVision(t, false), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*gemma3nVisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
@@ -89,9 +80,7 @@ func TestGemma3nAveragePool(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, mustShape(1, 4, 4))
 	output := averagePoolSpatial(builder, input, 2, 2)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	results, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input: {Shape: input.Shape, Data: []float32{
 			1, 2, 3, 4,
@@ -100,9 +89,7 @@ func TestGemma3nAveragePool(t *testing.T) {
 			13, 14, 15, 16,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got := results[output]
 	want := []float32{3.5, 5.5, 11.5, 13.5}
 	if !slices.Equal(got.Data, want) {

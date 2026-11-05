@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 )
 
 // TestWanRequestFormAdmitsPromptOrTensors pins the two request forms: the
@@ -16,9 +17,7 @@ import (
 func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 	policy := generationPolicy{Frames: 81, Width: 832, Height: 480, Steps: 50, Shift: 5, GuideScale: 6, Seed: 31}
 	prompt := WanRequest{Prompt: "a fox"}
-	if err := ValidateWanRequestForm(prompt); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateWanRequestForm(prompt))
 	filled := prompt.withGeneration(policy)
 	if filled.Frames != 81 || filled.Width != 832 || filled.Height != 480 || filled.Steps != 50 ||
 		filled.Shift != 5 || filled.GuideScale != 6 || filled.Seed != 31 ||
@@ -46,9 +45,7 @@ func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 		Frames: 1, Width: 32, Height: 16, Steps: 1, Shift: 5, GuideScale: 6,
 		CondContext: []float32{1}, UncondContext: []float32{1},
 	}
-	if err := ValidateWanRequestForm(tensor); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateWanRequestForm(tensor))
 	if kept := tensor.withGeneration(policy); kept.Frames != 1 || kept.Steps != 1 || kept.NegativePrompt != "" || kept.PromptForm() {
 		t.Fatalf("tensor form altered by the defaults: %+v", kept)
 	}
@@ -59,18 +56,14 @@ func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 // record stays the typed request the page composed.
 func TestWanPromptFormMarshalsWithoutTensors(t *testing.T) {
 	encoded, err := json.Marshal(WanRequest{Prompt: "a fox", Seed: 31, Steps: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, absent := range []string{"cond_context", "uncond_context", "initial_sample", "noise"} {
 		if strings.Contains(string(encoded), absent) {
 			t.Errorf("prompt form carries %s: %s", absent, encoded)
 		}
 	}
 	var decoded WanRequest
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 	if decoded.Prompt != "a fox" || decoded.Seed != 31 || decoded.Steps != 2 || !decoded.PromptForm() {
 		t.Fatalf("round trip = %+v", decoded)
 	}

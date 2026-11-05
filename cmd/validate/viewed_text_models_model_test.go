@@ -12,6 +12,7 @@ import (
 	"overgo/internal/hfconvert"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,26 +23,16 @@ import (
 func TestEveryViewedTextModelServesFromItsDirectory(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	registered, err := registeredCells(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	converted, err := convertedSources(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directories, err := modelDirectories(roots.ModelRoots())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	viewed := 0
 	for _, entry := range buildInventory(directories, registered, converted, roots.Store) {
 		if !hfconvert.Viewed(entry.Directory) {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 // dnaTestVocab declares a k=2 sequence extension over a tiny gpt2 base:
@@ -32,9 +33,7 @@ func dnaTestVocab(t *testing.T, autoTags bool) *Vocab {
 		scalar(MetadataDNAAutoTags, gguf.ValueTypeBool, autoTags),
 	}}
 	vocab, err := Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }
 
@@ -84,9 +83,7 @@ func TestCarbonDNAEncoding(t *testing.T) {
 	}
 
 	ids, err := vocab.Encode("<dna>ACGT</dna>", EncodeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoded, err := vocab.Decode(ids, true)
 	if err != nil || decoded != "<dna>ACGT</dna>" {
 		t.Fatalf("round trip = (%q, %v)", decoded, err)
@@ -94,9 +91,7 @@ func TestCarbonDNAEncoding(t *testing.T) {
 
 	auto := dnaTestVocab(t, true)
 	ids, err = auto.Encode("ACGT", EncodeOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := append(append([]TokenID{begin}, acgt...), end); !reflect.DeepEqual(ids, want) {
 		t.Fatalf("auto-tag Encode = %v, want %v", ids, want)
 	}

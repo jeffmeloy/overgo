@@ -133,14 +133,8 @@ func aaWeights(inSize, outSize int) (xmin []int, ksize []int, weights [][]float6
 	weights = make([][]float64, outSize)
 	for i := range outSize {
 		center := scale * (float64(i) + media.RasterSampleCenter)
-		lo := int(center - support + media.RasterSampleCenter)
-		if lo < 0 {
-			lo = 0
-		}
-		hi := int(center + support + media.RasterSampleCenter)
-		if hi > inSize {
-			hi = inSize
-		}
+		lo := max(int(center-support+media.RasterSampleCenter), 0)
+		hi := min(int(center+support+media.RasterSampleCenter), inSize)
 		k := hi - lo
 		w := make([]float64, k)
 		var sum float64
@@ -170,7 +164,7 @@ func resizeNormalizeRGBBicubic(rgb []uint8, h, w, outH, outW int, mean, std []fl
 	normalized := make([]float32, media.RGBChannels*plane)
 	for y := range outH {
 		for x := range outW {
-			for channel := 0; channel < media.RGBChannels; channel++ {
+			for channel := range media.RGBChannels {
 				if std[channel] <= 0 {
 					return nil, fmt.Errorf("RGB normalization channel %d has non-positive scale", channel)
 				}
@@ -204,7 +198,7 @@ func patchifyMergedFrames(frames [][]float32, rh, rw, patch, temporal, merge int
 				for mh := range merge {
 					for mw := range merge {
 						f := 0
-						for ch := 0; ch < media.RGBChannels; ch++ {
+						for ch := range media.RGBChannels {
 							yc := (hbi*merge + mh) * patch
 							xc := (wbi*merge + mw) * patch
 							base := ch*plane + yc*rw + xc

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func TestFitnessScoredCompositeSelection(t *testing.T) {
 	flat := fitnessScore(t, "fitness-flat", [2]float64{0.70, 0.70}, [2]float64{100, 100}, [2]float64{1000, 1000})
 
 	verdicts, err := ScoreCompositeSelection([]CompositeScore{tradeoff, flat, pareto})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(verdicts) != 3 || verdicts[0].Composite != pareto.Composite || !verdicts[0].Fit {
 		t.Fatalf("selection order = %+v", verdicts)
 	}
@@ -93,9 +92,7 @@ func TestSelectionEmitsAblationGatedPromotion(t *testing.T) {
 		MaximumLatencyIncrease:    0.2,
 		MaximumDeviceByteIncrease: 64,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidence := RepresentationBridgePromotion{
 		Bridge:         testutil.ArtifactID(t, artifact.KindAdapter, "selection bridge"),
 		SourceModel:    testutil.ArtifactID(t, artifact.KindModel, "selection donor"),
@@ -117,9 +114,7 @@ func TestSelectionEmitsAblationGatedPromotion(t *testing.T) {
 		Improved:   []string{"quality"}, Fit: true,
 	}
 	promotion, err := EmitAblationGatedPromotion(fit, policy, evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if promotion.ID.Kind() != artifact.KindEvidence || promotion.PolicyID != policy.ID ||
 		promotion.WorstSourceDependence < policy.MinimumSourceDependence {
 		t.Fatalf("emitted promotion = %+v", promotion)

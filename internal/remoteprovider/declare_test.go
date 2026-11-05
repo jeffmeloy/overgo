@@ -8,32 +8,25 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	provider := Provider{Name: "history", KeyEnvironment: "HISTORY_KEY", Model: "model"}
 	for _, endpoint := range []string{"https://old.example", "https://older.example"} {
 		provider.Endpoint = endpoint
 		declaration, err := Declare(t.Context(), store, provider, testCodeCommit)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := Retire(t.Context(), store, 1, declaration.Location, testCodeCommit, "provider endpoint replaced"); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, Retire(t.Context(), store, 1, declaration.Location, testCodeCommit, "provider endpoint replaced"))
 	}
 	provider.Endpoint = "https://current.example"
 	current, err := Declare(t.Context(), store, provider, testCodeCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	listed, err := List(t.Context(), store, 1)
 	if err != nil || len(listed) != 1 || listed[0].Model != current.Model {
 		t.Fatalf("active listing after retired history = %+v, %v", listed, err)
@@ -60,18 +53,14 @@ func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
 // no-op returning the same identities.
 func TestDeclareListsTheRemoteModelWithItsRefusal(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	t.Setenv("OVERGO_REMOTE_PROVIDER_TEST_KEY", "")
 	provider := Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1/", KeyEnvironment: "OVERGO_REMOTE_PROVIDER_TEST_KEY", Model: "vendor/model",
 	}
 	declaration, err := Declare(t.Context(), store, provider, testCodeCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if declaration.Location != "remote://fake/vendor/model" || declaration.Model.Kind() != artifact.KindModel ||
 		declaration.Recipe.Task != recipe.TaskInference || declaration.Provider.Endpoint != "https://fake.example/api/v1" {
 		t.Fatalf("declaration = %+v", declaration)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/textgeneration"
 )
@@ -21,12 +22,8 @@ func TestSingleTokenProcessProbe(t *testing.T) {
 		testskip.NotApplicable(t, "child process probe requires OVERGO_NEEDLE_MODEL")
 	}
 	generator, err := LoadGenerator(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: "hello", MaxTokens: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fmt.Printf("NEEDLE_PROCESS_PROBE output=%q\n", output)
 }

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestProcessLedgerFollowsDeviceWorkers holds the process's device ledger
@@ -24,9 +25,7 @@ func TestProcessLedgerFollowsDeviceWorkers(t *testing.T) {
 	open := func() *Worker {
 		t.Helper()
 		worker, err := New(0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = worker.Close() })
 		return worker
 	}
@@ -43,9 +42,7 @@ func TestProcessLedgerFollowsDeviceWorkers(t *testing.T) {
 	}
 	free := func(worker *Worker, pointer driver.DevicePtr) {
 		t.Helper()
-		if err := worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }))
 	}
 
 	worker, beside := open(), open()
@@ -61,9 +58,7 @@ func TestProcessLedgerFollowsDeviceWorkers(t *testing.T) {
 	}
 	for _, resident := range []*Worker{worker, beside} {
 		stats, err := resident.MemoryStats(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if stats.PeakBytes != size {
 			t.Fatalf("a worker's own peak = %d, want its one allocation of %d: the sum is the process's alone", stats.PeakBytes, size)
 		}
@@ -77,9 +72,7 @@ func TestProcessLedgerFollowsDeviceWorkers(t *testing.T) {
 
 	// The second worker closes with its allocation live: destroying its
 	// context frees it on the device, and the ledger gives it back.
-	if err := beside.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, beside.Close())
 	reopened := open()
 	third := allocate(reopened)
 	if peak := driver.ProcessPeakBytes(); peak != together {

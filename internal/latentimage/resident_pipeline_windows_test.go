@@ -13,6 +13,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
@@ -35,30 +36,20 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	encoder, err := CompileEncoderProgram(
 		encoderSpec, float32(encoderSpec.RMSNormEps), fixtureSeq, dtype.F32,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fusion, err := CompileFusionProgram(transformerSpec, 1e-5, attendedTextMask(fixtureSeq), dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	denoiser, err := CompileDenoiserProgram(
 		transformerSpec, 1e-5, attendedTextMask(fixtureSeq), fixtureGrid, fixtureGrid, dtype.F32,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vaeDecoder := syntheticVAEDecoder(t)
 	vaeExtent := fixtureGrid * fixturePatch
 	vae, err := CompileVAEProgram(vaeDecoder, vaeExtent, vaeExtent, dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := pipeline.Close(ctx); err != nil {
 			t.Errorf("close: %v", err)
@@ -66,41 +57,27 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	}()
 	embed := f32slice(syntheticEncoderEmbed(fixtureSeq, encoderSpec.Hidden))
 	conditioning, err := pipeline.Condition(ctx, "a fixture", embed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer conditioning.Release(ctx)
 	initial := make([]float32, transformerSpec.InChannels)
 	for index := range initial {
 		initial[index] = float32(index+1) / float32(len(initial))
 	}
-	if err := pipeline.Begin(ctx, initial); err != nil {
-		t.Fatal(err)
-	}
-	if err := pipeline.Advance(ctx, fixtureSigma, fixtureDelta); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pipeline.Begin(ctx, initial))
+	testcheck.NoError(t, pipeline.Advance(ctx, fixtureSigma, fixtureDelta))
 	got, err := pipeline.Latent(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	hidden, err := encoder.RunHostFeed(
 		reference.Execute, func(name string) ([]float32, error) { return encoderWeights[name], nil }, embed,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	host, err := NewDenoiser(transformerSpec, 1e-5, fixtureTimestepProgram(transformerSpec), transformerWeights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	velocity, err := denoiser.Forward(
 		reference.Execute, host, f64of(initial), hidden.Data, fixtureSigma,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const deviceTolerance = 5e-3
 	for index, value := range got {
 		want := initial[index] + fixtureDelta*velocity.Velocity[index]
@@ -109,17 +86,11 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 		}
 	}
 	pixels, height, width, err := pipeline.DecodeHWC(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	unpacked, err := media.UnpackPlanar(got, vaeDecoder.ZDim, fixtureGrid, fixtureGrid, fixturePatch, media.PatchChannelsFirst)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPixels, wantHeight, wantWidth, err := vaeDecoder.DecodeImage(unpacked, vaeExtent, vaeExtent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if height != wantHeight || width != wantWidth {
 		t.Fatalf("decoded geometry = %dx%d, want %dx%d", width, height, wantWidth, wantHeight)
 	}
@@ -148,12 +119,8 @@ func syntheticImageTransformerSpec(encoder TextEncoderSpec) TransformerSpec {
 
 func writePipelineWeights(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int) {
 	t.Helper()
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
 }
 
 func TestSelectedHiddenBridgePreservesTokenLayerOrder(t *testing.T) {
@@ -173,9 +140,7 @@ func TestSelectedHiddenBridgePreservesTokenLayerOrder(t *testing.T) {
 		E: TextEncoderSpec{Hidden: fixtureHidden}, Seq: fixtureSeq, Selected: selected,
 	}
 	inputs, output, err := selectedHiddenBridge(program, fixtureSeq)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	feeds := make(map[*tensor.Tensor]reference.Value, fixtureLayers)
 	for layer, input := range inputs {
 		data := make([]float32, fixtureHidden*fixtureSeq)
@@ -189,9 +154,7 @@ func TestSelectedHiddenBridgePreservesTokenLayerOrder(t *testing.T) {
 		feeds[input] = reference.Value{Shape: input.Shape, Data: data}
 	}
 	results, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got := results[output].Data
 	want := []float32{0, 1, 4, 5, 8, 9, 2, 3, 6, 7, 10, 11}
 	if !slices.Equal(got, want) {
@@ -212,15 +175,11 @@ func TestSelectedHiddenBridgeDropsEncoderPrefix(t *testing.T) {
 		Selected: []*tensor.Tensor{selected},
 	}
 	inputs, output, err := selectedHiddenBridge(program, outputSeq)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		inputs[0]: {Shape: inputs[0].Shape, Data: []float32{0, 1, 2, 3, 4, 5}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{2, 3, 4, 5}
 	if !slices.Equal(results[output].Data, want) {
 		t.Fatalf("cropped output = %v, want %v", results[output].Data, want)

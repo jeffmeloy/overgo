@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestIdentityMemoPersistence pins the persisted digest memo: identities
@@ -17,36 +18,24 @@ import (
 func TestIdentityMemoPersistence(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	path := filepath.Join(t.TempDir(), "model.bin")
 	payload := []byte("model bytes that would normally cost a full hash pass")
-	if err := os.WriteFile(path, payload, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, payload, 0o644))
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	digest, size, err := artifact.Identify(artifact.KindModel, file)
 	file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	hashed := NewMemo()
 	key := path + "\x00" + artifact.KindModel.String()
 	hashed.record(key, info, fileIdentity{id: digest, size: size, present: true})
-	if err := PublishMemo(ctx, store, hashed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, PublishMemo(ctx, store, hashed))
 
 	// A fresh memo loaded from the store serves the identity from the
 	// stat match alone -- the re-hash never happens.
@@ -61,9 +50,7 @@ func TestIdentityMemoPersistence(t *testing.T) {
 	if err != nil || !bound {
 		t.Fatalf("alias after publish = (%v, %t, %v)", before, bound, err)
 	}
-	if err := PublishMemo(ctx, store, loaded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, PublishMemo(ctx, store, loaded))
 	after, _, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias)
 	if err != nil || after != before {
 		t.Fatalf("clean memo republished: %v -> %v (%v)", before, after, err)
@@ -71,38 +58,24 @@ func TestIdentityMemoPersistence(t *testing.T) {
 
 	// A file whose bytes changed misses: the persisted claim is bound to
 	// the stat under which it was hashed.
-	if err := os.WriteFile(path, append(payload, " grown"...), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, append(payload, " grown"...), 0o644))
 	changed, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, hit := loaded.lookup(key, changed); hit {
 		t.Fatal("changed file served a stale identity")
 	}
 
 	// New identities recorded on a loaded memo publish under a moved alias.
-	if err := os.Chtimes(path, time.Now(), time.Now()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(path, time.Now(), time.Now()))
 	file, err = os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	regrown, regrownSize, err := artifact.Identify(artifact.KindModel, file)
 	file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refreshed, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded.record(key, refreshed, fileIdentity{id: regrown, size: regrownSize, present: true})
-	if err := PublishMemo(ctx, store, loaded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, PublishMemo(ctx, store, loaded))
 	final, _, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias)
 	if err != nil || final == before {
 		t.Fatalf("dirty memo did not republish: %v (%v)", final, err)

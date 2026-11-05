@@ -20,6 +20,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -39,26 +40,16 @@ func TestVideoEditClipActivation(t *testing.T) {
 		}
 	}
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-clip-activation")
 	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, edit)
 	// 21 source frames are 6 latent frames: two chunks of the declared
@@ -73,25 +64,19 @@ func TestVideoEditClipActivation(t *testing.T) {
 		Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
 		Seed:   7, SourceArtifact: clip.Descriptor.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capability := videoCapability()
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
 		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)
 		}
 		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if video.MediaType != media.GIFMediaType || video.Frames != 21 || len(animation.Image) != 21 ||
 			video.Height != 16 || video.Width != 32 || video.ResidentRun != residentRun(run) {
 			t.Fatalf("run %d video=%+v decoded_frames=%d", run, video, len(animation.Image))
@@ -112,9 +97,7 @@ func TestVideoEditClipActivation(t *testing.T) {
 func syntheticClipContent(t testing.TB, frames, height, width int) artifact.Content {
 	t.Helper()
 	encoder, err := latentvideo.NewGIFEncoder(16, latentvideo.SignedUnitPixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plane := height * width
 	for frame := range frames {
 		values := make([]float32, media.RGBChannels*plane)
@@ -125,17 +108,11 @@ func syntheticClipContent(t testing.TB, frames, height, width int) artifact.Cont
 				}
 			}
 		}
-		if err := encoder.Add(frame, values, height, width); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, encoder.Add(frame, values, height, width))
 	}
 	video, err := encoder.Finish()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := latentvideo.VideoContent(video)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }

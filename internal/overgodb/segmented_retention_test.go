@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestSegmentedRetentionPreservesAuthorityClosure holds the in-place release
@@ -21,16 +22,12 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	rootedPayload := []byte("segmented-retention rooted content")
 	rootedID, err := artifact.IdentifyBytes(artifact.KindModel, rootedPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rooted := artifact.Descriptor{ID: rootedID, Size: uint64(len(rootedPayload)), MediaType: "application/octet-stream"}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "retention/rooted",
@@ -43,9 +40,7 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	// content rides in its frame and has none.
 	orphanPayload := bytes.Repeat([]byte("segmented-retention unreachable content "), inlineContentLimit)
 	orphanID, err := artifact.IdentifyBytes(artifact.KindOutput, orphanPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	orphan := artifact.Descriptor{ID: orphanID, Size: uint64(len(orphanPayload)), MediaType: "application/octet-stream"}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "retention/orphan",
@@ -60,28 +55,20 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	// Invalidate the checkpoint set; the release's snapshot must replace it.
 	victim := filepath.Join(newestCheckpoints(t, root), "aliases"+checkpointExtension)
 	data, err := os.ReadFile(victim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data[len(data)-2] ^= 0xFF
-	if err := os.WriteFile(victim, data, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(victim, data, storeFileMode))
 	if _, _, valid, _ := loadProjectionCheckpoints(root); valid {
 		t.Fatal("corrupted checkpoint set still loads")
 	}
 
 	report, err := Release(ctx, store, nil, RetentionPolicy{}, releaseEverything)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Released != 1 || report.BlobsRemoved != 1 || report.ReleasedBytes != int64(len(orphanPayload)) {
 		t.Fatalf("unreachable blob not released: %+v", report)
 	}
 	blob, err := store.blobs.path(orphanID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, statErr := os.Stat(blob); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("unreachable blob stayed on disk: %v", statErr)
 	}

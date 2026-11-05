@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/testcheck"
 )
 
 // TestEveryCommandHasACaller holds every shipped command to a caller the tree
@@ -23,21 +24,15 @@ func TestEveryCommandHasACaller(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	texts, err := trackedTexts(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commands, err := os.ReadDir(filepath.Join(root, "cmd"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, command := range commands {
 		name := command.Name()
 		// A command is a directory holding Go source; one left holding only
 		// ignored files, a store a test wrote there, is none.
 		sources, err := filepath.Glob(filepath.Join(root, "cmd", name, "*.go"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !command.IsDir() || len(sources) == 0 || Declared[name].Command.Purpose != "" || namedOutside(texts, name) {
 			continue
 		}
@@ -93,16 +88,12 @@ func TestTrackedTextsSkipAFileDeletedBeforeItIsStaged(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"kept.md", "deleted.md"} {
-		if err := os.WriteFile(filepath.Join(root, name), []byte("see cmd/tool"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte("see cmd/tool"), 0o600))
 	}
 	git("init", "-q")
 	git("add", "-A")
 	git("commit", "-q", "-m", "tracked")
-	if err := os.Remove(filepath.Join(root, "deleted.md")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(root, "deleted.md")))
 	texts, err := trackedTexts(t.Context(), root)
 	if err != nil || len(texts) != 1 || texts["kept.md"] == "" {
 		t.Fatalf("texts of a tree with one file deleted before it is staged = %v, %v, want kept.md alone", texts, err)

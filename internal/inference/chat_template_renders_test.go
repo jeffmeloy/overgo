@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // chatTemplateRendersScript writes the goldens this test reads, from Python's
@@ -56,9 +58,7 @@ type chatTemplateRenders struct {
 func TestChatTemplatesRenderAsTransformersDoes(t *testing.T) {
 	directory := filepath.Join("testdata", "chat_templates")
 	raw, err := os.ReadFile(filepath.Join(directory, "conversations.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var battery chatTemplateBattery
 	if err := json.Unmarshal(raw, &battery); err != nil || len(battery.Conversations) == 0 {
 		t.Fatalf("the battery holds no conversation: %v", err)
@@ -76,9 +76,7 @@ func TestChatTemplatesRenderAsTransformersDoes(t *testing.T) {
 		base := strings.TrimSuffix(filepath.Base(path), ".jinja")
 		t.Run(base, func(t *testing.T) {
 			source, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			raw, err := os.ReadFile(filepath.Join(directory, "golden", base+".json"))
 			if err != nil {
 				t.Fatalf("%v; write the goldens with %s", err, chatTemplateRendersScript)
@@ -132,14 +130,10 @@ func TestChatTemplatesRenderAsTransformersDoes(t *testing.T) {
 func TestToolReachesATemplateInTheRequestsKeyOrder(t *testing.T) {
 	const written = `{"function": {"parameters": {"type": "object", "required": ["zeta"], "properties": {"zeta": {"type": "string"}, "alpha": {"type": "integer", "default": 3}}}, "name": "lookup"}, "type": "function"}`
 	var requested ChatTool
-	if err := json.Unmarshal([]byte(written), &requested); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(written), &requested))
 	const parameters = `{"type": "object", "required": ["zeta"], "properties": {"zeta": {"type": "string"}, "alpha": {"type": "integer", "default": 3}}}`
 	made, err := FunctionTool("lookup", "", json.RawMessage(parameters))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	built := ChatTool{Type: ChatToolTypeFunction, Function: ChatToolDefinition{Name: "lookup", Parameters: requested.Function.Parameters}}
 	renamed := requested
 	renamed.Function.Name = "search"

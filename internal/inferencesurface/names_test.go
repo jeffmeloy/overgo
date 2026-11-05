@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 )
 
 // TestServingNamesReadServingSourceOnly holds the scan to what selects
@@ -25,21 +26,15 @@ func TestServingNamesReadServingSourceOnly(t *testing.T) {
 		"projector/tower.go":   "package projector\n\nconst tower = \"cogvlm\"\n",
 	} {
 		file := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+		testcheck.NoError(t, os.WriteFile(file, []byte(content), 0o600))
 	}
 	var packages []Package
 	for _, name := range []string{"serving", "tokenizer", "projector"} {
 		packages = append(packages, Package{Dir: filepath.Join(root, name), ImportPath: "overgo/internal/" + name})
 	}
 	named, err := ServingNames(packages)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := map[string][]string{"llama": {"overgo/internal/serving/load.go"}}; !reflect.DeepEqual(named, want) {
 		t.Fatalf("serving names = %v, want %v", named, want)
 	}
@@ -53,13 +48,9 @@ func TestServingNamesReadServingSourceOnly(t *testing.T) {
 func TestServingCodeNamesNoArchitecture(t *testing.T) {
 	t.Parallel()
 	packages, err := Packages(t.Context(), filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	named, err := ServingNames(packages)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, architecture := range model.SupportedArchitectures() {
 		if files := named[architecture]; len(files) != 0 {
 			t.Errorf("architecture %s selects serving code in %s; declare what it selects in its profile", architecture, strings.Join(files, ", "))

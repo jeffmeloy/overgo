@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,20 +16,14 @@ func TestImageVideoCompositionRejectsChangedEvidence(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(testutil.RepoRoot(t), "docs/image_video_composition.json")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, field := range []string{"cells", "components", "retained_run", "native_acquisition"} {
 		t.Run(field, func(t *testing.T) {
 			var changed map[string]any
-			if err := json.Unmarshal(raw, &changed); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(raw, &changed))
 			delete(changed, field)
 			data, err := json.Marshal(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if err := checkMediaProtocolIdentity(data, imageVideoCompositionSHA256); err == nil {
 				t.Fatal("composition evidence omission accepted")
 			}

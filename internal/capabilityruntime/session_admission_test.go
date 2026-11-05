@@ -9,15 +9,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestBoundedSessionAdmission(t *testing.T) {
 	t.Run("queue bound and cancellation", func(t *testing.T) {
 		director, err := NewResidentModelSessionDirector("test", "host", 1, struct{}{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer director.Close(t.Context())
 		held, ok := director.TryLease(-1)
 		if !ok {
@@ -37,16 +36,12 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err := <-parked; !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancelled waiter error = %v", err)
 		}
-		if err := held.Release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, held.Release())
 	})
 
 	t.Run("requested slot and shutdown", func(t *testing.T) {
 		director, err := NewResidentModelSessionDirector("test", "host", 2, struct{}{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held, ok := director.TryLease(1)
 		if !ok {
 			t.Fatal("requested slot lease was not admitted")
@@ -63,9 +58,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if !ok {
 			t.Fatal("unrequested slot was not independently available")
 		}
-		if err := held.Release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, held.Release())
 		resumed := <-parked
 		if err := <-parkedErr; err != nil || resumed == nil || resumed.ID != 1 {
 			t.Fatalf("resumed requested lease = (%v, %v)", resumed, err)
@@ -75,15 +68,9 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if _, err := director.Lease(shutdownCtx, -1); !errors.Is(err, context.Canceled) {
 			t.Fatalf("pre-cancelled lease error = %v", err)
 		}
-		if err := other.Release(); err != nil {
-			t.Fatal(err)
-		}
-		if err := resumed.Release(); err != nil {
-			t.Fatal(err)
-		}
-		if err := director.Close(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, other.Release())
+		testcheck.NoError(t, resumed.Release())
+		testcheck.NoError(t, director.Close(t.Context()))
 		if _, err := director.Lease(t.Context(), -1); !errors.Is(err, ErrSessionUnavailable) {
 			t.Fatalf("closed director error = %v", err)
 		}
@@ -91,9 +78,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 
 	t.Run("shutdown wakes parked request", func(t *testing.T) {
 		director, err := NewResidentModelSessionDirector("test", "host", 1, struct{}{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held, ok := director.TryLease(-1)
 		if !ok {
 			t.Fatal("initial lease was not admitted")
@@ -109,9 +94,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err := <-parked; !errors.Is(err, ErrSessionUnavailable) {
 			t.Fatalf("shutdown waiter error = %v", err)
 		}
-		if err := held.Release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, held.Release())
 		if err := <-closed; err != nil {
 			t.Fatal(err)
 		}
@@ -123,9 +106,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 	t.Run("a cancelled shutdown is finished when asked again", func(t *testing.T) {
 		closes := 0
 		director, err := NewResidentModelSessionDirector("test", "host", 1, &lifecycleSessionModel{closes: &closes})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held, ok := director.TryLease(-1)
 		if !ok {
 			t.Fatal("initial lease was not admitted")
@@ -141,9 +122,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err := <-closed; !errors.Is(err, context.Canceled) || closes != 0 {
 			t.Fatalf("a shutdown cancelled while a lease is out = %v with the model closed %d times, want it cancelled and the model open", err, closes)
 		}
-		if err := held.Release(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, held.Release())
 		for attempt := range 2 {
 			if err := director.Close(t.Context()); err != nil || closes != 1 {
 				t.Fatalf("asked again (%d), the shutdown = %v with the model closed %d times, want the model closed once", attempt, err, closes)
@@ -160,9 +139,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		closes, refused := 0, errors.New("the model's close failed")
 		model := &gatedSessionModel{closes: &closes, entered: make(chan struct{}), gate: make(chan struct{}), err: refused}
 		director, err := NewResidentModelSessionDirector("test", "host", 1, model)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		first, second := make(chan error, 1), make(chan error, 1)
 		go func() { first <- director.Close(t.Context()) }()
 		<-model.entered
@@ -201,9 +178,7 @@ func (m *gatedSessionModel) Close(context.Context) error {
 func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) {
 	closes := 0
 	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	component := func(name string) modelrecipe.ComponentSession {
 		return modelrecipe.ComponentSession{
 			Identity: testutil.ArtifactID(t, artifact.KindProfile, name+"-resources"),
@@ -215,9 +190,7 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 	held, err := director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
 		return &lifecycleSessionModel{closes: &closes}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	cancelledContext, cancel := context.WithCancel(t.Context())
 	cancelled := make(chan error, 1)
@@ -248,9 +221,7 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 	}); !errors.Is(err, ErrAdmissionQueueFull) {
 		t.Fatalf("component overflow error = %v", err)
 	}
-	if err := held.Release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, held.Release())
 	reused := <-resumed
 	if err := <-resumedErr; err != nil || reused == nil {
 		t.Fatalf("resumed component lease = (%v, %v)", reused, err)
@@ -260,32 +231,24 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 		snapshot.Loads != 1 || snapshot.Reuses != 1 || snapshot.Evictions != 0 {
 		t.Fatalf("reused lifecycle snapshot = %+v", snapshot)
 	}
-	if err := reused.Release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reused.Release())
 
 	second := component("second")
 	replacement, err := director.LeaseComponent(t.Context(), second, func(context.Context) (*lifecycleSessionModel, error) {
 		return &lifecycleSessionModel{closes: &closes}, nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot = director.Snapshot()
 	if snapshot.Active != 1 || snapshot.Available != 0 || snapshot.Entries != 1 ||
 		snapshot.Loads != 2 || snapshot.Reuses != 1 || snapshot.Evictions != 1 || closes != 1 {
 		t.Fatalf("evicted lifecycle snapshot = %+v closes=%d", snapshot, closes)
 	}
-	if err := replacement.Release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, replacement.Release())
 	snapshot = director.Snapshot()
 	if snapshot.Active != 0 || snapshot.Available != 1 || snapshot.Idle != 1 {
 		t.Fatalf("idle lifecycle snapshot = %+v", snapshot)
 	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if closes != 2 {
 		t.Fatalf("closed models = %d", closes)
 	}
@@ -294,9 +257,7 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 func TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain(t *testing.T) {
 	closes := 0
 	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		return testutil.ArtifactID(t, kind, name)
 	}
@@ -332,9 +293,7 @@ func TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain(t *testing.T) {
 		t.Fatalf("drained snapshot = %+v closes=%d", snapshot, closes)
 	}
 	director.release(second)
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if closes != 2 {
 		t.Fatalf("closed models = %d", closes)
 	}
@@ -342,9 +301,7 @@ func TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain(t *testing.T) {
 
 func TestSessionAuthorityRebindsCompatibleExecution(t *testing.T) {
 	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	closes, loads := 0, 0
 	key := sessionKey{
 		model:     testutil.ArtifactID(t, artifact.KindModel, "rebind-model"),
@@ -368,9 +325,7 @@ func TestSessionAuthorityRebindsCompatibleExecution(t *testing.T) {
 		t.Fatalf("rebound lease = %v, fresh=%t loads=%d scope=%s", err, fresh, loads, second.scope)
 	}
 	director.release(second)
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if closes != 1 {
 		t.Fatalf("closed models = %d", closes)
 	}

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -37,13 +38,9 @@ func newWholeTextRun(t *testing.T, store artifact.Repository, name string) whole
 	model := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return wholeTextRun{store: store, model: model, definition: definition, program: program}
 }
 
@@ -52,9 +49,7 @@ func newWholeTextRun(t *testing.T, store artifact.Repository, name string) whole
 func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request SynthesisRequest, bind func(*workflowruntime.Runtime) error) (Audio, *artifact.Content, error) {
 	t.Helper()
 	content, err := capabilityruntime.InputContent("overgo.speech-input.v1", request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := run.definition.Inputs[0]
 	audio, result, err := capabilityruntime.ExecuteMeasured[Audio](ctx, run.store, run.model, run.program, capabilityruntime.RunKeyOf[*Synthesizer](run.definition, content),
 		map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)}, bind)
@@ -79,9 +74,7 @@ func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request Synth
 func TestWholeTextBinding(t *testing.T) {
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if store != nil {
 			if err := store.Close(); err != nil {
@@ -116,9 +109,7 @@ func TestWholeTextBinding(t *testing.T) {
 	}
 
 	first, stored, err := run.execute(t.Context(), t, request, bind)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(asked) != 1 || asked[0] != reading {
 		t.Fatalf("the reading was asked for as %+v, want once as %+v", asked, reading)
 	}
@@ -126,9 +117,7 @@ func TestWholeTextBinding(t *testing.T) {
 		t.Fatalf("the stages returned %+v, and the reading was %+v", first, read(reading))
 	}
 	want, err := WAVContent(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stored == nil {
 		t.Fatal("the reading was returned and nothing of it was stored")
 	}
@@ -138,35 +127,25 @@ func TestWholeTextBinding(t *testing.T) {
 			len(stored.Data), kind.ID.Kind(), kind.MediaType, kind.Schema, len(want.Data), media.WAVMediaType)
 	}
 
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store = nil
 	store, err = overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run.store = store
 	replayed, kept, err := run.execute(t.Context(), t, request, bind)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(asked) != 1 {
 		t.Fatalf("a request the store had answered was read aloud again: %d readings", len(asked))
 	}
 	again, err := WAVContent(replayed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if kept == nil || !bytes.Equal(kept.Data, want.Data) || !bytes.Equal(again.Data, want.Data) || again.Descriptor != want.Descriptor {
 		t.Fatalf("a request the store had answered came back as %d samples, and the first reading held %d", len(replayed.PCM), len(first.PCM))
 	}
 	// A served request publishes its answer's WAV in a run of its own, into the
 	// store that holds the same bytes from the stage.
 	published, err := artifact.NewDocumentBatch("speech-whole-text-binding/published", []artifact.Content{again}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, published); err != nil {
 		t.Fatalf("the store that holds the reading from its stage refused the same WAV published again: %v", err)
 	}
@@ -200,9 +179,7 @@ func TestWholeTextBinding(t *testing.T) {
 	}
 
 	runtime, err := workflowruntime.NewForProgram(store, run.program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := RegisterWholeText(runtime, run.model, nil); err == nil {
 		t.Fatal("a binding with no synthesizer to read was accepted")
 	}

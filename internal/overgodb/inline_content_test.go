@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestSmallContentIsInline holds the write path to the size rule: content one
@@ -20,16 +21,12 @@ func TestSmallContentIsInline(t *testing.T) {
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sized := func(size int, fill byte) artifact.Content {
 		t.Helper()
 		data := bytes.Repeat([]byte{fill}, size)
 		id, err := artifact.IdentifyBytes(artifact.KindOutput, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(size), MediaType: "text/plain"}, Data: data}
 	}
 	small, large := sized(inlineContentLimit-1, 's'), sized(inlineContentLimit, 'l')
@@ -38,9 +35,7 @@ func TestSmallContentIsInline(t *testing.T) {
 	}
 	for content, wantBlob := range map[*artifact.Content]bool{&small: false, &large: true} {
 		path, err := store.blobs.path(content.Descriptor.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, statErr := os.Stat(path); (statErr == nil) != wantBlob {
 			t.Fatalf("content of %d bytes: blob file present=%v, want %v", content.Descriptor.Size, statErr == nil, wantBlob)
 		}
@@ -59,18 +54,12 @@ func TestSmallContentIsInline(t *testing.T) {
 		t.Fatal(err)
 	}
 	read(store, "after the journal sealed")
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for _, derived := range []string{snapshotDirectory, checkpointDirectory} {
-		if err := os.RemoveAll(filepath.Join(root, derived)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(filepath.Join(root, derived)))
 	}
 	store, err = Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read(store, "after a reopen by full replay")
 

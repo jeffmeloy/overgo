@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestModelScopeCLI(t *testing.T) {
@@ -35,9 +37,7 @@ func TestModelScopeCLI(t *testing.T) {
 	}))
 	defer hub.Close()
 	destination := t.TempDir()
-	if err := runArguments(t.Context(), []string{"download", "-provider", "modelscope", "-endpoint", hub.URL, "-revision", revision, "-dest", destination, "openmoss/tiny"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArguments(t.Context(), []string{"download", "-provider", "modelscope", "-endpoint", hub.URL, "-revision", revision, "-dest", destination, "openmoss/tiny"}))
 	got, err := os.ReadFile(filepath.Join(destination, "weights.bin"))
 	if err != nil || string(got) != string(payload) {
 		t.Fatalf("payload %q: %v", got, err)

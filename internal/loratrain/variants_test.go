@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/peft"
+	"overgo/internal/testcheck"
 )
 
 // factorGradients are the gradients of the loss on the periodic window with
@@ -18,9 +19,7 @@ func factorGradients(t *testing.T, config Config) map[string][]float32 {
 	t.Helper()
 	model, _, _ := tinyModel(t)
 	trainer, err := New(model, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	random := rand.New(rand.NewSource(2))
 	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
 		up := trainer.adapter.Modules[name].Up
@@ -28,16 +27,10 @@ func factorGradients(t *testing.T, config Config) map[string][]float32 {
 			up[index] = float32(random.NormFloat64()) / 4
 		}
 	}
-	if err := trainer.apply(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, trainer.apply())
 	_, _, grads, err := model.LossAndGrads(periodic)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := projectAll(trainer, grads); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, projectAll(trainer, grads))
 	copied := map[string][]float32{}
 	for name, values := range trainer.gradients {
 		copied[name] = slices.Clone(values)
@@ -59,9 +52,7 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 			want float64
 		}{{false, 8.0 / 4}, {true, 8.0 / 2}} {
 			trainer, err := New(model, Config{Rank: 4, Alpha: 8, Seed: 1, RSLoRA: test.rs})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for name := range trainer.Adapter().Modules {
 				if scale, err := trainer.Adapter().Scale(name); err != nil || math.Abs(scale-test.want) > 1e-12 {
 					t.Fatalf("rslora=%t: %s scale %v (%v), want %v", test.rs, name, scale, err, test.want)
@@ -96,9 +87,7 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 		for index, up := range []float64{0, rate} {
 			model, _, _ := tinyModel(t)
 			trainer, err := New(model, Config{Rank: 2, Alpha: 6, Seed: 1, UpRate: up})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := trainer.Step(periodic, nil, 0.02, 0.9); err != nil {
 				t.Fatal(err)
 			}
@@ -128,17 +117,11 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 	t.Run("a saved adapter says how it was scaled", func(t *testing.T) {
 		model, _, _ := tinyModel(t)
 		trainer, err := New(model, Config{Rank: 2, Alpha: 6, Seed: 1, RSLoRA: true, UpRate: 4})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		directory := filepath.Join(t.TempDir(), "adapter")
-		if err := peft.Save(directory, trainer.Adapter()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, peft.Save(directory, trainer.Adapter()))
 		loaded, err := peft.Load(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !loaded.Config.RSLoRA || loaded.Config.Alpha != 24 {
 			t.Fatalf("loaded adapter is rslora=%t with alpha %v, want rank-stabilized at alpha 6 times the rate of 4", loaded.Config.RSLoRA, loaded.Config.Alpha)
 		}

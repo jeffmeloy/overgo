@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,17 +26,11 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root + "/store")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	writeEmptyAcceptedCoverage(t, root)
 	data, err := generateMediaReport(root, root+"/store")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := string(data.Markdown)
 	if !strings.Contains(text, "No media activations stand in the store.") ||
 		!strings.Contains(text, "Rendered by `go run ./cmd/validate -media markdown`") {
@@ -70,19 +65,13 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 func TestMediaMeasurementProjection(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "media projection")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipetest.PublishActivation(t.Context(), store, "projection/active", definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipetest.PublishActivation(t.Context(), store, "projection/active", definition))
 	missing := testutil.ArtifactID(t, artifact.KindModel, "missing projection activation")
 	entries := []discovery.CatalogEntry{
 		{Model: model, Capabilities: []discovery.Capability{
@@ -93,14 +82,10 @@ func TestMediaMeasurementProjection(t *testing.T) {
 		{Model: missing, Capabilities: []discovery.Capability{{Task: recipe.TaskImageGen}}},
 	}
 	scope, err := resolveMediaReportScope("image-video")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reader := &mediaProjectionReader{Store: store, resolves: map[string]int{}}
 	rows, err := loadMediaReportRows(t.Context(), reader, entries, scope, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(rows) != 3 {
 		t.Fatalf("selected denominator = %d", len(rows))
 	}
@@ -120,9 +105,7 @@ func TestMediaMeasurementProjection(t *testing.T) {
 	}
 	var headline, inventories bytes.Buffer
 	projection, err := projectMediaRows(rows, scope, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	writeMediaVerdict(&headline, projection)
 	writeMediaInventories(&inventories, rows)
 	if !strings.Contains(headline.String(), "3 activations; 2 are stale and 1 healthy") || !strings.Contains(inventories.String(), shortArtifact(definition.ID)) {
@@ -142,9 +125,7 @@ func TestMediaMeasurementProjection(t *testing.T) {
 		verified := healthy.verification
 		verified.Gate.Steps = []runrecord.GateStep{{Evidence: "peak_device_bytes=001048576"}}
 		measurement, err := projectMediaVerifier(verified)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		cell := mediaRunResult(measurement)
 		if !strings.Contains(cell, "1048576 B") || !strings.Contains(cell, shortCommit(verified.Run.CodeCommit)) {
 			t.Fatal("byte count or historical producer changed", cell)

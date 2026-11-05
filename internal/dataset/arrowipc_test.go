@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestArrowStreamDecodesHuggingFaceCache pins the reader against real
@@ -21,9 +22,7 @@ func TestArrowStreamDecodesHuggingFaceCache(t *testing.T) {
 	decode := func(path string) []map[string]json.RawMessage {
 		t.Helper()
 		file, err := os.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer file.Close()
 		var rows []map[string]json.RawMessage
 		err = DecodeArrowStream(file, func(ordinal uint64, record map[string]json.RawMessage) error {
@@ -33,9 +32,7 @@ func TestArrowStreamDecodesHuggingFaceCache(t *testing.T) {
 			rows = append(rows, record)
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return rows
 	}
 
@@ -81,15 +78,11 @@ func TestArrowStreamRefusesOutsideSubset(t *testing.T) {
 // counts every row.
 func TestArrowBenchmarkImport(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	path := filepath.Join("testdata", "mmlu-dev.arrow")
 	digest, err := HashFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	imported, err := ImportBenchmark(t.Context(), store, path, BenchmarkImportSpec{
 		Source: "cais/mmlu:abstract_algebra", Revision: "0.0.0", SHA256: digest,
 		Split: "dev", Format: BenchmarkFormatArrow, Conversion: "lm-eval/mmlu/v1",
@@ -99,9 +92,7 @@ func TestArrowBenchmarkImport(t *testing.T) {
 			{Target: "answer", Source: "answer"},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if imported.Count != 5 || len(imported.Records) != 5 {
 		t.Fatalf("imported = %+v, want 5 records", imported)
 	}

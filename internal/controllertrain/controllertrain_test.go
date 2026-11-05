@@ -7,15 +7,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowrecipe"
 )
 
 func TestCorpusRequiresExternalGroupAndTypedModule(t *testing.T) {
 	spec := fixtureCorpusSpec()
 	corpus, err := Compile(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := corpus.PublicationBatch("controller/test-corpus")
 	if err != nil || batch.Validate() != nil || corpus.Dataset().Kind() != artifact.KindDataset || corpus.Split().Kind() != artifact.KindDatasetShard {
 		t.Fatalf("compiled corpus = (%s, %s, %v)", corpus.Dataset(), corpus.Split(), err)
@@ -53,15 +52,11 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 	}
 	seeds[1].Model = candidate
 	budget, err := runrecord.NewBudget("queries", split, uint64(len(seeds)), fixtureID(t, artifact.KindEvidence, "budget-authority"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	charges := make([]runrecord.BudgetCharge, len(seeds))
 	for index := range charges {
 		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	spec := DecisionSpec{
 		Dataset: dataset, Split: split, CurrentChampion: champion, Candidate: candidate, Seeds: seeds,
@@ -76,9 +71,7 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 		t.Fatalf("promotion = (%s, %s, %v)", decision.State, decision.Rollback, err)
 	}
 	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseDecision(content.Data)
 	if err != nil || parsed.ID != decision.ID {
 		t.Fatalf("parsed promotion = (%s, %v)", parsed.ID, err)
@@ -118,8 +111,6 @@ func fixtureCorpusSpec() Spec {
 func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/testcheck"
 )
 
 func TestSamplerStateResumesExactly(t *testing.T) {
@@ -20,9 +21,7 @@ func TestSamplerStateResumesExactly(t *testing.T) {
 		Seed:        42,
 	}
 	original, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{1, 2, 3, 4, 5}
 	for range 10 {
 		if _, err := original.Sample(logits); err != nil {
@@ -30,31 +29,21 @@ func TestSamplerStateResumesExactly(t *testing.T) {
 		}
 	}
 	state, err := original.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expected := make([]int, 20)
 	for index := range expected {
 		expected[index], err = original.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	expectedMu := original.mu
 
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	actual := make([]int, len(expected))
 	for index := range actual {
 		actual[index], err = resumed.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	if !slices.Equal(actual, expected) {
 		t.Fatalf("resumed IDs = %v, want %v", actual, expected)
@@ -66,13 +55,9 @@ func TestSamplerStateResumesExactly(t *testing.T) {
 
 func TestSamplerStateRejectsMalformedOrMismatchedData(t *testing.T) {
 	sampler, err := New(Config{Temperature: 1, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := sampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, malformed := range [][]byte{
 		nil,
 		state[:31],
@@ -84,9 +69,7 @@ func TestSamplerStateRejectsMalformedOrMismatchedData(t *testing.T) {
 		}
 	}
 	different, err := New(Config{Temperature: 0.5, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := different.LoadState(state); err == nil {
 		t.Fatal("state with a different configuration was accepted")
 	}
@@ -99,33 +82,25 @@ func TestSamplerStateRejectsMalformedOrMismatchedData(t *testing.T) {
 
 func TestSamplerOrderParticipatesInStateSignature(t *testing.T) {
 	implicit, err := New(Config{Temperature: 1, Seed: 7, Samplers: defaultSamplerOrder, RepeatPenalty: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	explicitDefault, err := New(Config{
 		Temperature:   1,
 		Seed:          7,
 		Samplers:      defaultSamplerOrder,
 		RepeatPenalty: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	custom, err := New(Config{
 		Temperature: 1,
 		Seed:        7,
 		Samplers:    []SamplerStage{SamplerTemperature},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if configSignature(implicit.config) != configSignature(explicitDefault.config) {
 		t.Fatal("explicit default order changed the legacy configuration signature")
 	}
 	state, err := implicit.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := explicitDefault.LoadState(state); err != nil {
 		t.Fatalf("explicit default rejected default state: %v", err)
 	}
@@ -135,17 +110,11 @@ func TestSamplerOrderParticipatesInStateSignature(t *testing.T) {
 	// An explicitly empty chain runs no stage, so it never resumes the
 	// state of the omitted order it would otherwise share a signature with.
 	omitted, err := New(Config{Temperature: 1, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	empty, err := New(Config{Temperature: 1, Seed: 7, Samplers: []SamplerStage{}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	omittedState, err := omitted.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := empty.LoadState(omittedState); err == nil {
 		t.Fatal("explicitly empty chain accepted the omitted order's state")
 	}
@@ -160,9 +129,7 @@ func TestXTCStateResumesRNGExactly(t *testing.T) {
 		Seed:           42,
 	}
 	original, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{4, 3, 2, 1}
 	for range 7 {
 		if _, err := original.Sample(logits); err != nil {
@@ -170,29 +137,19 @@ func TestXTCStateResumesRNGExactly(t *testing.T) {
 		}
 	}
 	state, err := original.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := make([]int, 20)
 	for index := range want {
 		want[index], err = original.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	got := make([]int, len(want))
 	for index := range got {
 		got[index], err = resumed.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("resumed XTC IDs = %v, want %v", got, want)
@@ -201,22 +158,16 @@ func TestXTCStateResumesRNGExactly(t *testing.T) {
 
 func TestDynamicTemperatureParticipatesInStateSignature(t *testing.T) {
 	fixed, err := New(Config{Temperature: 0.8, Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dynamic, err := New(Config{
 		Temperature:      0.8,
 		DynatempRange:    0.2,
 		DynatempExponent: 1.5,
 		Seed:             7,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := fixed.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := dynamic.LoadState(state); err == nil {
 		t.Fatal("dynamic-temperature sampler accepted fixed-temperature state")
 	}
@@ -231,9 +182,7 @@ func TestAdaptivePStateResumesEMAAndRNGExactly(t *testing.T) {
 		MinP:           0.01,
 	}
 	original, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{
 		float32(math.Log(0.6)),
 		float32(math.Log(0.25)),
@@ -246,31 +195,21 @@ func TestAdaptivePStateResumesEMAAndRNGExactly(t *testing.T) {
 		}
 	}
 	state, err := original.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := make([]int, 20)
 	for index := range want {
 		want[index], err = original.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	wantSum, wantWeight := original.adaptiveSum, original.adaptiveWeight
 
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	got := make([]int, len(want))
 	for index := range got {
 		got[index], err = resumed.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("resumed adaptive-p IDs = %v, want %v", got, want)
@@ -298,20 +237,14 @@ func TestAdaptivePStateResumesEMAAndRNGExactly(t *testing.T) {
 
 func TestLogitBiasParticipatesInStateSignature(t *testing.T) {
 	plain, err := New(Config{Seed: 7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	biased, err := New(Config{
 		Seed:        7,
 		LogitBiases: []LogitBias{{Token: 1, Bias: -2}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := plain.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := biased.LoadState(state); err == nil {
 		t.Fatal("biased sampler accepted unbiassed state")
 	}
@@ -329,18 +262,12 @@ func TestInfillVocabularyParticipatesInStateSignature(t *testing.T) {
 		},
 	}
 	source, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := source.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config.Infill.Pieces[0] = "b"
 	different, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := different.LoadState(state); err == nil {
 		t.Fatal("infill sampler accepted state for a different vocabulary")
 	}
@@ -352,37 +279,23 @@ func TestSamplerGrammarStateResumesExactly(t *testing.T) {
 		[]int{5},
 		6,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{Grammar: grammar}
 	original, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{100, 10, 9, 8, 11, 7}
 	if token, sampleErr := original.Sample(logits); sampleErr != nil || token != 1 {
 		t.Fatalf("first grammar token = %d, %v", token, sampleErr)
 	}
 	state, err := original.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := original.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	got, err := resumed.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != want || got != 4 {
 		t.Fatalf("resumed grammar token = %d, want %d", got, want)
 	}
@@ -395,40 +308,26 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 		bytePieces("a", "b", "c", "", "x"),
 		[]int{3},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{
 		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
 		Samplers: defaultSamplerOrder,
 	}
 	original, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits := []float32{10, 8, 9, 100, 90}
 	if token, sampleErr := original.Sample(logits); sampleErr != nil || token != 0 {
 		t.Fatalf("first GBNF token = %d, %v", token, sampleErr)
 	}
 	state, err := original.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := original.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	got, err := resumed.Sample(logits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != want || got != 2 {
 		t.Fatalf("resumed GBNF token = %d, want %d", got, want)
 	}
@@ -443,9 +342,7 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("prefixJS", "ON:42", "", "other"), []int{2}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grammar, err := vocabulary.Compile(
 		`root ::= "JSON:" [0-9]+`,
 		"root",
@@ -454,41 +351,27 @@ func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
 			Patterns: []string{`prefix(JSON:)`},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{
 		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
 		Samplers: defaultSamplerOrder,
 	}
 	source, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	firstLogits := []float32{10, 1, 0, 9}
 	if token, sampleErr := source.Sample(firstLogits); sampleErr != nil || token != 0 {
 		t.Fatalf("lazy GBNF prefix token = %d, %v", token, sampleErr)
 	}
 	state, err := source.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumed, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.LoadState(state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.LoadState(state))
 	triggerLogits := []float32{0, 10, 1, 9}
 	want, err := source.Sample(triggerLogits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := resumed.Sample(triggerLogits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != want || got != 1 ||
 		source.gbnfState.awaitingTrigger ||
 		resumed.gbnfState.awaitingTrigger {

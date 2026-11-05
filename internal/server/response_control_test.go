@@ -18,6 +18,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -149,9 +150,7 @@ func TestStoredResponseDisconnectFinalization(t *testing.T) {
 		for _, ending := range []struct{ tokens, status string }{{"2", "incomplete"}, {"3", "completed"}} {
 			t.Run(event+"/"+ending.status, func(t *testing.T) {
 				store, err := overgodb.Open(t.TempDir())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer store.Close()
 				handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 				ctx, cancelCause := context.WithCancelCause(t.Context())
@@ -181,9 +180,7 @@ func TestStoredResponseDisconnectFinalization(t *testing.T) {
 				if !done || text != "AB" || final.Status != ending.status || failed != "" {
 					t.Fatalf("terminal = %q %v %+v %q", text, done, final, failed)
 				}
-				if err := handler.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, handler.Close())
 				restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 				follow := serveTestRequest(restarted, http.MethodGet, "/interactions/follow?response="+id, "")
 				if !strings.Contains(follow.Body.String(), "event: response."+ending.status) || strings.Count(follow.Body.String(), `"delta":"AB"`) != 1 {
@@ -202,9 +199,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 	for _, action := range []string{"cancel", "opaque cancel", "shutdown", "failure"} {
 		t.Run(action, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			generator := &responseControlGenerator{
 				recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}),
@@ -252,9 +247,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 				}
 				<-ctx.Done()
 			case "shutdown":
-				if err := handler.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, handler.Close())
 				<-ctx.Done()
 			case "failure":
 				status = "failed"
@@ -264,9 +257,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 			if !strings.Contains(result.Body.String(), "event: response."+status) || strings.Contains(result.Body.String(), "event: response.completed") {
 				t.Fatalf("terminal stream = %s", result.Body)
 			}
-			if err := handler.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, handler.Close())
 			restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 			follow := serveTestRequest(restarted, http.MethodGet, "/interactions/follow?response="+id, "")
 			if !strings.Contains(follow.Body.String(), "event: response."+status) || !strings.Contains(follow.Body.String(), "Partial answer") || strings.Contains(follow.Body.String(), "event: response.completed") {
@@ -290,18 +281,14 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 func TestStoredResponseUnconfirmedRestart(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	if err := handler.publishResponseInteraction(t.Context(), "resp_9", artifact.ID{},
 		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive, "", turnRecord{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := handler.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, handler.Close())
 	restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	if restarted.nextID.Load() < 9 {
 		t.Fatal("reserved response identifier was reused")

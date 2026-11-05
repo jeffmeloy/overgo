@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -54,9 +55,7 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 		{"model": "model:painter", "location": "C:/models/painter.safetensors", "present": true, "recipe": "",
 			"verification": "not verified", "candidates": []string{"image-gen"}},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// swapping: the switch's health probe, held until the leg has seen its progress.
 	swapping, release := make(chan struct{}, 1), make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

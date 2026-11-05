@@ -10,6 +10,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,12 +27,8 @@ func TestLoopStartsACycleWhenTheMeasuredSurfaceMoved(t *testing.T) {
 	land := func(file, message string) {
 		t.Helper()
 		path := filepath.Join(repository, filepath.FromSlash(file))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(message+"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(message+"\n"), 0o644))
 		git("add", "-A")
 		git("commit", "-q", "-m", message)
 	}
@@ -123,9 +120,7 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 		testutil.WriteTextFile(t, root, "internal/model/"+name, "{}\n")
 	}
 	closure, err := surfaceClosure(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for file, want := range map[string]bool{
 		"internal/model/webui/composer.js":          true,
 		"internal/model/catalog.go":                 true,
@@ -152,13 +147,9 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 		} else {
 			err = os.Rename(old, filepath.Join(root, "internal/model", change.next))
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		closure, err = surfaceClosure(t.Context(), root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !touchesSurface(root, "internal/model/"+change.old, closure) {
 			t.Errorf("%s of an embedded directory child was excluded", change.name)
 		}

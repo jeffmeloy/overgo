@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,13 +38,9 @@ func TestWorkflowDAG(t *testing.T) {
 		nil,
 		[]recipe.Output{{Name: port, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: "second", Port: port}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitionContent, err := definition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "dag-operation")
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:       "workflow-dag-fixture",

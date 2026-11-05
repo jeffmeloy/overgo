@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestUpdateLeavesACurrentManifestUntouched holds -update to writing only a
@@ -20,9 +21,7 @@ func TestUpdateLeavesACurrentManifestUntouched(t *testing.T) {
 		t.Fatalf("an absent manifest: written %t, %v", written, err)
 	}
 	past := time.Now().Add(-time.Hour)
-	if err := os.Chtimes(file, past, past); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Chtimes(file, past, past))
 	if written, err := writeChanged(file, []byte("first\n")); err != nil || written {
 		t.Fatalf("a current manifest: written %t, %v", written, err)
 	}

@@ -7,14 +7,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	audioID := testutil.ArtifactID(t, artifact.KindFile, "audio")
@@ -28,51 +27,37 @@ func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 		FrameCount: 16_000, SampleCount: 16_000, FiniteSampleCount: 16_000,
 		ClipThreshold: 1, PeakAbsolute: 0.5, RootMeanSquare: 0.125, DCOffset: 0.01,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy, err := audioAdmissionPolicyCodec.NewInitial(AudioAdmissionPolicyDocument{Policy: recipecontract.AudioAdmissionPolicy{
 		MinimumDurationNanoseconds: uint64(time.Second / 2), MaximumDurationNanoseconds: uint64(2 * time.Second),
 		MinimumChannels: 1, MaximumChannels: 1, SilenceRMSThreshold: 0.001,
 		MaximumClippedFraction: 0.01, MaximumAbsoluteDCOffset: 0.1,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileLineage := artifact.DependencyLineage(profile.ID, audioID, formatID)
 	profileBatch, err := audioSignalProfileCodec.Batch(
 		"fixture/audio-signal-profile", profile, profileLineage, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, profileBatch); err != nil {
 		t.Fatal(err)
 	}
 	policyBatch, err := audioAdmissionPolicyCodec.Batch("fixture/audio-admission-policy", policy, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, policyBatch); err != nil {
 		t.Fatal(err)
 	}
 	result, err := policy.Policy.Evaluate(profile.Profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decision, err := audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
 		Signal: profile.ID, Policy: policy.ID, Decision: result,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decisionLineage := artifact.DependencyLineage(decision.ID, decision.Signal, decision.Policy)
 	batch, err := audioAdmissionDecisionCodec.Batch(
 		"fixture/audio-admission-decision", decision, decisionLineage, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -88,26 +73,18 @@ func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 
 func TestAudioAdmissionDecisionRejectsUnprovedLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	decision, err := audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
 		Signal:   testutil.ArtifactID(t, artifact.KindEvidence, "missing-signal"),
 		Policy:   testutil.ArtifactID(t, artifact.KindProfile, "missing-policy"),
 		Decision: recipecontract.AudioAdmissionDecision{Outcome: recipecontract.AudioAdmissionAccepted},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := audioAdmissionDecisionCodec.Content(decision)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	unbound, err := artifact.NewDocumentBatch("fixture/unbound-audio-admission", []artifact.Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, unbound); err != nil {
 		t.Fatal(err)
 	}

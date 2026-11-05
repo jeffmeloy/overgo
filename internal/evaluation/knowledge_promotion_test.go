@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -50,13 +51,9 @@ func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 		fixture.store.Close()
 		t.Fatalf("derived hygiene = %+v", fixture.hygiene)
 	}
-	if err := fixture.store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.store.Close())
 	reopened, err := overgodb.Create(fixture.path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	cold, err := requireKnowledgePromotionEvidence(t.Context(), reopened, evidence.ID)
 	if err != nil || cold.ID != evidence.ID {
@@ -99,9 +96,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 		forged.ID = artifact.ID{}
 		forged.Citations = append(slices.Clone(forged.Citations), extra.Descriptor.ID)
 		forged, err := episodeKnowledgeProposalCodec.New(forged)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		publishKnowledgeDocument(t, fixture.store, "knowledge/forged-proposal", forged)
 		if _, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			forged.ID, fixture.baseline.ID, fixture.trial.ID); err == nil ||
@@ -139,9 +134,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 		defer fixture.store.Close()
 		legitimate, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		forged := legitimate
 		forged.ID = artifact.ID{}
 		forged.Benefits = []string{"provider-cost"}
@@ -161,9 +154,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 		defer fixture.store.Close()
 		promotion, err := publishEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		extra := testutil.ArtifactID(t, artifact.KindEvidence, "knowledge-extra-promotion-parent")
 		if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 			Key:       "knowledge/promotion-extra-lineage",
@@ -189,9 +180,7 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 	t.Helper()
 	path := t.TempDir()
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	closeOnError := func(err error) {
 		store.Close()
@@ -455,9 +444,7 @@ func publishKnowledgeConsumedRetrieval(
 		t.Fatal(err)
 	}
 	documents, err := dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	embedder := evaluationEmbedder{model: modelID}
 	reranker := evaluationReranker{policy: rerankID, scores: scores}
 	builder := dataset.AgentRetrievalBuilder{Repository: store}
@@ -466,18 +453,14 @@ func publishKnowledgeConsumedRetrieval(
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: 128, CandidateLimit: uint64(len(texts))},
 		Embedder: embedder, RerankPolicy: rerankID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	consumed, err := runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1, AllowedDatasets: []artifact.ID{datasetID},
 		Embedder: embedder, Reranker: reranker,
 	}, runrecord.RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return consumedRetrievalFixture{receipt: consumed.Receipt, search: consumed.Search}
 }
 
@@ -492,9 +475,7 @@ func knowledgeDecision(
 		subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
 		recipe.Decider{CodeCommit: strings.Repeat("b", 40), Derivation: evaluator}, evidence,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }
 
@@ -504,16 +485,12 @@ func knowledgeTypedDocument(t *testing.T, kind artifact.Kind, label string) arti
 		Label string `json:"label"`
 	}{Label: label}
 	id, err := artifact.JSONID(kind, body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract := artifact.DocumentContract{
 		Kind: kind, MediaType: "application/vnd.overgo.test-knowledge+json", Schema: "overgo/test-knowledge/v1",
 	}
 	content, err := contract.ContentJSON(id, body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 
@@ -525,9 +502,7 @@ type knowledgeDocument interface {
 func publishKnowledgeDocument(t *testing.T, store *overgodb.Store, key string, value knowledgeDocument) {
 	t.Helper()
 	content, err := value.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: key, Contents: []artifact.Content{content}, Lineage: value.Lineage(),
 	}); err != nil {

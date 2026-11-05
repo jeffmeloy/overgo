@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 func TestSmartResizeAlignedRoundsToFactor(t *testing.T) {
 	// 480x640 with factor 32 and generous pixel budget: round-to-even scaling.
 	h, w, err := media.ResizeAligned(480, 640, 32, 25088, 524288)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if h%32 != 0 || w%32 != 0 {
 		t.Fatalf("resize %dx%d not factor-aligned", h, w)
 	}
@@ -25,9 +24,7 @@ func TestPatchEmbedSourcePatchRoundTripsGrid(t *testing.T) {
 	seen := make(map[int]bool)
 	for token := range gridH * gridW {
 		src, err := patchEmbedSourcePatch(token, gridH, gridW, merge)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if src < 0 || src >= gridH*gridW || seen[src] {
 			t.Fatalf("token %d -> src %d invalid or duplicate", token, src)
 		}
@@ -42,9 +39,7 @@ func TestPatchifyMergedFramesShape(t *testing.T) {
 		frame[i] = float32(i)
 	}
 	pv, gt, gh, gw, err := patchifyMergedFrames([][]float32{frame}, rh, rw, patch, temporal, merge)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if gt != 1 || gh != 2 || gw != 2 {
 		t.Fatalf("grid [%d,%d,%d]", gt, gh, gw)
 	}

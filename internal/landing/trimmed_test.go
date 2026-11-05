@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/testcheck"
 )
 
 // TestCommitCheckTestsHoldUnderTrimmedBuilds holds a commit's checks to building trimmed, which
@@ -40,17 +41,13 @@ func TestCommitCheckTestsHoldUnderTrimmedBuilds(t *testing.T) {
 		return fixture
 	}
 	first, second := checkout(), checkout()
-	if err := first.candidate().fix(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, first.candidate().fix(ctx))
 	if fixed := first.read(legacy); !strings.Contains(fixed, "slices.Contains") {
 		t.Fatalf("the fix stage left the first checkout's loop as it was:\n%s", fixed)
 	}
 	const marker = "package p\n\n// The first checkout's file, as the fix of another checkout must leave it.\n"
 	first.write(legacy, marker)
-	if err := second.candidate().fix(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, second.candidate().fix(ctx))
 	if fixed := second.read(legacy); !strings.Contains(fixed, "slices.Contains") {
 		t.Errorf("the fix stage left the second checkout's loop as it was, under a trimmed build:\n%s", fixed)
 	}
@@ -59,9 +56,7 @@ func TestCommitCheckTestsHoldUnderTrimmedBuilds(t *testing.T) {
 	}
 
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, trimmed := range [][]string{
 		{"./internal/clioptions", "^TestCLIInferenceDependencyBoundary$"},
 		{"./internal/plan", "^(TestColibriCampaign|TestSinglePlanAuthority|TestDoctrineParagraphsNameWhatTheyGovern)$"},

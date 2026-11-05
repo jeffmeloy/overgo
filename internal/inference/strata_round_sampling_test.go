@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/sampling"
 	"overgo/internal/strataspec"
+	"overgo/internal/testcheck"
 )
 
 // TestStrataSamplingRefusesWhatItCannotHonor: a request the device's sampler would answer with another distribution than it
@@ -30,9 +31,7 @@ func TestStrataSamplingRefusesWhatItCannotHonor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			sampler, err := sampling.New(test.config)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, round := strataSamplingOf(GenerateOptions{Sampler: sampler}); round != test.round {
 				t.Fatalf("the round takes this request: %t, want %t", round, test.round)
 			}

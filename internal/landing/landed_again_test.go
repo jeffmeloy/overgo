@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestEveryStageFailureLeavesTheTrunkAlone fails each stage a change can break, format, vet, rules, test and verify,
@@ -64,9 +65,7 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 	before := fixture.read(plan.Path)
 	fixture.write("a.txt", "changed\n")
 	first, err := land("row/do")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	landed := fixture.read(plan.Path)
 	// What a kill between the trunk's move and the plan's save leaves.
 	fixture.write(plan.Path, before)
@@ -80,9 +79,7 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 		t.Fatalf("the landing with the trunk's plan written back: %v", err)
 	}
 	published, err := plan.Parse([]byte(fixture.git("show", "HEAD:"+plan.Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, item := range published.Items {
 		if item.ID == "row" {
 			t.Fatalf("the landed step row/do is in the trunk's plan again: %+v", item)

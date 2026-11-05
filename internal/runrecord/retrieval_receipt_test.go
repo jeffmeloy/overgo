@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func (provider receiptRerankProvider) Score(_ context.Context, query, text strin
 func TestRetrievalReceiptReplay(t *testing.T) {
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "receipt-dataset")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "receipt-model")
 	rerankID := testutil.ArtifactID(t, artifact.KindProfile, "receipt-rerank")
@@ -69,17 +68,13 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 				Structure: []string{"chapter", "appendix"}, Parent: parent, StartRune: 15, StartByte: 15},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := documents[0].Source
 	projection, err := builder.Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Policy: policy, Embedder: embedder, RerankPolicy: rerankID,
 		Documents: documents,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query := dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		AllowedDatasets: []artifact.ID{datasetID}, AllowedSources: []artifact.ID{source},
@@ -89,9 +84,7 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 	consumed, err := SearchAndPublishConsumedRetrieval(t.Context(), store, query, RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	search, stored, receipt := consumed.Search, consumed.Receipt, consumed.Receipt
 	if len(search.Results) != 1 {
 		t.Fatalf("search = %+v", search)
@@ -102,13 +95,9 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 		stored.Work.ChunkBytesLoaded == 0 || stored.Work.EmbeddingBytesLoaded == 0 || stored.ContextBytes == 0 {
 		t.Fatalf("receipt omitted replay evidence: %+v", stored)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	cold, err := RequireConsumedRetrievalReceipt(t.Context(), reopened, receipt.ID)
 	if err != nil || cold.ID != receipt.ID || !slices.Equal(cold.Results[0].Structure, []string{"chapter", "section"}) {

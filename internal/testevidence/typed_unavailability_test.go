@@ -3,6 +3,8 @@ package testevidence
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestVerifyReadsTypedUnavailability holds unavailability to go test's typed
@@ -25,9 +27,7 @@ func TestVerifyReadsTypedUnavailability(t *testing.T) {
 		{"fail", "fixture present\n", false},
 	} {
 		report, err := readGoTestJSON(strings.NewReader(stream(tc.action, tc.output)), false, false, 0, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if credited := RequireComplete(report) == nil && report.PackagePassed("example"); credited != tc.credited {
 			t.Fatalf("%s printing %q credited=%t, want %t: %+v", tc.action, tc.output, credited, tc.credited, report)
 		}

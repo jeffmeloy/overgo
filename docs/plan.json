@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 20,
+        "nodes": 42,
         "reason": "One helper. The row's work is in test code, reported by the gate and not counted here: -98,453 test nodes, 4.18 percent, of which 64,263 measured on a copy and the rest modelled."
       },
       "steps": [
-        {
-          "id": "fatal-check",
-          "title": "Check a test's error in one call",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestATestChecksAnErrorInOneCall$'",
-          "rationale": "if err != nil { t.Fatal(err) } stands at 15,782 sites. One rewrite on a copy removed 64,263 test nodes and 27,191 lines from 14,571 sites in 1,949 files, skipping files named by compatibility.json or docs/verification, else-if branches and receivers other than t, tb and b. The rewrite compiled and passed on six host packages; the whole copy was not compiled. Add one helper to a leaf test-support package importing only testing, as internal/modelrecipetest/fixture.go:224 has privately, and rewrite with a one-shot tool that is not committed.\nIt touches most test files, so it lands at a quiet point, in batches by top directory so one refusal does not lose the lot, and before more test code is written around the old form.\nServes: development velocity and test-code size.\nDisappears: 27,191 test lines, no assertion.\nEvidence: test-code nodes on the gate's line, and three forced errors on a sample.\nBatch: alone."
-        },
         {
           "id": "exact-folds",
           "title": "Fold test bodies that are the same text",
@@ -104,6 +97,25 @@
           "depends_on": [
             "compact-tests/exact-folds"
           ]
+        }
+      ]
+    },
+    {
+      "id": "empty-added-token",
+      "title": "Refuse an empty added token before hfbpe splits text on it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 30,
+        "reason": "One refusal in Tokenizer.encode and its fixture case."
+      },
+      "steps": [
+        {
+          "id": "refuse",
+          "title": "Encoding with an empty added token is refused",
+          "status": "open",
+          "verify": "go test ./internal/hfbpe -count=1 -run '^TestAnEmptyAddedTokenIsRefused$'",
+          "rationale": "SQA-313 (P2): hfbpe.Load refuses an empty added token only for a declared normalizer or pre-tokenizer, and LoadSplit admits the key \"\" of added_tokens.json; both reach splitAdded, where strings.Index(text, \"\") is 0, so the span never shortens and the split grows without end, with no cancellation in the loop. Callers that encode, among them cmd/train's mixture and thoughtbank routes, the chain viability and speech recognition's alignment, would spin on such a tokenizer.\nChange: Tokenizer.encode refuses, with its error, a tokenizer whose added vocabulary holds an empty token when it parses added tokens, before the split, after the decoder, normalizer and pre-tokenizer refusals; decoding and literal encoding keep their contracts. TestAnEmptyAddedTokenIsRefused loads a fixture of no declarations with one empty added token and holds Encode to an error.\nServes: failure-rate: a tokenizer that would hang encoding is refused.\nDisappears: an unbounded loop on malformed input.\nEvidence: the test.\nBatch: host lane."
         }
       ]
     },

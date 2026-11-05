@@ -5,6 +5,8 @@ package fsatomic
 import (
 	"os"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // removeTreeHere holds what RemoveTree does on Windows alone.
@@ -22,9 +24,7 @@ func removeTreeHere(t *testing.T) {
 	root := t.TempDir()
 	tree, files := treeFixture(t, root)
 	held, err := os.Open(files[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	err = RemoveTree(tree)
 	for _, file := range files {
 		if _, statErr := os.Stat(file); statErr != nil {
@@ -41,9 +41,7 @@ func removeTreeHere(t *testing.T) {
 	// A name an interrupted removal left, with and without a tree at the path.
 	for _, standing := range []bool{false, true} {
 		tree, _ := treeFixture(t, root)
-		if err := os.Rename(tree, removalTombstone(tree)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Rename(tree, removalTombstone(tree)))
 		if standing {
 			treeFixture(t, root)
 		}

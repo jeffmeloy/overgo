@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestBlobStorePublicationContract holds the blob owner to its
@@ -21,14 +22,10 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	blobs := newBlobStore(t.TempDir())
 	payload := []byte("blob-owner contract payload")
 	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	foreign, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("different payload"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := blobs.prepare(foreign, payload); err == nil {
 		t.Fatal("payload published under an identity it does not hash to")
 	}
@@ -36,9 +33,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 		t.Fatal("refused payload became visible")
 	}
 
-	if err := blobs.prepare(id, payload); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, blobs.prepare(id, payload))
 	if err := blobs.prepare(id, payload); err != nil {
 		t.Fatalf("idempotent re-preparation refused: %v", err)
 	}
@@ -47,9 +42,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	}
 
 	reader, err := blobs.open(id, uint64(len(payload)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, err := io.ReadAll(reader)
 	if closeErr := reader.Close(); err != nil || closeErr != nil || string(data) != string(payload) {
 		t.Fatalf("open round trip = (%q, %v, %v)", data, err, closeErr)
@@ -57,54 +50,36 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	if _, err := blobs.open(id, uint64(len(payload))+1); err == nil {
 		t.Fatal("size mismatch opened")
 	}
-	if err := blobs.verify(t.Context(), id); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, blobs.verify(t.Context(), id))
 
 	path, err := blobs.path(id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staging := filepath.Join(filepath.Dir(path), ".staging-interrupted")
-	if err := os.WriteFile(staging, []byte("torn"), storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(staging, []byte("torn"), storeFileMode))
 	tornID, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("torn"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if blobs.has(tornID) {
 		t.Fatal("staging file visible as a published blob")
 	}
 
 	corrupted, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	corrupted[0] ^= 0xFF
-	if err := os.WriteFile(path, corrupted, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, corrupted, storeFileMode))
 	if err := blobs.verify(t.Context(), id); err == nil || !strings.Contains(err.Error(), "do not hash") {
 		t.Fatalf("corrupted blob verified: %v", err)
 	}
 
 	fileID, err := artifact.IdentifyBytes(artifact.KindFile, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 2 {
 		if err := blobs.prepare(fileID, payload); err != nil {
 			t.Fatalf("intact file publication or retry refused: %v", err)
 		}
 	}
 	filePath, err := blobs.path(fileID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filePath, corrupted, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filePath, corrupted, storeFileMode))
 	if err := blobs.prepare(fileID, payload); err == nil || !strings.Contains(err.Error(), "do not hash") {
 		t.Fatalf("retry accepted same-sized corrupt orphan: %v", err)
 	}

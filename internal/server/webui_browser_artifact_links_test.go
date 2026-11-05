@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -24,9 +25,7 @@ func TestWebUIBrowserArtifactLinks(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "artifact links run through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ids := make([]artifact.ID, 2)
 	contents := make([]artifact.Content, 2)
@@ -34,13 +33,9 @@ func TestWebUIBrowserArtifactLinks(t *testing.T) {
 		picture := image.NewGray(image.Rect(0, 0, 2, 2))
 		picture.SetGray(0, 0, color.Gray{Y: shade})
 		var encoded bytes.Buffer
-		if err := png.Encode(&encoded, picture); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, png.Encode(&encoded, picture))
 		ids[index], err = artifact.IdentifyBytes(artifact.KindOutput, encoded.Bytes())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contents[index] = artifact.Content{Descriptor: artifact.Descriptor{ID: ids[index], Size: uint64(encoded.Len()), MediaType: "image/png"}, Data: encoded.Bytes()}
 	}
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "server/artifact-links", Contents: contents}); err != nil {

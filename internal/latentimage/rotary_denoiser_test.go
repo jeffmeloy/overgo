@@ -11,15 +11,14 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func denoiserFixture(t *testing.T) *safetensors.Source {
 	t.Helper()
 	mossFixtureBytes(t, "denoiser.safetensors", "924354f7ca521daaa06d85a048a91c885e2e2ddaa0bfd9b4afbdc8032be81f40")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "denoiser.safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { s.Close() })
 	return s
 }
@@ -37,9 +36,7 @@ func denoiserFeeds(t *testing.T, p *rotaryDenoiserProgram, index int, storage dt
 	context := mossF32(t, s, "transformer.context")
 	times := mossF32(t, s, "transformer.times")
 	feeds, err := p.feeds(input[index*24:(index+1)*24], context[index*32:index*32+p.text*8], times[index])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range p.weightInputs {
 		values := mossF32(t, s, "transformer.weights."+node.Name)
 		if storage == dtype.BF16 {
@@ -73,14 +70,10 @@ func TestMOSSRotaryDenoiserGolden(t *testing.T) {
 		}{{"all", nil}, {"skip-1", []int{1}}, {"skip-all", []int{0, 1}}} {
 			t.Run(fmt.Sprintf("%d/%s", length, variant.name), func(t *testing.T) {
 				p, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.F32)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				outputs, named := denoiserOutputs(p)
 				got, err := reference.Execute(outputs, denoiserFeeds(t, p, index, dtype.F32))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				prefix := fmt.Sprintf("cpu-f32.%d.%s.", length, variant.name)
 				for name, node := range named {
 					t.Run(name, func(t *testing.T) { compareRefinement(t, got[node].Data, refinementValues(t, s, prefix+name), 1.3e-6) })
@@ -104,9 +97,7 @@ func TestMOSSRotaryDenoiserRefusesInvalidInput(t *testing.T) {
 		}
 	}
 	p, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, nil, dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, input := range []struct {
 		latent, context []float32
 		time            float32

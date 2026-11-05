@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestL2NormBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	cases := []struct {
@@ -49,9 +48,7 @@ func TestL2NormBackwardDeviceMatchesHost(t *testing.T) {
 
 			want := hostmath.L2NormBackward(x, dY, tc.rows, tc.width, tc.eps)
 			got, err := L2NormBackwardDevice(worker, x, dY, tc.rows, tc.width, tc.eps)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			diff := testutil.MaxAbsDiff(got, want)
 			t.Logf("L2NormBackward %-9s max|device-host| %.3e", tc.name, diff)
 			const tol = 1e-5

@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // testScorecardHistory is what moved between two published scorecards: a
@@ -37,9 +38,7 @@ func testScorecardHistory() *ScorecardHistory {
 func TestScorecardMoveKeepsAZeroMeasure(t *testing.T) {
 	t.Parallel()
 	data, err := json.Marshal(ScorecardMove{Name: "m", Task: "inference", Kind: "worse", Metric: "failure-rate", After: 0.05})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.Contains(string(data), `"before":0`) || !strings.Contains(string(data), `"after":0.05`) {
 		t.Fatalf("a move from zero marshals as %s, want its before kept", data)
 	}
@@ -51,9 +50,7 @@ func TestScorecardMoveKeepsAZeroMeasure(t *testing.T) {
 func TestWhatGotBetterBetweenVersions(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(history ScorecardHistoryReader) scorecardResponse {
 		t.Helper()

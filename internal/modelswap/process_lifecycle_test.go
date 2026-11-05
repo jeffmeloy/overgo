@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestExternalProcessLifecycle proves the launcher child type rides
@@ -17,9 +18,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		path, args = "cmd", []string{"/c", "ping -n 60 127.0.0.1 >nul"}
 	}
 	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	exited := make(chan error, 1)
 	go func() {
 		_, waitErr := supervised.Wait(t.Context())
@@ -28,9 +27,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	}()
 	process := &serverProcess{supervised: supervised, exited: exited, url: "http://127.0.0.1:0"}
 	start := time.Now()
-	if err := process.Stop(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, process.Stop())
 	if time.Since(start) > 10*time.Second {
 		t.Fatal("stop did not terminate the child promptly")
 	}

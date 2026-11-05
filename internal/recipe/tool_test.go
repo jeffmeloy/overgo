@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func TestToolModuleContract(t *testing.T) {
 func TestToolRecipeAdmission(t *testing.T) {
 	program := testToolProgram(t)
 	admission, err := AdmitTool(program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if admission.Module != testToolModule || admission.Recipe != program.Definition().ID {
 		t.Fatalf("admission = %+v", admission)
 	}
@@ -43,16 +42,10 @@ func testToolProgram(t *testing.T) Program {
 		[]Input{{Name: ToolCallPort, Data: DataToolCall, Target: Endpoint{Node: node.ID, Port: ToolCallPort}}},
 		[]Output{{Name: ToolResultPort, Data: DataToolResult, Source: Endpoint{Node: node.ID, Port: ToolResultPort}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := NewCatalog(module)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return program
 }

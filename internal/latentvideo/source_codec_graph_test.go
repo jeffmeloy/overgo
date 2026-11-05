@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 )
 
 func contiguousTensorMeta(name string, shape ...int64) pytorchzip.TensorMeta {
@@ -41,9 +42,7 @@ func TestVAEEncoderPlanCompilesInventory(t *testing.T) {
 		meta("conv1.weight", momentChannels, momentChannels, pointExtent, pointExtent, pointExtent), meta("conv1.bias", momentChannels),
 	}
 	plan, err := CompileVAEEncoderPlan(inventory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPrefixes := []string{"encoder.conv1", "encoder.downsamples.0", "encoder.middle.0", "encoder.head", "conv1"}
 	if plan.InputChannels != inputChannels || plan.LatentChannels != featureChannels || plan.MomentChannels != momentChannels ||
 		plan.UsedTensorCount != len(inventory) || plan.UsedWeightBytes <= 0 ||

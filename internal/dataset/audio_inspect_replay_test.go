@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 type inspectionBatchCapture struct {
@@ -33,9 +34,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 		t.Run(signal.name, func(t *testing.T) {
 			data := floatWAV(signal.samples)
 			fresh, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer fresh.Close()
 			container := publishInspectionSource(t, fresh, []byte("replay-container"))
 			origin := AudioPayloadOrigin{Container: container, Column: "bytes"}
@@ -48,9 +47,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 				t.Run(shape, func(t *testing.T) {
 					path := t.TempDir()
 					store, err := overgodb.Create(path)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					t.Cleanup(func() { _ = store.Close() })
 					publishInspectionSource(t, store, []byte("replay-container"))
 					publishInspectionSource(t, store, data)
@@ -88,13 +85,9 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 						if err != nil || !found || !reflect.DeepEqual(receipt, unchanged) {
 							t.Fatalf("historical receipt changed: %v", err)
 						}
-						if err := store.Close(); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, store.Close())
 						reopened, err := overgodb.Create(path)
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						store = reopened
 					}
 					conflict := capture.batch
@@ -121,9 +114,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 			}
 			t.Run("immutable-source-size", func(t *testing.T) {
 				store, err := overgodb.Open(t.TempDir())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer store.Close()
 				publishInspectionSource(t, store, []byte("replay-container"))
 				if _, err := store.Commit(t.Context(), artifact.Batch{

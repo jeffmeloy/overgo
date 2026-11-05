@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestRootHoldsNoPolicyDocuments holds the repository root to documents it
@@ -17,17 +18,11 @@ func TestRootHoldsNoPolicyDocuments(t *testing.T) {
 	t.Parallel()
 	root := "../.."
 	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	documents, err := TrackedDocuments(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	census, err := TrackedDocumentCensus(snapshot, documents)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shared := 0
 	for _, document := range census {
 		if path.Dir(document.Path) != "." || path.Ext(document.Path) != ".json" {

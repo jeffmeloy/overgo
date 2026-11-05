@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -17,9 +18,7 @@ func TestWebUIBrowserLoopStatus(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the loop status leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	loop := &fakeLoop{status: runningLoop()}
 	looped := httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) { config.Loop = loop }))
@@ -60,9 +59,7 @@ func TestWebUIBrowserLoopStatus(t *testing.T) {
 	}
 
 	// A server with no loop shows none.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#runtime`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#runtime`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`" + ` && !!document.querySelector('#panels table.grid')`)
 	check(`!document.querySelector('#panels .loop-status') || document.querySelector('#panels .loop-status').hidden`)
 	webuilane.Leg(t, "loop status leg", "the Runtime tab stated that the loop runs, the row it works and its last landing; Stop recorded a user stop from the workbench and the tab showed the loop stopped with its reason and how to resume; a server with no loop showed none")

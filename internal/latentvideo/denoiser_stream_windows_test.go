@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 )
 
 // TestADenoiserLoadHoldsOneTensorOnTheHost: a Wan denoiser's session uploads its weights a tensor at a time from the
@@ -22,42 +23,26 @@ func TestADenoiserLoadHoldsOneTensorOnTheHost(t *testing.T) {
 	}
 	dir := wanModelDir(t)
 	profile, err := ResolveProfile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config, err := LoadDenoiserConfig(dir, profile.Policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	geometry, err := config.CompileLatentGeometry(geometryFrames, geometrySide, geometrySide)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := processmeasure.SelfPeakWorkingSet()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights, err := openDenoiserWeights(dir, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer weights.Close()
 	if held := slices.Sorted(maps.Keys(weights.values)); !slices.Equal(held, slices.Sorted(slices.Values(timestepTensors))) {
 		t.Fatalf("the opened weights hold %v decoded, want the timestep conditioning's alone", held)
 	}
 	program, err := CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session, err := NewDenoiserCUDASession(program, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close()
 	after, err := processmeasure.SelfPeakWorkingSet()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("the session's load grew the process's peak working set by %d bytes for %d bytes of weights", after-before, weights.Bytes)
 	if growth := after - before; growth*quarters > uint64(weights.Bytes) {
 		t.Fatalf("the load grew the peak working set by %d bytes, more than a quarter of the %d bytes of weights", growth, weights.Bytes)

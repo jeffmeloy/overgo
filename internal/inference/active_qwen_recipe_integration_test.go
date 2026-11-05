@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
@@ -22,15 +23,11 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	cudatest.Require(t)
 	path := modeltest.GGUF(t, "qwen35")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	definition := publishActiveGGUFRecipe(t, store, path)
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
@@ -57,9 +54,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		_ = runner.Close()
 		t.Fatalf("Qwen3.5 state = %+v", state)
 	}
-	if err := runner.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.Close())
 }
 
 func publishActiveGGUFRecipe(
@@ -70,44 +65,28 @@ func publishActiveGGUFRecipe(
 	t.Helper()
 	ctx := t.Context()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec, err := model.ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile, ok := model.LookupArchitecture(spec.Architecture)
 	if !ok {
 		t.Fatalf("profile %q is unavailable", spec.Architecture)
 	}
 	profileDocument, err := modelrecipe.NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.PublishResolvedModelDefinition(ctx, store, inventory, resolved); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.PublishResolvedModelDefinition(ctx, store, inventory, resolved))
 	definition, err := modelrecipe.InferenceWithModelDefinition(
 		inventory.Manifest.ID, profileDocument.ID, document.ID, recipe.PlacementHybrid,
 		modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "integration/qwen35/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -117,9 +96,7 @@ func publishActiveGGUFRecipe(
 	verification, err := modelrecipetest.PublishVerification(
 		ctx, store, "integration/qwen35/verification", definition.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "integration/qwen35/active", definition, verification,
 		recipe.EvidenceVerified, "inference integration activation", nil, nil,

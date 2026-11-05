@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestTrainingVerificationMatrix(t *testing.T) {
 	t.Parallel()
 	root := trainingFixture(t)
 	data, err := generateTraining(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := string(data)
 	for _, required := range []string{
 		"1 model artifacts, 2 strongest training claims.",
@@ -96,9 +95,7 @@ func trainingFixture(t *testing.T) string {
 		},
 	}
 	data, err := json.MarshalIndent(specification, "", " ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	testutil.WriteTextFile(t, root, filepath.FromSlash("docs/verification/fixture-training.json"), string(data)+"\n")
 	return root
 }

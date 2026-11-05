@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,14 +27,10 @@ func TestImageComponentIdentityExcludesSiblingLayout(t *testing.T) {
 	decoder := func(components []artifact.Component) artifact.ID {
 		t.Helper()
 		parent, err := artifact.NewManifest(artifact.KindModel, components)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		before := slices.Clone(parent.Components)
 		bindings, _, err := latentImageComponentBindings(source, modelartifact.Inventory{Manifest: parent})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(parent.Components, before) {
 			t.Fatal("binding changed the parent manifest")
 		}

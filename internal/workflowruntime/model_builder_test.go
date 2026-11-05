@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -71,9 +72,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "builder-operation")
 	store := testRepository(t)
 	result, err := ExecuteModelBuild(t.Context(), store, operation, fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fixture.phase != 5 || result.Decision.Kind() != artifact.KindEvidence || result.Model == fixture.state.Model ||
 		result.Recipe == fixture.state.Recipe {
 		t.Fatalf("builder result=%+v phases=%d", result, fixture.phase)
@@ -94,9 +93,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 func testRepository(t testing.TB) artifact.Repository {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	return store
 }

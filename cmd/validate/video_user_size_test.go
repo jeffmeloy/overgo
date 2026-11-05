@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,9 +28,7 @@ func TestVideoCellsTimeAUserSizeRequest(t *testing.T) {
 		Directory: "C:/models/wan", Location: "C:/models/wan/weights.safetensors",
 	}
 	name, args, err := reacquireCommand(cell, "C:/stores/selected")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{"run", "./cmd/recipe", "measure", "-repo", "C:/stores/selected", "-task", "video-gen", "-user-size", "C:/models/wan"}
 	if name != "go" || !slices.Equal(args, want) {
 		t.Fatalf("the command = %s %v, want go %v", name, args, want)

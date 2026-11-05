@@ -19,6 +19,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -56,9 +57,7 @@ func TestGenerationObjectiveApprovesOnHeldOutAnswers(t *testing.T) {
 	for _, prompt := range prompts[2:] {
 		answer := map[byte]string{'a': "cd", 'b': "dc"}[prompt[len(prompt)-1]]
 		document, err := json.Marshal(map[string]any{"prompt": prompt, "answers": []string{answer}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		documents = append(documents, string(document))
 	}
 	approveTextObjective(t, documents, trainingprogram.MetricGeneratedAnswer)
@@ -83,28 +82,18 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
 	ctx := t.Context()
 	weights, err := IdentifyModelWeights(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defaultRecipe, err := BootstrapObjectiveRecipe(ctx, text.store, weights, text.alias)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := recipe.RequireDefinition(ctx, text.store, defaultRecipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A declared alternate policy must change the updates themselves, not just the recorded recipe label.
 	policy := trainingprogram.BuiltinOptimizerPolicy()
 	policy.ParameterExponent, policy.MomentumEffectiveSamples = -0.5, 7
 	policy.ID, err = artifact.JSONID(artifact.KindProfile, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := policy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := text.store.Commit(ctx, artifact.Batch{Key: "selected-policy", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
@@ -114,9 +103,7 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 		}
 	}
 	selected, err := recipe.NewDefinitionWithDependencies(definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, text.store, "selected-recipe", selected); err != nil {
 		t.Fatal(err)
 	}
@@ -133,13 +120,9 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 		t.Fatalf("tokenizer = (ended %t, %v), want the declared end-of-sequence token", tokenizer.ended, err)
 	}
 	data, records, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, window, false, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	training, heldout, err := objectiveMemberships(ctx, text.store, text.objective)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var packed [][]int
 	trained := map[string]bool{}
 	for _, record := range training.Records {
@@ -149,9 +132,7 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 		packed, trained[record.ID] = append(packed, records[record.ID].tokens), true
 	}
 	windows, _, position, err := packWindows(packed, nil, tokenizer.end, window, steps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for step, tokens := range windows {
 		if len(tokens) != window {
 			t.Fatalf("window %d holds %d tokens, want exactly %d", step, len(tokens), window)
@@ -170,27 +151,19 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 
 	// The published model is the base trained on exactly these windows.
 	base, err := loadTrainableModel(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	muonPlan, err := base.TrainingPlan()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: steps, MaximumSequence: window,
 		Parameters: muonPlan.ParameterCount(), Optimizer: policy,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := base.Train(windows, plan.Optimizer().BaseLearningRate, plan.Optimizer().Momentum, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	published, err := loadTrainableModel(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, values := range base.Weights {
 		if !slices.Equal(published.Weights[name], values) {
 			t.Fatalf("published %s differs from the base trained on the packed windows", name)
@@ -247,9 +220,7 @@ func TestTextObjectiveSessionRecordsItsLoad(t *testing.T) {
 		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "trained"),
 		Steps: 2, MaximumSequence: 8, Host: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	session, err := runrecord.RequireServingObservation(ctx, text.store, result.Observation)
 	if err != nil || len(session.Phases) != 1 || session.Phases[0].Phase != runrecord.PhaseLoad || session.Phases[0].DurationNS == 0 {
 		t.Fatalf("session phases = (%+v, %v), want the run's load alone", session.Phases, err)
@@ -271,40 +242,24 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
 	ctx := t.Context()
 	weights, err := IdentifyModelWeights(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID, err := BootstrapObjectiveRecipe(ctx, text.store, weights, text.alias)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, err := loadTrainableModel(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenizer, err := loadTrainableTokenizer(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data, _, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, 8, false, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := model.TrainingPlan()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, state, err := model.Train([][]int{{1, 2, 3, 4}, {4, 3, 2, 1}}, 0.01, 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publish := func(frozen bool) trainingprogram.Checkpoint {
 		request := TextHeldoutRequest{ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, fmt.Sprintf("trained-%t", frozen)), FreezeLexical: frozen}
 		stream := trainingdata.StreamState{Identity: data.Training, Position: 1}
 		checkpoint, err := publishTrainedText(ctx, text.store, request, request.OutputDirectory, true, model, plan, recipeID, text.objective, stream, state)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return checkpoint
 	}
 	unfrozen, frozen := publish(false), publish(true)
@@ -315,9 +270,7 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 		specs[index].Frozen = group.Name == embedding || group.Name == head
 	}
 	stepped, err := hostoptimizer.CompilePlan(plan.ParameterCount(), specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frozen.Optimizer.PlanIdentity != stepped.Identity() || unfrozen.Optimizer.PlanIdentity != plan.Identity() {
 		t.Fatalf("recorded plans = (frozen %s, unfrozen %s), want (%s, %s)", frozen.Optimizer.PlanIdentity, unfrozen.Optimizer.PlanIdentity, stepped.Identity(), plan.Identity())
 	}
@@ -352,9 +305,7 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 			Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, output),
 			Steps: steps, MaximumSequence: 8, Host: true, Proof: proof,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	full := run("full", 2, false)
@@ -384,9 +335,7 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 		t.Fatalf("held-out verdicts judged sessions (%v, %v), want the full run's %s alone", judged, err, full.Observation)
 	}
 	modelID, err := identifyModel(text.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, text.store, modelID, recipe.TaskTraining)
 	if err != nil || !found {
 		t.Fatalf("training activation = (found %t, %v), want the recipe active", found, err)
@@ -420,9 +369,7 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 func TestPackWindowsCyclesAShortStream(t *testing.T) {
 	const end = 9
 	windows, _, position, err := packWindows([][]int{{1, 2}, {3}}, nil, end, 8, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := [][]int{{1, 2, end, 3, end, 1, 2, end}, {3, end, 1, 2, end, 3, end, 1}, {2, end, 3, end, 1, 2, end, 3}}
 	// 24 tokens read cycle the 5-token stream 4 times, then begin both
 	// documents of the fifth pass.
@@ -494,44 +441,30 @@ func registerScoredText(t *testing.T, documents []string, metric trainingprogram
 	})
 	modelDirectory := filepath.Join(root, "model")
 	writeModel(t, modelDirectory, weights, shapes)
-	if err := os.WriteFile(filepath.Join(modelDirectory, "generation_config.json"), []byte(`{"eos_token_id":0}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(modelDirectory, "generation_config.json"), []byte(`{"eos_token_id":0}`), 0o600))
 	corpus := filepath.Join(root, "corpus")
-	if err := os.MkdirAll(corpus, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(corpus, 0o755))
 	for index, document := range documents {
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(document), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(document), 0o600))
 	}
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
 	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var records []dataset.Record
 	for index := range uint64(len(documents)) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
 		records = append(records, dataset.Record{ID: id, Group: id})
 	}
 	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -549,9 +482,7 @@ func registerScoredText(t *testing.T, documents []string, metric trainingprogram
 		Metric: metric, HeldoutRecords: scored, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const alias = "objective.registered.texts"
 	registerObjective(t, ctx, store, root, objective, alias)
 	return registeredText{store: store, root: root, model: modelDirectory, objective: objective, alias: alias}

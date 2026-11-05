@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modeltest"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,26 +19,18 @@ func TestRuntimeDescriptionPreservesCompiledOrderAndEvidence(t *testing.T) {
 		modelID, profileID, definitionID, recipe.PlacementHost,
 		DecodeSessionRequest, recipe.ResidencyHostCache,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := modeltest.Qwen35DenseRecurrentPair()
 	plan, err := compileInferenceFixture(definition, fixture.Spec, fixture.ServingWeights())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan.Evidence = []artifact.ID{
 		testutil.ArtifactID(t, artifact.KindEvidence, "description-gate"),
 		testutil.ArtifactID(t, artifact.KindRun, "description-run"),
 	}
 	description, err := Describe(plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := compiled.Stages()
 	if len(description.Stages) != len(want) {
 		t.Fatalf("stage count = %d, want %d", len(description.Stages), len(want))

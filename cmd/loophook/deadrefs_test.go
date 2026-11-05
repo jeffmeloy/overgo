@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/repoanalysis"
+	"overgo/internal/testcheck"
 )
 
 // TestDeadReferencesAreReported holds the session-start scan to what prose
@@ -22,12 +23,8 @@ func TestDeadReferencesAreReported(t *testing.T) {
 		"internal/present/x_test.go": "package present\n\nimport \"testing\"\n\nfunc TestAlive(t *testing.T) {}\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	text := "Run cmd/tool, not cmd/gone. Read internal/present/x.go, not internal/absent/y.go (internal/absent/y.go twice). " +
 		"TestAlive holds it; TestGone did. The TestAli* prefix, cmd/<name>, docs/29.6 MB and cmd/x are no references."

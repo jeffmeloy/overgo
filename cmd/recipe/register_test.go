@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -39,24 +40,16 @@ func TestModelRegistrationIsAtomicIdempotentAndInactive(t *testing.T) {
 	write := func(values []modelRegistration) {
 		t.Helper()
 		data, err := json.Marshal(values)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(declaration, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(declaration, data, 0o600))
 	}
 	args := []string{"-repo", repository, "-root", root, "-spec", declaration}
 	write([]modelRegistration{specification})
-	if err := registerModels(args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registerModels(args))
 	inspect := func() artifact.CommitID {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		if _, found, err := store.Manifest(t.Context(), specification.Model); err != nil || !found {
 			t.Fatalf("registered model missing: %v", err)
@@ -73,9 +66,7 @@ func TestModelRegistrationIsAtomicIdempotentAndInactive(t *testing.T) {
 		return head
 	}
 	head := inspect()
-	if err := registerModels(args); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registerModels(args))
 	if inspect() != head {
 		t.Fatal("idempotent registration advanced the journal")
 	}
@@ -130,9 +121,7 @@ func registrationFixture(t *testing.T) (string, modelRegistration) {
 	t.Helper()
 	root := t.TempDir()
 	directory := filepath.Join(root, "fixture")
-	if err := os.Mkdir(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(directory, 0o700))
 	header := `{"weight":{"dtype":"F32","shape":[1],"data_offsets":[0,4]}}`
 	weights := make([]byte, 8)
 	binary.LittleEndian.PutUint64(weights, uint64(len(header)))
@@ -144,9 +133,7 @@ func registrationFixture(t *testing.T) (string, modelRegistration) {
 		"tokenizer.json":    []byte(`{"version":"1.0"}`),
 		"model.safetensors": weights, "README.md": license,
 	} {
-		if err := os.WriteFile(filepath.Join(directory, name), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o600))
 	}
 	git := func(arguments ...string) string {
 		t.Helper()
@@ -164,14 +151,10 @@ func registrationFixture(t *testing.T) (string, modelRegistration) {
 	source := "https://example.invalid/model"
 	git("remote", "add", "origin", source)
 	inventory, err := modelartifact.FromHFPath(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value := modelRegistration{Directory: "fixture", Model: inventory.Manifest.ID, TensorInventory: inventory.TensorInventory.ID, SourceRepository: source, SourceCommit: git("rev-parse", "HEAD")}
 	value.License.Path, value.License.SPDX, value.License.MediaType = "README.md", "LicenseRef-Fixture", "text/markdown"
 	value.License.Artifact, err = artifact.IdentifyBytes(artifact.KindFile, license)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return root, value
 }

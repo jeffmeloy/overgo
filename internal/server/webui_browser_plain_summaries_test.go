@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -22,9 +23,7 @@ func TestWebUIBrowserPlainSummaries(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the plain summaries leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// One finished run, so the Runs tab shows its table.
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "summaries-recipe")
@@ -33,13 +32,9 @@ func TestWebUIBrowserPlainSummaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := run.Batch("fixture/run")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

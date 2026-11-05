@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,13 +24,9 @@ func TestCompositeGenerationCUDAEvidence(t *testing.T) {
 		ExactOutputParity: true,
 	}
 	evidence, err := (CompositeGenerationCUDAAuthority{}).New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := evidence.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := (CompositeGenerationCUDAAuthority{}).Parse(content.Data)
 	if err != nil || parsed.ID != evidence.ID || parsed.ValidateIdentity() != nil {
 		t.Fatalf("CUDA evidence round trip = %+v, %v", parsed, err)

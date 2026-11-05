@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestDeterministicRSIControlPlane proves the storage slice of the control
@@ -19,24 +20,16 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	sourceRoot := filepath.Join(base, "source")
 	ctx := t.Context()
 	store, err := Create(sourceRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	rootEvidence, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane motivation"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	finding, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane finding"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	explanation := []byte(`{"decision":"rollback","cause":"sustained live regression"}`)
 	explanationID, err := artifact.IdentifyBytes(artifact.KindEvidence, explanation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "plane/causal-evidence",
 		Artifacts: []artifact.Descriptor{
@@ -84,19 +77,13 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 		t.Fatal(err)
 	}
 	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	rebuiltLink, rebuiltExplanation := answer(rebuilt)
 	sourceEncoded, err := json.Marshal(sourceLink)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rebuiltEncoded, err := json.Marshal(rebuiltLink)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(sourceEncoded) != string(rebuiltEncoded) {
 		t.Fatalf("causal link drifted across the rebuild: %s vs %s", sourceEncoded, rebuiltEncoded)
 	}

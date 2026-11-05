@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
 )
@@ -35,9 +36,7 @@ func TestOperationEvidenceProjection(t *testing.T) {
 		t.Fatalf("projection status=%d body=%s", response.Code, response.Body.String())
 	}
 	var projection operationEvidenceProjection
-	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &projection))
 	if projection.ID != operationID || projection.Operation == nil || projection.Operation.Run == nil ||
 		*projection.Operation.Run != *status.Run || len(projection.Stages) != len(fixture.definition.Nodes) ||
 		len(projection.Serving) != 1 || len(projection.Interactions) != 1 || len(projection.Decisions) != 1 ||
@@ -103,9 +102,7 @@ func operationEvidenceFixture(
 ) (operationEvidenceServer, artifact.ID, operation.Status) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := operationEvidenceServer{store: store, handler: newTestHandlerForRepository(t, store, &fakeGenerator{})}
 	model := commitTestBlob(t, store, artifact.KindModel, "operation-evidence-model")
 	fixture.definition, err = recipe.NewDefinitionWithDependencies(

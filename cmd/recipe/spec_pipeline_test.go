@@ -7,57 +7,38 @@ import (
 	"testing"
 
 	"overgo/internal/modelartifact"
+	"overgo/internal/testcheck"
 )
 
 func TestRecipeSpecPipelineRegistration(t *testing.T) {
 	root, _ := registrationFixture(t)
 	directory := filepath.Join(root, "fixture")
 	component := filepath.Join(directory, "transformer")
-	if err := os.MkdirAll(component, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(component, 0o700))
 	// Reuse the fixture's validated payload in the component declared by the pipeline.
 	entries, err := os.ReadDir(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		name := entry.Name()
 		if filepath.Ext(name) != ".safetensors" && name != "config.json" {
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(directory, name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(component, name), body, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(component, name), body, 0o600))
 	}
-	if err := os.WriteFile(filepath.Join(directory, "model_index.json"), []byte(`{"_class_name":"MOSSImagePipeline","transformer":["pipeline_moss_image","MOSSImageTransformer"]}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(filepath.Join(directory, "config.json")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model_index.json"), []byte(`{"_class_name":"MOSSImagePipeline","transformer":["pipeline_moss_image","MOSSImageTransformer"]}`), 0o600))
+	testcheck.NoError(t, os.Remove(filepath.Join(directory, "config.json")))
 	fixtureGit(t, directory, "add", ".")
 	fixtureGit(t, directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--no-gpg-sign", "-qm", "pipeline")
 	output := filepath.Join(t.TempDir(), "pipeline.json")
-	if err := assembleSpecification([]string{"-root", root, "-output", output, "-spdx", "fixture=Apache-2.0", "fixture"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, assembleSpecification([]string{"-root", root, "-output", output, "-spdx", "fixture=Apache-2.0", "fixture"}))
 	data, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var got []modelRegistration
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &got))
 	want, err := modelartifact.FromHFPath(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(got) != 1 || got[0].Model != want.Manifest.ID || got[0].TensorInventory != want.TensorInventory.ID {
 		t.Fatalf("declaration does not bind pipeline: %+v", got)
 	}

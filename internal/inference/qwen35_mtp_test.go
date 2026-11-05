@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -85,9 +86,7 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 
 func TestGreedyLogitProbability(t *testing.T) {
 	token, probability, err := greedyLogit([]float32{0, 1, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := math.Exp(1) / (1 + 2*math.Exp(1))
 	if token != 1 || math.Abs(probability-want) > 1e-12 {
 		t.Fatalf("greedy result = %d/%g, want 1/%g", token, probability, want)
@@ -121,9 +120,7 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	draft.path, draft.vocab = "draft", vocab
 	target := fixtureRunner(spec, model.Weights{Layers: make([]model.LayerWeights, spec.BlockCount)})
 	target.path, target.vocab = "target", vocab
-	if err := draft.validateMTPTarget(target); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, draft.validateMTPTarget(target))
 	cache := &KVCache{
 		Tokens: 1, Position: 1,
 		Layers: []LayerCache{

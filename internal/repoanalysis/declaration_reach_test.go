@@ -20,6 +20,7 @@ import (
 	"overgo/internal/gosyntax"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // reachFile is one production Go file the walk reads.
@@ -429,13 +430,9 @@ func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
 	t.Helper()
 	const root = checkoutRoot
 	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	outside, err := outsideMethods(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return snapshot, outside
 }
 
@@ -444,9 +441,7 @@ func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
 func keptList(t *testing.T, name string) []string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var kept []string
 	for line := range strings.Lines(string(data)) {
 		if line = strings.TrimSpace(line); line != "" {
@@ -676,9 +671,7 @@ func groupFigures(groups []sortGroup, held map[string][]string, lines map[string
 func recordGroups(t *testing.T) []sortGroup {
 	t.Helper()
 	text, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(sortRecord)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	groups, err := sortGroups(string(text))
 	if err != nil {
 		t.Fatalf("%s: %v", sortRecord, err)
@@ -777,9 +770,7 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 
 	snapshot, outside := checkoutSource(t)
 	found, universe, err := unreachedDeclarations(t.Context(), checkoutRoot, outside)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if universe == 0 || len(outside) == 0 {
 		t.Fatalf("the walk read %d declarations and %d interface methods outside the module, want some of each", universe, len(outside))
 	}
@@ -825,9 +816,7 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	t.Logf("declarations=%d unreached=%d lines=%d groups=%d", universe, len(found), lines, len(groups))
 	t.Run("record schema writers", func(t *testing.T) {
 		found, named, records, err := unwrittenRecordSchemas(snapshot, outside)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if records == 0 || records == len(found) {
 			t.Fatalf("the reading found %d record schemas and a writer for %d, want some of each", records, records-len(found))
 		}
@@ -854,19 +843,13 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 func surfaceDirectories(t *testing.T) map[string]bool {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	packages, err := inferencesurface.Packages(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inside := map[string]bool{}
 	for _, pkg := range packages {
 		directory, err := filepath.Rel(root, pkg.Dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inside[filepath.ToSlash(directory)] = true
 	}
 	return inside

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -41,9 +42,7 @@ func assertDecodedTokensContinue(t *testing.T, runner *Runner) {
 		ctx, cancel := context.WithCancelCause(t.Context())
 		defer cancel(nil)
 		sampler, err := sampling.New(sampling.Config{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var evaluation PromptEvaluation
 		delivered := 0
 		result, _, err := runner.Generate(ctx, "", GenerateOptions{
@@ -81,9 +80,7 @@ func openPromptCacheHostRunner(t *testing.T) *Runner {
 	t.Helper()
 	path := testutil.HermeticLlamaGGUF(t, 16)
 	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = runner.Close() })
 	return runner
 }
@@ -99,9 +96,7 @@ func generatePromptCacheFixture(t *testing.T, runner *Runner, prompt []tokenizer
 	ctx, stop := context.WithCancelCause(t.Context())
 	defer stop(nil)
 	sampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var result promptCacheGeneration
 	result.ids, _, err = runner.Generate(ctx, "", GenerateOptions{
 		PromptTokenIDs: prompt, MaxNewTokens: 4, ContinueAfterEOG: true,
@@ -184,9 +179,7 @@ func assertPromptCacheAfterDecode(t *testing.T, runner *Runner) {
 //   - a cache whose release fails returns to the pool, so Close releases it
 func clearPromptCaches(t *testing.T, runner *Runner) {
 	t.Helper()
-	if err := runner.lockOpen(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runner.lockOpen())
 	caches := runner.detachPromptCaches()
 	runner.mu.Unlock()
 	failed, err := releasePromptCaches(t.Context(), caches)

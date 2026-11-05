@@ -17,6 +17,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -30,9 +31,7 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 	ctx := t.Context()
 	repository := registerClipCorpus(t)
 	var out bytes.Buffer
-	if err := run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=1,heldout=1"), &out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=1,heldout=1"), &out))
 	if !strings.Contains(out.String(), "pair text->video") {
 		t.Fatalf("publish output = %q", out.String())
 	}
@@ -41,45 +40,33 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 	}
 
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
 	document, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Kind != trainingprogram.ObjectiveFlowMatching || document.Authority != trainingprogram.ObjectiveDeclared {
 		t.Fatalf("objective = %+v", document.ObjectiveSpec)
 	}
 	plan, err := optimizer.CompilePlan(4, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := trainingprogram.CompileObjectiveProgram(
 		trainingprogram.ObjectiveFlowMatching,
 		[]trainingprogram.ParameterSpec{{Name: "weight", Rows: 2, Cols: 2, Trainable: true}},
 		plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := trainingprogram.CompileTrainingObjectiveMatrix(ctx, store,
 		[]artifact.ID{objectiveID}, []trainingprogram.TrainingProgram{program})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(compiled) != 1 || compiled[0].Disposition != trainingprogram.ObjectiveProgramCompiled {
 		t.Fatalf("compiled rows = %+v, want the flow-matching program bound", compiled)
 	}
 	matrix, err := trainingprogram.CompileObjectiveMatrix(ctx, store, []artifact.ID{objectiveID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainable := false
 	for _, row := range matrix {
 		if row.Signature.Inputs[0] == recipecontract.ModalityText && row.Signature.Outputs[0] == recipecontract.ModalityVideo {
@@ -102,18 +89,12 @@ func TestObjectiveMatrixListsRegisteredPairs(t *testing.T) {
 	image := append(slices.Clone(video), "-name", "text to image flow matching",
 		"-output", "image", "-metric", string(trainingprogram.MetricImagePSNRSigned))
 	for _, args := range [][]string{video, image} {
-		if err := run(args, io.Discard); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, run(args, io.Discard))
 	}
 	var out bytes.Buffer
-	if err := run([]string{"-repo", repository, "-matrix"}, &out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run([]string{"-repo", repository, "-matrix"}, &out))
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var want []string
 	for _, output := range []recipecontract.Modality{recipecontract.ModalityImage, recipecontract.ModalityVideo} {
@@ -168,22 +149,16 @@ func TestPublishObjectiveBindsTrainingMembership(t *testing.T) {
 			t.Fatalf("split %q %q = %v, want %q", refused.group, refused.weights, err, refused.want)
 		}
 	}
-	if err := run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard))
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
 	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	training, found, err := dataset.LoadMembership(ctx, store, objective.Split)
 	if err != nil || !found || training.Partition != trainPartition || training.Source != objective.Dataset {
 		t.Fatalf("objective split = (%+v, %t, %v), want the committed train membership of its dataset", training, found, err)
@@ -212,27 +187,19 @@ func registerClipCorpus(t *testing.T) string {
 	t.Helper()
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	corpus := t.TempDir()
 	for index := range clipCorpusFiles - 1 {
 		// Distinct bytes per clip: identical files deduplicate to one record.
 		clip := make([]byte, 2048)
 		clip[0] = byte(index + 1)
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("clip-%02d.mp4", index)), clip, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("clip-%02d.mp4", index)), clip, 0o600))
 	}
-	if err := os.WriteFile(filepath.Join(corpus, "captions.json"), []byte(`[{"vid":"clip-00","caption":"c"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, "captions.json"), []byte(`[{"vid":"clip-00","caption":"c"}]`), 0o600))
 	if _, err := dataset.RegisterDirectoryDataset(t.Context(), store, "clip-corpus", corpus); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return repository
 }
 
@@ -265,22 +232,16 @@ func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	repository := registerClipCorpus(t)
-	if err := run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard))
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
 	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	training, found, err := dataset.LoadMembership(ctx, store, objective.Split)
 	if err != nil || !found {
 		t.Fatalf("training membership = (%t, %v)", found, err)
@@ -306,9 +267,7 @@ func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
 func mustChildren(t *testing.T, store *overgodb.Store, id artifact.ID) []artifact.ID {
 	t.Helper()
 	lineage, err := store.Children(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var children []artifact.ID
 	for _, edge := range lineage {
 		children = append(children, edge.Child)

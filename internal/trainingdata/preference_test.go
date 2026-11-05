@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 func TestPreferenceExampleContract(t *testing.T) {
@@ -16,9 +17,7 @@ func TestPreferenceExampleContract(t *testing.T) {
 		}
 	}
 	example := Example{ID: reference.id, Group: reference.group, Values: []Value{value(RoleChosen), value(RoleRejected)}}
-	if err := validateExample(example, reference, processor); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateExample(example, reference, processor))
 	example.Values[0].Completion = nil
 	if err := validateExample(example, reference, processor); err == nil {
 		t.Fatal("accepted chosen value without completion mask")

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,13 +27,9 @@ func fixtureAttempt(t *testing.T) AttemptRecord {
 // record re-parses to the identical identity and observations.
 func TestAttemptRecordRoundTrip(t *testing.T) {
 	record, err := NewAttemptRecord(fixtureAttempt(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := record.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := attemptCodec.Parse(content.Data)
 	if err != nil || parsed.ID != record.ID || parsed.PlanItem != "attempt-records" ||
 		parsed.Selection.Excluded != 5 || parsed.Diff.Insertions != 40 {

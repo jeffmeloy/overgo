@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -36,9 +37,7 @@ func TestServingGoldenRegression(t *testing.T) {
 	cudatest.Require(t)
 	fixturePath := testutil.FixturePath(t, "qwen35_4b_serving_golden.json")
 	var golden servingGolden
-	if err := jsonfile.Decode(fixturePath, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(fixturePath, &golden))
 	if len(golden.Cases) == 0 {
 		t.Fatal("serving golden has no cases")
 	}
@@ -46,19 +45,13 @@ func TestServingGoldenRegression(t *testing.T) {
 		modeltest.Directory(t, "Qwen3.5-4B-f16.gguf"), recipe.PlacementHybrid,
 		modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	for _, testCase := range golden.Cases {
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens:   len(testCase.GeneratedIDs),
 			Sampler:        greedy,

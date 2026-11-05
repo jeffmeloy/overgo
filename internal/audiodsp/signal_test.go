@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestAudioSignalIntegrity(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			p, err := MeasureSignal(t.Context(), source, media.DecodedAudio{Format: format, Samples: test.samples}, 1)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if p.SampleCount != uint64(len(test.samples)) || p.FrameCount != uint64(len(test.samples)/2) || p.FiniteSampleCount != test.finite || p.NonFiniteSampleCount != test.nonfinite || p.ClippedSampleCount != test.clipped || p.PeakAbsolute != test.peak || p.RootMeanSquare != test.rms || p.DCOffset != test.dc {
 				t.Fatalf("profile=%+v", p)
 			}

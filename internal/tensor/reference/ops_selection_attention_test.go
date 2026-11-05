@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 func TestCacheAppendPreservesCapacityAndWritesLogicalOffset(t *testing.T) {
@@ -15,9 +16,7 @@ func TestCacheAppendPreservesCapacityAndWritesLogicalOffset(t *testing.T) {
 		Value{Shape: tensor.MustShape(2, 1, 1), Data: []float32{5, 6}},
 		tensor.CacheAppendAttributes{Axis: 2, Offset: 2},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{1, 2, 3, 4, 5, 6, 0, 0}
 	for index := range want {
 		if result.Data[index] != want[index] {
@@ -37,18 +36,14 @@ func TestAttentionUsesLogicalTokensWithinCapacity(t *testing.T) {
 		shape, query, compactKey, compactValue, nil, nil, nil, nil,
 		tensor.AttentionAttributes{Scale: 1, Causal: true, QueryStart: 1},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capacity, err := attention(
 		shape, query, capacityKey, capacityValue, nil, nil, nil, nil,
 		tensor.AttentionAttributes{
 			Scale: 1, Causal: true, QueryStart: 1, KeyValueTokens: 2,
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if delta := math.Abs(float64(compact.Data[0] - capacity.Data[0])); delta > 1e-6 {
 		t.Fatalf("logical/capacity attention = %v/%v", compact.Data, capacity.Data)
 	}
@@ -67,16 +62,12 @@ func TestTopKPartialMerge(t *testing.T) {
 	attributes := tensor.TopKAttributes{K: 2, Chunk: 3}
 	partialShape := tensor.MustShape(2, 2, 2, 1)
 	partials, err := topKPartials(partialShape, input, attributes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if partials.Data[0] < 0 {
 		t.Fatalf("partials = %v", partials.Data)
 	}
 	merged, err := topKPairs(tensor.MustShape(2, 2, 1), partials, attributes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if merged.Data[0] != 1 || merged.Data[2] != 3 {
 		t.Fatalf("merged = %v", merged.Data)
 	}
@@ -93,16 +84,12 @@ func TestTopKPartialMergeMultiChunk(t *testing.T) {
 		tensor.MustShape(2, 40, 5, 2),
 		Value{Shape: tensor.MustShape(width, 2), Data: data}, attributes,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if partials.Data[0] < 0 {
 		t.Fatalf("partial head = %v", partials.Data[:8])
 	}
 	merged, err := topKPairs(tensor.MustShape(2, 40, 2), partials, attributes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if merged.Data[0] < 0 {
 		t.Fatalf("merged head = %v", merged.Data[:8])
 	}

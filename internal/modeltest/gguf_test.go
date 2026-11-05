@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 // TestRegisteredGGUFSelection holds GGUF selection to the registered files it
@@ -23,9 +24,7 @@ func TestRegisteredGGUFSelection(t *testing.T) {
 	encode := func(metadata ...gguf.Metadata) []byte {
 		t.Helper()
 		var encoded bytes.Buffer
-		if err := gguf.Write(&encoded, metadata, nil, gguf.WriteOptions{}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, gguf.Write(&encoded, metadata, nil, gguf.WriteOptions{}))
 		return encoded.Bytes()
 	}
 	text := func(key, value string) gguf.Metadata {
@@ -34,9 +33,7 @@ func TestRegisteredGGUFSelection(t *testing.T) {
 	write := func(name string, data []byte) string {
 		t.Helper()
 		path := filepath.Join(directory, name)
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 		return path
 	}
 	valid := encode(text(architectureKey, "fixture"))

@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -46,9 +47,7 @@ func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 		},
 	}
 	var output strings.Builder
-	if err := ExecuteRemotePeer(t.Context(), server.Client(), selection, strings.NewReader(input), &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ExecuteRemotePeer(t.Context(), server.Client(), selection, strings.NewReader(input), &output))
 	if output.String() != responseBody {
 		t.Fatalf("peer output=%q", output.String())
 	}

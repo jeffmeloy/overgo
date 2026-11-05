@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestLoadGGUFImportanceMatrixNormalizesExpertCounts(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "imatrix.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	metadata := []Metadata{
 		{Key: "imatrix.datasets", Value: Value{Type: ValueTypeArray, ArrayType: ValueTypeString, Data: []string{"fixture"}}},
 		{Key: "imatrix.chunk_count", Value: Value{Type: ValueTypeUint32, Data: uint32(3)}},
@@ -29,13 +29,9 @@ func TestLoadGGUFImportanceMatrixNormalizesExpertCounts(t *testing.T) {
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	matrix, err := LoadImportanceMatrix(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if matrix.Legacy || matrix.ChunkCount != 3 || matrix.ChunkSize != 512 ||
 		!reflect.DeepEqual(matrix.Datasets, []string{"fixture"}) {
 		t.Fatalf("metadata = %+v", matrix)
@@ -61,13 +57,9 @@ func TestLoadLegacyImportanceMatrix(t *testing.T) {
 	dataset := "legacy-fixture"
 	write(int32(len(dataset)))
 	_, _ = data.WriteString(dataset)
-	if err := os.WriteFile(path, data.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data.Bytes(), 0o644))
 	matrix, err := LoadImportanceMatrix(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !matrix.Legacy || matrix.ChunkCount != 5 ||
 		!reflect.DeepEqual(matrix.Datasets, []string{dataset}) ||
 		!reflect.DeepEqual(matrix.Entries[name], []float32{1, 2, 3, 4}) {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -17,9 +18,7 @@ import (
 // independently sourced Kimi K3 tokenizer before any adapter implementation.
 func TestKimiLiteralReferenceFixture(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_k3_literal_reference.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "60f04dde1eef39a86ad68058d05b829ae7f063b9bafe4fa24560f550a2643f9c" {
 		t.Fatalf("Kimi literal reference projection changed: %s", got)
 	}
@@ -41,9 +40,7 @@ func TestKimiLiteralReferenceFixture(t *testing.T) {
 		OrdinaryAddedText string   `json:"ordinary_added_text"`
 		OrdinaryAddedID   int      `json:"ordinary_added_id"`
 	}
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	if reference.SourceCommit != "3f11cbe14873d9b64356607af3bbef7608aadf5b" ||
 		reference.SourceSHA256 != "b55c4532c501114da9a8891b77d244fa32eee2ace2bd51abb5dc4fb156f60eb9" ||
 		reference.PublishedReference != "https://huggingface.co/moonshotai/Kimi-K3/discussions/60" ||

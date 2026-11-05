@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,20 +33,14 @@ func newAttemptGateChain(
 	testutil.PublishArtifact(t, store, recipeID)
 	environmentID := publishGateTestEnvironment(t, ctx, store, "attempt-gate-environment")
 	preparation, err := newGatePreparation(strings.Repeat("a", 64), environmentID, time.Unix(1_000, 2))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	preparationContent, err := preparation.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(publishPreparation) == 0 || publishPreparation[0] {
 		preparationBatch, err := artifact.NewDocumentBatch(
 			"fixture/attempt-gate/preparation", []artifact.Content{preparationContent}, preparation.Lineage(), nil,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.CommitAs(ctx, gateDoor, preparationBatch); err != nil {
 			t.Fatal(err)
 		}
@@ -54,22 +49,16 @@ func newAttemptGateChain(
 	gate, err := NewGateRecord(
 		recipeID, environmentID, fixtureCodeCommit, OutcomeSucceeded, "", 10, steps,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	finalization, err := newGateFinalization(
 		preparation, fixtureCodeCommit, gate.Result.ID, OutcomeSucceeded,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attempt, err := NewAttemptRecord(AttemptRecord{
 		PlanItem: "authority", PlanStep: "complete", Result: gate.Result.ID, Recipe: recipeID,
 		CodeCommit: fixtureCodeCommit, Outcome: OutcomeSucceeded, WallNS: 10,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return attemptGateChain{
 		recipe: recipeID, environment: environmentID, preparation: preparation,
 		gate: gate, finalization: finalization, attempt: attempt,
@@ -90,9 +79,7 @@ func commitAttemptGateChain(
 	var lineage []artifact.Lineage
 	appendDocument := func(content artifact.Content, edges []artifact.Lineage, err error) {
 		t.Helper()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contents = append(contents, content)
 		lineage = append(lineage, edges...)
 	}
@@ -117,9 +104,7 @@ func commitAttemptGateChain(
 		appendDocument(content, chain.attempt.Lineage(), err)
 	}
 	batch, err := artifact.NewDocumentBatch(key, contents, lineage, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -128,9 +113,7 @@ func commitAttemptGateChain(
 func TestGateFinalizationForPreparation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	chain := newAttemptGateChain(t, ctx, store, []GateStep{
 		{Name: "acceptance", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 1},
@@ -147,9 +130,7 @@ func TestGateFinalizationForPreparation(t *testing.T) {
 func TestGateFinalizationForPreparationRejectsConflict(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	chain := newAttemptGateChain(t, ctx, store, []GateStep{{
 		Name: "commit", Phase: phasePackage, Outcome: StepSucceeded, DurationNS: 1,
@@ -161,19 +142,13 @@ func TestGateFinalizationForPreparationRejectsConflict(t *testing.T) {
 	conflict, err := newGateFinalization(
 		chain.preparation, strings.Repeat("b", 40), foreignResult, OutcomeFailed,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := conflict.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(
 		"fixture/attempt-gate/conflicting-finalization", []artifact.Content{content}, conflict.Lineage(), nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -186,16 +161,12 @@ func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 	verify := "go test ./internal/plan -run '^TestExact$' -count=1"
 	reference := "authority-ratchet/complete.step"
 	evidence, err := formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !strings.HasPrefix(evidence, "completion policy=verify-classifier-v1 plan="+reference+" verify_sha256=") ||
 		!strings.HasSuffix(evidence, " verdict=bitwise-deterministic") {
 		t.Fatalf("completion evidence = %q", evidence)
 	}
-	if err := VerifyCompletionAcceptanceEvidence(evidence, reference, verify); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyCompletionAcceptanceEvidence(evidence, reference, verify))
 	for _, changed := range []struct{ reference, verify string }{
 		{reference: "authority/other", verify: verify},
 		{reference: reference, verify: verify + " -v"},
@@ -234,16 +205,12 @@ func TestCompletionAcceptanceEvidenceReplaysFrozenPolicy(t *testing.T) {
 	reference := "authority-ratchet/frozen-policy"
 	verify := "go test ./internal/plan -run '^TestFutureDeviceMarker$' -count=1"
 	evidence, err := formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	simulatedNewerClassifier := func(string) VerdictClass {
 		return VerdictToleranceBounded
 	}
 	v1, err := ClassifyVerifyCommandForPolicy(VerifyPolicyV1, verify)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if newer := simulatedNewerClassifier(verify); newer == v1 {
 		t.Fatal("simulated newer classifier did not differ from frozen v1")
 	}

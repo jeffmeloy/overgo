@@ -24,6 +24,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -39,9 +40,7 @@ func TestE4BImageMaskCausality(t *testing.T) {
 	if publish {
 		var err error
 		revision, err = runrecord.VerifyingCommit(testutil.RepoRoot(t))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	var golden struct {
 		ConfigSHA string              `json:"config_sha256"`
@@ -57,35 +56,23 @@ func TestE4BImageMaskCausality(t *testing.T) {
 		} `json:"results"`
 	}
 	data, err := os.ReadFile(testutil.FixturePath(t, "e4b_vision", "hidden_mask_golden.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(data, &golden))
 	if len(golden.Results) != 2 || len(golden.Results[0].Deltas) != 2 || len(golden.Results[1].Deltas) != 2 || golden.Results[0].Declaration != nil || golden.Results[1].Declaration == nil || *golden.Results[1].Declaration != "vision" ||
 		golden.Results[0].Deltas["0"] != 0 || golden.Results[0].Deltas["5"] != 0 || golden.Results[1].Deltas["0"] <= 0 {
 		t.Fatal("native capture does not distinguish causal and wrong vision masks")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, modelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	if runner.ModelID().String() != "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b" {
 		t.Fatal("model differs from native checkpoint binding")
@@ -108,29 +95,19 @@ func TestE4BImageMaskCausality(t *testing.T) {
 		t.Fatalf("E4B image attention: %v", err)
 	}
 	projection, err := projector.OpenSession(t.Context(), projectorPath, projector.OpenOptions{CUDA: true, MediaPreprocess: &bound})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projection.Close()
 	imageBytes, err := os.ReadFile(testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fmt.Sprintf("%x", sha256.Sum256(imageBytes)) != golden.ImageSHA {
 		t.Fatal("image differs from native capture")
 	}
 	picture, err := png.Decode(bytes.NewReader(imageBytes))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt, err := projection.BuildImagePrompt(t.Context(), runner, picture, "", "What is in this image? One word.", false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, projected, err := CompileProjectedInputs(prompt, runner.spec.EmbeddingLength)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(ids, golden.PromptIDs) || len(projected.BidirectionalAttentionBlocks) != 0 ||
 		int(prompt.EmbeddingTokenIndices[0]) != golden.Query || int(prompt.EmbeddingTokenIndices[len(prompt.EmbeddingTokenIndices)-1]) != golden.Future {
 		t.Fatal("probe prompt or image positions differ from native capture")
@@ -171,15 +148,11 @@ func TestE4BImageMaskCausality(t *testing.T) {
 				}
 			}
 			capture, err := newLayerInputCapture([]int32{1, 6}, len(runner.weights.Layers))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			runner.mu.Lock()
 			_, _, err = runner.forwardCachedProjectedChunkModeLocked(t.Context(), ids, nil, input, false, capture)
 			runner.mu.Unlock()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			rows := make(map[int32][]float32)
 			for _, layer := range []int32{1, 6} {
 				value, ok := capture.values[layer]
@@ -218,36 +191,24 @@ func TestE4BImageMaskCausality(t *testing.T) {
 			t.Fatalf("mask producer source changed: %v", err)
 		}
 		definition, err := modelrecipe.ProjectionDefinition(runner.ModelID(), inventory.Manifest.ID, bound.ID, media...)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := recipe.RequireDefinition(t.Context(), store, definition.ID); err != nil {
 			t.Fatalf("publish the config-bound projection candidate through the protocol producer first: %v", err)
 		}
 		environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		duration := uint64(time.Since(started).Nanoseconds())
 		record, err := runrecord.NewGateRecord(definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", duration,
 			[]runrecord.GateStep{{Name: "image-mask-causality", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: duration,
 				Evidence: fmt.Sprintf("native_hidden_sha256=%x;policies=2;interventions=2;layers=2", sha256.Sum256(data))}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := record.Batch("validation/image-mask/" + record.Result.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := environment.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Contents = append(batch.Contents, content)
 		writer, err := overgodb.Create(roots.Store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer writer.Close()
 		if _, err := artifact.CommitBatch(t.Context(), writer, batch); err != nil {
 			t.Fatal(err)

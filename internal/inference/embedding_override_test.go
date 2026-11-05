@@ -11,6 +11,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -19,9 +20,7 @@ func TestCogVLMVisualEmbeddingAdmission(t *testing.T) {
 		{TokenIndex: 1, Embedding: []float32{1}},
 		{TokenIndex: 0, Embedding: []float32{2}},
 	}
-	if err := validateCogVLMVisualOverrides(2, complete); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateCogVLMVisualOverrides(2, complete))
 	for _, test := range []struct {
 		name      string
 		overrides []EmbeddingOverride
@@ -47,9 +46,7 @@ func TestCogVLMMixedVisualExpertBlockAdmission(t *testing.T) {
 		{TokenIndex: 4, Embedding: []float32{3}},
 	}
 	blocks, err := validateVisualExpertBlocks(6, []AttentionBlock{{Start: 4, End: 5}, {Start: 1, End: 3}}, overrides)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(blocks) != 2 || blocks[0] != (AttentionBlock{Start: 1, End: 3}) {
 		t.Fatalf("ordered blocks = %v", blocks)
 	}
@@ -85,9 +82,7 @@ func TestCogVLMVisualGraphWeightSelection(t *testing.T) {
 		builder.Input("visual_up", dtype.F32, tensor.MustShape(2, 3)),
 		builder.Input("visual_down", dtype.F32, tensor.MustShape(3, 2)),
 	}
-	if err := selectCogVLMVisualGraphWeights(&weights, visual); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, selectCogVLMVisualGraphWeights(&weights, visual))
 	if weights.AttentionQ != nil || weights.AttentionK != nil || weights.AttentionV != nil ||
 		weights.AttentionQKV != visual[0] || weights.AttentionOutput != visual[1] ||
 		weights.FeedForwardGate != visual[2] || weights.FeedForwardUp != visual[3] ||
@@ -165,9 +160,7 @@ func TestApplyEmbeddingOverrides(t *testing.T) {
 	err := applyEmbeddingOverrides(&activation, []EmbeddingOverride{
 		{TokenIndex: 1, Embedding: []float32{10, 11, 12}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{1, 2, 3, 10, 11, 12, 7, 8, 9}
 	for index := range want {
 		if activation.Data[index] != want[index] {
@@ -184,9 +177,7 @@ func TestApplyGemmaRawEmbeddingOverridesScalesOnlyTokens(t *testing.T) {
 	err := applyScaledRawEmbeddingOverrides(&activation, []EmbeddingOverride{
 		{TokenIndex: 1, Embedding: []float32{5, 6}},
 	}, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{2, 4, 5, 6}
 	for index, value := range want {
 		if activation.Data[index] != value {
@@ -284,9 +275,7 @@ func TestProjectedAttentionBlockIDs(t *testing.T) {
 	ids, err := projectedAttentionBlockIDs(
 		model.AttentionBlocksUncached, 6, false, blocks,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{-1, 0, 0, -1, 1, -1}
 	if !slices.Equal(ids, want) {
 		t.Fatalf("attention block IDs = %v, want %v", ids, want)
@@ -330,9 +319,7 @@ func TestCompileProjectedRequestPlan(t *testing.T) {
 	plan, err := runner.compileProjectedRequestPlan(2, false, ProjectedInputs{
 		BidirectionalAttentionBlocks: []AttentionBlock{{Start: 0, End: 2}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.overridePolicy != model.EmbeddingOverrideRawScaled || plan.multiPositions != nil ||
 		!slices.Equal(plan.attentionBlockIDs, []float32{0, 0}) || plan.visualMode {
 		t.Fatalf("projected request plan = %+v", plan)
@@ -400,9 +387,7 @@ func TestAddDeepstackEmbedding(t *testing.T) {
 		reference.Value{Shape: shape, Data: []float32{1, 2, 3, 4}},
 		reference.Value{Shape: shape, Data: []float32{10, 20, 30, 40}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{11, 22, 33, 44}
 	for index := range want {
 		if got.Data[index] != want[index] {

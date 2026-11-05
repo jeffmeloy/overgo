@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,32 +21,22 @@ import (
 func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	manual, err := agenttool.NewManual(agenttool.Manual{
 		Name: "repo.read", Description: "Read repository state.",
 		Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot, err := agenttool.NewCatalogSnapshot([]agenttool.Manual{manual})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshotContent, err := snapshot.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{manual}); err != nil {
 		t.Fatal(err)
 	}
 	batch, err := artifact.NewDocumentBatch("delegated-runtime-fixture", []artifact.Content{snapshotContent}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +46,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		ToolManuals: []artifact.ID{manual.ID},
 		Policies:    []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	task, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Inspect and report.", Scope: []string{"internal"},
 		AllowedEffects: []string{"inspection"},
@@ -69,9 +58,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"drift"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	invocation, err := recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
 		Task: task.ID, Worker: worker.ID,
 		Grant:           recipe.AgentCapabilityGrant{Manuals: []artifact.ID{manual.ID}, AllowedEffects: []string{"inspection"}, ReadOnly: true},
@@ -79,15 +66,11 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Scheduler:       recipe.AgentSchedulerPolicy{MaxSteps: 4, MaxParallel: 1, Preemptible: true},
 		Catalog:         snapshot.ID, Model: testutil.ArtifactID(t, artifact.KindModel, "model"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime, err := NewDelegatedCapabilityRuntime(
 		ctx, store, agenttool.NewOperatorExecutor(), invocation, worker, task, "agent", t.TempDir(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runtime.Coordinator == nil || runtime.Checkpoints == nil ||
 		len(runtime.Compiled.Manuals) != 1 || runtime.Compiled.Manuals[0].ID != manual.ID {
 		t.Fatalf("runtime join = %+v", runtime)
@@ -111,9 +94,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 
 	admission := GrantEffectAdmission(invocation.Grant)
 	inspect, err := agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{}`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := admission(inspect); err != nil {
 		t.Fatalf("granted inspection refused: %v", err)
 	}
@@ -121,13 +102,9 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Name: "repo.write", Description: "Write state.",
 		Effect: agenttool.EffectMutation, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mutate, err := agenttool.DeriveInvocationEffect(mutation, json.RawMessage(`{}`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := admission(mutate); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("read-only grant admitted mutation: %v", err)
 	}
@@ -142,9 +119,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"drift"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := NewDelegatedCapabilityRuntime(
 		ctx, store, agenttool.NewOperatorExecutor(), invocation, worker, wrongTask, "agent", t.TempDir(),
 	); err == nil {

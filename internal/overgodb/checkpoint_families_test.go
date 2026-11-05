@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,18 +34,14 @@ func newCensusFixture(t *testing.T) censusFixture {
 		t.Helper()
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: schema}
 		content, err := contract.ContentBytes([]byte(body))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return content
 	}
 	fixture.alpha, fixture.later = mint("test/alpha/v1", `{"alpha":1}`), mint("test/alpha/v1", `{"alpha":2,"later":true}`)
 	fixture.first, fixture.other = mint("test/beta/v1", `{"beta":1}`), mint("test/beta/v1", `{"beta":"the second of two"}`)
 	fixture.declared = artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "declared and not carried")}
 	store, err := Create(fixture.root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, batch := range []artifact.Batch{
 		{
 			Key: "alpha/one/" + fixture.alpha.Descriptor.ID.String(), Contents: []artifact.Content{fixture.alpha},
@@ -66,9 +63,7 @@ func newCensusFixture(t *testing.T) censusFixture {
 	if _, err := store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return fixture
 }
 
@@ -91,9 +86,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 	fixture := newCensusFixture(t)
 	const repeats = 2
 	census, err := censusCheckpoint(fixture.root, repeats)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const head = 3
 	if census.sequence != head || census.generation != checkpointGeneration(head) || len(census.loads) != repeats {
 		t.Fatalf("census of generation %q at sequence %d with %d loads, want the one at the head, %d, loaded %d times", census.generation, census.sequence, len(census.loads), head, repeats)
@@ -112,9 +105,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 			t.Fatalf("member %d is %s with restores %v, want %s timed %d times, shortest first", index, member.name, member.restores, registered[index].name, repeats)
 		}
 		file, err := os.Stat(filepath.Join(newestCheckpoints(t, fixture.root), member.name+checkpointExtension))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		attributed, records := member.header+member.framing, 0
 		families[member.name] = map[string]held{}
 		for _, family := range member.families {
@@ -130,9 +121,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 	encoded := func(record any) int {
 		t.Helper()
 		raw, err := json.Marshal(record)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return len(raw) + 1
 	}
 	artifactBytes := func(descriptor artifact.Descriptor, sequence uint64) int {
@@ -204,9 +193,7 @@ func TestCheckpointCensusFoldsFamiliesUnderTheFloor(t *testing.T) {
 	const everything = 101
 	for _, floor := range []float64{0, everything} {
 		var output bytes.Buffer
-		if err := WriteCheckpointCensus(&output, fixture.root, 1, floor); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, WriteCheckpointCensus(&output, fixture.root, 1, floor))
 		number := func(text string) int {
 			t.Helper()
 			value, err := strconv.Atoi(text)

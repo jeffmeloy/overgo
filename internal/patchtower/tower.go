@@ -187,7 +187,7 @@ func patchEmbedOne(pixelValues []float32, srcPatch, channel int, spec Spec, w Pa
 	pvBase := srcPatch * spec.PatchDim
 	wBase := channel * media.RGBChannels * patchArea
 	acc := float64(w.Bias[channel])
-	for c := 0; c < media.RGBChannels; c++ {
+	for c := range media.RGBChannels {
 		for p := range patchArea {
 			x := dtype.RoundBF16(pixelValues[pvBase+c*patchArea+p])
 			acc += float64(x) * float64(w.Weight[wBase+c*patchArea+p])

@@ -13,36 +13,27 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestCanonicalAudioModelRegistration(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("testdata/registered_models.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The reference store and the models beside it come from the declared
 	// roots, the same reference the CPU ASR acceptance reads.
 	reference := resolveReferenceRoots(t)
 	storeRoot, root := reference.store, filepath.Dir(reference.store)
 	empty, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := verifyRegisteredAudioModels(t.Context(), empty, root, data); err == nil {
 		t.Fatal("accepted an empty catalog")
 	}
-	if err := empty.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, empty.Close())
 	store, err := overgodb.OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := verifyRegisteredAudioModels(t.Context(), store, root, data); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, verifyRegisteredAudioModels(t.Context(), store, root, data))
 	t.Log("registration accepted: 4/4 exact models, 1287/1287 tensor declarations; physical components and source/license lineage verified; native Nemotron Safetensors selected; Q8 and AED excluded; no runtime activation, task-quality, training or streaming claim")
 }
 

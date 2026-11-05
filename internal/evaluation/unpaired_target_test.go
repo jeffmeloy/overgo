@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -25,15 +26,11 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/unpaired-heldout-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	source := derived(artifact.KindDataset, "dataset")
@@ -42,9 +39,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		records = append(records, dataset.Record{ID: fmt.Sprintf("completion/%02d", index), Group: fmt.Sprintf("prompt-%02d", index)})
 	}
 	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var training, heldout dataset.Membership
 	for _, membership := range split.Memberships {
 		if membership.Partition == "train" {
@@ -64,13 +59,9 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		Metric: trainingprogram.MetricUnpairedPreferenceLoss, Evidence: []artifact.ID{session.Observation},
 		Authority: trainingprogram.ObjectiveAdaptive,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := CompileSFTEvaluationView(objective, training, heldout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	labels := map[string]bool{}
 	for index, record := range view.Records {
 		labels[record.ID] = index%2 == 0
@@ -79,9 +70,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		t.Fatalf("the held-out view holds %d records, want desirable and undesirable ones", len(view.Records))
 	}
 	plan, err := CompileUnpairedHeldoutPlan(objective, view, derived(artifact.KindModel, "reference"), 0.1, labels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	score := func(value float64) sequencescore.Score { return sequencescore.Score{LogProbability: value, Tokens: 1} }
 	// observe answers every held-out record with its reward shift above
 	// the reference when desirable and below it when not.
@@ -108,13 +97,9 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		}
 	}
 	registration, err := split.PublicationBatch("test-registration", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registration.Contents = append(registration.Contents, content)
 	for _, id := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation, derived(artifact.KindModel, "reference")} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: id})
@@ -132,9 +117,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 			t.Fatalf("%s = (%+v, %v), want passed %t on held-out KTO loss", candidate.name, verdict, err, candidate.passed)
 		}
 		batch, err := HeldoutBatch(view, plan, reports[0], reports[candidate.shift], verdict)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}

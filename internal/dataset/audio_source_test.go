@@ -8,23 +8,18 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestAudioPayloadReaderCoordinatesAndIdentity(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	container, _, err := artifact.Identify(artifact.KindDatasetShard, file)
 	_ = file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := NewAudioPayloadReader(budget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	audio, _ := artifact.IdentifyBytes(artifact.KindFile, []byte("e"))
 	reference := AudioPayloadReference{Path: path, Audio: audio, Origin: AudioPayloadOrigin{Container: container, Column: "audio.bytes", Row: new(uint64(4))}}
@@ -70,9 +65,7 @@ func TestAudioPayloadReaderCoordinatesAndIdentity(t *testing.T) {
 	if _, err := source.Read(t.Context(), reference, 1); err == nil {
 		t.Fatal("wrong container digest admitted")
 	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, source.Close())
 	if _, err := source.Read(t.Context(), reference, 1); !errors.Is(err, os.ErrClosed) {
 		t.Fatalf("closed: %v", err)
 	}

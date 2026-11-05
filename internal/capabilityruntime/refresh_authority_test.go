@@ -8,6 +8,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,35 +21,25 @@ func TestRefreshRefusesARemovedSelectionAgainAtAnUnmovedHead(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	weights := []byte("refresh-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "refresh/model", Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}}, Manifests: []artifact.Manifest{manifest},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskGeneration, manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "refresh/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "refresh/verification", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "refresh fixture"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "refresh fixture"))
 	aliases := []string{"capability/generation/primary", "capability/generation/other", "capability/generation/third"}
 	var bindings []artifact.AliasBinding
 	for _, alias := range aliases {
@@ -62,9 +53,7 @@ func TestRefreshRefusesARemovedSelectionAgainAtAnUnmovedHead(t *testing.T) {
 		selection, err := modelrecipe.ResolveCapabilityEvidenceSelector(ctx, store, modelrecipe.CapabilityEvidenceSelector{
 			Alias: alias, Task: recipe.TaskGeneration, Session: modelrecipe.SessionWarm,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return selection
 	}
 	director := &ModelSessionDirector[struct{}, struct{}, struct{}]{}

@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,15 +16,11 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	rootID := testutil.ArtifactID(t, artifact.KindEvidence, "typed-causal-root")
 	motivation := testutil.ArtifactID(t, artifact.KindEvidence, "typed-causal-motivation")
 	causal, err := NewCausalRoot(TriggerControllerProposal, rootID, motivation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value := servingObservationFixture(t)
 	value.Causal = &causal
 	observation, err := NewServingObservation(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := observation.Batch("causality/typed-serving")
 	if err != nil || len(batch.Causality) != 1 || batch.Causality[0].Execution != observation.ID {
 		t.Fatalf("typed causal batch = (%+v, %v)", batch.Causality, err)
@@ -39,9 +36,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 		}
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)

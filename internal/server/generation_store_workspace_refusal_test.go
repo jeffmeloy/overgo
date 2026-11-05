@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // sessionlessVQADefinition is the vqa recipe as stores activated it before
@@ -42,14 +43,10 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publisher, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer publisher.Close()
 	modelID := activateModel(t, publisher, sessionlessVQADefinition)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskVQA: {
@@ -68,9 +65,7 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 		len(capability.Stages) == 0 || len(capability.Controls) != 0 {
 		t.Fatalf("capability = %+v", capability)
 	}
-	if err := validateWorkflowCapabilities(capabilities); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateWorkflowCapabilities(capabilities))
 	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capability, json.RawMessage(`{"question":"what?"}`), &recordingReporter{}); err == nil || !strings.Contains(err.Error(), "session") {
 		t.Fatalf("a refused capability ran: %v", err)
 	}

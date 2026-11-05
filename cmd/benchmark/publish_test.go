@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestBenchmarkClaimCommits pins the publish arc: the measured result
@@ -36,22 +37,14 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	commit := "0123456789abcdef0123456789abcdef01234567"
 	bindFixtureBenchmarkIdentity(t, &result, commit)
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644))
 	weights, err := os.Open(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	claim, evidenceData, evidence, err := benchmarkClaim(result, commit, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if claim.Capability != "benchmark" || claim.Tier != runrecord.TierCapabilityMeasured ||
 		claim.Commit != commit || claim.SpanTokens != 0 || claim.ContextTokens != 14 ||
 		claim.WallNS != 220_000_000 || claim.PeakDeviceBytes != 512 ||
@@ -62,33 +55,23 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 		t.Fatal("a different publishing commit relabeled the measured producer")
 	}
 	changed, err := artifact.IdentifyBytes(artifact.KindModel, []byte("different weights after measurement"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, _, err := benchmarkClaim(result, commit, changed); err == nil {
 		t.Fatal("publication attached measured evidence to different weights")
 	}
 	record, err := runrecord.NewModelVerification(model, result.ModelName, []runrecord.CapabilityClaim{claim})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 
 	content, found, err := artifact.ReadContent(ctx, store, record.ID)
 	if err != nil || !found {
 		t.Fatalf("record content = (%t, %v)", found, err)
 	}
 	parsed, err := runrecord.ParseModelVerification(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.Model != model || len(parsed.Claims) != 1 || parsed.Claims[0].Evidence[0] != evidence {
 		t.Fatalf("parsed record = %+v", parsed)
 	}
@@ -97,12 +80,8 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 		t.Fatalf("evidence content = (%t, %v)", found, err)
 	}
 	var measured benchmarkResult
-	if err := json.Unmarshal(published.Data, &measured); err != nil {
-		t.Fatal(err)
-	}
-	if err := validateBenchmarkResult(measured); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(published.Data, &measured))
+	testcheck.NoError(t, validateBenchmarkResult(measured))
 	if measured.ModelID != parsed.Model || measured.SamplingProtocol != greedyBudgetProtocol || measured.Runs[0].DeviceSelectedTokens != result.TokensPerSequence {
 		t.Fatalf("publication lost sampling or observed selection path: %+v", measured)
 	}
@@ -127,32 +106,22 @@ func bindFixtureBenchmarkIdentity(t *testing.T, result *benchmarkResult, commit 
 	t.Helper()
 	var err error
 	result.ModelID, err = artifact.IdentifyBytes(artifact.KindModel, []byte("weights fixture bytes"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result.RecipeID, err = artifact.IdentifyBytes(artifact.KindRecipe, []byte("fixture recipe"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result.TokenizerContainer = result.ModelID
 	result.Device.UUID = "fixture-device"
 	result.Environment, err = runrecord.CurrentEnvironment(result.Device.UUID, "cuda")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result.EnvironmentID = result.Environment.ID
 	result.CodeCommit = commit
 	result.ModuleDigest = benchmarkPromptDigest("fixture module")
 	// The adapters a run with no LoRA files holds, as the command builds them.
 	result.AdapterIDs, err = benchmarkAdapterIDs(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result.OptionsDigest, err = benchmarkOptionsDigest(options{Tokens: result.TokensPerSequence,
 		Runs: result.RequestedRuns, Warmup: result.RequestedWarmup, CachePrompt: result.CachePrompt,
 		BatchSequences: result.BatchSequences, ContextShift: result.ContextShift, Speculative: result.Speculative,
 		Temperature: result.Temperature, TopK: result.TopK, DeviceTopK: result.DeviceTopK}, result.AdapterIDs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 }

@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,13 +34,9 @@ func TestTypedToolExecution(t *testing.T) {
 			return toolOutput{Value: value.Left + value.Right}, nil
 		}))
 	call, err := recipe.NewToolCall("call", testToolModule, json.RawMessage(`{"left":2,"right":3}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := executor.ExecuteTool(t.Context(), call)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var output toolOutput
 	if err := json.Unmarshal(result.Output, &output); err != nil || output.Value != 5 {
 		t.Fatalf("output = %s, error = %v", result.Output, err)
@@ -55,9 +52,7 @@ func TestLongRunningToolOperation(t *testing.T) {
 			return toolOutput{}, ctx.Err()
 		}))
 	call, err := recipe.NewToolCall("long", testToolModule, json.RawMessage(`{}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
@@ -77,9 +72,7 @@ func toolExecutorFixture(
 ) *ToolExecutor {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := testutil.ArtifactID(t, artifact.KindModel, "tool-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "tool/model", Artifacts: []artifact.Descriptor{{ID: model}},
@@ -95,21 +88,13 @@ func toolExecutorFixture(
 		[]recipe.Input{{Name: recipe.ToolCallPort, Data: recipe.DataToolCall, Target: recipe.Endpoint{Node: node.ID, Port: recipe.ToolCallPort}}},
 		[]recipe.Output{{Name: recipe.ToolResultPort, Data: recipe.DataToolResult, Source: recipe.Endpoint{Node: node.ID, Port: recipe.ToolResultPort}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := recipe.NewCatalog(module)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	executor, err := NewToolExecutor(store, program, testToolRetention, execute)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { executor.Close(); store.Close() })
 	return executor
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -45,9 +46,7 @@ func boundaryVocab(t *testing.T, mergedCue bool) *tokenizer.Vocab {
 		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, scores),
 		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }
 
@@ -72,9 +71,7 @@ func TestContinuationTokensScoreAcrossAMergedBoundary(t *testing.T) {
 	plain := boundaryVocab(t, false)
 	runner := &Runner{preparedModel: preparedModel{vocab: plain}}
 	prompt, continuations, err := runner.continuationTokens("Answer: ", []string{"A"}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(prompt, []tokenizer.TokenID{bos, single(plain, "Answer:")}) ||
 		len(continuations) != 1 || !slices.Equal(continuations[0], []tokenizer.TokenID{single(plain, "▁A")}) {
 		t.Fatalf("trailing-space boundary: prompt %v continuations %v", prompt, continuations)
@@ -85,9 +82,7 @@ func TestContinuationTokensScoreAcrossAMergedBoundary(t *testing.T) {
 	merged := boundaryVocab(t, true)
 	runner = &Runner{preparedModel: preparedModel{vocab: merged}}
 	prompt, continuations, err = runner.continuationTokens("Answer:", []string{" A"}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(prompt, []tokenizer.TokenID{bos}) ||
 		len(continuations) != 1 || !slices.Equal(continuations[0], []tokenizer.TokenID{single(merged, "Answer:▁A")}) {
 		t.Fatalf("merged boundary: prompt %v continuations %v", prompt, continuations)

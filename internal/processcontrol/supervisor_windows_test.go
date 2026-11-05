@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWindowsContainmentPrecedesExecution(t *testing.T) {
@@ -20,26 +22,20 @@ func TestWindowsContainmentPrecedesExecution(t *testing.T) {
 	}
 	var output bytes.Buffer
 	run.Stdout = &output
-	if err := run.Start(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run.Start())
 	t.Cleanup(func() {
 		_ = run.Process.Kill()
 		_ = run.Wait()
 	})
 	handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(run.Process.Pid))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer syscall.CloseHandle(handle)
 	state, err := syscall.WaitForSingleObject(handle, 0)
 	if err != nil || state != syscall.WAIT_TIMEOUT {
 		t.Fatalf("suspended child already terminated: %d, %v", state, err)
 	}
 	tree, err := newProcessTree(run)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer tree.close()
 	if err := run.Wait(); err != nil || strings.TrimSpace(output.String()) != "contained" {
 		t.Fatalf("contained execution: %q, %v", output.String(), err)

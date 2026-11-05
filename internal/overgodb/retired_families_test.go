@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func familyBatch(t *testing.T, family retiredFamily, ordinal int) (artifact.Batc
 	document := func(contract artifact.DocumentContract) artifact.Content {
 		t.Helper()
 		content, err := contract.ContentBytes(body)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return content
 	}
 	kept := document(keptContract)
@@ -102,9 +101,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 		t.Helper()
 		root := filepath.Join(t.TempDir(), "store")
 		store, err := Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for ordinal, family := range families {
 			batch, _, producer := familyBatch(t, family, ordinal+1)
 			if _, err := store.CommitAs(ctx, producer, batch); err != nil {
@@ -114,9 +111,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 		if _, err := store.Snapshot(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 		return root
 	}
 	// unproduced gives the families the census of a store written from them
@@ -124,9 +119,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	unproduced := func(families []retiredFamily) []retiredFamily {
 		t.Helper()
 		census, err := censusCheckpoint(written(families), 1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return slices.DeleteFunc(slices.Clone(families), func(family retiredFamily) bool {
 			return slices.ContainsFunc(census.members, func(member memberCensus) bool {
 				return keyedLike(member.name) == family.keyed &&
@@ -155,9 +148,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	root := written(retiredFamilies)
 	for _, floor := range []float64{0, everything} {
 		var output bytes.Buffer
-		if err := WriteCheckpointCensus(&output, root, 1, floor); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, WriteCheckpointCensus(&output, root, 1, floor))
 		marked := map[retiredFamily]bool{}
 		for line := range strings.Lines(output.String()) {
 			fields := strings.Fields(line)
@@ -184,9 +175,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 
 	// The table against the record it was read from.
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// read are the families the record classes as unwritten and unread by
 	// its four readers that a reader outside them still reads.
 	read := map[string]string{
@@ -261,9 +250,7 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 	ctx := t.Context()
 	fixture := retiredFixture{root: filepath.Join(t.TempDir(), "store"), keptAlias: "kept/aliased", want: make([]retiredCount, len(retiredFamilies))}
 	store, err := Create(fixture.root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ordinal := 0
 	// commit writes a batch and counts it under its key when that is a
 	// retired family of commits.
@@ -362,9 +349,7 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 	}
 	fixture.artifacts, fixture.edges, fixture.aliases = store.state.artifacts.count(), store.state.lineage.count(), store.state.aliases.count()
 	fixture.causalLink = len(store.state.causality.records)
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return fixture
 }
 
@@ -372,19 +357,13 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 func (fixture retiredFixture) rebuilt(t *testing.T, withoutRetired bool) (*Store, *Store, RebuildReport) {
 	t.Helper()
 	source, err := OpenReadOnly(fixture.root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = source.Close() })
 	destination := filepath.Join(t.TempDir(), "rebuilt")
 	report, err := Rebuild(t.Context(), source, destination, nil, nil, withoutRetired)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	copied, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = copied.Close() })
 	return source, copied, report
 }

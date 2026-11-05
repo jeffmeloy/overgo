@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestStreamingWriterDeterministicShards(t *testing.T) {
@@ -17,42 +19,22 @@ func TestStreamingWriterDeterministicShards(t *testing.T) {
 	}, Metadata: map[string]string{"format": "pt"}}
 	first := filepath.Join(t.TempDir(), "first")
 	writer, err := newStreamWriter(first, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.finalize(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})))
+	testcheck.NoError(t, writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})))
+	testcheck.NoError(t, writer.finalize())
 
 	second := filepath.Join(t.TempDir(), "second")
 	writer, err = newStreamWriter(second, streamPlan{Shards: []streamShardSpec{plan.Shards[1], plan.Shards[0]}, Metadata: plan.Metadata})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.finalize(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})))
+	testcheck.NoError(t, writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})))
+	testcheck.NoError(t, writer.finalize())
 	for _, name := range []string{"model-a.safetensors", "model-b.safetensors", streamIndexName} {
 		left, err := os.ReadFile(filepath.Join(first, name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		right, err := os.ReadFile(filepath.Join(second, name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !bytes.Equal(left, right) {
 			t.Fatalf("streaming artifact %s differs across plan and write order", name)
 		}
@@ -65,9 +47,7 @@ func TestStreamingWriterAtomicFinalize(t *testing.T) {
 		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "weight", DType: "U8", Shape: []uint64{2}}},
 	}}}
 	writer, err := newStreamWriter(destination, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
 		t.Fatalf("destination visible before finalization: %v", err)
 	}
@@ -80,12 +60,8 @@ func TestStreamingWriterAtomicFinalize(t *testing.T) {
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
 		t.Fatalf("incomplete destination became visible: %v", err)
 	}
-	if err := writer.writeTensor("weight", 2, bytes.NewReader([]byte{1, 2})); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.finalize(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.writeTensor("weight", 2, bytes.NewReader([]byte{1, 2})))
+	testcheck.NoError(t, writer.finalize())
 	if _, err := os.Stat(filepath.Join(destination, "model.safetensors")); err != nil {
 		t.Fatal(err)
 	}
@@ -103,38 +79,24 @@ func TestStreamingWriterResume(t *testing.T) {
 		},
 	}}}
 	writer, err := newStreamWriter(destination, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("first", 2, bytes.NewReader([]byte{1, 2})); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, writer.writeTensor("first", 2, bytes.NewReader([]byte{1, 2})))
 	resumed, err := newStreamWriter(destination, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(resumed.completed) != 1 {
 		t.Fatalf("resumed completion count = %d", len(resumed.completed))
 	}
 	if err := resumed.writeTensor("first", 2, bytes.NewReader([]byte{1, 2})); err == nil {
 		t.Fatal("rewrote a completed tensor after resume")
 	}
-	if err := resumed.writeTensor("second", 3, bytes.NewReader([]byte{3, 4, 5})); err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.finalize(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, resumed.writeTensor("second", 3, bytes.NewReader([]byte{3, 4, 5})))
+	testcheck.NoError(t, resumed.finalize())
 	source, err := OpenSource(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	for name, want := range map[string][]byte{"first": {1, 2}, "second": {3, 4, 5}} {
 		got, err := io.ReadAll(source.Tensors[name].Reader())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !bytes.Equal(got, want) {
 			t.Fatalf("tensor %s = %v, want %v", name, got, want)
 		}
@@ -147,26 +109,16 @@ func TestStreamingWriterDerivedBounds(t *testing.T) {
 		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "matrix", DType: "F32", Shape: []uint64{2, 2}}, {Name: "empty", DType: "U8", Shape: []uint64{0}}},
 	}}}
 	writer, err := newStreamWriter(destination, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.writeTensor("empty", 0, bytes.NewReader(nil)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, writer.writeTensor("empty", 0, bytes.NewReader(nil)))
 	payload := floatPayload(1, 2, 3, 4)
 	if err := writer.writeTensor("matrix", uint64(len(payload)-1), bytes.NewReader(payload)); err == nil {
 		t.Fatal("accepted caller extent that differs from dtype and shape")
 	}
-	if err := writer.writeTensor("matrix", uint64(len(payload)), bytes.NewReader(payload)); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.finalize(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.writeTensor("matrix", uint64(len(payload)), bytes.NewReader(payload)))
+	testcheck.NoError(t, writer.finalize())
 	source, err := OpenSource(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	tensor := source.Tensors["matrix"]
 	if tensor.Size() != int64(len(payload)) || tensor.Shape[0] != 2 || tensor.Shape[1] != 2 {

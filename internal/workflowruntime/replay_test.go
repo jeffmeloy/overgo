@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -38,9 +39,7 @@ func countingAdapters(t *testing.T, runtime *Runtime, runs map[recipe.NodeID]int
 			return map[recipe.PortName]Value{"text": {Kind: recipe.DataText, Items: []Datum{{Content: &content, Artifact: content.Descriptor, Value: string(content.Data)}}}}, nil
 		}),
 	} {
-		if err := runtime.Register(module, adapter); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runtime.Register(module, adapter))
 	}
 }
 
@@ -61,9 +60,7 @@ func TestReplayRunsNoStageItsOutputDoesNotNeed(t *testing.T) {
 	inputs := map[recipe.PortName]Value{"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}}}
 	served := func(runs map[recipe.NodeID]int, fail bool) *Runtime {
 		runtime, err := NewForProgram(store, program)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		countingAdapters(t, runtime, runs, fail)
 		return runtime
 	}
@@ -80,9 +77,7 @@ func TestReplayRunsNoStageItsOutputDoesNotNeed(t *testing.T) {
 		t.Fatalf("the request served again ran %v over %+v, run %s (%v); want no stage run and the first run %s", runs, again.NodeWalls, again.Run.ID, err, first.Run.ID)
 	}
 	unbound, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replayed, held, err := unbound.Replay(ctx, key, operation, program, inputs)
 	text, single := replayed.Outputs["text"].Single()
 	if err != nil || !held || replayed.Run.ID != first.Run.ID || !single || text.Content == nil || string(text.Content.Data) != "HELLO" {

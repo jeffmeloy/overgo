@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -59,27 +60,17 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 	root := testutil.RepoRoot(t)
 	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	encoded, err := os.ReadFile("testdata/granite_speech_5_election.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	election, err := NormalizeElection(encoded)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelRoot, weights := loadASRModel(t, store, election)
 	encoded, err = os.ReadFile("testdata/ctc_training_record.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var record ctcTrainingRecord
-	if err := strictjson.DecodeBytes(encoded, &record); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(encoded, &record))
 	if record.Schema != "overgo/ctc-training-record/v1" || record.Split != "train.100" || record.Shard != "0000.parquet" ||
 		record.Row != 0 || record.RowID != "374-180298-0000" || record.PyArrow != "24.0.0" || record.Tokenizers != "0.22.2" || len(record.TargetIDs) == 0 ||
 		record.Normalization != "lowercase" || record.GeneratorSHA256 != "8c1a76d8fff3cee8ca6442f93a936c7c47224c84f3fecc5d988e2ab2fa46dc39" {
@@ -87,22 +78,16 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 	}
 	corpus := librispeechPath(t, "clean", record.Split, record.Shard)
 	shardID, err := artifact.ParseID("file:sha256:" + record.ShardSHA256)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verifyASRFile(t, corpus, shardID, record.ShardBytes)
 	// Explicit per-component integration ceilings; neither is a process peak.
 	const sourceMemoryBytes = 512 << 20
 	const modelMemoryBytes = 4 << 30
 	source, err := dataset.OpenParquetRows(t.Context(), corpus, []string{"audio.bytes", "text", "id"}, sourceMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	row, err := source.Read(t.Context(), record.Row)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if row["id"] == nil || *row["id"] != record.RowID || row["text"] == nil || *row["text"] != record.Text || row["audio.bytes"] == nil {
 		t.Fatal("training source row differs")
 	}
@@ -112,21 +97,15 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 		t.Fatalf("audio identity differs: %v", err)
 	}
 	tokenizer, err := hfbpe.Load(modelRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sourceTargets, err := tokenizer.Encode(*row["text"])
 	if err != nil || !slices.Equal(sourceTargets, record.SourceTargetIDs) {
 		t.Fatalf("raw source tokenization differs: %v", err)
 	}
 	transform, err := trainingdata.NewTextTransform(true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetText, err := transform.Apply(*row["text"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if targetText != record.TargetText {
 		t.Fatal("declared target normalization differs")
 	}
@@ -135,46 +114,28 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 		t.Fatalf("target tokenization differs from independent oracle: %v", err)
 	}
 	audio, _, err := media.DecodeAudio(t.Context(), payload, record.Samples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded, err = os.ReadFile("../audiodsp/testdata/power_logmel_frontend.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var frontendConfig audiodsp.FrontendConfig
-	if err := strictjson.DecodeBytes(encoded, &frontendConfig); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(encoded, &frontendConfig))
 	frontend, err := audiodsp.NewFrontend(frontendConfig, modelMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipe, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: int(recipe.Preprocessor.StackFactor), DeltaRadius: int(recipe.Preprocessor.DeltaWinLength-1) / 2, FinalFrameSamples: 1}
 	var fw audiodsp.Workspace
 	if audio.Format.Channels != 1 || audio.Format.SampleRate != record.SampleRate || uint64(len(audio.Samples)) != record.Samples {
 		t.Fatal("training fixture audio geometry differs from source FLAC metadata")
 	}
 	features, frames, _, err := frontend.ProcessGrouped(t.Context(), audio.Samples, int(audio.Format.SampleRate), &fw, grouping)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoded, err = os.ReadFile("recipes/granite5asr_execution.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var declaration speechrecognition.Declaration
-	if err := strictjson.DecodeBytes(encoded, &declaration); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(encoded, &declaration))
 	encoder, err := speechrecognition.LoadEncoder(t.Context(), weights, declaration, modelMemoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return ctcTrainingFixture{root: root, storeRoot: storeRoot, modelRoot: modelRoot, election: election, record: record,
 		frontend: frontendConfig, grouping: grouping, declaration: declaration, encoder: encoder,
 		features: features, frames: frames, blank: int(recipe.Config.PadTokenID), targets: targets, payload: payload}
@@ -191,35 +152,23 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	var ew speechrecognition.Workspace
 	policy := trainingprogram.BuiltinOptimizerPolicy()
 	adapter, err := encoder.NewOutputAdapter(t.Context(), &ew, frames, len(targets), fixture.blank, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hidden, outputFrames, err := encoder.Encode(t.Context(), features, frames, &ew, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, err := encoder.Project(t.Context(), hidden, outputFrames, &ew)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	beforeHidden, beforeBase, beforeAdapter := slices.Clone(hidden), slices.Clone(base), adapter.WeightSnapshot()
 	// The source's uppercase tokenization is a real impossible-alignment
 	// negative control. Do not silently zero its loss or modify decoder semantics.
 	ctcSize, err := trainingprogram.CTCLossWorkspaceSize(outputFrames, encoder.VocabularySize(), len(sourceTargets))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := trainingprogram.CTCLossF32(t.Context(), nil, base, sourceTargets, outputFrames, encoder.VocabularySize(), fixture.blank, make([]float64, ctcSize)); err == nil {
 		t.Fatal("impossible raw-source alignment was admitted")
 	}
 	execution, err := adapter.Bind(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forward, err := execution.Select(trainingprogram.PhaseForward)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	example := adaptertrain.LinearCTCExample{Hidden: hidden, Targets: targets, Frames: outputFrames}
 	if err := forward.Run(&example); err != nil || !slices.Equal(base, example.Logits) {
 		t.Fatalf("identity adapter differs: %v", err)
@@ -237,9 +186,7 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	}
 	afterLoss := example.Loss
 	hidden, outputFrames, err = encoder.Encode(t.Context(), features, frames, &ew, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, err = encoder.Project(t.Context(), hidden, outputFrames, &ew)
 	if err != nil || !slices.Equal(beforeHidden, hidden) || !slices.Equal(beforeBase, base) {
 		t.Fatalf("frozen base replay changed: %v", err)

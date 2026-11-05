@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/checkpointtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 
 	"overgo/internal/tensor/dtype"
@@ -67,9 +68,7 @@ func flowStimulus(rows, hidden, flowDim int) (x, z, target []float32) {
 func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 	plan, head := tinyFlowHead(6, 4)
 	trainer, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
 		t.Fatalf("momentum %g, want derived %g", got, want)
@@ -81,9 +80,7 @@ func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 	var first, last FlowHeadStepResult
 	for step := range 12 {
 		result, err := trainer.Step(x, z, target, 0.25)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
 			t.Fatalf("step %d loss non-finite: %+v", step, result)
 		}
@@ -106,18 +103,14 @@ func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 func TestFlowHeadTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	plan, head := tinyFlowHead(6, 4)
 	trainer, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	x, z, target := flowStimulus(3, plan.Hidden, plan.FlowDim)
 	if _, err := trainer.Step(x, z, target, 0.25); err != nil {
 		t.Fatal(err)
 	}
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"fm_head.0.weight": trainer.view(flowW0), "fm_head.0.bias": trainer.view(flowB0),
 		"fm_head.2.weight": trainer.view(flowW2), "fm_head.2.bias": trainer.view(flowB2),
@@ -132,9 +125,7 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 
 	loss := func(tr *FlowHeadTrainer) float64 {
 		v, err := tr.Velocity(x, z, timestep)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var total float64
 		invN := 1 / float64(len(target))
 		for i := range v {
@@ -146,15 +137,11 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 
 	// Analytic gradients captured before any optimizer step consumes them.
 	probe, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer probe.Close()
 	baseline := loss(probe)
 	stepLoss, gradientL2, err := probe.lossAndGradients(x, z, target, timestep)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
 		t.Fatalf("loss %.9g disagrees with evaluation %.9g (grad_l2=%g)", stepLoss, baseline, gradientL2)
 	}
@@ -163,9 +150,7 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 
 	for _, index := range []int{0, 7, len(analytic)/2 + 1, len(analytic) - 2, len(analytic) - 1} {
 		fresh, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		weights, _ := fresh.pack.Slabs()
 		original := weights[index]
 		weights[index] = original + epsilon

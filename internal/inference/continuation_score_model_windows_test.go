@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -25,18 +26,14 @@ import (
 func parityModel(t *testing.T) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		testskip.NotApplicable(t, "no store to find a local model in: "+err.Error())
 	}
 	defer store.Close()
 	entries, err := discovery.LocalServable(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		if strings.EqualFold(filepath.Ext(entry.Location), ".gguf") {
 			return entry.Location
@@ -111,13 +108,9 @@ func TestContinuationScoringMatchesReferenceBackend(t *testing.T) {
 	for _, request := range scoringParityRequests(device, 4) {
 		t.Run(request.name, func(t *testing.T) {
 			want, err := reference.ScoreContinuations(t.Context(), request.prompt, request.candidates)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got, err := device.ScoreContinuations(t.Context(), request.prompt, request.candidates)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for index := range request.candidates {
 				delta := math.Abs(want[index].LogProbability - got[index].LogProbability)
 				t.Logf("candidate %d tokens=%d reference=%.4f device=%.4f delta=%.3g", index, want[index].Tokens, want[index].LogProbability, got[index].LogProbability, delta)
@@ -146,19 +139,13 @@ func TestContinuationScoringPathsAgreeOnAModel(t *testing.T) {
 	for _, request := range scoringParityRequests(runner, 60) {
 		t.Run(request.name, func(t *testing.T) {
 			promptIDs, continuations, err := runner.continuationTokens(request.prompt, request.candidates, false)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			runner.mu.Lock()
 			defer runner.mu.Unlock()
 			host, err := runner.scoreContinuationsHostLocked(t.Context(), promptIDs, continuations)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			device, err := runner.scoreContinuationsDeviceLocked(t.Context(), promptIDs, continuations)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for index := range continuations {
 				delta := math.Abs(host[index].LogProbability - device[index].LogProbability)
 				t.Logf("candidate %d tokens=%d host=%.4f device=%.4f delta=%.3g", index, host[index].Tokens, host[index].LogProbability, device[index].LogProbability, delta)

@@ -1,6 +1,10 @@
 package plan
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // TestARequestedStopNeedsARequest holds a requested stop to the latest prompt in the worktree: it is refused until a
 // prompt asks to stop, by a whole word read without case or punctuation, and again once a later prompt does not.
@@ -23,9 +27,7 @@ func TestARequestedStopNeedsARequest(t *testing.T) {
 		t.Fatal("a requested stop was admitted with no prompt asking for one")
 	}
 	for _, prompt := range []string{"stop here, I will look at the run", "keep working on the next row"} {
-		if err := NoteStopRequest(root, prompt); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, NoteStopRequest(root, prompt))
 		if err := RequireStopRequest(root); (err == nil) != asksToStop(prompt) {
 			t.Fatalf("after the prompt %q a requested stop was admitted=%v, want %v", prompt, err == nil, asksToStop(prompt))
 		}

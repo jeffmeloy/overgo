@@ -26,6 +26,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,9 +36,7 @@ import (
 func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	t.Helper()
 	location := filepath.Join(t.TempDir(), "model.safetensors")
-	if err := os.WriteFile(location, []byte("oscillator-weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(location, []byte("oscillator-weights"), 0o600))
 	return activateModelAt(t, store, location, oscillatorImageDefinition)
 }
 
@@ -50,9 +49,7 @@ func oscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 func activateModel(t *testing.T, store *overgodb.Store, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
 	t.Helper()
 	location := filepath.Join(t.TempDir(), "model.safetensors")
-	if err := os.WriteFile(location, []byte("oscillator-weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(location, []byte("oscillator-weights"), 0o600))
 	return activateModelAt(t, store, location, define)
 }
 
@@ -66,9 +63,7 @@ func activateModelAt(t *testing.T, store *overgodb.Store, location string, defin
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence/"+definition.ID.String(), definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active/"+definition.ID.String(), definition, verification,
 		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
 		t.Fatal(err)
@@ -82,16 +77,12 @@ func candidateModelAt(t *testing.T, store *overgodb.Store, location string, defi
 	t.Helper()
 	ctx := t.Context()
 	payload, err := os.ReadFile(location)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/generation/model/" + manifest.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len(payload))}},
@@ -103,9 +94,7 @@ func candidateModelAt(t *testing.T, store *overgodb.Store, location string, defi
 		t.Fatal(err)
 	}
 	definition, err := define(manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
@@ -118,9 +107,7 @@ func tinyPNG(t *testing.T) latentimage.EncodedImage {
 	canvas := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	canvas.Set(0, 0, color.RGBA{R: 255, A: 255})
 	var buffer bytes.Buffer
-	if err := png.Encode(&buffer, canvas); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&buffer, canvas))
 	return latentimage.EncodedImage{Data: buffer.Bytes(), MediaType: media.PNGMediaType, Channels: media.RGBChannels, Height: 2, Width: 2, Maximum: 1}
 }
 
@@ -138,9 +125,7 @@ func (r *recordingReporter) Publishing()              { r.published = true }
 func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	activatedImageModel(t, store)
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
@@ -166,9 +151,7 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 	if workspace.memo != memo {
 		t.Fatal("repeated listing discarded verified identities")
 	}
-	if err := os.WriteFile(capabilities[0].Location, []byte("changed oscillator weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(capabilities[0].Location, []byte("changed oscillator weights"), 0o600))
 	if listed, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration); err != nil || len(listed) != 0 {
 		t.Fatalf("changed bytes must not remain present: %+v, %v", listed, err)
 	}
@@ -187,9 +170,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
 	var executedPath, executedInput string
@@ -222,18 +203,14 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	if names["class"] != "integer" || names["seed"] != "integer" {
 		t.Fatalf("controls = %v", names)
 	}
-	if err := validateWorkflowCapabilities(capabilities); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateWorkflowCapabilities(capabilities))
 	if training, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining); err != nil || training != nil {
 		t.Fatalf("training kind answered %+v, %v", training, err)
 	}
 
 	reporter := &recordingReporter{}
 	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":7}`), reporter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reporter.published || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 1 {
 		t.Fatalf("completion = %+v published=%v", completion, reporter.published)
 	}
@@ -255,16 +232,12 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	// A submission's sources (a prompt enhancement the page accepted) are
 	// the run's inputs beside the request, so the original stays its source.
 	enhancement, err := artifact.JSONContract(artifact.KindFile, promptEnhancementSchema).ContentBytes([]byte(`{"original":"a square","enhanced":"a red square"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "fixture/generation/enhancement", Contents: []artifact.Content{enhancement}}); err != nil {
 		t.Fatal(err)
 	}
 	sourced, err := workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":8}`), reporter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run, err := runrecord.RequireRun(ctx, store, sourced.Run)
 	if err != nil || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, enhancement.Descriptor.ID) || slices.Contains(run.Inputs, request.ID) {
 		t.Fatalf("sourced run = %+v, %v", run, err)

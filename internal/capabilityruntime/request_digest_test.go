@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // TestOversizedRequestDigestsInline pins the store diet for requests:
@@ -24,9 +25,7 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	modelID := program.Definition().Model
 	small := `{"prompt":"a fox","values":[1,2,3],"steps":4}`
 	_, content, err := decodeJSONInput[request]("digest-test", func(request) error { return nil }, modelID, program, small)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.Schema != "overgo.digest-test-input.v1" {
 		t.Fatalf("small request schema = %q", content.Descriptor.Schema)
 	}
@@ -40,9 +39,7 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	}
 	builder.WriteString(`]}`)
 	_, digested, err := decodeJSONInput[request]("digest-test", func(request) error { return nil }, modelID, program, builder.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if digested.Descriptor.Schema != "overgo.digest-test-input-digest.v1" {
 		t.Fatalf("oversized request schema = %q", digested.Descriptor.Schema)
 	}
@@ -54,9 +51,7 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 		RequestBytes  int            `json:"request_bytes"`
 		Abbreviated   map[string]any `json:"abbreviated"`
 	}
-	if err := strictjson.DecodeBytes(digested.Data, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(digested.Data, &body))
 	if body.RequestBytes <= inlineRequestBytes || body.RequestSHA256 == "" {
 		t.Fatalf("digest body = %+v", body)
 	}
@@ -82,9 +77,7 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a request over the document bound: %v", err)
 	}
-	if err := strictjson.DecodeBytes(beyond.Data, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(beyond.Data, &body))
 	if beyond.Descriptor.Schema != "overgo.digest-test-input-digest.v1" || body.RequestBytes <= artifact.MaxContentBytes || len(beyond.Data) > inlineRequestBytes {
 		t.Fatalf("request over the document bound = schema %q, %d request bytes, %d digest bytes", beyond.Descriptor.Schema, body.RequestBytes, len(beyond.Data))
 	}

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -75,9 +76,7 @@ func TestWebUIBrowserServingStream(t *testing.T) {
 		func(context.Context, operation.Reporter) (operation.Completion, error) {
 			return operation.Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status, err := handler.operations.Wait(ctx, operationID); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("fixture operation=%+v, %v", status, err)
 	}

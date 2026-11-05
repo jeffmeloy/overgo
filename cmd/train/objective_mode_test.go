@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -94,9 +95,7 @@ func TestTrainReportsAPoolConfirmation(t *testing.T) {
 	var result trainingworkflow.HeldoutResult
 	result.Confirmation.Verdict, result.ConfirmationsLeft = "not enough evidence", 2
 	var output strings.Builder
-	if err := reportConfirmation(&output, result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reportConfirmation(&output, result))
 	if got := output.String(); !strings.Contains(got, `verdict="not enough evidence" confirmations_left=2`) {
 		t.Fatalf("report = %q", got)
 	}

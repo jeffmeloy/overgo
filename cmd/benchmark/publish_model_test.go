@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ func TestBenchmarkPublishesUnderTheRunnersModel(t *testing.T) {
 	const fixtureContext = 64
 	whole := testutil.HermeticLlamaGGUF(t, fixtureContext)
 	source, err := gguf.Open(whole)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prefix := filepath.Join(t.TempDir(), "split")
 	shard := func(index, count uint16) string { return fmt.Sprintf("%s-%05d-of-%05d.gguf", prefix, index+1, count) }
 	// Two shards: a split takes at least one tensor a shard, and the fixture's first shard holds its first tensor.
@@ -37,18 +36,14 @@ func TestBenchmarkPublishesUnderTheRunnersModel(t *testing.T) {
 		t.Fatal(err, closeErr)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	for name, path := range map[string]string{"whole": whole, "split": shard(0, 2)} {
 		candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		published, err := publishedModel(path)
 		if err != nil || published != candidate.Definition.Model {
 			t.Fatalf("%s: published under %s (%v), measured as %s", name, published, err, candidate.Definition.Model)

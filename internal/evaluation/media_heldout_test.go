@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -28,15 +29,11 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("overgo/media-heldout-test/"+role))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	source := derived(artifact.KindDataset, "dataset")
@@ -45,9 +42,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		records = append(records, dataset.Record{ID: fmt.Sprintf("utterance/%02d", index), Group: fmt.Sprintf("speaker-%02d", index)})
 	}
 	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var training, heldout dataset.Membership
 	for _, membership := range split.Memberships {
 		if membership.Partition == "train" {
@@ -68,9 +63,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		Metric: trainingprogram.MetricAudioSNR, HeldoutRecords: bound, Evidence: []artifact.ID{session.Observation},
 		Authority: trainingprogram.ObjectiveAdaptive,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := CompileSFTEvaluationView(objective, training, heldout)
 	if err != nil || len(heldout.Records) <= bound || len(view.Records) != bound || view.Records[0] != heldout.Records[0] {
 		t.Fatalf("view holds %d of %d held-out records (%v), want the first %d", len(view.Records), len(heldout.Records), err, bound)
@@ -90,9 +83,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		cases = append(cases, HeldoutCase{Record: record.ID, Values: tone(index)})
 	}
 	plan, err := CompileHeldoutPlan(objective, view, cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer := func(amplitude float64) HeldoutReport {
 		t.Helper()
 		var observations []HeldoutObservation
@@ -104,22 +95,16 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 			observations = append(observations, HeldoutObservation{Record: target.Record, Values: values})
 		}
 		report, err := plan.Score(observations)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return report
 	}
 	base, trained, louder := answer(0.5), answer(0.1), answer(0.8)
 	// The store holds the objective, its split and the identities it names,
 	// as a registration commits them.
 	registration, err := split.PublicationBatch("test-registration", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registration.Contents = append(registration.Contents, content)
 	for _, id := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: id})
@@ -137,9 +122,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 			t.Fatalf("%s trained answer = (%+v, %v), want passed %t on held-out SNR", candidate.name, verdict, err, candidate.passed)
 		}
 		batch, err := HeldoutBatch(view, plan, base, candidate.report, verdict)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -165,9 +148,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	silent := slices.Clone(cases)
 	silent[0].Values = make([]float64, samples)
 	quiet, err := CompileHeldoutPlan(objective, view, silent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var exact []HeldoutObservation
 	for _, target := range cases {
 		exact = append(exact, HeldoutObservation{Record: target.Record, Values: slices.Clone(target.Values)})

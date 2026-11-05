@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 			{Kind: moeRoutingQuantileBias, Policy: id(artifact.KindRecipe, "quantile policy"), Recipe: candidate},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	segment := func(name string, admitted bool) moeRoutingShiftSegment {
 		return moeRoutingShiftSegment{Stratum: id(artifact.KindDatasetShard, name), Evaluation: id(artifact.KindEvidence, name+" evaluation"), Admitted: admitted}
 	}
@@ -45,27 +44,21 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 			{Kind: moeRoutingTransition, AggregateEvaluation: id(artifact.KindEvidence, "transition"), AggregateAdmitted: true, Segments: []moeRoutingShiftSegment{transitionA, transitionB}},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capacity, err := moeCapacityPairCodec.New(moeCapacityPair{
 		Version: artifact.InitialDocumentVersion, Model: model, Dataset: dataset, Split: split, Checkpoint: checkpoint,
 		Seed: seed, Code: code, Environment: environment, Evaluator: evaluator,
 		Constrained: moeCapacityEndpoint{Run: id(artifact.KindRun, "constrained"), Policy: candidate, Evaluation: id(artifact.KindEvidence, "constrained evaluation"), Dropped: 1, Total: 10, Admitted: true},
 		Dropless:    moeCapacityEndpoint{Run: id(artifact.KindRun, "dropless"), Policy: id(artifact.KindRecipe, "dropless policy"), Evaluation: id(artifact.KindEvidence, "dropless evaluation"), Total: 10, Admitted: true},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy, err := moeRoutingPromotionPolicyCodec.New(moeRoutingPromotionPolicy{
 		Version:          artifact.InitialDocumentVersion,
 		QualityEvaluator: id(artifact.KindProfile, "quality evaluator"), StabilityEvaluator: id(artifact.KindProfile, "stability evaluator"),
 		UtilizationEvaluator: id(artifact.KindProfile, "utilization evaluator"), DropEvaluator: id(artifact.KindProfile, "drop evaluator"),
 		CostEvaluator: id(artifact.KindProfile, "cost evaluator"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(moeRoutingPromotionPolicyLineage(policy)) != 5 {
 		t.Fatal("promotion policy omits an evaluator authority")
 	}
@@ -92,9 +85,7 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 	}
 	hidden.HiddenStratumFailure = true
 	hidden, err = moeRoutingShiftCodec.New(hidden)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := buildMoERoutingPromotion(policy, baseline, hidden, capacity, candidate, comparisons); err == nil {
 		t.Fatal("hidden stratum regression promoted")
 	}

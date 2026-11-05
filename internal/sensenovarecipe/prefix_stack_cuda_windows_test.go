@@ -23,6 +23,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -63,39 +64,25 @@ func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_BASELINE=1 for SenseNova prefix evidence")
 	}
 	var oracle prefixOracle
-	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &oracle))
 	if oracle.Schema != "overgo.sensenova-prefix-oracle.v1" {
 		t.Fatalf("prefix oracle schema=%q", oracle.Schema)
 	}
 	var generation generationTextOracle
-	if err := jsonfile.Decode(senseNovaGenerationGold, &generation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(senseNovaGenerationGold, &generation))
 	binding := routedlm.SenseNovaBinding()
 	cfg, err := routedlm.LoadConfig(senseNovaModelDir, binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := safetensors.OpenSource(senseNovaModelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	rope, err := routedlm.CompileRopePlan(source, cfg, binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	cuda, err := executor.NewWithWorker(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cuda.Close()
 	started := time.Now()
 	states := make(map[string]*routedlm.PrefixState)
@@ -110,9 +97,7 @@ func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 		}
 	}
 	memory, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("SenseNova neutral prefix stack: branches=2 layers=%d wall=%.3fs peak=%.3fGiB",
 		cfg.NumHiddenLayers, time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30))
 }
@@ -138,39 +123,25 @@ func runSenseNovaPrefixBranch(
 		positions[index] = routedlm.RowPosition{Time: index}
 	}
 	graph, err := routedlm.BuildDevicePrefixLayer(cfg, rope, positions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := executor.Compile(graph.Output, graph.KeyKV, graph.ValueKV)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	row, err := routedlm.EmbeddingRows(source, cfg, binding, ids)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := routedlm.NewPrefixState(
 		len(ids), cfg.NumKeyValueHeads, cfg.HeadDim, oracle.ImageTime, cfg.NumHiddenLayers,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	binder := prefixWeightBinder{worker: worker}
 	defer binder.free()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		weights, err := routedlm.LoadLayerWeights(source, cfg, binding, layer)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		feeds := make(map[*tensor.Tensor]driver.DevicePtr)
-		if err := binder.bind(feeds, graph.Weights, weights); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binder.bind(feeds, graph.Weights, weights))
 		inputs := compiled.NewDeviceInputs()
 		for node, pointer := range feeds {
-			if err := inputs.Set(node, pointer); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, inputs.Set(node, pointer))
 		}
 		result, err := cuda.ExecuteCompiled(
 			context.WithoutCancel(t.Context()), compiled,
@@ -184,9 +155,7 @@ func runSenseNovaPrefixBranch(
 			t.Fatalf("%s layer %d: %v", name, layer, err)
 		}
 		row = result[graph.Output].Data
-		if err := state.SetLayer(layer, result[graph.KeyKV].Data, result[graph.ValueKV].Data); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, state.SetLayer(layer, result[graph.KeyKV].Data, result[graph.ValueKV].Data))
 		if want, ok := oracle.Layers[fmt.Sprint(layer)]; ok {
 			checkPrefixProbe(t, name+" hidden", row, want.Hidden)
 			checkPrefixProbe(t, name+" key", result[graph.KeyKV].Data, want.Key)

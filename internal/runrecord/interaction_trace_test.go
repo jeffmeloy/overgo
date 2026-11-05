@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -78,17 +79,11 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		},
 		Result: result, Evidence: evidence,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := trace.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseEfficiencyTrace(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != trace.ID || parsed.Work != trace.Work || parsed.Surface != trace.Surface {
 		t.Fatalf("round trip drifted: %+v vs %+v", parsed, trace)
 	}

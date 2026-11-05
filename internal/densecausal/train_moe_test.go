@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func tinyMixtureModel(t *testing.T) *Model {
 	const expertInter = 8
 	policy := MoERouterPolicy{TopK: 2, Scoring: MoEScoringSoftmax, NormalizeTopKProb: true, RoutedScaling: 1, ExpertInter: expertInter}
 	m, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, policy, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return m
 }
 
@@ -34,9 +33,7 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 	batches := [][]int{{1, 5, 9, 3}, {7, 2, 11, 4}}
 	learningRate := derivedTestLearningRate(t, baseline)
 	wantLosses, wantState, err := baseline.Train(batches, learningRate, 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var routes []MoERouterObservation
 	gotLosses, gotState, err := observed.TrainWith(
 		batches, learningRate, 0.9, nil, nil,
@@ -45,9 +42,7 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 			return nil
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(gotLosses, wantLosses) || !reflect.DeepEqual(gotState, wantState) ||
 		!reflect.DeepEqual(observed.Weights, baseline.Weights) {
 		t.Fatal("router observation changed host training numerics")
@@ -79,18 +74,14 @@ func TestMixtureMuonTrainingDecreasesLossTiny(t *testing.T) {
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	const steps = 20
 	trajectory, _, err := m.Train(slices.Repeat([][]int{tokens}, steps), derivedTestLearningRate(t, m), 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, loss := range trajectory {
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("trajectory[%d] = %g is not finite", i, loss)
 		}
 	}
 	after, _, err := m.Loss(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("mixture loss %.6f -> %.6f over %d Muon steps", trajectory[0], after, steps)
 	if !(after < trajectory[0]) {
 		t.Fatalf("mixture Muon training did not reduce loss: before %.6f after %.6f", trajectory[0], after)

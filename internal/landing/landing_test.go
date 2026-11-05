@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // newRowFixture commits a module whose plan holds one open row, row/do,
@@ -22,9 +23,7 @@ func newRowFixture(t *testing.T, stub map[string]string) *sliceFixture {
 	fixture.git("config", "user.email", "fixture@example.com")
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen,
 		Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}}}}
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan")
 	return fixture
@@ -88,9 +87,7 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 		{ID: "failing", Title: "failing", Status: plan.StatusOpen,
 			Steps: []plan.Step{{ID: "do", Title: "failing", Status: plan.StatusOpen, Verify: "false"}}},
 	}}
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan of several rows")
 	fixture.write("a.txt", "changed\n")
@@ -99,9 +96,7 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 	if left := l.charge(0); left != 15 || len(l.verifiers) != 1 {
 		t.Fatalf("the rows may add %d and their checks are %q, want the two rows' counts added and the one check, which both steps share, run once", left, l.verifiers)
 	}
-	if err := l.verify(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, l.verify(t.Context()))
 	commit, err := l.commit(t.Context())
 	if err != nil {
 		t.Fatalf("two steps did not land together: %v", err)
@@ -142,9 +137,7 @@ func TestLandingRaisesItsOwnCount(t *testing.T) {
 		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: before, Reason: "the row's start"},
 			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
 	}}
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan of one row")
 	for _, raise := range []struct {
@@ -154,9 +147,7 @@ func TestLandingRaisesItsOwnCount(t *testing.T) {
 		// The change edits a file beside the plan, so the plan it builds on judges it.
 		fixture.write("a.txt", raise.reason+"\n")
 		document.Items[0].Budget = plan.Budget{Nodes: raised, Reason: raise.reason}
-		if err := plan.Save(fixture.planPath(), document); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 		l := fixture.candidateOf("row/do")
 		if left := l.charge(growth); left != raise.admits || l.advanced.Items[0].Budget.Nodes != raise.admits-growth {
 			t.Errorf("a raise for %q admits %d and leaves %d, want %d and %d", raise.reason, left, l.advanced.Items[0].Budget.Nodes, raise.admits, raise.admits-growth)
@@ -174,17 +165,13 @@ func TestAChangedCheckOrCountIsWrittenInTheCommit(t *testing.T) {
 	}
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("weakened", "go test ./strict", 2), row("untouched", "true", 2)}}
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.git("add", "-A")
 	fixture.git("commit", "-q", "-m", "plan of two rows")
 	document.Items[0].Steps[0].Verify = "true"
 	document.Items[0].Budget = plan.Budget{Nodes: 9, Reason: "it took more"}
 	document.Items = append(document.Items, row("added", "true", 1))
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	fixture.write("a.txt", "changed\n")
 	message := fixture.candidateOf("weakened/do").message()
 	for _, want := range []string{
@@ -211,9 +198,7 @@ func TestLandingFixRegeneratesTheAPIManifest(t *testing.T) {
 	})
 	fixture.write("internal/p/p.go", "// Package p is the fixture.\npackage p\n")
 	l := fixture.candidate()
-	if err := l.fix(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, l.fix(t.Context()))
 	if data := fixture.read("docs/api_manifest.json"); data != "regenerated\n" {
 		t.Fatalf("the manifest after the fix stage = %q", data)
 	}
@@ -253,9 +238,7 @@ func TestLandingPublishesTheCheckedCandidate(t *testing.T) {
 
 	fixture.write(plan.Path, original)
 	fixture.write("a.txt", "checked\n")
-	if err := os.Remove(filepath.Join(fixture.repo, "b.txt")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(fixture.repo, "b.txt")))
 	fixture.hook("echo late > a.txt\n")
 	commit, err := l.commit(t.Context())
 	if err != nil {
@@ -299,9 +282,7 @@ func TestLandingLeavesAConcurrentPlanEditAlone(t *testing.T) {
 	}
 
 	fixture.write(plan.Path, original)
-	if err := os.Remove(filepath.Join(fixture.repo, ".git", "hooks", "reference-transaction")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(fixture.repo, ".git", "hooks", "reference-transaction")))
 	fixture.git("commit", "-q", "--allow-empty", "-m", "moved")
 	moved := fixture.git("rev-parse", "HEAD")
 	if _, err := l.commit(t.Context()); err == nil {

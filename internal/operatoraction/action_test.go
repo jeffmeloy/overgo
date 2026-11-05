@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ func TestActionEnvelopeContract(t *testing.T) {
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "missing evaluation")
 	action := operatoraction.Action{Code: "run-evaluation", Summary: "Run the required evaluation", Argv: []string{"overgo", "evaluate", "--recipe", subject.String()}}
 	block := operatoraction.Block{Subject: subject, Reason: "promotion requires held-out evidence", Evidence: []artifact.ID{evidence}, Actions: []operatoraction.Action{action}}
-	if err := block.Validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, block.Validate())
 	failure := testutil.Recoverable(errors.New("promotion blocked"), block)
 	recovered, ok := operatoraction.Recovery(failure)
 	if !ok || recovered.Subject != subject || len(recovered.Actions) != 1 {

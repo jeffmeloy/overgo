@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageImport pins multimodal import (professional GUI campaign,
@@ -39,9 +41,7 @@ func TestFrontPageImport(t *testing.T) {
 			} `json:"media"`
 		} `json:"model"`
 	}
-	if err := json.Unmarshal(manifest.Body.Bytes(), &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(manifest.Body.Bytes(), &document))
 	for _, kind := range []string{"text/plain", "text/markdown", "text/csv", "application/json", "application/pdf"} {
 		if !slices.Contains(document.Model.Media.Accept, kind) {
 			t.Errorf("capability document does not accept %s: %v", kind, document.Model.Media.Accept)
@@ -63,14 +63,10 @@ func TestFrontPageImport(t *testing.T) {
 		t.Fatalf("response status = %d body=%s", response.Code, response.Body.String())
 	}
 	var stored responsesResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &stored); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &stored))
 	messages := serveTestRequest(handler, http.MethodGet, "/interactions/messages?response="+stored.ID, "")
 	var chain conversationMessagesResponse
-	if err := json.Unmarshal(messages.Body.Bytes(), &chain); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(messages.Body.Bytes(), &chain))
 	if len(chain.Messages) == 0 {
 		t.Fatalf("chain = %+v", chain)
 	}
@@ -101,9 +97,7 @@ func testPDF(t *testing.T, content string) []byte {
 	if _, err := writer.Write([]byte(content)); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.Close())
 	var pdf bytes.Buffer
 	pdf.WriteString("%PDF-1.4\n")
 	pdf.WriteString("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")

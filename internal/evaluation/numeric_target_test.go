@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing.T) {
@@ -13,9 +14,7 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 		view := textTargetView(t, modality)
 		view.Signature.Outputs[0] = modality
 		view, err := sftEvaluationViewCodec.New(view)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		plan, err := compileNumericTargetPlan(view, numericTargetSuite{
 			Scorers: []numericScorerSpec{
 				{Kind: numericAbsoluteError, Unit: "declared-unit"},
@@ -28,9 +27,7 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 				Assumptions: []numericAssumption{{Name: "target-order", Value: "dataset-declared"}},
 			}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		report, err := scoreNumericTargets(plan, []numericTargetObservation{{
 			Record: "heldout", Values: []float64{-999, 4, -7}, Label: "class-b",
 		}})

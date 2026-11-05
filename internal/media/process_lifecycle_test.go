@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestExternalProcessLifecycle proves media decoding rides the shared
@@ -26,9 +27,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Fatalf("synthesize clip = (%+v, %v)", receipt, err)
 	}
 	frames, err := decodeFFmpegFrames(t.Context(), ffmpeg, clip, nil, 4, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(frames) == 0 {
 		t.Fatal("decoded no frames")
 	}

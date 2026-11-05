@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -33,9 +34,7 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 	const generated = 24
 	trunk := writeFlashNextFixture(t, strataFlashNextWindows)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt := make([]tokenizer.TokenID, 40)
 	for index := range prompt {
 		prompt[index] = tokenizer.TokenID(3 + (index*7+index/5)%int(flashNextVocab-3))
@@ -51,21 +50,15 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 			MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true,
 			PlainDecode: plain, OnDraftSpan: onDraft,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids[len(prompt):]
 	}
 	// The verifier off: the steps write their state out, as before the port.
 	stepped, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stepped.qsaWindows = false
 	written := generate(stepped, true, nil)
-	if err := stepped.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, stepped.Close())
 	if len(slices.Compact(slices.Clone(written))) == 1 {
 		t.Fatalf("the fixture selects one token throughout (%v)", written)
 	}
@@ -73,9 +66,7 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 	for _, copyTrunk := range []bool{false, true} {
 		runner, err := openFixtureRunnerWithResidency(trunk,
 			OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, copyTrunk, strataFlashNextWindows)}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !runner.windowsDecode() {
 			_ = runner.Close()
 			t.Fatal("the fixture at Strata's geometry does not decode through the verifier")
@@ -83,9 +74,7 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 		plain := generate(runner, true, nil)
 		var drafted, accepted int
 		speculated := generate(runner, false, func(count, kept int) { drafted, accepted = drafted+count, accepted+kept })
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		if !slices.Equal(plain, written) {
 			t.Fatalf("copy=%t: the verifier's plain decoding %v differs from the steps' %v", copyTrunk, plain, written)
 		}

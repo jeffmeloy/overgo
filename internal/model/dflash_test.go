@@ -6,6 +6,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
@@ -14,9 +15,7 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 	input := func(name string, shape tensor.Shape, value float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
 		elements, err := shape.Elements()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = value + float32(index%5)*0.01
@@ -52,20 +51,14 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 		FeedForwardDown: input("down", tensor.MustShape(6, 4), 0.02),
 	}
 	cacheKey, cacheValue, err := program.CacheProjection().Build(builder, fused, weights, []uint32{0, 1}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	noise := input("noise", tensor.MustShape(4, 3), 0.1)
 	result, err := buildFixtureDenseBlockCachedForLayer(
 		builder, noise, spec, weights, []uint32{2, 3, 4}, cacheKey, cacheValue, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !results[result.Output].Shape.Equal(tensor.MustShape(4, 3)) ||
 		!results[result.Key].Shape.Equal(tensor.MustShape(2, 1, 5)) ||
 		!results[result.Value].Shape.Equal(tensor.MustShape(2, 1, 5)) {
@@ -73,9 +66,7 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 			results[result.Output].Shape.Slice(), results[result.Key].Shape.Slice(), results[result.Value].Shape.Slice())
 	}
 	nodes, err := tensor.Topological(result.Output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).Causal {
 			t.Fatal("DFlash noise block used causal attention")

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 const hostedTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -23,9 +24,7 @@ func declareHostedFixture(t *testing.T, keyEnvironment string, answers []string)
 	t.Helper()
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fake, _ := relaytest.Serve(t, "", "hosted-key", answers)
 	t.Setenv(keyEnvironment, "hosted-key")
 	declaration, err := remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
@@ -34,9 +33,7 @@ func declareHostedFixture(t *testing.T, keyEnvironment string, answers []string)
 	if closeErr := store.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return repository, declaration
 }
 
@@ -49,9 +46,7 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 	repository, declaration := declareHostedFixture(t, "OVERGO_EVALUATE_HOSTED_TEST_KEY", []string{"B"})
 	session, err := openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit},
 		modelRequest{Path: declaration.Location, Suites: []string{"derived"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hosted, ok := session.(*hostedSession)
 	if !ok {
 		t.Fatalf("session = %T", session)
@@ -64,17 +59,11 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 			{Name: "two", Prompt: "Q2\nAnswer:", Candidates: []string{" A", " B"}, Answer: 0},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := evaluation.CompileSuite(source, hosted.campaign.Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := hosted.campaign.Evaluate(t.Context(), compiled)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var accuracy float64
 	for _, metric := range result.Metrics {
 		if metric.Name == "accuracy" {
@@ -89,9 +78,7 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 		t.Fatalf("execution policy = %+v, %v", policy, err)
 	}
 	evidence, err := evaluation.RequireEvaluationEvidence(t.Context(), hosted.store, result.Evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environment, err := runrecord.RequireEnvironment(t.Context(), hosted.store, evidence.Environment)
 	if err != nil || environment.Reproducible() || environment.Backend != runrecord.BackendRemote {
 		t.Fatalf("environment = %+v, %v", environment, err)
@@ -103,9 +90,7 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 		t.Fatalf("hosted likelihoods: %v", err)
 	}
 	// The session's store closes before the keyless attempt opens its own.
-	if err := session.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, session.Close())
 	t.Setenv("OVERGO_EVALUATE_HOSTED_TEST_KEY", "")
 	if _, err := openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit},
 		modelRequest{Path: declaration.Location, Suites: []string{"derived"}}); err == nil || !strings.Contains(err.Error(), "gated on its key") {

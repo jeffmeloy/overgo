@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -31,9 +32,7 @@ func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	workspace.capabilities[1].Controls = []workflowControl{{Name: "text", Type: workflowControlText, Required: true}}
 	// A video capability whose run answers with a GIF of two by two pixels.
 	var clip bytes.Buffer
-	if err := gif.EncodeAll(&clip, &gif.GIF{Image: []*image.Paletted{image.NewPaletted(image.Rect(0, 0, 2, 2), palette.Plan9)}, Delay: []int{6}}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gif.EncodeAll(&clip, &gif.GIF{Image: []*image.Paletted{image.NewPaletted(image.Rect(0, 0, 2, 2), palette.Plan9)}, Delay: []int{6}}))
 	clipID := testutil.ArtifactBytesID(t, artifact.KindOutput, clip.Bytes())
 	clipRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "native-clip-recipe")
 	clipRun := testutil.ArtifactID(t, artifact.KindRun, "native-clip-run")

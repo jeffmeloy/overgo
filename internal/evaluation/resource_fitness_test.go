@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -43,25 +44,19 @@ func TestResourceFitnessContract(t *testing.T) {
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture",
 		Backend: "fixture", Driver: "fixture",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run, err := runrecord.NewBoundRun(
 		recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{workload}, []artifact.ID{planID(t, artifact.KindOutput, "resource output")}, "",
 		runtimeLedgerCommit, environment.ID, 31, []runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: 31}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	campaign := &Campaign{
 		identity:    modelrecipe.ProgramIdentity{Model: model, Recipe: recipe},
 		environment: environment,
 	}
 	fitness, err := campaign.resourceFitness(workload, run)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fitness.Scope.Surface != runrecord.SurfaceEvaluation || fitness.Scope.Model != model ||
 		fitness.Scope.Hardware != environment.ID || fitness.Scope.Provider.Valid() ||
 		fitness.Scope.Workload != workload || fitness.Scope.Attempt != run.ID || run.Recipe != recipe {
@@ -79,9 +74,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		Metric: runrecord.ResourceInputTokens, Value: 0,
 	})
 	observedZero, err = runrecord.NewResourceFitness(observedZero)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if tokens, observed := observedZero.Measure(runrecord.ResourceInputTokens); !observed || tokens != 0 {
 		t.Fatalf("observed-zero input tokens = %d, observed %t", tokens, observed)
 	}
@@ -92,9 +85,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		foreign.Recipe, foreign.Outcome, foreign.Inputs, foreign.Outputs, foreign.Failure,
 		foreign.CodeCommit, foreign.Environment, foreign.MeasuredNS, foreign.Phases,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := campaign.resourceFitness(workload, foreign); err == nil {
 		t.Fatal("accepted a run from another recipe")
 	}
@@ -112,9 +103,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	} {
 		t.Run("terminal "+terminal.name, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			definition := planID(t, artifact.KindModelDefinition, "resource definition "+terminal.name)
 			if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -130,17 +119,11 @@ func TestResourceFitnessContract(t *testing.T) {
 				modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: recipe},
 				environment, runtimeLedgerCommit,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			source, err := json.Marshal(exactFixture())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			suite, err := CompileSuite(source, terminalCampaign.Authorities())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			result, evaluateErr := terminalCampaign.Evaluate(t.Context(), suite)
 			if evaluateErr == nil {
 				t.Fatal("terminal evaluation succeeded")

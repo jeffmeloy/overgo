@@ -13,6 +13,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
@@ -22,28 +23,20 @@ import (
 func TestAlternatingWindowTrainingCells(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	e4bPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	input, target := adjacentTokenRows(t, e4bPath)
 	trained, topology, err := adaptertrain.LoadArtifact(t.Context(), e4bPath, 0, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	layer, err := topology.Layer(0)
 	if err != nil || !layer.PerLayerInput || trained.ParameterCount() == 0 {
 		t.Fatalf("layer=%+v parameters=%d err=%v", layer, trained.ParameterCount(), err)
 	}
 	example, err := trained.BuildExample(t.Context(), e4bPath, nil, input, target, "text")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loss, err := trained.Step(worker, example)
 	if err != nil || math.IsNaN(loss) || math.IsInf(loss, 0) {
 		t.Fatalf("loss=%g err=%v", loss, err)
@@ -60,9 +53,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 func adjacentTokenRows(t *testing.T, path string) ([]uint32, []uint32) {
 	t.Helper()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vocabulary, err := tokenizer.Load(file)
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
@@ -73,8 +64,6 @@ func adjacentTokenRows(t *testing.T, path string) ([]uint32, []uint32) {
 		t.Fatalf("tokens=%v err=%v", ids, err)
 	}
 	input, target, err := trainingdata.AdjacentTokenRows(ids)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return input, target
 }

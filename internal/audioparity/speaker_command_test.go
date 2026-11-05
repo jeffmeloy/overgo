@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -45,9 +46,7 @@ func verifySpeakerCommand(t *testing.T, directory, commit, storePath string, def
 				t.Fatal("multiple command reports")
 			}
 			found = true
-			if err := json.Unmarshal([]byte(line), &receipt); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(line), &receipt))
 		}
 		failed := 0
 		if partial {
@@ -57,9 +56,7 @@ func verifySpeakerCommand(t *testing.T, directory, commit, storePath string, def
 			t.Fatalf("command denominator: %s", output)
 		}
 		reader, err := overgodb.OpenReadOnly(storePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		func() {
 			defer reader.Close()
 			content, ok, err := artifact.ReadContent(t.Context(), reader, receipt.Report)

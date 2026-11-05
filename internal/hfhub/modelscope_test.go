@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 const modelScopeTestRevision = "797fa8e678b4f0a766271bf5103e6cd7a2faa999"
@@ -53,15 +55,11 @@ func TestModelScopeDownload(t *testing.T) {
 			}))
 			defer hub.Close()
 			client, err := NewModelScope(hub.URL, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			request := DownloadRequest{Kind: KindModel, Repository: "openmoss/tiny", Revision: modelScopeTestRevision, Destination: t.TempDir()}
 			if mode == "resume" {
 				partial := client.partialPath(bookkeepingFor(t, request, file), request, modelScopeTestRevision, file)
-				if err := os.WriteFile(partial, payload[:8], 0600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(partial, payload[:8], 0600))
 			}
 			if mode == "interrupted" {
 				if _, err := client.Download(t.Context(), request); err == nil {
@@ -81,9 +79,7 @@ func TestModelScopeDownload(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if resolved.Revision != modelScopeTestRevision || len(resolved.Files) != 1 {
 				t.Fatalf("inventory=%+v", resolved)
 			}
@@ -133,9 +129,7 @@ func TestModelScopeInventoryRefusals(t *testing.T) {
 			}))
 			defer hub.Close()
 			client, err := NewModelScope(hub.URL, "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			revision := modelScopeTestRevision
 			kind := KindModel
 			if failure == "mutable" {

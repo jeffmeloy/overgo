@@ -7,6 +7,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestTensorMeasurementLookupStopsAtItsMatch finds a model's committed
@@ -17,15 +18,11 @@ import (
 func TestTensorMeasurementLookupStopsAtItsMatch(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	older := []byte(`{"schema":"not a measurement"}`)
 	olderID, err := artifact.IdentifyBytes(artifact.KindTensorInventory, older)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "server/tensor-lookup-older", Contents: []artifact.Content{{
 		Descriptor: artifact.Descriptor{ID: olderID, Size: uint64(len(older)), MediaType: modelartifact.TensorMeasurementMediaType, Schema: modelartifact.TensorMeasurementSchema},
 		Data:       older,
@@ -33,22 +30,14 @@ func TestTensorMeasurementLookupStopsAtItsMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	file, err := gguf.Open(writeTensorFixture(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	model, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy := modelartifact.MeasurementPolicy{MaxSamplesPerTensor: testAnalysisPolicy.TensorSamples, MaxReadBytes: testAnalysisPolicy.TensorReadBytes}
 	measured, err := measureGGUF(model.TensorInventory, file, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := publishTensorMeasurement(t.Context(), store, model.TensorInventory, measured); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, publishTensorMeasurement(t.Context(), store, model.TensorInventory, measured))
 	found, ok, err := findTensorMeasurement(t.Context(), store, model.TensorInventory.ID, policy)
 	if err != nil || !ok || found.ID != measured.ID {
 		t.Fatalf("lookup = %v, %v, %v; want the newest measurement %v", found.ID, ok, err, measured.ID)

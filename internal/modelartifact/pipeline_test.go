@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func pipelineFixture(t *testing.T) string {
@@ -34,24 +35,16 @@ func pipelineFixture(t *testing.T) string {
 func pipelineWrite(t *testing.T, root, name, body string) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	testcheck.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 }
 
 func TestPipelineInventoryDeterministic(t *testing.T) {
 	firstRoot, secondRoot := pipelineFixture(t), pipelineFixture(t)
 	first, err := FromHFPath(firstRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := FromHFPath(secondRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.Manifest.ID != second.Manifest.ID || first.TensorInventory.ID != second.TensorInventory.ID {
 		t.Fatal("relocation or creation order changes inventory identity")
 	}
@@ -85,9 +78,7 @@ func TestPipelineInventoryDeterministic(t *testing.T) {
 	}
 	pipelineWrite(t, secondRoot, "scheduler/scheduler_config.json", `{"_class_name":"MOSSImageScheduler","shift":1}`)
 	changed, err := FromHFPath(secondRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if changed.Manifest.ID == first.Manifest.ID {
 		t.Fatal("scheduler change retained source identity")
 	}
@@ -99,9 +90,7 @@ func TestPipelineInventoryRefusesIncompleteOrEscapingComponents(t *testing.T) {
 		change func(*testing.T, string)
 	}{
 		{"missing weights", func(t *testing.T, root string) {
-			if err := os.Remove(filepath.Join(root, "transformer", "diffusion_pytorch_model.safetensors")); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.Remove(filepath.Join(root, "transformer", "diffusion_pytorch_model.safetensors")))
 		}},
 		{"missing directory", func(t *testing.T, root string) {
 			pipelineWrite(t, root, "model_index.json", `{"_class_name":"P","missing":["module","Model"]}`)
@@ -140,13 +129,9 @@ func TestPipelineInventoryRefusesIncompleteOrEscapingComponents(t *testing.T) {
 func TestPipelineInventoryRetainsPolicyParameters(t *testing.T) {
 	root := pipelineFixture(t)
 	raw, err := os.ReadFile(filepath.Join(root, "model_index.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var index map[string]any
-	if err := json.Unmarshal(raw, &index); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &index))
 	index["_class_name"] = "Krea2Pipeline"
 	index["transformer"] = []string{"diffusers", "Krea2Transformer2DModel"}
 	index["text_encoder"] = []string{"transformers", "Qwen3VLModel"}
@@ -155,27 +140,19 @@ func TestPipelineInventoryRetainsPolicyParameters(t *testing.T) {
 	index["is_distilled"] = true
 	index["patch_size"] = 2
 	encoded, err := json.Marshal(index)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pipelineWrite(t, root, "model_index.json", string(encoded))
 	inventory, err := FromHFPath(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.TensorInventory.Tensors) != 2 {
 		t.Fatal("policy metadata changed component enumeration")
 	}
 	index["text_encoder_select_layers"] = []int{2, 5}
 	encoded, err = json.Marshal(index)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pipelineWrite(t, root, "model_index.json", string(encoded))
 	changed, err := FromHFPath(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if changed.Manifest.ID == inventory.Manifest.ID {
 		t.Fatal("layer selection was excluded from model identity")
 	}

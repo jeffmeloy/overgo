@@ -14,6 +14,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,9 +28,7 @@ func TestApplyDeclaredSamplingOverlaysDeclaredFieldsOnly(t *testing.T) {
 	policy, err = withDeclaredSampling(policy, &modelartifact.GenerationSampling{
 		Origin: "generation_config.json", DoSample: true, Temperature: 0.7, TopP: 0.8, PresencePenalty: 1.5,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, overlaid := range []sampling.Policy{policy.Interactive.Sampling, policy.Serving.Sampling} {
 		if overlaid.Temperature != 0.7 || overlaid.TopP != 0.8 || overlaid.PresencePenalty != 1.5 {
 			t.Fatalf("declared fields not applied: %+v", overlaid)
@@ -42,17 +41,13 @@ func TestApplyDeclaredSamplingOverlaysDeclaredFieldsOnly(t *testing.T) {
 		t.Fatalf("overlaid policy is invalid: %v", err)
 	}
 	policy, err = withDeclaredSampling(policy, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: false})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if policy.Serving.Sampling.Temperature != 0 || policy.Interactive.Sampling.Temperature != 0 {
 		t.Fatalf("do_sample=false did not select greedy decoding: %+v", policy.Serving.Sampling)
 	}
 	unchanged := policy.Serving.Sampling.Config()
 	policy, err = withDeclaredSampling(policy, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(policy.Serving.Sampling.Config(), unchanged) {
 		t.Fatal("nil declaration changed the policy")
 	}
@@ -70,17 +65,11 @@ func TestFilesSamplingRecommendationOverlaysTheCatalog(t *testing.T) {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), "model.gguf")
 		file, err := os.Create(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		metadata := append([]gguf.Metadata{testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen4exp")}, sampling...)
-		if err := errors.Join(gguf.Write(file, metadata, nil, gguf.WriteOptions{}), file.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(gguf.Write(file, metadata, nil, gguf.WriteOptions{}), file.Close()))
 		opened, err := gguf.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = opened.Close() })
 		return opened
 	}
@@ -90,9 +79,7 @@ func TestFilesSamplingRecommendationOverlaysTheCatalog(t *testing.T) {
 		testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, float32(1)),
 	)
 	policy, err := withDeclaredSampling(catalog, fileDeclaredSampling(flashNext))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, overlaid := range []sampling.Policy{policy.Serving.Sampling, policy.Interactive.Sampling} {
 		if overlaid.Temperature != 1 || overlaid.TopP != 0.95 || overlaid.TopK != 20 || overlaid.MinP != catalog.Serving.Sampling.MinP {
 			t.Fatalf("the file's sampling did not overlay the catalog's: %+v", overlaid)
@@ -123,9 +110,7 @@ func TestDeclaredSamplingPreservesPolicyIdentity(t *testing.T) {
 		Origin: "generation_config.json", DoSample: true, Temperature: 0.7, TopP: 0.8,
 	}
 	policy, err = withDeclaredSampling(policy, declaration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := policy.ValidateIdentity(); err != nil {
 		t.Fatalf("declared sampling policy cannot enter the HTTP handler: %v", err)
 	}
@@ -161,18 +146,14 @@ func TestDeclaredSamplingIsBoundToTheRun(t *testing.T) {
 	attempt := func(temperature float64) runrecord.ServingObservation {
 		t.Helper()
 		policy, err := withDeclaredSampling(catalog, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: true, Temperature: temperature})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		observation := runrecord.ServingObservation{
 			Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1,
 			Model:       testutil.ArtifactID(t, artifact.KindModel, "declared"),
 			Recipe:      testutil.ArtifactID(t, artifact.KindRecipe, "one recipe"),
 			Environment: testutil.ArtifactID(t, artifact.KindEvidence, "one machine"),
 		}
-		if err := BindServingPolicy(ctx, store, &observation, policy); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, BindServingPolicy(ctx, store, &observation, policy))
 		if observation, err = runrecord.NewServingObservation(observation); err != nil {
 			t.Fatal(err)
 		}
@@ -208,9 +189,7 @@ func TestADeclaredPenaltyReachesTheSampler(t *testing.T) {
 	} {
 		declared.sampling.Origin = "generation_config.json"
 		policy, err := withDeclaredSampling(catalog, &declared.sampling)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, overlaid := range []sampling.Policy{policy.Serving.Sampling, policy.Interactive.Sampling} {
 			if sampling.PenaltiesIdle(overlaid.Config()) != declared.idle {
 				t.Errorf("%+v leaves the penalties idle %t, want %t", declared.sampling, !declared.idle, declared.idle)

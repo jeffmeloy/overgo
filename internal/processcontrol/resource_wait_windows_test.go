@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestResourceAdmissionWaitsForRelease holds the admission wait to its
@@ -68,9 +70,7 @@ func TestResourceAdmissionWaitsForRelease(t *testing.T) {
 	if err := <-done; err != nil || attempts != 4 || held == nil {
 		t.Fatalf("the hold after %d claims, want 4 (two to arm the wait, one for each release): %v", attempts, err)
 	}
-	if err := held(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, held())
 }
 
 // TestResourceAdmissionWakesOnHolderExit holds the other signal: an
@@ -93,9 +93,7 @@ func TestResourceAdmissionWakesOnHolderExit(t *testing.T) {
 	}()
 	<-contended
 	// Close stdin only after the first claim observes the live holder.
-	if err := owner.input.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, owner.input.Close())
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}

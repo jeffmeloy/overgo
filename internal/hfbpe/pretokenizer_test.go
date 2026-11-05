@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // Literal declarations match the pinned external artifacts, independently of the
@@ -123,13 +125,9 @@ func TestDeclaredPipeline(t *testing.T) {
 	} {
 		directory := t.TempDir()
 		data := `{"model":{"type":"BPE","vocab":{"a":0},"merges":[],` + option + `},"pre_tokenizer":{"type":"ByteLevel","add_prefix_space":false,"trim_offsets":true,"use_regex":false}}`
-		if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600))
 		declared, err := Load(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := declared.Encode("a"); err == nil {
 			t.Fatalf("unsupported model option accepted: %s", option)
 		}
@@ -146,30 +144,20 @@ func TestDeclaredPipeline(t *testing.T) {
 		"model":         map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []string{}, "unk_token": "<unk>"},
 		"pre_tokenizer": byteLevel(false, false),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), model, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), model, 0600))
 	unknown, err := Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, err := unknown.Encode("a b"); err != nil || !slices.Equal(got, byteIDs("a b")) {
 		t.Fatalf("unknown token over every byte: %v %v", got, err)
 	}
 	t.Run("marker-conflict", func(t *testing.T) {
 		directory := t.TempDir()
 		data := `{"model":{"type":"BPE","vocab":{"a":0,"▁":1,"b":2},"merges":[]},"normalizer":{"type":"Replace","pattern":{"String":" "},"content":"▁"},"pre_tokenizer":{"type":"ByteLevel","add_prefix_space":false,"trim_offsets":true,"use_regex":false}}`
-		if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600))
 		marker, err := Load(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := marker.Encode("a b"); err == nil {
 			t.Fatal("declared byte pipeline silently used legacy marker encoding")
 		}
@@ -186,9 +174,7 @@ func TestDeclaredPipelineOracle(t *testing.T) {
 	} {
 		t.Run(source.name, func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join("testdata", source.name+"-oracle.json"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var fixture struct {
 				SourceCommit     string          `json:"source_commit"`
 				VocabularySHA256 string          `json:"vocabulary_sha256"`
@@ -200,9 +186,7 @@ func TestDeclaredPipelineOracle(t *testing.T) {
 					IDs  []int  `json:"ids"`
 				} `json:"cases"`
 			}
-			if err := json.Unmarshal(raw, &fixture); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 			if fixture.SourceCommit != "42fc243060709331ff9b158a9ed2cbe37219ae83" || len(fixture.Cases) != 46 {
 				t.Fatal("independent corpus provenance/cardinality differs")
 			}
@@ -210,13 +194,9 @@ func TestDeclaredPipelineOracle(t *testing.T) {
 				t.Fatal("independent corpus source identity differs")
 			}
 			directory := t.TempDir()
-			if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), fixture.Tokenizer, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), fixture.Tokenizer, 0600))
 			tok, err := Load(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for index, test := range fixture.Cases {
 				got, err := tok.Encode(test.Text)
 				if err != nil || !slices.Equal(got, test.IDs) {
@@ -229,9 +209,7 @@ func TestDeclaredPipelineOracle(t *testing.T) {
 
 func TestConsumerTokenIdentity(t *testing.T) {
 	raw, err := os.ReadFile("testdata/consumer-identity.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixtures []struct {
 		Consumer       string          `json:"consumer"`
 		SourceSHA256   string          `json:"source_sha256"`
@@ -242,9 +220,7 @@ func TestConsumerTokenIdentity(t *testing.T) {
 			IDs  []int  `json:"ids"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixtures); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixtures))
 	expected := map[string]struct {
 		digest string
 		cases  int
@@ -264,13 +240,9 @@ func TestConsumerTokenIdentity(t *testing.T) {
 			}
 			delete(expected, fixture.Consumer)
 			directory := t.TempDir()
-			if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), fixture.Tokenizer, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), fixture.Tokenizer, 0600))
 			tok, err := Load(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, sample := range fixture.Cases {
 				got, err := tok.Encode(sample.Text)
 				if err != nil || !slices.Equal(got, sample.IDs) {
@@ -287,38 +259,24 @@ func TestConsumerTokenIdentity(t *testing.T) {
 		model := `{"type":"BPE","vocab":` + vocab + `,"merges":["Ġ 1","Ġ1 2"]}`
 		for _, declaration := range []string{"", `,"pre_tokenizer":null`} {
 			data := `{"model":` + model + declaration + `}`
-			if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600))
 			tok, err := Load(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if ids, err := tok.Encode(" 12"); err != nil || !slices.Equal(ids, []int{0, 1, 2}) {
 				t.Fatalf("legacy Load changed: %v %v", ids, err)
 			}
 		}
-		if err := os.WriteFile(filepath.Join(directory, "vocab.json"), []byte(vocab), 0600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(directory, "merges.txt"), []byte("#version: 0.2\nĠ 1\nĠ1 2\n"), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "vocab.json"), []byte(vocab), 0600))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "merges.txt"), []byte("#version: 0.2\nĠ 1\nĠ1 2\n"), 0600))
 		legacy, err := LoadSplit(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if ids, err := legacy.Encode(" 12"); err != nil || !slices.Equal(ids, []int{0, 1, 2}) {
 			t.Fatalf("legacy LoadSplit changed: %v %v", ids, err)
 		}
 		data := `{"model":` + model + `,"pre_tokenizer":{"type":"ByteLevel","add_prefix_space":false,"trim_offsets":true}}`
-		if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(data), 0600))
 		declared, err := Load(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if ids, err := declared.Encode(" 12"); err != nil || !slices.Equal(ids, []int{4}) {
 			t.Fatalf("declared ByteLevel ignored: %v %v", ids, err)
 		}

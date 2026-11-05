@@ -22,6 +22,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -49,9 +50,7 @@ func TestServingGoldenEvidenceCatalog(t *testing.T) {
 
 func TestServingGoldenEvidence(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, test := range servingGoldenCases {
 		t.Run(test.Name, func(t *testing.T) {
 			modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", test.Model)
@@ -73,13 +72,9 @@ func readServingGolden(t testing.TB, test servingGoldenCase) (evaluation.ExactSu
 	path := testutil.FixturePath(t, test.Fixture)
 	requireServingFileIdentity(t, path, artifact.KindEvidence, test.Evidence)
 	suite, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var golden evaluation.ExactSuite
-	if err := strictjson.DecodeBytes(suite, &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(suite, &golden))
 	if golden.Schema != test.Schema || len(golden.Cases) == 0 {
 		t.Fatalf("invalid serving evidence: schema=%q cases=%d", golden.Schema, len(golden.Cases))
 	}
@@ -89,14 +84,10 @@ func readServingGolden(t testing.TB, test servingGoldenCase) (evaluation.ExactSu
 func requireServingFileIdentity(t testing.TB, path string, kind artifact.Kind, want string) {
 	t.Helper()
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	identity, _, err := artifact.Identify(kind, file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if identity.String() != want {
 		t.Fatalf("%s identity = %s, want %s", path, identity, want)
 	}

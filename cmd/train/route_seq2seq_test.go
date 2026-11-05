@@ -15,6 +15,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -30,14 +31,10 @@ func TestSeq2SeqRoutePublishesCheckpoint(t *testing.T) {
 	root := t.TempDir()
 	model := writeTinySeq2Seq(t, filepath.Join(root, "model"))
 	dataset := filepath.Join(root, "pairs.jsonl")
-	if err := os.WriteFile(dataset, []byte("{\"question\":\"a b\",\"answer\":\"c\"}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(dataset, []byte("{\"question\":\"a b\",\"answer\":\"c\"}\n"), 0o600))
 	checkpoint, out := requireRoutePublishes(t, "seq2seq", "-model", model, "-dataset", dataset, "-input-field", "question", "-target-field", "answer")
 	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer weights.Close()
 	var elements uint64
 	for _, tensor := range weights.Tensors {
@@ -61,13 +58,9 @@ const (
 // tokenizer, and returns its directory.
 func writeTinySeq2Seq(t *testing.T, directory string) string {
 	t.Helper()
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
 	config := `{"model_type":"needle","rms_norm_eps":1e-6,"rope_theta":10000,"decoder_start_token_id":1,"eos_token_id":1}`
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600))
 	d, qWidth, kvWidth := tinySeq2SeqWidth, tinySeq2SeqHeads*tinySeq2SeqHeadDim, tinySeq2SeqKVHeads*tinySeq2SeqHeadDim
 	shapes := map[string][]int{
 		"model.embed_tokens.weight":       {tinySeq2SeqVocab, d},
@@ -126,11 +119,7 @@ func writeBF16Safetensors(t *testing.T, path string, tensors map[string][]float3
 		header[name] = map[string]any{"dtype": "BF16", "shape": shapes[name], "data_offsets": []int{begin, len(data)}}
 	}
 	encoded, err := json.Marshal(header)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	file := binary.LittleEndian.AppendUint64(nil, uint64(len(encoded)))
-	if err := os.WriteFile(path, append(append(file, encoded...), data...), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, append(append(file, encoded...), data...), 0o600))
 }

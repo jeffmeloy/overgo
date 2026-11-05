@@ -8,6 +8,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestEvaluationAtAnUnchangedPlanReusesItsCampaign evaluates one suite twice at one commit, as a
@@ -17,9 +18,7 @@ func TestEvaluationAtAnUnchangedPlanReusesItsCampaign(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "rerun model"),
@@ -30,26 +29,16 @@ func TestEvaluationAtAnUnchangedPlanReusesItsCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &observedRuntime{}
 	campaign, err := newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, LifecycleIsolated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := json.Marshal(exactFixture())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := CompileSuite(source, campaign.Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first, err := campaign.Evaluate(ctx, suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	calls := runtime.generateCalls
 	again, err := campaign.Evaluate(ctx, suite)
 	if err != nil {

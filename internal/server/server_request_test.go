@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func serveTestRequest(
@@ -23,9 +24,7 @@ func serveTestRequest(
 func marshalTestJSON(t *testing.T, value any) string {
 	t.Helper()
 	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return string(encoded)
 }
 
@@ -33,9 +32,7 @@ func commitTestBlob(t *testing.T, store artifact.Repository, kind artifact.Kind,
 	t.Helper()
 	data := []byte(label)
 	id, err := artifact.IdentifyBytes(kind, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "server/test/blob/" + label,
 		Contents: []artifact.Content{{Descriptor: artifact.Descriptor{

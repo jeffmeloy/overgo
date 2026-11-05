@@ -14,6 +14,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -69,9 +70,7 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 			)
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type result struct {
 		value any
 		err   error
@@ -101,9 +100,7 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 	if !values[4] || !values[6] {
 		t.Fatalf("outputs=%v", values)
 	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if got := closed.Load(); got != 2 {
 		t.Fatalf("closed=%d", got)
 	}
@@ -114,18 +111,14 @@ const scalarModule recipe.ModuleID = "test.scalar"
 func capabilityFixture(t *testing.T, name string, sessions ...recipe.SessionPolicy) (*overgodb.Store, artifact.ID, recipe.Program) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights := []byte(name + "-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "test/session-model/" + manifest.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}}, Manifests: []artifact.Manifest{manifest},
@@ -144,21 +137,15 @@ func capabilityFixture(t *testing.T, name string, sessions ...recipe.SessionPoli
 		[]recipe.Input{{Name: "input", Data: recipe.DataTensor, Target: recipe.Endpoint{Node: node.ID, Port: "input"}}},
 		[]recipe.Output{{Name: "output", Data: recipe.DataImage, Source: recipe.Endpoint{Node: node.ID, Port: "output"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := recipe.NewCatalog(recipe.Module{
 		ID: scalarModule, Tasks: []recipe.Task{recipe.TaskImageGen}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Inputs:  []recipe.Port{{Name: "input", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 		Outputs: []recipe.Port{{Name: "output", Data: recipe.DataImage, Cardinality: recipe.CardinalityOne}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return store, modelID, program
 }
 
@@ -184,9 +171,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	)
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	got, err := execute(t.Context(), store, "abc", execution, `{"value":4}`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if Unwrap(got) != 11 {
 		t.Fatalf("output = %v, want 11", got)
 	}
@@ -248,9 +233,7 @@ func TestTerminalMeasurementRetainsPublishedRun(t *testing.T) {
 				if shape == "session" {
 					director, err := NewModelSessionDirector[scalarRequest, *terminalScalarModel, int]("scalar", "host", 1,
 						validate, load, func(context.Context, *terminalScalarModel, scalarRequest) error { return nil }, bind)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					execute = director.Executor()
 					t.Cleanup(func() { _ = director.Close(t.Context()) })
 				}
@@ -297,9 +280,7 @@ func TestMeasurementCarriesTheLoadWall(t *testing.T) {
 	director, err := NewModelSessionDirector[scalarRequest, int, int](
 		"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer director.Close(t.Context())
 	for name, shape := range map[string]struct {
 		execute  Executor
@@ -314,9 +295,7 @@ func TestMeasurementCarriesTheLoadWall(t *testing.T) {
 			var loads []time.Duration
 			for _, raw := range []string{`{"value":1}`, `{"value":2}`} {
 				got, err := shape.execute(t.Context(), store, "model", execution, raw)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				loads = append(loads, got.(Measured).Load)
 			}
 			if loads[0] <= 0 || shape.resident != (loads[1] == 0) || loads[1] < 0 {
@@ -352,18 +331,14 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 				director, err := NewModelSessionDirector[scalarRequest, int, int](
 					"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
 				)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer director.Close(t.Context())
 				execute = director.Executor()
 			}
 			store, _, program := capabilityFixture(t, "fresh-"+name)
 			execution := modelrecipetest.CandidateExecution(t, store, program)
 			output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "test.fresh-output.v1"), 5)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var own artifact.ID
 			var fresh context.Context
 			for index, step := range []struct {
@@ -379,9 +354,7 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 					ctx = fresh
 				}
 				got, err := execute(ctx, store, "model", execution, `{"value":4}`)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				measured := got.(Measured)
 				ran := index == 0 || step.fresh
 				if measured.Output != 5 || runs.Load() != step.runs || ran != (len(measured.Phases) == 1) {
@@ -394,9 +367,7 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 					t.Fatalf("execution %d has producer run %+v (%v); want its persisted recipe, input and output", index, run, err)
 				}
 				operation, err := workflowruntime.ExecutionID(definition.ID, RunKeyOf[int](definition, measured.Input))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), store, operation, "scalar")
 				if err != nil || !found || receipt.Attempt != 1 || receipt.State != runrecord.StageCompleted {
 					t.Fatalf("the request's own run after execution %d = %+v (found %t, %v); want its first attempt, completed", index, receipt, found, err)
@@ -450,9 +421,7 @@ func TestMeasurementCarriesTheDecodeOfATokenRuntime(t *testing.T) {
 	director, err := NewModelSessionDirector[scalarRequest, *decodingModel, int](
 		"scalar", "host", 1, validate, load, func(context.Context, *decodingModel, scalarRequest) error { return nil }, bind,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer director.Close(t.Context())
 	var unreported uint64
 	whole := JSONScalar[scalarRequest, int, int]("scalar", validate,
@@ -478,9 +447,7 @@ func TestMeasurementCarriesTheDecodeOfATokenRuntime(t *testing.T) {
 				tokens uint64
 			}{{raw: `{"value":3}`, tokens: 3}, {raw: `{"value":3}`}, {raw: `{"value":5}`, tokens: 5}} {
 				got, err := shape.execute(t.Context(), store, "model", execution, step.raw)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				measured := got.(Measured)
 				ran := step.tokens != 0
 				if ran != (len(measured.Phases) == 1) || ran && measured.Phases[0].WallNS == 0 {
@@ -513,9 +480,7 @@ func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
 	}}
 	const input = `{"value":4}`
 	got, err := catalog.Execute(context.WithoutCancel(t.Context()), store, "model", execution, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != input {
 		t.Fatalf("output=%v", got)
 	}
@@ -538,9 +503,7 @@ func (m *cachedScalarModel) Close(context.Context) error {
 func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "cached-scalar-model")
 	resources, err := modelrecipe.CompileComponentSessionPlan(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(resources.Components) != 1 || resources.Components[0].Node != "scalar" ||
 		resources.Components[0].Model != modelID || resources.Components[0].Session != recipe.SessionCapacity {
 		t.Fatalf("capacity resources=%+v", resources)
@@ -571,9 +534,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 			)
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execute := director.Executor()
 	foreign := testutil.ArtifactID(t, artifact.KindModel, "foreign-cached-model")
 	execution := modelrecipetest.CandidateExecution(t, store, program)
@@ -586,9 +547,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	}
 	for raw, want := range map[string]int{`{"value":4}`: 8, `{"value":5}`: 10} {
 		got, err := execute(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if Unwrap(got) != want {
 			t.Fatalf("output=%v want=%d", got, want)
 		}
@@ -601,17 +560,11 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	requestDefinition, err := recipe.NewDefinitionWithDependencies(
 		definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requestProgram, err := recipe.CompileProgram(requestDefinition, program.Catalog())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requestResources, err := modelrecipe.CompileComponentSessionPlan(t.Context(), store, requestProgram)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(requestResources.Components) != 1 || requestResources.Components[0].Session != recipe.SessionRequest ||
 		requestResources.Identity == resources.Identity {
 		t.Fatalf("request resources=%+v", requestResources)
@@ -625,9 +578,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	if loads != 3 || resets != 1 || closes != 3 {
 		t.Fatalf("resource plan loads=%d resets=%d closes=%d", loads, resets, closes)
 	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if closes != 3 {
 		t.Fatalf("closes=%d", closes)
 	}
@@ -653,16 +604,12 @@ func (m *mappedVideoModel) Close(context.Context) error {
 func TestVideoProductionActivation(t *testing.T) {
 	const module recipe.ModuleID = "test.video-compose"
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	weights := []byte("mapped-video-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/mapped-video-model", Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
 		Manifests: []artifact.Manifest{manifest},
@@ -680,9 +627,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		},
 		[]recipe.Output{{Name: "video", Data: recipe.DataVideo, Source: recipe.Endpoint{Node: node.ID, Port: "video"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := recipe.NewCatalog(recipe.Module{
 		ID: module, Tasks: []recipe.Task{recipe.TaskVideoGen}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Inputs: []recipe.Port{
@@ -691,13 +636,9 @@ func TestVideoProductionActivation(t *testing.T) {
 		},
 		Outputs: []recipe.Port{{Name: "video", Data: recipe.DataVideo, Cardinality: recipe.CardinalityOne}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loads, resets, closes := 0, 0, 0
 	director, err := NewMappedModelSessionDirector[mappedVideoRequest, *mappedVideoModel, int](
 		"video", "cuda:0", recipe.SessionRequestCapacity,
@@ -738,15 +679,11 @@ func TestVideoProductionActivation(t *testing.T) {
 			}, err
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Two requests of one session, not one twice: a request the store already answers leases no session.
 	for _, raw := range []string{`{"condition":2,"source":3}`, `{"condition":4,"source":1}`} {
 		output, err := director.Executor()(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if Unwrap(output) != 5 {
 			t.Fatalf("video output=%v", output)
 		}
@@ -754,9 +691,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	if loads != 1 || resets != 1 {
 		t.Fatalf("loads=%d resets=%d", loads, resets)
 	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, director.Close(t.Context()))
 	if closes != 1 {
 		t.Fatalf("closes=%d", closes)
 	}

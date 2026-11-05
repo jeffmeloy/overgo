@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/speechactivity"
+	"overgo/internal/testcheck"
 )
 
 type vadNumericalCase struct {
@@ -39,13 +40,9 @@ func verifyVADWaveformStream(t *testing.T) {
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
 	offline, err := audiodsp.NewFrontend(config, vadReferenceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stream, err := audiodsp.NewStreamFrontend(config, vadReferenceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	executed := 0
 	for _, model := range reference.Models {
 		network, _ := loadVADNetwork(t, store, model)
@@ -60,14 +57,10 @@ func verifyVADWaveformStream(t *testing.T) {
 				}
 				var fw audiodsp.Workspace
 				features, frames, err := offline.Process(t.Context(), [][]float32{wave}, config.SampleRate, &fw, audiodsp.ProcessOptions{})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				var nw speechactivity.Workspace
 				want, wantCache, err := network.Evaluate(t.Context(), features, frames, nil, &nw, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				// One sample smaller than a window and one sample larger than a
 				// multi-hop chunk exercise both incomplete input and misalignment.
 				for _, chunk := range []int{config.FrameSpan - 1, int(config.Geometry.HopSamples)*len(model.Cases) + 1} {
@@ -80,15 +73,11 @@ func verifyVADWaveformStream(t *testing.T) {
 					for start := 0; start < len(wave); start += chunk {
 						end := min(start+chunk, len(wave))
 						values, count, next, err := stream.Process(t.Context(), wave[start:end], config.SampleRate, state, end == len(wave), &sw)
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						state = next
 						if count > 0 {
 							probabilities, next, err := network.Evaluate(t.Context(), values, count, caches, &execution, nil)
-							if err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, err)
 							got, caches = append(got, probabilities...), next
 						}
 						chunks++
@@ -98,16 +87,12 @@ func verifyVADWaveformStream(t *testing.T) {
 							Frontend audiodsp.StreamState
 							Caches   [][]float32
 						}{state, caches})
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						var restart struct {
 							Frontend audiodsp.StreamState
 							Caches   [][]float32
 						}
-						if err := json.Unmarshal(encoded, &restart); err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, json.Unmarshal(encoded, &restart))
 						state, caches = restart.Frontend, restart.Caches
 						sw, execution = audiodsp.StreamWorkspace{}, speechactivity.Workspace{}
 					}
@@ -147,9 +132,7 @@ const vadReferenceBytes = 32 << 20
 
 func readAudioFixtureJSON(t *testing.T, path string, value any) {
 	t.Helper()
-	if err := jsonfile.Decode(path, value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(path, value))
 }
 
 func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, media.DecodedAudio) {
@@ -162,9 +145,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 	}
 	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	var existing ctcTrainingRecord
 	readAudioFixtureJSON(t, "testdata/ctc_training_record.json", &existing)
@@ -174,15 +155,11 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 	}
 	corpus := librispeechPath(t, "clean", record.Split, record.Shard)
 	id, err := artifact.ParseID("file:sha256:" + record.ShardSHA256)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verifyASRFile(t, corpus, id, record.ShardBytes)
 	// The existing Arrow/Parquet owner bounds source materialization separately.
 	rows, err := dataset.OpenParquetRows(t.Context(), corpus, []string{"audio.bytes", "id"}, 512<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rows.Close()
 	row, err := rows.Read(t.Context(), record.Row)
 	if err != nil || row["id"] == nil || *row["id"] != record.RowID || row["audio.bytes"] == nil {
@@ -194,9 +171,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 		t.Fatal("VAD encoded audio differs")
 	}
 	audio, _, err := media.DecodeAudio(t.Context(), encoded, record.Samples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if uint64(len(audio.Samples)) != record.Samples || audio.Format.SampleRate != record.SampleRate || audio.Format.Channels != 1 {
 		t.Fatal("VAD decoded geometry differs")
 	}
@@ -207,9 +182,7 @@ func loadVADNetwork(t *testing.T, store *overgodb.Store, model vadNumericalModel
 	t.Helper()
 	_, _, checkpoint, declaration := loadVADArtifacts(t, store, model)
 	network, err := speechactivity.LoadNetwork(t.Context(), checkpoint, declaration, vadReferenceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return network, declaration
 }
 
@@ -231,9 +204,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 				continue
 			}
 			root, err := artifact.AvailablePath(t.Context(), store, registration.Model, artifact.LocationDirectory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			license, found, err := artifact.ReadContent(t.Context(), store, registration.License.Artifact)
 			if err != nil || !found || len(license.Data) == 0 {
 				t.Fatalf("VAD license absent: %v", err)
@@ -249,13 +220,9 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 			}
 			checkpoint := filepath.Join(root, component.Path)
 			id, err := artifact.ParseID("tensor-set:sha256:" + model.SHA256)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			info, err := os.Stat(checkpoint)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			verifyASRFile(t, checkpoint, id, uint64(info.Size()))
 			var declaration speechactivity.Declaration
 			readAudioFixtureJSON(t, model.Declaration, &declaration)
@@ -274,9 +241,7 @@ func verifyVADNumericalReference(t *testing.T) {
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
 	frontend, err := audiodsp.NewFrontend(config, vadReferenceBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, model := range reference.Models {
 		t.Run(model.Checkpoint, func(t *testing.T) {
 			network, declaration := loadVADNetwork(t, store, model)
@@ -293,9 +258,7 @@ func verifyVADNumericalReference(t *testing.T) {
 					}
 					var fw audiodsp.Workspace
 					features, frames, err := frontend.Process(t.Context(), [][]float32{wave}, int(audio.Format.SampleRate), &fw, audiodsp.ProcessOptions{})
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					if frames != fixture.Frames || network.InputWidth() != fixture.Width || len(fixture.Probabilities) != frames || len(fixture.SelectedFrames) != 3 || len(fixture.Features) != 3 {
 						t.Fatal("VAD numerical denominator differs")
 					}
@@ -335,9 +298,7 @@ func verifyVADNumericalReference(t *testing.T) {
 						}
 						return nil
 					})
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					if len(seen) != len(fixture.Traces) || len(caches) != len(declaration.Blocks) || len(fixture.Caches) != len(caches) {
 						t.Fatal("VAD execution or cache coverage incomplete")
 					}

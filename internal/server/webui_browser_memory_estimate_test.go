@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -19,9 +20,7 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 	requireWebUILane(t, "the memory estimate leg uses Chromium through cmd/webui-lane")
 	fixture := newDPOTrainingFixture(t)
 	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	const gibibyte = 1 << 30
 	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
@@ -35,9 +34,7 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 		},
 		{"model": "model:unmeasured", "location": "C:/models/unmeasured.gguf", "present": true, "recipe": "recipe:unmeasured"},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/catalog/models" {
 			w.Header().Set("Content-Type", "application/json")

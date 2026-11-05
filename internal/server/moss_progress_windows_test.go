@@ -12,6 +12,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -51,9 +52,7 @@ func TestMOSSGenerationProgress(t *testing.T) {
 		return publishMOSSProgressFixture(t, ctx, store, execution, nil)
 	})
 	_, validate, err := fixture.handler.config.LibraryIntake.Validate(t.Context(), fixture.store, fixture.root, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err = validate(t.Context(), &recordingReporter{}); err != nil {
 		t.Fatal(err)
 	}
@@ -63,9 +62,7 @@ func TestMOSSGenerationProgress(t *testing.T) {
 	}
 	reporter := &generationTextReporter{}
 	_, err = fixture.workspace.ExecuteWorkflow(t.Context(), workflowGeneration, capabilities[0], json.RawMessage(`{"prompt":"cube","width":32,"height":48}`), reporter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{"Loading model", "Processing prompt", "Generating image", "Decoding image"}
 	if !reflect.DeepEqual(reporter.texts, want) {
 		t.Fatalf("progress=%q want=%q", reporter.texts, want)
@@ -81,9 +78,7 @@ func TestMOSSGenerationProgress(t *testing.T) {
 		}
 		receipt.State = runrecord.StageRunning
 		_, batch, err := runrecord.PrepareStageReceipt(t.Context(), fixture.store, receipt, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held := &generationTextReporter{}
 		store := &generationProgressRepository{Store: fixture.store, recipe: capabilities[0].Recipe, phases: generationPhases(capabilities[0].Stages), reporter: held}
 		ctx, cancel := context.WithCancel(t.Context())

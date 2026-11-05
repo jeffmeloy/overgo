@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hfgguf"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestFrozenComponentImportReplay(t *testing.T) {
@@ -19,21 +20,13 @@ func TestFrozenComponentImportReplay(t *testing.T) {
 	for _, purpose := range []hfgguf.LanguageOutput{"", hfgguf.LanguageHidden, hfgguf.LanguageTokens} {
 		t.Run(string(purpose), func(t *testing.T) {
 			original, err := InspectImport(t.Context(), root, purpose)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var formatted bytes.Buffer
-			if err := json.Indent(&formatted, original.Content.Data, "", "  "); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Indent(&formatted, original.Content.Data, "", "  "))
 			relocated := filepath.Join(t.TempDir(), "relocated")
-			if err := os.CopyFS(relocated, os.DirFS(root)); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.CopyFS(relocated, os.DirFS(root)))
 			replay, err := ReplayImport(t.Context(), relocated, formatted.Bytes())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if replay.Content.Descriptor.ID != original.Content.Descriptor.ID || !bytes.Equal(replay.Content.Data, original.Content.Data) {
 				t.Fatal("replay changed canonical description")
 			}
@@ -41,17 +34,11 @@ func TestFrozenComponentImportReplay(t *testing.T) {
 			publish := func() artifact.CommitID {
 				t.Helper()
 				store, err := overgodb.Create(storePath)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer store.Close()
 				replay, err := ReplayImport(t.Context(), relocated, formatted.Bytes())
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := RegisterImport(t.Context(), store, replay); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
+				testcheck.NoError(t, RegisterImport(t.Context(), store, replay))
 				head, _ := store.Head()
 				return head
 			}
@@ -61,9 +48,7 @@ func TestFrozenComponentImportReplay(t *testing.T) {
 		})
 	}
 	original, err := InspectImport(t.Context(), root, hfgguf.LanguageHidden)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, change := range map[string]func(*importDescription){
 		"version":           func(d *importDescription) { d.Version++ },
 		"qualification":     func(d *importDescription) { d.Qualification = "verified" },
@@ -79,14 +64,10 @@ func TestFrozenComponentImportReplay(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			var description importDescription
-			if err := json.Unmarshal(original.Content.Data, &description); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(original.Content.Data, &description))
 			change(&description)
 			data, err := json.Marshal(description)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if result, err := ReplayImport(t.Context(), root, data); err == nil || result.Content.Descriptor.ID != (artifact.ID{}) {
 				t.Fatalf("changed contract accepted: %v", err)
 			}
@@ -107,13 +88,9 @@ func TestFrozenComponentImportReplay(t *testing.T) {
 	}
 	weightPath := filepath.Join(root, "model.safetensors")
 	data, err := os.ReadFile(weightPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data[len(data)-1] ^= 1
-	if err := os.WriteFile(weightPath, data, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightPath, data, 0600))
 	if _, err := ReplayImport(t.Context(), root, original.Content.Data); err == nil {
 		t.Fatal("changed weight payload accepted")
 	}

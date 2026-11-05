@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestIdleShellAnswersWhileNothingServes pins the idle shell: the client and
@@ -22,13 +23,9 @@ import (
 func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 	t.Parallel()
 	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("idle-model"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	served, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("idle-recipe"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shell := &IdleShell{Catalog: func(context.Context) ([]discovery.CatalogEntry, bool, error) {
 		return []discovery.CatalogEntry{{Model: model, Location: "C:/models/idle.gguf", Present: true,
 			Capabilities: []discovery.Capability{{Task: recipe.TaskInference, Recipe: served, Tier: "verified"}}}}, true, nil
@@ -76,9 +73,7 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.NewDecoder(refused.Body).Decode(&envelope); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.NewDecoder(refused.Body).Decode(&envelope))
 	if envelope.Error.Code != "no_model_serves" || envelope.Error.Message != idleRefusal {
 		t.Fatalf("refusal = %+v", envelope)
 	}
@@ -104,14 +99,10 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writer, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	lock, err := processlock.Acquire(root+".lock", 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lock.Close()
 	shell := &IdleShell{
 		Repository: writer,
@@ -146,9 +137,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if busy.Code != http.StatusServiceUnavailable || !strings.Contains(busy.Body.String(), `"store_busy"`) {
 		t.Fatalf("live contention = %d %s", busy.Code, busy.Body)
 	}
-	if err := lock.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lock.Close())
 	refused := requestWrite(t.Context())
 	if strings.Contains(refused.Body.String(), `"store_busy"`) || !strings.Contains(refused.Body.String(), "intake refused") {
 		t.Fatalf("retry after writer closes = %d %s", refused.Code, refused.Body)
@@ -158,9 +147,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("idle workbench retained writer after request: %v", err)
 	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.Close())
 	shell.Repository = writer
 	unavailable := requestWrite(t.Context())
 	if !strings.Contains(unavailable.Body.String(), `"store_unavailable"`) || strings.Contains(unavailable.Body.String(), `"store_busy"`) {
@@ -176,9 +163,7 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	repository, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	var declared, retired, registered int
 	shell := &IdleShell{
@@ -236,9 +221,7 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 func post(t *testing.T, url, body string) *http.Response {
 	t.Helper()
 	response, err := http.Post(url, "application/json", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { response.Body.Close() })
 	return response
 }
@@ -248,17 +231,13 @@ func decodeResponse(t *testing.T, response *http.Response, into any) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
 	}
-	if err := json.NewDecoder(response.Body).Decode(into); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.NewDecoder(response.Body).Decode(into))
 }
 
 func get(t *testing.T, url string) *http.Response {
 	t.Helper()
 	response, err := http.Get(url)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { response.Body.Close() })
 	return response
 }
@@ -269,7 +248,5 @@ func decode(t *testing.T, url string, into any) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("%s = %d", url, response.StatusCode)
 	}
-	if err := json.NewDecoder(response.Body).Decode(into); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.NewDecoder(response.Body).Decode(into))
 }

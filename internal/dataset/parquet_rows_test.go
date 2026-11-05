@@ -11,28 +11,22 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func nullableParquetFixture(t *testing.T) (string, uint64) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/nullable_parquet.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Parquet string `json:"parquet_base64"`
 	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &fixture))
 	encoded, err := base64.StdEncoding.DecodeString(fixture.Parquet)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "nullable.parquet")
-	if err := os.WriteFile(path, encoded, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	// For this tiny oracle the complete encoded file exceeds the cumulative
 	// requested decode storage of either group; no production default is implied.
 	return path, uint64(len(encoded))
@@ -41,9 +35,7 @@ func nullableParquetFixture(t *testing.T) (string, uint64) {
 func TestParquetRowsPhysicalJoin(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
 	r, err := OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text", "id"}, budget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer r.Close()
 	if r.Rows() != 6 {
 		t.Fatalf("physical rows = %d", r.Rows())
@@ -54,9 +46,7 @@ func TestParquetRowsPhysicalJoin(t *testing.T) {
 	// and nulls must not depend on traversal order or cache state.
 	for _, ordinal := range []uint64{0, 1, 2, 3, 4, 5, 1, 4} {
 		row, err := r.Read(t.Context(), ordinal)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !reflect.DeepEqual(row["audio.bytes"], wantAudio[ordinal]) || !reflect.DeepEqual(row["text"], wantText[ordinal]) || row["id"] == nil || *row["id"] != string(rune('0'+ordinal)) {
 			t.Fatalf("physical row %d = %v", ordinal, row)
 		}
@@ -69,9 +59,7 @@ func TestParquetRowsPhysicalJoin(t *testing.T) {
 	if _, err := r.Read(ctx, 0); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
 	}
-	if err := r.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, r.Close())
 	if _, err := r.Read(t.Context(), 0); !errors.Is(err, os.ErrClosed) {
 		t.Fatalf("closed: %v", err)
 	}
@@ -80,9 +68,7 @@ func TestParquetRowsPhysicalJoin(t *testing.T) {
 func TestParquetWorkspaceAndMalformedPages(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
 	r, err := OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text"}, budget)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer r.Close()
 	// Exhaust the decode budget independently of the metadata budget.
 	r.maximumBytes = 1

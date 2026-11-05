@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,16 +28,10 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$")
 		command.Env = append(os.Environ(), admissionProbeEnvironment+"="+name, "OVERGO_DEVICE_LANE_EXCLUSIVE_HOLD=1")
 		input, err := command.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := command.StdoutPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := command.Start(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, command.Start())
 		t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
 		if line, err := bufio.NewReader(output).ReadString('\n'); err != nil || strings.TrimSpace(line) != "probe: admitted" {
 			t.Fatalf("exclusive owner readiness: %q, %v", line, err)
@@ -49,21 +44,15 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		if runs != 0 || !errors.Is(err, errAdmissionBudget) || !errors.Is(err, processcontrol.ErrResourceBusy) {
 			t.Fatalf("waiting launched %d commands, error %v; want zero launches and admission expiry", runs, err)
 		}
-		if err := input.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err := command.Wait(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, input.Close())
+		testcheck.NoError(t, command.Wait())
 		if _, err := runStepAdmitted(t.Context(), &bytes.Buffer{}, name, deviceAdmissionBudget, func(context.Context) (int, error) { runs++; return 0, nil }); err != nil || runs != 1 {
 			t.Fatalf("released owner: %d launches, %v", runs, err)
 		}
 	})
 	name := "device-lane-command/" + filepath.Base(t.TempDir())
 	release, err := processcontrol.ShareResource(name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release()
 	ctx := t.Context()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
@@ -142,9 +131,7 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 		return func() error { released++; return nil }, nil
 	}
 	release, err := holdSharedLease(t.Context(), &output, "GPU-test", deviceAdmissionBudget, share)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := release(); err != nil || released != 1 || refusals != 2 {
 		t.Fatalf("release = %v, released %d, refusals %d", err, released, refusals)
 	}
@@ -244,35 +231,25 @@ func TestDeviceLaneMeasurementRunsOutsideSharedLease(t *testing.T) {
 		return ""
 	}
 	release, err := holdSharedLease(t.Context(), &bytes.Buffer{}, name, deviceAdmissionBudget, func() (func() error, error) { return processcontrol.ShareResource(name) })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verdict := probe(); verdict != "probe: busy" {
 		t.Fatalf("exclusive claim beneath the lane's shared lease = %q, want contention", verdict)
 	}
-	if err := release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, release())
 	if verdict := probe(); verdict != "probe: admitted" {
 		t.Fatalf("exclusive claim after the lease = %q, want admission", verdict)
 	}
 
 	root := t.TempDir()
 	directory := filepath.Join(root, "pkg")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	source := "package pkg\n\nimport \"testing\"\n\nfunc TestCorrect(t *testing.T) {}\n\n" +
 		"func TestMeasured(t *testing.T) {\n\tif cudatest.MeasurementProcess(t, 0) {\n\t\treturn\n\t}\n}\n\n" +
 		"func TestDeviceMeasured(t *testing.T) {\n\tif cudatest.MeasurementProcess(t, 0) {\n\t\treturn\n\t}\n}\n"
-	if err := os.WriteFile(filepath.Join(directory, "pkg_test.go"), []byte(source), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "pkg_test.go"), []byte(source), 0o644))
 	step := deviceTestStep("./pkg")
 	names, err := measurementTests(root, step)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(names, []string{"TestDeviceMeasured", "TestMeasured"}) {
 		t.Fatalf("measurement tests = %v", names)
 	}
@@ -304,9 +281,7 @@ func TestDeviceLaneStepsExitWithTheirOwnStatus(t *testing.T) {
 		t.Fatalf("go test step = %v, %v; want it unchanged", command, err)
 	}
 	command, err := executableStep(t.Context(), testutil.RepoRoot(t), buildDir, []string{"go", "run", "./cmd/cuda-info"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(command) != 1 || !strings.HasPrefix(command[0], buildDir) {
 		t.Fatalf("go run step = %v, want one binary under %s", command, buildDir)
 	}

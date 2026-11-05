@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/modeldevice"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -81,9 +82,7 @@ func TestWebUIBrowserMonitor(t *testing.T) {
 	settle(`[...document.querySelectorAll('#panel-api tr')].some((row) => row.textContent.includes('/v1/completions') && row.textContent.includes('3 in (1 reused, 33%) · 2 out') && row.textContent.includes('prefill 1000.0 tok/s · decode '))`)
 
 	// A card with no load readings and a model with no file-backed experts draw the card's memory alone.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#runtime`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"/#runtime`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`" + ` && !!document.querySelector('#panels .monitor .stat')`)
 	check(`(() => {
   const labels = [...document.querySelectorAll('#panels .monitor .stat .k')].map((label) => label.textContent).join();

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // renameOwners are the production files outside internal/fsatomic that rename a path with os.Rename, each with why the
@@ -54,13 +55,9 @@ func TestEveryDurableRenameGoesThroughItsOwner(t *testing.T) {
 	}
 	planted := t.TempDir()
 	file := filepath.Join(planted, "internal", "planted", "planted.go")
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
 	source := "package planted\n\nimport moved \"os\"\n\nfunc publish() error { return moved.Rename(\"a\", \"b\") }\n"
-	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(file, []byte(source), 0o644))
 	if found := renameSites(t, planted); found["internal/planted/planted.go"] != 1 {
 		t.Fatalf("a rename planted under another name for os was found %d times, want once", found["internal/planted/planted.go"])
 	}
@@ -71,18 +68,14 @@ func TestEveryDurableRenameGoesThroughItsOwner(t *testing.T) {
 func renameSites(t *testing.T, root string) map[string]int {
 	t.Helper()
 	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sites := map[string]int{}
 	for _, file := range snapshot.Files {
 		if file.Test || strings.HasPrefix(file.Path, "internal/fsatomic/") {
 			continue
 		}
 		syntax, err := file.Syntax()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		local := ""
 		for _, spec := range syntax.Imports {
 			if path, _ := strconv.Unquote(spec.Path.Value); path == "os" {

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -12,9 +13,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	testutil.WriteImageProfileFixture(t, dir)
 
 	profile, err := ResolveProfile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if profile.Sampling.DefaultSteps != 8 || profile.Sampling.TrainTimesteps != 1000 ||
 		profile.Sampling.dynamicShiftMu(profile.Sampling.MaxImageSequence, false) != 1.15 ||
 		profile.Prompt.MaxTokens != 512 || profile.Prompt.PadToken != "<|endoftext|>" {

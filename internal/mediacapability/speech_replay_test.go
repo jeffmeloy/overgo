@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -28,9 +29,7 @@ import (
 // written as zero is the same request and is answered the same way.
 func TestSpeechReplaysWholeTextBeforeLoad(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -39,24 +38,16 @@ func TestSpeechReplaysWholeTextBeforeLoad(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "speech-whole-text-replay-fixture")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := speechsynth.SynthesisRequest{Text: "The tide went out before dawn.", Voice: "alba"}
 	content, err := capabilityruntime.InputContent("overgo.speech-input.v1", request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const rate = 24000
 	recording := speechsynth.Audio{PCM: []float32{0, 0.25, -0.25, 0.5}, SampleRate: rate, Channels: 1, Complete: true}
 	want, err := OutputContent(recording)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := definition.Inputs[0]
 	if _, _, err := capabilityruntime.ExecuteMeasured[speechsynth.Audio](t.Context(), store, model, program, capabilityruntime.RunKeyOf[*speechsynth.Synthesizer](definition, content),
 		map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)},
@@ -84,9 +75,7 @@ func TestSpeechReplaysWholeTextBeforeLoad(t *testing.T) {
 			t.Fatalf("%s was answered with %T", raw, output)
 		}
 		got, err := OutputContent(audio)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !bytes.Equal(got.Data, want.Data) || got.Descriptor != want.Descriptor {
 			t.Fatalf("%s was answered with %d samples as %q, and the store holds %d as %q", raw, len(audio.PCM), got.Descriptor.Schema, len(recording.PCM), want.Descriptor.Schema)
 		}
@@ -149,9 +138,7 @@ func TestSpeechRoutesByFrameLimit(t *testing.T) {
 // request asks the loader for its model once, at the directory it was given.
 func TestSpeechCapabilityBindsEachReadingToItsStages(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -160,13 +147,9 @@ func TestSpeechCapabilityBindsEachReadingToItsStages(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "speech-binding-sides-fixture")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var loaded []string
 	capability := speechCapability(func(path string) (*speechsynth.Synthesizer, error) {
 		loaded = append(loaded, path)

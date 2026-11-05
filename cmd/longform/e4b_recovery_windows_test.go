@@ -17,6 +17,7 @@ import (
 	"overgo/internal/longform"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -34,14 +35,10 @@ func TestE4BResourceRecovery(t *testing.T) {
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	observer, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := observer.Close(); err != nil {
 			t.Error(err)
@@ -60,42 +57,28 @@ func TestE4BResourceRecovery(t *testing.T) {
 		return free
 	}
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	weights, err := artifact.ParseID("tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path, err := artifact.AvailablePath(ctx, store, weights, artifact.LocationFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const requiredContext = 32768 // Explicit E4B resource acceptance scope in the plan.
 	corpus, err := longform.Corpus(root, corpusBytesPerToken*(requiredContext+longform.DeclaredFloors().ScoreTokens))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expected := make(map[int][]tokenizer.TokenID)
 	var ceiling driver.MemoryStats
 	for reload := range 3 {
 		runner, err := modelcli.OpenRunner(ctx, roots.Store, path, inference.OpenOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Loaded footprint: weights, module and load-time buffers before any
 		// generation allocates workspace. Every later retained byte must be
 		// this footprint plus a named executor owner; an unattributed excess
 		// is a retained buffer no owner accounts for.
 		loaded, err := runner.DeviceMemoryStats(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		loadMetrics, err := runner.ExecutionMetrics(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		loadedFootprint := loaded.CurrentBytes - attributedOwners(loadMetrics)
 		var owned, beforeClose uint64
 		func() {
@@ -154,9 +137,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 					t.Fatalf("post-error recovery changed output: %v, %v", got, err)
 				}
 				memory, err := runner.DeviceMemoryStats(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if reload == 0 && cycle == 0 {
 					ceiling = memory
 				} else if memory.CurrentBytes > ceiling.CurrentBytes || memory.Allocations > ceiling.Allocations {
@@ -169,9 +150,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 				// attributed, so a future untracked context-scaled buffer fails
 				// here instead of silently inflating the empirical ceiling.
 				metrics, err := runner.ExecutionMetrics(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				owners := attributedOwners(metrics)
 				budget := retainedBudget(loadedFootprint, metrics)
 				unattributed := int64(memory.CurrentBytes) - int64(loadedFootprint) - int64(owners)
@@ -191,9 +170,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 			t.Fatalf("release did not return owned device bytes: free %d -> %d, owned %d", beforeClose, afterClose, owned)
 		}
 		t.Logf("reload=%d released=%d owned=%d", reload, afterClose-beforeClose, owned)
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		if _, _, err := runner.Generate(ctx, "closed", inference.GenerateOptions{MaxNewTokens: 1}); err == nil {
 			t.Fatal("closed runner accepted generation")
 		}

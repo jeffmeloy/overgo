@@ -8,6 +8,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestBindDeviceLayerGraphInputsPreservesStorageTypes(t *testing.T) {
@@ -41,9 +42,7 @@ func TestBindDeviceLayerGraphInputsPreservesStorageTypes(t *testing.T) {
 		}
 		return builder.Input(info.Name, info.Type, shape), pointers[info.Name], builder.Err()
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if graph.AttentionNorm.Type != dtype.F32 || graph.FeedForwardGate.Type != dtype.Q8_0 {
 		t.Fatalf("storage types = %s/%s, want F32/Q8_0", graph.AttentionNorm.Type, graph.FeedForwardGate.Type)
 	}

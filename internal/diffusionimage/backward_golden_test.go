@@ -3,6 +3,8 @@ package diffusionimage
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type gradSample struct {
@@ -24,14 +26,10 @@ func TestTinyModelBackwardMatchesTorch(t *testing.T) {
 	oracle := loadGolden[uditGradFixture](t, "udit_tiny_grad")
 	m := compileTiny(t, fx)
 	_, trace, err := m.forward(fx.X, fx.B, fx.H, fx.W, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grads := Grads{}
 	dx, err := m.backwardFromTrace(trace, oracle.DOut, grads)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "tiny dX", dx, oracle.DX, tolGrad)
 	worst := 0.0
 	for key, samples := range oracle.GradSamples {

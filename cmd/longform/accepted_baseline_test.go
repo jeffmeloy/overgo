@@ -21,6 +21,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // Failed records are diagnostic counterexamples only; this reader cannot
@@ -28,9 +29,7 @@ import (
 func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longform.Summary {
 	t.Helper()
 	id, err := artifact.ParseID(text)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, found, err := artifact.ReadContent(t.Context(), store, id)
 	if err != nil || !found {
 		t.Fatalf("counterexample %s absent: %v", id, err)
@@ -44,14 +43,10 @@ func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longf
 		t.Fatalf("measurement body absent: %v", err)
 	}
 	var result longform.Result
-	if err := json.Unmarshal(content.Data, &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &result))
 	// Validate original bytes; newer optional fields change a reserialization.
 	body, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(content.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	claim, _, _, err := longform.Claim(result)
 	claim.Evidence = []artifact.ID{body}
 	if err != nil || body != record.Claims[0].Evidence[0] || !reflect.DeepEqual(claim, record.Claims[0]) || result.Inputs.Model != record.Model {
@@ -66,9 +61,7 @@ func guardResult(t *testing.T) longform.Result {
 	r.Inputs.Protocol = longform.GuardContinuation
 	id := func(kind artifact.Kind) artifact.ID {
 		value, _, err := artifact.Identify(kind, strings.NewReader("guard fixture"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	r.Program = modelrecipe.ProgramIdentity{Model: r.Inputs.Model, Profile: id(artifact.KindProfile), Definition: id(artifact.KindModelDefinition),
@@ -100,18 +93,14 @@ func guardResult(t *testing.T) longform.Result {
 func TestGuardEvidenceContract(t *testing.T) {
 	t.Run("frozen measured corpus", func(t *testing.T) {
 		corpus, err := os.ReadFile("testdata/guard-corpus.txt")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// Exact bytes measured by the Qwen/E4B records at 3a75f6fb.
 		if digest := fmt.Sprintf("%x", sha256.Sum256(corpus)); digest != "0968f131791aca99b7526836c9e8f643b2e63777a85353d42c36ecad49e0d29b" {
 			t.Fatalf("frozen measurement corpus changed: %s", digest)
 		}
 	})
 	t.Run("complete guard and rejected evidence", func(t *testing.T) {
-		if err := validateGuard(guardResult(t)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, validateGuard(guardResult(t)))
 		for name, mutate := range map[string]func(*longform.Result){
 			"natural stop protocol": func(r *longform.Result) { r.Inputs.Protocol = longform.RawContinuation },
 			"incomplete budget": func(r *longform.Result) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/operation"
+	"overgo/internal/testcheck"
 )
 
 // liveStrip is one sample strip as the Train tab reads it off a running
@@ -37,21 +38,15 @@ func TestTrainingSamplesReachTheEventHub(t *testing.T) {
 		t.Fatalf("training capabilities = %+v, %v", capabilities, err)
 	}
 	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	events, unsubscribe, err := handler.events.subscribe(1024)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer unsubscribe()
 	body, err := json.Marshal(map[string]any{"task": "training", "recipe": capabilities[0].Recipe, "input": map[string]any{
 		"dataset": fixture.conversations, "steps": 4, "sample_every": 2, "output": "live-samples",
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if started := serveTestRequest(handler, http.MethodPost, "/training/run", string(body)); started.Code != http.StatusAccepted {
 		t.Fatalf("training run status=%d body=%s", started.Code, started.Body.String())
 	}

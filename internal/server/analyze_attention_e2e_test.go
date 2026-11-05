@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/server"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -28,21 +29,15 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		modeltest.GGUF(t, "qwen2"), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 
 	handler, err := server.New(server.Config{
 		ModelID: "qwen2-attn", MaxTokens: 128, RuntimePolicy: runner.RuntimePolicy(),
 	}, runner)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
@@ -51,9 +46,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	request, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL+"/analyze/attention", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)
@@ -67,9 +60,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 		Scale     float64       `json:"scale"`
 		Weights   [][][]float64 `json:"weights"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.NewDecoder(response.Body).Decode(&payload))
 	if payload.Heads <= 0 || payload.Positions < 2 || len(payload.Weights) != payload.Heads {
 		t.Fatalf("bad payload: heads=%d positions=%d weights=%d", payload.Heads, payload.Positions, len(payload.Weights))
 	}

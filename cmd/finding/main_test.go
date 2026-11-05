@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/finding"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
@@ -21,23 +22,17 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		t.Fatal("finding without failable check was recorded")
 	}
 	var output bytes.Buffer
-	if err := runArgs(append(base, "-check", "go test ./cmd/gate -run '^TestDocFreshness$'"), &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runArgs(append(base, "-check", "go test ./cmd/gate -run '^TestDocFreshness$'"), &output))
 	if !strings.Contains(output.String(), "FINDING parked: evidence:sha256:") {
 		t.Fatalf("output = %q", output.String())
 	}
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	result, err := store.Query(t.Context(), overgodb.Query{
 		Kind: artifact.KindEvidence, MaxResults: 100, Projection: overgodb.ProjectArtifacts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	found := false
 	for _, descriptor := range result.Artifacts {
 		if descriptor.MediaType != finding.MediaType {

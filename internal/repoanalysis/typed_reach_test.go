@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // listedPackage is one package go list gives the typed walk.
@@ -605,12 +606,8 @@ func fixtureModule(t *testing.T, files map[string]string) string {
 	files["go.mod"] = "module overgo\n\ngo 1.26\n"
 	for name, content := range files {
 		target := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+		testcheck.NoError(t, os.WriteFile(target, []byte(content), 0o644))
 	}
 	return repo
 }

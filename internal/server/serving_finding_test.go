@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestServingFailureBecomesAFinding fails one attempt on each serving path,
@@ -26,9 +27,7 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
@@ -50,9 +49,7 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 		t.Fatal("the refused generation succeeded")
 	}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	operationID, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskImageGen, Recipe: recipeID},
 		func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
@@ -61,9 +58,7 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 					return operation.Completion{}, errors.New("device lost")
 				})
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := handler.operations.Wait(ctx, operationID); err != nil {
 		t.Fatal(err)
 	}

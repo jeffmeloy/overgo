@@ -10,6 +10,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/servingattempt"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -93,9 +94,7 @@ func TestFailureRateCountsTheAttemptsOfItsWindow(t *testing.T) {
 	// An attempt says what code it ran, which all of the above reads.
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "attempted model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "attempted recipe")
@@ -118,9 +117,7 @@ func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "video model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "video recipe")
@@ -136,13 +133,9 @@ func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 			StartedUnixNS: started, MeasuredNS: took, Resources: runrecord.ServingResources{PeakDeviceBytes: peak}, UserSize: userSize,
 			Phases: []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: 1}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("video/" + label)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -150,9 +143,7 @@ func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 	attempt("small", 1, small, smallPeak, false)
 	attempt("sized", 2, sized, sizedPeak, true)
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.peakDeviceBytes != smallPeak {
 		t.Fatalf("the summary reads %+v, want both attempts and the small request's memory", summary)

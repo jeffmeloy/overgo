@@ -10,26 +10,19 @@ import (
 	"overgo/internal/libraryintake"
 	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestComponentImportInspectionRoutes(t *testing.T) {
 	root, _ := registrationFixture(t)
 	path := filepath.Join(root, "fixture")
-	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	output := filepath.Join(t.TempDir(), "inspection.json")
-	if err := inspectModel([]string{"-output", output, path}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, inspectModel([]string{"-output", output, path}))
 	expected, err := modelintake.InspectImport(t.Context(), path, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	actual, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(bytes.TrimSpace(actual), expected.Content.Data) {
 		t.Fatal("CLI does not use canonical inspection")
 	}
@@ -38,15 +31,11 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 		t.Fatalf("library directory route: %s %s %v", model, projector, err)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for range 2 {
 		receipt, err := libraryintake.Register(t.Context(), store, model, projector)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if receipt["inspection"] != expected.Content.Descriptor.ID || receipt["recipe"] != nil || receipt["activation"] != nil {
 			t.Fatalf("source import acquired serving authority: %+v", receipt)
 		}

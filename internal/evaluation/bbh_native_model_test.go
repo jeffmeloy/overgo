@@ -15,26 +15,21 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	var oracle struct {
@@ -64,9 +59,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 		t.Fatal("native BBH reference denominator or profile changed")
 	}
 	groups, err := compiledNativeBBH()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(groups) != 24 {
 		t.Fatal("native BBH task declarations changed")
 	}
@@ -129,9 +122,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 			doc = group.Examples[control.Index-1]
 		}
 		value, _, err := assembleNativeBBH([]storeCase{{entry: "bbh/" + control.Group + "/test", subset: control.Group, fields: rawFields(t, map[string]any{"input": doc.Input, "target": doc.Target})}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if fmt.Sprintf("%x", sha256.Sum256([]byte(value.(GroupedChoiceSuite).Cases[0].Prompt))) != control.Prompt {
 			t.Fatalf("native example exclusion control differs: %s/%d", control.Group, control.Index)
 		}
@@ -150,9 +141,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	for _, control := range extra.Controls {
 		example := groups[control.Group].Examples[0]
 		value, _, err := assembleNativeBBH([]storeCase{{entry: "bbh/" + control.Group + "/test", subset: control.Group, fields: rawFields(t, map[string]any{"input": example.Input, "target": example.Target, "_probe_extra": true})}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if fmt.Sprintf("%x", sha256.Sum256([]byte(value.(GroupedChoiceSuite).Cases[0].Prompt))) != control.Prompt {
 			t.Fatalf("native complete-document equality differs: %s", control.Group)
 		}
@@ -175,13 +164,9 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 		}
 	}
 	legacy, _, err := assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	old, err := CompileGroupedChoice(legacy.(GroupedChoiceSuite))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if old.choice.identity.String() != "profile:sha256:15e6dbe88da49d3bd37f49542e2d4743528f7400e40e07f8330adf62d505c356" {
 		t.Fatal("retained generated-letter case identity changed")
 	}
@@ -195,9 +180,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 		}
 	}
 	native, err := CompileGroupedChoice(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if native.choice.identity == old.choice.identity {
 		t.Fatal("native raw protocol reused the generated case identity")
 	}

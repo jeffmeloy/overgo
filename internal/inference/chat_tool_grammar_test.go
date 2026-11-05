@@ -3,6 +3,8 @@ package inference
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
@@ -16,9 +18,7 @@ func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
 		true,
 		true,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, fragment := range []string{
 		`tool-root ::= tool-call`,
 		`tool-call ::= "<tool_call>"`,
@@ -51,9 +51,7 @@ func TestToolGrammarCanForbidParallelCalls(t *testing.T) {
 				false,
 				false,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if strings.Contains(source, `(space tool-call)*`) {
 				t.Fatalf("single-call grammar allows repetition:\n%s", source)
 			}
@@ -75,9 +73,7 @@ func TestHermesToolGrammarUsesFunctionAndParameterTags(t *testing.T) {
 		true,
 		true,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, fragment := range []string{
 		`"<function=weather>"`,
 		`"<parameter=city>"`,

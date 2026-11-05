@@ -5,22 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestCopyFilesPublishesExactBytes(t *testing.T) {
 	source, target := t.TempDir(), t.TempDir()
 	name := "config.json"
 	data := []byte(`{"format":"fixture"}`)
-	if err := os.WriteFile(filepath.Join(source, name), data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := CopyFiles(source, target, []string{name}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(source, name), data, 0o644))
+	testcheck.NoError(t, CopyFiles(source, target, []string{name}))
 	written, err := os.ReadFile(filepath.Join(target, name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(written, data) {
 		t.Fatalf("written = %q", written)
 	}

@@ -19,6 +19,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -83,31 +84,17 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_baseline.json")
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(data, imageVideoBaselineSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoBaselineSHA256))
 	var baseline mediaLoaderBaseline
-	if err := jsonfile.DecodeStrict(path, &baseline); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &baseline))
 	var inventory imageVideoInventory
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaLoaderBaseline(baseline, inventory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory))
+	testcheck.NoError(t, checkMediaLoaderBaseline(baseline, inventory))
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -123,12 +110,8 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	requirePass := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty baseline check")
 		}
@@ -149,12 +132,8 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	for _, a := range baseline.Acquisitions {
 		requirePass(a.Evidence)
 		var rows []mediaLoaderObservation
-		if err := json.Unmarshal(read(a.Observations), &rows); err != nil {
-			t.Fatal(err)
-		}
-		if err := checkMediaLoaderObservations(a.Consumer, rows); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(a.Observations), &rows))
+		testcheck.NoError(t, checkMediaLoaderObservations(a.Consumer, rows))
 		bad := slices.Clone(rows)
 		bad[0].Peak = 0
 		if checkMediaLoaderObservations(a.Consumer, bad) == nil {
@@ -178,14 +157,10 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 		t.Fatal("accepted substituted quality protocol")
 	}
 	var changed map[string]any
-	if err := json.Unmarshal(data, &changed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &changed))
 	changed["source"] = "changed"
 	changedData, err := json.Marshal(changed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if checkMediaProtocolIdentity(changedData, imageVideoBaselineSHA256) == nil {
 		t.Fatal("accepted substituted acquisition identity")
 	}

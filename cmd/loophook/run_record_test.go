@@ -11,6 +11,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestTheHooksPrintTheRunsEnd holds the prompt hook and the stop gate's block
@@ -20,30 +21,22 @@ import (
 // process is gone with no end recorded, that it was cut short.
 func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 	sessionCheckout(t)
-	if err := processlock.EnsureStateDirectory("."); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, processlock.EnsureStateDirectory("."))
 	keep := func(run plan.MeasurementRun) {
 		t.Helper()
-		if err := jsonfile.Write(plan.MeasurementRunPath("."), run, stateFileMode); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Write(plan.MeasurementRunPath("."), run, stateFileMode))
 	}
 	captured := func(stream **os.File, hook func()) string {
 		t.Helper()
 		read, written, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		saved := *stream
 		*stream = written
 		hook()
 		*stream = saved
 		_ = written.Close()
 		printed, err := io.ReadAll(read)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return string(printed)
 	}
 	prompted := func() string {
@@ -70,9 +63,7 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 	}
 
 	finished := exec.CommandContext(t.Context(), "git", "--version")
-	if err := finished.Run(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, finished.Run())
 	keep(plan.MeasurementRun{Commit: "bc1d47e13606fddb", Process: finished.Process.Pid, Started: began, Phases: []plan.MeasurementPhase{lanes, cells}})
 	if printed := prompted(); !strings.Contains(printed, "the run was cut short") {
 		t.Fatalf("the prompt hook printed %q for a run whose process is gone", printed)

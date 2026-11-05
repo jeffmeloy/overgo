@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestMATHPinnedOracleParity(t *testing.T) {
@@ -18,29 +19,21 @@ func TestMATHPinnedOracleParity(t *testing.T) {
 			MaxTokens: 8, Answers: []string{`\frac{1}{2}`},
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindStructuredGenerated(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateStructuredGenerated(
 		t.Context(), store, exactGenerator{pieces: []string{raw}}, compiled, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observation := report.Observations[0]
 	if report.Accuracy != 1 || len(report.Groups) != 1 || report.Groups[0].Name != "algebra" ||
 		report.Groups[0].Accuracy != 1 || observation.Raw != raw || observation.Extracted != `\frac12` ||

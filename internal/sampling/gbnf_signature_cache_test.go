@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGBNFVocabularyHashReuse(t *testing.T) {
@@ -16,29 +18,21 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	newBinding := func() *GBNFVocabulary {
 		t.Helper()
 		vocabulary, err := NewGBNFVocabulary(pieces, []int{len(pieces) - 1}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return vocabulary
 	}
 	state := func(grammar *GBNFGrammar) []byte {
 		t.Helper()
 		sampler, err := New(Config{GBNF: grammar, Seed: 17})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		encoded, err := sampler.SaveState()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return encoded
 	}
 	vocabulary := newBinding()
 	const source = `root ::= "a"`
 	first, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantState := state(first)
 	for range 8 {
 		warm, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
@@ -55,9 +49,7 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	}
 	lazy := GBNFLazyOptions{Enabled: true, Tokens: []int{1}}
 	lazyGrammar, err := vocabulary.Compile(source, "", lazy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	freshLazy, err := newBinding().Compile(source, "", lazy)
 	if err != nil || !bytes.Equal(state(lazyGrammar), state(freshLazy)) || bytes.Equal(state(lazyGrammar), wantState) {
 		t.Fatalf("lazy options collided with ordinary grammar: %v", err)
@@ -68,9 +60,7 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	for index := range gbnfSignatureCacheCapacity + 9 {
 		source := fmt.Sprintf("root ::= \"a\"%s", bytes.Repeat([]byte{' '}, index))
 		grammar, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if freshGrammar, err := newBinding().Compile(source, "", GBNFLazyOptions{}); err != nil || !bytes.Equal(state(grammar), state(freshGrammar)) {
 			t.Fatalf("grammar %d differs from fresh binding: %v", index, err)
 		}

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 const contextAdmissionProbeEnvironment = "OVERGO_TEST_CONTEXT_ADMISSION"
@@ -31,17 +32,11 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestCUDAContextSharedAdmission$", "-test.timeout=1m")
 		command.Env = append(os.Environ(), contextAdmissionProbeEnvironment+"="+role)
 		input, err := command.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := command.StdoutPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		command.Stderr = os.Stderr
-		if err := command.Start(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, command.Start())
 		t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
 		return command, input, bufio.NewReader(output)
 	}
@@ -60,18 +55,14 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 		if _, err := io.Copy(io.Discard, output); err != nil {
 			t.Fatal(err)
 		}
-		if err := command.Wait(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, command.Wait())
 	}
 	one, inputOne, outputOne := start("shared")
 	expect(outputOne, "admitted")
 	two, inputTwo, outputTwo := start("shared")
 	expect(outputTwo, "admitted")
 	probe("exclusive-busy")
-	if err := one.Process.Kill(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, one.Process.Kill())
 	if err := one.Wait(); err == nil {
 		t.Fatal("CUDA consumer death was not injected")
 	}
@@ -92,9 +83,7 @@ func TestCUDAContextSharedAdmission(t *testing.T) {
 	if _, err := io.Copy(io.Discard, outputTwo); err != nil {
 		t.Fatal(err)
 	}
-	if err := two.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, two.Wait())
 	t.Log("two independent CUDA contexts allocate and execute; physical capacity refusal; process-local byte accounting; survivor remains correct after peer death; context closure and shared readmission; explicit measurement contention")
 }
 
@@ -102,9 +91,7 @@ func runContextAdmissionConsumer(t *testing.T, role string) {
 	t.Helper()
 	if strings.HasPrefix(role, "exclusive-") {
 		library, err := driver.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer library.Close()
 		_, err = library.ReserveDevice(0)
 		if role == "exclusive-busy" {
@@ -118,9 +105,7 @@ func runContextAdmissionConsumer(t *testing.T, role string) {
 		return
 	}
 	worker, err := New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	values := []float32{3.5, 3.5}
 	var pointer driver.DevicePtr
@@ -143,9 +128,7 @@ func runContextAdmissionConsumer(t *testing.T, role string) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check := func() {
 		t.Helper()
 		err := worker.Do(t.Context(), func(state *State) error {
@@ -171,18 +154,12 @@ func runContextAdmissionConsumer(t *testing.T, role string) {
 			}
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	check()
 	if role == "shared-probe" {
-		if err := worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }); err != nil {
-			t.Fatal(err)
-		}
-		if err := worker.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }))
+		testcheck.NoError(t, worker.Close())
 		fmt.Println("verified")
 		return
 	}
@@ -194,18 +171,12 @@ func runContextAdmissionConsumer(t *testing.T, role string) {
 			check()
 			fmt.Println("checked")
 		case "release":
-			if err := worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }); err != nil {
-				t.Fatal(err)
-			}
-			if err := worker.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, worker.Do(t.Context(), func(state *State) error { return state.Driver.MemFree(pointer) }))
+			testcheck.NoError(t, worker.Close())
 			fmt.Println("released")
 		default:
 			t.Fatalf("unknown CUDA probe control %q", input.Text())
 		}
 	}
-	if err := input.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, input.Err())
 }

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -109,17 +110,13 @@ func TestMMLUProAsksAsLMEvalDoes(t *testing.T) {
 			})})
 		}
 		assembled, _, err := assembleMMLUProSuite(cases)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite := assembled.(GroupedChoiceSuite)
 		for index := range suite.Cases {
 			suite.Cases[index].Demonstrations = demonstrations[:shots]
 		}
 		compiled, err := CompileGroupedChoice(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index, scored := range compiled.choice.delimited().Cases {
 			if scored.Prompt != asked[index].Context || !slices.Equal(scored.Candidates, asked[index].Continuations) {
 				t.Errorf("with %d demonstrations, %s is asked as\n%q\nwith candidates %q, where lm-eval asks\n%q\nwith %q",
@@ -202,37 +199,25 @@ func mmluProFixture(t *testing.T) []storeCase {
 func mmluProIdentities(t *testing.T, cases []storeCase, authorities ExactAuthorities) (string, []artifact.ID) {
 	t.Helper()
 	assembled, _, err := assembleMMLUProSuite(cases)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := CompileGroupedChoice(assembled.(GroupedChoiceSuite))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := BindGroupedChoice(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := json.Marshal(assembled)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if derived, err := CompileSuite(document, authorities); err != nil || derived.Plan().Identity() != plan.Identity() {
 		t.Fatalf("the suite compiled from its document binds another plan: %v", err)
 	}
 	comparison, err := plan.comparisonIdentity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scored := compiled.choice.delimited()
 	asked := make([]askedChoice, len(scored.Cases))
 	for index, testCase := range scored.Cases {
 		asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
 	}
 	answers, err := plan.observed(asked)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids := []artifact.ID{plan.body.Dataset, plan.body.Split, plan.body.CaseProfile, plan.body.Scorer, plan.Identity(), comparison, answers}
 	named := make([]string, len(ids))
 	for index, id := range ids {
@@ -282,9 +267,7 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 		whole := families["mmlu-pro"]
 		share, spaced := slices.Clone(whole), slices.Clone(whole)
 		drawShare(share, suiteShares["mmlu-pro"])
-		if err := drawSpaced(spaced, 40, true); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, drawSpaced(spaced, 40, true))
 		var sharePlan artifact.ID
 		for label, protocol := range protocols {
 			for name, cases := range map[string][]storeCase{"share": share, "whole": whole, "spaced": spaced} {
@@ -313,23 +296,17 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 
 	raw := protocols[PromptingRawCompletion.Label()].authorities
 	assembled, _, err := assembleMMLUProSuite(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite := assembled.(GroupedChoiceSuite)
 	compiled, err := CompileGroupedChoice(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := compiled.choice.suite.Cases[1].Candidates; !slices.Equal(got, []string{"A", "B"}) {
 		t.Fatalf("the suite's own candidates are %q, want the bare letters", got)
 	}
 	glued := suite
 	glued.Delimiter = ""
 	gluedPlan, err := CompileGroupedChoice(glued)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, asked := range []prompting{PromptingRawCompletion, PromptingChatTemplate} {
 		authorities := raw
 		authorities.Execution.Prompting = asked
@@ -345,32 +322,22 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 	}
 
 	plan, err := BindGroupedChoice(compiled, raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	var prompts []string
 	var candidates [][]string
 	report, err := EvaluateGroupedChoice(t.Context(), store, recordingScorer{prompts: &prompts, candidates: &candidates}, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(prompts) != len(suite.Cases) || prompts[1] != "One plus one?\nA. three\nB. two\nAnswer:" || !slices.Equal(candidates[1], []string{" A", " B"}) {
 		t.Fatalf("the scorer was asked %q with %q", prompts, candidates)
 	}
 	observations, err := json.Marshal(report.Observations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	groups, err := json.Marshal(report.Groups)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const (
 		pinnedAnswers      = "profile:sha256:b18cd03429d6ba014ebe2b851a79ba33e31506d0e9f834423a03067228fa91c0"
 		pinnedObservations = "0b4637e4f62fe693ee3ac40d2dd949a992a761b15365c8d7606adec8b704ae98"

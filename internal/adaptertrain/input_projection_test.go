@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -20,46 +21,30 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 	spec := linearCTCSpec(tc)
 	spec.Optimizer.Schedule, spec.Optimizer.Steps = optimizer.ScheduleLinearDecay, 4
 	m, err := NewLinearCTC(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	binding := InputProjectionBinding{
 		BaseRecipe:      testutil.ArtifactID(t, artifact.KindRecipe, "base"),
 		TargetTransform: testutil.ArtifactID(t, artifact.KindProfile, "transform"),
 	}
 	execution, err := m.Bind(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
 	forward, err := execution.Select(trainingprogram.PhaseForward)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := forward.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, forward.Run(&example))
 	if _, err := m.OptimizerSnapshot(); err == nil {
 		t.Fatal("accepted unfinished forward checkpoint")
 	}
 	if err := m.SaveWeights(t.TempDir(), binding); err == nil {
 		t.Fatal("published unfinished checkpoint")
 	}
-	if err := execution.Run(&example); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, execution.Run(&example))
 	state, err := m.OptimizerSnapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
-	if err := m.SaveWeights(directory, binding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, m.SaveWeights(directory, binding))
 	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weightsID, _, err := artifact.Identify(artifact.KindTensorSet, file)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatalf("hash %v close %v", err, closeErr)
@@ -69,41 +54,25 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 		t.Fatalf("weights roundtrip: %v", err)
 	}
 	resumed, err := NewLinearCTC(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.Restore(weights, state); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.Restore(weights, state))
 	replay, err := resumed.Bind(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 2 {
 		replayed := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
-		if err := execution.Run(&example); err != nil {
-			t.Fatal(err)
-		}
-		if err := replay.Run(&replayed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, execution.Run(&example))
+		testcheck.NoError(t, replay.Run(&replayed))
 		left, err := m.OptimizerSnapshot()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		right, err := resumed.OptimizerSnapshot()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if example.Loss != replayed.Loss || example.Update != replayed.Update || !reflect.DeepEqual(left, right) || !slices.Equal(m.WeightSnapshot(), resumed.WeightSnapshot()) {
 			t.Fatal("resumed trajectory differs")
 		}
 	}
 	before := resumed.WeightSnapshot()
 	beforeState, err := resumed.OptimizerSnapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, mode := range []string{"weights", "momentum", "configuration", "plan"} {
 		t.Run(mode, func(t *testing.T) {
 			badWeights := slices.Clone(weights)
@@ -132,9 +101,7 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			candidate := t.TempDir()
 			metadata, err := binding.metadata()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			tensors := map[string][]float32{inputProjectionTensor: slices.Clone(weights)}
 			shapes := map[string][]int{inputProjectionTensor: {tc.Width, tc.Width}}
 			wantBinding, wantID, width, budget := binding, weightsID, tc.Width, m.StorageBytes()
@@ -157,15 +124,11 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 				metadata["placement"] = "intermediate-output"
 			}
 			if mode != "missing" {
-				if err := safetensors.Save(filepath.Join(candidate, trainingprogram.CheckpointWeights), tensors, shapes, metadata); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, safetensors.Save(filepath.Join(candidate, trainingprogram.CheckpointWeights), tensors, shapes, metadata))
 			}
 			if mode == "nonfinite" {
 				file, err := os.Open(filepath.Join(candidate, trainingprogram.CheckpointWeights))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				wantID, _, err = artifact.Identify(artifact.KindTensorSet, file)
 				if closeErr := file.Close(); err != nil || closeErr != nil {
 					t.Fatalf("hash %v close %v", err, closeErr)

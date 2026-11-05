@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // planRepository seeds a git repository whose committed plan is document,
@@ -15,24 +16,16 @@ import (
 func planRepository(t *testing.T, document Plan) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := Save(filepath.Join(root, filepath.FromSlash(Path)), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o755))
+	testcheck.NoError(t, Save(filepath.Join(root, filepath.FromSlash(Path)), document))
 	git(t, root, "init", "-q")
 	git(t, root, "config", "user.email", "overgo@example.invalid")
 	git(t, root, "config", "user.name", "Overgo Test")
 	git(t, root, "add", Path)
 	git(t, root, "commit", "-q", "-m", "seed plan")
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	return root
 }
 

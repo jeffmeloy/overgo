@@ -9,13 +9,12 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestKimiNativeLiteralControlText(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_literal_reference.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reference struct {
 		Vocab       map[string]int `json:"vocab"`
 		AddedTokens []struct {
@@ -29,9 +28,7 @@ func TestKimiNativeLiteralControlText(t *testing.T) {
 		OrdinaryAddedText string `json:"ordinary_added_text"`
 		OrdinaryAddedID   int    `json:"ordinary_added_id"`
 	}
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	maxID := 0
 	for _, id := range reference.Vocab {
 		maxID = max(maxID, id)
@@ -64,9 +61,7 @@ func TestKimiNativeLiteralControlText(t *testing.T) {
 		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{}),
 	}
 	encoder, err := Load(&gguf.File{Metadata: metadata})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := make([]TokenID, len(reference.LiteralIDs))
 	for i, id := range reference.LiteralIDs {
 		want[i] = TokenID(id)

@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestMutationsRefreshTheirInventories holds the route table to its inventory
@@ -31,9 +33,7 @@ func TestMutationsRefreshTheirInventories(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	events, unsubscribe, err := handler.events.subscribe(handler.config.MaxStoredResponses)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer unsubscribe()
 	answering := func(status int) routeDescriptor {
 		return routeDescriptor{Path: "/agents/state", Inventory: true, Handler: func(_ *Handler, response http.ResponseWriter, _ *http.Request) {

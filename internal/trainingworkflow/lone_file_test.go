@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation holds what a run does with a
@@ -33,53 +34,33 @@ func TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	shard := func(directory, file, tensor string, value float32) string {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Join(root, directory), 0o700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, directory), 0o700))
 		path := filepath.Join(root, directory, file)
-		if err := safetensors.Save(path, map[string][]float32{tensor: {value}}, map[string][]int{tensor: {1}}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, safetensors.Save(path, map[string][]float32{tensor: {value}}, map[string][]int{tensor: {1}}, nil))
 		return path
 	}
 	first := shard("model", "model-00001-of-00002.safetensors", "first", 1)
 
 	stubExecutableCodeCommit(t, strings.Repeat("c0", 20))
 	lone, err := identifyAndRecordWeights(ctx, store, first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID, err := BootstrapRecipe(ctx, store, first, []byte("the text a run reads"), TokenContract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observer, err := NewObserver(store, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := observer.Admit(ctx, lone, recipeID); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, observer.Admit(ctx, lone, recipeID))
 	observation, err := observer.Finish(ctx, lone, recipeID, nil, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := observer.Verify(ctx, recipeID, observation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, observer.Verify(ctx, recipeID, observation))
 	// active says whether the lone file's model has an active training recipe, and which.
 	active := func() (artifact.ID, bool) {
 		t.Helper()
 		id, bound, err := artifact.ResolveAlias(ctx, store, modelrecipe.ActiveAliasPrefix(recipe.TaskTraining)+lone.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id, bound
 	}
 	if id, bound := active(); !bound || id != recipeID {
@@ -125,9 +106,7 @@ func TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation(t *testing.T) {
 	if _, bound := active(); !bound {
 		t.Fatal("the activation was retired while a live file of its model is still bound as that model")
 	}
-	if err := os.Remove(copied); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(copied))
 
 	run()
 	if id, bound := active(); bound {

@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestTurnPhaseProfile: a turn's tokens per forward counts each accepted
@@ -45,9 +47,7 @@ func TestTurnPhaseProfile(t *testing.T) {
 		} `json:"timings"`
 		Recent []turnProfile `json:"recent"`
 	}
-	if err := json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/interactions/inspect?response="+responses[2], "").Body.Bytes(), &inspected); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/interactions/inspect?response="+responses[2], "").Body.Bytes(), &inspected))
 	profiled := func(recent []turnProfile) []string {
 		ids := []string{}
 		for _, turn := range recent {

@@ -3,6 +3,7 @@ package runrecord
 import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -10,9 +11,7 @@ import (
 func TestAutomationPolicyLifecycle(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	policy := testutil.ArtifactID(t, artifact.KindProfile, "candidate-policy")
 	incumbent := testutil.ArtifactID(t, artifact.KindProfile, "incumbent-policy")

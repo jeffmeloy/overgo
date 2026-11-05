@@ -25,6 +25,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,26 +35,16 @@ func TestVideoProductionActivation(t *testing.T) {
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	edit := modeltest.Directory(t, "LiveEdit")
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-production-activation")
 	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, edit)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -63,16 +54,12 @@ func TestVideoProductionActivation(t *testing.T) {
 	}
 
 	base, err := latentvideo.LoadDenoiserConfig(wan, profile.Policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sigmas, err := latentvideo.CompileEditFlowSigmas(latentvideo.EditFlowConfig{
 		InferenceSteps: 2, TrainTimesteps: profile.Policy.NumTrainTimesteps,
 		Shift: 5, SigmaMin: 0, SigmaMax: 1, ExtraStep: true,
 	}, []int64{900})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := latentvideo.ReferenceEditRequest{
 		Condition: latentvideo.ReferenceEditCondition{
 			TextContext:  readVideoF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim),
@@ -85,25 +72,19 @@ func TestVideoProductionActivation(t *testing.T) {
 		},
 	}
 	raw, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capability := videoCapability()
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
 		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)
 		}
 		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if video.MediaType != "image/gif" || video.Frames != 5 || len(animation.Image) != 5 ||
 			video.Height != 16 || video.Width != 32 || video.ResidentRun != residentRun(run) {
 			t.Fatalf("run %d video=%+v decoded_frames=%d", run, video, len(animation.Image))
@@ -122,9 +103,7 @@ func TestVideoProductionActivation(t *testing.T) {
 func readVideoF32(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(raw) != elements*4 {
 		t.Fatalf("float fixture bytes=%d want=%d", len(raw), elements*4)
 	}
@@ -138,17 +117,13 @@ func readVideoF32(t testing.TB, path string, elements int) []float32 {
 func readVideoInitialNoise(t testing.TB) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Final struct {
 			Values []float32 `json:"values"`
 		} `json:"final_latent"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if len(fixture.Final.Values) != 16*2*2*4 {
 		t.Fatalf("initial noise elements=%d", len(fixture.Final.Values))
 	}
@@ -202,9 +177,7 @@ func publishArtifactExtent(t testing.TB, repository artifact.Repository, id arti
 		total += uint64(info.Size())
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if total == 0 {
 		t.Fatalf("artifact backing path %s holds no bytes", path)
 	}

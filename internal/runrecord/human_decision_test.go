@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestDecisionRejectsArgumentSubstitution(t *testing.T) {
 
 func TestDecisionRejectsReplay(t *testing.T) {
 	store, request, decision := humanDecisionFixture(t)
-	if err := PublishHumanDecision(t.Context(), store, request, decision); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, PublishHumanDecision(t.Context(), store, request, decision))
 	if err := PublishHumanDecision(t.Context(), store, request, decision); err == nil {
 		t.Fatal("decision replay was published")
 	}
@@ -30,20 +29,14 @@ func TestDecisionRejectsReplay(t *testing.T) {
 func humanDecisionFixture(t *testing.T) (*overgodb.Store, operatoraction.ApprovalRequest, HumanDecision) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "operation")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume operation", Argv: []string{"overgo", "resume"}}
 	request, err := operatoraction.NewApprovalRequest(operation, recipeID, action, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decision, err := NewHumanDecision(request, operatoraction.AnswerGrant)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return store, request, decision
 }

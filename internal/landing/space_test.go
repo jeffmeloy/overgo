@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestCommitChecksRefuseBelowTheFreeSpaceFloor holds a commit's checks to the
@@ -101,14 +102,10 @@ func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 	// A change to the plan alone keeps one stage of the gate's own, and is held to the floor too.
 	fixture.write("a.txt", "base\n")
 	filed, err := plan.Parse([]byte(planned))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	filed.Items = append(filed.Items, plan.Item{ID: "later", Title: "later", Status: plan.StatusOpen,
 		Steps: []plan.Step{{ID: "do", Title: "later", Status: plan.StatusOpen, Verify: "true"}}})
-	if err := plan.Save(fixture.planPath(), filed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), filed))
 	log, record, err = run(true, reader)
 	if stages := slices.Collect(maps.Keys(record.Stages)); err == nil || !strings.Contains(err.Error(), "land: space:") || !slices.Equal(stages, []string{spaceClass}) {
 		t.Fatalf("a change to the plan alone, below the floor, ended as %v after the stages %v, want it refused by the stage space alone; its log:\n%s", err, stages, log)

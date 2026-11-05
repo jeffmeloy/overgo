@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // carryMeasurement is the command the measurement run's launch starts in the
@@ -153,20 +155,14 @@ var carryTree = []string{"go.mod", "go.sum", "internal", "kernels", "cmd/evaluat
 // runner's.
 func TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkout, store := filepath.Join(t.TempDir(), "checkout"), filepath.Join(t.TempDir(), "store")
 	git := func(arguments ...string) string { return gitFixture(t, checkout, arguments...) }
 	write := func(name string, content []byte) {
 		t.Helper()
 		path := filepath.Join(checkout, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, content, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, content, 0o644))
 	}
 	// The files a commit of this tree would hold, without its tests, which no build of a command reads.
 	listed := gitFixture(t, root, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, carryTree...)...)
@@ -179,9 +175,7 @@ func TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit(t *testing.T) {
 		if os.IsNotExist(err) {
 			continue
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		write(name, content)
 		if thought == "" && strings.HasPrefix(name, "internal/thoughtbank/") && strings.HasSuffix(name, ".go") {
 			thought = name
@@ -191,9 +185,7 @@ func TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit(t *testing.T) {
 		t.Fatal("the tree holds no source of the thought bank's package to change")
 	}
 	write("cmd/validate/main.go", []byte(carryMeasurement))
-	if err := os.MkdirAll(store, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(store, 0o755))
 	git("init", "-q", "-b", "master")
 	git("config", "core.autocrlf", "false")
 	git("add", "-A")

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestProxyRefusesCrossSiteSwap: a foreign page cannot launch or swap a
@@ -17,9 +19,7 @@ func TestProxyRefusesCrossSiteSwap(t *testing.T) {
 	t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 	t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
 	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 	swap := func(fetchSite, origin string) *httptest.ResponseRecorder {

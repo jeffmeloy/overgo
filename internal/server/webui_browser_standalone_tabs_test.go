@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -40,9 +41,7 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the standalone tabs leg uses Chromium through cmd/webui-lane")
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	// page serves handler, opens it at hash and answers the page's predicates.
 	page := func(handler *Handler, hash string) (check, settle func(string)) {
@@ -50,9 +49,7 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 		server := httptest.NewServer(handler)
 		t.Cleanup(server.Close)
 		browser, err := webuilane.Open(ctx, path, server.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = browser.Close() })
 		check = func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 		settle = func(expression string) {

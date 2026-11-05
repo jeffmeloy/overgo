@@ -1,6 +1,10 @@
 package plan
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // TestAcceptedProgressReadsLandingsFromGit holds progress to what git
 // records: a landing of a sibling step or of a prerequisite after the
@@ -22,9 +26,7 @@ func TestAcceptedProgressReadsLandingsFromGit(t *testing.T) {
 	progress := func() bool {
 		t.Helper()
 		moved, err := AcceptedProgressSince(t.Context(), repository, document, "row", "second", checkpoint)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return moved
 	}
 	land := func(message string) {

@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // profileOrdinalsFile pins each enum's constants, in the order that numbers them.
@@ -30,13 +32,9 @@ func TestEveryProfileOrdinalKeepsItsName(t *testing.T) {
 		}
 	}
 	raw, err := os.ReadFile(profileOrdinalsFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var pinned map[string][]string
-	if err := json.Unmarshal(raw, &pinned); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &pinned))
 	for name, constants := range reached {
 		if !slices.Equal(pinned[name], constants) {
 			t.Errorf("%s numbers %v, and %s pins %v", name, constants, profileOrdinalsFile, pinned[name])
@@ -89,9 +87,7 @@ func profileEnums(kind reflect.Type, seen map[reflect.Type]bool) map[string]bool
 func declaredEnums(t *testing.T) map[string][]string {
 	t.Helper()
 	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slices.Sort(files)
 	enums := map[string][]string{}
 	for _, file := range files {
@@ -99,9 +95,7 @@ func declaredEnums(t *testing.T) map[string][]string {
 			continue
 		}
 		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, declaration := range parsed.Decls {
 			block, constants := declaration.(*ast.GenDecl)
 			if !constants || block.Tok != token.CONST {

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/vqaserve"
 )
 
@@ -34,43 +35,27 @@ func TestVQAActivation(t *testing.T) {
 	}
 	capability := vqaCapability()
 	source, err := capability.Resolve(t.Context(), model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := source.Inventory.Manifest.ID
 	definition, _, err := source.Define(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, model)
-	if err := modelrecipe.EnsureRuntimePolicy(t.Context(), store, definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, modelrecipe.EnsureRuntimePolicy(t.Context(), store, definition))
 	imageContent, err := artifact.DocumentContract{Kind: artifact.KindFile, MediaType: "image/jpeg", Schema: "overgo.image-input.v1"}.OwnedContentBytes(image)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/vqa-image", Contents: []artifact.Content{imageContent}}); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := json.Marshal(vqaserve.Request{Image: imageContent.Descriptor.ID, Question: "What objects are on the stovetop, and where is the green toy?"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	output, err := capability.Execute(t.Context(), store, model, execution, string(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer, ok := capabilityruntime.Unwrap(output).(string)
 	if !ok {
 		t.Fatalf("answer output type=%T", output)

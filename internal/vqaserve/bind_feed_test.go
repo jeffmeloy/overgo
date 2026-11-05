@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestBindFeedLeavesInputsUnchangedWhenTheUploadFails holds BindFeed to its refusal on the host.
@@ -19,13 +20,9 @@ func TestBindFeedLeavesInputsUnchangedWhenTheUploadFails(t *testing.T) {
 	builder := tensor.NewBuilder()
 	weight := builder.Input("weight", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
 	output := builder.Add(weight, weight)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inputs := compiled.NewDeviceInputs()
 	allocations := device.NewAllocationSet(nil)
 	if err := BindFeed(t.Context(), &allocations, inputs, weight, driver.Bytes([]float32{1})); err == nil {

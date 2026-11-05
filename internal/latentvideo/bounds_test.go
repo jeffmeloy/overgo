@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 // TestProfileControlBoundsFollowTheStrides pins the presets' source: the
@@ -13,9 +14,7 @@ import (
 // the frame count.
 func TestProfileControlBoundsFollowTheStrides(t *testing.T) {
 	var catalog []Profile
-	if err := strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog))
 	profile := catalog[tensor.FirstOffset]
 	var config DenoiserConfig
 	config.Policy = profile.Policy

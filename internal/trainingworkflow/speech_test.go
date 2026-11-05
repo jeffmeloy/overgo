@@ -21,6 +21,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechsynth"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -31,9 +32,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 	root := t.TempDir()
 	directory := writeTinySpeech(t, filepath.Join(root, "model"))
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	commit := func(batch artifact.Batch) {
 		t.Helper()
@@ -42,33 +41,21 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 		}
 	}
 	inventory, err := speechsynth.Inventory(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := inventory.Batch("model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit(batch)
 	base, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "speech-base", base); err != nil {
 		t.Fatal(err)
 	}
 	model, err := speechsynth.Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	facts, err := speechTrainingFacts(model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	conditioning, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "fixture/text-bos"), "text-bos")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := trainingdata.SpeechLatentProfile{Model: base.Model, Transform: facts[0].Descriptor.ID, Noise: facts[1].Descriptor.ID,
 		Conditioning: conditioning.Descriptor.ID, Width: 2, MaximumFrames: 3, MaximumTextBytes: 64, MaximumEncodedBytes: 2048}
 	for _, component := range inventory.Manifest.Components {
@@ -80,9 +67,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 		}
 	}
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit(artifact.Batch{Key: "processing", Contents: append(facts, conditioning, profileContent)})
 	source := testutil.ArtifactID(t, artifact.KindFile, "independent fixture latent producer")
 	var raw bytes.Buffer
@@ -93,37 +78,21 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 		}
 	}
 	path := filepath.Join(root, "targets.jsonl")
-	if err := os.WriteFile(path, raw.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, raw.Bytes(), 0o600))
 	asset, err := artifact.IdentifyBytes(artifact.KindFile, raw.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	version, err := dataset.NewVersion([]dataset.Asset{{Name: "latents", Artifact: asset, Records: 3}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	training, err := dataset.NewMembership(version.ID, 9, "train", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 0), Group: "one"}, {ID: dataset.RecordID(version.ID, "latents", 1), Group: "two"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	heldout, err := dataset.NewMembership(version.ID, 9, "heldout", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 2), Group: "three"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	versionContent, err := version.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainContent, err := training.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	heldContent, err := heldout.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit(artifact.Batch{Key: "dataset", Contents: []artifact.Content{versionContent, trainContent, heldContent},
 		Artifacts: []artifact.Descriptor{{ID: asset, Size: uint64(raw.Len())}, {ID: source}},
 		Lineage:   append(version.Lineage(), training.Lineage(), heldout.Lineage()), Locations: []artifact.LocationEvent{{Action: artifact.LocationAdd, Location: artifact.Location{Artifact: asset, Kind: artifact.LocationFile, Value: path}}}})
@@ -132,13 +101,9 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 		Dataset:   version.ID, Split: training.ID, Processors: []artifact.ID{profileContent.Descriptor.ID},
 		Loss: testutil.ArtifactID(t, artifact.KindProfile, "loss"), Evaluation: testutil.ArtifactID(t, artifact.KindProfile, "evaluation"), Metric: trainingprogram.MetricAudioSNR,
 		Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "synthetic training fixture; no model quality claim")}, Authority: trainingprogram.ObjectiveApproved})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainingRecipe, err := BootstrapObjectiveForModel(t.Context(), store, base.Model, objective)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return store, Request{Repository: store, Recipe: trainingRecipe, Host: true, Steps: 2, OutputDirectory: filepath.Join(root, "checkpoint"),
 		Speech: &SpeechTrainingSpec{BaseRecipe: base.ID, Profile: profile, MemoryBytes: 4096, Seed: 19, Shuffle: true}}, directory
 }
@@ -147,19 +112,13 @@ func TestSpeechDatasetTraining(t *testing.T) {
 	t.Parallel()
 	store, request, _ := speechDatasetFixture(t)
 	whole, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request.Steps, request.OutputDirectory = 1, filepath.Join(t.TempDir(), "first")
 	first, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request.ResumeDirectory, request.OutputDirectory = request.OutputDirectory, filepath.Join(t.TempDir(), "resumed")
 	resumed, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if whole.Checkpoint.Weights != resumed.Checkpoint.Weights || !reflect.DeepEqual(whole.Checkpoint.Optimizer, resumed.Checkpoint.Optimizer) ||
 		!reflect.DeepEqual(whole.Checkpoint.Stream, resumed.Checkpoint.Stream) || !reflect.DeepEqual(whole.Checkpoint.RNG, resumed.Checkpoint.RNG) ||
 		whole.Losses[0] != first.Losses[0] || whole.Losses[1] != resumed.Losses[0] || resumed.StreamPosition != 2 {
@@ -212,49 +171,35 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 	t.Parallel()
 	store, request, directory := speechDatasetFixture(t)
 	result, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status, found, err := modelrecipe.Status(t.Context(), store, result.Candidate)
 	if err != nil || !found || status != recipe.StatusCandidate {
 		t.Fatalf("publication activated recipe: %s %v", status, err)
 	}
 	definition, err := recipe.RequireDefinition(t.Context(), store, result.Candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	voiceDirectory := filepath.Join(directory, "embeddings")
-	if err := os.Mkdir(voiceDirectory, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(voiceDirectory, 0o700))
 	header := []byte(`{"transformer.layers.0.self_attn/cache":{"dtype":"F32","shape":[2,1,1,2,2],"data_offsets":[0,32]},"transformer.layers.0.self_attn/offset":{"dtype":"I64","shape":[1],"data_offsets":[32,40]}}`)
 	voice := append(binary.LittleEndian.AppendUint64(nil, uint64(len(header))), header...)
 	voice = append(voice, make([]byte, 32)...)
 	voice = binary.LittleEndian.AppendUint64(voice, 1)
-	if err := os.WriteFile(filepath.Join(voiceDirectory, "fixture.safetensors"), voice, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(voiceDirectory, "fixture.safetensors"), voice, 0o600))
 	load := func() *speechsynth.Synthesizer {
 		t.Helper()
 		s, err := speechsynth.LoadSynthesizer(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return s
 	}
 	read := func(s *speechsynth.Synthesizer) speechsynth.Audio {
 		t.Helper()
 		audio, err := s.Speak(t.Context(), speechsynth.DocumentRequest{Text: "a b.", Voice: "fixture", Seed: 7})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return audio
 	}
 	untrained := read(load())
 	synth := load()
-	if err := synth.RestoreRecipe(t.Context(), store, definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, synth.RestoreRecipe(t.Context(), store, definition))
 	trained := read(synth)
 	if len(trained.PCM) == 0 || slices.Equal(untrained.PCM, trained.PCM) {
 		t.Fatal("serving did not apply trained weights")
@@ -282,13 +227,9 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 			}
 		})
 	}
-	if err := os.Remove(filepath.Join(request.OutputDirectory, "momentum.bin")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(request.OutputDirectory, "momentum.bin")))
 	reloaded := load()
-	if err := reloaded.RestoreRecipe(t.Context(), store, definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reloaded.RestoreRecipe(t.Context(), store, definition))
 	if again := read(reloaded); !reflect.DeepEqual(again, trained) {
 		t.Fatal("serving reload differs")
 	}
@@ -297,13 +238,9 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 	}
 	weightsPath := filepath.Join(request.OutputDirectory, trainingprogram.CheckpointWeights)
 	weights, err := os.ReadFile(weightsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights[len(weights)-1] ^= 1
-	if err := os.WriteFile(weightsPath, weights, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weightsPath, weights, 0o600))
 	if err := load().RestoreRecipe(t.Context(), store, definition); err == nil {
 		t.Fatal("corrupt checkpoint served")
 	}
@@ -332,24 +269,16 @@ func TestSpeechDatasetCommand(t *testing.T) {
 	storePath := filepath.Join(filepath.Dir(request.OutputDirectory), "store")
 	manifest := filepath.Join(filepath.Dir(request.OutputDirectory), "training.json")
 	data, err := json.Marshal(request.Speech)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(manifest, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(manifest, data, 0o600))
 	definition, err := recipe.RequireDefinition(t.Context(), store, request.Recipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
 	const alias = "objective.fixture.speech"
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "speech-command-objective", Aliases: []artifact.AliasBinding{{Name: alias, Target: objective}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	command := exec.CommandContext(t.Context(), "go", "run", "./cmd/train", "-route", "speech", "-objective", alias, "-manifest", manifest, "-out", request.OutputDirectory, "-store", storePath, "-host", "-steps", "2")
 	command.Dir = testutil.RepoRoot(t)
 	if output, err := command.CombinedOutput(); err != nil {

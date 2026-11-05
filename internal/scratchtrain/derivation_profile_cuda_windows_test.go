@@ -11,6 +11,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -27,19 +28,13 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	incumbent.Epsilon = candidate.Epsilon * 1e6
 	var err error
 	incumbent, err = scratchmodel.NewDerivationProfile(incumbent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	facts := scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: 100}
 	incumbentLoss, incumbentModel, _, err := trainProfile(facts, incumbent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidateLoss, candidateModel, construction, err := trainProfile(facts, candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if candidateLoss >= incumbentLoss {
 		t.Fatalf("candidate loss %.9f did not beat incumbent %.9f", candidateLoss, incumbentLoss)
 	}
@@ -52,26 +47,18 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 		Incumbent: incumbent.ID, Candidate: candidate.ID, Dataset: construction.Dataset(), DevelopmentSplit: construction.SplitID(),
 		Recipe: construction.Program().ID(), Code: code, Proposer: proposer,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluator := profileArtifact(t, artifact.KindEvidence, "profile-evaluator")
 	authority := profileArtifact(t, artifact.KindEvidence, "profile-authority")
 	admission, err := runrecord.AdmitImprovement(proposal, authority, evaluator, promotionSplit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run, err := runrecord.NewRun(construction.Program().ID(), runrecord.OutcomeSucceeded,
 		[]artifact.ID{candidateModel, construction.Dataset(), promotionSplit, code, admission.ID}, []artifact.ID{candidateModel}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluation, err := runrecord.NewEvaluation(construction.Program().ID(), run.ID, construction.Dataset(), []runrecord.Metric{{
 		Name: "causal-loss", Value: candidateLoss, Direction: runrecord.DirectionMinimize,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decision, err := runrecord.DecideImprovement(admission, candidateModel, run, evaluation,
 		profileArtifact(t, artifact.KindEvidence, "profile-decider"), runrecord.ImprovementPromote)
 	if err != nil || decision.State != runrecord.ImprovementPromote || decision.Rollback != incumbentModel {
@@ -123,8 +110,6 @@ func trainProfile(facts scratchmodel.CorpusFacts, profile scratchmodel.Derivatio
 func profileArtifact(t *testing.T, kind artifact.Kind, label string) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(kind, fmt.Appendf(nil, "%s/%s", t.Name(), label))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }

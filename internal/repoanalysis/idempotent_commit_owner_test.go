@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // noChangeTests is how many production sites outside the artifact package
@@ -25,18 +26,14 @@ const noChangeTests = 10
 func TestIdempotentCommitHasOneOwner(t *testing.T) {
 	t.Parallel()
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	survey := func(snapshot gosyntax.Snapshot) (written []string, tests int) {
 		for _, file := range snapshot.Files {
 			if file.Test || path.Dir(file.Path) == "internal/artifact" {
 				continue
 			}
 			syntax, err := file.Syntax()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ast.Inspect(syntax, func(node ast.Node) bool {
 				switch typed := node.(type) {
 				case *ast.SelectorExpr:
@@ -78,9 +75,7 @@ func publish(ctx context.Context, repository artifact.Repository, batch artifact
 }
 `
 	overlaid, err := snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if written, tests := survey(overlaid); len(written) != 1 || tests != noChangeTests+1 {
 		t.Fatalf("the walk found %v and %d tests in a package that writes the statement out once", written, tests)
 	}

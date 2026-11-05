@@ -15,6 +15,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestAgentRecoveryToolProcess is the streaming tool's child process; a
@@ -45,39 +46,29 @@ func TestAgentRecoveryToolProcess(t *testing.T) {
 func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceFixture, func()) {
 	t.Helper()
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	fixture := newAgentWorkspaceFixture(t, store, nil, nil)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 	release := func() {
 		t.Helper()
 		connection, err := listener.Accept()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer connection.Close()
 		if _, err := connection.Write([]byte{1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stream, err := agenttool.NewManual(agenttool.Manual{
 		Name: "tool.stream", Description: "Prints its output in two pieces.", Effect: agenttool.EffectInspection,
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: filepath.Base(executable),
 			Args: []string{"-test.run=^TestAgentRecoveryToolProcess$", "--", listener.Addr().String()}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), store, []string{filepath.Base(executable)}); err != nil {
 		t.Fatal(err)
 	}
@@ -105,15 +96,11 @@ func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceF
 func TestAgentSessionRecoveryAndStreaming(t *testing.T) {
 	// Serial: the fixture sets PATH.
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fixture, release := streamingAgentFixture(t, store)
 	events, unsubscribe, err := fixture.handler.events.subscribe(64)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer unsubscribe()
 	stepped := make(chan string, 1)
 	go func() {
@@ -165,9 +152,7 @@ func TestAgentSessionRecoveryAndStreaming(t *testing.T) {
 func TestAgentThreadSurvivesRestart(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	first := newAgentWorkspaceFixture(t, store, nil, nil)
 	activateAgentFromAPI(t, first.handler, publishAgentFromAPI(t, first, nil))
@@ -178,9 +163,7 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 			turns[index] = map[string]string{"role": "user", "content": message}
 		}
 		body, err := json.Marshal(map[string]any{"agent": "research-agent", "session": session, "messages": turns})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if answered := serveTestRequest(fixture.handler, http.MethodPost, "/agents/chat", string(body)); answered.Code != http.StatusOK || !strings.Contains(answered.Body.String(), `"choices"`) {
 			t.Fatalf("agent chat status=%d body=%s", answered.Code, answered.Body.String())
 		}
@@ -194,9 +177,7 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 	}
 	chat(first, "s1", "hello", "again")
 	chat(first, "s1-2", "another session")
-	if err := first.handler.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, first.handler.Close())
 
 	// A restarted server over the same store reads the thread back, bounded by its own entries alone.
 	second := newAgentWorkspaceFixture(t, store, nil, nil)

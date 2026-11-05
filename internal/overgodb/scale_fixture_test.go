@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 var scaleCorpusBuilds, scaleCorpusCopies atomic.Int64
@@ -40,9 +41,7 @@ func TestMain(m *testing.M) {
 func copyScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, uint64) {
 	t.Helper()
 	fixture, err := scaleFixture()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	copyCorpusTree(t, fixture.root, root)
 	scaleCorpusCopies.Add(1)
 	return fixture.head, filepath.Join(root, checkpointDirectory, filepath.Base(fixture.snapshot)), fixture.contentBytes
@@ -59,25 +58,17 @@ func TestSharedScaleCorpusIsolation(t *testing.T) {
 	}
 	checkpoint := filepath.Join(newestCheckpoints(t, first), "aliases"+checkpointExtension)
 	data, err := os.ReadFile(checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data[len(data)/2] ^= 0xff
-	if err := os.WriteFile(checkpoint, data, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(checkpoint, data, storeFileMode))
 	writer, err := Create(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = writer.Close() })
 	if writer.SnapshotReplay().Fallback == "" {
 		t.Fatal("damaged private checkpoint did not exercise recovery")
 	}
 	id, err := artifact.IdentifyBytes(artifact.KindRun, []byte("private fixture mutation"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "fixture/private", Artifacts: []artifact.Descriptor{{ID: id}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -85,9 +76,7 @@ func TestSharedScaleCorpusIsolation(t *testing.T) {
 		t.Fatal("private write did not change its own head")
 	}
 	reader, err := OpenReadOnly(second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = reader.Close() })
 	if current, _ := reader.Head(); current != head || !reader.SnapshotReplay().Loaded {
 		t.Fatal("private corruption or write reached a sibling")

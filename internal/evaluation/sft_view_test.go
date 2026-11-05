@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -14,13 +15,9 @@ func TestSFTEvaluationViewIsHeldOutAndAuthorityBound(t *testing.T) {
 	t.Parallel()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "SFT view dataset")
 	training, err := fixtureMembership(datasetID, "fit", dataset.Record{ID: "training", Group: "training-group"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	heldout, err := fixtureMembership(datasetID, "heldout", dataset.Record{ID: "heldout", Group: "heldout-group"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	processor := testutil.ArtifactID(t, artifact.KindProfile, "SFT view processor")
 	projector := testutil.ArtifactID(t, artifact.KindProjector, "SFT view projector")
 	codec := testutil.ArtifactID(t, artifact.KindProfile, "SFT view codec")
@@ -38,22 +35,16 @@ func TestSFTEvaluationViewIsHeldOutAndAuthorityBound(t *testing.T) {
 		Evidence:   []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "SFT view evidence")},
 		Authority:  trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	view, err := CompileSFTEvaluationView(objective, training, heldout)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if view.Objective != objective.ID || view.TrainingMembership != training.ID || view.HeldoutMembership != heldout.ID ||
 		view.Signature.Inputs[0] != recipecontract.ModalityImage || view.Processors[0] != processor ||
 		view.Projectors[0] != projector || view.Codecs[0] != codec {
 		t.Fatalf("view authority = %+v", view)
 	}
 	overlap, err := fixtureMembership(datasetID, "overlap", dataset.Record{ID: "other", Group: training.Records[0].Group})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileSFTEvaluationView(objective, training, overlap); err == nil {
 		t.Fatal("group-overlapping held-out membership accepted")
 	}

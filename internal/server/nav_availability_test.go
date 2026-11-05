@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"regexp"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // developerWords are what a refusal must not show a user: a launch flag, a
@@ -19,9 +21,7 @@ func TestNavAvailability(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	var manifest workspaceManifestResponse
-	if err := json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.Bytes(), &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.Bytes(), &manifest))
 	refused := 0
 	for _, tab := range manifest.Tabs {
 		switch {

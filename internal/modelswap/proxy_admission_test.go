@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestModelSwapProxyAdmitsAsTheServerDoes pins the proxy's admission: a
@@ -16,9 +18,7 @@ import (
 func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 	launcher := &upstreamLauncher{}
 	supervisor, err := New(launcher, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	keys := &keyRecorder{}
 	alpha := Servable{Name: "alpha", Location: "alpha.gguf"}
@@ -31,9 +31,7 @@ func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 	send := func(method, path, host string, headers map[string]string) *http.Response {
 		t.Helper()
 		request, err := http.NewRequest(method, front.URL+path, strings.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		request.Header.Set("Content-Type", "application/json")
 		for name, value := range headers {
 			request.Header.Set(name, value)
@@ -42,9 +40,7 @@ func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 			request.Host = host
 		}
 		response, err := front.Client().Do(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { response.Body.Close() })
 		return response
 	}

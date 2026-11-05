@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -153,9 +154,7 @@ func canonicalizeChangeJudgment(value *changeJudgment) error {
 func TestChangeCorpusRecordListsEachRunOnce(t *testing.T) {
 	t.Parallel()
 	record, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "change-corpus-qwen25-05b.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var named artifact.ID
 	var changes []weightChange
 	for line := range strings.Lines(string(record)) {

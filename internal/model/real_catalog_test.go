@@ -6,6 +6,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -14,18 +15,12 @@ import (
 func realCatalog(t *testing.T, path string) (model.Spec, model.Weights) {
 	t.Helper()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	spec, err := model.ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights, err := model.ReadWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return spec, weights
 }
 

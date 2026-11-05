@@ -13,6 +13,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -186,9 +187,7 @@ func addResidualF64Into(output, input, projection, bias []float32, inputChannels
 func TestAddResidualF64IntoIdentity(t *testing.T) {
 	t.Parallel()
 	output := []float32{1, 2}
-	if err := addResidualF64Into(output, []float32{3, 4}, nil, nil, 1, 1, 2); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, addResidualF64Into(output, []float32{3, 4}, nil, nil, 1, 1, 2))
 	if output[0] != 4 || output[1] != 6 {
 		t.Fatalf("residual=%v", output)
 	}

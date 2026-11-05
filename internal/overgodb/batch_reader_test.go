@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestHighFanoutReadsAreBatched holds the batch read owners to their
@@ -19,18 +20,14 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const fanout = 48
 	ids := make([]artifact.ID, fanout)
 	for ordinal := range fanout {
 		payload := fmt.Appendf(nil, "fanout/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids[ordinal] = id
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 		if _, err := store.Commit(ctx, artifact.Batch{
@@ -62,9 +59,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	}
 
 	absent, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("fanout/absent"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := artifact.ReadContents(ctx, counting, append(slices.Clip(ids[:4]), absent), func(artifact.Content) error {
 		return nil
 	}); err == nil {

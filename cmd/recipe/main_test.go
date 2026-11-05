@@ -27,6 +27,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/textgeneration"
 	"overgo/internal/workflowruntime"
@@ -35,9 +36,7 @@ import (
 func TestExactVerificationCandidateBinding(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 32)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err == nil {
@@ -47,19 +46,13 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	want, err := modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check := func() {
 		t.Helper()
 		candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		loaded, err := modelrecipe.ResolveCandidateGGUF(ctx, store, path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer loaded.Close()
 		identity, err := loaded.Identity()
 		if err != nil || candidate.Definition.ID != want.Definition.ID || identity.Recipe != want.Definition.ID ||
@@ -77,9 +70,7 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 	if err != nil || prior.Definition.ID == want.Definition.ID {
 		t.Fatalf("distinct active fixture: %v", err)
 	}
-	if err := modelrecipetest.PublishActivation(ctx, store, "fixture/prior-active", prior.Definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "fixture/prior-active", prior.Definition))
 	head, sequence := store.Head()
 	check()
 	check()
@@ -103,31 +94,21 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 		Data: bytes.NewReader(make([]byte, binary.Size(float32(0)))),
 	}})
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capability := mediacapability.Capability{Resolve: func(context.Context, string) (mediacapability.Source, error) {
 		return mediacapability.Source{Inventory: inventory}, nil
 	}}
 	want, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	batch, err := inventory.Batch("fixture/another-publisher")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +122,9 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 	for _, phase := range []string{"foreign publisher", "repeat", "reopen"} {
 		t.Run(phase, func(t *testing.T) {
 			if phase == "reopen" {
-				if err := store.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, store.Close())
 				store, err = overgodb.Create(directory)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 			}
 			model, definition, err := mediacapability.Prepare(t.Context(), store, path, recipe.TaskSeq2Seq, capability)
 			if err != nil || model != inventory.Manifest.ID || definition.ID != want.ID {
@@ -180,43 +157,29 @@ func TestModelFactsFollowTheModel(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	original := testutil.HermeticLlamaGGUF(t, 32)
 	data, err := os.ReadFile(original)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	moved := filepath.Join(t.TempDir(), filepath.Base(original))
-	if err := os.WriteFile(moved, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(moved, data, 0o600))
 	for _, step := range []struct{ path, derived string }{
 		{original, "first derivation"}, {moved, "first derivation"}, {moved, "second derivation"},
 	} {
 		file, err := gguf.Open(step.path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-		if err := errors.Join(err, file.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(err, file.Close()))
 		fact, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "overgo/fixture-derived-fact/v1"), struct{ Derived string }{step.derived})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		group, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 			Role: artifact.ComponentWeights, Name: "group/weights", Artifact: inventory.Components[0].ID,
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		capability := mediacapability.Capability{Resolve: func(context.Context, string) (mediacapability.Source, error) {
 			return mediacapability.Source{Inventory: inventory, Manifests: []artifact.Manifest{group},
 				Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
@@ -266,16 +229,12 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "recipe-verifier-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/recipe-verifier/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -283,13 +242,9 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
 		"host", "go", "fixture output validated",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verified.Gate.Recipe != definition.ID || verified.Run.Recipe != definition.ID {
 		t.Fatalf("verification subject = %s/%s, want %s", verified.Gate.Recipe, verified.Run.Recipe, definition.ID)
 	}
@@ -299,9 +254,7 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskSeq2Seq)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !active || activation.Definition.ID != definition.ID {
 		t.Fatalf("active = %t/%s, want true/%s", active, activation.Definition.ID, definition.ID)
 	}
@@ -356,9 +309,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 					t.Fatalf("measurement ran %q (%v), recorded attempt %v; want the verified request once, recorded", ran, err, afterSequence != sequence)
 				}
 				var id artifact.ID
-				if err := jsonfile.DecodeStrict(handoff, &id); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, jsonfile.DecodeStrict(handoff, &id))
 				observation, err := runrecord.RequireServingObservation(t.Context(), reopened, id)
 				wantOutcome := runrecord.OutcomeSucceeded
 				if test.cause != nil {
@@ -517,15 +468,11 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		t.Fatalf("serving attempts = %d; want each of the seven executions recorded", len(attempts))
 	}
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	input := measuredContent(t, "overgo.forecast-input.v1", request)
 	output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "overgo.fixture-forecast.v1"), []float32{1, 2, 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, attempt := range attempts {
 		run, err := runrecord.RequireExactRun(t.Context(), store, attempt.Run)
 		if err != nil || run.Recipe != attempt.Recipe || run.Outcome != runrecord.OutcomeSucceeded || !slices.Contains(run.Inputs, input.Descriptor.ID) || !slices.Equal(run.Outputs, []artifact.ID{output.Descriptor.ID}) {
@@ -534,9 +481,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	}
 	// Each deliberate measurement has its own operation. Failed/cancelled
 	// executions must record the actual failed run, with no successful output.
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for _, cause := range []error{errors.New("fixture forecast failed"), context.Canceled} {
 		terminal = cause
 		if err := measureCapability(directory, "fixture-path", recipe.TaskForecast, capability, false); !errors.Is(err, cause) {
@@ -548,9 +493,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		t.Fatalf("terminal attempts=%d, executed nodes=%d; want nine attempts and six executions", len(attempts), runs.Load())
 	}
 	store, err = overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, attempt := range attempts {
 		if attempt.Outcome == runrecord.OutcomeSucceeded {
@@ -638,9 +581,7 @@ func TestCapabilityMeasurementRecordsDecodeAndOutputTokens(t *testing.T) {
 			return output, err
 		},
 	}
-	if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability, false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability, false))
 	observed := servingAttempts(t, directory)
 	if len(observed) != 1 || observed[0].Task != recipe.TaskSeq2Seq || observed[0].Outcome != runrecord.OutcomeSucceeded {
 		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the capability", observed)
@@ -660,9 +601,7 @@ func TestCapabilityMeasurementRecordsDecodeAndOutputTokens(t *testing.T) {
 func measuredContent(t *testing.T, schema, body string) artifact.Content {
 	t.Helper()
 	content, err := artifact.JSONContract(artifact.KindFile, schema).ContentBytes([]byte(body))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 
@@ -674,14 +613,10 @@ func measuredModel(t *testing.T) modelartifact.Inventory {
 		Data: bytes.NewReader(make([]byte, binary.Size(float32(0)))),
 	}})
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return inventory
 }
 
@@ -693,20 +628,14 @@ func activateMeasured(t *testing.T, directory string, task recipe.Task, inventor
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := inventory.Batch("fixture/measured/model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.CapabilityDefinition(task, inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/measured/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -715,17 +644,11 @@ func activateMeasured(t *testing.T, directory string, task recipe.Task, inventor
 		accepted, err = modelintake.PublishMeasuredVerification(ctx, store, definition,
 			"0123456789abcdef0123456789abcdef01234567", time.Millisecond, "host", "go", "fixture output validated",
 			capabilityruntime.Measured{Input: input})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, accepted, recipe.EvidenceVerified, "fixture candidate execution"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, accepted, recipe.EvidenceVerified, "fixture candidate execution"))
 	head, sequence := store.Head()
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return head, sequence
 }
 
@@ -734,54 +657,38 @@ func activateMeasured(t *testing.T, directory string, task recipe.Task, inventor
 func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 32)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bound, err := modelrecipe.BoundRuntimePolicy(ctx, store, candidate.Definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	edited := bound
 	edited.Interactive.OutputTokens++
 	encoded, err := json.Marshal(edited)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract := artifact.DocumentContract{Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.runtime-policy+json", Schema: "overgo/runtime-policy/v2"}
 	if edited.ID, err = contract.Identify(encoded); err != nil {
 		t.Fatal(err)
 	}
 	content, err := edited.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("fixture/policy-edit", []artifact.Content{content}, nil, []artifact.AliasBinding{{
 		Name: "runtime-policy/v2/" + candidate.Definition.ID.String(), Target: edited.ID, Previous: &bound.ID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := modelrecipe.ResolveCandidateGGUF(ctx, store, path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	verified, err := loaded.RuntimePolicy()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verified.ID != edited.ID {
 		t.Fatalf("the candidate is verified under %v, and the store binds it %v", verified.ID, edited.ID)
 	}

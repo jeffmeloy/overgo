@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // Baseline corpus extents: small enough for the fast lane, exact
@@ -31,9 +32,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	var work runrecord.InteractionWork
@@ -41,9 +40,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	for ordinal := range baselineCommits {
 		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       fmt.Sprintf("baseline/%d", ordinal),
@@ -59,9 +56,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	for ordinal := range baselineReadSample {
 		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, found, err := store.Artifact(ctx, id); err != nil || !found {
 			t.Fatalf("artifact %d: found=%v err=%v", ordinal, found, err)
 		}
@@ -78,9 +73,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	work.BlobReads++
 
 	journal, err := os.ReadFile(filepath.Join(root, "overgodb.log"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	work.Bytes = uint64(len(journal))
 
 	if work.Commits != baselineCommits || work.SemanticTransitions != baselineCommits ||
@@ -91,9 +84,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 
 	digest := sha256.Sum256(journal)
 	evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, digest[:])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trace, err := runrecord.NewEfficiencyTrace(runrecord.EfficiencyTrace{
 		Surface:  runrecord.SurfaceStorage,
 		Task:     "storage baseline session",
@@ -101,17 +92,11 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		Result:   lastID,
 		Evidence: evidence,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := trace.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := runrecord.ParseEfficiencyTrace(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.Work != work {
 		t.Fatalf("trace work drifted: %+v vs %+v", parsed.Work, work)
 	}

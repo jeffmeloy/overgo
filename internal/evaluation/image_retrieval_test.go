@@ -12,6 +12,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -47,9 +48,7 @@ func TestNearestSameGroupCountsTheSiblingsThatAreNearest(t *testing.T) {
 		{0.05, 0.9}, // solo
 	}
 	queries, correct, err := nearestSameGroup(groups, vectors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Asked: the four pictures with a sibling. The two a's find each other; the first b's
 	// nearest is solo and the second b's nearest is an a.
 	if queries != 4 || correct != 2 {
@@ -71,21 +70,15 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 		{Name: "solo", Group: "solo", Image: "solo.png"},
 	}}
 	compiled, err := compileImageRetrieval(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindImageRetrieval(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	embedder := vectorEmbedder{
@@ -114,17 +107,13 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 	for source := range 3 {
 		for scene := range 2 {
 			write := func(name string) {
-				if err := os.WriteFile(filepath.Join(directory, name+clipExtension), []byte("clip"), 0o600); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name+clipExtension), []byte("clip"), 0o600))
 			}
 			write(fmt.Sprintf("pair%d%s%04d", source, sceneMarker, scene))
 		}
 	}
 	for single := range 6 {
-		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("single%d%s0001%s", single, sceneMarker, clipExtension)), []byte("clip"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, fmt.Sprintf("single%d%s0001%s", single, sceneMarker, clipExtension)), []byte("clip"), 0o600))
 	}
 	picks, err := PickRetrievalClips(directory, 3, 17)
 	if err != nil || len(picks) != 9 {
@@ -140,9 +129,7 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 		images[pick.Clip] = pick.Clip + ".png"
 	}
 	built, err := BuildSceneRetrieval(picks, images)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := compileImageRetrieval(built); err != nil || len(built.Cases) != 9 {
 		t.Fatalf("the picked suite has %d cases and compiles with %v", len(built.Cases), err)
 	}

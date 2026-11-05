@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -48,9 +49,7 @@ func TestWebUIBrowserShowsTheFirstTokenTime(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the first token leg uses Chromium through cmd/webui-lane")
 	repository, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Hel", "lo"}, tokenDelay: firstTokenDelay}))
 	defer handler.Close()

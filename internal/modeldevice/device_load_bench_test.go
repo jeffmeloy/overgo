@@ -13,6 +13,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -167,9 +168,7 @@ func TestLoaderStructureBenchmark(t *testing.T) {
 	uploadGBps := benchRate(t, benchUploadEnvironment, measuredUploadGBps)
 	allocLatency := time.Duration(benchRate(t, benchAllocEnvironment, 0) * float64(time.Microsecond))
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	var raw, converted []gguf.TensorInfo
 	var rawBytes uint64
@@ -223,37 +222,25 @@ func TestLoaderStructureBenchmark(t *testing.T) {
 		claim = nil
 		for _, source := range file.SourcePaths() {
 			held, err := os.Open(source)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			id, _, err := artifact.Identify(artifact.KindTensorSet, held)
 			_ = held.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			claim = append(claim, id)
 		}
 	})
 	uploaded := phase("old upload pass (no hash)", func() {
-		if err := oldStyleLoad(t.Context(), file, paced(), raw, converted); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, oldStyleLoad(t.Context(), file, paced(), raw, converted))
 	})
 	t.Logf("structure=%-34s seconds=%8.3f", "old: hash first, then upload", (hashed + uploaded).Seconds())
 	phase("new pass, upload only (no claim)", func() {
-		if err := routed(paced()).Load(t.Context(), nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, routed(paced()).Load(t.Context(), nil))
 	})
 	phase("new pass, hash only (no routes)", func() {
-		if err := NewLoader(file).Load(t.Context(), claim); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, NewLoader(file).Load(t.Context(), claim))
 	})
 	single := phase("new pass, hash while uploading", func() {
-		if err := routed(paced()).Load(t.Context(), claim); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, routed(paced()).Load(t.Context(), claim))
 	})
 	t.Logf("structure=%-34s saved=%.3f seconds against the old two passes", "single pass", (hashed + uploaded - single).Seconds())
 }

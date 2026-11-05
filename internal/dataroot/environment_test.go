@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestResolvedEnvironment(t *testing.T) {
@@ -14,13 +16,9 @@ func TestResolvedEnvironment(t *testing.T) {
 	t.Setenv(boundEnvironment, "")
 	base := t.TempDir()
 	config := filepath.Join(base, ConfigFile)
-	if err := os.WriteFile(config, []byte(`{"models":"original-models"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(config, []byte(`{"models":"original-models"}`), 0o600))
 	want, bindings, err := ResolveEnvironment(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, binding := range bindings {
 		name, value, ok := strings.Cut(binding, "=")
 		if !ok {
@@ -31,9 +29,7 @@ func TestResolvedEnvironment(t *testing.T) {
 	if os.Getenv(Env) != base {
 		t.Fatal("data-root directory semantics changed")
 	}
-	if err := os.WriteFile(config, []byte(`{"models":"later-models"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(config, []byte(`{"models":"later-models"}`), 0o600))
 	want.Source = Env
 	got, rebound, err := ResolveEnvironment(t.TempDir())
 	if err != nil || got != want || !slices.Equal(rebound, bindings) {
@@ -65,9 +61,7 @@ func TestResolvedEnvironmentRejectsInvalidBinding(t *testing.T) {
 		roots := fallback(base)
 		roots.Models = path
 		raw, err := json.Marshal(environmentBinding{Base: base, Roots: roots})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Setenv(boundEnvironment, string(raw))
 		if _, err := Resolve(base); err == nil {
 			t.Fatalf("incomplete binding accepted: %s", raw)

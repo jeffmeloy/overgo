@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 // decision authority.
 func TestOperatorDecisionInteractionContract(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "decision-operation")
@@ -28,13 +27,9 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 	request, err := operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{
 		Code: "retry", Argv: []string{"--attempt", "2"},
 	}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requestContent, err := request.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "operator/approval/" + request.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: operationID}, {ID: recipeID}},
@@ -47,38 +42,26 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		Attempt: 1, State: StageAdmitted,
 	}
 	published, err := PublishStageReceipt(ctx, store, receipt, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	pending, err := PendingOperatorDecisions(ctx, store, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(pending) != 1 || pending[0].Operation != operationID || pending[0].Request != request.ID ||
 		pending[0].Tool != "retry" || len(pending[0].Arguments) != 2 {
 		t.Fatalf("pending decisions = %+v", pending)
 	}
 
 	decision, err := NewHumanDecision(request, operatoraction.AnswerGrant)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := PublishHumanDecision(ctx, store, request, decision); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, PublishHumanDecision(ctx, store, request, decision))
 	pending, err = PendingOperatorDecisions(ctx, store, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(pending) != 0 {
 		t.Fatalf("decided request stayed pending: %+v", pending)
 	}
 
 	timeline, err := DeriveOperatorTimeline(ctx, store, operationID, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(timeline) != 2 || timeline[0].Kind != "stage-receipt" || timeline[1].Kind != "human-decision" {
 		t.Fatalf("timeline = %+v", timeline)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // Flash-Next's expert widths: a token's 2,560 values and an expert's 640.
@@ -63,9 +64,7 @@ func testExperts(t testing.TB, formats Formats, counts []int) []Expert {
 				input[value] = float32(draws.NormFloat64())
 			}
 			activation := make([]byte, Q8KBytes(testHidden))
-			if err := quantizeQ8K(input, activation); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, quantizeQ8K(input, activation))
 			work.Activations = append(work.Activations, activation)
 			work.Out = append(work.Out, make([]float32, testHidden))
 		}
@@ -95,9 +94,7 @@ func TestLayerMatchesTheSerialLayer(t *testing.T) {
 		}
 		workers.Spin(spin)
 		experts := testExperts(t, formats, counts)
-		if err := workers.Layer(experts, formats, testHidden, testIntermediate, silu); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, workers.Layer(experts, formats, testHidden, testIntermediate, silu))
 		for index, work := range experts {
 			tokens := len(work.Activations)
 			gate, up := make([][]float32, tokens), make([][]float32, tokens)
@@ -107,23 +104,15 @@ func TestLayerMatchesTheSerialLayer(t *testing.T) {
 				quantized[token] = make([]byte, testIntermediate/blockValues*q80BlockBytes)
 				out[token] = make([]float32, testHidden)
 			}
-			if err := rowsOf[formats.Gate](work.Gate, testHidden, work.Activations, gate, 0, testIntermediate); err != nil {
-				t.Fatal(err)
-			}
-			if err := rowsOf[formats.Up](work.Up, testHidden, work.Activations, up, 0, testIntermediate); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, rowsOf[formats.Gate](work.Gate, testHidden, work.Activations, gate, 0, testIntermediate))
+			testcheck.NoError(t, rowsOf[formats.Up](work.Up, testHidden, work.Activations, up, 0, testIntermediate))
 			for token := range tokens {
 				for row := range testIntermediate {
 					gate[token][row] = silu(gate[token][row], up[token][row])
 				}
-				if err := quantizeQ80(gate[token], quantized[token]); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, quantizeQ80(gate[token], quantized[token]))
 			}
-			if err := rowsOf[formats.Down](work.Down, testIntermediate, quantized, out, 0, testHidden); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, rowsOf[formats.Down](work.Down, testIntermediate, quantized, out, 0, testHidden))
 			for token := range tokens {
 				if !slices.Equal(work.Out[token], out[token]) {
 					t.Fatalf("%v expert %d token %d: the pool's products differ from the serial ones", formats, index, token)
@@ -149,9 +138,7 @@ func BenchmarkDecodeExpert(b *testing.B) {
 	workers.Spin(true)
 	next := 0
 	for b.Loop() {
-		if err := workers.Layer(experts[next%pool:next%pool+1], testFormats[0], testHidden, testIntermediate, silu); err != nil {
-			b.Fatal(err)
-		}
+		testcheck.NoError(b, workers.Layer(experts[next%pool:next%pool+1], testFormats[0], testHidden, testIntermediate, silu))
 		next++
 	}
 }
@@ -175,9 +162,7 @@ func BenchmarkLayer(b *testing.B) {
 				workers := NewPool(workers)
 				defer workers.Close()
 				for b.Loop() {
-					if err := workers.Layer(experts, testFormats[0], testHidden, testIntermediate, silu); err != nil {
-						b.Fatal(err)
-					}
+					testcheck.NoError(b, workers.Layer(experts, testFormats[0], testHidden, testIntermediate, silu))
 				}
 			})
 		}

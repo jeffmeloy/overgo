@@ -2,19 +2,16 @@ package trainingprogram
 
 import (
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 	"slices"
 	"testing"
 )
 
 func TestObjectiveExecutionRunsCompiledOrderWithoutAllocation(t *testing.T) {
 	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileObjectiveProgram(ObjectiveForecast, nil, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var order []OperatorPhase
 	execution, err := BindObjective(
 		program,
@@ -22,9 +19,7 @@ func TestObjectiveExecutionRunsCompiledOrderWithoutAllocation(t *testing.T) {
 		func(*struct{}) error { order = append(order, PhaseBackward); return nil },
 		func(*struct{}) error { order = append(order, PhaseOptimize); return nil },
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state := struct{}{}
 	order = make([]OperatorPhase, 0, 3)
 	if allocations := testing.AllocsPerRun(100, func() {

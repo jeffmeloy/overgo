@@ -7,6 +7,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestHostLayerGraphInputsAliasLoadedTensors drives the unified layer schema
@@ -22,9 +23,7 @@ func TestHostLayerGraphInputsAliasLoadedTensors(t *testing.T) {
 
 	data := hostTensorFixture(t, "weight", 4)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info := file.Tensors[0]
 	layer := LayerWeights{
 		AttentionQ:     &info,
@@ -32,17 +31,13 @@ func TestHostLayerGraphInputsAliasLoadedTensors(t *testing.T) {
 		SSMQueryConv: &info, TimeMixW1: &info, ShortConvKernel: &info,
 	}
 	host, err := LoadHostLayer(t.Context(), file, layer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if host.AttentionQ == nil || len(host.AttentionQ.Data) != 4 || host.AttentionK != nil {
 		t.Fatalf("host layer loaded %+v", host.AttentionQ)
 	}
 	builder := tensor.NewBuilder()
 	graph, feeds, err := host.GraphInputs(builder, "blk.0.")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(feeds) != 6 || graph.AttentionK != nil {
 		t.Fatalf("bound %d graph inputs, want 6", len(feeds))
 	}

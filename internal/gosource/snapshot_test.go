@@ -6,21 +6,19 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestSnapshotProvenance(t *testing.T) {
 	root := t.TempDir()
 	const source = "package fixture\n"
 	for _, name := range []string{"a.go", "b.go"} {
-		if err := os.WriteFile(filepath.Join(root, name), []byte(source), 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0600))
 	}
 	paths := []string{"b.go", "./a.go", "a.go", "missing.go", "notes.md"}
 	snapshot, err := LoadGo(root, paths)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(snapshot.Files) != 2 || snapshot.Files[0].Path != "a.go" || snapshot.Files[1].Path != "b.go" || paths[0] != "b.go" {
 		t.Fatalf("source membership/order changed: %+v", snapshot)
 	}
@@ -34,9 +32,7 @@ func TestSnapshotProvenance(t *testing.T) {
 	if &snapshot.Files[0].Data[0] != &snapshot.Files[1].Data[0] {
 		t.Fatal("identical bytes acquired twice")
 	}
-	if err := os.Rename(filepath.Join(root, "b.go"), filepath.Join(root, "c.go")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(filepath.Join(root, "b.go"), filepath.Join(root, "c.go")))
 	for _, paths := range [][]string{{"a.go", "b.go"}, {"a.go", "c.go"}} {
 		changed, err := LoadGo(root, paths)
 		if err != nil || changed.Identity() == snapshot.Identity() {

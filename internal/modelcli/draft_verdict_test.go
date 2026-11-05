@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,16 +24,10 @@ func TestDraftJudgementLeavesAHostRunnerAlone(t *testing.T) {
 	storeRoot, path := filepath.Join(root, "store"), filepath.Join(root, "model.gguf")
 	writeServingFixture(t, path, 0)
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	err = servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, path, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	for name, opened := range map[string]func(context.Context) (*inference.Runner, error){
 		"served": func(ctx context.Context) (*inference.Runner, error) {
 			return OpenServedRunner(ctx, storeRoot, path, inference.OpenOptions{})
@@ -45,9 +40,7 @@ func TestDraftJudgementLeavesAHostRunnerAlone(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s open: %v", name, err)
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 	}
 }
 
@@ -63,22 +56,14 @@ func TestADraftVerdictIsRecordedPerModelBuildAndCard(t *testing.T) {
 	second := draftVerdict{Model: model, Execution: "build-a", Device: "GPU-2", Refused: false}
 	read := func() draftVerdicts {
 		store, err := overgodb.OpenReadOnly(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		return readDraftVerdicts(ctx, store)
 	}
-	if err := publishDraftVerdict(ctx, repository, first); err != nil {
-		t.Fatal(err)
-	}
-	if err := publishDraftVerdict(ctx, repository, second); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, publishDraftVerdict(ctx, repository, first))
+	testcheck.NoError(t, publishDraftVerdict(ctx, repository, second))
 	first.Refused = false
-	if err := publishDraftVerdict(ctx, repository, first); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, publishDraftVerdict(ctx, repository, first))
 	record := read()
 	if len(record.Rows) != 2 {
 		t.Fatalf("the record holds %d verdicts, want one a card", len(record.Rows))

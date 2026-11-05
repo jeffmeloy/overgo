@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 )
 
 // TestRewardPhaseClockReadsAPhaseShorterThanATick holds the clock a reward
@@ -18,9 +19,7 @@ func TestRewardPhaseClockReadsAPhaseShorterThanATick(t *testing.T) {
 	first, err := processmeasure.Counter()
 	for now := first; err == nil && now <= first; now, err = processmeasure.Counter() {
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if elapsed := phaseClock() - began; elapsed <= 0 {
 		t.Fatalf("a span the counter saw pass read as %v on the phase clock", elapsed)
 	}

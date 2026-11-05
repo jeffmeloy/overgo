@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -137,9 +138,7 @@ func TestDeterministicParallelReceipts(t *testing.T) {
 		fixture := newParallelFixture(t)
 		registerParallelAdapters(t, fixture, func(_ context.Context, value string) (string, error) { return value, nil })
 		result, err := fixture.execute(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if result.Outputs[parallelOutputPort].Items[0].Value != "left,right" {
 			t.Fatalf("nondeterministic output = %+v", result.Outputs)
 		}
@@ -163,9 +162,7 @@ func newParallelFixture(t *testing.T) parallelFixture {
 func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.ModuleID) parallelFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	model := testutil.ArtifactID(t, artifact.KindModel, "parallel-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "parallel/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {
@@ -204,25 +201,15 @@ func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.Modu
 		},
 		[]recipe.Output{{Name: parallelOutputPort, Data: recipe.DataText, Source: recipe.Endpoint{Node: sink.ID, Port: parallelOutputPort}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := recipe.NewCatalog(modules...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	operation, err := ExecutionID(definition.ID, "parallel")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return parallelFixture{store: store, program: program, runtime: runtime, operation: operation}
 }
 

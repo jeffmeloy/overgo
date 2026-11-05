@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,9 +21,7 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 			{Name: "vet", Phase: phaseVet, Outcome: StepSucceeded, DurationNS: 20},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if record.Run.MeasuredNS != 100 || !slices.Equal(record.Run.Phases, []PhaseMetric{
 		{Phase: PhaseTest, DurationNS: 70},
 		{Phase: phaseVet, DurationNS: 20},
@@ -30,9 +29,7 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 		t.Fatalf("gate timing = (%d, %+v)", record.Run.MeasuredNS, record.Run.Phases)
 	}
 	content, err := record.Result.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseGateResult(content.Data)
 	if err != nil || parsed.ID != record.Result.ID {
 		t.Fatalf("gate result round trip = (%+v, %v)", parsed, err)
@@ -48,13 +45,9 @@ func TestProtectionEvidence(t *testing.T) {
 			Evidence: "configured:branches=master,jobs=unit+race,hooks=4;host_enforcement=external;activation=unobserved:parent-harness-fact",
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := record.Result.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := ParseGateResult(content.Data)
 	if err != nil || parsed.Steps[0].Evidence != record.Result.Steps[0].Evidence {
 		t.Fatalf("gate step evidence round trip = (%+v, %v)", parsed.Steps, err)
@@ -65,9 +58,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	ctx := t.Context()
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe")
 	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "gate-environment")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -83,13 +74,9 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 			{Name: "integration", Phase: PhaseTest, Outcome: stepCancelled, DurationNS: 10},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := record.Batch("fixture/cancelled-gate")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -97,13 +84,9 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	if err != nil || required.ID != record.Result.ID || required.Outcome != OutcomeCancelled {
 		t.Fatalf("required gate result = (%+v, %v)", required, err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	content, ok, err := artifact.ReadContent(ctx, store, record.Run.ID)
 	if err != nil || !ok {
@@ -135,9 +118,7 @@ func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
 func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "verified-recipe")
 	environmentID := publishGateTestEnvironment(t, ctx, store, "verified-environment")
@@ -155,9 +136,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 				Name: name, Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: uint64(index + 1),
 			}},
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, batchErr := records[index].Batch("fixture/verification/" + name)
 		if batchErr != nil {
 			t.Fatal(batchErr)
@@ -181,9 +160,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 func TestVerifyFailedGateRun(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "failed-recipe")
 	environmentID := publishGateTestEnvironment(t, ctx, store, "failed-environment")
@@ -192,13 +169,9 @@ func TestVerifyFailedGateRun(t *testing.T) {
 		recipeID, environmentID, fixtureCodeCommit, OutcomeFailed, "exact-mismatch", 1,
 		[]GateStep{{Name: "verify", Phase: PhaseTest, Outcome: StepFailed, DurationNS: 1}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := record.Batch("fixture/failed-verification")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -213,9 +186,7 @@ func TestVerifyFailedGateRun(t *testing.T) {
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "relevant-environment-recipe")
@@ -228,13 +199,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		recipeID, exactEnvironment, fixtureCodeCommit, OutcomeSucceeded, "", 1,
 		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	exactBatch, err := exact.Batch("fixture/reference-relevance/exact")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, exactBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -245,13 +212,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		foreignRecipeID, exactEnvironment, fixtureCodeCommit, OutcomeSucceeded, "", 1,
 		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignSubjectBatch, err := foreignSubject.Batch("fixture/reference-relevance/foreign-subject")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, foreignSubjectBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -265,13 +228,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		recipeID, descriptorOnly, fixtureCodeCommit, OutcomeSucceeded, "", 1,
 		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	untypedBatch, err := untyped.Batch("fixture/reference-relevance/descriptor-only")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, untypedBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -283,13 +242,9 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{exact.Result.ID}, "", fixtureCodeCommit,
 		foreignEnvironment, exact.Run.MeasuredNS, exact.Run.Phases,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignRunBatch, err := foreignRun.Batch("fixture/reference-relevance/foreign-environment")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, foreignRunBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -308,13 +263,9 @@ func publishGateTestEnvironment(
 	environment, err := NewEnvironment(Environment{
 		Host: name, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := environment.Batch("fixture/environment/" + environment.ID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}

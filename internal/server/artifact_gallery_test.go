@@ -9,34 +9,27 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload := []byte("image-payload")
 	payloadID, err := artifact.IdentifyBytes(artifact.KindOutput, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payloadDescriptor := artifact.Descriptor{
 		ID: payloadID, Size: uint64(len(payload)), MediaType: "image/png",
 	}
 	missingData := []byte("missing-payload")
 	missingID, err := artifact.IdentifyBytes(artifact.KindOutput, missingData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	missingDescriptor := artifact.Descriptor{ID: missingID, Size: uint64(len(missingData))}
 	runData := []byte("producer-run")
 	runID, err := artifact.IdentifyBytes(artifact.KindRun, runData)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runDescriptor := artifact.Descriptor{ID: runID, Size: uint64(len(runData))}
 	_, err = artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:       "server/artifact-gallery",
@@ -47,23 +40,15 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 			{Child: missingID, Parent: runID, Relation: artifact.RelationProducedBy},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 1}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	page := serveTestRequest(handler, http.MethodGet, "/artifacts?kind=output&limit=1", "")
 	var pageResult artifactGalleryResponse
-	if err := json.Unmarshal(page.Body.Bytes(), &pageResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(page.Body.Bytes(), &pageResult))
 	if page.Code != http.StatusOK || len(pageResult.Artifacts) != 1 || !pageResult.Truncated {
 		t.Fatalf("page status=%d result=%+v", page.Code, pageResult)
 	}
@@ -72,9 +57,7 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	}
 	nextPage := serveTestRequest(handler, http.MethodGet, "/artifacts?kind=output&limit=1&cursor="+pageResult.Next, "")
 	var nextResult artifactGalleryResponse
-	if err := json.Unmarshal(nextPage.Body.Bytes(), &nextResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(nextPage.Body.Bytes(), &nextResult))
 	if nextPage.Code != http.StatusOK || len(nextResult.Artifacts) != 1 || nextResult.Next != "" ||
 		nextResult.Artifacts[0].Descriptor.ID == pageResult.Artifacts[0].Descriptor.ID {
 		t.Fatalf("next page status=%d result=%+v", nextPage.Code, nextResult)
@@ -82,18 +65,14 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 
 	available := serveTestRequest(handler, http.MethodGet, "/artifacts?id="+payloadID.String(), "")
 	var availableResult artifactGalleryResponse
-	if err := json.Unmarshal(available.Body.Bytes(), &availableResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(available.Body.Bytes(), &availableResult))
 	if len(availableResult.Artifacts) != 1 || !availableResult.Artifacts[0].Payload ||
 		len(availableResult.Artifacts[0].Producers) != 1 || availableResult.Artifacts[0].Producers[0] != runID {
 		t.Fatalf("available artifact = %+v", availableResult)
 	}
 	missing := serveTestRequest(handler, http.MethodGet, "/artifacts?id="+missingID.String(), "")
 	var missingResult artifactGalleryResponse
-	if err := json.Unmarshal(missing.Body.Bytes(), &missingResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(missing.Body.Bytes(), &missingResult))
 	if len(missingResult.Artifacts) != 1 || missingResult.Artifacts[0].Payload {
 		t.Fatalf("missing artifact = %+v", missingResult)
 	}
@@ -107,9 +86,7 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	if again, err := handler.browseStore(t.Context()); err != nil || again != browse {
 		t.Fatalf("browse store reopened: (%p, %p, %v)", browse, again, err)
 	}
-	if err := handler.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, handler.Close())
 	if err := browse.Refresh(t.Context()); !errors.Is(err, overgodb.ErrClosed) {
 		t.Fatalf("refresh after handler close = %v", err)
 	}

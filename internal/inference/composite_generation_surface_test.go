@@ -7,6 +7,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,14 +17,10 @@ func TestCompositeGenerationSurfaceParity(t *testing.T) {
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, compositionRuntimeResourcesFixture(t, authority),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishCompositeGenerationPromotion(t, store, runtime.plan)
 	direct, err := runtime.PromotedGeneration(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	surface, err := ResolveCompositeGenerationSurface(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
@@ -79,37 +76,23 @@ func publishCompositeGenerationPromotion(
 		Device:              id(artifact.KindEvidence, "surface device"), BridgeExecution: id(artifact.KindEvidence, "surface bridge execution"),
 		ExactOutputParity: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotion, err := (composition.CompositeGenerationPromotionAuthority{}).Promote(plan, evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	planContent, err := plan.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceContent, err := evidence.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotionContent, err := promotion.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	alias, err := composition.CompositeGenerationPromotionAlias(plan.SourceModel, plan.TargetModel, plan.Task)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineage := append(append(plan.Lineage(), evidence.Lineage()...), promotion.Lineage()...)
 	batch, err := artifact.NewDocumentBatch(
 		"fixture/composite-generation/surface", []artifact.Content{planContent, evidenceContent, promotionContent},
 		lineage, []artifact.AliasBinding{{Name: alias, Target: promotion.ID}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	seen := make(map[artifact.ID]bool)
 	for _, edge := range lineage {
 		if seen[edge.Parent] {

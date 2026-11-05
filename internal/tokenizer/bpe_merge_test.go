@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 // applyBPEByScan is the pair-scan merge the heap merge replaced: every
@@ -82,9 +83,7 @@ func mergeTestVocab(t testing.TB) *Vocab {
 		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true),
 	}}
 	vocab, err := Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return vocab
 }
 

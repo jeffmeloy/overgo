@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,31 +22,23 @@ func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := inferenceFixture(model, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/policy-edit/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	catalog, _, err := CatalogRuntimePolicy(definition.Task)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	earlier := catalog
 	earlier.Interactive.OutputTokens++
 	if earlier, err = runtimePolicyCodec.New(earlier); err != nil {
 		t.Fatal(err)
 	}
 	content, err := runtimePolicyCodec.Content(earlier)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("fixture/policy-edit/earlier", []artifact.Content{content}, nil, []artifact.AliasBinding{{
 		Name: runtimePolicyAlias(definition.ID), Target: earlier.ID, Previous: &catalog.ID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -68,14 +61,10 @@ func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	}
 	held(earlier.ID)
 	const reason = "the catalog's default rose"
-	if err := MoveRuntimePolicy(ctx, store, definition, reason); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, MoveRuntimePolicy(ctx, store, definition, reason))
 	held(catalog.ID)
 	move, err := runtimePolicyMoveCodec.NewInitial(runtimePolicyMove{Recipe: definition.ID, From: earlier.ID, To: catalog.ID, Reason: reason})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runtimePolicyMoveCodec.Require(ctx, store, move.ID); err != nil {
 		t.Fatalf("the store records no reason for the move: %v", err)
 	}

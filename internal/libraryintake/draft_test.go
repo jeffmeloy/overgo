@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,9 +16,7 @@ func writeArchitectureFixture(t *testing.T, dir, name, architecture string) stri
 	t.Helper()
 	path := filepath.Join(dir, name)
 	metadata := []gguf.Metadata{{Key: "general.architecture", Value: gguf.Value{Type: gguf.ValueTypeString, Data: architecture}}}
-	if err := gguf.WriteFileExclusive(path, metadata, nil, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.WriteFileExclusive(path, metadata, nil, gguf.WriteOptions{}))
 	return path
 }
 
@@ -49,9 +48,7 @@ func TestDraftBesideTheModel(t *testing.T) {
 func TestADraftVerifiesOnlyOverAVerifiedTrunk(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directory := testutil.Qwen35Directory(t)
 	_, active, err := validateDraft(t.Context(), store, directory, filepath.Join(directory, "draft.gguf"), "revision", nil, 1)

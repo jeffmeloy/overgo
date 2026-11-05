@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/optimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // TestBridgeTrainsAgainstTheDecodersPicture holds the bridge trainer to its
@@ -33,13 +34,9 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	for index := range examples {
 		source := random(tokens*sourceWidth, 1)
 		mapped, err := known.Apply(source)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		picture, err := decoder.decodeTokens(mapped)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		examples[index] = BridgeExample{SourceTokens: source, Picture: picture}
 	}
 	disturbed := EncoderBridge{Weight: append([]float32(nil), known.Weight...), Bias: append([]float32(nil), known.Bias...)}
@@ -49,9 +46,7 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	frozen := append([]float32(nil), decoder.predWeight...)
 	config := optimizer.Config{BaseLearningRate: 2e-3, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
 	trainer, err := NewBridgeTrainer(&BridgedAutoencoder{bridge: disturbed, decoder: decoder}, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if trainer.TrainableParameterCount() != decoder.latent*(sourceWidth+1) || trainer.OptimizerPlan().GroupCount() != 2 {
 		t.Fatalf("the trainer holds %d weights in %d groups", trainer.TrainableParameterCount(), trainer.OptimizerPlan().GroupCount())
 	}
@@ -82,18 +77,14 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 		t.Fatalf("the loss changes by %.6g a unit along a direction and the trainer's gradient says %.6g", measured, predicted)
 	}
 	before, err := trainer.Loss(t.Context(), examples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 40 {
 		if _, err := trainer.Step(t.Context(), examples); err != nil {
 			t.Fatal(err)
 		}
 	}
 	after, err := trainer.Loss(t.Context(), examples)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("loss %.6g before, %.6g after 40 steps; last gradient %.4g", before, after, trainer.GradientL2())
 	if !(after < before/2) || !(trainer.GradientL2() > 0) {
 		t.Fatalf("40 steps took the loss from %.6g to %.6g", before, after)
@@ -105,18 +96,12 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	}
 	// What it saves is the bridge it trained.
 	path := filepath.Join(t.TempDir(), "bridge.safetensors")
-	if err := trainer.SaveWeights(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, trainer.SaveWeights(path))
 	file, err := safetensors.OpenFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	saved, err := safetensors.ReadF32(file.Tensors[bridgeWeightTensor])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trained := trainer.Bridge()
 	if len(saved) != len(trained.Weight) || len(trained.Bias) != decoder.latent {
 		t.Fatalf("saved %d weights for a bridge of %d and %d offsets", len(saved), len(trained.Weight), len(trained.Bias))

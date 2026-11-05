@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // repeatLeast is the fewest syntax nodes a body holds for its repeats to count: a body smaller than that is an idiom,
@@ -102,9 +104,7 @@ type bodySite struct {
 func linkedPackages(t *testing.T, root string) (*moduleLoad, map[string]bool) {
 	t.Helper()
 	load, err := loadModule(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	linked := map[string]bool{}
 	for importPath, checked := range load.module {
 		if checked.listed.Name == "main" {

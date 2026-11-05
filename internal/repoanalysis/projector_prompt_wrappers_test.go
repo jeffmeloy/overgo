@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestProjectorSessionOwnsNoPromptWrappers keeps the legacy prompt wrapper
@@ -16,9 +18,7 @@ func TestProjectorSessionOwnsNoPromptWrappers(t *testing.T) {
 	t.Parallel()
 	directory := filepath.Join("..", "..", "internal", "projector")
 	packages, err := parser.ParseDir(token.NewFileSet(), directory, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forbidden := map[string]struct{}{
 		"imagesPrompt": {}, "videoPrompt": {}, "audioPrompt": {},
 		"audioSampleRate": {}, "mediaHistoryPrompt": {},

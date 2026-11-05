@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,34 +34,22 @@ func TestSnapshotImportRoundTrip(t *testing.T) {
 			}},
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := snapshot.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// Import accepts noncanonical producer field order, then owns canonical bytes.
 	var unordered map[string]any
-	if err := json.Unmarshal(content.Data, &unordered); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &unordered))
 	producer, err := json.MarshalIndent(unordered, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	imported, canonical, err := Import(bytes.NewReader(producer))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if imported.ID != snapshot.ID || !bytes.Equal(canonical, content.Data) {
 		t.Fatalf("import identity/bytes differ: %s vs %s", imported.ID, snapshot.ID)
 	}
 	parsed, err := Parse(canonical)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != snapshot.ID || parsed.Capabilities[0].Signature.Inputs[0] != ModalityImage {
 		t.Fatalf("round trip changed identity or ordered signature: %+v", parsed)
 	}

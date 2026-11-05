@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "noisy-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "noisy-environment")
@@ -55,22 +54,16 @@ func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 				Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: prefill * millisecond}},
 				Phases:   []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: millisecond}},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			batch, err := observation.Batch("noisy/" + observation.ID.String())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := store.Commit(ctx, batch); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cell := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[noisy])
 	if want := 23.0; cell.Value != want || math.Abs(cell.Spread-7.0/23) > 1e-9 {
 		t.Fatalf("first output = %v with spread %v, want %v, the median of 16, 23 and 49 ms, and 7/23, their median distance from it over it", cell.Value, cell.Spread, want)

@@ -7,14 +7,13 @@ import (
 
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 )
 
 func TestBenchmarkSamplingContract(t *testing.T) {
 	t.Run("greedy budget preserves the EOG winner", func(t *testing.T) {
 		generation, err := benchmarkGenerationOptions(options{Tokens: 4, Temperature: 0, TopK: 40})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sampler := generation.Sampler
 		if !generation.ContinueAfterEOG || generation.MaxNewTokens != 4 || !generation.DeviceGreedy || !sampler.IsRawGreedy() {
 			t.Error("greedy benchmark cannot use device argmax")
@@ -26,9 +25,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 	})
 	t.Run("explicit top-k is applied", func(t *testing.T) {
 		sampler, err := benchmarkSampler(options{Temperature: 0.5, TopK: 1})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		logits := []float32{1, 0.9, 0.8}
 		for range len(logits) {
 			id, err := sampler.Sample(logits)
@@ -40,9 +37,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 	t.Run("historical banned winner is a different protocol", func(t *testing.T) {
 		legacy, err := sampling.New(sampling.Config{Temperature: 0, TopK: 40,
 			LogitBiases: []sampling.LogitBias{{Token: 0, Bias: sampling.BannedLogit()}}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		id, err := legacy.Sample([]float32{10, 1, 0})
 		if err != nil || id == 0 || legacy.IsRawGreedy() {
 			t.Fatalf("legacy negative control changed: %d %v", id, err)
@@ -50,13 +45,9 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 	})
 	t.Run("temperature scales probabilities and bounded top-k agrees", func(t *testing.T) {
 		sampler, err := benchmarkSampler(options{Temperature: 0.5, TopK: 2})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		probabilities, err := sampler.SampleWithHistoryProbabilities([]float32{1, 0, -1}, nil, 3)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		want := 1 / (1 + math.Exp(-2))
 		if len(probabilities.Top) != 2 || probabilities.Top[0].ID != 0 || math.Abs(probabilities.Top[0].Probability-want) > 1e-12 {
 			t.Fatalf("top-k/temperature probabilities = %+v, want highest=%g", probabilities.Top, want)
@@ -66,9 +57,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 		logits := []float32{1, 0, -1}
 		for range len(logits) {
 			a, err := full.Sample(logits)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			b, err := bounded.SampleTopK([]int{0, 1}, logits[:2], len(logits), nil)
 			if err != nil || a != b {
 				t.Fatalf("bounded selection %d != full %d: %v", b, a, err)
@@ -85,9 +74,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 			Prompt: "fixture", PromptSuite: []string{"fixture"}, WorkloadDigest: benchmarkWorkloadDigest([]string{"fixture"}),
 			Runs: []runMetrics{{OutputTokens: 4, OutputDigests: []string{fixtureOutputDigest(4)}, PromptDigest: benchmarkPromptDigest("fixture"), HostLogitTokens: 1, DeviceSelectedTokens: 3, PromptTokens: 2, TotalMilliseconds: 10}}}
 		bindFixtureBenchmarkIdentity(t, &valid, "0123456789abcdef0123456789abcdef01234567")
-		if err := validateBenchmarkResult(valid); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, validateBenchmarkResult(valid))
 		for name, mutate := range map[string]func(*benchmarkResult){
 			"legacy unknown protocol":   func(r *benchmarkResult) { r.SamplingProtocol = "" },
 			"legacy unknown residency":  func(r *benchmarkResult) { r.RealizedResidency = "" },

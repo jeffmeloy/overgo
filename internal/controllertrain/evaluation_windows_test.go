@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 )
 
 func TestControllerEvaluationInputs(t *testing.T) {
@@ -18,17 +19,11 @@ func TestControllerEvaluationInputs(t *testing.T) {
 		}
 	}
 	corpus, err := Compile(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	c, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: 17, Steps: 400}, scratchmodeltest.Profile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inputs, err := prepareEvaluationInputs(c, corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inputs.tokens) != len(spec.Holdout) || len(inputs.expected) != len(spec.Holdout) {
 		t.Fatal("held-out denominator changed")
 	}
@@ -38,9 +33,7 @@ func TestControllerEvaluationInputs(t *testing.T) {
 		}
 		for j, tokens := range candidates {
 			document, err := corpus.CandidateDocument(spec.Holdout[i].Prompt, inputs.actions[j])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(tokens) != utf8.RuneCountInString(document)+2 {
 				t.Fatal("candidate sequence was truncated")
 			}
@@ -50,9 +43,7 @@ func TestControllerEvaluationInputs(t *testing.T) {
 	// Reject it during preparation, before a resident trainer is allocated.
 	spec.Holdout[0].Prompt += " a"
 	oversized, err := Compile(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := prepareEvaluationInputs(c, oversized); err == nil || !strings.Contains(err.Error(), spec.Holdout[0].ID) {
 		t.Fatalf("oversized evaluation lacked a named refusal: %v", err)
 	}

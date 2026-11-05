@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // rowChangeFixture is a checkout whose plan holds row/do, ready to land, and later/do, whose check is "false", with a
@@ -33,13 +34,9 @@ func rowChangeFixture(t *testing.T) (*sliceFixture, func(named, extra string) er
 func editPlan(t *testing.T, fixture *sliceFixture, edit func(*plan.Plan)) {
 	t.Helper()
 	document, err := plan.Load(fixture.planPath())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	edit(&document)
-	if err := plan.Save(fixture.planPath(), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 }
 
 // TestALandingThatDeletesARowNamesIt lands row/do with later/do removed from the plan: a message that does not name the

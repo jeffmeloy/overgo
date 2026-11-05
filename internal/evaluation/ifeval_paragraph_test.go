@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 //go:embed testdata/ifeval_paragraph_oracle.json
@@ -24,9 +25,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 			Strict, Loose []bool
 		}
 	}
-	if err := json.Unmarshal(ifevalParagraphOracle, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(ifevalParagraphOracle, &oracle))
 	if oracle.ReferenceVersion != "0.4.9.1" || len(oracle.Cases) != 41 || oracle.Sources["instructions.py"] != "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32" || oracle.Sources["instructions_util.py"] != "e8c4d9187bac1482d93941fb46469609c3ae78d896195bfcb300a0707d492567" || oracle.Sources["utils.py"] != "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632" {
 		t.Fatal("native source or denominator changed")
 	}
@@ -34,9 +33,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 	compared, refused := 0, 0
 	for index, c := range oracle.Cases {
 		var word string
-		if err := json.Unmarshal(c.Kwargs["first_word"], &word); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(c.Kwargs["first_word"], &word))
 		unsupported := false
 		for _, r := range word {
 			unsupported = unsupported || r > unicode.MaxASCII
@@ -57,16 +54,12 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 			t.Fatalf("%d: dropped=%d err=%v", index, dropped, err)
 		}
 		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("paragraph denominator expanded")
 		}
 		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %q: strict=%v/%v loose=%v/%v", index, c.Response, strict, c.Strict, loose, c.Loose)
 		}
@@ -93,9 +86,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		rule := instructionRule{Name: id, Kind: ifevalIndexedParagraph, Values: []string{"cat"}, Count: &countRule{Relation: relationEqual, Value: 2}, Ordinal: 2}
 		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "paragraph-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "paragraph", Prompt: "Write two paragraphs.", MaxTokens: 1, Rules: []instructionRule{rule}}}}
 		compiled, err := compileInstructionRules(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite.Cases[0].Rules[0].Ordinal = 1
 		other, err := compileInstructionRules(suite)
 		if err != nil || compiled.identity == other.identity {
@@ -104,9 +95,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		suite.Cases[0].Rules[0].Count.Value = 1
 		suite.Cases[0].Rules[0].Values[0] = "dog"
 		strict, _, err := evaluateInstructionViews("one\n\ncat meows", compiled.rules[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !slices.Equal(strict, []bool{true}) {
 			t.Fatal("caller mutation changed paragraph acceptance")
 		}

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,9 +36,7 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "busy-model")
 	here, elsewhere := testutil.ArtifactID(t, artifact.KindEvidence, "busy-environment"), testutil.ArtifactID(t, artifact.KindEvidence, "other-environment")
@@ -64,13 +63,9 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 			value.Hardware = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: elapsed}}
 		}
 		observation, err := runrecord.NewServingObservation(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("busy/" + observation.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -80,9 +75,7 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	published := func(served artifact.ID) Cell {
 		t.Helper()
 		summaries, err := servingByRecipe(ctx, store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[served])
 	}
 	// at is a later reading of a published cell: its contract and environment, another value.

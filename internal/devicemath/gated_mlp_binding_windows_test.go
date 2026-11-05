@@ -10,14 +10,13 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	for _, shape := range [][3]int{{1, 3, 5}, {4, 5, 6}} {
 		for _, resident := range []bool{false, true} {
@@ -38,14 +37,10 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 				if resident {
 					for index, binding := range bindings {
 						weight, err := AllocResidentF32(worker, len(weights[index]), weights[index])
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						owned = append(owned, weight)
 						gradient, err := AllocResidentF32(worker, len(weights[index]), nil)
-						if err != nil {
-							t.Fatal(err)
-						}
+						testcheck.NoError(t, err)
 						owned = append(owned, gradient)
 						*binding = linWeight{dev: weight, gradient: gradient}
 					}
@@ -53,17 +48,11 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 				for range 2 {
 					incoming := randSlice(rng, len(x))
 					before, err := worker.ExecutionStats(t.Context())
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					got, err := gatedMLPBackwardTW(worker, x, mw, g, a, u, h, incoming, rows, width, inter)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					after, err := worker.ExecutionStats(t.Context())
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					upload, download := uint64(2*len(x)+4*len(g))*f32Bytes, uint64(len(x))*f32Bytes
 					grads := [][]float32{got.DWGate, got.DWUp, got.DWDown}
 					for index, binding := range bindings {
@@ -72,13 +61,9 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 								t.Fatal("resident gradient returned a host copy")
 							}
 							grads[index] = make([]float32, len(weights[index]))
-							if err := ReadResident(worker, binding.gradient, ResidentSlice{Data: grads[index]}); err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, ReadResident(worker, binding.gradient, ResidentSlice{Data: grads[index]}))
 							unchanged := make([]float32, len(weights[index]))
-							if err := ReadResident(worker, binding.dev, ResidentSlice{Data: unchanged}); err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, ReadResident(worker, binding.dev, ResidentSlice{Data: unchanged}))
 							if !slices.Equal(unchanged, weights[index]) {
 								t.Fatal("borrowed weight changed")
 							}
@@ -112,9 +97,7 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 		}
 	}
 	stats, err := worker.MemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("MLP retained %d bytes", stats.CurrentBytes)
 	}

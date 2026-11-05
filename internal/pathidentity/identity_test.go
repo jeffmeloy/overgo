@@ -4,22 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestFilesystemIdentityContract(t *testing.T) {
 	root := t.TempDir()
 	child := filepath.Join(root, "models")
-	if err := os.Mkdir(child, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(child, 0o755))
 	file := filepath.Join(child, "weights.gguf")
-	if err := os.WriteFile(file, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(file, []byte("weights"), 0o600))
 	canonical, err := Canonical(filepath.Join(root, ".", "models", "weights.gguf"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	same, err := Same(file, canonical)
 	if err != nil || !same {
 		t.Fatalf("same file = (%t, %v)", same, err)

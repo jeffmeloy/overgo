@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestMergeWritesCanonicalCopyWithoutOverwriting(t *testing.T) {
@@ -14,9 +15,7 @@ func TestMergeWritesCanonicalCopyWithoutOverwriting(t *testing.T) {
 	inputPath := filepath.Join(directory, "input.gguf")
 	outputPath := filepath.Join(directory, "output.gguf")
 	input, err := os.Create(inputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	payload := []byte{0, 0, 0x80, 0x3f}
 	err = gguf.Write(
 		input,
@@ -38,22 +37,14 @@ func TestMergeWritesCanonicalCopyWithoutOverwriting(t *testing.T) {
 	if closeErr := input.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
-	if err := merge(inputPath, outputPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, merge(inputPath, outputPath))
 	output, err := gguf.Open(outputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer output.Close()
 	got := make([]byte, len(payload))
-	if err := output.ReadTensorData(output.Tensors[0], got); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, output.ReadTensorData(output.Tensors[0], got))
 	if !bytes.Equal(got, payload) {
 		t.Fatalf("payload = %x, want %x", got, payload)
 	}

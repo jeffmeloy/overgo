@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/densecausal"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -52,9 +53,7 @@ func TestDeviceRunRefusesWhatOnlyTheHostTrains(t *testing.T) {
 	}
 	callback := func(int, densecausal.TrainState, *optimizer.Average) error { return nil }
 	average, err := optimizer.NewAverage([]float32{1, 2}, 0.9)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, test := range map[string]struct {
 		options densecausal.TrainOptions
 		refused bool

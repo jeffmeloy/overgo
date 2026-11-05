@@ -22,6 +22,7 @@ import (
 	"unicode"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // The crash harness, run by TestEveryDurableOperationIsACrashPoint and TestEveryDurableOperationCanFail over the
@@ -66,9 +67,7 @@ func (l *crashLedger) head(id artifact.CommitID, sequence uint64) {
 
 func crashContent(t testing.TB, kind artifact.Kind, data []byte) artifact.Content {
 	id, err := artifact.IdentifyBytes(kind, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "application/octet-stream"}, Data: data}
 }
 
@@ -574,9 +573,7 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 	primary := filepath.Join(directory, "store")
 	replay := filepath.Join(directory, "replay")
 	defer os.RemoveAll(directory)
-	if err := crashWriteTree(primary, state.files, state.dirs); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, crashWriteTree(primary, state.files, state.dirs))
 	withoutCheckpoints := map[string][]byte{}
 	for path, data := range state.files {
 		if !strings.HasPrefix(path, checkpointDirectory+"/") {
@@ -586,9 +583,7 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 	replayDirs := slices.DeleteFunc(slices.Clone(state.dirs), func(path string) bool {
 		return path == checkpointDirectory || strings.HasPrefix(path, checkpointDirectory+"/")
 	})
-	if err := crashWriteTree(replay, withoutCheckpoints, replayDirs); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, crashWriteTree(replay, withoutCheckpoints, replayDirs))
 	log, hasLog := state.files[storeFilename]
 	// A store that acknowledged nothing and has no whole header never began: a writer starts it, and a reader may refuse.
 	if state.acked == 0 && hasLog && (len(log) < storeHeaderBytes || len(bytes.TrimRight(log, "\x00")) == 0) {
@@ -609,9 +604,7 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 			readHead, readSequence = reader.Head()
 		}
 		after, _, err := crashReadTree(primary)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if crashHash(after) != crashHash(state.files) {
 			report("read-only open wrote", "tree changed")
 		}
@@ -747,9 +740,7 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 	if replayed != nil {
 		_ = replayed.Close()
 	}
-	if err := os.RemoveAll(filepath.Join(primary, checkpointDirectory)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(primary, checkpointDirectory)))
 	final, err := OpenReadOnly(primary)
 	if err != nil {
 		report("a full replay after recovery refuses", "%v", err)
@@ -800,9 +791,7 @@ func crashSummary(findings []crashFinding) []string {
 
 func crashTemp(t *testing.T) string {
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return root
 }
 
@@ -848,9 +837,7 @@ func TestCrashStatesKeepTheStoresPromises(t *testing.T) {
 	}
 	wanted, _ := model.volatile()
 	real, _, err := crashReadTree(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if crashHash(wanted) != crashHash(real) {
 		var differ []string
 		for path := range real {
@@ -952,9 +939,7 @@ func TestRefusedOperationsKeepTheStoresPromises(t *testing.T) {
 
 func crashFailRun(t testing.TB, ctx context.Context, directory, mode string, failAt int, sticky bool) (findings []crashFinding, swallowed []string) {
 	root := filepath.Join(directory, "live", "store")
-	if err := os.MkdirAll(filepath.Dir(root), storeDirectoryMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(root), storeDirectoryMode))
 	recorder := newCrashRecorder(root)
 	recorder.failAt, recorder.sticky = failAt, sticky
 	ledger := newCrashLedger()

@@ -8,6 +8,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -21,17 +22,13 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	if !runner.SpeculatesByDefault() {
 		t.Fatal("the model's own next-token layer does not speculate by default")
 	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	drafted := 0
 	byDefault := GenerateOptions{
 		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: []tokenizer.TokenID{1, 4, 5},
@@ -41,9 +38,7 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 		t.Fatal("a request that does not ask to speculate is admitted before Generate defaults it")
 	}
 	speculated, speculatedText, err := runner.Generate(t.Context(), "", byDefault)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if drafted == 0 {
 		t.Fatal("a request that says nothing drafted no token")
 	}
@@ -52,9 +47,7 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	plainOptions := byDefault
 	plainOptions.PlainDecode, plainOptions.OnDraftSpan = true, nil
 	plain, plainText, err := runner.Generate(t.Context(), "", plainOptions)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(speculated, plain) || speculatedText != plainText {
 		t.Fatalf("the default request emits %v %q, the plain one %v %q", speculated, speculatedText, plain, plainText)
 	}
@@ -71,9 +64,7 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	}
 	drafted = 0
 	speculated, speculatedText, err = runner.Generate(t.Context(), "", requested)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if drafted == 0 {
 		t.Fatal("a request that asked to speculate past the refusal drafted no token")
 	}

@@ -1,6 +1,10 @@
 package gguf
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // TestCatalogLooksUpWhatItWasGiven holds the in-memory catalog to answering
 // by key and by name as a read file does, so a converter can hand what it is
@@ -12,9 +16,7 @@ func TestCatalogLooksUpWhatItWasGiven(t *testing.T) {
 		[]Metadata{StringMetadata("general.architecture", "clip"), Uint32Metadata("clip.vision.block_count", 24)},
 		[]TensorInfo{{Name: "v.patch_embd.weight", Type: DTypeF32, Dimensions: 1, Shape: [MaxDimensions]uint64{7}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value, found := file.MetadataValue("general.architecture")
 	if !found || value.Data != "clip" {
 		t.Fatalf("architecture = %v, %t", value.Data, found)

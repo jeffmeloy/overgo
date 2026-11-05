@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 )
 
 // TestConstructionEmitsExecutableProfile: constructed profile remains executable authority.
@@ -13,9 +14,7 @@ func TestConstructionEmitsExecutableProfile(t *testing.T) {
 		CorpusFacts{Documents: bridgeCorpus(), Seed: 7, Steps: 2},
 		testDerivationProfile(t),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := construction.Architecture()
 	if profile.Name != ScratchArchitecture {
 		t.Fatalf("emitted architecture %q, want %q", profile.Name, ScratchArchitecture)
@@ -36,9 +35,7 @@ func TestConstructionEmitsExecutableProfile(t *testing.T) {
 		t.Fatalf("profile policies %+v do not describe the constructed topology", profile)
 	}
 	tokens, err := construction.Tokens(construction.Split().Train[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := construction.CompileForwardGraph(tokens); err != nil {
 		t.Fatalf("policy-driven forward refused the registered profile: %v", err)
 	}

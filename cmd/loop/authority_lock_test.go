@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"os"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 	"path/filepath"
 	"strings"
@@ -22,18 +23,14 @@ func TestPersistentLoopStop(t *testing.T) {
 	}
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "requested", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
 	stopped, err := plan.RecordStop(t.Context(), event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if world.Paused() {
 		t.Fatal("interactive scope stopped unattended work")
 	}
 	event.Previous = stopped.ID
 	event.Mode = plan.ExecutionAll
 	stopped, err = plan.RecordStop(t.Context(), event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !world.Paused() {
 		t.Fatal("running loop missed new operator stop")
 	}
@@ -62,9 +59,7 @@ func TestPersistentLoopStop(t *testing.T) {
 	if last != plan.AutomationModeEnvironment+"="+plan.ExecutionUnattended {
 		t.Fatal("worker can inherit interactive scope")
 	}
-	if err := os.WriteFile(filepath.Join(processlock.StateDirectory, "stop.json"), []byte("{invalid"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(processlock.StateDirectory, "stop.json"), []byte("{invalid"), 0600))
 	if !world.Paused() {
 		t.Fatal("an unreadable stop file did not pause the loop")
 	}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	cudaKernel "overgo/internal/cuda/kernel"
+	"overgo/internal/testcheck"
 )
 
 // TestEveryIncludedKernelSourceIsPinned: every header a module compiles in is pinned, whichever file includes it, so a
@@ -19,33 +20,23 @@ func TestEveryIncludedKernelSourceIsPinned(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		file := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+		testcheck.NoError(t, os.WriteFile(file, []byte(content), 0o644))
 	}
 	write("kernels/cuda/main.cu", "#include <stdint.h>\n  #include \"first.cuh\"\n// #include is prose here\n")
 	write("kernels/cuda/first.cuh", "#  include \"nested/second.cuh\"\n")
 	write("kernels/cuda/nested/second.cuh", "#include \"../first.cuh\"\n")
 	included, err := includedSources(root, "kernels/cuda/main.cu")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := []string{"kernels/cuda/first.cuh", "kernels/cuda/nested/second.cuh"}; !slices.Equal(included, want) {
 		t.Fatalf("included = %v, want %v", included, want)
 	}
 	item := &module{Source: "kernels/cuda/main.cu", SourceDependencies: pinnedAs(included, nil)}
-	if err := requirePinned(item, included); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, requirePinned(item, included))
 	write("kernels/cuda/first.cuh", "#include \"planted.cuh\"\n#include \"nested/second.cuh\"\n")
 	write("kernels/cuda/planted.cuh", "\n")
 	planted, err := includedSources(root, "kernels/cuda/main.cu")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := requirePinned(item, planted); err == nil || !strings.Contains(err.Error(), "planted.cuh") {
 		t.Fatalf("a planted include: %v", err)
 	}
@@ -62,9 +53,7 @@ const fixtureCompiler = "// Cuda compilation tools, release 12.9, V12.9.86\n"
 func TestRecordedToolchainMatchesCompiledCode(t *testing.T) {
 	t.Parallel()
 	recorded := manifest{CUDAToolkit: "12.9", NVCC: "12.9.86"}
-	if err := requireToolchain(recorded, "x.ptx", []byte(fixtureCompiler)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, requireToolchain(recorded, "x.ptx", []byte(fixtureCompiler)))
 	for name, ptx := range map[string]string{
 		"another release": "// Cuda compilation tools, release 13.0, V13.0.1\n",
 		"another build":   "// Cuda compilation tools, release 12.9, V12.9.99\n",
@@ -112,9 +101,7 @@ func TestAnAlignedWordLoadsOnce(t *testing.T) {
 		t.Fatalf("a planted unguarded load reads as %d guarded, %d unguarded", guarded, unguarded)
 	}
 	compiled, err := os.ReadFile(filepath.Join("..", "..", "internal", "cuda", "kernel", "ops_f32.ptx"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	guarded, unguarded := alignedLoads(string(compiled))
 	if guarded == 0 || unguarded != 0 {
 		t.Fatalf("ops_f32.ptx holds %d guarded and %d unguarded second loads", guarded, unguarded)
@@ -145,20 +132,12 @@ func TestPTXEntryABIsPreserveOrderSizeAndAlignment(t *testing.T) {
 func TestFileHashCanonicalizesCheckoutNewlines(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "source.cu")
-	if err := os.WriteFile(path, []byte("first\nsecond\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte("first\nsecond\n"), 0o644))
 	want, err := fileHash(root, "source.cu")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("first\r\nsecond\r\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(path, []byte("first\r\nsecond\r\n"), 0o644))
 	got, err := fileHash(root, "source.cu")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got != want {
 		t.Fatalf("checkout newline changed source hash: %s != %s", got, want)
 	}
@@ -167,16 +146,10 @@ func TestFileHashCanonicalizesCheckoutNewlines(t *testing.T) {
 func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	root := t.TempDir()
 	for _, directory := range []string{"kernels", "src", "asset"} {
-		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, directory), 0o755))
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "x.cu"), []byte("#include \"x.cuh\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("table"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "src", "x.cu"), []byte("#include \"x.cuh\"\n"), 0o644))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("table"), 0o644))
 	if err := os.WriteFile(
 		filepath.Join(root, "asset", "x.ptx"),
 		[]byte(fixtureCompiler+".visible .entry x(\n\t.param .u64 x_param_0\n)\n"),
@@ -210,27 +183,15 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
     }]
   }]
 }`, cudaKernel.BundleABIVersion, cudaKernel.BundleVAEConvTile)
-	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(manifestPath)), []byte(document), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(root, true); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(root, false); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("changed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(manifestPath)), []byte(document), 0o644))
+	testcheck.NoError(t, run(root, true))
+	testcheck.NoError(t, run(root, false))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("changed"), 0o644))
 	if err := run(root, false); err == nil {
 		t.Fatal("stale source dependency was accepted")
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("table"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "asset", "x.ptx"), []byte("changed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("table"), 0o644))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "asset", "x.ptx"), []byte("changed"), 0o644))
 	if err := run(root, false); err == nil {
 		t.Fatal("stale manifest was accepted")
 	}
@@ -241,10 +202,6 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := run(root, true); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(root, false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(root, true))
+	testcheck.NoError(t, run(root, false))
 }

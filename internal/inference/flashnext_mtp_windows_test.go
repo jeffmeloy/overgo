@@ -17,6 +17,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -37,9 +38,7 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 	seed := 101
 	values := func(name string, data []float32, shape ...uint64) {
 		var storage bytes.Buffer
-		if err := binary.Write(&storage, binary.LittleEndian, data); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Write(&storage, binary.LittleEndian, data))
 		tensors = append(tensors, gguf.TensorData{Name: name, Shape: shape, Type: gguf.DTypeF32, Data: bytes.NewReader(storage.Bytes())})
 	}
 	// random stores a seeded tensor, a one-dimensional one as a raw norm near zero.
@@ -47,9 +46,7 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 		data := testutil.GGUFTensorF32(name, shape, seed)
 		seed++
 		raw := make([]float32, data.Data.(*bytes.Reader).Len()/4)
-		if err := binary.Read(data.Data, binary.LittleEndian, raw); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Read(data.Data, binary.LittleEndian, raw))
 		if len(shape) == 1 {
 			for index := range raw {
 				raw[index]--
@@ -65,9 +62,7 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 		values(name, make([]float32, elements), shape...)
 	}
 	trunk, err := gguf.Open(trunkPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trunk.Close()
 	// trunkTensor copies the trunk's tensor, less one for a norm.
 	trunkTensor := func(name, source string, norm bool, shape ...uint64) {
@@ -76,13 +71,9 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 			t.Fatalf("trunk tensor %s is missing", source)
 		}
 		raw := make([]byte, info.Size)
-		if err := trunk.ReadTensorData(info, raw); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, trunk.ReadTensorData(info, raw))
 		data, err := quant.Dequantize(info.Type, raw, info.Size/4)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if norm {
 			for index := range data {
 				data[index]--
@@ -139,16 +130,12 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 	metadata := []gguf.Metadata{testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen4exp-mtp")}
 	path := filepath.Join(t.TempDir(), "hermetic-flash-next-mtp.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	return path
 }
 
@@ -189,38 +176,28 @@ func TestFlashNextMTPKeepsThePromptCache(t *testing.T) {
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const generated = 12
 	first := []tokenizer.TokenID{4, 9, 17}
 	// The follow-up turn adds a user's tokens after the first turn's answer.
 	followUp := []tokenizer.TokenID{21, 30}
 	plainRunner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plain := func(prompt []tokenizer.TokenID) []tokenizer.TokenID {
 		t.Helper()
 		ids, _, err := plainRunner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids
 	}
 	plainFirst := plain(first)
 	plainSecond := plain(append(slices.Clone(plainFirst), followUp...))
-	if err := plainRunner.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, plainRunner.Close())
 	for _, copyTrunk := range []bool{false, true} {
 		runner, err := openFixtureRunnerWithResidency(trunk,
 			OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		turn := func(prompt []tokenizer.TokenID) ([]tokenizer.TokenID, int) {
 			t.Helper()
 			cached := -1
@@ -260,16 +237,12 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const generated = 24
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
 		plainRunner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, residency)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if tokens := plainRunner.SpeculativeDraftTokens(); tokens != 0 || plainRunner.SpeculatesByDefault() {
 			t.Fatalf("%s: the trunk alone declares %d draft tokens", residency, tokens)
 		}
@@ -287,9 +260,7 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 		}
 		for _, copyTrunk := range []bool{false, true} {
 			runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, residency)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if tokens := runner.SpeculativeDraftTokens(); tokens != hyperDraftTokens || !runner.SpeculatesByDefault() {
 				_ = runner.Close()
 				t.Fatalf("%s: the attached draft declares %d draft tokens, speculating by default %t", residency, tokens, runner.SpeculatesByDefault())

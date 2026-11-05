@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGenerationTimingCounter(t *testing.T) {
@@ -29,9 +31,7 @@ func TestGenerationTimingCounter(t *testing.T) {
 				return value, nil
 			}}
 			for range test.tokens {
-				if err := timing.token(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, timing.token())
 			}
 			wall, ttft, decode, err := timing.finish()
 			if err != nil || wall != test.wall || ttft != test.ttft || decode != test.wall-test.ttft || reads != len(test.readings) {

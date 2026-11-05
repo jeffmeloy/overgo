@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/invocation"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestRoutingDecisionContract(t *testing.T) {
 	}
 
 	decision, err := NewRoutingDecision(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if decision.Disposition != RouteSelected || decision.Winner != first.Selection {
 		t.Fatalf("decision = (%s, %s), want derived winner %s", decision.Disposition, decision.Winner, first.Selection)
 	}
@@ -38,9 +37,7 @@ func TestRoutingDecisionContract(t *testing.T) {
 	reversed := base
 	reversed.Candidates = []RoutingCandidateObservation{first, second}
 	canonical, err := NewRoutingDecision(reversed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if canonical.ID != decision.ID || canonical.ValidateIdentity() != nil {
 		t.Fatalf("canonical decision = %s, validation %v; want stable identity %s", canonical.ID, canonical.ValidateIdentity(), decision.ID)
 	}

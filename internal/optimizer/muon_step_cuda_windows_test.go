@@ -15,6 +15,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/devicemath"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 )
 
 // TestDeviceMuonMatrixStepMatchesHost gates one device (fp32) Muon matrix update
@@ -23,14 +24,10 @@ import (
 func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	var ops *deviceOps
-	if err := worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }))
 	defer worker.Do(context.Background(), func(_ *device.State) error { ops.close(); return nil })
 
 	const mu, baseLR = 0.9, 0.1
@@ -59,13 +56,9 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			hostG := make([]float32, n)
 			copy(hostG, g)
 			plan, err := CompilePlan(n, []GroupSpec{{Name: "w", Start: 0, End: n, Rows: tc.rows, Cols: tc.cols}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			opt, err := New(hostW, hostG, plan, Config{BaseLearningRate: baseLR, Momentum: mu, Schedule: ScheduleConstant})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			opt.Step()
 
 			// Device: same inputs, zero initial momentum.
@@ -74,9 +67,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			devG := make([]float32, n)
 			copy(devG, g)
 			devM := make([]float32, n)
-			if err := deviceMuonMatrixStep(worker, ops, devW, devG, devM, tc.rows, tc.cols, mu, baseLR, false); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, deviceMuonMatrixStep(worker, ops, devW, devG, devM, tc.rows, tc.cols, mu, baseLR, false))
 
 			var maxW, maxM float64
 			for i := range n {
@@ -109,9 +100,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 					m[i] = magnitude / 2
 				}
 				gotW, gotG, gotM := make([]float32, len(g)), slices.Clone(g), slices.Clone(m)
-				if err := deviceMuonMatrixStep(worker, ops, gotW, gotG, gotM, rows, cols, mu, baseLR, tf32); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, deviceMuonMatrixStep(worker, ops, gotW, gotG, gotM, rows, cols, mu, baseLR, tf32))
 				// The guarded update retains the direction and still updates momentum and weights.
 				weightScale := float32(-math.Sqrt(float64(max(rows, cols))) * hostoptimizer.StepRMS(mu) * baseLR)
 				for i := range g {
@@ -131,9 +120,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 func TestDeviceMuonPlanResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const rows, cols, vector = 9, 7, 11
 	matrix := rows * cols
@@ -147,18 +134,12 @@ func TestDeviceMuonPlanResidentMatchesShared(t *testing.T) {
 		{Name: "matrix", Start: 0, End: matrix, Rows: rows, Cols: cols},
 		{Name: "vector", Start: matrix, End: count, Rows: vector, Cols: 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{BaseLearningRate: 0.07, Momentum: 0.91, Steps: 3, Schedule: ScheduleLinearDecay}
 	wantWeights, wantGradients, wantMomentum := append([]float32(nil), weights...), append([]float32(nil), gradients...), make([]float32, count)
-	if err := DeviceMuonStepPlan(worker, wantWeights, wantGradients, wantMomentum, plan, 2, config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DeviceMuonStepPlan(worker, wantWeights, wantGradients, wantMomentum, plan, 2, config))
 	weightsPtr, err := devicemath.AllocResidentF32(worker, count, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gradientsPtr, err := devicemath.AllocResidentF32(worker, count, gradients)
 	if err != nil {
 		_ = devicemath.FreeResident(worker, weightsPtr)
@@ -170,17 +151,13 @@ func TestDeviceMuonPlanResidentMatchesShared(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer devicemath.FreeResident(worker, weightsPtr, gradientsPtr, momentumPtr)
-	if err := DeviceMuonPlanResident(worker, weightsPtr, gradientsPtr, momentumPtr, plan, 2, config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DeviceMuonPlanResident(worker, weightsPtr, gradientsPtr, momentumPtr, plan, 2, config))
 	gotWeights, gotGradients, gotMomentum := make([]float32, count), make([]float32, count), make([]float32, count)
 	for _, item := range []struct {
 		pointer driver.DevicePtr
 		data    []float32
 	}{{weightsPtr, gotWeights}, {gradientsPtr, gotGradients}, {momentumPtr, gotMomentum}} {
-		if err := devicemath.ReadResident(worker, item.pointer, devicemath.ResidentSlice{Data: item.data}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, devicemath.ReadResident(worker, item.pointer, devicemath.ResidentSlice{Data: item.data}))
 	}
 	weightDelta, momentumDelta := maxF32Delta(gotWeights, wantWeights), maxF32Delta(gotMomentum, wantMomentum)
 	gradientDelta := maxF32Delta(gotGradients, wantGradients)
@@ -202,9 +179,7 @@ func maxF32Delta(left, right []float32) float64 {
 func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const mu, baseLR = 0.9, 0.1
@@ -222,9 +197,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 		{Name: "m", Start: 0, End: matrixN, Rows: mR, Cols: mC},
 		{Name: "v", Start: matrixN, End: n, Rows: vN, Cols: 1},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{BaseLearningRate: baseLR, Momentum: mu, Schedule: ScheduleConstant}
 
 	hostW := make([]float32, n)
@@ -232,9 +205,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	hostG := make([]float32, n)
 	copy(hostG, g)
 	opt, err := New(hostW, hostG, plan, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	opt.Step()
 
 	devW := make([]float32, n)
@@ -242,9 +213,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	devG := make([]float32, n)
 	copy(devG, g)
 	devM := make([]float32, n)
-	if err := DeviceMuonStepPlan(worker, devW, devG, devM, plan, 1, config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DeviceMuonStepPlan(worker, devW, devG, devM, plan, 1, config))
 
 	var maxW, maxM float64
 	for i := range n {

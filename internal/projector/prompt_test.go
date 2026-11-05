@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 func TestMediaHistoryChunkContract(t *testing.T) {
@@ -61,9 +62,7 @@ func TestMixedMediaPromptPlan(t *testing.T) {
 			},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prompt.EmbeddingWidth != 2 || prompt.EmbeddingStart != 4 ||
 		!slices.Equal(prompt.EmbeddingTokenIndices, []uint32{4, 5, 14}) ||
 		!slices.Equal(prompt.AttentionBlocks, []AttentionBlock{{Start: 4, End: 6}}) {
@@ -82,9 +81,7 @@ func TestCompiledImagePromptPrograms(t *testing.T) {
 			return imagePromptItem{Embeddings: make([]float32, 4), Count: 2, RunCount: 2}, nil
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prompt.EmbeddingWidth != 2 || len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 4 {
 		t.Fatalf("compiled image prompt = %+v", prompt)
 	}
@@ -107,9 +104,7 @@ func TestCompileMediaPromptRuns(t *testing.T) {
 		Runs: 2, TokensPerRun: 2, PromptLabel: "video prompt",
 		PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(runs.Starts, []int{1, 4}) ||
 		!slices.Equal(runs.Indices, []uint32{1, 2, 4, 5}) {
 		t.Fatalf("media runs = starts %v indices %v", runs.Starts, runs.Indices)
@@ -120,9 +115,7 @@ func TestSpatialPositionsGrid2D(t *testing.T) {
 	positions, err := compileSpatialPositions(10, positionGrid2D, []spatialPositionChunk{{
 		Start: 2, Extents: [tensor.TripleExtent]int{2, 2},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := [4][]uint32{
 		{0, 1, 2, 2, 2, 2, 4, 5, 6, 7},
 		{0, 1, 2, 2, 3, 3, 4, 5, 6, 7},
@@ -143,9 +136,7 @@ func TestSpatialPositionsMultipleGrid2D(t *testing.T) {
 		{Start: 2, Extents: [tensor.TripleExtent]int{1, 2}},
 		{Start: 8, Extents: [tensor.TripleExtent]int{1, 2}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := [4][]uint32{
 		{0, 1, 2, 2, 4, 5, 6, 7, 8, 8, 10, 11},
 		{0, 1, 2, 2, 4, 5, 6, 7, 8, 8, 10, 11},
@@ -166,9 +157,7 @@ func TestSpatialPositionsVariableGrid2D(t *testing.T) {
 		{Start: 2, Extents: [tensor.TripleExtent]int{2, 2}},
 		{Start: 7, Extents: [tensor.TripleExtent]int{1, 2}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := [4][]uint32{
 		{0, 1, 2, 2, 2, 2, 4, 5, 5, 7, 8},
 		{0, 1, 2, 2, 3, 3, 4, 5, 5, 7, 8},

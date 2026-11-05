@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -196,8 +197,8 @@ func ActivateCandidate(ctx context.Context, store artifact.Repository, key strin
 func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	check(t, err)
-	t.Cleanup(func() { check(t, store.Close()) })
+	testcheck.NoError(t, err)
+	t.Cleanup(func() { testcheck.NoError(t, store.Close()) })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, modelID)
 	var compiled recipe.Definition
@@ -213,19 +214,12 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 
 func newDefinedCapability(t testing.TB, store artifact.Repository, modelID artifact.ID, compiled recipe.Definition, err error) Capability {
 	t.Helper()
-	check(t, err)
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(compiled)
-	check(t, err)
+	testcheck.NoError(t, err)
 	runtime, err := workflowruntime.NewForProgram(store, program)
-	check(t, err)
+	testcheck.NoError(t, err)
 	return Capability{Model: modelID, Program: program, Runtime: runtime}
-}
-
-func check(t testing.TB, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result, error) {

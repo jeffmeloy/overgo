@@ -3,6 +3,8 @@ package inference
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestParseQwenJSONToolCalls(t *testing.T) {
@@ -17,9 +19,7 @@ func TestParseQwenJSONToolCalls(t *testing.T) {
 			"\n</tool_call>",
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if message.Role != "assistant" ||
 		message.ReasoningContent != "check weather" ||
 		message.Content != "I will check." ||
@@ -58,9 +58,7 @@ func TestParseHermesToolCallCoercesSchemaTypes(t *testing.T) {
 			"</function>\n</tool_call>",
 		tools,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if message.ReasoningContent != "look it up" ||
 		message.Content != "" ||
 		len(message.ToolCalls) != 1 ||
@@ -115,9 +113,7 @@ func TestParseChatOutputRejectsMalformedTagsAndPayloads(t *testing.T) {
 func TestParseChatOutputLeavesPlainContentUntouched(t *testing.T) {
 	const output = "  ordinary answer\n"
 	message, err := parseChatOutput("", output, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if message.Content != output || len(message.ToolCalls) != 0 {
 		t.Fatalf("parsed message = %+v", message)
 	}

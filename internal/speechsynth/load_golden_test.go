@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -23,9 +24,7 @@ func TestLoadDerivesDimsAndMatchesManifest(t *testing.T) {
 	}](t, "g0_tensors.json")
 
 	source, err := safetensors.OpenSource(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	if len(source.Tensors) != len(*manifest) {
 		t.Fatalf("tensor count: artifact %d != manifest %d", len(source.Tensors), len(*manifest))

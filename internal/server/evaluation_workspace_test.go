@@ -16,6 +16,7 @@ import (
 	"overgo/internal/invocation"
 	"overgo/internal/operation"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -89,48 +90,36 @@ func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
 			Text: "A", PromptTokens: 2, GeneratedTokens: 1,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := evaluation.CompileSuite(data, evaluation.ExactAuthorities{
 		ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "evaluation-api-definition"),
 		RuntimeRecipe:   recipeID, CodeCommit: evaluationTestCommit,
 		Environment: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation-api-environment"),
 		Execution:   evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := &evaluationWorkspaceFixture{
 		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "evaluation-api-run"),
 	}
 	handler, err := New(Config{Evaluation: fixture}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	capabilities := serveTestRequest(handler, http.MethodGet, "/evaluations/capabilities", "")
 	if capabilities.Code != http.StatusOK || !strings.Contains(capabilities.Body.String(), compiled.Descriptor().Plan.String()) {
 		t.Fatalf("capabilities status=%d body=%s", capabilities.Code, capabilities.Body.String())
 	}
 	body, err := json.Marshal(evaluationRunRequest{Model: modelID, Plans: []artifact.ID{compiled.Descriptor().Plan}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	accepted := serveTestRequest(handler, http.MethodPost, "/evaluations/run", string(body))
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("run status=%d body=%s", accepted.Code, accepted.Body.String())
 	}
 	var submission workflowResponse
-	if err := json.Unmarshal(accepted.Body.Bytes(), &submission); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(accepted.Body.Bytes(), &submission))
 	waited := serveTestRequest(handler, http.MethodGet, "/operations/wait?id="+submission.Operation.String(), "")
 	var status operation.Status
-	if err := json.Unmarshal(waited.Body.Bytes(), &status); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(waited.Body.Bytes(), &status))
 	fixture.mu.Lock()
 	selectedModel, selectedPlans := fixture.model, slices.Clone(fixture.plans)
 	fixture.mu.Unlock()
@@ -154,9 +143,7 @@ func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
 		run: testutil.ArtifactID(t, artifact.KindRun, "grounded-replay-api-run"),
 	}
 	handler, err := New(Config{Evaluation: fixture, MaxStoredResponses: 4}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	replay := groundedReplayAPIRequest(t, recipeID)
 	body := groundedReplayAPIBody(t, modelID, replay, false)
@@ -165,14 +152,10 @@ func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
 		t.Fatalf("run status=%d body=%s", accepted.Code, accepted.Body.String())
 	}
 	var submission workflowResponse
-	if err := json.Unmarshal(accepted.Body.Bytes(), &submission); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(accepted.Body.Bytes(), &submission))
 	waited := serveTestRequest(handler, http.MethodGet, "/operations/wait?id="+submission.Operation.String(), "")
 	var status operation.Status
-	if err := json.Unmarshal(waited.Body.Bytes(), &status); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(waited.Body.Bytes(), &status))
 	fixture.mu.Lock()
 	selectedModel, selectedReplay := fixture.model, fixture.replay
 	fixture.mu.Unlock()
@@ -192,9 +175,7 @@ func TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay(t *testing.T
 		run:        testutil.ArtifactID(t, artifact.KindRun, "grounded-replay-refusal-run"),
 	}
 	handler, err := New(Config{Evaluation: fixture, MaxStoredResponses: 2}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	replay := groundedReplayAPIRequest(t, recipeID)
 	for _, test := range []struct {
@@ -389,8 +370,6 @@ func groundedReplayAPIBody(
 		body["plans"] = []string{testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-refusal-plan").String()}
 	}
 	data, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return data
 }

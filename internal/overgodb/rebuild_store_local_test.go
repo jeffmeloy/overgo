@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
@@ -15,17 +16,13 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Create(filepath.Join(root, "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	contract := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: "application/json", Schema: "test/rebuild-store-local/v1",
 	}
 	content, err := contract.ContentBytes([]byte(`{"receipt":"physical"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	localAlias := StoreLocalAliasPrefix + "fixture/current"
 	if _, err := source.Commit(ctx, artifact.Batch{
 		Key: "test/rebuild/store-local", Contents: []artifact.Content{content},
@@ -63,9 +60,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	rebuilt, err := Create(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	target, found, err := artifact.ResolveAlias(ctx, rebuilt, localAlias)
 	if err != nil || !found || target != content.Descriptor.ID {

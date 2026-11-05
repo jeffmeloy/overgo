@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,30 +18,20 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		{Name: "second", Artifact: assetB, Records: 3},
 		{Name: "first", Artifact: assetA, Records: 2},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	selector := testutil.ArtifactID(t, artifact.KindDatasetShard, "selector")
 	viewA, err := NewView(version.ID, &selector, []string{"target", "prompt"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	viewB, err := NewView(version.ID, nil, []string{"prompt"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	split, err := NewSplit(version.ID, []Partition{
 		{Name: "train", View: viewA.ID}, {Name: "test", View: viewB.ID},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mixture, err := NewMixture([]Member{
 		{Dataset: split.ID, Weight: 6}, {Dataset: version.ID, Weight: 2},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := map[artifact.ID]uint64{}
 	for _, member := range mixture.Members {
 		weights[member.Dataset] = member.Weight
@@ -54,13 +45,9 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		{Name: "first", Dataset: version.ID, Inventory: assetA, StorageKind: "file", Source: "fixture", Modality: "text"},
 	}
 	before, err := json.Marshal(entries)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := NewCatalog(entries)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := json.Marshal(entries)
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("catalog mutated its input: %s, %v", after, err)
@@ -69,13 +56,9 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	expected[1].Formats = []string{"json", "txt"}
 	expected[1].Modalities = []string{"audio", "text"}
 	expectedJSON, err := json.Marshal(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: expected})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expectedID, err := artifact.IdentifyBytes(artifact.KindDataset, expectedJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := catalog.Content()
 	if err != nil || string(content.Data) != string(expectedJSON) || catalog.ID != expectedID {
 		t.Fatalf("catalog bytes or identity differ: %s, %v", content.Data, err)
@@ -84,18 +67,14 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		entry := entries[1]
 		entry.Formats = formats
 		value, err := NewCatalog([]CatalogEntry{entry})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if (value.Catalog[0].Formats == nil) != (formats == nil) {
 			t.Fatal("catalog changed nil/empty input state")
 		}
 	}
 	duplicate := []CatalogEntry{entries[0], entries[0]}
 	before, err = json.Marshal(duplicate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := NewCatalog(duplicate); err == nil {
 		t.Fatal("duplicate catalog entry accepted")
 	}
@@ -119,9 +98,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		}
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	descriptors := []artifact.Descriptor{
 		{ID: assetA, Size: 7}, {ID: assetB, Size: 7}, {ID: selector, Size: 8},
@@ -129,17 +106,13 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	batch, err := PublicationBatch("dataset-fixture", documents, []artifact.AliasBinding{{
 		Name: "datasets/training", Target: mixture.ID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = descriptors
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	parents, err := store.Parents(t.Context(), mixture.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(parents) != len(mixture.Members) {
 		t.Fatalf("mixture parents = %+v", parents)
 	}
@@ -160,22 +133,14 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	version, err := NewVersion([]Asset{{
 		Name: "asset", Artifact: testutil.ArtifactID(t, artifact.KindFile, "asset"), Records: 1,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := version.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var body map[string]any
-	if err := json.Unmarshal(content.Data, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &body))
 	body["unknown"] = true
 	modified, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := documentCodec.Parse(modified); err == nil {
 		t.Fatal("unknown dataset field accepted")
 	}

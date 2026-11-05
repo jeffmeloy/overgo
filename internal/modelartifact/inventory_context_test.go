@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -54,12 +55,8 @@ func TestPipelineInventoryCancellationDuringHashing(t *testing.T) {
 
 func TestInventorySourceVerification(t *testing.T) {
 	inventory, err := FromHFPath(pipelineFixture(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := inventory.VerifySources(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, inventory.VerifySources(t.Context()))
 	if err := inventory.VerifySources(nil); err == nil {
 		t.Fatal("nil verification context accepted")
 	}

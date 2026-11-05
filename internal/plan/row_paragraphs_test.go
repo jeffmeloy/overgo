@@ -3,6 +3,8 @@ package plan
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestARowParagraphLeavesWithItsLastRow advances the steps of two rows under paragraphs that govern one row, both rows,
@@ -35,9 +37,7 @@ func TestARowParagraphLeavesWithItsLastRow(t *testing.T) {
 		{"second", "one", []string{"standing", "campaign"}},
 	} {
 		advanced, err := Advance(document, advance.item, advance.step)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var left []string
 		for _, paragraph := range advanced.Doctrine {
 			left = append(left, paragraph.Text)

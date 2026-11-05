@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func openImageProjectorAs[T Projector](path string, options OpenOptions) (T, err
 func testSession(t *testing.T, source Projector) Session {
 	t.Helper()
 	session, err := NewSession(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return session
 }
 

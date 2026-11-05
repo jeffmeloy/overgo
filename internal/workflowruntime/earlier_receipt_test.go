@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // earlierStageReceiptSchema is the schema stores hold the stage receipts of
@@ -39,19 +40,13 @@ func TestOperationRunsOnFromAnEarlierFormReceipt(t *testing.T) {
 	} {
 		written.Recipe, written.Operation, written.Attempt = definition.ID, operation, 1
 		receipt, err := runrecord.NewStageReceipt(written)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		data, err := json.Marshal(receipt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := artifact.DocumentContract{
 			Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: earlierStageReceiptSchema,
 		}.ContentBytes(data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if content.Descriptor.ID != receipt.ID {
 			t.Fatalf("the %s receipt's bytes are %s, the receipt %s; the fixture must write a receipt's own bytes", written.Node, content.Descriptor.ID, receipt.ID)
 		}
@@ -65,9 +60,7 @@ func TestOperationRunsOnFromAnEarlierFormReceipt(t *testing.T) {
 	}
 
 	runtime, err := NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	registerGenerationAdapters(t, runtime, false)
 	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},

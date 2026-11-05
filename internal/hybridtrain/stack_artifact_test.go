@@ -13,6 +13,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,9 +37,7 @@ func TestLoadStackFeedForward(t *testing.T) {
 				expected = append(expected, values)
 			}
 			file, err := gguf.Open(testutil.TempGGUF(t, "layer.gguf", nil, tensors))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer file.Close()
 			info := model.LayerWeights{FeedForwardGate: &file.Tensors[0], FeedForwardUp: &file.Tensors[1], FeedForwardDown: &file.Tensors[2], AttentionNorm: &file.Tensors[3]}
 			m := &Model{matW: make([]float32, 2, 14)}
@@ -46,18 +45,14 @@ func TestLoadStackFeedForward(t *testing.T) {
 			masters := m.matW[len(m.matW):cap(m.matW)]
 			var scratch []byte
 			host, err := loadStackLayer(t.Context(), file, info, masters, len(expected[0]), &scratch)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			b := &builder{m: m}
 			var bound [3][]float32
 			for index, value := range []*reference.Value{host.FeedForwardGate, host.FeedForwardUp, host.FeedForwardDown} {
 				if value == nil || !slices.Equal(value.Data, expected[index]) || &value.Data[0] != &masters[index*4] {
 					t.Fatalf("matrix %d is not decoded directly into its master slot: %+v", index, value)
 				}
-				if err := b.matValues(&bound[index], names[index], 2, 2, value.Data); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, b.matValues(&bound[index], names[index], 2, 2, value.Data))
 			}
 			b.rebindAliases()
 			want := slices.Concat([]float32{101, 102}, expected[0], expected[1], expected[2])

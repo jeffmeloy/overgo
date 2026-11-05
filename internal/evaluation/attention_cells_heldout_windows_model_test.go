@@ -16,6 +16,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -51,15 +52,11 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parts := map[string]prompting{"bbh": PromptingRawCompletion, "ifeval": PromptingChatTemplate}
 	suites := map[string]CompiledSuite{}
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for family, asked := range parts {
 		authorities := ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "gemma-4-12b"), RuntimeRecipe: planID(t, artifact.KindRecipe, "gemma-4-12b"),
@@ -72,9 +69,7 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 		}
 		suites[family] = derived[0]
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for _, name := range cellsModels {
 		path := filepath.Join(roots.Checkpoints, name)
 		if _, err := os.Stat(path); err != nil {
@@ -84,9 +79,7 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 			right := map[bool]map[string]map[string]bool{}
 			for _, f32 := range []bool{false, true} {
 				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)
@@ -96,9 +89,7 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 				for family, suite := range suites {
 					right[f32][family] = answerCells(t, suite, cellsRuntime{runner})
 				}
-				if err := runner.Close(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, runner.Close())
 			}
 			for family := range suites {
 				losses, wins := 0, 0
@@ -125,19 +116,13 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 func answerCells(t *testing.T, suite CompiledSuite, runtime Runtime) map[string]bool {
 	t.Helper()
 	answers, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer answers.Close()
 	publishPlanFixtureAuthorities(t, answers, suite.plan)
 	result, err := suite.execute(context.WithoutCancel(t.Context()), answers, runtime)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := artifact.RequireTypedContent(t.Context(), answers, result.Report)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report struct {
 		Observations []struct {
 			Name     string

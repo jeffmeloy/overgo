@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 // TestRMSNormForwardMatchesHost checks device RMSNormForward against
@@ -17,9 +18,7 @@ import (
 func TestRMSNormForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, d = 24, 64
@@ -29,9 +28,7 @@ func TestRMSNormForwardMatchesHost(t *testing.T) {
 	weight := randSlice(rng, d)
 
 	got, err := RMSNormForward(worker, x, weight, rows, d, eps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := make([]float32, rows*d)
 	hostmath.RMSNormInto(want, x, weight, rows, d, eps)
 
@@ -71,9 +68,7 @@ func rmsNormLossF64(x, weight, dy []float32, rows, d int, eps float64) float64 {
 func TestRMSNormBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, d = 8, 16
@@ -84,9 +79,7 @@ func TestRMSNormBackwardGradCheck(t *testing.T) {
 	dy := randSlice(rng, rows*d)
 
 	dx, dscale, err := RMSNormBackward(worker, x, weight, dy, rows, d, eps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	const feps = 1e-3
 	gradCheck := func(name string, param, analytic []float32) float64 {

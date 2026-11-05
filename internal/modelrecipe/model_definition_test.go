@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -36,9 +37,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
 	profileDocument, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model-definition-fixture")
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatGGUF,
@@ -47,36 +46,22 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 			Storage: "f32", Bytes: definitionTensorBytes,
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := NewModelDefinitionDocument(profileDocument, tensors, definitionSpec())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := modelDefinitionCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := parsed.Resolve(profileDocument, tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := InferenceWithModelDefinition(
 		modelID, profileDocument.ID, document.ID, recipe.PlacementHost, DecodeSessionRequest,
 		recipe.ResidencyHostCache,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := CompileModelDefinition(definition, resolved, model.Weights{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != document.ID || plan.Model.Profile().LayerTopology != model.LayerTopologyCausalPostQKNormSkip {
 		t.Fatalf("resolved definition/plan = (%s, %+v)", parsed.ID, plan.Model.Profile())
 	}
@@ -91,49 +76,35 @@ func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
 	t.Parallel()
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profileDocument, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	var definition artifact.ID
 	for _, path := range []string{filepath.Join(t.TempDir(), "definition.gguf"), filepath.Join(t.TempDir(), "definition.gguf")} {
 		writeDefinitionGGUF(t, path)
 		file, err := gguf.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 		if err != nil {
 			t.Fatal(errors.Join(err, file.Close()))
 		}
 		spec, err := model.ReadSpecWithProfile(file, profile)
-		if err := errors.Join(err, file.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(err, file.Close()))
 		document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if definition.Valid() && document.ID != definition {
 			t.Fatalf("relocated model definitions differ: %s != %s", document.ID, definition)
 		}
 		definition = document.ID
 		resolvedSource, err := document.Resolve(profileDocument, inventory.TensorInventory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if err := PublishResolvedModelDefinition(ctx, store, inventory, resolvedSource); err != nil {
 			t.Fatalf("publish from %s: %v", path, err)
 		}
 		resolved, err := ResolveModelDefinition(ctx, store, document.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if resolved.Document.Model != inventory.Manifest.ID || resolved.Spec.EmbeddingLength != definitionEmbedding ||
 			resolved.Tensors.ID != inventory.TensorInventory.ID {
 			t.Fatalf("resolved model definition = %+v", resolved)
@@ -151,42 +122,26 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "definition.gguf")
 	writeDefinitionGGUF(t, path)
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	base, _ := model.LookupArchitecture(definitionArchitecture)
 	spec, err := model.ReadSpecWithProfile(file, base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profiles := []model.ArchitectureProfile{base, base}
 	profiles[1].LayerTopology = model.LayerTopologyCausalPostQKNormSkip
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, profile := range profiles {
 		profileDocument, err := NewProfileDocument(profile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, PublishResolvedModelDefinition(t.Context(), store, inventory, resolved))
 		if _, err := ResolveModelDefinition(t.Context(), store, document.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -196,26 +151,18 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 func TestModelDefinitionRejectsBindingDrift(t *testing.T) {
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profileDocument, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "binding-drift-model")
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{Name: "weight", Shape: []uint64{}, Storage: "f32", Bytes: definitionF32Bytes}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := NewModelDefinitionDocument(profileDocument, tensors, definitionSpec())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	otherProfile, _ := model.LookupArchitecture("qwen3")
 	otherDocument, err := NewProfileDocument(otherProfile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := document.Resolve(otherDocument, tensors); err == nil {
 		t.Fatal("drifted profile binding accepted")
 	}

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -56,21 +57,15 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 		{Name: "two wrong", Text: "The cat sat on the mat."},
 	}}
 	compiled, err := compileSpeechRoundTrip(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindSpeechRoundTrip(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	speaker := echoSpeaker{judge: "recognizer-a", identity: judge, heard: map[string]string{
@@ -78,9 +73,7 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 		"The cat sat on the mat.":       "the bat sat on mat",
 	}}
 	report, err := evaluateSpeechRoundTrip(t.Context(), store, speaker, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The first case is exact; the second, six words, loses "cat" to "bat" and the second "the".
 	if report.Words != 12 || report.Errors != 2 || report.WordErrorRate != 2.0/12.0 ||
 		report.Observations[0].Errors != 0 || report.Observations[1].Errors != 2 {
@@ -128,27 +121,19 @@ func TestSpeechRoundTripCountsWordsWrittenOneWay(t *testing.T) {
 	score := func(suite SpeechRoundTripSuite) (speechRoundTripPlan, speechRoundTripReport) {
 		t.Helper()
 		compiled, err := compileSpeechRoundTrip(suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		plan, err := bindSpeechRoundTrip(compiled, ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 			CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 			Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := evaluateSpeechRoundTrip(t.Context(), store, echoSpeaker{judge: "recognizer-a", heard: map[string]string{said: heard}}, compiled, plan)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return compiled, report
 	}
 	plain := SpeechRoundTripSuite{Kind: speechRoundTripKind, Schema: "fixture/v1", Source: "fixture", Voice: "alba", Seed: 7, Judge: "recognizer-a", Cases: []SpeechRoundTripCase{{Name: "numbers", Text: said}}}
@@ -225,9 +210,7 @@ func TestSpeechRoundTripSuiteIsPickedBySeedFromTheUsableTexts(t *testing.T) {
 	}
 	spec := SpeechRoundTripSpec{Parquet: "corpus.parquet", Cases: 5, Seed: 17, Voice: "alba", SynthesisSeed: 7, Judge: "granite"}
 	first, err := speechRoundTripSuiteOf(texts, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, _ := speechRoundTripSuiteOf(texts, spec)
 	spec.Seed++
 	other, _ := speechRoundTripSuiteOf(texts, spec)

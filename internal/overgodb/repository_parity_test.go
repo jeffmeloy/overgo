@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // repositoryView reduces one Repository to a deterministic listing
@@ -21,25 +22,19 @@ func repositoryView(t *testing.T, repository artifact.Repository) string {
 	for ordinal := range scaleCorpusCommits {
 		content := scaleContent(ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		descriptor, found, err := repository.Artifact(ctx, id)
 		if err != nil || !found {
 			t.Fatalf("artifact %d: found=%v err=%v", ordinal, found, err)
 		}
 		view = append(view, fmt.Sprintf("artifact/%s/%d/%s", id, descriptor.Size, descriptor.MediaType))
 		parents, err := repository.Parents(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, edge := range parents {
 			view = append(view, fmt.Sprintf("parent/%s/%s/%s", edge.Child, edge.Parent, edge.Relation))
 		}
 		children, err := repository.Children(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, edge := range children {
 			view = append(view, fmt.Sprintf("child/%s/%s/%s", edge.Child, edge.Parent, edge.Relation))
 		}
@@ -80,9 +75,7 @@ func TestModularStoreRepositoryParity(t *testing.T) {
 		t.Fatal("corpus carried no content")
 	}
 	snapshotOpen, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer snapshotOpen.Close()
 	if !snapshotOpen.SnapshotReplay().Loaded {
 		t.Fatal("snapshot open path unavailable")
@@ -92,9 +85,7 @@ func TestModularStoreRepositoryParity(t *testing.T) {
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(journalRoot, blobDirectory))
 	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(journalRoot, segmentDirectory))
 	journalOpen, err := OpenReadOnly(journalRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer journalOpen.Close()
 	if journalOpen.SnapshotReplay().Loaded {
 		t.Fatal("journal open path unexpectedly used a snapshot")

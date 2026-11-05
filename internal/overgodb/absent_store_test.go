@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAWritableOpenOfAnAbsentStoreRefuses holds a mistyped path to an error: Open
@@ -23,19 +25,11 @@ func TestAWritableOpenOfAnAbsentStoreRefuses(t *testing.T) {
 		}
 	}
 	started, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := started.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, started.Close())
 	for _, reopen := range []func(string) (*Store, error){Open, Create} {
 		store, err := reopen(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, store.Close())
 	}
 }

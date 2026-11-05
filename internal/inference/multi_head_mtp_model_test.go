@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -18,22 +19,16 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "step35"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(session.Heads) != int(runner.spec.NextNPredictLayers) {
 		t.Fatalf("Step3.5 MTP head count = %d", len(session.Heads))
 	}
 	logits, next, err := runner.AdvanceMultiHeadMTP(ctx, 0, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
 		next.Position != session.Position+1 || len(next.DraftTokens) != 1 ||
 		next.Heads[0].Key.Shape.Dims[2] != uint64(session.MTPStart+1) {
@@ -43,28 +38,20 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 		return
 	}
 	_, third, err := runner.AdvanceMultiHeadMTP(ctx, 0, next)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if third.Position != next.Position+1 || len(third.DraftTokens) != 2 ||
 		third.Heads[1].Key.Shape.Dims[2] != uint64(session.MTPStart+2) {
 		t.Fatalf("Step3.5 head-1 cache did not rebuild the draft prefix: %+v", third)
 	}
 	coordinatorSession, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draft, err := runner.DraftMultiHeadMTPGreedy(ctx, 0, coordinatorSession, 10, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(draft.Tokens) > int(runner.spec.NextNPredictLayers) {
 		t.Fatalf("Step3.5 greedy draft exceeded trained heads: %+v", draft)
 	}
 	verification, err := runner.VerifyMultiHeadMTPGreedy(ctx, runner, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.TrunkCache.Position != verification.Session.Position ||
@@ -74,38 +61,26 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	draftSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerBefore, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := runner.DraftMultiHeadMTPSampled(
 		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 10, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerAfter, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Step3.5 sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := runner.VerifyMultiHeadMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 ||
 		sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position !=
@@ -122,35 +97,23 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "hy_v3"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits, next, err := runner.AdvanceMultiHeadMTP(ctx, 0, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
 		next.Position != session.Position+1 || len(next.DraftTokens) != 1 {
 		t.Fatalf("unexpected HY-V3 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
 	coordinatorSession, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draft, err := runner.DraftMultiHeadMTPGreedy(ctx, 0, coordinatorSession, 10, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := runner.VerifyMultiHeadMTPGreedy(ctx, runner, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
 		len(verification.Session.DraftTokens) != 0 {

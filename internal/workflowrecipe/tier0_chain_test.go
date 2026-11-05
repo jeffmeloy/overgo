@@ -9,6 +9,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
@@ -33,14 +34,10 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 		t.Fatalf("chain artifact is not content-addressed: %v != %v", definition.ID, replay.ID)
 	}
 	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "tier0/chain-models",
@@ -49,9 +46,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime, err := workflowruntime.NewForProgram(store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	seen := map[recipe.ModuleID][]artifact.ID{}
 	register := func(
 		module recipe.ModuleID,
@@ -64,9 +59,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 			seen[module] = append(seen[module], request.Model)
 			return map[recipe.PortName]workflowruntime.Value{port: adapter(request)}, nil
 		}))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	register(workflowrecipe.ModuleTokenize, "tokens", func(request workflowruntime.StepRequest) workflowruntime.Value {
 		return workflowruntime.Value{Kind: recipe.DataTokens, Items: request.Inputs["text"].Items}
@@ -89,15 +82,11 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	})
 
 	operation, err := workflowruntime.ExecutionID(definition.ID, "tier0/chain")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", operation, nil, program, map[recipe.PortName]workflowruntime.Value{
 		"prompt": {Kind: recipe.DataText, Items: []workflowruntime.Datum{{Value: "prompt"}}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("chain run = %+v", result.Run)
 	}
@@ -167,8 +156,6 @@ func chainDefinition(t *testing.T, modelA, modelB artifact.ID) recipe.Definition
 			Source: recipe.Endpoint{Node: "b-detokenize", Port: "text"},
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return definition
 }

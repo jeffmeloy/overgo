@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWorkspaceCapabilityDocument: the workspace manifest carries the served
@@ -20,9 +22,7 @@ func TestWorkspaceCapabilityDocument(t *testing.T) {
 	var manifest struct {
 		Model *workspaceModelCapabilities `json:"model"`
 	}
-	if err := json.Unmarshal(response.Body.Bytes(), &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &manifest))
 	if manifest.Model == nil {
 		t.Fatalf("manifest carries no capability document: %s", response.Body.String())
 	}

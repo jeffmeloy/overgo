@@ -3,6 +3,8 @@ package main
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // tone is n samples of a sine of the given frequency at a sample rate.
@@ -23,9 +25,7 @@ func TestResamplingKeepsATonesFrequencyAndLevelAndDropsWhatTheLowerRateCannotHol
 	t.Parallel()
 	const from, to, samples = 24000, 16000, 24000
 	converted, err := resampleTo(t.Context(), tone(1000, from, samples), from, to)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if want := samples * to / from; len(converted) != want {
 		t.Fatalf("converted %d samples to %d, want %d", samples, len(converted), want)
 	}
@@ -39,9 +39,7 @@ func TestResamplingKeepsATonesFrequencyAndLevelAndDropsWhatTheLowerRateCannotHol
 		t.Fatalf("a 1 kHz tone differs from the same tone at %d Hz by %.4f at most, want under 0.02", to, worst)
 	}
 	above, err := resampleTo(t.Context(), tone(11000, from, samples), from, to)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var peak float64
 	for index := len(above) / 4; index < 3*len(above)/4; index++ {
 		peak = math.Max(peak, math.Abs(float64(above[index])))

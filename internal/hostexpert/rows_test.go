@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestCodebookIsGGMLs holds iq4Codebook, the quant package's decoding of the
@@ -27,9 +28,7 @@ func TestQuantizersRoundAsGGML(t *testing.T) {
 	values := make([]float32, superBlockValues)
 	values[0], values[1], values[2], values[3] = -127, 2.5, 3.5, -127
 	blocks := make([]byte, q8KBlockBytes)
-	if err := quantizeQ8K(values, blocks); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, quantizeQ8K(values, blocks))
 	// The scale is 1/(-127/-127) = 1, and the first of the two largest magnitudes is -127.
 	if scale := math.Float32frombits(binary.LittleEndian.Uint32(blocks)); scale != 1 {
 		t.Fatalf("Q8_K scale %v, want 1", scale)
@@ -43,9 +42,7 @@ func TestQuantizersRoundAsGGML(t *testing.T) {
 	short := make([]float32, blockValues)
 	short[0], short[1], short[2] = 127, 2.5, -3.5
 	block := make([]byte, q80BlockBytes)
-	if err := quantizeQ80(short, block); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, quantizeQ80(short, block))
 	if got := [3]int8{int8(block[2]), int8(block[3]), int8(block[4])}; got != [3]int8{127, 3, -4} {
 		t.Fatalf("Q8_0 values %v, want 127 3 -4: halves away from zero", got)
 	}
@@ -66,9 +63,7 @@ func TestQuantizersRoundAsGGML(t *testing.T) {
 	for index := range zeros {
 		zeros[index] = 0xff
 	}
-	if err := quantizeQ8K(make([]float32, superBlockValues), zeros); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, quantizeQ8K(make([]float32, superBlockValues), zeros))
 	for index, value := range zeros {
 		if value != 0 {
 			t.Fatalf("a block of zeros keeps byte %d as %#x", index, value)
@@ -108,13 +103,9 @@ func TestRowsMatchTheFormulas(t *testing.T) {
 			values[index] = float32(draws.NormFloat64()) * 0.02
 		}
 		weights, err := quant.Quantize(format.weights, values)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		decoded, err := quant.Dequantize(format.weights, weights, uint64(len(values)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, tokens := range []int{1, 2, 3, 4, 5, 9} {
 			activations := make([][]byte, tokens)
 			out := make([][]float32, tokens)
@@ -124,14 +115,10 @@ func TestRowsMatchTheFormulas(t *testing.T) {
 					input[index] = float32(draws.NormFloat64())
 				}
 				activations[token] = make([]byte, depth/format.weightValues*format.actBytes)
-				if err := format.activation(input, activations[token]); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, format.activation(input, activations[token]))
 				out[token] = make([]float32, rows)
 			}
-			if err := format.rows(weights, depth, activations, out, 0, rows); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, format.rows(weights, depth, activations, out, 0, rows))
 			rowBytes := len(weights) / rows
 			for token := range tokens {
 				reference := format.dequantize(activations[token])
@@ -188,9 +175,7 @@ func BenchmarkIQ4XSRows(b *testing.B) {
 		values[index] = float32(draws.NormFloat64()) * 0.02
 	}
 	weights, err := quant.Quantize(dtype.IQ4XS, values)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	for _, tokens := range []int{1, 4} {
 		activations := make([][]byte, tokens)
 		out := make([][]float32, tokens)
@@ -200,17 +185,13 @@ func BenchmarkIQ4XSRows(b *testing.B) {
 				input[index] = float32(draws.NormFloat64())
 			}
 			activations[token] = make([]byte, depth/superBlockValues*q8KBlockBytes)
-			if err := quantizeQ8K(input, activations[token]); err != nil {
-				b.Fatal(err)
-			}
+			testcheck.NoError(b, quantizeQ8K(input, activations[token]))
 			out[token] = make([]float32, rows)
 		}
 		b.Run(map[int]string{1: "one", 4: "four"}[tokens], func(b *testing.B) {
 			b.SetBytes(int64(len(weights)))
 			for b.Loop() {
-				if err := iq4XSRows(weights, depth, activations, out, 0, rows); err != nil {
-					b.Fatal(err)
-				}
+				testcheck.NoError(b, iq4XSRows(weights, depth, activations, out, 0, rows))
 			}
 		})
 	}

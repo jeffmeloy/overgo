@@ -8,6 +8,7 @@ import (
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/server"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -20,9 +21,7 @@ const (
 // declared context length; an undeclared variable and an absent key refuse.
 func TestIntakeListsProviderModels(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fake, _ := relaytest.ServeListing(t, "", "intake-key", []string{"unused"}, []relaytest.Model{{ID: "vendor/listed", Name: "Listed", ContextLength: 2048}})
 	intake := Intake{CatalogLimit: 8}
@@ -42,9 +41,7 @@ func TestIntakeListsProviderModels(t *testing.T) {
 	t.Setenv(intakeTestVariable, "intake-key")
 	for _, listing := range []server.ProviderListing{declared, {Endpoint: fake.URL, Key: "intake-key"}} {
 		models, err := intake.ListModels(t.Context(), store, listing)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(models) != 1 || models[0].ID != "vendor/listed" || models[0].Name != "Listed" || models[0].ContextLength != 2048 {
 			t.Fatalf("listed = %+v", models)
 		}

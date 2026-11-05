@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}
 	definition, err := compiler.Definition(sourceModel, targetModel, sourceContract, targetContract, bridge)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bindings := []struct {
 		role recipe.DependencyRole
 		slot uint32
@@ -42,17 +41,13 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 		}
 	}
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	extents := map[artifact.ID]uint64{sourceModel: 13, targetModel: 17}
 	resources, err := CompileComponentSessionPlanWithExtents(
 		t.Context(), program,
 		func(_ context.Context, id artifact.ID) (uint64, error) { return extents[id], nil },
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(resources.Components) != len(extents) || resources.ArtifactBytes != 30 {
 		t.Fatalf("component resources = %+v", resources)
 	}
@@ -69,13 +64,9 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 		t.Fatal("target request lifetime was not preserved")
 	}
 	content, err := definition.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	roundTrip, err := recipe.ParseDefinition(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if roundTrip.ID != definition.ID {
 		t.Fatalf("recipe identity changed: got %s want %s", roundTrip.ID, definition.ID)
 	}

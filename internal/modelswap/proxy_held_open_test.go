@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/apimanifest"
+	"overgo/internal/testcheck"
 )
 
 // heldOpenLauncher launches children whose activity stream answers its headers, names itself held open as the
@@ -49,9 +50,7 @@ func (heldOpenLauncher) Launch(_ context.Context, servable Servable) (Process, e
 // to the request that swapped says what each part of the swap cost while an answer that did not swap says nothing.
 func TestModelSwapProxyDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	supervisor, err := New(heldOpenLauncher{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	supervisor.mu.Lock()
 	supervisor.grace = time.Hour
@@ -60,17 +59,13 @@ func TestModelSwapProxyDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	front := httptest.NewServer(proxy)
 	defer front.Close()
 	first, err := http.Get(front.URL + "/health?swap=alpha")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first.Body.Close()
 	if first.Header.Get(swapPhasesHeader) == "" {
 		t.Fatal("the request that launched the first child was told nothing of its phases")
 	}
 	stream, err := http.Get(front.URL + "/runtime/activity/stream")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer stream.Body.Close()
 	if stream.Header.Get(swapPhasesHeader) != "" {
 		t.Fatalf("a request that did not swap reports phases %q", stream.Header.Get(swapPhasesHeader))

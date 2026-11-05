@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -72,9 +73,7 @@ func TestConfirmationCountsAChargeThatLandsBetweenItsReadings(t *testing.T) {
 			Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "pool fixture verdict")}, Weights: [poolPartCount]uint64{1, 2, 4, 4},
 		}, confirmations)
 		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return store, pool, granted.ID, func() int {
 			t.Helper()
 			budget, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)

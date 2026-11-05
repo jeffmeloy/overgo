@@ -3,6 +3,8 @@ package agenttool
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func propensityManual(t *testing.T, name string, effect Effect) Manual {
@@ -11,9 +13,7 @@ func propensityManual(t *testing.T, name string, effect Effect) Manual {
 		Name: name, Description: "Propensity gate fixture.", Effect: effect,
 		Transport: Transport{Kind: TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return manual
 }
 
@@ -63,9 +63,7 @@ func TestMutationProposalUsesZeroAlpha(t *testing.T) {
 // the reachable set part of the gated action space.
 func TestCapabilityProxyCannotHideMutationFromPropensityGate(t *testing.T) {
 	proxy, err := CapabilityProxyManual()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	read := propensityManual(t, "store.read", EffectInspection)
 	write := propensityManual(t, "store.write", EffectMutation)
 	if err := InspectionOnlySteering([]Manual{proxy, read}, []Manual{read}); err != nil {

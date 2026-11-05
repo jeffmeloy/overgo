@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -26,9 +27,7 @@ func TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt(t *testing.T) {
 	})
 	candidate := lane{name: "webui", packages: []string{"./server"}, tests: "server", testPrefix: webuilane.BrowserTestPrefix}
 	reaches, err := discover(repo, candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, change := range []struct {
 		paths []string
 		by    string

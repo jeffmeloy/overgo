@@ -12,6 +12,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -125,9 +126,7 @@ func driverAttemptRecords(t *testing.T, store *overgodb.Store) int {
 func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindModel, "driver-donor"))
 	stopped := false
@@ -138,9 +137,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	targets := driverTargets(5)
 	slices.Reverse(targets)
 	report, err := RunCompositionImprovementLoop(ctx, store, targets, stages, history)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Budget != 3 || report.Stop != DriverStopBudget || len(report.Attempts) != 3 || spy.scored != 3 {
 		t.Fatalf("driver report = %+v scored=%d", report, spy.scored)
 	}
@@ -169,9 +166,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 		return testutil.ArtifactID(t, artifact.KindEvidence, "driver-withheld-promotion"), nil
 	}
 	refused, err := RunCompositionImprovementLoop(ctx, store, driverTargets(1), withheld, history)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if attempt := refused.Attempts[0]; attempt.Promoted || attempt.Promotion.Valid() ||
 		!strings.HasPrefix(attempt.Refusal, "promote: ") || !strings.Contains(attempt.Refusal, "not committed") {
 		t.Fatalf("uncommitted promotion attempt = %+v", attempt)
@@ -199,9 +194,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 func TestCompositionLoopSaturationStops(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindModel, "driver-donor"))
 	stopped := false
@@ -210,9 +203,7 @@ func TestCompositionLoopSaturationStops(t *testing.T) {
 	// ceil(5/1) = 5, so saturation is the binding stop for an unfit run.
 	history := []bool{false, false, true, false, false}
 	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(6), stages, history)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Saturation != 3 || report.Stop != DriverStopSaturation || len(report.Attempts) != 3 {
 		t.Fatalf("saturated report = %+v", report)
 	}

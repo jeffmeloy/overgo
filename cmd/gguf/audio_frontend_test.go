@@ -11,6 +11,7 @@ import (
 	"overgo/internal/audiodsp"
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,20 +19,14 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 	root := t.TempDir()
 	samples := []int16{1000, -2000, 3000, -4000, 5000, -6000, 7000, -8000}
 	input := filepath.Join(root, "input.wav")
-	if err := os.WriteFile(input, testutil.MonoPCM16WAV(8, samples), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(input, testutil.MonoPCM16WAV(8, samples), 0o600))
 	policy := dataset.AudioInspectionPolicy{MaximumEncodedBytes: 1024, MaximumSamples: 8, ClipThreshold: 1, Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1, MaximumAbsoluteDCOffset: 1}}
 	config := audiodsp.FrontendConfig{SampleRate: 8, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 2}, FFTLength: 4, FrameSpan: 4, PadLeft: 2, PadRight: 2, Padding: "reflect", Window: "rectangular", Mel: audiodsp.MelConfig{Scale: "htk", MaxFrequency: 4}, Log: audiodsp.LogConfig{Base: "natural", GuardMode: "add", Guard: 1e-6, Scale: 1}}
 	paths := []string{filepath.Join(root, "policy.json"), filepath.Join(root, "frontend.json")}
 	for i, value := range []any{policy, config} {
 		data, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(paths[i], data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(paths[i], data, 0o600))
 	}
 	var first frontendObservation
 	repository := t.TempDir()
@@ -42,9 +37,7 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 			t.Fatalf("chunk %d: %v", chunk, err)
 		}
 		var observation frontendObservation
-		if err := json.Unmarshal(bytes.Split(output.Bytes(), []byte{'\n'})[0], &observation); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(bytes.Split(output.Bytes(), []byte{'\n'})[0], &observation))
 		if observation.Frames != 4 || observation.Values != 8 || observation.SourceMaximumError == nil || *observation.SourceMaximumError != 0 || observation.ReconstructionSamples != 8 || observation.TraceFrames != 2 || len(observation.TraceSHA256) != 64 || observation.FrameLimit != 4 {
 			t.Fatalf("observation=%+v", observation)
 		}

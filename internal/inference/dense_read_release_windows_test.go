@@ -11,6 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -32,9 +33,7 @@ const (
 func TestALongReadLeavesADenseRunnerItsDecodeScratch(t *testing.T) {
 	cudatest.Require(t)
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, "Qwen3.5-9B-Q8_0.gguf"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	generate := func(tokens int) ([]tokenizer.TokenID, executor.ExecutionMetrics, uint64) {
 		t.Helper()
@@ -43,17 +42,11 @@ func TestALongReadLeavesADenseRunnerItsDecodeScratch(t *testing.T) {
 			ids[i] = tokenizer.TokenID(readTokenBase + i%readTokenSpan)
 		}
 		sampler, err := sampling.New(sampling.Config{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		out, _, err := runner.Generate(t.Context(), "", GenerateOptions{MaxNewTokens: readDecodes, Sampler: sampler, PromptTokenIDs: ids})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		metrics, err := runner.cuda.Metrics(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return out[len(out)-readDecodes:], metrics, driver.ProcessCurrentBytes()
 	}
 	short, first, firstHeld := generate(shortRead)

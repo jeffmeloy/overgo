@@ -7,19 +7,16 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func tensorFixtureInventory(t *testing.T, path string) modelartifact.TensorInventoryDocument {
 	t.Helper()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return inventory.TensorInventory
 }
 
@@ -35,9 +32,7 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 	inventory := tensorFixtureInventory(t, path)
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "server/tensor-pass-model", Artifacts: []artifact.Descriptor{{ID: inventory.Owner, Size: 1}},
@@ -60,9 +55,7 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 		t.Fatalf("two requests for one model file built %d inventories", inventories)
 	}
 	parents, err := store.Parents(t.Context(), inventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	linked := false
 	for _, parent := range parents {
 		linked = linked || parent.Parent == inventory.Owner
@@ -72,14 +65,10 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 	}
 
 	closed, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	failing := newTestHandlerForRepository(t, closed, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
 	defer failing.Close()
-	if err := closed.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, closed.Close())
 	unpublished := requestTensors(t, failing, "?wait=spectra")
 	if unpublished.Spectra != spectraComplete || unpublished.SpectraFailure != "" || len(unpublished.Tensors) != len(first.Tensors) {
 		t.Fatalf("a failed commit answered %s (%q) with %d profiles; the measurement it finished must still answer",

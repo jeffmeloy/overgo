@@ -20,6 +20,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -32,46 +33,32 @@ func TestFlashNextMTPHistoryDraftsAsOneRead(t *testing.T) {
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
 	runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, false)}, recipe.ResidencyDeviceF32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: 16, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true, PlainDecode: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	ctx := t.Context()
 	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, ids, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer span.Release(context.Background())
 	first, cells := len(prompt)-1, len(ids)-1
 	whole, wholeKeys, err := runner.draftOverCells(ctx, span.SpanHidden, ids, first, cells)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.ensureHyperDraftHistory(ctx, uint32(cells)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, runner.ensureHyperDraftHistory(ctx, uint32(cells)))
 	width := runner.hyperDraftWidth()
 	// round drafts cells [from, to) through the history and holds its draft to the one read's.
 	round := func(from, to int) {
 		t.Helper()
 		rows := reference.Value{Shape: tensor.MustShape(width, uint64(to-from)), Data: span.SpanHidden.Data[uint64(from)*width : uint64(to)*width]}
 		drafted, err := runner.draftHyperFromHistoryLocked(ctx, rows, ids[from+1:to+1], uint32(from))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if drafted != whole[to-1] {
 			t.Fatalf("cells %d to %d drafted %d through the history, %d read at once", from, to, drafted, whole[to-1])
 		}
@@ -89,9 +76,7 @@ func TestFlashNextMTPHistoryDraftsAsOneRead(t *testing.T) {
 	}
 	// Each cell's keys lie where the one read puts them.
 	stored, err := runner.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{runner.hyperDraft.history.keys})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cellElements := uint64(runner.spec.KeyLength) * uint64(runner.spec.HeadCountKV)
 	for index := range uint64(at-first) * cellElements {
 		if delta := math.Abs(float64(stored[0][index] - wholeKeys.Data[index])); !(delta <= 1e-3) {
@@ -100,9 +85,7 @@ func TestFlashNextMTPHistoryDraftsAsOneRead(t *testing.T) {
 	}
 	// A round past the history's last cell starts it again, so it drafts as a read from that cell alone.
 	alone, _, err := runner.draftOverCells(ctx, span.SpanHidden, ids, at+1, at+2)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rows := reference.Value{Shape: tensor.MustShape(width, 1), Data: span.SpanHidden.Data[uint64(at+1)*width : uint64(at+2)*width]}
 	drafted, err := runner.draftHyperFromHistoryLocked(ctx, rows, ids[at+2:at+3], uint32(at+1))
 	if err != nil || drafted != alone[at+1] || runner.hyperDraft.history.cells != 1 {
@@ -118,9 +101,7 @@ func TestFlashNextMTPHistoryHoldsThePrompt(t *testing.T) {
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
 	runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, false)}, recipe.ResidencyDeviceF32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	// Chunks of four read the eleven tokens in three reads, each writing its rows' cells and the last row's before it.
 	runner.promptChunkTokens = 4
@@ -128,9 +109,7 @@ func TestFlashNextMTPHistoryHoldsThePrompt(t *testing.T) {
 	generate := func(plain bool) ([]tokenizer.TokenID, int) {
 		t.Helper()
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		emitted, firstDraft := 0, -1
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -142,9 +121,7 @@ func TestFlashNextMTPHistoryHoldsThePrompt(t *testing.T) {
 				}
 			},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids, firstDraft
 	}
 	ids, _ := generate(true)
@@ -159,22 +136,16 @@ func TestFlashNextMTPHistoryHoldsThePrompt(t *testing.T) {
 	defer runner.mu.Unlock()
 	ctx := t.Context()
 	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, ids, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer span.Release(context.Background())
 	_, wholeKeys, err := runner.draftOverCells(ctx, span.SpanHidden, ids, 0, len(ids)-1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	history := runner.hyperDraft.history
 	if history.start != 0 || history.cells < uint32(len(prompt)) {
 		t.Fatalf("the history holds %d cells from position %d, want the prompt's %d from 0", history.cells, history.start, len(prompt))
 	}
 	stored, err := runner.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{history.keys})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The prompt's cells, the last written by the first round with the token the prompt selected.
 	cellElements := uint64(runner.spec.KeyLength) * uint64(runner.spec.HeadCountKV)
 	for index := range uint64(len(prompt)) * cellElements {

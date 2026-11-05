@@ -8,6 +8,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // countFullPasses counts the measuring passes that compute spectra (the
@@ -36,9 +37,7 @@ func requestTensors(t *testing.T, handler *Handler, query string) analyzeTensors
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}
 	var result analyzeTensorsResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 	return result
 }
 
@@ -50,9 +49,7 @@ func TestAnalyzeTensorsIsBounded(t *testing.T) {
 	// Serial: it swaps the package measurement function.
 	passes := countFullPasses(t, nil)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	path := writeTensorFixture(t)
 	serving := newTestHandlerForRepository(t, store, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})

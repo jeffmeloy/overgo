@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // statedGenerator is a generator whose model the store records as state says.
@@ -46,9 +47,7 @@ func TestAResponseCarriesItsModelsState(t *testing.T) {
 		var answer struct {
 			Verification string `json:"verification"`
 		}
-		if err := json.Unmarshal(serve(http.MethodPost, path, body).Body.Bytes(), &answer); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(serve(http.MethodPost, path, body).Body.Bytes(), &answer))
 		if answer.Verification != string(state.Verification) {
 			t.Fatalf("%s: body says %q", path, answer.Verification)
 		}
@@ -61,9 +60,7 @@ func TestAResponseCarriesItsModelsState(t *testing.T) {
 			} `json:"meta"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(serve(http.MethodGet, "/v1/models", "").Body.Bytes(), &listing); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(serve(http.MethodGet, "/v1/models", "").Body.Bytes(), &listing))
 	if len(listing.Data) != 1 || listing.Data[0].Meta.Verification != string(state.Verification) || listing.Data[0].Meta.Reason != state.Reason {
 		t.Fatalf("listing = %+v", listing)
 	}
@@ -99,17 +96,13 @@ func TestAnAttemptCarriesItsModelsState(t *testing.T) {
 		t.Fatalf("the attempt did not record: %d failures", handler.observationErrors.Load())
 	}
 	observation, err := runrecord.RequireServingObservation(t.Context(), store, id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if observation.Verification != string(modelrecipe.StateNotVerified) {
 		t.Fatalf("attempt on a model nothing verified reads %q", observation.Verification)
 	}
 	observation.Verification = ""
 	content, err := json.Marshal(observation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if strings.Contains(string(content), "verification") {
 		t.Fatalf("a record with no state changed its bytes: %s", content)
 	}

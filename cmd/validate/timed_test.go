@@ -19,6 +19,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -63,18 +64,12 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		}
 		path := os.Getenv(servingattempt.OutputEnvironment)
 		if result == "malformed" {
-			if err := os.WriteFile(path, []byte("{} {}"), clioptions.PrivateFileMode); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(path, []byte("{} {}"), clioptions.PrivateFileMode))
 			return
 		}
 		id, err := artifact.ParseID(result)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := jsonfile.Write(path, id, clioptions.PrivateFileMode); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, jsonfile.Write(path, id, clioptions.PrivateFileMode))
 		if os.Getenv("OVERGO_TEST_SERVING_FAILED") != "" {
 			t.Fatal("producer failed after publication")
 		}
@@ -133,9 +128,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 	t.Run("publication survives cancellation", func(t *testing.T) {
 		root := t.TempDir()
 		store, err := overgodb.Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		model := testutil.ArtifactID(t, artifact.KindModel, "measured")
 		environment := testutil.ArtifactID(t, artifact.KindEvidence, "environment")
@@ -145,9 +138,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		}
 		publish := func(start int64) artifact.ID {
 			observation, err := runrecord.PublishServingObservation(t.Context(), store, runrecord.ServingObservation{Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskInference, StartedUnixNS: start, MeasuredNS: 1, Outcome: runrecord.OutcomeSucceeded})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return observation.ID
 		}
 		ctx, cancel := context.WithCancel(t.Context())
@@ -164,9 +155,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		if !contended || !errors.Is(err, context.Canceled) {
 			t.Fatalf("canceled measurement = %t, %v", contended, err)
 		}
-		if err := store.Refresh(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Refresh(t.Context()))
 		for _, id := range []artifact.ID{before, actual, after} {
 			children, err := store.Children(t.Context(), id)
 			if err != nil || (len(children) != 0) != (id == actual) {
@@ -176,9 +165,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 	})
 
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id := testutil.ArtifactID(t, artifact.KindEvidence, "child observation")
 	for _, mode := range []string{"missing", "malformed", "success", "failed"} {
 		t.Run("handoff "+mode, func(t *testing.T) {

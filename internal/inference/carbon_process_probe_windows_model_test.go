@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -40,13 +41,9 @@ type carbonProcessGolden struct {
 func TestCarbonServingProcessProbe(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var golden carbonProcessGolden
-	if err := jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden))
 	if len(golden.Cases) == 0 {
 		t.Fatal("Carbon serving evidence has no cases")
 	}
@@ -57,26 +54,18 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 		testskip.NotApplicable(t, "child process probe requires OVERGO_CARBON_REPODB")
 	}
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	started := time.Now()
 	loaded, err := modelrecipe.ResolveActiveGGUF(context.Background(), store, modelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolvedAt := time.Now()
 	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	openedAt := time.Now()
 	defer runner.Close()
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generate := func() time.Duration {
 		promptTokens := 0
 		requestStarted := time.Now()
@@ -103,9 +92,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	}
 	_ = generate()
 	before, err := runner.DeviceExecutionStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wall := time.Since(started)
 	warm := make([]time.Duration, carbonWarmSamples)
 	for index := range warm {
@@ -113,13 +100,9 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	}
 	slices.Sort(warm)
 	memory, err := runner.DeviceMemoryStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution, err := runner.DeviceExecutionStats(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	instantiations := execution.GraphInstantiations - before.GraphInstantiations
 	updates := execution.GraphUpdates - before.GraphUpdates
 	graphLaunches := execution.GraphLaunches - before.GraphLaunches

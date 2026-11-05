@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -20,9 +21,7 @@ func TestADeltaEnvelopeNamesTheDeltaItCarries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	first := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "delta-first"), Size: 1}
@@ -33,9 +32,7 @@ func TestADeltaEnvelopeNamesTheDeltaItCarries(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	read := func(path string) storeDeltasResponse {
@@ -45,9 +42,7 @@ func TestADeltaEnvelopeNamesTheDeltaItCarries(t *testing.T) {
 			t.Fatalf("%s: status=%d body=%s", path, response.Code, response.Body.String())
 		}
 		var decoded storeDeltasResponse
-		if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &decoded))
 		return decoded
 	}
 	bootstrap := read("/store/deltas")

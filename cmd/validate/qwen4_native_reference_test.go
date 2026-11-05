@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -24,28 +25,18 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for retained Qwen4 native evidence")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID, target any) {
 		t.Helper()
 		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(content.Data, target); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(content.Data, target))
 	}
 	id, err := artifact.ParseID("evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var provenance struct {
 		Schema, Model, Recipe string
 		GoCommit              string                 `json:"go_commit"`
@@ -97,9 +88,7 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	if !reflect.DeepEqual(captured.nativeTextCapture, submitted) {
 		t.Fatal("native process received different cases or prompting")
 	}
-	if err := checkNativeTextCaptures(captured.nativeTextCapture, native, 42, 26); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkNativeTextCaptures(captured.nativeTextCapture, native, 42, 26))
 	for index, row := range captured.Cases {
 		if row.Chat != (index == 3) || row.MaxTokens != []int{8, 8, 8, 16}[index] {
 			t.Fatal("declared raw/chat protocol or token cap differs")

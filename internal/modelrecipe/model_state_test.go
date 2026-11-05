@@ -9,6 +9,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,23 +28,17 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 	read := func(t *testing.T, store artifact.Reader, modelID artifact.ID) (Activation, ModelState) {
 		t.Helper()
 		activation, state, err := ReadModelState(t.Context(), store, modelID, recipe.TaskInference)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return activation, state
 	}
 	t.Run("nothing recorded", func(t *testing.T) {
 		t.Parallel()
 		store := open(t)
 		file, err := gguf.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer file.Close()
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, state := read(t, store, inventory.Manifest.ID); state != (ModelState{Verification: StateNotVerified}) {
 			t.Fatalf("state = %+v", state)
 		}
@@ -79,9 +74,7 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		definition, err := InferenceWithModelDefinition(
 			inventory.Manifest.ID, earlier, resolved.Document.ID, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		activateProgram(t, store, definition)
 		activation, state := read(t, store, inventory.Manifest.ID)
 		if state.Verification != StateOutOfDate || state.Reason == "" || activation.Definition.ID != definition.ID {
@@ -97,9 +90,7 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		definition, err := inference([]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: inventory.Manifest.ID}, {Role: recipe.DependencyProfile, Artifact: contract},
 		}, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		activateProgram(t, store, definition)
 		if _, state := read(t, store, inventory.Manifest.ID); state.Verification != StateVerified {
 			t.Fatalf("state = %+v", state)
@@ -116,9 +107,7 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		batch, err := artifact.NewDocumentBatch("fixture/state/alias", nil, nil, []artifact.AliasBinding{
 			{Name: activeAlias(definition.Model, definition.Task), Target: definition.ID},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}

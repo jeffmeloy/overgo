@@ -23,6 +23,7 @@ import (
 	"overgo/internal/rae"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -50,12 +51,8 @@ func registerPictureObjective(t *testing.T, ctx context.Context, store *overgodb
 			}
 		}
 		var encoded bytes.Buffer
-		if err := png.Encode(&encoded, picture); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("picture-%04d.png", index)), encoded.Bytes(), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, png.Encode(&encoded, picture))
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("picture-%04d.png", index)), encoded.Bytes(), 0o600))
 	}
 	source, training := registerSplit(t, ctx, store, "pictures", corpus, count, nil)
 	return registerObjective(t, ctx, store, root, pictureObjectiveAlias, trainingprogram.ObjectiveSpec{
@@ -78,9 +75,7 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const pictures, side = 12, 8
 	objective, weights := registerPictureObjective(t, ctx, store, root, pictures, side)
@@ -148,9 +143,7 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
 	document, err := io.ReadAll(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const tolerance = 1e-3
 	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != trainingprogram.MetricImagePSNRUnit ||
 		math.Abs(verdict.BaselineValue-20) > tolerance || math.Abs(verdict.CandidateValue-40) > tolerance {
@@ -217,13 +210,9 @@ func tinyTorchWeights(t *testing.T, value float32) []byte {
 		if err == nil {
 			_, err = writer.Write(entry.data)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
-	if err := files.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, files.Close())
 	return archive.Bytes()
 }
 
@@ -236,12 +225,8 @@ func writeBridgedPair(t *testing.T, models string) rae.BridgedPair {
 	t.Helper()
 	write := func(path string, data []byte) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	}
 	// The checkpoint a collection is known by and the encoder beside it, as
 	// internal/rae/recipes/sampler.json declares them.
@@ -257,13 +242,9 @@ func writeBridgedPair(t *testing.T, models string) rae.BridgedPair {
 	encoder := filepath.Join(models, "other-encoder")
 	write(filepath.Join(encoder, "config.json"), []byte(`{"source":"config"}`))
 	write(filepath.Join(encoder, "preprocessor_config.json"), []byte(`{"source":"processor"}`))
-	if err := safetensors.Save(filepath.Join(encoder, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(encoder, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil))
 	pairDirectory := filepath.Join(models, "pair")
-	if err := rae.SaveEncoderBridge(pairDirectory, rae.EncoderBridge{Weight: []float32{1, 0, 2, 0, -1, 0.5}, Bias: []float32{10, 20}}, "other-encoder", "collection"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rae.SaveEncoderBridge(pairDirectory, rae.EncoderBridge{Weight: []float32{1, 0, 2, 0, -1, 0.5}, Bias: []float32{10, 20}}, "other-encoder", "collection"))
 	pair, held, err := rae.ResolveBridgedPair(pairDirectory)
 	if err != nil || !held {
 		t.Fatalf("the pair did not resolve (%t, %v)", held, err)
@@ -283,16 +264,12 @@ func TestCodecCheckpointNamesEveryFileOfThePairItTrained(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const pictures, side = 12, 8
 	objective, _ := registerPictureObjective(t, ctx, store, root, pictures, side)
 	data, _, err := codecPictures(ctx, store, objective, side)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pair := writeBridgedPair(t, filepath.Join(root, "models"))
 
 	// The base model draws every value a tenth off and the trained one a
@@ -327,9 +304,7 @@ func TestCodecCheckpointNamesEveryFileOfThePairItTrained(t *testing.T) {
 	if err != nil || checkpoint.Model != trained {
 		t.Fatalf("the checkpoint names model %s, and the pair it trained is %s (%v)", checkpoint.Model, trained, err)
 	}
-	if err := os.WriteFile(pair.Collection.Decoder, tinyTorchWeights(t, 3), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(pair.Collection.Decoder, tinyTorchWeights(t, 3), 0o600))
 	replaced, err := trainingworkflow.WeightsIdentity(pair.Bridge)
 	if err != nil || replaced == checkpoint.Model {
 		t.Fatalf("with another decoder of the same shape the pair is model %s (%v), which the checkpoint trained before the replacement still names", replaced, err)

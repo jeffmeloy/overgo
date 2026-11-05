@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/planverify"
+	"overgo/internal/testcheck"
 )
 
 // TestVerifyFailureSummary holds the parser-to-command handoff plan -verify uses:
@@ -17,9 +18,7 @@ func TestVerifyFailureSummary(t *testing.T) {
 	t.Parallel()
 	module := t.TempDir()
 	write := func(name, content string) {
-		if err := os.WriteFile(filepath.Join(module, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(module, name), []byte(content), 0o644))
 	}
 	write("go.mod", "module verifyfailurefixture\n\ngo 1.25\n")
 	write("fixture_test.go", "package fixture\n\nimport \"testing\"\n\n"+

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
@@ -25,19 +26,13 @@ func TestControllerRoutePublishesCheckpoint(t *testing.T) {
 	cudatest.Require(t)
 	spec := controllerCorpusSpec()
 	path := filepath.Join(t.TempDir(), "corpus.json")
-	if err := jsonfile.Write(path, spec, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(path, spec, 0o600))
 	const seed = 17
 	checkpoint, _ := requireRoutePublishes(t, "controller", "-corpus", path, "-seed", fmt.Sprint(seed))
 	corpus, err := controllertrain.Compile(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: routeTestSteps}, scratchmodeltest.Profile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scratch := construction.Authority()
 	if checkpoint.Model != scratch.InitializedModel() || checkpoint.Dataset != scratch.Dataset() || checkpoint.Split != scratch.Split() ||
 		checkpoint.Program != construction.Program().ID() ||

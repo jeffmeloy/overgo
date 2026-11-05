@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestMoERoutingBaselineMatrixHasExactPairedAuthorities(t *testing.T) {
 	matrix, err := moeRoutingBaselineCodec.New(moeRoutingBaselineMatrix{
 		Version: artifact.InitialDocumentVersion, moeRoutingPairedAuthorities: authorities, Arms: arms,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := moeRoutingBaselineCodec.Content(matrix)
 	if err != nil || content.Descriptor.ID != matrix.ID || len(moeRoutingBaselineLineage(matrix)) != 18 {
 		t.Fatalf("paired matrix = (%+v, %v)", matrix, err)

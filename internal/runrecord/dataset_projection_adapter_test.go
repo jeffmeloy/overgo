@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ type projectionAuthorityFixture struct {
 func TestCapabilityEpisodeProjection(t *testing.T) {
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first := newProjectionAuthorityFixture(t, "first", projectionFixtureEvents(t, "first", "candidate/a"), nil)
 	second := newProjectionAuthorityFixture(t, "second", projectionFixtureEvents(t, "second", "candidate/a"), func(trace *InteractionTrace) {
 		trace.Terminal = OutcomeFailed
@@ -46,9 +45,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 	permuted := slices.Clone(ordered)
 	slices.Reverse(permuted)
 	one, err := BuildCapabilityEpisodeProjection(t.Context(), store, bounds, ordered)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	two, err := BuildCapabilityEpisodeProjection(t.Context(), store, bounds, permuted)
 	if err != nil || one.ID != two.ID || one.SourceSet != two.SourceSet || len(one.Episodes) != 2 {
 		t.Fatalf("permuted episode projections = (%s, %s, %v)", one.ID, two.ID, err)
@@ -69,9 +66,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 		t.Fatalf("attempt and terminal outcomes were collapsed: %+v", terminalOutcomes)
 	}
 	content, err := one.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, forbidden := range [][]byte{[]byte("secret-request"), []byte("secret-result"), []byte("call-first"), []byte("call-second")} {
 		if bytes.Contains(content.Data, forbidden) {
 			t.Fatalf("projection copied source payload %q", forbidden)
@@ -81,9 +76,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 		t.Fatalf("episode projection identity = (%d, %v)", len(one.Lineage()), err)
 	}
 	batch, err := one.Batch("capability-episode/projection")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -91,13 +84,9 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 	if err != nil || stored.ID != one.ID {
 		t.Fatalf("verified episode projection = (%s, %v)", stored.ID, err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	cold, err := RequireCapabilityEpisodeProjection(t.Context(), reopened, one.ID)
 	if err != nil || cold.ID != one.ID {
@@ -135,9 +124,7 @@ func TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			fixture := newProjectionAuthorityFixture(t, test.name, projectionFixtureEvents(t, test.name, "candidate/a"), nil)
 			foreign := test.mutate(t, &fixture)
@@ -163,9 +150,7 @@ func TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority(t *testing.T) {
 
 func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fixture := newProjectionAuthorityFixture(t, "atomic", projectionFixtureEvents(t, "atomic", "candidate/a"), nil)
 	commitProjectionAuthorities(t, store, "interaction-arc/atomic", []projectionAuthorityFixture{fixture})
@@ -193,9 +178,7 @@ func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 		t.Fatalf("projection lineage = %+v", projection.Lineage())
 	}
 	batch, err := projection.Batch("interaction-arc/projection", arcs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -249,32 +232,22 @@ func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := newProjectionAuthorityFixture(t, "selection", projectionFixtureEvents(t, "selection", "candidate/a"), nil)
 	commitProjectionAuthorities(t, store, "interaction-arc/selection", []projectionAuthorityFixture{fixture})
 	projection, arcs, err := BuildInteractionArcProjection(t.Context(), store, fixture.trace.ID, projectionArcBounds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	projectionBatch, err := projection.Batch("interaction-arc/selection-projection", arcs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(t.Context(), gateDoor, projectionBatch); err != nil {
 		t.Fatal(err)
 	}
 	tokenizer := testutil.ArtifactID(t, artifact.KindTokenizer, "selection-tokenizer")
 	counter := testutil.ArtifactID(t, artifact.KindProfile, "selection-counter")
 	policy, err := dataset.NewInteractionArcMeasurementPolicy(tokenizer, counter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policyBatch, err := policy.Batch("interaction-arc/selection-policy")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policyBatch.Artifacts = append(policyBatch.Artifacts, artifact.Descriptor{ID: tokenizer}, artifact.Descriptor{ID: counter})
 	if _, err := store.CommitAs(t.Context(), gateDoor, policyBatch); err != nil {
 		t.Fatal(err)
@@ -310,13 +283,9 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	missingProjection, missingArcs, err := BuildInteractionArcProjection(
 		t.Context(), store, missingContext.trace.ID, projectionArcBounds,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	missingBatch, err := missingProjection.Batch("interaction-arc/selection-missing-context-projection", missingArcs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(t.Context(), gateDoor, missingBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -327,34 +296,24 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	}
 
 	verifiedProjection, verifiedArcs, err := RequireInteractionArcProjection(t.Context(), store, projection.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	derived, err := deriveInteractionArcMeasurements(
 		t.Context(), store, verifiedProjection, verifiedArcs, "candidate/a", policy,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forged := slices.Clone(derived)
 	forged[0], err = dataset.NewInteractionArcMeasurement(
 		forged[0].Arc, forged[0].Policy, forged[0].Transcript, forged[0].Context,
 		forged[0].Tokens+1, forged[0].Bytes+1,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forgedHead, _ := store.Head()
 	forgedSelection, err := dataset.SelectInteractionArcsOnce(
 		bounds, forgedHead, verifiedProjection, verifiedArcs, "candidate/a", forged,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forgedBatch, err := forgedSelection.Batch("interaction-arc/selection-forged-cost", forged)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forgedBatch.ExpectedHead = &forgedHead
 	if _, err := store.CommitAs(t.Context(), gateDoor, forgedBatch); err != nil {
 		t.Fatal(err)
@@ -368,13 +327,9 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	lineageSelection, err := dataset.SelectInteractionArcsOnce(
 		bounds, lineageHead, verifiedProjection, verifiedArcs, "candidate/a", derived,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineageBatch, err := lineageSelection.Batch("interaction-arc/selection-forged-lineage", derived)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	extraAuthority := testutil.ArtifactID(t, artifact.KindEvidence, "selection-extra-authority")
 	lineageBatch.Artifacts = append(lineageBatch.Artifacts, artifact.Descriptor{ID: extraAuthority})
 	lineageBatch.Lineage = append(lineageBatch.Lineage, artifact.DependencyLineage(lineageSelection.ID, extraAuthority)...)
@@ -391,13 +346,9 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	staleSelection, err := dataset.SelectInteractionArcsOnce(
 		bounds, staleHead, verifiedProjection, verifiedArcs, "candidate/a", derived,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staleBatch, err := staleSelection.Batch("interaction-arc/selection-stale", derived)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	staleBatch.ExpectedHead = &staleHead
 	newHeadArtifact := testutil.ArtifactID(t, artifact.KindEvidence, "selection-new-head")
 	if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
@@ -412,13 +363,9 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	if err != nil || second.Head == first.Head || second.ID == first.ID {
 		t.Fatalf("selection did not bind the repository head: first=%s second=%s err=%v", first.ID, second.ID, err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	reopened, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	cold, err := RequireInteractionArcSelection(t.Context(), reopened, second.ID)
 	if err != nil || cold.ID != second.ID || cold.Head != second.Head {
@@ -443,26 +390,20 @@ func newProjectionAuthorityFixture(
 		mutate(&trace)
 		var err error
 		trace, err = NewAgentTrajectory(trace)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	gateRecord, err := NewGateRecord(
 		gateRecipe, environment, projectionFixtureCommit, OutcomeSucceeded, "", 101,
 		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 100}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	attempt, err := NewAttemptRecord(AttemptRecord{
 		PlanItem: "experience-projection", PlanStep: "capability-episodes", Strategy: "strategy-" + tag,
 		Result: gateRecord.Result.ID, Recipe: gateRecipe, CodeCommit: projectionFixtureCommit,
 		Outcome: OutcomeSucceeded, WallNS: 100 + uint64(len(tag)), StrategyID: strategy, TaskContract: task,
 		Environment: environment, Trajectory: trace.ID, CostUnits: 10 + uint64(len(tag)),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return projectionAuthorityFixture{trace: trace, gate: gateRecord.Result, attempt: attempt}
 }
 
@@ -481,9 +422,7 @@ func newProjectionTrace(
 		requestMessages = requestMessages[:len(requestMessages)-1]
 	}
 	request, err := newInteractionTranscript(requestMessages)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trace, err := NewAgentTrajectory(InteractionTrace{
 		Version: artifact.InitialDocumentVersion, Recipe: recipe,
 		Model:     testutil.ArtifactID(t, artifact.KindModel, tag+"-model"),
@@ -503,9 +442,7 @@ func newProjectionTrace(
 		Context:           []artifact.ID{request.ID},
 		Terminal:          OutcomeSucceeded,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return trace
 }
 
@@ -534,9 +471,7 @@ func replaceProjectionAttempt(t *testing.T, source AttemptRecord, mutate func(*A
 	mutate(&source)
 	source.ID = artifact.ID{}
 	replacement, err := NewAttemptRecord(source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return replacement
 }
 
@@ -567,28 +502,20 @@ func commitProjectionAuthorities(t *testing.T, store *overgodb.Store, key string
 				t.Fatalf("projection request transcript = (%s, %s, %v)", transcript.ID, fixture.trace.Request, err)
 			}
 			transcriptContent, err := interactionTranscriptCodec.Content(transcript)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			appendDocument(transcript.ID, transcriptContent, nil)
 			content, err := fixture.trace.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			appendDocument(fixture.trace.ID, content, fixture.trace.Lineage())
 		}
 		if fixture.gate.ID.Valid() {
 			content, err := fixture.gate.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			appendDocument(fixture.gate.ID, content, fixture.gate.Lineage())
 		}
 		if fixture.attempt.ID.Valid() {
 			content, err := fixture.attempt.Content()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			appendDocument(fixture.attempt.ID, content, fixture.attempt.Lineage())
 		}
 	}

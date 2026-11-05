@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 func hostSiLU(x float64) float64 { return x / (1 + math.Exp(-x)) }
@@ -20,9 +21,7 @@ func hostSiLU(x float64) float64 { return x / (1 + math.Exp(-x)) }
 func TestSiLUGateForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const n = 256
@@ -31,9 +30,7 @@ func TestSiLUGateForwardMatchesHost(t *testing.T) {
 	up := randSlice(rng, n)
 
 	a, hMLP, err := SiLUGateForward(worker, gate, up)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var maxA, maxH float64
 	for i := range n {
 		wantA := hostSiLU(float64(gate[i]))
@@ -58,9 +55,7 @@ func TestSiLUGateForwardMatchesHost(t *testing.T) {
 func TestSiLUBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const n = 64
@@ -69,9 +64,7 @@ func TestSiLUBackwardGradCheck(t *testing.T) {
 	dy := randSlice(rng, n)
 
 	dx, err := SiLUBackward(worker, x, dy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		var l float64

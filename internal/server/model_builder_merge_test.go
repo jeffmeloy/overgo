@@ -19,6 +19,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ import (
 func ggufTensorValues(t *testing.T, path, name string) []float32 {
 	t.Helper()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	index := slices.IndexFunc(file.Tensors, func(info gguf.TensorInfo) bool { return info.Name == name })
 	if index < 0 {
@@ -36,17 +35,11 @@ func ggufTensorValues(t *testing.T, path, name string) []float32 {
 	}
 	info := file.Tensors[index]
 	raw := make([]byte, info.Size)
-	if err := file.ReadTensorData(info, raw); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.ReadTensorData(info, raw))
 	elements, err := info.ElementCount()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	values, err := quant.Dequantize(info.Type, raw, elements)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return values
 }
 
@@ -56,13 +49,9 @@ func writeTunedGGUF(t *testing.T, base string, shift float32) string {
 	t.Helper()
 	tuned := filepath.Join(t.TempDir(), "tuned.gguf")
 	source, err := gguf.Open(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	destination, err := os.Create(tuned)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := source.RewriteTo(destination, gguf.DTypeF32, func(_ gguf.TensorInfo, values []float32) error {
 		for index := range values {
 			values[index] += shift
@@ -71,9 +60,7 @@ func writeTunedGGUF(t *testing.T, base string, shift float32) string {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(source.Close(), destination.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(source.Close(), destination.Close()))
 	return tuned
 }
 
@@ -84,9 +71,7 @@ func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
 	base = testutil.HermeticLlamaGGUF(t, 64)
 	tuned = writeTunedGGUF(t, base, 1)
 	for _, path := range []string{base, tuned} {
-		if err := servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	}
 	return base, tuned
 }
@@ -101,9 +86,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base, tuned := mergeFixture(t, store)
 	root := t.TempDir()
@@ -162,22 +145,16 @@ func TestModelBuilderTellsModelsOfOneFileNameApart(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := testutil.HermeticLlamaGGUF(t, 64)
 	first, second := writeTunedGGUF(t, base, 1), writeTunedGGUF(t, base, 2)
 	for _, path := range []string{base, first, second} {
-		if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	}
 	workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	merge := capabilities[slices.IndexFunc(capabilities, func(capability WorkflowCapability) bool { return capability.Name == "hermetic.gguf" })]
 	choices := merge.Controls[0].Choices
 	if len(choices) != 2 || choices[0] == choices[1] || !strings.HasSuffix(choices[0], "/tuned.gguf") || !strings.HasSuffix(choices[1], "/tuned.gguf") {

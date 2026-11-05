@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // retentionContent is a document large enough to be a blob: retention,
@@ -15,13 +16,9 @@ import (
 func retentionContent(t *testing.T, kind artifact.Kind, body any) artifact.Content {
 	t.Helper()
 	data, err := json.Marshal(map[string]any{"body": body, "padding": strings.Repeat("-", inlineContentLimit)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(kind, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return artifact.Content{
 		Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "application/json", Schema: "test/retention/v1"},
 		Data:       data,
@@ -38,9 +35,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	source, err := Create(filepath.Join(t.TempDir(), "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 
 	evidence := retentionContent(t, artifact.KindEvidence, map[string]any{"run": "gate evidence body"})
@@ -69,9 +64,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 	}
 
 	report, err := Release(ctx, source, nil, RetentionPolicy{}, releaseEverything)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Released != 1 || report.Retained != 2 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -93,9 +86,7 @@ func TestRetentionPinnedRootsSurvive(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	source, err := Create(filepath.Join(t.TempDir(), "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	aliased := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "aliased"})
 	pinned := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "pinned"})
@@ -107,9 +98,7 @@ func TestRetentionPinnedRootsSurvive(t *testing.T) {
 	}
 	missing := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "absent"}).Descriptor.ID
 	report, err := Release(ctx, source, nil, RetentionPolicy{Roots: []artifact.ID{pinned.Descriptor.ID, missing}}, releaseEverything)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.PinnedRoots != 2 || report.PinnedMissing != 1 || report.Released != 0 {
 		t.Fatalf("pinned accounting = %+v", report)
 	}
@@ -130,9 +119,7 @@ func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	source, err := Create(filepath.Join(t.TempDir(), "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	content := retentionContent(t, artifact.KindEvidence, map[string]any{"receipt": "physical"})
 	localAlias := StoreLocalAliasPrefix + "fixture/current"

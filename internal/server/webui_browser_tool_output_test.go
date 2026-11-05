@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestWebUIBrowserToolOutputKeepsAPiecesTail holds a tool card to its tail when one piece of output is longer than the
@@ -16,9 +17,7 @@ func TestWebUIBrowserToolOutputKeepsAPiecesTail(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the tool output leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer server.Close()
@@ -40,13 +39,9 @@ func TestWebUIBrowserToolOutputKeepsAPiecesTail(t *testing.T) {
   return true;
 })()`)
 	var text string
-	if err := browser.Evaluate(context.WithoutCancel(ctx), `JSON.stringify(window.measured)`, &text); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(context.WithoutCancel(ctx), `JSON.stringify(window.measured)`, &text))
 	var measured struct{ Exact, Shown, Cleared bool }
-	if err := json.Unmarshal([]byte(text), &measured); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(text), &measured))
 	if !measured.Exact || !measured.Shown || !measured.Cleared {
 		t.Fatalf("one piece longer than the tail then one more: its tail and the next kept whole %t, the notice shown %t, both gone at the end %t", measured.Exact, measured.Shown, measured.Cleared)
 	}

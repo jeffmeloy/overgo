@@ -15,6 +15,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,13 +29,9 @@ import (
 func TestProjectionExecutionE4B(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var paths []string
 	for _, reference := range []string{
@@ -42,27 +39,17 @@ func TestProjectionExecutionE4B(t *testing.T) {
 		"tensor-set:sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e",
 	} {
 		id, err := artifact.ParseID(reference)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		paths = append(paths, path)
 	}
 	candidate, err := modelintake.PrepareProjectionCandidate(t.Context(), store, paths[0], paths[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	language, err := modelintake.PrepareInferenceCandidate(t.Context(), store, paths[0], modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	projection, err := projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
 		runner, err := openExactCandidate(ctx, store, paths[0], language)
 		if err != nil {
@@ -81,27 +68,19 @@ func TestProjectionExecutionE4B(t *testing.T) {
 	}()
 	file := projectionFile{Kind: "image", Path: testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png")}
 	file.Artifact, err = artifact.ParseID("file:sha256:996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := projectionInput{Kind: "image", Files: []projectionFile{file}, Text: []string{"", "What is in this image? One word."}}
 	raw, err := json.Marshal(input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var output strings.Builder
 	promptTokens := 0
 	ids, _, err := runtime.Generate(t.Context(), string(raw), inference.GenerateOptions{MaxNewTokens: 16, Sampler: greedy, DeviceGreedy: true,
 		OnToken:           func(event inference.TokenEvent) error { output.WriteString(event.Piece); return nil },
 		OnPromptEvaluated: func(result inference.PromptEvaluation) { promptTokens = result.Tokens },
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Independent native float32 and bfloat16 SDPA agree on all three values.
 	if output.String() != "Pattern" || promptTokens != 300 || len(ids)-promptTokens != 2 {
 		t.Fatalf("complete image output: %q prompt/generated=%d/%d; want Pattern 300/2", output.String(), promptTokens, len(ids)-promptTokens)

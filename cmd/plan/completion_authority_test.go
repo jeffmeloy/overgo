@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // mustTestRepositoryBinding seeds a repository holding document and returns
@@ -16,21 +17,15 @@ func mustTestRepositoryBinding(t *testing.T, document plan.Plan) (string, string
 	t.Helper()
 	root := initializePlanTestRepository(t, document)
 	headRaw, err := commandInput(root, nil, "git", "rev-parse", "HEAD")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return root, strings.TrimSpace(string(headRaw))
 }
 
 func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o755))
+	testcheck.NoError(t, plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document))
 	for _, arguments := range [][]string{
 		{"init"},
 		{"config", "user.email", "overgo@example.invalid"},
@@ -43,11 +38,7 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 		}
 	}
 	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	return root
 }

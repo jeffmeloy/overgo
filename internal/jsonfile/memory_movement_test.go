@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func measuredAllocatedBytes(operation func()) uint64 {
@@ -32,15 +34,11 @@ func measuredAllocatedBytes(operation func()) uint64 {
 func TestMemoryMovementTraceReduction(t *testing.T) {
 	payload := []byte(`{"note":"` + strings.Repeat("m", 1<<20) + `"}`)
 	document := filepath.Join(t.TempDir(), "note.json")
-	if err := os.WriteFile(document, payload, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(document, payload, 0o644))
 	var decoded struct {
 		Note string `json:"note"`
 	}
-	if err := DecodeStrict(document, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, DecodeStrict(document, &decoded))
 	if len(decoded.Note) != 1<<20 {
 		t.Fatalf("decoded %d bytes", len(decoded.Note))
 	}
@@ -48,9 +46,7 @@ func TestMemoryMovementTraceReduction(t *testing.T) {
 		var inner struct {
 			Note string `json:"note"`
 		}
-		if err := DecodeStrict(document, &inner); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, DecodeStrict(document, &inner))
 	})
 	// The admitted movement is one file read, the decoder's buffered view
 	// with its growth churn, and one decoded result — measured near six

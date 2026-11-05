@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // tifaFile writes a question-answer file of captions with their questions, and
@@ -27,13 +28,9 @@ func tifaFile(t *testing.T, captions int) string {
 		tifaRow{ID: "coco_bad", Caption: "bad", Question: "answer not offered?", Choices: []string{"yes", "no"}, Answer: "maybe"},
 		tifaRow{ID: "coco_bad", Caption: "bad", Question: "one choice?", Choices: []string{"yes"}, Answer: "yes"})
 	data, err := json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "questions.json")
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	return path
 }
 
@@ -46,9 +43,7 @@ func TestTIFAQuestionsAskAboutThePictureOfEachCaption(t *testing.T) {
 	t.Parallel()
 	path := tifaFile(t, 8)
 	items, err := PickTIFA(path, 3, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, _ := PickTIFA(path, 3, 17)
 	if len(items) != 3 || fmt.Sprint(items) != fmt.Sprint(again) {
 		t.Fatalf("the same seed picked %v and then %v", items, again)
@@ -61,9 +56,7 @@ func TestTIFAQuestionsAskAboutThePictureOfEachCaption(t *testing.T) {
 		images[item.ID] = strings.Repeat("a", 64) + imageExtension
 	}
 	suite, err := BuildTIFAQuestions(items, images, "judge-a")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != 6 {
 		t.Fatalf("suite = %d cases judged by %q (%v), want 6 cases judged by judge-a that compile", len(suite.Cases), suite.Judge, err)
 	}
@@ -100,21 +93,15 @@ func TestAJudgedSuiteIsAnsweredOnlyByItsJudge(t *testing.T) {
 		Cases: []GeneratedAnswerCase{{Name: "case", Prompt: "prompt", MaxTokens: 1, Answers: []string{"A"}}},
 	}
 	compiled, err := CompileGeneratedAnswer(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := bindGeneratedAnswer(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	answers := exactGenerator{pieces: []string{"A"}}

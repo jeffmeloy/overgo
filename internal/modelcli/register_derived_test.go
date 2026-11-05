@@ -11,6 +11,7 @@ import (
 	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 	"overgo/internal/servingattempt"
+	"overgo/internal/testcheck"
 )
 
 // TestAServedOpenRegistersWhatItsRecordsNeed: once a file the store has never seen has opened, an attempt on it records,
@@ -21,38 +22,22 @@ func TestAServedOpenRegistersWhatItsRecordsNeed(t *testing.T) {
 	storeRoot, path := filepath.Join(root, "store"), filepath.Join(root, "model.gguf")
 	writeServingFixture(t, path, 300)
 	created, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := created.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, created.Close())
 	reader, err := overgodb.OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded, err := modelrecipe.ResolveClaimedGGUF(t.Context(), reader, path, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	derivation, derived := loaded.Derived()
-	if err := loaded.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := reader.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, loaded.Close())
+	testcheck.NoError(t, reader.Close())
 	if !derived {
 		t.Fatal("a file the store has never seen was not derived")
 	}
-	if err := registerDerived(t.Context(), storeRoot, derivation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, registerDerived(t.Context(), storeRoot, derivation))
 
 	store, err := overgodb.Open(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := servingattempt.RecordWholeOutput(t.Context(), store, servingattempt.WholeOutput{
 		Model: derivation.Inventory.Manifest.ID, Recipe: derivation.Definition.ID, Task: recipe.TaskInference,
@@ -65,18 +50,14 @@ func TestAServedOpenRegistersWhatItsRecordsNeed(t *testing.T) {
 		t.Fatalf("registering a run verified it: %+v, %v", state, err)
 	}
 	canonical, err := pathidentity.Canonical(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memo := discovery.LoadMemo(t.Context(), store)
 	claimed, size, remembered := memo.Claim(canonical)
 	if !remembered || claimed != derivation.Inventory.Components[0].ID || size != derivation.Inventory.Components[0].Size {
 		t.Fatalf("claim = %v, %d, %t, want the open's identity", claimed, size, remembered)
 	}
 	again, err := modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, memo.Claim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer again.Close()
 	if identity, err := again.Identity(); err != nil || identity.Model != derivation.Inventory.Manifest.ID {
 		t.Fatalf("the next open resolved %+v, %v", identity, err)

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -120,16 +121,12 @@ func TestProductionEmbeddingInjection(t *testing.T) {
 	runtime, err := OpenProductionComposition(
 		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := runtime.Forward(
 		t.Context(),
 		[]tokenizer.TokenID{1, 2}, []tokenizer.TokenID{3, 4},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{10, 20, 30, 10, 20, 30}
 	if !slices.Equal(result.Data, want) || len(target.overrides) != len(want)/len(bias.Data) ||
 		!slices.Equal(source.layers, []int32{int32(*authority.SourceContract.Producer.Layer)}) ||
@@ -171,9 +168,7 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	sourceTokens := []tokenizer.TokenID{1, 2}
 	targetTokens := []tokenizer.TokenID{3, 4}
 	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repeated, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil || repeated != identity {
 		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, identity, err)
@@ -240,18 +235,14 @@ func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return runtime, source
 }
 
 func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store, composition.CompositionAuthority) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	ctx := t.Context()
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-source-model")
@@ -274,9 +265,7 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		MinimumHeldOutGain: 0.05, MinimumSourceDependence: 0.1, MaximumRegression: 0.02,
 		MaximumSeedSpread: 0.05, MaximumLatencyIncrease: 0.25, MaximumDeviceByteIncrease: 64,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceContract.Producer.Definition, targetContract.Producer.Definition,
 		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
@@ -296,17 +285,13 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		},
 		Weights: weights, WeightInventory: inventory,
 	}, sourceContract, targetContract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution, err := (modelrecipe.RepresentationBridgeCompiler{
 		SourcePlacement: recipe.PlacementDevice, TargetPlacement: recipe.PlacementDevice,
 		SourceResidency: recipe.ResidencyDeviceF32, TargetResidency: recipe.ResidencyDeviceF32,
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}).Definition(sourceModel, targetModel, sourceContract.ID, targetContract.ID, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotion, err := (composition.RepresentationBridgePromoter{}).Evaluate(promotionPolicy, composition.RepresentationBridgePromotion{
 		Bridge: weights, SourceModel: sourceModel, TargetModel: targetModel,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
@@ -316,34 +301,26 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85, BaselineLatencyNS: 100, ComposedLatencyNS: 112, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compositionRecipe, err := composition.NewCompositionRecipe(composition.CompositionRecipe{
 		SourceModel: sourceModel, TargetModel: targetModel, Task: recipe.TaskGeneration,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
 		BridgeDefinition: bridge.ID, BridgeWeights: weights, ExecutionRecipe: execution.ID,
 		TrainingPolicy: trainingPolicy, PromotionPolicy: promotionPolicy.ID, Promotion: promotion.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority := composition.CompositionAuthority{
 		SourceContract: sourceContract, TargetContract: targetContract, Bridge: bridge,
 		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: compositionRecipe,
 	}
 	batch, err := authority.Batch("fixture/production-composition/authority")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	if activate {
 		activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/production-composition/activate", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, activation); err != nil {
 			t.Fatal(err)
 		}
@@ -382,21 +359,15 @@ func inferenceBridgeContract(
 		},
 	}
 	content, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := representation.ParseContract(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content, parsed
 }
 
 func inferenceBridgeValue(t *testing.T, shape tensor.Shape, data []float32) reference.Value {
 	t.Helper()
 	value, err := reference.NewValue(shape, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }

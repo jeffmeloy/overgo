@@ -11,6 +11,7 @@ import (
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func newSteeringCandidateFixture(t *testing.T, options steeringCandidateOptions)
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	fail := func(err error) {
 		t.Helper()
@@ -291,15 +290,11 @@ func newSteeringCandidateFixture(t *testing.T, options steeringCandidateOptions)
 func TestRecipeBoundToolCallPropensityControl(t *testing.T) {
 	ctx := t.Context()
 	fixture, err := newSteeringCandidateFixture(t, steeringCandidateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := CompileAdmittedCandidate(
 		ctx, fixture.store, fixture.candidate.ID(), fixture.admission.ID, SteeringCandidatePlugin{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(compiled.Components) != 1 || len(compiled.Ablations) != 1 {
 		t.Fatalf("compiled shape = %d components, %d ablations", len(compiled.Components), len(compiled.Ablations))
 	}
@@ -312,9 +307,7 @@ func TestRecipeBoundToolCallPropensityControl(t *testing.T) {
 	found := false
 	for _, content := range compiled.Contents {
 		if content.Descriptor.ID == plan.Realization {
-			if err := json.Unmarshal(content.Data, &steered); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(content.Data, &steered))
 			if strings.Contains(string(content.Data), `"alpha"`) {
 				t.Fatalf("realization exposes an alpha knob: %s", content.Data)
 			}
@@ -343,9 +336,7 @@ func TestRecipeBoundToolCallPropensityControl(t *testing.T) {
 func TestToolBudgetProposalAdmission(t *testing.T) {
 	ctx := t.Context()
 	fixture, err := newSteeringCandidateFixture(t, steeringCandidateOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replayed, err := runrecord.RequireReplayedCandidateAdmission(
 		ctx, fixture.store, fixture.admission.ID, fixture.candidate, CandidateAdmissionAdapters()...,
 	)

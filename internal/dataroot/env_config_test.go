@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestEnvBaseHonoursItsOwnConfig pins the base directory named by the
@@ -13,14 +15,10 @@ import (
 func TestEnvBaseHonoursItsOwnConfig(t *testing.T) {
 	base := t.TempDir()
 	models := filepath.Join(t.TempDir(), "vendor-models")
-	if err := os.WriteFile(filepath.Join(base, ConfigFile), []byte(`{"models": "`+filepath.ToSlash(models)+`"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(base, ConfigFile), []byte(`{"models": "`+filepath.ToSlash(models)+`"}`), 0o600))
 	t.Setenv(Env, base)
 	roots, err := Resolve(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if roots.Source != Env || roots.Models != models || roots.Store != filepath.Join(base, "overgodb-store") || roots.Checkpoints != filepath.Join(base, "checkpoints") {
 		t.Fatalf("roots = %+v", roots)
 	}

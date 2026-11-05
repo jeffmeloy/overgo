@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestQuantileBiasChangesSelectionButNotUnbiasedCombineWeights(t *testing.T) 
 	}
 
 	biased, unbiasedScores, err := routeTopKWithQuantileController(x, router, 2, 1, 2, policy, stratum, &controller)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if biased.indices[0] != 1 || biased.indices[1] != 0 {
 		t.Fatalf("next-step bias did not change only the expected selection: %v", biased.indices)
 	}

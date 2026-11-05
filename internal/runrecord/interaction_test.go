@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -13,9 +14,7 @@ const interactionTestNode recipe.NodeID = "respond"
 
 func TestInteractionTerminalReservation(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	value := Interaction{Response: "reserved", Node: interactionTestNode,
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "reserved-recipe"),
@@ -25,9 +24,7 @@ func TestInteractionTerminalReservation(t *testing.T) {
 	}
 	prompt := []InteractionMessage{{Role: "user", Content: "original prompt"}}
 	reserved, err := PublishInteraction(t.Context(), store, value, prompt, OutcomeInconclusive)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PublishInteraction(t.Context(), store, value,
 		[]InteractionMessage{{Role: "user", Content: "another prompt"}, {Role: "assistant", Content: "replacement"}}, OutcomeSucceeded); err == nil {
 		t.Fatal("a different prompt took over the reserved response")
@@ -37,9 +34,7 @@ func TestInteractionTerminalReservation(t *testing.T) {
 		t.Fatal("invalid outcome was published")
 	}
 	final, err := PublishInteraction(t.Context(), store, value, messages, OutcomeCancelled)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if final.ID == reserved.ID {
 		t.Fatal("terminal publication mutated the initial record")
 	}
@@ -65,9 +60,7 @@ func TestInteractionIdentity(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-identity-model")
 	messages := []InteractionMessage{{Role: "user", Content: "hello"}}
 	first, err := newInteractionTranscript(messages)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := newInteractionTranscript(messages)
 	if err != nil || first.ID != second.ID {
 		t.Fatalf("transcript identity = (%s, %s, %v)", first.ID, second.ID, err)
@@ -83,9 +76,7 @@ func TestInteractionIdentity(t *testing.T) {
 
 func TestInteractionLineage(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-model")
@@ -98,9 +89,7 @@ func TestInteractionLineage(t *testing.T) {
 	published, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_lineage", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Parent: parentID,
 	}, []InteractionMessage{{Role: "assistant", Content: "answer"}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents, err := store.Parents(t.Context(), published.ID)
 	if err != nil || len(parents) != 3 {
 		t.Fatalf("interaction parents = (%v, %v)", parents, err)
@@ -113,9 +102,7 @@ func TestInteractionLineage(t *testing.T) {
 
 func TestCurrentTurnProjection(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-projection-model")
 	const (
@@ -126,26 +113,18 @@ func TestCurrentTurnProjection(t *testing.T) {
 		ID: moduleID, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Outputs: []recipe.Port{{Name: portName, Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 		[]recipe.Node{{ID: interactionTestNode, Module: moduleID, Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: portName, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: interactionTestNode, Port: portName}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := recipe.CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scope, err := program.InteractionScope(interactionTestNode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "interaction/projection/recipe", Artifacts: []artifact.Descriptor{{ID: definition.ID}},
 	}); err != nil {
@@ -155,16 +134,12 @@ func TestCurrentTurnProjection(t *testing.T) {
 	root, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_root", Recipe: definition.ID, Model: modelID, Node: interactionTestNode,
 	}, rootMessages, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	turnMessages := []InteractionMessage{{Role: "user", Content: "child"}, {Role: "assistant", Content: "second"}}
 	child, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_child", Recipe: definition.ID, Model: modelID, Node: interactionTestNode, Parent: root.ID,
 	}, turnMessages, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stored, err := RequireInteractionTranscript(t.Context(), store, child.Message)
 	if err != nil || len(stored.Messages) != len(turnMessages) {
 		t.Fatalf("stored current turn = (%+v, %v)", stored.Messages, err)

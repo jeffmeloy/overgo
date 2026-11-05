@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestProjectionPublicationIsAtomic holds publication to its contract:
@@ -16,9 +17,7 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(ctx, base); err != nil {
@@ -27,9 +26,7 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 
 	payload := []byte("atomic-publication payload")
 	id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "atomic/commit",
@@ -61,23 +58,17 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 	// A commit a projection refuses becomes durable nowhere: drive the
 	// coordinator with a content that has no bound locator.
 	journalBefore, err := os.Stat(store.log.file.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	digestBefore := catalogDigest(t, store.state)
 	refusedPayload := []byte("refused content")
 	refusedID, err := artifact.IdentifyBytes(artifact.KindRun, refusedPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	refused := artifact.Batch{Key: "atomic/refused", Artifacts: []artifact.Descriptor{{
 		ID: refusedID, Size: uint64(len(refusedPayload)), MediaType: "text/plain",
 	}}}
 	refused.Contents = []artifact.Content{{Descriptor: refused.Artifacts[0], Data: refusedPayload}}
 	normalized, payloadHash, err := encodeBatch(refused)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	delta := store.state.delta(normalized)
 	if err := store.state.acceptAll(delta, map[artifact.ID]contentLocator{}, store.sequence+1); err == nil {
 		t.Fatal("projection accepted a content with no durable locator")

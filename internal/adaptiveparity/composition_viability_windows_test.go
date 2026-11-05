@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -57,9 +58,7 @@ func TestComponentCompositionViability(t *testing.T) {
 		},
 		HeldOut: tokens[2*compositionWindow : 3*compositionWindow],
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Outcomes) != len(compositionSeeds) {
 		t.Fatalf("outcomes = %d, want one per seed", len(result.Outcomes))
 	}

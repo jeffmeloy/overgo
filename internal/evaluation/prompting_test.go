@@ -1,6 +1,10 @@
 package evaluation
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestPromptingIsAPlanAuthority(t *testing.T) {
 	t.Parallel()
@@ -15,26 +19,18 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 		Cases: []MultipleChoiceCase{{Name: "case", Prompt: "Q: one\nA:", Candidates: []string{" A", " B"}, Answer: 1}},
 	}
 	compiled, err := CompileMultipleChoice(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rawPlan, err := BindMultipleChoice(compiled, raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	templatedPlan, err := BindMultipleChoice(compiled, templated)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if rawPlan.Identity() == templatedPlan.Identity() || rawPlan.Execution() == templatedPlan.Execution() {
 		t.Fatal("prompting protocol did not change the plan identity")
 	}
 	// Hosted chat: its own execution policy and scorer authority (the
 	// opener rides the user message), distinct from the templated plan.
 	hostedPlan, err := BindMultipleChoice(compiled, hosted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if hostedPlan.Identity() == templatedPlan.Identity() || hostedPlan.Execution() == templatedPlan.Execution() || hostedPlan.Identity() == rawPlan.Identity() {
 		t.Fatal("hosted prompting did not change the plan identity")
 	}

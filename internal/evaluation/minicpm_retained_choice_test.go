@@ -11,6 +11,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,29 +20,21 @@ import (
 func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(value string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	model := parse("model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32")
 	// The conversion's activation is retired since MiniCPM5-1B is served from its own files
 	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.
 	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if served, found := activated.PrimaryDependency(recipe.DependencyModel); !found || served != model {
 		t.Fatal("the recipe is not MiniCPM5's conversion's")
 	}
@@ -61,9 +54,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 	} {
 		t.Run(cell.name, func(t *testing.T) {
 			value, err := RequireEvaluationEvidence(t.Context(), store, parse(cell.evidence))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if value.Recipe != activated.ID || value.ModelDefinition != definition || value.CodeCommit != "f278ca230121df1d0bedf8fc58bf7881a9ebc475" {
 				t.Fatal("retained model, recipe or producer differs")
 			}
@@ -77,9 +68,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 				t.Fatal("generated evidence replaced by a different execution protocol")
 			}
 			compiled, err := CompileMultipleChoice(suite)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			bound, err := BindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: value.ModelDefinition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution})
 			if err != nil || bound.Identity() != value.Plan || compiled.identity != body.CaseProfile {
 				t.Fatalf("retained generated protocol no longer binds exactly: %v", err)
@@ -101,9 +90,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 			if report.Plan != value.Plan || report.Dataset != value.Dataset || len(report.Groups) != cell.groups || len(suite.Cases) != cell.cases {
 				t.Fatalf("report authority or denominator differs: cases=%d groups=%d", len(suite.Cases), len(report.Groups))
 			}
-			if err := checkRetainedGeneratedChoices(suite.Cases, report, cell.correct); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, checkRetainedGeneratedChoices(suite.Cases, report, cell.correct))
 			metric := slices.IndexFunc(value.Metrics, func(metric runrecord.Metric) bool { return metric.Name == "accuracy" })
 			if metric < 0 || value.Metrics[metric].Value != report.Accuracy {
 				t.Fatal("retained aggregate differs from the scored answers")

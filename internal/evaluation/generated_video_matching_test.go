@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom holds the suite to
@@ -18,9 +20,7 @@ func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 	// second the other two and one caption of another video.
 	spec := captionFixture(t, 6, 6)
 	items, err := PickVideoCaptions(spec.Captions, 5, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, _ := PickVideoCaptions(spec.Captions, 5, 17)
 	if len(items) != 5 || fmt.Sprint(items) != fmt.Sprint(again) {
 		t.Fatalf("the same seed picked %v and then %v", items, again)
@@ -62,9 +62,7 @@ func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 		}
 	}
 	suite, err := BuildGeneratedVideoMatching(items, videos, "judge-a")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != 5*generatedVideoRounds {
 		t.Fatalf("suite = %d cases judged by %q (%v), want %d judged by judge-a that compile", len(suite.Cases), suite.Judge, err, 5*generatedVideoRounds)
 	}

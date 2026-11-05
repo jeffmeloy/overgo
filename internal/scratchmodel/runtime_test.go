@@ -5,19 +5,16 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
 func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	oracle := loadOracle(t)
 	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := construction.TrainShared(oracle.Steps, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Losses) != len(oracle.LossHistory) {
 		t.Fatalf("shared trajectory length=%d want=%d", len(result.Losses), len(oracle.LossHistory))
 	}
@@ -31,32 +28,20 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	}
 
 	exact, err := construction.Probe(oracle.Train[:1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights, gradients := make([]float32, len(construction.weights)), make([]float32, len(construction.weights))
 	for index, value := range construction.weights {
 		weights[index] = float32(value)
 	}
 	model, err := construction.BindMADTransformer(weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gradient, err := construction.BindMADTransformer(gradients)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokens, err := construction.Tokens(oracle.Train[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loss, trace, err := hostmath.MADTransformerForward(model, tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := hostmath.MADTransformerBackward(model, gradient, tokens, trace); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, hostmath.MADTransformerBackward(model, gradient, tokens, trace))
 	if math.Abs(loss-exact.Loss) > 1e-5 {
 		t.Fatalf("shared probe loss=%.9f oracle=%.9f", loss, exact.Loss)
 	}

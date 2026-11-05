@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -27,21 +28,15 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// The binding file names its own base, the historical census held below
 	// by its producer and counts, so no identity is typed here or by whoever
 	// accepts a new census into the file.
 	var binding acceptedCensus
-	if err := jsonfile.DecodeStrict("testdata/accepted_census.json", &binding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict("testdata/accepted_census.json", &binding))
 	id := binding.Base
 	// The census binds the producer's store lineage: its document and the
 	// checkpoint it names exist only there. A lane store that never carried
@@ -52,9 +47,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 		t.Skip("integration: the bound producer census document is absent from this store; only the producer's store lineage carries it")
 	}
 	value, err := capabilityCensusCodec.Require(t.Context(), store, id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if value.ProducerCommit != "5d55e6108519e7abf35776892b0043cad030027f" || len(value.Models) != 43 || len(value.Verifications) != 51 {
 		t.Fatal("accepted producer, registered denominator or historical record set differs")
 	}
@@ -91,9 +84,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 				continue
 			}
 			domains, declared, err := modelartifact.EvalDomains(t.Context(), store, model.Model)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !declared || slices.Contains(domains, evaluation.DomainText) {
 				text++
 			} else if slices.Equal(domains, []string{"dna"}) {
@@ -107,16 +98,10 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 		t.Fatalf("census differs: tasks=%v active=%d unavailable=%d stale=%d text=%d DNA=%d", tasks, activeModels, missing, stale, text, dna)
 	}
 	t.Logf("census=%s: 43 identities, 26 activated identities, 28 task/recipe pairs in 10 task kinds, 6 unavailable inactive identities, 0 stale activations, 51 historical records; 8 text + 1 DNA inference activations. No model execution, quality promotion or historical evidence reuse was asserted.", id)
-	if err := checkCensusDisposition(t.Context(), store, binding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkCensusDisposition(t.Context(), store, binding))
 	current, err := capabilityCensusCodec.Require(t.Context(), store, binding.Current)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkCapabilityCensus(t.Context(), store, current, catalogLimit); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkCapabilityCensus(t.Context(), store, current, catalogLimit))
 	for _, invalid := range []acceptedCensus{
 		{Base: id, Current: id, Finding: binding.Finding, Disposition: binding.Disposition},
 		{Base: id, Current: binding.Current, Finding: binding.Finding, Disposition: binding.Finding},

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestHFCacheBenchmarkCatalog pins the cache-scan import: a
@@ -19,19 +20,13 @@ import (
 func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	t.Parallel()
 	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	root := t.TempDir()
 	place := func(parts ...string) {
 		t.Helper()
 		path := filepath.Join(append([]string{root}, parts...)...)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, fixture, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, fixture, 0o644))
 	}
 	place("cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
 	place("cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "cache-deadbeef.arrow")
@@ -39,9 +34,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	place("unrelated___scratch", "default", "0.0.0", "cc33", "scratch-test.arrow")
 
 	seeds, err := deriveHFCacheBenchmarks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(seeds) != 2 {
 		t.Fatalf("seeds = %+v, want mmlu test and musr murder_mysteries only", seeds)
 	}
@@ -52,9 +45,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// The musr seed binds fields the mmlu fixture bytes do not carry;
 	// importing it must refuse rather than fabricate, so the catalog
@@ -63,13 +54,9 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	if _, _, err := CatalogHFCacheBenchmarks(ctx, store, root); err == nil {
 		t.Fatal("mismatched fields imported")
 	}
-	if err := os.RemoveAll(filepath.Join(root, "TAUR-Lab___mu_sr")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, "TAUR-Lab___mu_sr")))
 	catalog, count, err := CatalogHFCacheBenchmarks(ctx, store, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if count != 1 || !catalog.Valid() {
 		t.Fatalf("catalog = (%s, %d)", catalog, count)
 	}

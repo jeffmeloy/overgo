@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 // The tiny E4B-shaped decoder the tests train: the real model's layer kinds
@@ -78,9 +79,7 @@ func tinyModel(t *testing.T, seed int64) *Model {
 		ids[index] = rng.Intn(tinyVocab)
 	}
 	m, err := newModel(shape, head, perLayerRows, ids)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, group := range m.plan.Groups() {
 		values := m.weights[group.Start:group.End]
 		if group.Rows == 1 {

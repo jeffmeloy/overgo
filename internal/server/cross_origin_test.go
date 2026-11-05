@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 func TestCrossOriginMutationProtection(t *testing.T) {
@@ -88,14 +89,10 @@ func TestCrossOriginMutationProtection(t *testing.T) {
 		defer server.Close()
 		for _, host := range []string{"attacker.invalid", "localhost"} {
 			request, err := http.NewRequest(http.MethodGet, server.URL+"/v1/models", nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			request.Host = host
 			response, err := server.Client().Do(request)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			response.Body.Close()
 			want := http.StatusForbidden
 			if host == "localhost" {

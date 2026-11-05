@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // hostMHA computes multi-head causal GQA attention in float64, returning the
@@ -55,9 +56,7 @@ func hostMHA(q, k, v []float32, seq, nh, nkv, hd int, scale float64) (p []float3
 func TestMultiHeadAttentionBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 5, 4, 2, 4 // GQA: 4 query heads, 2 KV heads
@@ -70,9 +69,7 @@ func TestMultiHeadAttentionBackwardGradCheck(t *testing.T) {
 
 	p, _ := hostMHA(q, k, v, seq, nh, nkv, hd, scale)
 	dQ, dK, dV, err := MultiHeadAttentionBackward(worker, q, k, v, p, dOut, seq, nh, nkv, hd, scale)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		_, out := hostMHA(q, k, v, seq, nh, nkv, hd, scale)

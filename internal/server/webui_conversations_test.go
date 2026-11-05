@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageConversations pins durable conversations (professional GUI
@@ -27,27 +29,21 @@ func TestFrontPageConversations(t *testing.T) {
 		t.Fatalf("first response status = %d body=%s", first.Code, first.Body.String())
 	}
 	var initial responsesResponse
-	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(first.Body.Bytes(), &initial))
 	second := serveTestRequest(handler, http.MethodPost, "/v1/responses",
 		`{"input":"next","max_output_tokens":1,"previous_response_id":"`+initial.ID+`"}`)
 	if second.Code != http.StatusOK {
 		t.Fatalf("second response status = %d body=%s", second.Code, second.Body.String())
 	}
 	var continued responsesResponse
-	if err := json.Unmarshal(second.Body.Bytes(), &continued); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(second.Body.Bytes(), &continued))
 
 	listed := serveTestRequest(handler, http.MethodGet, "/interactions", "")
 	if listed.Code != http.StatusOK {
 		t.Fatalf("list status = %d body=%s", listed.Code, listed.Body.String())
 	}
 	var list conversationListResponse
-	if err := json.Unmarshal(listed.Body.Bytes(), &list); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(listed.Body.Bytes(), &list))
 	if len(list.Conversations) != 1 || list.Conversations[0].Root != initial.ID || list.Conversations[0].Latest != continued.ID ||
 		list.Conversations[0].Turns != 2 || list.Conversations[0].Title != "hello there world" {
 		t.Fatalf("conversations = %+v", list.Conversations)
@@ -58,9 +54,7 @@ func TestFrontPageConversations(t *testing.T) {
 		t.Fatalf("messages status = %d body=%s", messages.Code, messages.Body.String())
 	}
 	var chain conversationMessagesResponse
-	if err := json.Unmarshal(messages.Body.Bytes(), &chain); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(messages.Body.Bytes(), &chain))
 	if chain.Root != initial.ID || len(chain.Messages) != 4 || chain.Messages[0].Content != "hello there world" || chain.Messages[2].Content != "next" {
 		t.Fatalf("chain = %+v", chain)
 	}
@@ -70,9 +64,7 @@ func TestFrontPageConversations(t *testing.T) {
 		t.Fatalf("label status = %d body=%s", labelled.Code, labelled.Body.String())
 	}
 	relisted := serveTestRequest(handler, http.MethodGet, "/interactions", "")
-	if err := json.Unmarshal(relisted.Body.Bytes(), &list); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(relisted.Body.Bytes(), &list))
 	if len(list.Conversations) != 1 || list.Conversations[0].Title != "Greeting" || !list.Conversations[0].Archived {
 		t.Fatalf("labelled conversations = %+v", list.Conversations)
 	}

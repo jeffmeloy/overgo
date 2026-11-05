@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
+	"overgo/internal/testcheck"
 )
 
 func TestRepositoryContract(t *testing.T) {
@@ -12,9 +13,7 @@ func TestRepositoryContract(t *testing.T) {
 	repositorytest.Run(t, func(t *testing.T) artifact.Repository {
 		t.Helper()
 		store, err := Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return store
 	})
 }

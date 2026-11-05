@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -37,24 +38,16 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 	t.Run("model-build", func(t *testing.T) {
 		directory := t.TempDir()
 		dataset := filepath.Join(directory, "corpus.json")
-		if err := os.WriteFile(dataset, []byte(`["abcd","bcda","cdab","dabc"]`), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(dataset, []byte(`["abcd","bcda","cdab","dabc"]`), 0o600))
 		repository := filepath.Join(directory, "store")
 		store, err := overgodb.Create(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 		executable, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		stages := len(workflowruntime.ModelBuildStages())
 		for process := 1; process <= 2; process++ {
 			command := exec.CommandContext(t.Context(), executable, "-repo", repository, "-dataset", dataset, "-steps", "1")
@@ -76,9 +69,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 func completedStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	receipts := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: runrecord.StageReceiptSchema}},

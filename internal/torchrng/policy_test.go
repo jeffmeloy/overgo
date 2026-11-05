@@ -1,6 +1,10 @@
 package torchrng
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // TestTorchRNGPolicyGeometry pins the launch + Philox counter geometry for the
 // golden 17/13 element fills against the adaptive_new reference math (device
@@ -43,9 +47,7 @@ func TestTorchRNGPolicyGeometry(t *testing.T) {
 func TestTorchRNGPolicyGridCap(t *testing.T) {
 	const sm, threads = 128, 1536
 	grid, _, counterOffset, err := NullaryPolicy(10_000_000, sm, threads)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	maxGrid := sm * (threads / Block)
 	if grid != maxGrid {
 		t.Fatalf("grid=%d want capped %d", grid, maxGrid)
@@ -77,9 +79,7 @@ func TestTorchRNGReserveAdvancesOffset(t *testing.T) {
 		t.Fatalf("fresh stream offset=%d want 0", s.Offset())
 	}
 	grid, drawAt, err := s.reserve(17, 128, 1536)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if grid != 1 || drawAt != 0 {
 		t.Fatalf("first reserve grid=%d drawAt=%d want 1,0", grid, drawAt)
 	}
@@ -87,9 +87,7 @@ func TestTorchRNGReserveAdvancesOffset(t *testing.T) {
 		t.Fatalf("offset after first=%d want 4", s.Offset())
 	}
 	_, drawAt2, err := s.reserve(13, 128, 1536)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if drawAt2 != 4 {
 		t.Fatalf("second drawAt=%d want 4 (continues the sequence)", drawAt2)
 	}

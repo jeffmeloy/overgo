@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -40,9 +41,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 	repository, workspace := t.TempDir(), t.TempDir()
 	t.Chdir(workspace)
 	const notes, session = "notes.txt", "delegated-1"
-	if err := os.WriteFile(filepath.Join(workspace, notes), []byte("before"), notesMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(workspace, notes), []byte("before"), notesMode))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		var call struct {
 			Path string `json:"path"`
@@ -84,23 +83,17 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 			Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/host"}},
 	} {
 		manual, err := agenttool.NewManual(draft)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		manuals, granted = append(manuals, manual), append(granted, manual.ID)
 	}
 	snapshot, err := agenttool.NewCatalogSnapshot(manuals)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: "worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "delegated prompt"),
 		ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "delegated model recipe"),
 		ToolManuals: granted, Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "delegated policy")},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	task, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Edit the notes file.", Scope: []string{notes},
 		AllowedEffects: []string{"external:mutation", "workspace:mutation"},
@@ -111,39 +104,27 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "delegated budget"),
 		PauseConditions: []string{"drift"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	delegation, err := recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
 		Task: task.ID, Worker: worker.ID,
 		Grant:     recipe.AgentCapabilityGrant{Manuals: granted, AllowedEffects: []string{"inspection", "mutation"}},
 		Scheduler: recipe.AgentSchedulerPolicy{MaxSteps: delegatedSteps, MaxParallel: 1},
 		Catalog:   snapshot.ID, Model: testutil.ArtifactID(t, artifact.KindModel, "delegated model"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var contents []artifact.Content
 	for _, encode := range []func() (artifact.Content, error){snapshot.ArtifactContent, worker.ArtifactContent, task.Content, delegation.Content} {
 		content, err := encode()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contents = append(contents, content)
 	}
 	batch, err := artifact.NewDocumentBatch("delegated-loop-fixture", contents, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, publishErr := agenttool.PublishManualCatalog(t.Context(), store, manuals)
 	_, commitErr := artifact.CommitBatch(t.Context(), store, batch)
-	if err := errors.Join(publishErr, commitErr, store.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(publishErr, commitErr, store.Close()))
 
 	command := func(args ...string) (string, error) {
 		var out bytes.Buffer
@@ -175,9 +156,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 	}
 
 	store, err = overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	interaction, found, err := runrecord.ResolveInteraction(t.Context(), store, session+"-step-2")
 	if err := errors.Join(err, store.Close()); err != nil || !found || len(interaction.Tools) != 1 {
 		t.Fatalf("mutation step = %+v, found=%t, %v, want one checkpoint on its interaction", interaction, found, err)
@@ -207,9 +186,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 func TestAgentLoopProposesGatedStep(t *testing.T) {
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "cli-loop-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "cli-loop-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -226,15 +203,11 @@ func TestAgentLoopProposesGatedStep(t *testing.T) {
 		Effect:    agenttool.EffectInspection,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{inspect}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	var out bytes.Buffer
 	if err := run([]string{
 		"-repo", repository, "-session", "cli-1", "-tool", "probe.read",

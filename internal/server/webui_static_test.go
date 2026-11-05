@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWebUIServesEmbeddedAssets(t *testing.T) {
@@ -45,9 +47,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	var expected struct {
 		InputTokens int `json:"input_tokens"`
 	}
-	if err := json.Unmarshal(count.Body.Bytes(), &expected); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(count.Body.Bytes(), &expected))
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/chat/completions",
@@ -64,9 +64,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 			continue
 		}
 		var chunk chatStreamResponse
-		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &chunk); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &chunk))
 		if chunk.Usage != nil {
 			terminal = chunk
 		}
@@ -98,9 +96,7 @@ func TestWebUIUnknownPathReturns404(t *testing.T) {
 func TestWebUIAssetsPublicWhenAPIKeyConfigured(t *testing.T) {
 	t.Parallel()
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: "secret"}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	asset := serveTestRequest(handler, http.MethodGet, "/", "")
 	if asset.Code != http.StatusOK {
 		t.Fatalf("GET / with key configured = %d, want 200 (assets public)", asset.Code)

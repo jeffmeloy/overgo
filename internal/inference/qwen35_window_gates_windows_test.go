@@ -7,6 +7,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // TestQwen35GatedDeltaLayersHoldTheWindow holds the qwen35 family's gated-delta layers to Strata's verify window: a
@@ -41,9 +42,7 @@ func TestQwen35GatedDeltaLayersHoldTheWindow(t *testing.T) {
 				t.Errorf("%s: gated-delta layer %d holds the window %t, want %t", c.name, layer, holds, c.holds)
 			}
 		}
-		if err := runner.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.Close())
 		if recurrent == 0 {
 			t.Fatalf("%s holds no gated-delta layer", c.name)
 		}

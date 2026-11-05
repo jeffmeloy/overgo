@@ -18,6 +18,7 @@ import (
 	"overgo/internal/processlock"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -27,14 +28,10 @@ func TestWorkbenchTransactionWriter(t *testing.T) {
 	t.Run("catalog observes activation and retirement", testWorkbenchCatalogRefresh)
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	external, err := overgodb.Create(root)
 	if err != nil {
@@ -43,18 +40,14 @@ func TestWorkbenchTransactionWriter(t *testing.T) {
 	defer external.Close()
 	descriptor := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "external gate publication")}
 	head, err := artifact.CommitBatch(t.Context(), external, artifact.Batch{Key: "external/gate", Artifacts: []artifact.Descriptor{descriptor}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, sequence := external.Head()
 	response := serveTestRequest(handler, http.MethodGet, "/store/deltas", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("browse status=%d body=%s", response.Code, response.Body)
 	}
 	var view storeDeltasResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &view); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &view))
 	if view.Head != head.String() || view.Sequence != sequence {
 		t.Fatalf("serving view is stale: %s@%d want %s@%d", view.Head, view.Sequence, head, sequence)
 	}
@@ -78,13 +71,9 @@ func TestWorkbenchEvidenceProcess(t *testing.T) {
 		return
 	}
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoder, encoder := json.NewDecoder(os.Stdin), json.NewEncoder(os.Stdout)
-	if err := encoder.Encode(workbenchWriterReply{State: "ready"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, encoder.Encode(workbenchWriterReply{State: "ready"}))
 	var held *processlock.Lock
 	for {
 		var message workbenchWriterMessage
@@ -95,54 +84,36 @@ func TestWorkbenchEvidenceProcess(t *testing.T) {
 		}
 		if message.Action == "hold" {
 			held, err = processlock.AcquireContext(t.Context(), root+".lock", 0o644)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := encoder.Encode(workbenchWriterReply{State: "held"}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, encoder.Encode(workbenchWriterReply{State: "held"}))
 			continue
 		}
 		if held != nil {
-			if err := held.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, held.Close())
 			held = nil
 		}
 		task := testutil.ArtifactID(t, artifact.KindRecipe, "workbench gate invocation")
 		source := testutil.ArtifactID(t, artifact.KindEvidence, message.Key)
 		obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{Task: task, Name: "go-test", Scope: "complete:workbench", Sources: []artifact.ID{source}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := obligation.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		head, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "gate/obligation/" + obligation.ID.String(), Artifacts: []artifact.Descriptor{{ID: task}, {ID: source}}, Contents: []artifact.Content{content}, Lineage: obligation.Lineage()})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, sequence := store.Head()
-		if err := encoder.Encode(workbenchWriterReply{State: "published", Head: head.String(), Sequence: sequence, Obligation: obligation.ID}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, encoder.Encode(workbenchWriterReply{State: "published", Head: head.String(), Sequence: sequence, Obligation: obligation.ID}))
 	}
 	if held != nil {
 		held.Close()
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	os.Exit(0)
 }
 
 func testWorkbenchEvidencePublication(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var wanted artifact.ID
 	registered := 0
@@ -161,9 +132,7 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 		},
 	}
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, OvergoDBPath: root, LibraryIntake: intake}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	front := httptest.NewServer(handler)
 	defer front.Close()
@@ -171,17 +140,11 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkbenchEvidenceProcess$", "-test.timeout=45s")
 	child.Env = append(os.Environ(), "OVERGO_TEST_WORKBENCH_REPOSITORY="+root)
 	input, err := child.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	output, err := child.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	child.Stderr = os.Stderr
-	if err := child.Start(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, child.Start())
 	t.Cleanup(func() { input.Close(); child.Process.Kill(); child.Wait() })
 	encoder, decoder := json.NewEncoder(input), json.NewDecoder(output)
 	read := func(state string) workbenchWriterReply {
@@ -192,21 +155,15 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 		return reply
 	}
 	send := func(action, key string) {
-		if err := encoder.Encode(workbenchWriterMessage{Action: action, Key: key}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, encoder.Encode(workbenchWriterMessage{Action: action, Key: key}))
 	}
 	read("ready")
 	send("hold", "")
 	read("held")
 	health, err := http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/health", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	response, err := front.Client().Do(health)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("health under live writer = %d", response.StatusCode)
@@ -234,32 +191,22 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 	}
 	send("publish", "after workspace commit")
 	read("published")
-	if err := store.Refresh(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Refresh(t.Context()))
 	if got, found, err := store.ResolveAlias(t.Context(), "workbench/ack"); err != nil || !found || got != wanted {
 		t.Fatalf("workspace write lost: %s, %v, %v", got, found, err)
 	}
-	if err := input.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, input.Close())
+	testcheck.NoError(t, child.Wait())
 	t.Log("served health and cancellation coexist with an independent evidence writer; refreshed views and interleaved workspace publication preserved")
 }
 
 func testWorkbenchCatalogRefresh(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	external, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer external.Close()
 	resolver := &modelswap.CatalogResolver{Store: store, Limit: 16}
 	if entries, _, err := resolver.Catalog(t.Context()); err != nil || len(entries) != 0 {
@@ -267,15 +214,11 @@ func testWorkbenchCatalogRefresh(t *testing.T) {
 	}
 	t.Setenv("OVERGO_TEST_WORKBENCH_KEY", "fixture-key")
 	declaration, err := remoteprovider.Declare(t.Context(), external, remoteprovider.Provider{Name: "workbench", Endpoint: "https://fixture.example/v1", KeyEnvironment: "OVERGO_TEST_WORKBENCH_KEY", Model: "vendor/fixture"}, evaluationTestCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, found, err := resolver.Resolve(t.Context(), declaration.Model.String()); err != nil || !found {
 		t.Fatalf("new activation missing: %v, %v", found, err)
 	}
-	if err := remoteprovider.Retire(t.Context(), external, 16, declaration.Location, evaluationTestCommit, "fixture retirement"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, remoteprovider.Retire(t.Context(), external, 16, declaration.Location, evaluationTestCommit, "fixture retirement"))
 	if _, found, err := resolver.Resolve(t.Context(), declaration.Model.String()); err != nil || found {
 		t.Fatalf("retired activation remains: %v, %v", found, err)
 	}

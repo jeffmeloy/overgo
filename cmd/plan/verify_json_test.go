@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 )
 
@@ -16,9 +17,7 @@ func TestVerifyGoTestJSONTargets(t *testing.T) {
 			"{\"Action\":\"pass\",\"Package\":\"overgo/x\"}\n",
 		"UNAVAILABLE: GPU fixture\n",
 	)
-	if err := testevidence.VerifyGoTestEvidence("go test ./x -run '^TestAcceptance$'", out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, testevidence.VerifyGoTestEvidence("go test ./x -run '^TestAcceptance$'", out))
 	if err := testevidence.VerifyGoTestEvidence("go test ./x -run '^TestHardware$'", out); err == nil {
 		t.Fatal("targeted skipped hardware test passed")
 	}

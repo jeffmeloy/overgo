@@ -6,25 +6,20 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestGateLifecycleConstruction(t *testing.T) {
 	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-environment"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-result"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prepared, err := newGatePreparation(string(make([]byte, 64)), environment, time.Unix(100, 0))
 	if err == nil {
 		t.Fatal("accepted a non-hex tree key")
 	}
 	prepared, err = newGatePreparation("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", environment, time.Unix(100, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := newGateFinalization(prepared, "0123456789abcdef0123456789abcdef01234567", result, OutcomeSucceeded); err != nil {
 		t.Fatal(err)
 	}

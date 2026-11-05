@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,13 +18,9 @@ func TestACheckpointKeepsWhatServesItsModel(t *testing.T) {
 	for _, name := range []string{"config.json", "generation_config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"} {
 		testutil.WriteTextFile(t, source, name, name)
 	}
-	if err := CopyModelFiles(source, stage); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, CopyModelFiles(source, stage))
 	entries, err := os.ReadDir(stage)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var kept []string
 	for _, entry := range entries {
 		kept = append(kept, entry.Name())

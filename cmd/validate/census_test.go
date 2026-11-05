@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,14 +29,10 @@ func registerCensusModel(t *testing.T, store *overgodb.Store, name string, prese
 	payload := []byte(name)
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), name+".bin")
 	if present {
-		if err := os.WriteFile(path, payload, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "census-fixture/" + name,
@@ -47,12 +44,8 @@ func registerCensusModel(t *testing.T, store *overgodb.Store, name string, prese
 	}
 	if active {
 		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := modelrecipetest.PublishActivation(ctx, store, "census-fixture/"+name, definition); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "census-fixture/"+name, definition))
 	}
 	return manifest.ID, path
 }
@@ -62,9 +55,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	ctx := t.Context()
 	storePath := t.TempDir()
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -94,36 +85,24 @@ func TestCapabilityCensusContract(t *testing.T) {
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "historical observation")
 	testutil.PublishArtifact(t, store, evidence)
 	verification, err := runrecord.NewModelVerification(presentID, "present", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("a", 40), Evidence: []artifact.ID{evidence}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verificationBatch, err := verification.Batch("census-fixture/verification")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, verificationBatch); err != nil {
 		t.Fatal(err)
 	}
 	later, err := runrecord.NewModelVerification(presentID, "later", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("c", 40), Evidence: []artifact.ID{evidence}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	laterContent, err := later.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "census-fixture/later-declaration", Artifacts: []artifact.Descriptor{laterContent.Descriptor}}); err != nil {
 		t.Fatal(err)
 	}
 
 	memo := discovery.NewMemo()
 	value, err := buildCapabilityCensus(ctx, store, strings.Repeat("b", 40), catalogLimit, memo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, discovery.PublishMemo(ctx, store, memo))
 	if len(value.Models) != 4 || !slices.Equal(value.Verifications, []artifact.ID{verification.ID}) {
 		t.Fatalf("incomplete census: %+v", value)
 	}
@@ -141,13 +120,9 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if err != nil || truncated || len(activeOnly) != 3 {
 		t.Fatalf("active-only catalog changed: %d %t %v", len(activeOnly), truncated, err)
 	}
-	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkCapabilityCensus(ctx, store, value, catalogLimit))
 	laterBatch, err := later.Batch("census-fixture/later-publication")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, laterBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -155,9 +130,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 		t.Fatalf("later evidence invalidated the frozen before picture: %v", err)
 	}
 	batch, err := capabilityCensusBatch(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(batch.Lineage) != 8 {
 		t.Fatalf("lineage = %d, want four models, three recipes and one verification", len(batch.Lineage))
 	}
@@ -165,9 +138,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := runCapabilityCensus(storePath, false, value.ID.String(), &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runCapabilityCensus(storePath, false, value.ID.String(), &output))
 	if !strings.Contains(output.String(), "registered identities=4 activated task/recipe pairs=3 unavailable identities=1 stale activations=1 historical verification records=1") || !strings.Contains(output.String(), strings.Repeat("a", 40)) || !strings.Contains(output.String(), "do not establish current task quality") {
 		t.Fatalf("census audit/provenance = %s", output.String())
 	}
@@ -221,18 +192,12 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if err := checkCapabilityCensus(ctx, store, value, 1); err == nil {
 		t.Fatal("truncated live denominator accepted")
 	}
-	if err := os.Remove(presentPath); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(presentPath))
 	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err == nil {
 		t.Fatal("availability drift accepted")
 	}
-	if err := os.WriteFile(presentPath, []byte("present"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(presentPath, []byte("present"), 0o600))
+	testcheck.NoError(t, checkCapabilityCensus(ctx, store, value, catalogLimit))
 	register("added", true, false)
 	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err == nil {
 		t.Fatal("new registered identity accepted without disposition")

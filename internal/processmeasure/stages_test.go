@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 // TestStagesDivideARequest holds what makes a request's parts a division of
@@ -32,14 +34,10 @@ func TestStagesDivideARequest(t *testing.T) {
 	work()
 	outer()
 	elapsed, err := clock.Elapsed()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report strings.Builder
 	unnamed, err := stages.Report(&report, time.Duration(elapsed))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(stages.parts) != 2 || stages.parts[0].Name != "inner" || stages.parts[0].Times != 2 || stages.parts[1].Name != "outer" || stages.parts[1].Times != 1 {
 		t.Fatalf("the parts are %+v", stages.parts)
 	}
@@ -95,9 +93,7 @@ func TestStagesReadEachPartsPeak(t *testing.T) {
 	release(2)
 	after()
 	parts, err := stages.Parts()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := map[string]uint64{"inner": 8, "outer": 8, "after": 3}
 	if len(parts) != len(want) {
 		t.Fatalf("the parts are %+v", parts)

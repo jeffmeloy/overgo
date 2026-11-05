@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // Colibri c/tools/k3_tokenizer.py at f028d26b422144ed4a69ad9aeaee2553ce0f9572
@@ -14,16 +16,12 @@ import (
 // list. These tiny ranks expose a different answer from leftmost merging.
 func TestKimiRankBPEDeclaration(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var source struct {
 		SourceSHA256 string `json:"source_sha256"`
 		Pattern      string `json:"pattern"`
 	}
-	if err := json.Unmarshal(raw, &source); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &source))
 	if source.SourceSHA256 != "99b5ff4e6cc9f14bcdc9c4e1d854c35d4afc087af8e825f3264b1ebbc10132eb" {
 		t.Fatal("Kimi Split source changed")
 	}
@@ -39,16 +37,10 @@ func TestKimiRankBPEDeclaration(t *testing.T) {
 		t.Helper()
 		dir := t.TempDir()
 		data, err := json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
 		encoder, err := Load(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return encoder
 	}
 	pre := map[string]any{"type": "Sequence", "pretokenizers": []any{

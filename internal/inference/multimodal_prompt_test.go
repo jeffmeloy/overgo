@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/projector"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -30,9 +31,7 @@ func TestCompileProjectedInputsExpandsDeepstack(t *testing.T) {
 		DeepstackEmbeddings: [][]float32{stream}, EmbeddingWidth: width,
 		EmbeddingTokenIndices: indices,
 	}, uint32(width))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inputs.DeepstackEmbeddings) != tensor.SingletonExtent {
 		t.Fatalf("deepstack stream count = %d", len(inputs.DeepstackEmbeddings))
 	}

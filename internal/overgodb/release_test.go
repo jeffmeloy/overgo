@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // releaseClaimSchema marks the unreachable claim a release must leave alone.
@@ -32,9 +33,7 @@ func newReleaseFixture(t *testing.T) *releaseFixture {
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	fixture := &releaseFixture{
 		root:   root,
@@ -77,14 +76,10 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 		t.Fatalf("orphan introduction = (%v, %v)", found, err)
 	}
 	blob, err := store.blobs.path(orphan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	report, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A consumer at the head before the release resyncs: no delta names the bytes the release took.
 	crossesRelease := func(store *Store) {
 		t.Helper()
@@ -116,22 +111,14 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	assertReleased(t, store, fixture, introduction)
 
 	// Restore the original loose bytes to model interruption after the durable release fact.
-	if err := store.blobs.prepare(orphan, fixture.orphan.Data); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.blobs.prepare(orphan, fixture.orphan.Data))
+	testcheck.NoError(t, store.Close())
 	store, err = Create(fixture.root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	crossesRelease(store)
 	again, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if again.Unreachable != 1 || again.Released != 0 || again.Commits != 0 ||
 		again.HeadAfter != report.HeadAfter || again.SequenceAfter != report.SequenceAfter || again.BlobsRemoved != 1 {
 		t.Fatalf("retry did not finish committed cleanup without changing the chain: %+v", again)
@@ -191,16 +178,12 @@ func TestReleaseSurvivesReplayAndCheckpoints(t *testing.T) {
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	introduction, _, err := fixture.store.ArtifactIntroduction(ctx, fixture.orphan.Descriptor.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
 		t.Fatal(err)
 	}
 	head, sequence := fixture.store.Head()
-	if err := fixture.store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.store.Close())
 	reopen := func(name string, prepare func()) {
 		t.Helper()
 		prepare()
@@ -216,14 +199,10 @@ func TestReleaseSurvivesReplayAndCheckpoints(t *testing.T) {
 	}
 	reopen("checkpoints", func() {})
 	reopen("snapshot", func() {
-		if err := os.RemoveAll(filepath.Join(fixture.root, checkpointDirectory)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(filepath.Join(fixture.root, checkpointDirectory)))
 	})
 	reopen("journal replay", func() {
-		if err := os.RemoveAll(filepath.Join(fixture.root, snapshotDirectory)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(filepath.Join(fixture.root, snapshotDirectory)))
 	})
 }
 
@@ -238,9 +217,7 @@ func TestReleaseRefusesACommitAfterItsSnapshot(t *testing.T) {
 	fixture := newReleaseFixture(t)
 	store := fixture.store
 	live, err := collectLiveSet(ctx, store, "release", nil, RetentionPolicy{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "after-the-snapshot", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindEvidence, "after-the-snapshot")}}); err != nil {
 		t.Fatal(err)
 	}
@@ -289,20 +266,14 @@ func TestReleaseThenBackupAndRebuild(t *testing.T) {
 	}
 	backup := filepath.Join(t.TempDir(), "backup")
 	report, err := fixture.store.Backup(ctx, backup)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	seal, err := ReadBackupSeal(backup)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if head, sequence := fixture.store.Head(); seal.Head != head || seal.Sequence != sequence || report.Head != head {
 		t.Fatalf("backup seal %+v does not name the released head (%s, %d)", seal, head, sequence)
 	}
 	rebuilt, err := Rebuild(ctx, fixture.store, filepath.Join(t.TempDir(), "rebuilt"), nil, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The aliased content and the unreachable claim carry bytes; the
 	// released orphan carries only its identity.
 	if rebuilt.ContentsKept != 2 || rebuilt.ContentsDropped != 1 || rebuilt.Artifacts != 3 {
@@ -319,9 +290,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 		t.Fatal(err)
 	}
 	writer, err := Create(fixture.root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	var introduced bool
 	var introduceErr error
@@ -366,9 +335,7 @@ func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parent := retentionContent(t, artifact.KindEvidence, map[string]any{"role": "preparation"})
 	parent.Descriptor.Schema = "test/root/v1"
@@ -383,16 +350,12 @@ func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 	}
 	followed := RetentionPolicy{FollowChildren: func(descriptor artifact.Descriptor) bool { return descriptor.Schema == "test/root/v1" }}
 	report, err := Release(ctx, store, nil, followed, releasable)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Unreachable != 0 || report.Released != 0 || report.Commits != 0 || report.Retained != 2 {
 		t.Fatalf("release with followed children = %+v", report)
 	}
 	report, err = Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Unreachable != 1 || report.Released != 1 || report.Commits != 1 {
 		t.Fatalf("release without followed children = %+v", report)
 	}

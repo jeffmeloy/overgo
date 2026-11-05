@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ func TestAMediaModelWithNoRecipeSaysWhatItNeeds(t *testing.T) {
 	t.Parallel()
 	directory := func(config string) string {
 		path := t.TempDir()
-		if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(config), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(config), 0o600))
 		return path
 	}
 	image, text := directory(`{"model_type":"uvit"}`), directory(`{"model_type":"llama"}`)

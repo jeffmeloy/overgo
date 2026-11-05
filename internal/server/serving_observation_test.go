@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 	"slices"
 	"strings"
 	"testing"
@@ -29,9 +30,7 @@ func (*realizedServingGenerator) RealizedResidency() recipe.RealizedResidency {
 func TestServingObservationPublication(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "serving-publication-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "serving-publication-recipe")
@@ -54,9 +53,7 @@ func TestServingObservationPublication(t *testing.T) {
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Repository: store, Analysis: testAnalysisPolicy,
 	}, &realizedServingGenerator{generator})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	const prompt = "private-serving-prompt"
 	response := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"`+prompt+`","max_tokens":1}`)
@@ -72,22 +69,16 @@ func TestServingObservationPublication(t *testing.T) {
 				return operation.Completion{Run: runID}, nil
 			})
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status, err := handler.operations.Wait(t.Context(), operationID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	result, err := store.Query(t.Context(), overgodb.Query{
 		Artifact: &modelID, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		MaxResults: 8,
 		Projection: overgodb.ProjectArtifacts,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(result.Artifacts) != 2 || handler.observationErrors.Load() != 0 {
 		t.Fatalf("observations=%d publication_errors=%d", len(result.Artifacts), handler.observationErrors.Load())
 	}
@@ -115,9 +106,7 @@ func TestServingObservationPublication(t *testing.T) {
 func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "runtime-view-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "runtime-view-recipe")
@@ -136,9 +125,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	completion := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime","max_tokens":1}`)
 	if completion.Code != http.StatusOK {
@@ -150,9 +137,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	}
 	var sessions runtimeSessionsResponse
 	response := serveTestRequest(handler, http.MethodGet, "/runtime/sessions", "")
-	if err := strictjson.DecodeBytes(response.Body.Bytes(), &sessions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(response.Body.Bytes(), &sessions))
 	if response.Code != http.StatusOK || sessions.Session.Capacity != 1 || len(sessions.Slots) != 1 {
 		t.Fatalf("sessions status=%d response=%+v", response.Code, sessions)
 	}
@@ -161,9 +146,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	}
 	var activity runtimeActivityResponse
 	response = serveTestRequest(handler, http.MethodGet, "/runtime/activity", "")
-	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(response.Body.Bytes(), &activity))
 	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 || !activity.Truncated ||
 		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
@@ -173,9 +156,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "hardware-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "hardware-recipe")
@@ -193,9 +174,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		},
 	}
 	handler, err := New(Config{Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	responses := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
@@ -209,9 +188,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	}
 	close(generator.release)
 	response := <-responses
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if response.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -239,9 +216,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		runrecord.ServingHardwareFinish,
 	}
 	expected, err := generator.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if observation.Resources.PeakDeviceBytes != expected.PeakBytes || len(observation.Hardware) != len(wantStages) {
 		t.Fatalf("hardware=%+v resources=%+v", observation.Hardware, observation.Resources)
 	}

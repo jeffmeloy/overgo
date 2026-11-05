@@ -4,26 +4,21 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 )
 
 func TestLightCurveProcessorDerivesBandAndBoundary(t *testing.T) {
 	processor, err := LightCurveProcessor(2, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record := trainingdata.RawRecord{ID: "curve", Group: "heldout", Data: []byte(`{
 		"objid": 7,
 		"x": [4, 500, 14, 1, 1, 600, 20, 1, 3, 500, 13, 1, 1, 500, 11, 1, 2, 500, 12, 1, 0, 0, 0, 0]
 	}`)}
 	example, err := processor(t.Context(), record)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, target, err := TrainingPair(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, want := input, []float32{11, 12}; !slices.Equal(got, want) {
 		t.Fatalf("context=%v, want %v", got, want)
 	}
@@ -41,17 +36,11 @@ func TestLightCurveTrainingProcessorReservesTwoPatches(t *testing.T) {
 		"x": [1, 500, 11, 1, 2, 500, 12, 1, 3, 500, 13, 1, 4, 500, 14, 1, 5, 500, 15, 1, 6, 500, 16, 1]
 	}`)}
 	processor, err := LightCurveTrainingProcessor(2, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	example, err := processor(t.Context(), record)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, target, err := TrainingPair(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got, want := input, []float32{11, 12, 13, 14}; !slices.Equal(got, want) {
 		t.Fatalf("context=%v, want %v", got, want)
 	}

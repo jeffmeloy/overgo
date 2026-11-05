@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/torchrng"
 )
@@ -54,44 +55,28 @@ func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
 	}
 	var oracle seededLatentOracle
-	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(senseNovaGenerationGold, &oracle))
 	if len(oracle.Steps) == 0 {
 		t.Fatal("generation oracle has no steps")
 	}
 
 	binding := routedlm.SenseNovaBinding()
 	cfg, err := routedlm.LoadConfig(senseNovaModelDir, binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	flowCfg, err := routedlm.LoadFlowConfig(senseNovaModelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := safetensors.OpenSource(senseNovaModelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	flowProfile, err := routedlm.InspectFlowProfile(senseNovaModelDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := routedlm.CompileFlowPlan(source, cfg, flowCfg, flowProfile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	image, err := plan.ImagePlan(oracle.Request.Width, oracle.Request.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	var got []float32
 	err = worker.Do(t.Context(), func(state *device.State) error {
@@ -100,9 +85,7 @@ func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 		got, err = routedlm.SeededFlowLatent(stream, state, plan, image)
 		return err
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	want := oracle.Steps[0].Z
 	wantShape := []int{1, image.Tokens, plan.FlowDim}

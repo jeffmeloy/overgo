@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestSegmentedJournalChainAndRecovery holds journal segmentation to
@@ -26,23 +27,17 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	segmented := t.TempDir()
 	plain := t.TempDir()
 	segmentedStore, err := Create(segmented)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer segmentedStore.Close()
 	plainStore, err := Create(plain)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer plainStore.Close()
 
 	commitOrdinal := func(t *testing.T, store *Store, ordinal int) {
 		t.Helper()
 		content := scaleContent(ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "application/octet-stream"}
 		batch := artifact.Batch{
 			Key:      fmt.Sprintf("scale/%d", ordinal),
@@ -61,23 +56,17 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 		commitOrdinal(t, segmentedStore, ordinal)
 		commitOrdinal(t, plainStore, ordinal)
 		if ordinal%(commits/3) == commits/3-1 {
-			if err := segmentedStore.sealActiveSegment(t.Context()); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, segmentedStore.sealActiveSegment(t.Context()))
 		}
 	}
 	sealed, err := filepath.Glob(filepath.Join(segmented, segmentDirectory, "*"+segmentExtension))
 	if err != nil || len(sealed) != 3 {
 		t.Fatalf("sealed segments = (%v, %v), want 3", sealed, err)
 	}
-	if err := segmentedStore.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, segmentedStore.Close())
 
 	reopened, err := OpenReadOnly(segmented)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reopened.Close()
 	segmentedDigest := querySurfaceDigestBounded(t, reopened, commits)
 	if plainDigest := querySurfaceDigestBounded(t, plainStore, commits); plainDigest != segmentedDigest {
@@ -87,23 +76,15 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	// Reader tailing across rotation: reader opens, writer seals and
 	// commits more, reader refresh lands on the new head.
 	writer, err := Create(segmented)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer writer.Close()
 	reader, err := OpenReadOnly(segmented)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	commitOrdinal(t, writer, commits)
-	if err := writer.sealActiveSegment(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writer.sealActiveSegment(t.Context()))
 	commitOrdinal(t, writer, commits+1)
-	if err := reader.Refresh(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reader.Refresh(ctx))
 	writerHead, writerSequence := writer.Head()
 	if readerHead, readerSequence := reader.Head(); readerHead != writerHead || readerSequence != writerSequence {
 		t.Fatalf("reader (%s, %d) behind writer (%s, %d) after rotation", readerHead, readerSequence, writerHead, writerSequence)
@@ -117,13 +98,9 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	copyCorpusTree(t, filepath.Join(segmented, blobDirectory), filepath.Join(corruptRoot, blobDirectory))
 	victim := filepath.Join(corruptRoot, segmentDirectory, filepath.Base(sealed[1]))
 	data, err := os.ReadFile(victim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data[len(data)/2] ^= 0xFF
-	if err := os.WriteFile(victim, data, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(victim, data, storeFileMode))
 	if _, err := OpenReadOnly(corruptRoot); err == nil || !strings.Contains(err.Error(), filepath.Base(sealed[1])) {
 		t.Fatalf("corrupt sealed segment opened: %v", err)
 	}
@@ -154,9 +131,7 @@ func TestSealWithInlineContent(t *testing.T) {
 		return bodies
 	}
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := read(store, "before the seal")
 	if !strings.HasPrefix(want[0], "legacy-inline/0/") {
 		t.Fatalf("fixture content = %q", want[0])
@@ -179,9 +154,7 @@ func TestSealWithInlineContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	seal("the second seal")
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	reopen := func(when string) {
 		t.Helper()
@@ -196,9 +169,7 @@ func TestSealWithInlineContent(t *testing.T) {
 	}
 	reopen("a reopen at the snapshot")
 	for _, derived := range []string{snapshotDirectory, checkpointDirectory} {
-		if err := os.RemoveAll(filepath.Join(root, derived)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.RemoveAll(filepath.Join(root, derived)))
 	}
 	reopen("a reopen by full replay")
 }
@@ -211,9 +182,7 @@ func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 	var out strings.Builder
 	for ordinal := 0; ordinal < commits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)

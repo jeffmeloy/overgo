@@ -8,6 +8,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,18 +24,14 @@ func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights := []byte("selector-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "selector/model",
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
@@ -43,9 +40,7 @@ func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 		t.Fatal(err)
 	}
 	definition, err := CapabilityDefinition(recipe.TaskGeneration, manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := PublishCandidate(ctx, store, "selector/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -76,9 +71,7 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 		selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 			Alias: fixture.alias, Task: recipe.TaskGeneration, Session: session,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if selected.Activation.Definition.ID != fixture.definition.ID ||
 			selected.Program.Definition().ID != fixture.definition.ID ||
 			selected.Resources.ArtifactBytes != fixture.bytes ||
@@ -118,9 +111,7 @@ func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *test
 		selection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 			Alias: alias, Task: recipe.TaskGeneration, Session: SessionWarm,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return selection
 	}
 	primary, alternate := resolve(fixture.alias), resolve(alternateAlias)
@@ -166,23 +157,17 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 			Operation: operations[environment], Task: recipe.TaskGeneration, Outcome: runrecord.OutcomeSucceeded,
 			StartedUnixNS: time.Now().UnixNano(), MeasuredNS: uint64(time.Nanosecond),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return observation
 	}
 	localObservation, peerObservation := observe(local), observe(peer)
 	localSelection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionWarm,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resources := localSelection.Resources
 	resourceContent, err := resources.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{Key: "selector/resources", Contents: []artifact.Content{resourceContent}}); err != nil {
 		t.Fatal(err)
 	}
@@ -193,16 +178,12 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 		LocalEnvironment: local, PeerEnvironment: peer,
 		LocalObservation: localObservation.ID, PeerObservation: peerObservation.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionSpillover,
 		Compatibility: compatibility.ID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if selected.Peer.ID != compatibility.ID || selected.Peer.PeerObservation != peerObservation.ID ||
 		selected.Resources.Identity != resources.Identity {
 		t.Fatalf("spillover selection=%+v", selected)
@@ -211,9 +192,7 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 
 func TestIncompatiblePeerRefusal(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		return testutil.ArtifactID(t, kind, label)

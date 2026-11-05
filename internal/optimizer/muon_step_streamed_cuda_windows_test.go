@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // TestStreamedMuonSessionPreparesOnce runs three streamed steps through one session and through a session opened and
@@ -18,9 +19,7 @@ import (
 func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	shapes := [][2]int{{32, 16}, {16, 64}, {8, 8}}
 	specs := make([]GroupSpec, 0, len(shapes))
@@ -31,9 +30,7 @@ func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 		start = end
 	}
 	plan, err := CompilePlan(start, specs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	config := Config{BaseLearningRate: 0.05, Momentum: 0.9, Steps: 3, Schedule: ScheduleLinearDecay}
 	rng := rand.New(rand.NewSource(5))
 	initial := make([]float32, start)
@@ -52,16 +49,12 @@ func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 		result := run{weights: slices.Clone(initial), momentum: make([]float32, start)}
 		for number := 1; number <= config.Steps; number++ {
 			result.gradients = gradientsAt(number)
-			if err := step(result.weights, result.gradients, result.momentum, number); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, step(result.weights, result.gradients, result.momentum, number))
 		}
 		return result
 	}
 	session, err := NewStreamedMuon(worker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer session.Close()
 	opened := session.ops
 	kept := steps(func(weights, gradients, momentum []float32, number int) error {

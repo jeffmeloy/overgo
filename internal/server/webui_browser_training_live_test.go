@@ -11,6 +11,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -58,9 +59,7 @@ func TestWebUIBrowserTrainingLive(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the training live leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	training := &steppedTraining{
 		capability: WorkflowCapability{
@@ -116,9 +115,7 @@ func TestWebUIBrowserTrainingLive(t *testing.T) {
 	settle(`!!trainingTrend() && trainingTrend().textContent.startsWith('dpo_loss · 3 steps') && !!trainingTrend().querySelector('svg')`)
 
 	// Reloaded mid-run, the page follows the same run with the loss so far.
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	open()
 	settle(`trainingStatus().startsWith('running') && trainingProgress().value === 3 && !!trainingTrend() && trainingTrend().textContent.startsWith('dpo_loss · 3 steps')`)
 	check(`[...trainingPanel().querySelectorAll('button')].find(button => button.textContent === 'Run').disabled`)

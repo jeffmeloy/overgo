@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // TestAStopThatPassedOnRetryIsReportedNextTurn keeps the retry valve, which lets a session stuck where its block found
@@ -19,18 +20,14 @@ func TestAStopThatPassedOnRetryIsReportedNextTurn(t *testing.T) {
 	prompted := func(prompt string) string {
 		t.Helper()
 		read, written, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		saved := os.Stdout
 		os.Stdout = written
 		runPrompt(`{"session_id": "lead", "prompt": "` + prompt + `"}`)
 		os.Stdout = saved
 		_ = written.Close()
 		printed, err := io.ReadAll(read)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return string(printed)
 	}
 	if got := stopHook("lead"); got != 2 {

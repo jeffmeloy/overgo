@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func TestEvidenceDriverConsumesCrossDomainCandidates(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	activation, active, err := modelrecipe.ActiveRecord(
 		t.Context(), fixture.store, fixture.production.model, fixture.production.testCase.Task,
@@ -81,9 +80,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	selected, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if selected.Stop != runrecord.DriverStopContinue || selected.Action != runrecord.DriverActionRealize ||
 		selected.Goal != fixture.probe.CheckDecision ||
 		selected.Subject != fixture.composition.ID() || selected.Target != fixture.composition.ID() ||
@@ -111,9 +108,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	t.Run("foreign production goal", func(t *testing.T) {
 		foreign := newProductionProbeFixtureInStore(t, fixture.store, "evidence-driver-foreign-goal")
 		probe, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, foreign.request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		request := fixture.request
 		request.Goal = probe.CheckDecision
 		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
@@ -183,16 +178,12 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compiled, err := modelrecipe.CompileAdmittedCandidate(
 		t.Context(), fixture.store, fixture.composition.ID(), fixture.compositionPermit.ID,
 		composition.SameBaseCandidatePlugin{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluator := testutil.ArtifactID(t, artifact.KindProfile, "shared cross-domain evaluator")
 	inputs := testutil.ArtifactID(t, artifact.KindDatasetShard, "shared held-out evaluator inputs")
 	requirements := []CandidateFitnessRequirement{
@@ -203,9 +194,7 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 	contract, err := NewCrossDomainEvaluationContract(
 		decision, compiled, evaluator, inputs, requirements, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	metricVector := func(capability, peak, wall float64) []runrecord.Metric {
 		return []runrecord.Metric{
 			{Name: "capability", Value: capability, Unit: "ratio", Direction: runrecord.DirectionMaximize},
@@ -241,9 +230,7 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 	}
 	before, _ := fixture.store.Head()
 	result, err := EvaluateCrossDomainCandidate(contract, decision, compiled, arms)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, _ := fixture.store.Head()
 	if before != after || result.Verdict != CandidateEvaluationImproved || len(result.Reasons) != 0 ||
 		len(result.Contributions) != len(contract.Ablations) || result.Contract.ID != contract.ID {
@@ -298,9 +285,7 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 			ImprovedMetric: "capability", MinimumImprovement: 0.1, Authority: tradeoffAuthority,
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tradeoffArms := cloneCandidateEvaluationArms(arms)
 	for index := range tradeoffArms {
 		tradeoffArms[index].Split, tradeoffArms[index].Budget = tradeoff.PromotionSplit, tradeoff.PromotionBudget
@@ -325,9 +310,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	store := newCapabilityEvaluationStore(t)
 	production := newProductionProbeFixtureInStore(t, store, "evidence-driver-incumbent")
 	probe, _, err := publishProductionCapabilityProbe(ctx, store, production.request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	promotionSplit := testutil.ArtifactID(t, artifact.KindDatasetShard, "evidence driver promotion split")
 	developmentSplit := testutil.ArtifactID(t, artifact.KindDatasetShard, "evidence driver development split")
@@ -341,32 +324,20 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 		SealedInputs: promotionSplit,
 		CleanWorker:  identifier("clean worker"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	code, err := runrecord.NewCodeRevision(strings.Repeat("d", 40))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "evidence-driver", OS: "test", Arch: "test", Device: "host",
 		Backend: "go", Driver: "test", Runtime: "go-test",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bindingContent, err := binding.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	codeBatch, err := code.Publication()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	environmentContent, err := environment.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "evidence-driver/common-authorities",
 		Artifacts: []artifact.Descriptor{
@@ -392,9 +363,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	}
 	compositionSpec := newEvidenceDriverCompositionSpec(t, base.Document.ID, delta.Document.ID)
 	compositionContent, err := compositionSpec.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:      "evidence-driver/composition-spec",
 		Contents: []artifact.Content{compositionContent}, Lineage: compositionSpec.Lineage(),
@@ -448,31 +417,21 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	causal, err := runrecord.NewCausalRoot(
 		runrecord.TriggerControllerProposal, root.Descriptor.ID, probe.CheckDecision,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	interaction, err := runrecord.NewBudget(
 		"queries", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver interaction split"),
 		cheapCost, identifier("interaction authority"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resources, err := runrecord.NewBudget(
 		"queries", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver resource split"),
 		unadmitted.Spec().Prediction.Cost, identifier("resource authority"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	interactionContent, err := interaction.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resourceContent, err := resources.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "evidence-driver/request-authorities",
 		Artifacts: []artifact.Descriptor{
@@ -482,9 +441,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 		Contents: []artifact.Content{root, interactionContent, resourceContent},
 		Lineage:  append(interaction.Lineage(), resources.Lineage()...),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return evidenceDriverFixture{
 		store: store, probe: probe, production: production,
 		codeCandidate: codeCandidate, codeAdmission: codeAdmission,
@@ -520,20 +477,14 @@ func publishEvidenceDriverCandidate(
 		Metric: "held-out capability", Benefit: 1, Cost: cost, Unit: "ratio",
 	}
 	development, err := runrecord.NewBudget("queries", developmentSplit, cost, binding.Decider.Identity)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotion, err := runrecord.NewBudget("queries", promotionSplit, cost, binding.Decider.Identity)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	falsifierMetric = cmp.Or(falsifierMetric, prediction.Metric)
 	falsifier, err := modelrecipe.NewCandidateEvaluationIntent(
 		subject, falsifierMetric, "queries", modelrecipe.CandidateStopOnBudgetOrNonPositiveIsolatedImprovement,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	componentSubject := component.Specification
 	type observedReference struct {
 		role     modelrecipe.CandidateReferenceRole
@@ -559,9 +510,7 @@ func publishEvidenceDriverCandidate(
 			recipe.Decider{CodeCommit: strings.Repeat("e", 40), Derivation: binding.Evaluator.Identity},
 			evidence,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	candidateReferences := make([]modelrecipe.CandidateReference, len(references))
 	for index, reference := range references {
@@ -575,25 +524,15 @@ func publishEvidenceDriverCandidate(
 		References: candidateReferences, DevelopmentSplit: developmentSplit, PromotionSplit: promotionSplit,
 		DevelopmentBudget: development.ID, PromotionBudget: promotion.ID, Code: code, Environment: environment,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	developmentContent, err := development.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotionContent, err := promotion.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	falsifierContent, err := falsifier.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidateContent, err := candidate.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contents := []artifact.Content{developmentContent, promotionContent, falsifierContent, candidateContent}
 	lineage := append(development.Lineage(), promotion.Lineage()...)
 	lineage = append(lineage, falsifier.Lineage()...)
@@ -616,13 +555,9 @@ func publishEvidenceDriverCandidate(
 	}
 	adapters := append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())
 	admission, err := runrecord.AdmitCandidate(t.Context(), store, candidate, binding.ID, adapters...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	admissionContent, err := admission.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:      "evidence-driver/admission/" + label,
 		Contents: []artifact.Content{admissionContent}, Lineage: admission.Lineage(),
@@ -647,33 +582,21 @@ func publishEvidenceDriverModelDefinition(
 	seed, err := modelrecipetest.PublishModelDefinition(
 		t.Context(), store, "evidence-driver/model-seed/"+label, modelID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const tensorBytes = uint64(4)
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatSafetensors,
 		[]modelartifact.TensorFact{{Name: "weight", Shape: []uint64{1, 1}, Storage: "f32", Bytes: tensorBytes}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := modelrecipe.NewModelDefinitionDocument(seed.Profile, tensors, seed.Spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := document.Resolve(seed.Profile, tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensorContent, err := tensors.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	documentContent, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:      "evidence-driver/model/" + label,
 		Contents: []artifact.Content{tensorContent, documentContent},
@@ -704,9 +627,7 @@ func newEvidenceDriverCompositionSpec(
 		ReopenTrigger: "recompile when either exact model definition changes",
 	}
 	id, err := artifact.JSONID(artifact.KindRecipe, value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value.ID = id
 	if _, err := value.Content(); err != nil {
 		t.Fatal(err)
@@ -722,9 +643,7 @@ func evidenceDriverContent(t *testing.T, kind artifact.Kind, label string) artif
 			Label string `json:"label"`
 		}{Label: label},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 )
 
 // TestGoTestJSONReportNamesRefusedResourceClaims pins the typed contention:
@@ -25,9 +26,7 @@ func TestGoTestJSONReportNamesRefusedResourceClaims(t *testing.T) {
 		"    trainer_test.go:20: processcontrol: "+processcontrol.ErrResourceBusy.Error()+": \"GPU-1\"\n",
 	)
 	report, err := GoTestJSONReport(refused)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(report.Contended, []string{"x"}) || !report.ContentionOnly() {
 		t.Fatalf("refused claims = contended %v, contention only %t; report %+v", report.Contended, report.ContentionOnly(), report)
 	}
@@ -35,9 +34,7 @@ func TestGoTestJSONReportNamesRefusedResourceClaims(t *testing.T) {
 		"{\"Action\":\"output\",\"Package\":\"y\",\"Test\":\"TestC\",\"Output\":\"    other_test.go:5: wrong value\\n\"}\n" +
 		"{\"Action\":\"fail\",\"Package\":\"y\",\"Test\":\"TestC\"}\n"
 	report, err = GoTestJSONReport(mixed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(report.Contended, []string{"x"}) || report.ContentionOnly() {
 		t.Fatalf("a real failure beside the refusals counted as contention only: %+v", report)
 	}

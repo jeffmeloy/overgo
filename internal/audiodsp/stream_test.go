@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func streamConfig() FrontendConfig {
@@ -20,19 +22,13 @@ func streamConfig() FrontendConfig {
 func TestStreamFrontendChunkRestart(t *testing.T) {
 	c := streamConfig()
 	offline, err := NewFrontend(c, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stream, err := NewStreamFrontend(c, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4, 2, 1, 0}
 	var whole Workspace
 	want, count, err := offline.Process(t.Context(), [][]float32{samples}, c.SampleRate, &whole, ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for chunk := 1; chunk <= len(samples); chunk++ {
 		var state StreamState
 		var w StreamWorkspace
@@ -40,20 +36,14 @@ func TestStreamFrontendChunkRestart(t *testing.T) {
 		for start := 0; start < len(samples); start += chunk {
 			end := min(start+chunk, len(samples))
 			encoded, err := json.Marshal(state)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var restart StreamState
-			if err := json.Unmarshal(encoded, &restart); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(encoded, &restart))
 			before := slices.Clone(restart.Tail)
 			// A fresh workspace at every boundary proves no hidden framing state.
 			w = StreamWorkspace{}
 			features, _, next, err := stream.Process(t.Context(), samples[start:end], c.SampleRate, restart, false, &w)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(before, restart.Tail) {
 				t.Fatal("mutated persisted state")
 			}
@@ -79,9 +69,7 @@ func TestStreamFrontendChunkRestart(t *testing.T) {
 	var got []float32
 	for _, value := range samples {
 		features, _, next, err := stream.Process(t.Context(), []float32{value}, c.SampleRate, state, false, &w)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, state = append(got, features...), next
 	}
 	if !slices.Equal(got, want) {
@@ -115,9 +103,7 @@ func TestStreamFrontendRefusals(t *testing.T) {
 		})
 	}
 	p, err := NewStreamFrontend(c, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, state := range []StreamState{{Samples: 1}, {Frames: 1}, {Tail: []float32{1}}, {Samples: 1, Tail: []float32{float32(math.NaN())}}, {Final: true}} {
 		var w StreamWorkspace
 		if _, _, _, err := p.Process(t.Context(), []float32{1}, c.SampleRate, state, false, &w); err == nil {
@@ -126,9 +112,7 @@ func TestStreamFrontendRefusals(t *testing.T) {
 	}
 	var w StreamWorkspace
 	_, _, state, err := p.Process(t.Context(), []float32{1}, c.SampleRate, StreamState{}, false, &w)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before := slices.Clone(state.Tail)
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
@@ -154,13 +138,9 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 			coefficient := .97
 			c.WaveformPreemphasis, c.MaskIncompleteHop = &coefficient, mask
 			offline, err := NewFrontend(c, 1<<20)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			stream, err := NewStreamFrontend(c, 1<<20)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var empty StreamWorkspace
 			features, frames, state, err := stream.Process(t.Context(), nil, c.SampleRate, StreamState{}, true, &empty)
 			if err != nil || len(features) != 0 || frames != 0 || state.Samples != 0 || state.Frames != 0 || len(state.Tail) != 0 || !state.Final {
@@ -173,9 +153,7 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 				}
 				var whole Workspace
 				want, count, err := offline.Process(t.Context(), [][]float32{samples}, c.SampleRate, &whole, ProcessOptions{})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if mask {
 					for _, value := range want[min(count, length/int(c.Geometry.HopSamples))*int(c.Geometry.FeatureBins):] {
 						if value != 0 {
@@ -190,18 +168,12 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 						for start := 0; start < length; start += chunk {
 							end := min(start+chunk, length)
 							encoded, err := json.Marshal(state)
-							if err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, err)
 							var restored StreamState
-							if err := json.Unmarshal(encoded, &restored); err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 							var w StreamWorkspace
 							features, _, next, err := stream.Process(t.Context(), samples[start:end], c.SampleRate, restored, end == length && !emptyFinal, &w)
-							if err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, err)
 							if len(next.Tail) > c.FrameSpan || cap(w.tail) > c.FrameSpan {
 								t.Fatal("unbounded raw sample retention")
 							}
@@ -210,9 +182,7 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 						if emptyFinal {
 							var w StreamWorkspace
 							features, _, next, err := stream.Process(t.Context(), nil, c.SampleRate, state, true, &w)
-							if err != nil {
-								t.Fatal(err)
-							}
+							testcheck.NoError(t, err)
 							got, state = append(got, features...), next
 						}
 						if !slices.Equal(got, want) || state.Frames != uint64(count) || !state.Final || len(state.Tail) != 0 {

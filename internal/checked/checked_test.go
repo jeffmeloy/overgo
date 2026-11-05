@@ -3,6 +3,8 @@ package checked
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestSuffix(t *testing.T) {
@@ -34,9 +36,7 @@ func TestPrefix(t *testing.T) {
 }
 
 func TestLength(t *testing.T) {
-	if err := Length(make([]float32, 6), 2, 3); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, Length(make([]float32, 6), 2, 3))
 	if err := Length(make([]float32, 5), 2, 3); err == nil {
 		t.Fatal("accepted mismatched storage")
 	}

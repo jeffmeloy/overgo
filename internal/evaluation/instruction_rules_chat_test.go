@@ -9,6 +9,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -54,9 +55,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 			Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}},
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
@@ -64,20 +63,14 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
 	}
 	plan, err := bindInstructionRules(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	chat := &instructionChatFixture{answer: "HELLO"}
 	report, err := evaluateInstructionRules(t.Context(), store, chat, compiled, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(chat.prompts) != 1 || chat.prompts[0] != "<user>Reply in uppercase.<model>" {
 		t.Fatalf("shaped prompts = %q", chat.prompts)
 	}
@@ -89,9 +82,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	// prompt is the pinned oracle parity test's path.
 	authorities.Execution.Prompting = PromptingRawCompletion
 	rawPlan, err := bindInstructionRules(compiled, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if rawPlan.identity == plan.identity {
 		t.Fatal("the raw and chat-template plans share an identity")
 	}

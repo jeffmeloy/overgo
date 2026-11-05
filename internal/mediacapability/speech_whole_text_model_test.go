@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,22 +36,14 @@ func TestSpeechReadsWholeText(t *testing.T) {
 	directory := testutil.ModelArtifactDir(t, "pocket-tts")
 	capability := Catalog[recipe.TaskSpeech]
 	source, err := capability.Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stored := t.TempDir()
 	store, err := overgodb.Create(stored)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if store != nil {
 			if err := store.Close(); err != nil {
@@ -64,9 +57,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 	serve := func(ctx context.Context, path string, request map[string]any) (speechsynth.Audio, []byte, capabilityruntime.Measured, error) {
 		t.Helper()
 		raw, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := capability.Execute(ctx, store, path, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(raw))
 		if err != nil {
 			return speechsynth.Audio{}, nil, capabilityruntime.Measured{}, err
@@ -77,51 +68,35 @@ func TestSpeechReadsWholeText(t *testing.T) {
 			t.Fatalf("%s was answered with %T", raw, output)
 		}
 		content, err := OutputContent(audio)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return audio, content.Data, measured, nil
 	}
 
 	reading := speechsynth.DocumentRequest{Text: wholeTextReading, Voice: "alba", Seed: 7, Temperature: 0.5}
 	synth, err := speechsynth.LoadSynthesizer(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := synth.PlanDocument(t.Context(), reading)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(plan.Segments) < 2 {
 		t.Fatalf("the text is planned as %d segments, and a whole reading needs more than one to differ from a clip", len(plan.Segments))
 	}
 	direct, err := synth.Speak(t.Context(), reading)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := OutputContent(direct)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	request := map[string]any{"text": reading.Text, "voice": reading.Voice, "seed": reading.Seed, "temperature": reading.Temperature}
 	whole, published, measured, err := serve(t.Context(), directory, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !whole.Complete || !direct.Complete || !reflect.DeepEqual(whole, direct) || !bytes.Equal(published, want.Data) || measured.Load <= 0 {
 		t.Fatalf("a request with no frame limit gave %d samples (ended on its own: %v) after a load of %v; Speak gives %d for its %d segments",
 			len(whole.PCM), whole.Complete, measured.Load, len(direct.PCM), len(plan.Segments))
 	}
 
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store = nil
 	store, err = overgodb.Create(stored)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, replayed, measured, err := serve(t.Context(), t.TempDir(), request)
 	if err != nil {
 		t.Fatalf("the store had answered the request, and with no model to load it was not answered again: %v", err)
@@ -140,9 +115,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 	const previewFrames = 2
 	preview := map[string]any{"text": reading.Text, "voice": reading.Voice, "seed": reading.Seed, "temperature": reading.Temperature, "max_frames": previewFrames}
 	clip, _, _, err := serve(t.Context(), directory, preview)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(clip.PCM) == 0 || len(clip.PCM) >= len(whole.PCM) || clip.Complete {
 		t.Fatalf("the same text with a limit of %d frames gave %d samples (ended on its own: %v), and the whole reading holds %d", previewFrames, len(clip.PCM), clip.Complete, len(whole.PCM))
 	}

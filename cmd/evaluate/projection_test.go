@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 // TestMediaPathStaysInsideItsRoot holds a case's media name to the media root:
@@ -14,9 +15,7 @@ import (
 func TestMediaPathStaysInsideItsRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "clip.mp4"), []byte("clip"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "clip.mp4"), []byte("clip"), 0o600))
 	if path, err := mediaPath(root, "clip.mp4"); err != nil || path != filepath.Join(root, "clip.mp4") {
 		t.Fatalf("clip.mp4 resolved to (%q, %v)", path, err)
 	}

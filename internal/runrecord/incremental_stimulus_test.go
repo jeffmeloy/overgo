@@ -8,6 +8,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,9 +16,7 @@ func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt ui
 	t.Helper()
 	ctx := t.Context()
 	content, err := AttemptArgumentContent([]byte(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "op")
 	manual := testutil.ArtifactID(t, artifact.KindRecipe, "manual")
 	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "ceiling")
@@ -25,13 +24,9 @@ func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt ui
 		Manual: manual, Arguments: content.Descriptor.ID,
 		Class: invocation.ClassInspection, Known: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	effectContent, err := effect.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	size := content.Descriptor.Size
 	head, _ := store.Head()
 	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
@@ -40,17 +35,13 @@ func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt ui
 		Source: content.Descriptor.ID, CausalRoot: operation,
 		Tokens: size, Bytes: size, Documents: 1, Depth: 1,
 	}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
 		Operation: operation, Attempt: attempt, Manual: manual,
 		Class: invocation.ClassInspection, Arguments: content.Descriptor.ID,
 		Effect: effect.ID, Ceiling: ceiling, Selection: selection,
 	}, []artifact.Content{content, effectContent})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return boundary
 }
 
@@ -61,9 +52,7 @@ func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt ui
 // boundaries refuse.
 func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "incremental/seed",
@@ -79,12 +68,8 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	held := incrementalStimulusBoundary(t, store, 1, `{"turn":1}`)
 	current := incrementalStimulusBoundary(t, store, 2, `{"turn":2}`)
 	delta, err := dataset.SelectIncremental(held.Selection, current.Selection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := VerifyIncrementalStimulus(held, current, delta); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, VerifyIncrementalStimulus(held, current, delta))
 	if len(delta.Fresh) != 1 || len(delta.Reused) != 0 {
 		t.Fatalf("distinct turns = %+v", delta)
 	}

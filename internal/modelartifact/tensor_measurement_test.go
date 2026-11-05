@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/tensorstats"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,18 +25,12 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 		Name: "weight", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(values),
 	}})
 	inventory, err := FromGGUF(opened, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policy := MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1024}
 	first, err := MeasureGGUF(inventory.TensorInventory, opened, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := MeasureGGUF(inventory.TensorInventory, opened, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measurement := first.Measurements[0]
 	if first.ID != second.ID || first.ReadBytes != 1024 || measurement.Samples != 256 ||
 		measurement.Elements != 512 || float64(measurement.Samples)/float64(measurement.Elements) != 0.5 ||
@@ -43,9 +38,7 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 		t.Fatalf("GGUF measurement = %+v", first)
 	}
 	content, err := first.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := tensorMeasurementCodec.Parse(content.Data)
 	if err != nil || parsed.ID != first.ID {
 		t.Fatalf("measurement round trip = (%+v, %v)", parsed, err)
@@ -54,9 +47,7 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 
 func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600))
 	header := `{"weight":{"dtype":"F32","shape":[512],"data_offsets":[0,2048]}}`
 	data := make([]byte, 8, 8+len(header)+2048)
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
@@ -66,25 +57,17 @@ func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 		binary.LittleEndian.PutUint32(scalar[:], math.Float32bits(float32(index)))
 		data = append(data, scalar[:]...)
 	}
-	if err := os.WriteFile(filepath.Join(directory, "model.safetensors"), data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors"), data, 0o600))
 	repository, err := hfrepo.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	inventory, err := FromHFRepository(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := MeasureSafetensors(
 		inventory.TensorInventory, repository.Tensors,
 		MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1024},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.ReadBytes != 1024 || math.Abs(document.Measurements[0].Median-255) > 1 {
 		t.Fatalf("Safetensors measurement = %+v", document)
 	}

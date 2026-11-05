@@ -6,13 +6,12 @@ import (
 
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 )
 
 func TestResidentTrainingCacheCleanup(t *testing.T) {
 	model, err := BuildModel(smallHybrid(), testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	training := &residentTraining{
 		model:     model,
 		weights:   make([]devicemath.HybridLayerResidentMatrices, len(model.Weights)),

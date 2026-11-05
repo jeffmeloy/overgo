@@ -12,15 +12,14 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 func TestEncoderCapturePublication(t *testing.T) {
 	t.Parallel()
 	election := qualificationElection(t)
 	encoded, err := os.ReadFile("testdata/encoder_capture.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var capture encoderCapture
 	if err = strictjson.DecodeBytes(encoded, &capture); err != nil {
 		t.Fatal(err)
@@ -31,19 +30,13 @@ func TestEncoderCapturePublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(tensorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capture.TensorsSHA256, capture.TensorCount = id.DigestHex(), 1
 	source := []byte("# identity-only synthetic publication fixture\n")
 	sourceID, err := artifact.IdentifyBytes(artifact.KindFile, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	capture.CaptureSHA256 = sourceID.DigestHex()
 	sourcePath := filepath.Join(dir, "source.py")
 	if err = os.WriteFile(sourcePath, source, 0o600); err != nil {
@@ -53,30 +46,22 @@ func TestEncoderCapturePublication(t *testing.T) {
 	writeReport := func() {
 		t.Helper()
 		data, err := json.Marshal(capture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if err = os.WriteFile(reportPath, data, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	writeReport()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch, err := election.Batch("capture-test/election")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err = artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	golden, err := PublishEncoderCapture(t.Context(), store, election, reportPath, sourcePath, tensorPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err = artifact.RequireTypedContent(t.Context(), store, golden); err != nil {
 		t.Fatal(err)
 	}
@@ -131,9 +116,7 @@ func TestEncoderCaptureRefusesChangedBindings(t *testing.T) {
 	t.Parallel()
 	election := qualificationElection(t)
 	encoded, err := os.ReadFile("testdata/encoder_capture.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range []struct {
 		name   string
 		mutate func(*encoderCapture)

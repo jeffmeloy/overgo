@@ -14,14 +14,13 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 )
 
 func verifySpeakerSessionControls(t *testing.T, root string, session *speechrecognition.Session, publication *audioPublication, policy dataset.AudioInspectionPolicy, commit string, environment artifact.ID) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(root, "clip-partial.wav"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
 	if err != nil || id.DigestHex() != "ff407d029c95a37cd986d6f496c4780c58efa8afe4760ab84150942c25eba8ce" {
 		t.Fatal("partial signal differs")
@@ -32,15 +31,11 @@ func verifySpeakerSessionControls(t *testing.T, root string, session *speechreco
 	policy.MaximumEncodedBytes = uint64(len(data))
 	policy.MaximumSamples = samples
 	lease, err := session.Lease(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer lease.Release()
 	binding := speechrecognition.RunBinding{Key: "speaker/partial-run", CodeCommit: commit, Environment: environment}
 	first, run, err := lease.Diarize(t.Context(), data, origin, policy, binding)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var oracle []recipecontract.SpeechTurn
 	readAudioFixtureJSON(t, "testdata/speaker_partial_turns.json", &oracle)
 	clipped := 0
@@ -79,12 +74,8 @@ func verifySpeakerSessionControls(t *testing.T, root string, session *speechreco
 	if err != nil || !reflect.DeepEqual(second, first) {
 		t.Fatalf("reuse after refusal differs: %v", err)
 	}
-	if err := lease.Release(); err != nil {
-		t.Fatal(err)
-	}
-	if err := lease.Release(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, lease.Release())
+	testcheck.NoError(t, lease.Release())
 	if _, _, err := lease.Diarize(t.Context(), data, origin, policy, binding); err == nil {
 		t.Fatal("released lease executed")
 	}

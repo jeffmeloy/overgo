@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestScoredCommitIsUnknownForAnUnreadableReceipt holds the commit a carried quality names as
@@ -18,18 +19,12 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := platform.Batch("scored/environment")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -50,24 +45,16 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 			}
 		}
 		run, err := runrecord.NewBoundRun(recipe, runrecord.OutcomeSucceeded, []artifact.ID{plan}, []artifact.ID{output}, "", strings.Repeat(commit, 40), platform.ID, 1, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := run.Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := artifact.NewDocumentBatch("scored/run/"+commit, []artifact.Content{content}, run.Lineage(), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 		record, err := runrecord.NewEvaluation(recipe, run.ID, dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if batch, err = record.Batch("scored/evaluation/" + commit); err != nil {
 			t.Fatal(err)
 		}
@@ -84,13 +71,9 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 			Version: artifact.InitialDocumentVersion, Plan: plan, Carried: carried,
 			Report: planID(t, artifact.KindEvaluation, label+" report"), Replay: planID(t, artifact.KindEvaluation, label+" replay"), Cases: []int{0, 3},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := replayReceiptCodec.Batch("scored/receipt/"+label, document, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}

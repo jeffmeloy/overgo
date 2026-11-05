@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 func TestToolCallResidualDirection(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	model := id(artifact.KindModel, "direction model")
@@ -66,9 +65,7 @@ func TestToolCallResidualDirection(t *testing.T) {
 		Selector:    selector,
 	}
 	published, err := NewResidualDirection(direction)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !published.ID.Valid() || len(published.Lineage()) != 10 {
 		t.Fatalf("direction identity or lineage differs: %s edges=%d", published.ID, len(published.Lineage()))
 	}
@@ -130,13 +127,9 @@ func TestToolCallResidualDirection(t *testing.T) {
 	wrongTap := direction
 	wrongTap.Contract = embedding.ID
 	wrongPublished, err := NewResidualDirection(wrongTap)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wrongContent, err := wrongPublished.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "fixture/residual-direction-wrong-tap",
 		Contents: []artifact.Content{wrongContent}, Lineage: wrongPublished.Lineage(),

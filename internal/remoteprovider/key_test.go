@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 const setKeyTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -15,17 +16,13 @@ const setKeyTestCommit = "0123456789abcdef0123456789abcdef01234567"
 // identity; an undeclared reference and an empty key are refused.
 func TestSetKeyPlacesTheKeyInTheEnvironment(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	t.Setenv("OVERGO_SET_KEY_TEST", "")
 	declaration, err := Declare(t.Context(), store, Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_SET_KEY_TEST", Model: "vendor/model",
 	}, setKeyTestCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if Refusal(declaration.Provider) == "" {
 		t.Fatal("a keyless declaration is not refused")
 	}

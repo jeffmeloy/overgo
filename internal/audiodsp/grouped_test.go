@@ -5,13 +5,13 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestProcessGroupedComposition(t *testing.T) {
 	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range []struct {
 		name                                           string
 		samples, stack, radius, frames, width, padding int
@@ -27,9 +27,7 @@ func TestProcessGroupedComposition(t *testing.T) {
 			config := GroupedFeatureConfig{StackFrames: tc.stack, DeltaRadius: tc.radius, FinalFrameSamples: 1}
 			var w, reference Workspace
 			got, frames, width, err := p.ProcessGrouped(t.Context(), input, 8, &w, config)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			bound, err := p.GroupedFrames(uint64(len(input)), config)
 			if err != nil || bound != frames {
 				t.Fatalf("admission frames=%d execution=%d err=%v", bound, frames, err)
@@ -39,15 +37,11 @@ func TestProcessGroupedComposition(t *testing.T) {
 			}
 			padded := append(slices.Clone(input), make([]float32, tc.padding)...)
 			static, _, err := p.Process(t.Context(), [][]float32{padded}, 8, &reference, ProcessOptions{FrameLimit: tc.frames * tc.stack})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want := static
 			if tc.radius > 0 {
 				want = make([]float32, len(static)*2)
-				if err := AppendFrameDeltas(t.Context(), want, static, p.bands, tc.radius); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, AppendFrameDeltas(t.Context(), want, static, p.bands, tc.radius))
 			}
 			if !slices.Equal(got, want) || !slices.Equal(input, original) {
 				t.Fatal("composition or input changed")
@@ -101,9 +95,7 @@ func TestGroupedFramesBounds(t *testing.T) {
 
 func TestProcessGroupedRefusalAndBudget(t *testing.T) {
 	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := []float32{1, 2, 3, 4, 5, 6}
 	config := GroupedFeatureConfig{StackFrames: 2, DeltaRadius: 1, FinalFrameSamples: 1}
 	for _, invalid := range []GroupedFeatureConfig{{}, {StackFrames: 1, DeltaRadius: -1}, {StackFrames: 1, FinalFrameSamples: -1}, {StackFrames: math.MaxInt, FinalFrameSamples: 1}} {
@@ -130,9 +122,7 @@ func TestProcessGroupedRefusalAndBudget(t *testing.T) {
 	}
 	var w Workspace
 	got, _, _, err := p.ProcessGrouped(t.Context(), input, 8, &w, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, _, err := p.ProcessGrouped(t.Context(), got, 8, &w, config); err == nil {
 		t.Fatal("accepted borrowed output")
 	}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -19,19 +20,13 @@ func TestAdjacentTokenRows(t *testing.T) {
 
 func TestJSONTextPairProcessor(t *testing.T) {
 	processor, err := JSONTextPairProcessor("question", "answer")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	example, err := processor(t.Context(), RawRecord{
 		ID: "gsm8k/0", Data: []byte(`{"question":"What is 48 + 24?","answer":"72"}`),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, target, err := TextPair(example)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if input != "What is 48 + 24?" || target != "72" {
 		t.Fatalf("pair = %q -> %q", input, target)
 	}

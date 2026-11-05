@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -49,13 +50,9 @@ func TestOnlyMissingPartsRefuseARun(t *testing.T) {
 		store := open(t)
 		inventory, resolved := publishProgramFacts(t, store, path)
 		activateProgram(t, store, definitionRecipe(t, inventory, resolved))
-		if err := os.Rename(other, path); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Rename(other, path))
 		replaced, err := modelartifact.FromGGUFPath(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, err = ResolveActiveGGUF(t.Context(), store, path)
 		if err == nil || !strings.Contains(err.Error(), inventory.Manifest.ID.String()) || !strings.Contains(err.Error(), replaced.Manifest.ID.String()) {
 			t.Fatalf("replaced bytes: %v, want a refusal naming both identities", err)
@@ -69,13 +66,9 @@ func TestOnlyMissingPartsRefuseARun(t *testing.T) {
 		writeServingDefinitionGGUF(t, other, true)
 		store := open(t)
 		publishProgramFacts(t, store, path)
-		if err := os.Rename(other, path); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Rename(other, path))
 		loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer loaded.Close()
 		if loaded.state.State.Verification != StateNotVerified {
 			t.Fatalf("state = %+v", loaded.state.State)

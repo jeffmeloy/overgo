@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/projector"
+	"overgo/internal/testcheck"
 )
 
 func TestTowerTensorName(t *testing.T) {
@@ -161,9 +162,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	if !towerLayout(config) {
 		t.Fatal("tower layout not detected")
 	}
-	if err := validateTowerConfig(config, processor); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateTowerConfig(config, processor))
 	const audioInter = 24
 	metadata := towerProjectorMetadata("fixture", config, processor, audioInter)
 	shapes := towerTestSourceShapes(config)
@@ -192,19 +191,11 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "tower.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, gguf.Write(file, metadata, tensors, gguf.WriteOptions{}))
+	testcheck.NoError(t, file.Close())
 	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), path, projector.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	spec := runner.Spec()
 	if spec.Vision.Layers != int(config.Vision.HiddenLayers) ||
@@ -217,9 +208,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Fatalf("spec = %+v", spec)
 	}
 	output, err := runner.EncodeVisionImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 6, 6)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if output.PatchCount != 36 || output.SoftTokens != 4 ||
 		output.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) || len(output.Embeddings.Data) != 4*int(config.Text.HiddenSize) {
 		t.Fatalf("tower vision output = %+v", output)
@@ -232,17 +221,13 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	video, err := runner.EncodeVisionFrames(t.Context(), []image.Image{
 		image.NewRGBA(image.Rect(0, 0, 6, 6)), image.NewRGBA(image.Rect(0, 0, 6, 6)),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if video.Frames != 2 || video.TokensPerFrame != 1 || len(video.Embeddings.Data) != 2*int(config.Text.HiddenSize) {
 		t.Fatalf("tower video output = %+v", video)
 	}
 	audioFrames := 7
 	audioProfile, err := projector.NewAudioProjectionProfile(100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runner.EncodeAudio(
 		t.Context(), make([]float32, 20), int(processor.Audio.SampleRate)+1,
 		audioProfile,
@@ -253,9 +238,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Context(), make([]float32, 20), int(processor.Audio.SampleRate),
 		audioProfile,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if waveAudio.SoftTokens != 3 || len(waveAudio.Embeddings.Data) != 3*int(config.Text.HiddenSize) {
 		t.Fatalf("tower waveform output = %+v", waveAudio)
 	}
@@ -269,9 +252,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Context(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
 		audioProfile,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if audio.SoftTokens != 2 || audio.Embeddings.Shape.Dims[0] != uint64(config.Text.HiddenSize) ||
 		len(audio.Embeddings.Data) != 2*int(config.Text.HiddenSize) {
 		t.Fatalf("tower audio output = %+v", audio)

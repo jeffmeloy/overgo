@@ -11,6 +11,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/modeltest"
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 )
 
 // TestServedEditStageTimes reports cold, changed-instruction and changed-seed stage times.
@@ -39,9 +40,7 @@ func TestServedEditStageTimes(t *testing.T) {
 		clock := processmeasure.NewStopwatch()
 		_, video := edits.serve(ctx, t, service, request.prompt, request.seed)
 		elapsed, err := clock.Elapsed()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if video.Frames != frames || video.Width != width || video.Height != height {
 			t.Fatalf("%s: a served edit is %d frames of %d by %d", request.name, video.Frames, video.Width, video.Height)
 		}

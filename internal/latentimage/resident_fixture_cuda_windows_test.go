@@ -10,6 +10,7 @@ import (
 	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 type residentFixture struct {
@@ -26,9 +27,7 @@ func newResidentFixture(
 ) *residentFixture {
 	t.Helper()
 	runtime, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	graph, err := compileResidentWeights(ctx, runtime, label, source, inputs, nil, outputs...)
 	if err != nil {
 		_ = runtime.Close(context.WithoutCancel(ctx))
@@ -50,9 +49,7 @@ func (f *residentFixture) execute(
 ) map[*tensor.Tensor]reference.Value {
 	t.Helper()
 	results, err := f.runtime.Execute(ctx, f.graph, feeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return results
 }
 
@@ -63,9 +60,7 @@ func residentEncode(t *testing.T, ctx context.Context, fixture *residentFixture,
 		feeds[program.keyBias] = reference.Value{Shape: program.keyBias.Shape, Data: program.keyBiasData}
 	}
 	result, err := program.assemble(fixture.execute(t, ctx, feeds))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return result
 }
 
@@ -74,9 +69,7 @@ func residentFuse(t *testing.T, ctx context.Context, fixture *residentFixture, p
 	result, err := program.assemble(fixture.execute(t, ctx, map[*tensor.Tensor]reference.Value{
 		program.InEncoder: {Shape: program.InEncoder.Shape, Data: hidden},
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return result
 }
 

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestResidentSessionReclaimsReleasedRecords holds a session that binds and
@@ -22,9 +23,7 @@ func TestResidentSessionReclaimsReleasedRecords(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	session, err := NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := session.Close(ctx); err != nil {
 			t.Error(err)
@@ -34,35 +33,25 @@ func TestResidentSessionReclaimsReleasedRecords(t *testing.T) {
 	weight := builder.Input("weight", dtype.F32, tensor.MustShape(2))
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2))
 	output := builder.Add(input, weight)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
 	bind := func() *ResidentProgram {
 		t.Helper()
 		program, err := session.Compile(ctx, "records", nil, output)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := session.BindF32(ctx, program, "records", weight, []float32{1, 2}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, session.BindF32(ctx, program, "records", weight, []float32{1, 2}))
 		return program
 	}
 	check := func(program *ResidentProgram) {
 		t.Helper()
 		result, err := session.Execute(ctx, program, map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: []float32{10, 20}}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if want := []float32{11, 22}; !slices.Equal(result[output].Data, want) {
 			t.Fatal("output", result[output].Data, "want", want)
 		}
 	}
 	release := func(records int, programs ...*ResidentProgram) {
 		t.Helper()
-		if err := session.Release(ctx, programs...); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, session.Release(ctx, programs...))
 		if len(session.allocations) != records {
 			t.Fatalf("%d records after release, want %d", len(session.allocations), records)
 		}
@@ -92,9 +81,7 @@ func TestCompiledFeedsUseIndexedInputs(t *testing.T) {
 	static := builder.Input("static", dtype.F32, tensor.MustShape(2))
 	output := builder.Add(dynamic, static)
 	program, err := compileResidentProgram("resident test", []*tensor.Tensor{dynamic}, []*tensor.Tensor{output})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dynamicSlot, dynamicOK := program.Graph.InputSlot(dynamic)
 	staticSlot, staticOK := program.Graph.InputSlot(static)
 	if !dynamicOK || !staticOK || len(program.dynamic) != 1 || program.dynamic[0] != dynamicSlot {

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -76,9 +77,7 @@ func ownCodeClip(t *testing.T) (reference clipRoundTrip, clip SourceVideo, want 
 	read := func(tensor clipRoundTripTensor) []float32 {
 		t.Helper()
 		raw, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sum := sha256.Sum256(raw)
 		values := 1
 		for _, extent := range tensor.Shape {
@@ -114,9 +113,7 @@ func ownCodeClip(t *testing.T) (reference clipRoundTrip, clip SourceVideo, want 
 func holdToOwnCode(t *testing.T, reference clipRoundTrip, clip SourceVideo, want []float32, route func(*vaeDecoderCUDASession)) ([]float32, map[string]*vaeDecoderCUDASession) {
 	t.Helper()
 	runtime, err := LoadAutoencoderRuntime(wanModelDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runtime.Close(context.Background()); err != nil {
 			t.Error(err)
@@ -269,34 +266,22 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 	}
 	checkpoint := AutoencoderWeights(directory)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile, err := ResolveProfile(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encoderGraph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoderPlan, err := CompileVAEDecoderPlan(catalog.Tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// A half asked to route a clip through the library says whether the machine
 	// has one. The library it loads is released with it, and the process loads
 	// it again, so the first repetition's time below still has the loading in it.
 	probe, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	probe.adoptLibrary(0)
 	err = probe.routeClip(t.Context(), 0)
 	absent := probe.route.absent
-	if err := errors.Join(err, probe.Close()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, errors.Join(err, probe.Close()))
 	if absent {
 		testskip.NotApplicable(t, noCodecLibrary)
 	}
@@ -307,9 +292,7 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 				InputChannels: encoderGraph.InputChannels, LatentChannels: encoderGraph.LatentChannels,
 				Stride: encoderGraph.Stride, LatentStats: profile.LatentStats,
 			}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			plane := height * width
 			source := make([]float32, media.RGBChannels*frames*plane)
 			for channel := range media.RGBChannels {
@@ -334,18 +317,14 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 			run := func(library bool) (result codecRun) {
 				t.Helper()
 				encoder, err := newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer func() {
 					if err := encoder.Close(); err != nil {
 						t.Error(err)
 					}
 				}()
 				decoder, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer func() {
 					if err := decoder.Close(); err != nil {
 						t.Error(err)
@@ -360,9 +339,7 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 				for repetition := range repetitions {
 					started := time.Now()
 					encoded, _, err := encoder.Encode(t.Context(), plan, source)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					result.encoded = append(result.encoded, time.Since(started))
 					// Both paths decode the kernels' latent, so their clips differ by the decoder alone.
 					if latent == nil {

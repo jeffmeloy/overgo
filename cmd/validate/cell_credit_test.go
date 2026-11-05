@@ -16,6 +16,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,9 +35,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	if first.has(cell) {
 		t.Fatal("a cell is credited before any run acquired it")
 	}
-	if err := first.add(cell); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, first.add(cell))
 	// The next process reads the same file.
 	second := openCellCredit(path, "commit-a", "store-a")
 	if !second.has(cell) {
@@ -75,32 +74,24 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	}
 	// A run of another commit keeps its own credit, replacing the old.
 	other := openCellCredit(path, "commit-b", "store-a")
-	if err := other.add(cell); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, other.add(cell))
 	if openCellCredit(path, "commit-a", "store-a").has(cell) {
 		t.Error("the credit of the earlier commit survived a run of the next")
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directory, kept := t.TempDir(), filepath.Join(t.TempDir(), "cycle_credit.json")
 	weights, beside := filepath.Join(directory, "model.bin"), filepath.Join(directory, "processor", "config.json")
 	write := func(path, text string) {
 		t.Helper()
-		if err := errors.Join(os.MkdirAll(filepath.Dir(path), 0700), os.WriteFile(path, []byte(text), 0600)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(os.MkdirAll(filepath.Dir(path), 0700), os.WriteFile(path, []byte(text), 0600)))
 	}
 	replace := func(path, text string) {
 		t.Helper()
 		info, err := os.Stat(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		write(path, text)
 		if err = os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
 			t.Fatal(err)
@@ -114,9 +105,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	bound := func(cell ModelValidation) ModelValidation {
 		t.Helper()
 		cells := []ModelValidation{cell}
-		if err := bindCells(t.Context(), testutil.RepoRoot(t), store, cells, execution); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, bindCells(t.Context(), testutil.RepoRoot(t), store, cells, execution))
 		return cells[0]
 	}
 	serving := func() ModelValidation {
@@ -135,9 +124,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	acquire := func(cells ...ModelValidation) {
 		t.Helper()
 		for _, c := range cells {
-			if err := acquired.add(c); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, acquired.add(c))
 		}
 	}
 	resumed := func(c ModelValidation) bool { return openCellCredit(kept, "commit-a", "store-a").has(c) }
@@ -159,9 +146,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	directoryModel = creditModel(t, store, weights, beside)
 	acquire(proof())
 	for _, path := range []string{weights, filepath.Dir(beside)} {
-		if err := os.Chtimes(path, time.Now(), time.Now()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Chtimes(path, time.Now(), time.Now()))
 	}
 	if !resumed(serving()) || !resumed(proof()) {
 		t.Fatal("metadata alone invalidated identical content")
@@ -187,9 +172,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 		}
 	}
 	execution = "fixture-execution"
-	if err := os.Rename(beside, beside+".moved"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Rename(beside, beside+".moved"))
 	if resumed(proof()) {
 		t.Fatal("missing declared companion retained credit")
 	}
@@ -201,9 +184,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	if resumed(proof()) {
 		t.Fatal("undeclared directory content retained credit")
 	}
-	if err := os.Remove(filepath.Join(directory, "unlisted.bin")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(directory, "unlisted.bin")))
 	linked := filepath.Join(t.TempDir(), "tokenizer.json")
 	write(linked, "{}")
 	link := filepath.Join(directory, "tokenizer.json")
@@ -219,9 +200,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 		if resumed(proof()) {
 			t.Fatal("changed file-link target retained credit")
 		}
-		if err := os.Remove(link); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(link))
 	}
 	directoryModel = creditModel(t, store, weights, beside)
 	acquire(proof())
@@ -261,9 +240,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	together := func() []ModelValidation {
 		t.Helper()
 		cells := []ModelValidation{{Model: apartModel, Recipe: recipeID, Kind: recipe.TaskImageGen, Validation: "image-proof", Location: apart, Directory: filepath.Dir(apart)}, {Model: model, Recipe: recipeID, Kind: recipe.TaskInference, Validation: servingValidation, Location: weights}}
-		if err := bindCells(t.Context(), testutil.RepoRoot(t), store, cells, execution); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, bindCells(t.Context(), testutil.RepoRoot(t), store, cells, execution))
 		return cells
 	}
 	acquire(together()...)
@@ -284,19 +261,13 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 	// Serial: it names the cycle's credit file in the process environment.
 	root, head := fixtureRepository(t)
 	storeRoot, err := filepath.Abs(filepath.Join(t.TempDir(), "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	kept, weights := filepath.Join(t.TempDir(), "cycle_credit.json"), filepath.Join(t.TempDir(), "model.gguf")
 	t.Setenv(clioptions.CycleCreditEnvironment, kept)
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := os.WriteFile(weights, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, []byte("weights"), 0o600))
 	model := creditModel(t, store, weights)
 	bound := func() Plan {
 		t.Helper()
@@ -304,28 +275,18 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 			Model: model, ModelName: "kept", Kind: recipe.TaskInference, Validation: guardValidation,
 			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "kept"), Location: weights,
 		}}
-		if err := bindCells(t.Context(), testutil.RepoRoot(t), store, cells, "fixture-execution"); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, bindCells(t.Context(), testutil.RepoRoot(t), store, cells, "fixture-execution"))
 		return Plan{Run: []Selected{{ModelValidation: cells[0]}}}
 	}
-	if err := openCellCredit(kept, head, storeRoot).add(bound().Run[0].ModelValidation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, openCellCredit(kept, head, storeRoot).add(bound().Run[0].ModelValidation))
 	var out bytes.Buffer
 	if err := executeRun(t.Context(), &out, root, storeRoot, nil, bound(), scopeCells); err != nil || !strings.Contains(out.String(), "kept credited") {
 		t.Fatalf("a cell whose weights are as they were was started again: %v\n%s", err, out.String())
 	}
 	before, err := os.Stat(weights)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(weights, []byte("changed"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chtimes(weights, before.ModTime(), before.ModTime()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(weights, []byte("changed"), 0o600))
+	testcheck.NoError(t, os.Chtimes(weights, before.ModTime(), before.ModTime()))
 	out.Reset()
 	if err := executeRun(t.Context(), &out, root, storeRoot, nil, bound(), scopeCells); err == nil || !strings.Contains(err.Error(), "1 failed") || strings.Contains(out.String(), "credited") {
 		t.Fatalf("a cell whose weights changed was not started again: %v\n%s", err, out.String())
@@ -339,13 +300,9 @@ func creditView(t *testing.T, store *overgodb.Store, directory string) artifact.
 	t.Helper()
 	image := testutil.ArtifactID(t, artifact.KindTensorSet, "view image")
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	location, err := artifact.CanonicalLocalLocation(image, artifact.LocationDirectory, directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{
 		Key: "test/credit/view/" + manifest.ID.String(), Artifacts: []artifact.Descriptor{{ID: image, Size: 1}}, Manifests: []artifact.Manifest{manifest},
 		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
@@ -362,17 +319,13 @@ func creditView(t *testing.T, store *overgodb.Store, directory string) artifact.
 func TestCellCreditCoversADirectoryView(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	directory := t.TempDir()
 	weights, config := filepath.Join(directory, "model.safetensors"), filepath.Join(directory, "config.json")
 	write := func(path, text string) {
 		t.Helper()
-		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(text), 0o600))
 	}
 	write(weights, "weights")
 	write(config, "{}")
@@ -399,9 +352,7 @@ func TestCellCreditCoversADirectoryView(t *testing.T) {
 	if consumed() == first {
 		t.Fatal("an added file kept the view's credit")
 	}
-	if err := os.RemoveAll(directory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(directory))
 	if consumed() == consumed() {
 		t.Fatal("a view whose directory is gone earned a stable credit")
 	}
@@ -413,25 +364,17 @@ func creditModel(t *testing.T, store *overgodb.Store, paths ...string) artifact.
 	var components []artifact.Component
 	for index, path := range paths {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		info, err := os.Stat(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		components = append(components, artifact.Component{Role: artifact.ComponentConfig, Ordinal: uint32(index), Name: filepath.Base(path), Artifact: id})
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id, Size: uint64(info.Size())})
 		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 	}
 	manifest, err := artifact.NewManifest(artifact.KindModel, components)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Manifests = []artifact.Manifest{manifest}
 	batch.Key = "test/credit/" + manifest.ID.String()
 	if _, err := artifact.Publish(t.Context(), store, batch); err != nil {

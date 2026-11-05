@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // maskedTokens is a window of eight tokens whose first four are the prompt a
@@ -18,9 +20,7 @@ var (
 func positionLosses(t *testing.T, model *Model, tokens []int) []float64 {
 	t.Helper()
 	_, logits, err := model.Loss(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	vocabulary := model.Dims.Vocab
 	losses := make([]float64, len(tokens)-1)
 	for position := range losses {
@@ -51,9 +51,7 @@ func TestMaskedLossNormalizesOverTrainedTokensOnly(t *testing.T) {
 	}
 	want /= float64(learned)
 	got, _, err := model.MaskedLossAndLayerGradsOf(maskedTokens, maskedTrained, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(got-want) > 1e-5 {
 		t.Fatalf("masked loss %.7f, mean of the trained targets' losses %.7f", got, want)
 	}
@@ -61,17 +59,13 @@ func TestMaskedLossNormalizesOverTrainedTokensOnly(t *testing.T) {
 		t.Fatalf("masked loss %.7f equals the loss over every token %.7f: the mask changed nothing", got, every)
 	}
 	whole, _, wholeGrads, err := model.LossAndGrads(maskedTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	all := make([]bool, len(maskedTokens))
 	for index := range all {
 		all[index] = true
 	}
 	flagged, flaggedGrads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, all, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(whole-flagged) > 1e-5 {
 		t.Fatalf("every token flagged: loss %.7f, LossAndGrads %.7f", flagged, whole)
 	}
@@ -104,13 +98,9 @@ func TestMaskedTokenHasNoGradient(t *testing.T) {
 	masked := slices.Clone(maskedTrained)
 	masked[len(masked)-1] = false
 	loss, grads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, masked, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	swappedLoss, swappedGrads, err := model.MaskedLossAndLayerGradsOf(other, masked, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loss != swappedLoss {
 		t.Fatalf("a masked final token moved the loss: %.9f against %.9f", loss, swappedLoss)
 	}
@@ -120,13 +110,9 @@ func TestMaskedTokenHasNoGradient(t *testing.T) {
 		}
 	}
 	_, learnedGrads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, maskedTrained, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, learnedSwapped, err := model.MaskedLossAndLayerGradsOf(other, maskedTrained, everyWeight, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	moved := false
 	for name, grad := range learnedGrads {
 		moved = moved || !slices.Equal(grad, learnedSwapped[name])
@@ -162,20 +148,14 @@ func TestTrainWithMaskStepsOnTheTrainedTokens(t *testing.T) {
 		all[index] = true
 	}
 	baseline, _, err := tinyMuonModel(t).Train(batches, rate, momentum, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	flagged, _, err := tinyMuonModel(t).TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Trained: [][]bool{all, all}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(baseline, flagged) {
 		t.Fatalf("every token flagged: losses %v, Train's %v", flagged, baseline)
 	}
 	masked, _, err := tinyMuonModel(t).TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Trained: [][]bool{maskedTrained, maskedTrained}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.Equal(masked, baseline) {
 		t.Fatalf("a masked run took Train's steps: losses %v", masked)
 	}

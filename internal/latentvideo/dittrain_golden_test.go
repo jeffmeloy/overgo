@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
@@ -24,17 +25,11 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	modelDir := wanModelDir(t)
 	config, err := LoadDenoiserConfig(modelDir, referenceDenoiserPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensors, textDim, err := LoadDiTTrainerTensors(modelDir, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shape := manifest.LatentShape
 	if geometry.Channels != shape.Channels || geometry.LatentFrames != shape.LatentFrames ||
 		geometry.LatentHeight != shape.LatentHeight || geometry.LatentWidth != shape.LatentWidth ||
@@ -42,9 +37,7 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 		t.Fatalf("latent geometry %+v differs from golden %+v", geometry, shape)
 	}
 	trainer, err := NewDiTTrainer(config, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	t.Logf("trainable_parameters=%d text_dim=%d", trainer.ParameterCount(), textDim)
 
@@ -61,16 +54,12 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 			Timesteps []int64 `json:"timesteps"`
 		} `json:"schedule"`
 	}
-	if err := json.Unmarshal(raw, &g2); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g2))
 	headEAll := loadG1Tensor(t, dir, g2.HeadE)   // [steps, dim]
 	blockEAll := loadG1Tensor(t, dir, g2.BlockE) // [steps, 6, dim]
 	d := config.Dim
 	timeActs, err := trainer.timestepConditioning(float64(g2.Schedule.Timesteps[0]))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireParity(t, "g2 head_e[0] via trainer", timeActs.headE, headEAll[:d], 0)
 	requireParity(t, "g2 block_e[0] via trainer", timeActs.blockE, blockEAll[:6*d], 0)
 
@@ -88,9 +77,7 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 	var worstSeam, worstBlock, worstBranch parityStat
 	for _, branch := range branches {
 		state, err := trainer.forwardConditionedRetained(sampleIn, branch.context, timeActs.blockE, timeActs.headE, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		block0 := &state.blocks[0]
 		seams := []struct {
 			name string

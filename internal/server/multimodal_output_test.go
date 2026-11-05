@@ -9,6 +9,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestMultimodalOutputProjection pins the inline-rendering contract:
@@ -19,15 +20,11 @@ import (
 func TestMultimodalOutputProjection(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	ctx := t.Context()
 	description, described := handler.interactionDescription()
@@ -36,9 +33,7 @@ func TestMultimodalOutputProjection(t *testing.T) {
 	}
 	pngBytes := []byte{0x89, 'P', 'N', 'G', 0, 1, 2, 3}
 	mediaID, err := artifact.IdentifyBytes(artifact.KindOutput, pngBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "multimodal-output-fixture",
 		Contents: []artifact.Content{{

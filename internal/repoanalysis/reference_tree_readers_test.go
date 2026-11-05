@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // referenceTree is the directory name of the tree overgo was ported from,
@@ -45,15 +46,11 @@ func TestNoTestReadsAdaptiveNew(t *testing.T) {
 		}
 	}
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var found []string
 	for _, file := range snapshot.Files {
 		syntax, err := file.Syntax()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ast.Inspect(syntax, func(node ast.Node) bool {
 			literal, ok := node.(*ast.BasicLit)
 			if !ok || literal.Kind != token.STRING || slices.Contains(found, file.Path) {

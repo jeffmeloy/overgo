@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/hfhub"
+	"overgo/internal/testcheck"
 )
 
 // TestOneWorkbenchEventStream: hub downloads ride the one runtime stream --
@@ -51,13 +52,9 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 	defer server.Close()
 	// Closing the body ends the stream.
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/runtime/activity/stream", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	response, err := server.Client().Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer response.Body.Close()
 	lines := bufio.NewScanner(response.Body)
 	nextDownloads := func() []downloadJob {
@@ -70,9 +67,7 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 			}
 			if data, found := strings.CutPrefix(line, "data: "); found && event == "hub.downloads" {
 				var jobs []downloadJob
-				if err := json.Unmarshal([]byte(data), &jobs); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal([]byte(data), &jobs))
 				return jobs
 			}
 		}
@@ -83,9 +78,7 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 		t.Fatalf("a fresh server lists downloads %+v", jobs)
 	}
 	admitted := &downloadJob{ID: handler.downloads.next.Add(1), Repository: "acme/tiny", State: downloadStateRunning}
-	if err := handler.downloads.admit(admitted, func() {}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, handler.downloads.admit(admitted, func() {}))
 	defer handler.downloads.transfers.Done()
 	if jobs := nextDownloads(); len(jobs) != 1 || jobs[0].Repository != "acme/tiny" || jobs[0].State != downloadStateRunning {
 		t.Fatalf("an admitted download reached the stream as %+v", jobs)

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestModelSwapProxyIdleHandlerAnswersColdStart pins the cold start: with
@@ -15,9 +17,7 @@ import (
 func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	launcher := &upstreamLauncher{}
 	supervisor, err := New(launcher, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	proxy := &Proxy{
 		Supervisor: supervisor,
@@ -33,9 +33,7 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	defer front.Close()
 
 	idle, err := http.Get(front.URL + "/app.html")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	body, _ := io.ReadAll(idle.Body)
 	idle.Body.Close()
 	via, present := idle.Header["X-Overgo-Swap-Proxy"]
@@ -46,9 +44,7 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 		t.Fatal("the idle answer launched a child")
 	}
 	posted, err := http.Post(front.URL+"/library/register", "application/json", strings.NewReader(`{"kind":"provider","name":"p"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	echoed, _ := io.ReadAll(posted.Body)
 	posted.Body.Close()
 	if string(echoed) != `idle{"kind":"provider","name":"p"}` {
@@ -56,17 +52,13 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	}
 
 	launched, err := http.Get(front.URL + "/health?swap=alpha")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	launched.Body.Close()
 	if launched.StatusCode != http.StatusOK || launched.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
 		t.Fatalf("named swap = %d %q", launched.StatusCode, launched.Header.Get("X-Overgo-Swap-Proxy"))
 	}
 	served, err := http.Get(front.URL + "/app.html")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	served.Body.Close()
 	if served.Header.Get("X-Idle") != "" || served.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
 		t.Fatalf("request after the launch = %q", served.Header)

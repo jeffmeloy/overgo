@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestBlobRetryPersistsTheNameItFinds holds a retry to the rule its bytes do not
@@ -20,22 +21,14 @@ func TestBlobRetryPersistsTheNameItFinds(t *testing.T) {
 	blobs := blobStore{root: filepath.Join(t.TempDir(), blobDirectory), pack: new(blobPack)}
 	payload := []byte("a blob an earlier attempt published")
 	id, err := artifact.NewID(artifact.KindFile, sha256.Sum256(payload))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := blobs.prepare(id, payload); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, blobs.prepare(id, payload))
 	if err := blobs.prepare(id, payload); err != nil {
 		t.Fatalf("a retry over a sound blob: %v", err)
 	}
 	destination, err := blobs.path(id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(destination, 0o444); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.Chmod(destination, 0o444))
 	t.Cleanup(func() { _ = os.Chmod(destination, 0o644) })
 	if err := blobs.prepare(id, payload); err == nil {
 		t.Fatal("a retry passed without persisting the name it found")

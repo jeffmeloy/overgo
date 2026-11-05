@@ -3,6 +3,8 @@ package main
 import (
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestKernelManifestIsCurrent holds the committed kernel manifest to the
@@ -10,7 +12,5 @@ import (
 // -update, so go test answers for it.
 func TestKernelManifestIsCurrent(t *testing.T) {
 	t.Parallel()
-	if err := run(filepath.Join("..", ".."), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(filepath.Join("..", ".."), false))
 }

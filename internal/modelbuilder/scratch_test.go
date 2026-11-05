@@ -8,15 +8,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
 
 func TestScratchWorkflowSelection(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := ScratchWorkflowSelection(t.Context(), store); err == nil {
 		t.Fatal("absent profile admitted")
@@ -25,16 +24,12 @@ func TestScratchWorkflowSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile, err := scratchmodel.ResolveActiveDerivationProfile(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := artifact.JSONID(artifact.KindRecipe, struct {
 		Runtime string      `json:"runtime"`
 		Profile artifact.ID `json:"profile"`
 	}{"scratch-model-builder/v1", profile.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := ScratchWorkflowSelection(t.Context(), store)
 	if err != nil || got != want {
 		t.Fatalf("selection identity changed: %s != %s, %v", got, want, err)
@@ -48,9 +43,7 @@ func TestScratchWorkflowSelection(t *testing.T) {
 
 func TestScratchBuilderPublishesCampaign(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
@@ -59,14 +52,10 @@ func TestScratchBuilderPublishesCampaign(t *testing.T) {
 	session, err := NewScratchSession(ctx, ScratchRequest{
 		Repository: store, Documents: []string{"abcd", "bcda", "cdab", "dabc"}, Seed: 1, Steps: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "scratch-builder-operation")
 	result, err := workflowruntime.ExecuteModelBuild(ctx, store, operation, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if result.DerivationProfile.Kind() != artifact.KindProfile {
 		t.Fatal("model build omitted derivation profile authority")
 	}

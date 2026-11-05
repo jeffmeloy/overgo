@@ -2,6 +2,8 @@ package projector
 
 import (
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGemma4TowerAudioPlanReused(t *testing.T) {
@@ -13,13 +15,9 @@ func TestGemma4TowerAudioPlanReused(t *testing.T) {
 	frontend := plan.frontend
 	samples := []float32{0, 0.25, -0.25, 0.5, -0.5, 0.25}
 	first, firstFrames, err := plan.preprocess(t.Context(), samples, spec.SampleRate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, secondFrames, err := plan.preprocess(t.Context(), samples, spec.SampleRate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if frontend != plan.frontend {
 		t.Fatal("frontend tables were replaced")
 	}

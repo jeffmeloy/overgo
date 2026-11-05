@@ -16,6 +16,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -28,9 +29,7 @@ const krea2048AdaptivePNG = "b25fa024af3b623ee443c74207b6a6ee32abeb6d0a5df7ba61c
 func krea2048AdaptivePNGPath(b *testing.B) string {
 	b.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(b))
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	return filepath.Join(roots.References(), "krea", "krea2_native_go_fox_seed42.png")
 }
 
@@ -55,13 +54,9 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	ctx := b.Context()
 	totalStart := time.Now()
 	profile, err := ResolveProfile(kreaModelDir(b))
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	generator, err := LoadGenerator(ctx, kreaModelDir(b), profile, request)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	defer func() {
 		if err := generator.Close(ctx); err != nil {
 			b.Errorf("close: %v", err)
@@ -71,9 +66,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 
 	prepareStart := time.Now()
 	session, err := generator.prepare(ctx, request)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	prepareWall := time.Since(prepareStart)
 	integrateStart := time.Now()
 	if _, err := generator.integrate(ctx, session); err != nil {
@@ -82,9 +75,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	integrateWall := time.Since(integrateStart)
 	decodeStart := time.Now()
 	generated, err := generator.decode(ctx, session)
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	decodeWall := time.Since(decodeStart)
 	encodeStart := time.Now()
 	encoded, minimum, maximum := generated.Data, generated.Minimum, generated.Maximum
@@ -99,9 +90,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	totalWall := time.Since(totalStart)
 	hash := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	mae, rmse, err := compareAdaptivePNG(encoded, krea2048AdaptivePNGPath(b))
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	b.Logf(
 		"Krea 2048 seed42 load=%.3fs prepare=%.3fs integrate=%.3fs decode=%.3fs png=%.3fs total=%.3fs peak_device=%.3fGiB resident=%.3fGiB png_sha256=%s range=[%g,%g] MAE=%.6f RMSE=%.6f",
 		loadWall.Seconds(), prepareWall.Seconds(), integrateWall.Seconds(), decodeWall.Seconds(), encodeWall.Seconds(), totalWall.Seconds(),

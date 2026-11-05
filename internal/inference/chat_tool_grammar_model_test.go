@@ -7,6 +7,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
@@ -22,9 +23,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			runner, err := openFixtureRunner(modeltest.Directory(t, fixture.model), 0)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer runner.Close()
 			source, root, patterns, err := runner.ChatToolGrammar(
 				[]ChatTool{toolWeatherDefinition()},
@@ -32,9 +31,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 				true,
 				true,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := runner.CompileLazyGBNF(
 				source,
 				root,
@@ -49,9 +46,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 				true,
 				true,
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(patterns) != 0 {
 				t.Fatalf("required grammar triggers = %q", patterns)
 			}

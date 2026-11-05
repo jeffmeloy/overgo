@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,13 +18,9 @@ func TestFindingRoundTripAndNormalizeAnyOrder(t *testing.T) {
 		"diagnose via phase deltas; close with fix landed.",
 		"advisories stop raising across two consecutive windows after the fix.",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	canonical, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := Parse(canonical.Data)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip failed: %v", err)

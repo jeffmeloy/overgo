@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 func TestAnalyzeModelReportsMeasuredStatistics(t *testing.T) {
@@ -88,9 +89,7 @@ func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
 	// Bare fake: logits always available; no vocab inspection or capture support.
 	bare := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/analyze/model", "")
 	var bareResult analyzeModelResponse
-	if err := json.Unmarshal(bare.Body.Bytes(), &bareResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(bare.Body.Bytes(), &bareResult))
 	if !bareResult.Analysis.Logits || bareResult.Analysis.Vocabulary ||
 		bareResult.Analysis.HiddenStates || bareResult.Analysis.Attention {
 		t.Fatalf("bare analysis = %+v", bareResult.Analysis)
@@ -101,9 +100,7 @@ func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
 		newTestHandler(t, &analysisCapableGenerator{vocabGenerator: *newVocabGenerator()}),
 		http.MethodGet, "/analyze/model", "")
 	var capableResult analyzeModelResponse
-	if err := json.Unmarshal(capable.Body.Bytes(), &capableResult); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(capable.Body.Bytes(), &capableResult))
 	if !capableResult.Analysis.Vocabulary || !capableResult.Analysis.HiddenStates || !capableResult.Analysis.Logits {
 		t.Fatalf("capable analysis = %+v", capableResult.Analysis)
 	}

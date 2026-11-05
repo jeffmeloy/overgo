@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/testcheck"
 )
 
 // TestTrunkCheckoutFollowsWithItsOwnChangesKept holds the trunk's own
@@ -69,13 +70,9 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	working := func(edit func(*plan.Plan)) {
 		t.Helper()
 		document, err := plan.Load(fixture.planPath())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		edit(&document)
-		if err := plan.Save(fixture.planPath(), document); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	}
 	trunk := func() string { return fixture.git("rev-parse", "refs/heads/trunk") }
 	const fileOne, retitled, leads, notes = "internal/p/a.go", "second, as the lead has it", "the lead's\n", "docs/own.txt"
@@ -139,9 +136,7 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	fixture.git("checkout", "--", plan.Path)
 	working(func(document *plan.Plan) { document.Items[0].Title = retitled })
 	kept := holds(fixture, plan.Path)
-	if err := os.Mkdir(filepath.Join(fixture.repo, processlock.StateDirectory, planAside), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(filepath.Join(fixture.repo, processlock.StateDirectory, planAside), 0o700))
 	if _, err := land(linked, "second/do"); err == nil || holds(fixture, plan.Path) != kept {
 		t.Fatalf("a follow that could not keep the lead's plan = %v with the plan changed %t, want it refused and the plan as the lead left it", err, holds(fixture, plan.Path) != kept)
 	}

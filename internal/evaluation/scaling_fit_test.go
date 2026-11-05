@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ func TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing(t *testing.T) 
 			ReopenTrigger: id(artifact.KindRecipe, "assumption reopen"),
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := scalingFitCodec.Content(fit)
 	if err != nil || content.Descriptor.ID != fit.ID || fit.FitPoints[0].CostDecimal != "100" || len(scalingFitLineage(fit)) != 22 {
 		t.Fatalf("scaling fit = (%+v, %v)", fit, err)

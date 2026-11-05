@@ -2,6 +2,7 @@ package trainingprogram
 
 import (
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 	"testing"
 	"time"
 )
@@ -16,17 +17,13 @@ func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
 		Objective: ObjectiveTokenPrediction, DatasetUnits: datasetUnits,
 		MaximumSequence: maximumSequence, Optimizer: config,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.Updates() != datasetUnits || plan.MaximumSequence() != maximumSequence ||
 		plan.Optimizer().Steps != datasetUnits || !plan.ID().Valid() {
 		t.Fatalf("plan = %#v", plan)
 	}
 	first, err := plan.Seed("init")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := plan.Seed("evaluation")
 	if err != nil || first == second {
 		t.Fatalf("stream seeds = %d/%d, err=%v", first, second, err)

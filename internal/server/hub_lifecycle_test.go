@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestWorkbenchAPIDownloadAdmissionAndCancellation pins the transfer
@@ -57,9 +59,7 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 		t.Fatalf("backlog status = %d body=%s", refused.Code, refused.Body.String())
 	}
 	var job downloadJob
-	if err := json.Unmarshal(accepted[0].Body.Bytes(), &job); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(accepted[0].Body.Bytes(), &job))
 	cancel := httptest.NewRecorder()
 	handler.ServeHTTP(cancel, httptest.NewRequest(http.MethodDelete,
 		"/hub/downloads?id="+strconv.FormatUint(job.ID, identifierRadix), nil))

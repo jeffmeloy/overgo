@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestCompositionCandidateEnumerationRanksByResidualAndFitness pins the
@@ -33,9 +34,7 @@ func TestCompositionCandidateEnumerationRanksByResidualAndFitness(t *testing.T) 
 	index, err := NewExactComponentIndex([]CatalogComponent{
 		target, graftDonor, linearDonor, residualDonor, expertDonor, bridgeDonor, silentDonor,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	measurements := []DonorSeamMeasurement{
 		{Donor: graftDonor.Model, Component: graftDonor.Name, Residual: 0, Fitness: 0.4},
 		{Donor: linearDonor.Model, Component: linearDonor.Name, Residual: 0.3, Fitness: 0.9},
@@ -44,9 +43,7 @@ func TestCompositionCandidateEnumerationRanksByResidualAndFitness(t *testing.T) 
 		{Donor: bridgeDonor.Model, Component: bridgeDonor.Name, Residual: 0.95, Fitness: 0.99},
 	}
 	candidates, unmeasured, err := EnumerateCompositionCandidates(index, target, measurements, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(candidates) != 5 {
 		t.Fatalf("candidate census = %d: %+v", len(candidates), candidates)
 	}

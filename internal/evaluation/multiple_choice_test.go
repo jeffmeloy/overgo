@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 )
 
 type fixedContinuationScorer struct {
@@ -30,9 +31,7 @@ func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
 			Name: "choice", Prompt: "prompt", Candidates: []string{" first", " second"}, Answer: 0,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := BindMultipleChoice(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
@@ -40,13 +39,9 @@ func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateMultipleChoice(
@@ -56,9 +51,7 @@ func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
 		}},
 		compiled, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	observation := report.Observations[0]
 	if report.Accuracy != 1 || observation.Selected != 0 || observation.Tied ||
 		observation.Values[0] != -2 || observation.Values[1] != -3 {

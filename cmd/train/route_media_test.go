@@ -13,6 +13,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -29,19 +30,11 @@ func TestTrainRoutesReachTheMediaTrainers(t *testing.T) {
 			}
 		}
 		file, err := os.Create(filepath.Join(root, "gradient.png"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := png.Encode(file, picture); err != nil {
-			t.Fatal(err)
-		}
-		if err := file.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, png.Encode(file, picture))
+		testcheck.NoError(t, file.Close())
 		manifest := filepath.Join(root, "manifest.txt")
-		if err := os.WriteFile(manifest, []byte("gradient.png\n"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(manifest, []byte("gradient.png\n"), 0o600))
 		requireRoutePublishes(t, "diffusionimage", "-model", model, "-images", manifest)
 	})
 
@@ -62,13 +55,9 @@ func requireRoutePublishes(t *testing.T, route string, args ...string) (training
 		t.Fatalf("%s route: %v", route, err)
 	}
 	checkpoint, err := trainingprogram.LoadCheckpoint(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, recorded, err := store.Artifact(t.Context(), checkpoint.ID()); err != nil || !recorded || checkpoint.Optimizer.Step != routeTestSteps {
 		t.Fatalf("checkpoint %s at step %d recorded %t (%v), want the route's %d steps recorded", checkpoint.ID(), checkpoint.Optimizer.Step, recorded, err, routeTestSteps)
@@ -88,9 +77,7 @@ func writeTinyDiffusionImage(t *testing.T, directory string) string {
 		WeightKeys   []string
 		WeightShapes map[string][]int
 	}
-	if err := jsonfile.Decode(testutil.FixturePath(t, "simplediffusion", "udit_tiny.json"), &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(testutil.FixturePath(t, "simplediffusion", "udit_tiny.json"), &fixture))
 	// The golden generator's pattern: value i of key k is
 	// ((i+(k+1)*7)%29-14)/128.
 	const offsetStride, period, center, scale = 7, 29, 14, 128
@@ -110,15 +97,9 @@ func writeTinyDiffusionImage(t *testing.T, directory string) string {
 // float32 weights.
 func writeModelDirectory(t *testing.T, directory, declaration, content string, tensors map[string][]float32, shapes map[string][]int) {
 	t.Helper()
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, declaration), []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), tensors, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, declaration), []byte(content), 0o600))
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), tensors, shapes, nil))
 }
 
 // elementCount is how many values a tensor of shape holds.

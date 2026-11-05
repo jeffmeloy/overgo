@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestRepositoryCountsEveryCapabilityPackage holds the repository's own tree
@@ -16,16 +18,12 @@ import (
 func TestRepositoryCountsEveryCapabilityPackage(t *testing.T) {
 	ctx := t.Context()
 	counted, refused, err := identities(ctx, "../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for entry, reads := range refused {
 		t.Errorf("%s has no identity: declare each read as a result setting or a neutral read (identity.go): %s", entry, strings.Join(reads, "; "))
 	}
 	flag, err := LinkFlag(ctx, "../..")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range []string{"overgo/internal/rae", "overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve", "overgo/" + textRunner, evaluationCount} {
 		if identity := counted[entry]; identity == "" || !strings.Contains(flag, entry+"="+identity) {
 			t.Errorf("%s is counted %q, and the linker flag does not name it so", entry, identity)
@@ -53,12 +51,8 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/mediacapability/catalog.go", "package mediacapability\n\nimport (\n\t_ \"fixture/internal/capabilityruntime\"\n\t_ \"fixture/internal/picture\"\n\t_ \"fixture/internal/speech\"\n)\n")
@@ -76,9 +70,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	count := func() map[string]string {
 		t.Helper()
 		counted, _, err := identities(ctx, root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return counted
 	}
 	before := count()
@@ -119,9 +111,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 
 	write("internal/speech/speech.go", "package speech\n\nimport (\n\t\"os\"\n\n\t_ \"fixture/internal/shared\"\n)\n\nvar precision = os.Getenv(\"FIXTURE_PRECISION\")\n")
 	counted, refused, err := identities(ctx, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, held := counted[speech]; held || len(refused[speech]) != 1 || !strings.HasSuffix(refused[speech][0], `speech.go reads "FIXTURE_PRECISION"`) || counted[picture] == "" {
 		t.Errorf("a read of the environment nothing declares counted %v and refused %v; want the package that reads it refused with the read, and the other counted", counted, refused)
 	}
@@ -133,9 +123,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	// In a process: the libraries and the settings it computes under.
 	directory := t.TempDir()
 	library := filepath.Join(directory, libraries[0])
-	if err := os.WriteFile(library, []byte("driver 1"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(library, []byte("driver 1"), 0o644))
 	settings := map[string]string{"PATH": directory, "CUDA_PATH": `C:\toolkit\v1`}
 	lookup := func(name string) string { return settings[name] }
 	executable, beside := filepath.Join(t.TempDir(), "server.exe"), t.TempDir()
@@ -143,9 +131,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	if again := environment(lookup, executable, beside); again != first || !strings.Contains(first, library) {
 		t.Fatalf("the environment reads %q then %q: want the same twice, naming the library on the search path", first, again)
 	}
-	if err := os.WriteFile(library, []byte("driver 2 is longer"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(library, []byte("driver 2 is longer"), 0o644))
 	updated := environment(lookup, executable, beside)
 	if updated == first {
 		t.Error("a changed library left the environment where it was")
@@ -157,9 +143,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	// A library the machine holds beside overgo's data and on no search path is one a result can depend on.
 	placed := filepath.Join(beside, libraries[len(libraries)-1])
 	unplaced := environment(lookup, executable, beside)
-	if err := os.WriteFile(placed, []byte("part"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(placed, []byte("part"), 0o644))
 	if after := environment(lookup, executable, beside); after == unplaced || !strings.Contains(after, placed) {
 		t.Error("a library placed beside overgo's data left the environment where it was")
 	}
@@ -206,12 +190,8 @@ func TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt(t *testing.T) {
 	write := func(name, content string) {
 		t.Helper()
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/mediacapability/catalog.go", "package mediacapability\n\nimport (\n\t_ \"fixture/internal/capabilityruntime\"\n\t_ \"fixture/internal/speech\"\n)\n")
@@ -289,9 +269,7 @@ func TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt(t *testing.T) {
 		t.Error("another count of the binders gave the same evaluation identity")
 	}
 
-	if err := os.RemoveAll(filepath.Join(root, "internal", "modelcli")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, "internal", "modelcli")))
 	write("cmd/evaluate/main.go", "package main\n\nimport _ \"fixture/internal/evaluation\"\n\nfunc main() {}\n")
 	if partial := count(); partial[evaluationCount] != "" || partial[runner] == "" {
 		t.Errorf("a tree without one of the binders counts %v; want no count of the binders, and the runner's identity still", partial)

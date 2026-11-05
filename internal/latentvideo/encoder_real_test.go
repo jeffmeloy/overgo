@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -40,9 +41,7 @@ func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 	}
 	metas := catalog.Tensors
 	plan, err := CompileEncoderPlan(metas, referenceEncoderPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !plan.OK {
 		t.Fatalf("plan not ok: %+v", plan)
 	}
@@ -56,9 +55,7 @@ func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 	}
 	t.Logf("canceled after %d embedding rows; no encoder block weights loaded", stopped.TokenRows)
 	got, stats, err := EncodeTokensStreamed(t.Context(), checkpoint, plan, tokens, mask)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if stats.Layers != 24 || stats.EmbeddingBytesRead != 24576 || stats.BlockWeightBytes != 9261514752 || stats.MaxBlockWeightBytes != 385896448 || stats.FinalNormBytes != 8192 {
 		t.Fatalf("bad streamed stats: %+v", stats)
 	}

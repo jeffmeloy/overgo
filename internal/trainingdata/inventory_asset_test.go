@@ -10,6 +10,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 )
 
 // TestInventoryRecordsReadTheirFiles holds a registered directory dataset to
@@ -22,41 +23,29 @@ func TestInventoryRecordsReadTheirFiles(t *testing.T) {
 	corpus := t.TempDir()
 	contents := map[string]string{"alpha.txt": "alpha text", "beta.txt": "beta text"}
 	for name, content := range contents {
-		if err := os.WriteFile(filepath.Join(corpus, name), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, name), []byte(content), 0o600))
 	}
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source := registered.Dataset
 	records := []dataset.Record{
 		{ID: dataset.RecordID(source, dataset.InventoryAssetName, 0), Group: "only"},
 		{ID: dataset.RecordID(source, dataset.InventoryAssetName, 1), Group: "only"},
 	}
 	membership, err := dataset.NewMembership(source, 1, "all", records)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := membership.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "test-membership", Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{membership.Lineage()},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	processor, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/inventory-asset-test/text"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	signature := recipecontract.ModalitySignature{
 		Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 	}
@@ -68,9 +57,7 @@ func TestInventoryRecordsReadTheirFiles(t *testing.T) {
 			Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
 			Process: Passthrough(RoleInput, recipecontract.ModalityText, "utf-8"),
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return materialized
 	}
 	materialized := materialize()
@@ -78,22 +65,16 @@ func TestInventoryRecordsReadTheirFiles(t *testing.T) {
 	for _, member := range materialized.members {
 		for _, record := range member.records {
 			data, err := record.read()
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			read = append(read, string(data))
 		}
 	}
-	if err := materialized.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, materialized.Close())
 	if len(read) != len(contents) || !strings.Contains(strings.Join(read, "|"), "alpha text") || !strings.Contains(strings.Join(read, "|"), "beta text") {
 		t.Fatalf("inventory records read %q, want each file's bytes", read)
 	}
 
-	if err := os.WriteFile(filepath.Join(corpus, "beta.txt"), []byte("beta TEXT"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, "beta.txt"), []byte("beta TEXT"), 0o600))
 	changed := materialize()
 	defer changed.Close()
 	var refused error

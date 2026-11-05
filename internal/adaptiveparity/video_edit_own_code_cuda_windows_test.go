@@ -27,6 +27,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -84,9 +85,7 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 		t.Fatalf("the model's own edit is absent (%v); write it with %s", err, ownEditScript)
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	required := []string{checkpoint, latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint}
 	for _, clip := range own.Clips {
 		required = append(required, filepath.Join(roots.Datasets, "VidGen", clip.Name+".mp4"))
@@ -125,9 +124,7 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 			}
 		}
 		content, err := latentvideo.SourceFramesContent(source)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/own-edit/" + clip.Name, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -157,26 +154,16 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(latentvideo.ReferenceEditRequest) latentvideo.EncodedVideo) {
 	t.Helper()
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
 	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, edit)}}, Contents: []artifact.Content{profileContent},
@@ -186,13 +173,9 @@ func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(la
 	return store, func(form latentvideo.ReferenceEditRequest) latentvideo.EncodedVideo {
 		t.Helper()
 		request, err := json.Marshal(form)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("a served edit is %T", output)
@@ -228,13 +211,9 @@ func servedSquareMeans(t *testing.T, video latentvideo.EncodedVideo, side int) [
 	t.Helper()
 	if video.MediaType == media.MP4MediaType {
 		ffmpeg, err := media.FFmpeg()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		decoded, err := media.DecodeEncodedVideo(t.Context(), video.Data, ffmpeg, float64(video.FPS), video.Frames)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		means := make([][]float64, len(decoded))
 		for frame, picture := range decoded {
 			means[frame] = squareMeans(picture, side)
@@ -242,9 +221,7 @@ func servedSquareMeans(t *testing.T, video latentvideo.EncodedVideo, side int) [
 		return means
 	}
 	animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	canvas := image.NewRGBA(image.Rect(0, 0, video.Width, video.Height))
 	means := make([][]float64, len(animation.Image))
 	for frame, paletted := range animation.Image {

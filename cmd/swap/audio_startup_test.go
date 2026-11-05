@@ -6,21 +6,18 @@ import (
 	"net/http/httptest"
 	"overgo/internal/overgodb"
 	"overgo/internal/server"
+	"overgo/internal/testcheck"
 	"testing"
 )
 
 func TestIdleAudioWorkspace(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	// Exercise the actual launcher composition across the server package boundary.
 	// One entry is enough to prove an empty catalog does not invent a runnable task.
 	handler, err := idleWorkbench(store, server.LibraryIntake{}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workspace/manifest", nil))

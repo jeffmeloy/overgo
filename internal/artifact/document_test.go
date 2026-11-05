@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 type documentReader struct {
@@ -37,27 +39,19 @@ func TestDocumentContractBuildsAndValidatesContent(t *testing.T) {
 	}
 	data := []byte(`{"version":1}`)
 	content, err := contract.ContentBytes(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	owned, err := contract.OwnedContentBytes(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if &owned.Data[0] != &data[0] {
 		t.Fatal("owned content cloned caller buffer")
 	}
-	if err := owned.Validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, owned.Validate())
 	id := content.Descriptor.ID
 	data[0] = 'x'
 	if content.Data[0] != '{' {
 		t.Fatal("content retained caller storage")
 	}
-	if err := contract.ValidateContent(content, id); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, contract.ValidateContent(content, id))
 	other := contract
 	other.Schema = "test/v2"
 	if err := other.ValidateContent(content, id); err == nil {
@@ -69,9 +63,7 @@ func TestDocumentContractRejectsInvalidIdentityAndBounds(t *testing.T) {
 	contract := DocumentContract{Kind: KindRun, MediaType: "application/test+json", Schema: "test/v1"}
 	data := []byte(`{"version":1}`)
 	wrong, err := IdentifyBytes(KindRun, []byte("wrong"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := contract.ValidateIdentity(wrong, data); err == nil {
 		t.Fatal("wrong identity accepted")
 	}
@@ -87,13 +79,9 @@ func TestDocumentContractRejectsInvalidIdentityAndBounds(t *testing.T) {
 
 func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	previous, err := IdentifyBytes(KindModel, []byte("previous"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	target, err := IdentifyBytes(KindModel, []byte("target"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, wantPrevious := range []ID{previous, {}} {
 		source := []AliasBinding{{Name: "model", Target: target, Previous: IDPointer(wantPrevious)}}
 		cloned := CloneAliasBindings(source)
@@ -106,9 +94,7 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 
 func TestRepositoryKeysShareOneBound(t *testing.T) {
 	target, err := IdentifyBytes(KindModel, []byte("target"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, length := range []int{maxRepositoryKeyBytes, maxRepositoryKeyBytes + 1} {
 		key := strings.Repeat("k", length)
 		aliasErr := (AliasBinding{Name: key, Target: target}).Validate()
@@ -128,17 +114,11 @@ func TestDocumentBatchOwnsContent(t *testing.T) {
 	}
 	data := []byte(`{"version":1}`)
 	id, err := contract.Identify(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := contract.Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := NewDocumentBatch("document/batch", []Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content.Data[0] = 'x'
 	if batch.Contents[0].Data[0] != '{' {
 		t.Fatal("document batch retained caller bytes")
@@ -151,17 +131,11 @@ func TestArtifactRepositoryGatesValidateInputs(t *testing.T) {
 	}
 	data := []byte(`{"version":1}`)
 	id, err := contract.Identify(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := contract.Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := NewDocumentBatch("document/commit", []Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	repository := &documentRepository{alias: id}
 	if _, err := CommitBatch(t.Context(), repository, batch); err != nil || repository.commits != 1 {
 		t.Fatalf("commit gate = (%d, %v)", repository.commits, err)

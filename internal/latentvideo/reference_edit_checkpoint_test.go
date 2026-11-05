@@ -7,19 +7,16 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 )
 
 func TestLiveEditCheckpointBinding(t *testing.T) {
 	modelDirectory := wanModelDir(t)
 	base, err := LoadDenoiserConfig(modelDirectory, referenceDenoiserPolicy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpointPath := filepath.Join(filepath.Dir(modelDirectory), "LiveEdit", "ar-forcing_002000.pt")
 	checkpoint, err := CompileReferenceEditCheckpoint(checkpointPath, base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if checkpoint.Config.InDim != 2*base.InDim || checkpoint.SourceChannels != base.InDim || checkpoint.Layers != base.NumLayers || len(checkpoint.bindings) != len(denoiserTensorLengths(checkpoint.Config))+len(projectionTensorNames) {
 		t.Fatalf("checkpoint=%+v bindings=%d", checkpoint, len(checkpoint.bindings))
 	}
@@ -28,14 +25,10 @@ func TestLiveEditCheckpointBinding(t *testing.T) {
 		t.Fatal("patch binding absent")
 	}
 	reader, err := pytorchzip.Open(checkpoint.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer reader.Close()
 	values, err := reader.ReadBinding(patch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(values) != checkpoint.Config.patchIn()*checkpoint.Config.Dim {
 		t.Fatalf("patch values=%d want=%d", len(values), checkpoint.Config.patchIn()*checkpoint.Config.Dim)
 	}

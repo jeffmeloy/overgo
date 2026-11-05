@@ -9,22 +9,19 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	path := writeTinyPaddleOCR(t, tinyPaddleOCRTensors())
 	runner, err := openImageProjectorAs[*paddleOCRRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	output, err := runner.EncodeImage(t.Context(), input, rasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 1)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -39,9 +36,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
 	projector, err := OpenAs[Projector](t.Context(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer projector.Close()
 	if _, ok := projector.(*paddleOCRRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
@@ -50,9 +45,7 @@ func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
 
 func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	runner, err := openImageProjectorAs[*paddleOCRRunner](writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	first := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
@@ -60,9 +53,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 		t.Context(), imagePromptTokenizer{marker: paddleOCRImagePad, token: 9001}, []image.Image{first, second},
 		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if prompt.EmbeddingWidth != 6 || len(prompt.Embeddings) != 18 {
 		t.Fatalf("embedding contract = width %d values %d", prompt.EmbeddingWidth, len(prompt.Embeddings))
 	}
@@ -108,13 +99,9 @@ func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	}
 	options := rasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, "PaddleOCR", got.Embeddings.Data, want.Embeddings.Data, 2e-3)
 }
 

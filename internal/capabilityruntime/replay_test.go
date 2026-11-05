@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowruntime"
 )
 
@@ -48,9 +49,7 @@ func TestReplayDoesNotCrossACodeChange(t *testing.T) {
 				director, err := NewModelSessionDirector[scalarRequest, int, int](
 					"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
 				)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				defer director.Close(t.Context())
 				execute = director.Executor()
 			}
@@ -64,9 +63,7 @@ func TestReplayDoesNotCrossACodeChange(t *testing.T) {
 				codeScope, bias = func() string { return step.build }, step.bias
 				loaded, ran := loads.Load(), runs.Load()
 				got, err := execute(t.Context(), store, "model", execution, `{"value":4}`)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				measured := got.(Measured)
 				replayed := runs.Load() == ran
 				if measured.Output != 4+step.bias || runs.Load() != step.runs || replayed && (loads.Load() != loaded || len(measured.Phases) != 0 || measured.Load != 0) {

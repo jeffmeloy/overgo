@@ -14,6 +14,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 	"overgo/internal/rae"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -91,9 +92,7 @@ func TestRepresentationRoundTripMatchesReference(t *testing.T) {
 		t.Fatalf("the reference round trip is absent (%v); write it with %s", err, roundTripScript)
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	directory := roots.ResolveModelPath("RAE-collections")
 	collection, held, err := rae.ResolveCollection(directory)
 	if err != nil || !held {
@@ -106,23 +105,15 @@ func TestRepresentationRoundTripMatchesReference(t *testing.T) {
 	cut := reference.Cut
 	elements := media.RGBChannels * cut.Frames * cut.Height * cut.Width
 	picture, err := fixtureasset.LoadF32(fixtures, reference.Picture.File, reference.Picture.SHA256, elements)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := fixtureasset.LoadF32(fixtures, reference.Image.File, reference.Image.SHA256, elements)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	autoencoder, err := OpenAutoencoder(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer autoencoder.Close(t.Context())
 	source := latentvideo.SourceVideo{Pixels: picture, Channels: media.RGBChannels, Frames: cut.Frames, Height: cut.Height, Width: cut.Width}
 	output, latent, err := autoencoder.RoundTrip(t.Context(), source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if shape := reference.LatentShape; len(shape) != 3 || latent.Channels != shape[0] || latent.Height != shape[1] || latent.Width != shape[2] {
 		t.Fatalf("the latent is %d channels over %d by %d, and the reference's is %v", latent.Channels, latent.Height, latent.Width, reference.LatentShape)
 	}
@@ -158,9 +149,7 @@ func TestRepresentationRoundTripMatchesReference(t *testing.T) {
 		decode = media.DecodeVideoFileCovering
 	}
 	frames, err := decode(t.Context(), clip, ffmpeg, float64(cut.FPS), cut.Frames, cut.Width, cut.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := latentvideo.SourceVideoFromFrames(frames)
 	if err != nil || len(again.Pixels) != len(picture) {
 		t.Fatalf("the clip cut again holds %d values (%v), and the fixture's frame %d", len(again.Pixels), err, len(picture))

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCharacterizeCatalogEmptyStore exercises the catalog wiring end to end over
@@ -16,22 +17,16 @@ import (
 // ResolveModelDefinition, MeasureAtLocation).
 func TestCharacterizeCatalogEmptyStore(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "store")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(dir, 0o755))
 	store, err := overgodb.Create(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	count, err := characterizeCatalog(
 		t.Context(), store, 4096,
 		modelartifact.MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if count != 0 {
 		t.Errorf("empty store characterized %d models, want 0", count)
 	}

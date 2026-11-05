@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func TestMutationRequiresBoundPreflightInspection(t *testing.T) {
 	}, artifact.CommitID{1}, []dataset.InteractionSelectionSource{{
 		Source: arguments, CausalRoot: operation, Tokens: 1, Bytes: 1, Documents: 1, Depth: 1,
 	}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	boundary := AttemptStimulusBoundary{
 		Version: artifact.InitialDocumentVersion, Operation: operation, Attempt: 1,
 		Manual: testutil.ArtifactID(t, artifact.KindRecipe, "preflight-manual"),
@@ -64,9 +63,7 @@ func TestRSIMutationEffectApprovalReceiptRatchet(t *testing.T) {
 		Attempt: 1, State: StageAdmitted, Invocation: &binding,
 	}
 	identified, err := NewStageReceipt(receipt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, mutate := range map[string]func(*invocation.ReceiptBinding){
 		"effect":     func(value *invocation.ReceiptBinding) { value.Effect = artifact.ID{} },
 		"preflight":  func(value *invocation.ReceiptBinding) { value.Preflight = artifact.ID{} },

@@ -3,6 +3,8 @@ package statecodec
 import (
 	"errors"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestCodecRoundTrip(t *testing.T) {
@@ -15,17 +17,13 @@ func TestCodecRoundTrip(t *testing.T) {
 	encoder.F64(2.5)
 	encoder.String32("state")
 	data, err := encoder.Data()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decoder := NewDecoder(data, 64)
 	if string(decoder.Raw(8)) != "MAGIC001" || decoder.U32() != 7 || decoder.U64() != 11 || decoder.F32() != 1.5 ||
 		decoder.I32() != -9 || decoder.F64() != 2.5 || decoder.String32(8) != "state" {
 		t.Fatal("round trip differs")
 	}
-	if err := decoder.Done(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, decoder.Done())
 }
 
 func TestCodecBounds(t *testing.T) {
@@ -45,9 +43,7 @@ func TestCodecBounds(t *testing.T) {
 	stringEncoder := NewEncoder(16)
 	stringEncoder.String32("state")
 	data, err := stringEncoder.Data()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stringDecoder := NewDecoder(data, 16)
 	if got := stringDecoder.String32(4); got != "" || !errors.Is(stringDecoder.Err(), ErrLimit) {
 		t.Fatalf("limited string = %q, error = %v", got, stringDecoder.Err())

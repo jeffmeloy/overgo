@@ -18,6 +18,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
 	"overgo/internal/processmeasure"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testprocess"
 )
@@ -56,36 +57,24 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 		X, Out  []float32
 	}](t, "real_forward")
 	forward, err := CompileResidentForward(t.Context(), model, 0, golden.H, golden.W)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := forward.Close(context.WithoutCancel(t.Context())); err != nil {
 			t.Error(err)
 		}
 	})
 	actual, err := forward.Execute(t.Context(), golden.X)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "independent vendor forward", actual, golden.Out, tolReal)
 	const steps, seed = 3, int64(7)
 	want, err := samplingHostBoundary(t.Context(), forward, steps, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := forward.Sample(t.Context(), steps, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "complete resident sample", got, want, tolTight)
 	download := after.Execution.DeviceToHostBytes - before.Execution.DeviceToHostBytes
 	t.Logf("sampling steps=%d elements=%d h2d_bytes=%d d2h_bytes=%d owned_peak_bytes=%d", steps, len(got), after.Execution.HostToDeviceBytes-before.Execution.HostToDeviceBytes, download, after.Device.PeakBytes)
@@ -94,19 +83,13 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 	}
 	for _, count := range []int{1, 8, 3} {
 		want, err := samplingHostBoundary(t.Context(), forward, count, seed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, err := forward.Sample(t.Context(), count, seed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		requireWithin(t, "changed step count", got, want, tolTight)
 	}
 	stable, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	canceled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 	if _, err := forward.Sample(canceled, steps, seed); !errors.Is(err, context.Canceled) {
@@ -126,20 +109,14 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 		t.Fatalf("in-progress cancellation after %d context checks: %v", boundary.limit, err)
 	}
 	got, err = forward.Sample(t.Context(), steps, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "post-cancellation sample", got, want, tolTight)
 	recovered, err := forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if recovered.Device.CurrentBytes != stable.Device.CurrentBytes || recovered.Device.PeakBytes != stable.Device.PeakBytes {
 		t.Fatalf("repeated sampling grew storage: stable=%+v recovered=%+v", stable.Device, recovered.Device)
 	}
-	if err := forward.Close(context.WithoutCancel(t.Context())); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, forward.Close(context.WithoutCancel(t.Context())))
 	if _, err := forward.Sample(t.Context(), steps, seed); err == nil {
 		t.Fatal("closed sampler accepted")
 	}
@@ -163,12 +140,8 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 	if output := os.Getenv(resultEnvironment); output != "" {
 		measurement := measureSamplingSequence(t, directory, os.Getenv(modeEnvironment))
 		data, err := json.Marshal(measurement)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(output, data, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(output, data, 0600))
 		return
 	}
 	measure := func(mode string) samplingMeasurement {
@@ -180,17 +153,11 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s measured process: %v\n%s", mode, err, result.Output)
 		}
-		if err := testevidence.VerifyOutput("go test", string(result.Output)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, testevidence.VerifyOutput("go test", string(result.Output)))
 		var measurement samplingMeasurement
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(data, &measurement); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(data, &measurement))
 		if result.PeakWorkingSetByte == 0 || len(measurement.Durations) == 0 || len(measurement.Pixels) == 0 {
 			t.Fatal("required measurement is unavailable")
 		}
@@ -235,16 +202,12 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 	counter := func() time.Duration {
 		t.Helper()
 		value, err := processmeasure.Counter()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	started := counter()
 	forward, err := CompileResidentForward(t.Context(), model, 0, size, size)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := forward.Close(context.WithoutCancel(t.Context())); err != nil {
 			t.Error(err)
@@ -263,18 +226,14 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 		default:
 			t.Fatalf("unknown sampling measurement mode %q", mode)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return pixels
 	}
 	started = counter()
 	result.Pixels = sample()
 	result.Initialization = counter() - started
 	result.Before, err = forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range repeats {
 		started := counter()
 		pixels := sample()
@@ -287,8 +246,6 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 		requireWithin(t, "fresh sample repeat", pixels, result.Pixels, tolTight)
 	}
 	result.After, err = forward.Stats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return result
 }

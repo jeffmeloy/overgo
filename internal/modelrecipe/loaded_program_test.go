@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 func assertRunsBroken(t *testing.T, store artifact.Reader, path, reason string) {
 	t.Helper()
 	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	if state := loaded.state.State; state.Verification != StateBroken || !strings.Contains(state.Reason, reason) {
 		t.Fatalf("state = %+v, want broken over %q", state, reason)
@@ -38,9 +37,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		definition, err := inferenceFixture(
 			inventory.Manifest.ID, recipe.PlacementHybrid, DecodeSessionCapacity,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		activateProgram(t, store, definition)
 		assertRunsBroken(t, store, path, "no model definition")
 	})
@@ -56,9 +53,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 			inventory.Manifest.ID, other.Profile.ID, other.Document.ID, recipe.PlacementHybrid,
 			DecodeSessionCapacity, recipe.ResidencyHybridNative,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		activateProgram(t, store, definition)
 		assertRunsBroken(t, store, path, "differs from active model definition")
 	})
@@ -74,9 +69,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	activateProgram(t, store, definition)
 
 	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	identity := loaded.state.Program.Identity
 	if identity.Model != inventory.Manifest.ID || identity.Profile != resolved.Profile.ID ||
@@ -111,9 +104,7 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	}
 
 	loaded, err := ResolveClaimedGGUF(t.Context(), store, path, claimTrue)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Model != inventory.Manifest.ID ||
 		len(loaded.state.Claims) != 1 || loaded.state.Claims[0] != inventory.Components[0].ID {
@@ -126,15 +117,11 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	defer file.Close()
 
 	other, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("other bytes"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	derived, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return other, inventory.Components[0].Size, true
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer derived.Close()
 	if derived.state.State.Verification != StateNotVerified || len(derived.state.Claims) != 1 || derived.state.Claims[0] != other {
 		t.Fatalf("a claim no recipe names = state %+v, claims %v", derived.state.State, derived.state.Claims)
@@ -143,16 +130,12 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	hashed, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return artifact.ID{}, 0, false
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(hashed.state.Claims) != 0 {
 		t.Fatalf("an unclaimed program carries claims %v", hashed.state.Claims)
 	}
 	kept, _, _, _, _, _, err := hashed.Take()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer kept.Close()
 }
 
@@ -165,9 +148,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	definition := definitionRecipe(t, inventory, resolved)
 
 	loaded, err := ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Recipe != definition.ID ||
 		loaded.state.State.Verification != StateNotVerified || len(loaded.state.Claims) != 0 {
@@ -176,9 +157,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	// The candidate's own inventory claims its shard: the program carries the
 	// claim for the open to prove.
 	claimed, err := ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, inventory.Claim)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer claimed.Close()
 	if len(claimed.state.Claims) != 1 || claimed.state.Claims[0] != inventory.Components[0].ID {
 		t.Fatalf("claimed candidate carries claims %v", claimed.state.Claims)
@@ -198,9 +177,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 func openProgramStore(t *testing.T) *overgodb.Store {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return store
 }
 
@@ -211,37 +188,23 @@ func publishProgramFacts(
 ) (modelartifact.Inventory, ResolvedModelDefinition) {
 	t.Helper()
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile, ok := model.LookupArchitecture(definitionArchitecture)
 	if !ok {
 		t.Fatal("fixture profile unavailable")
 	}
 	profileDocument, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec, err := model.ReadSpecWithProfile(file, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, PublishResolvedModelDefinition(t.Context(), store, inventory, resolved))
 	return inventory, resolved
 }
 
@@ -255,9 +218,7 @@ func definitionRecipe(
 		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
 		DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return definition
 }
 

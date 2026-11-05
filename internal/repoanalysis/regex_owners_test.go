@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // The declared pattern-language owners: a file here matches text whose
@@ -32,18 +33,14 @@ var regexOwners = map[string]string{
 func TestNoRegexParsesStructuredData(t *testing.T) {
 	t.Parallel()
 	snapshot, err := gosyntax.DiscoverGo("../..", "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	importing := map[string]bool{}
 	for _, file := range snapshot.Files {
 		if file.Test {
 			continue
 		}
 		syntax, err := file.Syntax()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, spec := range syntax.Imports {
 			if path, _ := strconv.Unquote(spec.Path.Value); path == "regexp" {
 				importing[file.Path] = true

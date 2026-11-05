@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestDrawnTextSuiteAsksForTheTextItWasToldToDraw holds the measure of what
@@ -29,22 +31,14 @@ func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 	t.Parallel()
 	const seed = 17
 	briefs, err := drawnBriefs()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	listed := len(briefs)
 	items, err := PickDrawnText(listed, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := PickDrawnText(listed, seed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	other, err := PickDrawnText(listed, seed+1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	same := func(left, right []TIFAItem) bool {
 		return slices.EqualFunc(left, right, func(a, b TIFAItem) bool {
 			return a.ID == b.ID && a.Caption == b.Caption && slices.EqualFunc(a.Questions, b.Questions, func(p, q TIFAQuestion) bool {
@@ -120,9 +114,7 @@ func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 	few := items[:2]
 	images := map[string]string{few[0].ID: "first.png", few[1].ID: "second.png"}
 	suite, err := BuildDrawnText(few, images, "a judge")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(suite.Cases) != len(few)*asked || suite.Source != drawnTextSource || suite.Judge != "a judge" {
 		t.Fatalf("the suite holds %d cases of %s judged by %q", len(suite.Cases), suite.Source, suite.Judge)
 	}
@@ -170,9 +162,7 @@ func TestDrawnTextChoicesDoNotGiveTheAnswerAway(t *testing.T) {
 	t.Parallel()
 	const seeds = 40
 	briefs, err := drawnBriefs()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// apart counts the places two texts of one length differ at, or their words where the lengths differ.
 	apart := func(left, right string) int {
 		differ := 0
@@ -205,9 +195,7 @@ func TestDrawnTextChoicesDoNotGiveTheAnswerAway(t *testing.T) {
 	first, last := 0, 0
 	for seed := range uint64(seeds) {
 		items, err := PickDrawnText(len(briefs), seed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, item := range items {
 			for asked, question := range item.Questions {
 				questions++

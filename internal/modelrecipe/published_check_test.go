@@ -8,6 +8,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,9 +20,7 @@ import (
 func TestStoredDocumentsDecodeUnderCurrentSchema(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "published-chain-model")
 	if err := VerifyPublishedChain(ctx, store, modelID, recipe.TaskInference); err == nil {
@@ -38,13 +37,9 @@ func TestStoredDocumentsDecodeUnderCurrentSchema(t *testing.T) {
 		t.Fatal("the embedded catalog registers no resolvable architecture")
 	}
 	document, err := NewProfileDocument(registered)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := profileContent(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:      "test/published-chain",
 		Contents: []artifact.Content{content},

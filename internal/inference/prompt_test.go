@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -18,9 +19,7 @@ func TestPromptTokenIDsPreservesExactSequence(t *testing.T) {
 	}}}
 	input := []tokenizer.TokenID{2, 1, 0}
 	ids, err := runner.promptTokenIDs("ignored", GenerateOptions{PromptTokenIDs: input})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(ids, input) {
 		t.Fatalf("ids = %v", ids)
 	}

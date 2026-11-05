@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // The things that happen to a model's training recipes in a lifecycle.
@@ -299,26 +300,18 @@ func newRecipeLifecycle(t *testing.T) *recipeLifecycle {
 	lifecycle := &recipeLifecycle{t: t, directory: filepath.Join(root, "store")}
 	lifecycle.open()
 	modelPath := filepath.Join(root, "model.safetensors")
-	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
 	for index := range lifecycleRecipes {
 		id, err := BootstrapRecipe(ctx, lifecycle.store, modelPath, fmt.Appendf(nil, "the dataset of objective %d", index), TokenContract)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		definition, err := recipe.RequireDefinition(ctx, lifecycle.store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		lifecycle.recipes, lifecycle.model = append(lifecycle.recipes, definition), definition.Model
 	}
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "eligibility", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lifecycle.environment = environment.ID
 	lifecycle.commit(environment.Batch("eligibility/environment"))
 	return lifecycle
@@ -726,9 +719,7 @@ func TestObserverReportsActualActivation(t *testing.T) {
 	}{{0, 0, "active"}, {1, 1, "active"}, {0, 1, "inactive"}} {
 		t.Run(step.status+recipeName(step.recipe), func(t *testing.T) {
 			output, err := os.CreateTemp(t.TempDir(), "verification")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer output.Close()
 			previous := os.Stdout
 			os.Stdout = output
@@ -736,9 +727,7 @@ func TestObserverReportsActualActivation(t *testing.T) {
 			lifecycle.session(step.recipe, nil)
 			os.Stdout = previous
 			data, err := os.ReadFile(output.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want := fmt.Sprintf("training recipe verified and %s: %s", step.status, lifecycle.recipes[step.recipe].ID)
 			if !strings.Contains(string(data), want) {
 				t.Fatalf("verification says %q, want %q", data, want)

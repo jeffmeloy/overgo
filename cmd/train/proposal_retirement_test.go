@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -50,9 +51,7 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
 			Path: os.Args[0], Args: arguments, Stderr: &said, Env: append(os.Environ(), commandChildEnvironment+"="+childStandIn),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return receipt.ExitCode, said.String()
 	}
 
@@ -106,24 +105,16 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		t.Parallel()
 		directory := t.TempDir()
 		base, dataset, storePath := writeServingFixture(t, directory), filepath.Join(directory, "dataset.txt"), filepath.Join(directory, "store")
-		if err := os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
 		store, err := overgodb.Create(storePath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 			t.Fatal(err)
 		}
 		recipeID, err := trainingworkflow.BootstrapTokenRecipe(t.Context(), store, base, dataset)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// The command writes through a handle of its own.
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 		first, resumed := filepath.Join(directory, "first"), filepath.Join(directory, "resumed")
 		shared := []string{"-store", storePath, "-recipe", recipeID.String(), "-dataset", dataset, "-steps", "1", "-seq", "16", "-host"}
 		for _, run := range []struct {
@@ -151,9 +142,7 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		read := func(name string) map[string]string {
 			t.Helper()
 			raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fields := map[string]string{}
 			for line := range strings.Lines(string(raw)) {
 				if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

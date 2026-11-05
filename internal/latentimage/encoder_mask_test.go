@@ -8,6 +8,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestAttentionKeyBiasMaskMath is the model-free mask-bias contract: an additive
@@ -221,21 +222,13 @@ func TestPaddingTakesNoPosition(t *testing.T) {
 		compact = append(compact, embed[token*e.Hidden:][:e.Hidden]...)
 	}
 	padded, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), mask)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bare, err := encodeSelected(e, e.RMSNormEps, len(real), e.Intermediate, append([]float64(nil), compact...), storeLayerAt(e, store), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prog, err := CompileEncoderProgramMasked(e, float32(e.RMSNormEps), seq, dtype.F32, mask)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	graph, err := prog.RunHostFeed(reference.Execute, func(name string) ([]float32, error) { return store[name], nil }, f32slice(embed))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	row := padded.LayerCount * padded.Hidden
 	var hostApart, graphApart float64
 	for at, token := range real {

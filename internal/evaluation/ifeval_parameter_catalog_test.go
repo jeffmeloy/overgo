@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // TestIFEvalProfileIsPublishedFromItsFile holds the catalog's IFEval parameter profile to the identity the live suite binds.
@@ -26,20 +27,14 @@ func TestIFEvalProfileIsPublishedFromItsFile(t *testing.T) {
 	open := func() *overgodb.Store {
 		t.Helper()
 		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { store.Close() })
 		return store
 	}
 	var records ifevalParameterRecords
 	var profile ifevalParameters
-	if err := strictjson.DecodeBytes(ifevalParameterFile, &records); err != nil {
-		t.Fatal(err)
-	}
-	if err := strictjson.DecodeBytes(records.Profile, &profile); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(ifevalParameterFile, &records))
+	testcheck.NoError(t, strictjson.DecodeBytes(records.Profile, &profile))
 	store := open()
 	bound := dataset.BenchmarkImport{ID: profile.Dataset}
 	id, err := publishIFEvalParameterFile(ctx, store, ifevalParameterFile, bound, artifact.ID{})
@@ -66,23 +61,15 @@ func TestIFEvalProfileIsPublishedFromItsFile(t *testing.T) {
 
 	root := t.TempDir()
 	raw := []byte(`{"prompt":"Count letters.","instruction_id_list":["keywords:letter_frequency"],"kwargs":[{"letter":"a","let_frequency":2,"let_relation":"at least"}]}` + "\n")
-	if err := os.WriteFile(filepath.Join(root, "source.jsonl"), raw, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "source.jsonl"), raw, 0600))
 	digest := sha256.Sum256(raw)
 	spec := dataset.BenchmarkImportSpec{Source: "parameter-file-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1", Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}}}
 	manifest, err := json.Marshal(benchmarkManifest{Datasets: []benchmarkDeclaration{{Name: "ifeval/default/train", Path: "source.jsonl", Spec: spec}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "manifest.json"), manifest, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "manifest.json"), manifest, 0600))
 	fixture := open()
 	catalogID, err := CatalogLocalBenchmarks(ctx, fixture, filepath.Join(root, "manifest.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, found, err := benchmarkCatalogCodec.Read(ctx, fixture, catalogID)
 	if err != nil || !found || len(catalog.Entries) != 1 || catalog.Entries[0].Parameters.Kind() != artifact.KindInvalid {
 		t.Fatalf("a catalog of another IFEval dataset bound parameters: %+v %v", catalog.Entries, err)
@@ -126,35 +113,23 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	raw := []byte(`{"prompt":"Count letters.","instruction_id_list":["keywords:letter_frequency"],"kwargs":[{"letter":"#","let_frequency":2,"let_relation":"at least"}]}` + "\n")
 	path := filepath.Join(root, "source.jsonl")
-	if err := os.WriteFile(path, raw, 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, raw, 0600))
 	digest := sha256.Sum256(raw)
 	spec := dataset.BenchmarkImportSpec{Source: "parameter-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1", Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}}}
 	imported, err := dataset.ImportBenchmark(ctx, store, path, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write := func(contract artifact.DocumentContract, value any) artifact.ID {
 		t.Helper()
 		raw, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := contract.ContentBytes(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := artifact.NewDocumentBatch("fixture/"+content.Descriptor.ID.String(), []artifact.Content{content}, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -178,9 +153,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 		return CatalogLocalBenchmarks(ctx, store, manifestPath)
 	}
 	catalogID, err := catalogue(declaration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkDerived := func() {
 		t.Helper()
 		suites, dropped, err := DeriveStoreSuiteFamily(ctx, store, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}, "ifeval")
@@ -198,9 +171,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 			strict, loose bool
 		}{{"aa", true, false}, {"bb", false, true}} {
 			a, b, err := evaluateInstructionViews(sample.response, want.rules[0])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if a[0] != sample.strict || b[0] != sample.loose {
 				t.Fatal("view binding changed")
 			}
@@ -212,16 +183,10 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 	if err != nil || again != catalogID {
 		t.Fatalf("same-dataset import lost parameters: %v", err)
 	}
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(path))
+	testcheck.NoError(t, store.Close())
 	store, err = overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err = catalogue(declaration)
 	if err != nil || again != catalogID {
 		t.Fatalf("restart required source reacquisition: %v", err)
@@ -281,9 +246,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 			foreign.Name = "foreign/default/train"
 			var err error
 			foreignID, err = catalogBenchmarkDeclarations(ctx, store, "", []benchmarkDeclaration{foreign})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 		}}
 		addition := declaration
 		addition.Name = "new/default/train"
@@ -295,9 +258,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 			t.Fatal("concurrent catalog update was lost")
 		}
 		merged, err := catalogBenchmarkDeclarations(ctx, store, "", []benchmarkDeclaration{addition})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		catalog, found, err := benchmarkCatalogCodec.Read(ctx, store, merged)
 		if err != nil || !found || len(catalog.Entries) != 3 {
 			t.Fatal("retry did not preserve both additions")

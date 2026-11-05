@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -46,9 +47,7 @@ func (runtime benchmarkFixtureRuntime) ScoreContinuations(_ context.Context, pro
 func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	authorities := evaluation.ListingAuthorities()
 	data, err := json.Marshal(evaluation.MultipleChoiceSuite{
@@ -56,13 +55,9 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy,
 		Cases: []evaluation.MultipleChoiceCase{{Name: "case-000", Prompt: "Question 0: word\nAnswer:", Candidates: []string{" A", " B", " C", " D"}}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := evaluation.CompileSuite(data, authorities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model := testutil.ArtifactID(t, artifact.KindModel, "unknown execution model")
 	output := testutil.ArtifactID(t, artifact.KindEvaluation, "legacy report")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "benchmark/authorities", Artifacts: []artifact.Descriptor{
@@ -71,28 +66,18 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacy, err := runrecord.NewRun(authorities.RuntimeRecipe, runrecord.OutcomeSucceeded, nil, []artifact.ID{output}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := legacy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("benchmark/legacy-run", []artifact.Content{content}, legacy.Lineage(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	record, err := runrecord.NewEvaluation(authorities.RuntimeRecipe, legacy.ID, suite.Descriptor().Dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err = record.Batch("benchmark/legacy-evaluation")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +86,7 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		t.Helper()
 		benchmarks := benchmarkEvidence{suites: []evaluation.CompiledSuite{suite}, evidence: evaluation.LatestEvidence(t.Context(), store, map[artifact.ID]string{suite.Descriptor().Dataset: "store/mmlu"}, 0)}
 		value, err := benchmarks.bind(t.Context(), store, cell)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	raw := evaluation.PromptingRawCompletion.Label()
@@ -111,28 +94,18 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		t.Errorf("unknown execution was bound: %+v, want a fresh raw measurement at the budget's cost", value)
 	}
 	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	scored := 0
 	campaign, err := evaluation.NewIsolatedCampaign(store, benchmarkFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
 		Model: model, Definition: authorities.ModelDefinition, Recipe: authorities.RuntimeRecipe,
 	}, platform, strings.Repeat("a", 40))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err = evaluation.CompileSuite(data, campaign.Authorities())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fresh, err := campaign.Evaluate(t.Context(), suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	run, err := runrecord.RequireRun(t.Context(), store, fresh.Run)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bound := read(cell)
 	if bound.Cost != int64(run.MeasuredNS) || bound.Protocol != raw || scored != 1 {
 		t.Fatalf("known real execution was not retained: %+v, scored=%d", bound, scored)

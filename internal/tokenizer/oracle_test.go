@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -24,22 +25,14 @@ func TestUpstreamTokenizerCorpus(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			modelPath := filepath.Join(source, "models", "ggml-vocab-"+name+".gguf")
 			file, err := gguf.Open(modelPath)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer file.Close()
 			vocab, err := Load(file)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			inputData, err := os.ReadFile(modelPath + ".inp")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			expected, err := readExpectedTokenIDs(modelPath + ".out")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			// oracle: C++ text-mode file; Normalize its Windows CRLF
 			// representation to bytes observed by std::ifstream
 			inputText := strings.ReplaceAll(string(inputData), "\r\n", "\n")

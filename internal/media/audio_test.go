@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -47,9 +48,7 @@ func TestAudioDecodeConsolidationAcceptance(t *testing.T) {
 		}
 	})
 	flac, err := hex.DecodeString(stereoFLACHex)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Run("flac-preserves-channels", func(t *testing.T) {
 		audio, status, err := DecodeAudio(t.Context(), flac, 48)
 		if err != nil || status != recipecontract.AudioDecodeComplete || audio.Format.Channels != 2 || len(audio.Samples) != 48 || !slices.Equal(audio.Samples[:6], []float32{0, .5, -.5, .25, .125, -.125}) {

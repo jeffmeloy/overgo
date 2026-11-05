@@ -3,6 +3,8 @@ package evaluation
 import (
 	"fmt"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // pinnedSuite is a suite document of one kind and what CompileSuite bound for it.
@@ -132,9 +134,7 @@ func TestSuiteKindsBindTheirPinnedIdentities(t *testing.T) {
 		}
 		plan := suite.Plan()
 		comparison, err := plan.comparisonIdentity()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		bound := [6]string{}
 		for index, id := range [6]fmt.Stringer{plan.Identity(), comparison, plan.body.Dataset, plan.body.Split, plan.body.CaseProfile, plan.body.Scorer} {
 			bound[index] = id.String()

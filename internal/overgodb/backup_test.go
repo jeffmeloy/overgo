@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestStreamingSnapshotRoundTrip pins replay identity and publication refusal.
@@ -14,30 +15,22 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch := fixtureBatch(t)
 	commit, err := store.Commit(t.Context(), batch)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	destination := filepath.Join(t.TempDir(), "backup")
 	backupReport, err := store.Backup(t.Context(), destination)
 	head, sequence := backupReport.Head, backupReport.Sequence
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if head != commit || sequence == 0 {
 		t.Fatalf("backup identity = %s@%d, want %s", head, sequence, commit)
 	}
 
 	replica, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer replica.Close()
 	replicaHead, replicaSequence := replica.Head()
 	if replicaHead != head || replicaSequence != sequence {
@@ -53,17 +46,13 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	}
 
 	partialTarget := filepath.Join(t.TempDir(), "second")
-	if err := os.MkdirAll(partialTarget+".partial", 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(partialTarget+".partial", 0o755))
 	if _, err := store.Backup(t.Context(), partialTarget); err != nil {
 		t.Fatalf("empty partial did not resume: %v", err)
 	}
 
 	empty, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer empty.Close()
 	if _, err := empty.Backup(t.Context(), filepath.Join(t.TempDir(), "empty-backup")); err == nil || !strings.Contains(err.Error(), "no commits") {
 		t.Fatalf("empty store not refused: %v", err)
@@ -74,14 +63,10 @@ func TestConcurrentBackupExtent(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	first, err := store.Commit(ctx, fixtureBatch(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store.mu.RLock()
 	head, sequence, extent, root := store.head, store.sequence, store.replayEnd, store.root
 	store.mu.RUnlock()
@@ -102,9 +87,7 @@ func TestConcurrentBackupExtent(t *testing.T) {
 		t.Fatalf("captured identity = %s@%d, want %s", head, sequence, first)
 	}
 	replica, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer replica.Close()
 	if _, found, err := replica.Artifact(ctx, tail.ID); err != nil || found {
 		t.Fatalf("post-capture tail = (%v, %v)", found, err)

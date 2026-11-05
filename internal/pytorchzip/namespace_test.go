@@ -1,6 +1,10 @@
 package pytorchzip
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestCheckpointNamespaceMetadata(t *testing.T) {
 	for _, tc := range []struct {
@@ -37,9 +41,7 @@ func TestCheckpointNamespaceMetadata(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(catalog.Tensors) != 1 || catalog.Tensors[0].Name != "weight" || catalog.Tensors[0].Numel != 6 || catalog.Scalars["input_dimension"] != int64(80) {
 				t.Fatalf("metadata after Namespace: %+v", catalog)
 			}

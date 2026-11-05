@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // skipReasonSites reports every integration skip that names the short-mode
@@ -147,17 +148,11 @@ func unclassifiedSkip(statement ast.Stmt) bool {
 func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sites, err := skipReasonSites(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(sites) != 0 {
 		t.Fatalf("environment-gated skips cite no reason a complete run classifies:\n%s", strings.Join(sites, "\n"))
 	}
@@ -181,32 +176,20 @@ func TestSkippedFixtureClassification(t *testing.T) {
 		"internal/testskip/testskip.go": "package testskip\n\nconst Inapplicable = \"inapplicable\"\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(source), 0o644))
 	}
 	fixture, err := gosyntax.DiscoverGo(root, "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sites, err := skipReasonSites(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(sites, []string{"internal/unclassified/gate.go"}) {
 		t.Fatalf("support-package skips reported %v, want only the unclassified helper", sites)
 	}
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	live, err := gosyntax.DiscoverGo(repo, "internal/cuda/testutil")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sites, err := skipReasonSites(live); err != nil || len(sites) != 0 {
 		t.Fatalf("the shared CUDA gate skips without a classified reason: %v %v", sites, err)
 	}

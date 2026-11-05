@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -25,13 +26,9 @@ func TestE4BHostGradientsMatchFiniteDifference(t *testing.T) {
 	t.Parallel()
 	m := tinyModel(t, 1)
 	loss, err := m.differentiate(hostAttention)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluated, err := m.Loss()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loss != evaluated || !(loss > 0) {
 		t.Fatalf("loss through the gradient pass %v, evaluated %v", loss, evaluated)
 	}
@@ -56,9 +53,7 @@ func TestE4BHostGradientsMatchFiniteDifference(t *testing.T) {
 			}
 			value, err := m.Loss()
 			copy(values, original)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return value
 		}
 		central := func(step float64) float64 { return (lossAt(step) - lossAt(-step)) / (2 * step) }

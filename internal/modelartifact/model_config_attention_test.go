@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestModelConfigImageAttentionDeclaration(t *testing.T) {
@@ -27,9 +29,7 @@ func TestModelConfigImageAttentionDeclaration(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			directory := t.TempDir()
-			if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(test.content), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(test.content), 0600))
 			_, generation, sources, err := ReadModelConfigComponents(directory)
 			if test.refuse {
 				if err == nil {
@@ -37,9 +37,7 @@ func TestModelConfigImageAttentionDeclaration(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			got := ""
 			if generation != nil {
 				got = generation.ImageAttention

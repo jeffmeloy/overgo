@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // The small clip the test generates: its frames and side, its steps, and the trajectory's shift and guidance.
@@ -28,16 +29,12 @@ func TestAVideoStageLeavesNoScratchForTheNext(t *testing.T) {
 	cudatest.Require(t)
 	dir := wanModelDir(t)
 	profile, err := ResolveProfile(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generator, err := NewGenerator(GeneratorConfig{
 		ModelDirectory: dir, Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Frames: stageClipFrames, Width: stageClipSide, Height: stageClipSide,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer generator.Close()
 	condition, initial := make([]float32, generator.ContextElements()), make([]float32, generator.Geometry().Elements())
 	for index := range condition {
@@ -57,9 +54,7 @@ func TestAVideoStageLeavesNoScratchForTheNext(t *testing.T) {
 			t.Fatal(err)
 		}
 		metrics, err := generator.denoiser.cuda.Metrics(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if metrics.ArenaCommittedBytes != 0 || metrics.PoolRetainedBytes != 0 || len(generator.decoder.buffers) != 0 {
 			t.Fatalf("between requests the denoiser holds a %d-byte arena and %d idle bytes, and the autoencoder %d workspaces",
 				metrics.ArenaCommittedBytes, metrics.PoolRetainedBytes, len(generator.decoder.buffers))

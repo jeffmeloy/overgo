@@ -9,6 +9,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -37,9 +38,7 @@ type consumedRetrievalFixture struct {
 func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	fixture := publishConsumedRetrieval(t, store, "metrics", []string{"target alpha", "target beta"}, 2,
 		map[string]float64{"target alpha": 1, "target beta": 2}, false)
@@ -65,13 +64,9 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 			StartRune: relevantResult.Citation.StartRune, EndRune: relevantResult.Citation.EndRune, Relevance: 3,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidence, err := publishRetrievalEvaluation(t.Context(), store, caseValue, fixture.receipt.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evidence.Metrics.RelevantExpected != 2 || evidence.Metrics.RelevantReturned != 1 ||
 		evidence.Metrics.Returned != 2 || math.Abs(evidence.Metrics.Recall-0.5) > 1e-12 ||
 		math.Abs(evidence.Metrics.ReciprocalRank-0.5) > 1e-12 ||
@@ -90,9 +85,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	abstention, err := NewRetrievalCase(RetrievalCase{
 		Query: abstentionFixture.receipt.Query, Split: split, Group: "question-family-b", ExpectAbstain: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	abstained, err := publishRetrievalEvaluation(t.Context(), store, abstention, abstentionFixture.receipt.ID)
 	if err != nil || !abstained.Metrics.AbstentionCorrect || abstained.Metrics.RelevantExpected != 0 ||
 		abstained.Metrics.NormalizedDCG != 0 {
@@ -138,9 +131,7 @@ func publishConsumedRetrieval(
 		t.Fatal(err)
 	}
 	documents, err := dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	embedder := evaluationEmbedder{model: modelID}
 	reranker := evaluationReranker{policy: rerankID, scores: scores}
 	policy := dataset.AgentRetrievalPolicy{MaximumChunkRunes: 128, CandidateLimit: uint64(max(1, len(texts)))}
@@ -148,9 +139,7 @@ func publishConsumedRetrieval(
 	projection, err := builder.Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: documents, Policy: policy, Embedder: embedder, RerankPolicy: rerankID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query := dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: limit, AllowedDatasets: []artifact.ID{datasetID},
 		Embedder: embedder, Reranker: reranker,
@@ -161,8 +150,6 @@ func publishConsumedRetrieval(
 	consumed, err := runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, query, runrecord.RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return consumedRetrievalFixture{receipt: consumed.Receipt, search: consumed.Search}
 }

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -29,22 +30,16 @@ func TestARefusedRecipeSaysWhyItIsNotVerified(t *testing.T) {
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: decider},
 		[]artifact.ID{testutil.ArtifactID(t, artifact.KindRun, "reason run")},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	publishDecision(t, store, "fixture/reason/refusal", refusal)
 	if _, _, err := Transition(t.Context(), store, "fixture/reason/refused", definition, recipe.StatusRefused, []artifact.ID{refusal.ID}, nil); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	state, err := loaded.State()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if state.Verification != StateNotVerified || !strings.Contains(state.Reason, refusal.Reason) {
 		t.Fatalf("state = %+v, want not verified with its recorded failure", state)
 	}

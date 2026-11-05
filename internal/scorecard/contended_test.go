@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -24,9 +25,7 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "contended-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "contended-environment")
@@ -55,13 +54,9 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: millisecond}}
 		}
 		observation, err := runrecord.NewServingObservation(observation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("contended/" + observation.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if deferContent {
 			deferred = batch
 			batch = artifact.Batch{Key: "bare/" + observation.ID.String(), Artifacts: []artifact.Descriptor{{ID: observation.ID}}}

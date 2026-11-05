@@ -21,6 +21,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 type codecFixture struct {
@@ -41,9 +42,7 @@ type codecFixture struct {
 func readCodecFixture(t *testing.T) (codecFixture, map[string][]int, func(string, ...int) ([]float32, error)) {
 	t.Helper()
 	var fixture codecFixture
-	if err := jsonfile.Decode(fixturePath(t, "streaming_codec.json"), &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(fixturePath(t, "streaming_codec.json"), &fixture))
 	shapes := make(map[string][]int)
 	for name, value := range fixture.Tensors {
 		shapes[name] = value.Shape
@@ -63,15 +62,11 @@ func TestMimiStreamingDecode(t *testing.T) {
 	fixture, shapes, read := readCodecFixture(t)
 	frames, width := fixture.Latents.Shape[0], fixture.Latents.Shape[1]
 	codec, err := loadCodecDecoder(read, shapes, fixture.Config, width, fixtureSpeechProgram())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	m := &Model{Dims: Dims{LatentDim: width}, Codec: codec, EmbMean: fixture.Mean, EmbStd: fixture.Std}
 	values := f32of(fixture.Latents.Values)
 	whole, err := m.LatentsToPCM(t.Context(), LatentBatch{Frames: frames, Width: width, Values: values})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "independent PocketTTS PCM", whole, fixture.PCM, tolSeanetPCM)
 	for _, chunk := range []int{1, codec.window, frames} {
 		t.Run(fmt.Sprint(chunk), func(t *testing.T) {
@@ -81,9 +76,7 @@ func TestMimiStreamingDecode(t *testing.T) {
 			for start := 0; start < frames; start += chunk {
 				end := min(start+chunk, frames)
 				pcm, err := m.decodeLatents(t.Context(), state, LatentBatch{Values: values[start*width : end*width], Frames: end - start, Width: width})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if len(pcm) != len(whole)/frames*(end-start) {
 					t.Fatalf("chunk emitted %d samples", len(pcm))
 				}
@@ -138,13 +131,9 @@ func TestVoicePreparation(t *testing.T) {
 		t.Fatal("independent voice reference is absent")
 	}
 	encoder, err := loadCodecEncoder(read, shapes, fixture.Config, fixture.Conditioning.Shape[1], fixtureSpeechProgram())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	conditioning, padding, err := encoder.encode(t.Context(), fixture.VoiceInput)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if padding != 1 || len(conditioning) != len(fixture.Conditioning.Values) {
 		t.Fatalf("padding=%d conditioning=%d", padding, len(conditioning))
 	}
@@ -152,19 +141,13 @@ func TestVoicePreparation(t *testing.T) {
 	withBOS := fixture.Config
 	withBOS.FlowLM.InsertBOSBeforeVoice = true
 	withEncoder, err := loadCodecEncoder(read, shapes, withBOS, fixture.Conditioning.Shape[1], fixtureSpeechProgram())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prefixed, _, err := withEncoder.encode(t.Context(), fixture.VoiceInput)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	requireWithin(t, "independent configured voice prefix", prefixed, fixture.ConditioningWithBOS, tolTransformer)
 	for _, reference := range fixture.Resampled {
 		values, _, err := resampleVoice(t.Context(), fixture.VoiceInput, reference.From, reference.To, math.MaxInt64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		requireWithin(t, "independent resampling", values, reference.Values, tolUpsample)
 	}
 	if err := encoder.admit(len(fixture.VoiceInput), Dims{DModel: 8, Layers: 2, FF: 16, Heads: 2}, 1); err == nil {
@@ -226,38 +209,24 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 	fixture.Config.FlowLM.Transformer.NumHeads = tensor.PairedExtent
 	fixture.Config.FlowLM.Transformer.MaxPeriod = fixture.Config.Mimi.Transformer.MaxPeriod
 	config, err := json.Marshal(fixture.Config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, data := range map[string][]byte{configFileName: config, "tokenizer.model": []byte("unused tokenizer inventory fixture")} {
-		if err := os.WriteFile(filepath.Join(directory, name), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o600))
 	}
 	tensors := make(map[string][]float32)
 	for name, value := range fixture.Tensors {
 		tensors[name] = f32of(value.Values)
 	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil))
 	inventory, err := Inventory(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch, err := inventory.Batch("fixture-model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -265,13 +234,9 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 		t.Fatal(err)
 	}
 	wav, err := media.EncodeWAVPCM16(fixture.VoiceInput, fixture.Config.Mimi.SampleRate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recording, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/recording"}).ContentBytes(wav)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture-recording", Contents: []artifact.Content{recording}}); err != nil {
 		t.Fatal(err)
 	}
@@ -280,9 +245,7 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 	synth := &Synthesizer{model: model, tokenizer: &Unigram{}, directory: directory, boundRecipe: definition.ID, voices: map[string]*VoiceState{}}
 	request := SynthesisRequest{Text: "a", ReferenceAudio: recording.Descriptor.ID, ReferenceEndSample: len(fixture.VoiceInput), VoiceMemoryBytes: artifact.MaxContentBytes}
 	id, err := synth.BindVoice(t.Context(), store, definition, request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	voice, err := synth.voiceState(request.voiceKey())
 	if err != nil || voice.Frames != fixture.Conditioning.Shape[0] {
 		t.Fatalf("prepared frames: %v %v", voice, err)
@@ -323,29 +286,19 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 			case "recipe":
 				candidate = prepared
 				checkpoint, err := artifact.IdentifyBytes(artifact.KindCheckpoint, []byte("another trained surface"))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				chosen, err = modelrecipe.AdaptedSpeechDefinition(definition, checkpoint)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				synth.boundRecipe = chosen.ID
 				defer func() { synth.boundRecipe = definition.ID }()
 			case "corrupt state":
 				content, err := artifact.RequireTypedContent(ctx, store, id)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				var broken preparedVoice
-				if err := json.Unmarshal(content.Data, &broken); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(content.Data, &broken))
 				broken.State.Frames++
 				content, err = artifact.JSONContent(preparedVoiceContract, broken)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "broken-voice", Contents: []artifact.Content{content}}); err != nil {
 					t.Fatal(err)
 				}
@@ -383,14 +336,10 @@ func testStreamingFrameBoundaries(t *testing.T) {
 		}}
 		ids := []int{1}
 		want, wantEOS, err := m.GenerateLatentsWithVoice(t.Context(), voice, ids, p)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		calls = 0
 		state, err := m.promptVoice(t.Context(), voice, ids, p)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var got []float32
 		var logits []float64
 		complete, err := m.walkFrames(t.Context(), state, p, func(frame []float32, logit float64) error {
@@ -404,9 +353,7 @@ func testStreamingFrameBoundaries(t *testing.T) {
 		for _, cancelContext := range []bool{false, true} {
 			calls = 0
 			state, err := m.promptVoice(t.Context(), voice, ids, p)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			cause := errors.New("consumer stopped")
 			complete, err := m.walkFrames(ctx, state, p, func([]float32, float64) error {

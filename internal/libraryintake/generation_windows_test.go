@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -50,9 +51,7 @@ func TestMOSSImageValidation(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			capability := mediacapability.Catalog[recipe.TaskImageGen]
 			capability.Execute = capabilityruntime.JSONScalar[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
@@ -95,17 +94,13 @@ func TestMOSSImageValidation(t *testing.T) {
 				return original(ctx, repo, path, execution, input)
 			}
 			request, execute, err := prepareGenerationValidation(ctx, store, root, recipe.TaskImageGen, capability, "0123456789abcdef0123456789abcdef01234567", "blue cube")
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			id := request.Recipe
 			if request.Task != recipe.TaskImageGen {
 				t.Fatal(request)
 			}
 			definition, err := recipe.RequireDefinition(t.Context(), store, id)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			status, present, err := modelrecipe.Status(ctx, store, id)
 			if err != nil || !present || status != recipe.StatusCandidate {
 				t.Fatal("premature activation", status, err)

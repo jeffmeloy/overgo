@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestAMutationAfterARestartRuns: a restarted server knows nothing of an agent's session but what the store holds, so the
@@ -17,18 +18,14 @@ func TestAMutationAfterARestartRuns(t *testing.T) {
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	manuals, err := agenttool.StandardManuals()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write, err := agenttool.NewManual(agenttool.Manual{
 		Name: "store.commit", Description: "A mutation manual for the approval gate.",
 		Effect:    agenttool.EffectMutation,
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), fixture.store, []string{"git"}); err != nil {
 		t.Fatal(err)
 	}
@@ -53,9 +50,7 @@ func TestAMutationAfterARestartRuns(t *testing.T) {
 	}
 
 	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: fixture.store}, fixture.generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer restarted.Close()
 	body := `"agent":"research-agent","session":"alpha","tool":"store.commit","arguments":{}`
 	preview := serveTestRequest(restarted, http.MethodPost, "/agents/approval", `{`+body+`}`)

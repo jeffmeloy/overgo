@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -57,14 +58,10 @@ func TestModelJourneyServedProjector(t *testing.T) {
 	}
 	t.Logf("served projector: model %s at %s, declared projector %s", name, location, projectorPath)
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer supervisor.Close()
 	repository, err := overgodb.OpenReadOnly(store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = repository.Close() })
 	proxy := &modelswap.Proxy{
 		Supervisor: supervisor, Resolver: &modelswap.CatalogResolver{Store: repository, Limit: 256},
@@ -85,9 +82,7 @@ func TestModelJourneyServedProjector(t *testing.T) {
 	// The proxy admits the request once the served child has announced its
 	// listener, so one request reads the capability document.
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/workspace/manifest", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("the capability document did not answer: %v", err)
@@ -97,9 +92,7 @@ func TestModelJourneyServedProjector(t *testing.T) {
 		body, _ := io.ReadAll(response.Body)
 		t.Fatalf("the capability document answered %d: %s", response.StatusCode, body)
 	}
-	if err := json.NewDecoder(response.Body).Decode(&document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.NewDecoder(response.Body).Decode(&document))
 	if !document.Model.Modalities["image"] {
 		t.Fatalf("the served model %s refuses images although the store declares its projector: refusals=%v accept=%v",
 			name, document.Model.Media.Refusals, document.Model.Media.Accept)
@@ -119,9 +112,7 @@ func smallestDeclaredProjector(t *testing.T, ctx context.Context, store string) 
 	defer db.Close()
 	memo := discovery.LoadMemo(ctx, db)
 	entries, _, err := discovery.CapabilityCatalog(ctx, db, 256, memo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var best int64
 	for _, entry := range entries {
 		if !entry.Present || entry.Location == "" {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestExecutionTriggerRegistryCoverage pins the registry contract:
@@ -12,9 +14,7 @@ import (
 // declared behaviors match the substrate they bind to, and mutations
 // that would open an undocumented enqueue path fail validation.
 func TestExecutionTriggerRegistryCoverage(t *testing.T) {
-	if err := validateTriggerRegistry(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, validateTriggerRegistry())
 	canonical := append(slices.Clone(originatingTriggers), derivedTriggers...)
 	for _, trigger := range canonical {
 		contract, found := TriggerContractFor(trigger)

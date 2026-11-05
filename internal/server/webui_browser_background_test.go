@@ -15,6 +15,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -23,9 +24,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "cold activity uses Chromium")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	idle := &IdleShell{Repository: store, Catalog: func(context.Context) ([]discovery.CatalogEntry, bool, error) { return nil, false, nil }, Intake: LibraryIntake{
 		ListProviderModels: func(_ context.Context, _ *overgodb.Store, listing ProviderListing) ([]ProviderModel, error) {
@@ -43,25 +42,15 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	defer front.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, front.URL)
 	defer browser.Close()
-	if err := browser.Eventually(ctx, `!!document.querySelector('#cold-start')`); err != nil {
-		t.Fatal(err)
-	}
-	if err := browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='Choose a model' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#cold-start')`))
+	testcheck.NoError(t, browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='Choose a model' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.coldActivityIdle=false;const stop=overgo.runtimeEvents.subscribe(name=>{if(name==='stream.idle'){coldActivityIdle=true;stop();}});return true;})()`)
-	if err := browser.Eventually(ctx, `coldActivityIdle`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `coldActivityIdle`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {[...document.querySelectorAll('#cold-start button')].find(button=>button.textContent==='Open the Library').click();return true;})()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-library.active input[aria-label="provider name"]')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-library.active input[aria-label="provider name"]')`))
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length===0 && document.querySelector('#global-operation-shell').hidden`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {const field=name=>document.querySelector('#panel-library input[aria-label="provider '+name+'"]');field('name').value='cold';field('endpoint').value='http://localhost';field('key variable').value='COLD_FIXTURE_KEY';field('key to list with').value='cold-typed-key';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==="list the provider's models").click();return true;})()`)
-	if err := browser.Eventually(ctx, `[...document.querySelectorAll('#panel-library button')].some(button=>button.textContent==='fixture/cold-model · 4096')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `[...document.querySelectorAll('#panel-library button')].some(button=>button.textContent==='fixture/cold-model · 4096')`))
 	assertBrowserPredicate(t, ctx, browser, `(() => {[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='fixture/cold-model · 4096').click();[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='Declare a hosted provider').click();return true;})()`)
 	if err := browser.Eventually(ctx, `document.querySelector('#panel-library').textContent.includes('remote://cold/fixture/cold-model') || document.querySelector('#panel-library').textContent.includes('worktree is dirty')`); err != nil {
 		var panel string
@@ -75,9 +64,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	requireWebUILane(t, "background work runs through cmd/webui-lane")
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Background answer"}}))
 	handler.config.APIKey = testAPIKey
@@ -164,9 +151,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 		<-ctx.Done()
 		return operation.Completion{Run: runID}, ctx.Err()
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.operations.Cancel(operationID)
 	select {
 	case <-entered:
@@ -209,9 +194,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	finishWork := make(chan struct{})
 	outputBytes := []byte("Completed background output")
 	outputID, err := artifact.IdentifyBytes(artifact.KindFile, outputBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	work, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: registeredRecipe}, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
 		select {
 		case <-finishWork:
@@ -220,9 +203,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 			return operation.Completion{Run: runID}, ctx.Err()
 		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.operations.Cancel(work)
 	check(`(() => {overgo.api.post=async function(path,body,options){if(path==='/generation/run')return {operation:` + strconv.Quote(work.String()) + `};return backgroundPost.call(this,path,body,options);};return true;})()`)
 	say(t, ctx, browser, "Continue in background")
@@ -258,18 +239,14 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 })()`)
 	settle(`!!document.querySelector('#panel-chat.active .composer')`)
 	external, err := overgodb.Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, err = artifact.CommitBatch(ctx, external, artifact.Batch{Key: "background/external", Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: outputID, Size: uint64(len(outputBytes)), MediaType: "text/plain"}, Data: outputBytes}}})
 	if err != nil {
 		external.Close()
 		t.Fatal(err)
 	}
 	head, _ := external.Head()
-	if err := external.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, external.Close())
 	check(`(async () => {const view=await backgroundGet('/store/deltas');return view.head===` + strconv.Quote(head.String()) + ` && document.querySelector('.composer textarea').value==='Draft written during work';})()`)
 	close(finishWork)
 	settle(`!document.querySelector('.send-button').disabled`)
@@ -290,9 +267,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	settle(`!![...document.querySelectorAll('.operation-detail button')].find(button=>button.textContent==='Grant retry-browser')`)
 	for _, viewport := range []webuilane.Viewport{{Name: "desktop", Width: 1280, Height: 900}, {Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 390, Height: 380}, {Name: "small-phone", Width: 320, Height: 568}} {
 		for _, scheme := range webuilane.ColourSchemes {
-			if err := browser.SetColorScheme(ctx, scheme); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 			if _, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "background-decision-"+scheme); err != nil {
 				t.Fatal(err)
 			}
@@ -369,9 +344,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 		}
 		for _, viewport := range []webuilane.Viewport{{Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 320, Height: 320}} {
 			for _, scheme := range webuilane.ColourSchemes {
-				if err := browser.SetColorScheme(ctx, scheme); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 				if _, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "model-admission-"+strconv.Itoa(index)+"-"+scheme); err != nil {
 					t.Fatal(err)
 				}
@@ -382,9 +355,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	settle(`!overgo.modelSwitching() && overgo.capabilities().model===backgroundModelCandidate.model.model`)
 	check(`(() => {backgroundProbe.startup_explicit_retry_succeeds=backgroundBusyAttempts===6;window.fetch=backgroundFetch;overgo.api.get=backgroundGet;return overgo.errors.length===0;})()`)
 	var probes map[string]bool
-	if err := browser.Evaluate(ctx, `backgroundProbe`, &probes); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `backgroundProbe`, &probes))
 	for name, passed := range probes {
 		if !passed {
 			t.Errorf("background recovery: %s failed", name)

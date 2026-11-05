@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // hubTestServer serves one model repository with a digest-declared file, the
@@ -49,9 +51,7 @@ func hubTestHandler(t *testing.T, endpoint, downloadRoot string) *Handler {
 		HubEndpoint:        endpoint,
 		HubDownloadRoot:    downloadRoot,
 	}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return handler
 }
 
@@ -93,9 +93,7 @@ func TestWorkbenchAPIDownloadJob(t *testing.T) {
 		var listed struct {
 			Downloads []downloadJob `json:"downloads"`
 		}
-		if err := json.Unmarshal(recorder.Body.Bytes(), &listed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &listed))
 		if len(listed.Downloads) != 1 {
 			t.Fatalf("downloads=%v", listed.Downloads)
 		}

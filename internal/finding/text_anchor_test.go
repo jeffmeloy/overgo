@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestTextBatchBindsArtifactIdentitiesAsThemselves holds an evidence value
@@ -13,14 +14,10 @@ import (
 func TestTextBatchBindsArtifactIdentitiesAsThemselves(t *testing.T) {
 	t.Parallel()
 	census, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("a census"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document, batch, err := NewTextBatch("census moved", SeverityLow,
 		[]string{"cmd/compatibility"}, []string{census.String(), "the live denominator grew"}, "rebind", "go test ./cmd/compatibility")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(document.Evidence) != 2 || !slices.Contains(document.Evidence, census) {
 		t.Fatalf("evidence = %v, want the census identity among them", document.Evidence)
 	}

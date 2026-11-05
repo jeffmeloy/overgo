@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 )
 
 func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
@@ -28,9 +29,7 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 	}
 	for _, test := range tests {
 		plan, err := compileDeviceOutputPlan(test.mode, test.topK, vocabulary)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if plan.graphOutput(graph) != test.want {
 			t.Fatalf("mode %d selected the wrong graph output", test.mode)
 		}

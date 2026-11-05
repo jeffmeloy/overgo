@@ -9,6 +9,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -41,9 +42,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		}
 	}
 	raw, err := Catalog[recipe.TaskImageGen].ValidationInput(root, "  blue cube\n")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var input latentimage.Request
 	if err = json.Unmarshal([]byte(raw), &input); err != nil {
 		t.Fatal(err)

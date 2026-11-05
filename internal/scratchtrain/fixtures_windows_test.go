@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/adaptiveparity"
+	"overgo/internal/testcheck"
 )
 
 // loadOracle reads the adaptive scratch oracle the host and resident
@@ -13,12 +14,8 @@ import (
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	oracle, _, err := adaptiveparity.NormalizeScratchOracle(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return oracle
 }

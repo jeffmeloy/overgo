@@ -19,6 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,38 +27,26 @@ func TestMOSSResidentSession(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(source.Manifests) != 3 {
 		t.Fatal("component manifests missing")
 	}
 	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch, err := source.Inventory.Batch(t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
 	if err = modelrecipe.PublishFacts(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	director := pictureService(t)
 	serve := func(ctx context.Context, request latentimage.Request) (capabilityruntime.Measured, error) {
 		b, err := json.Marshal(request)
@@ -81,9 +70,7 @@ func TestMOSSResidentSession(t *testing.T) {
 			t.Fatal("image extent or type differs")
 		}
 		content, err := latentimage.PNGContent(image)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held, found, err := artifact.ReadContent(t.Context(), store, content.Descriptor.ID)
 		if err != nil || !found || !bytes.Equal(held.Data, image.Data) {
 			t.Fatal("PNG not retained", err)
@@ -99,9 +86,7 @@ func TestMOSSResidentSession(t *testing.T) {
 	}
 	first := latentimage.Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
 	measured, err := serve(t.Context(), first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	baseline := check(measured, first)
 	// This exact PNG identifies the composition already compared with the native
 	// float authority; native numerical acceptance remains in latentimage tests.
@@ -117,9 +102,7 @@ func TestMOSSResidentSession(t *testing.T) {
 		request := first
 		change(&request)
 		measured, err = serve(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if bytes.Equal(check(measured, request), baseline) {
 			t.Fatal("request change did not reach generator")
 		}
@@ -155,17 +138,13 @@ func TestMOSSResidentSession(t *testing.T) {
 		t.Fatal("request cancellation lost", err, left)
 	}
 	measured, err = serve(t.Context(), first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !bytes.Equal(check(measured, first), baseline) || measured.Load <= 0 {
 		t.Fatal("cancelled session was not replaced cleanly")
 	}
 	portrait := latentimage.Request{Prompt: "green tree", Width: 32, Height: 48, Steps: 3, Seed: 7}
 	measured, err = serve(t.Context(), portrait)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	check(measured, portrait)
 	if measured.Load <= 0 || director.Snapshot().Entries != 1 {
 		t.Fatal("extent change did not replace bounded session")

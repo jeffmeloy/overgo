@@ -17,6 +17,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -123,9 +124,7 @@ func mediaCapacityMeasurements(t testing.TB, raw []byte) []json.RawMessage {
 			t.Fatal("incomplete resource measurement", err)
 		}
 		encoded, err := json.Marshal(row)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		rows = append(rows, encoded)
 	}
 	return rows
@@ -134,19 +133,13 @@ func mediaCapacityMeasurements(t testing.TB, raw []byte) []json.RawMessage {
 func TestImageVideoCapacityEvidenceRejectsAlteration(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/image_video_capacity.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, field := range []string{"native_observations", "checks", "prior_bundles", "failed_attempts"} {
 		var changed map[string]any
-		if err := json.Unmarshal(raw, &changed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(raw, &changed))
 		delete(changed, field)
 		candidate, err := json.Marshal(changed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if checkMediaProtocolIdentity(candidate, imageVideoCapacitySHA256) == nil {
 			t.Fatal("altered capacity evidence accepted", field)
 		}
@@ -158,9 +151,7 @@ func TestImageVideoCapacityMeasurementsReassembleOutput(t *testing.T) {
 	var stream bytes.Buffer
 	encoder := json.NewEncoder(&stream)
 	for _, part := range []string{"test.go:1: MEDIA_CAP", "ACITY {\"case\":\"changed\",", "\"wall_ns\":1}\n"} {
-		if err := encoder.Encode(struct{ Output string }{part}); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, encoder.Encode(struct{ Output string }{part}))
 	}
 	rows := mediaCapacityMeasurements(t, stream.Bytes())
 	if len(rows) != 1 || string(rows[0]) != `{"case":"changed","wall_ns":1}` {
@@ -172,24 +163,16 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256))
 	var bundle mediaCapacityBundle
 	if err := json.Unmarshal(raw, &bundle); err != nil || bundle.Version != 1 || !gitauthority.ValidObjectID(bundle.Source) || len(bundle.Checks) == 0 || len(bundle.Limitations) == 0 {
 		t.Fatal("incomplete capacity record", err)
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -205,9 +188,7 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 		t.Fatal("capacity protocol changed", err)
 	}
 	environment, err := checkMediaCapacityBinding(bundle, protocol, read(bundle.Environment))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for path, digest := range bundle.Prior {
 		data, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil || checkMediaProtocolIdentity(data, digest) != nil {
@@ -259,9 +240,7 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	}
 	measurements := map[string][]json.RawMessage{}
 	var assertions map[string]map[string][]string
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions))
 	for _, check := range bundle.Checks {
 		if check.Name == "" || check.Command == "" || check.Scope == "" {
 			t.Fatal("incomplete resource execution")
@@ -273,13 +252,9 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	matchMeasurements := func(name string, id artifact.ID) {
 		t.Helper()
 		raw, err := json.Marshal(measurements[name])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var stored any
-		if err := json.Unmarshal(read(id), &stored); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(id), &stored))
 		canonical, err := json.Marshal(stored)
 		if err != nil || !bytes.Equal(raw, canonical) {
 			t.Fatal("resource rows differ from actual test output", name, err)
@@ -330,17 +305,13 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 		t.Fatal("CPU or changed-shape coverage is absent")
 	}
 	var accepted mediaSharedComponents
-	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_shared_components.json"), &accepted); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join(root, "docs/image_video_shared_components.json"), &accepted))
 	if len(bundle.Loaders) != len(accepted.Acquisitions) {
 		t.Fatal("incomplete complete-loader coverage")
 	}
 	for _, prior := range accepted.Acquisitions {
 		var before, after []mediaLoaderObservation
-		if err := json.Unmarshal(read(prior.Observations), &before); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(prior.Observations), &before))
 		if err := json.Unmarshal(read(bundle.Loaders[prior.Consumer]), &after); err != nil || checkMediaLoaderObservations(prior.Consumer, after) != nil || len(before) != len(after) {
 			t.Fatal("invalid current loader observations", err)
 		}

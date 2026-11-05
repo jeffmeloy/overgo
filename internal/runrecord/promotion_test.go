@@ -9,15 +9,14 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
@@ -27,9 +26,7 @@ func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(
 		ctx, store, "fixture/workflow/candidate", definition,
 	); err != nil {
@@ -43,20 +40,14 @@ func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 	verification, err := modelrecipetest.PublishVerification(
 		ctx, store, "fixture/workflow/verification", definition.ID,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluation, err := runrecord.NewEvaluation(
 		definition.ID, verification.Run, datasetID,
 		[]runrecord.Metric{{Name: "quality", Value: 1, Direction: runrecord.DirectionMaximize}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := evaluation.Batch("fixture/workflow/evaluation")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestGBNFVocabularyBindingShared(t *testing.T) {
@@ -13,9 +15,7 @@ func TestGBNFVocabularyBindingShared(t *testing.T) {
 	eos := []int{4}
 	names := map[string]int{"<special>": 0}
 	vocabulary, err := NewGBNFVocabulary(pieces, eos, names)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Callers retain their inputs; the binding must own all mutable containers.
 	pieces[0][0] = 'z'
 	pieces[1] = []byte("changed")
@@ -33,29 +33,21 @@ func TestGBNFVocabularyBindingShared(t *testing.T) {
 	} {
 		t.Run(test.source, func(t *testing.T) {
 			grammar, err := vocabulary.Compile(test.source, "", GBNFLazyOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if &grammar.tokenPieces[0] != &vocabulary.pieces[0] || &grammar.eos[0] != &vocabulary.eos[0] {
 				t.Fatal("compilation copied immutable vocabulary")
 			}
 			// Captured with the pre-change constructor at 5f971350. This pins
 			// the persisted signature independently of either new API path.
 			legacyState, err := hex.DecodeString(test.state)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			sampler, err := New(Config{GBNF: grammar, Seed: 17})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			state, err := sampler.SaveState()
 			if err != nil || !bytes.Equal(state, legacyState) {
 				t.Fatalf("saved state = %x, %v; want pre-change %x", state, err, legacyState)
 			}
-			if err := sampler.LoadState(legacyState); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, sampler.LoadState(legacyState))
 			for _, want := range test.tokens {
 				got, err := sampler.Sample([]float32{1, 2, 3, 4, 100})
 				if err != nil || got != want {
@@ -85,9 +77,7 @@ func TestGBNFVocabularyBindingShared(t *testing.T) {
 			})
 		}
 		lazy, err := vocabulary.Compile(`root ::= "ab"`, "", GBNFLazyOptions{Enabled: true, Tokens: []int{0}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for range 8 {
 			workers.Go(func() {
 				if !gbnfAcceptsTokens(t, lazy, []int{1, 0, 1, 4}) || gbnfAcceptsTokens(t, lazy, []int{0, 0, 4}) {
@@ -106,9 +96,7 @@ func TestGBNFVocabularyBindingShared(t *testing.T) {
 				pieces[i] = fmt.Append(nil, i)
 			}
 			vocabulary, err := NewGBNFVocabulary(pieces, []int{size - 1}, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			allocations := testing.AllocsPerRun(10, func() {
 				if _, err := vocabulary.Compile(`root ::= "0"`, "", GBNFLazyOptions{}); err != nil {
 					t.Fatal(err)

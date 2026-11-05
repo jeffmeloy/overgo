@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 )
 
 // TestRequestWithoutSamplersUsesDeclaredChain: a request that names no
@@ -52,9 +53,7 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 		t.Fatalf("logit bias resolved as %+v", biased.LogitBiases)
 	}
 	sampler, err := sampling.New(biased)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The bias lands on the vocabulary's top logit, so the draw must move to the next one, every time.
 	logits := make([]float32, 64)
 	for index := range logits {
@@ -67,18 +66,14 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 	}
 	for range 8 {
 		token, err := sampler.Sample(logits)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if token != want {
 			t.Fatalf("temperature 0 with a logit bias drew token %d, want the biased argmax %d under %+v", token, want, biased)
 		}
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recorded := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Sampled answer"}}))
 	defer recorded.Close()
@@ -143,13 +138,9 @@ func TestRequestSamplingPresence(t *testing.T) {
 			} {
 				t.Run(variant.name, func(t *testing.T) {
 					var request samplingParameters
-					if err := json.Unmarshal([]byte(variant.body), &request); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, json.Unmarshal([]byte(variant.body), &request))
 					sampler, err := handler.newSampler(request)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					value := reflect.ValueOf(sampler.Config()).FieldByName(field.field)
 					got := value.Convert(reflect.TypeFor[float64]()).Float()
 					if got != variant.want {
@@ -162,9 +153,7 @@ func TestRequestSamplingPresence(t *testing.T) {
 	t.Run("invalid explicit zero is refused", func(t *testing.T) {
 		handler := &Handler{servingWorkspace: servingWorkspace{defaultSampling: sampling.Config{RepeatPenalty: 1, RepeatLastN: 1}}}
 		var request samplingParameters
-		if err := json.Unmarshal([]byte(`{"repeat_penalty":0}`), &request); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal([]byte(`{"repeat_penalty":0}`), &request))
 		if _, err := handler.newSampler(request); err == nil {
 			t.Fatal("explicit invalid zero was replaced by a valid default")
 		}

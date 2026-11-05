@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ const simpleDiffusionProcessRuns = 3
 func TestSimpleDiffusionProcessLeadership(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	adaptiveGo := filepath.Join(filepath.Dir(roots.Models), "go")
 	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {
 		t.Fatalf("UNAVAILABLE: adaptive Go source absent at %s", adaptiveGo)

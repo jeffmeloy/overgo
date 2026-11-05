@@ -8,6 +8,7 @@ import (
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,41 +17,27 @@ func strategyStore(t *testing.T) (string, loop.Strategy) {
 	t.Helper()
 	repository := t.TempDir()
 	store, err := overgodb.Create(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data := []byte("strategy prompt")
 	prompt, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := artifact.Content{Descriptor: artifact.Descriptor{ID: prompt, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: "configured-strategy", Prompt: prompt,
 		ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model"),
 		Policies:    []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := loop.NewStrategy(worker, testutil.ArtifactID(t, artifact.KindProfile, "catalog"), loop.Config{MaxAttemptsPerStep: 3, MaxInvocations: 11})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := want.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("fixture/configured-strategy", []artifact.Content{content, text}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	return repository, want
 }
 
@@ -60,9 +47,7 @@ func TestLoopConfigResolvesStrategyAuthority(t *testing.T) {
 	}
 	repository, want := strategyStore(t)
 	got, _, err := resolveConfiguredStrategy(config{StrategyID: want.ID, Repository: repository}, filepath.Join(t.TempDir(), "absent"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got.ID != want.ID || got.Loop.MaxAttemptsPerStep != 3 || got.Loop.MaxInvocations != 11 {
 		t.Fatalf("resolved strategy = %+v", got)
 	}
@@ -75,9 +60,7 @@ func TestTheDriverOpensTheStoreItResolved(t *testing.T) {
 	repository, want := strategyStore(t)
 	t.Chdir(t.TempDir())
 	got, prompt, err := resolveConfiguredStrategy(config{StrategyID: want.ID}, repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got.ID != want.ID || prompt != "strategy prompt" {
 		t.Fatalf("resolved %+v with prompt %q", got, prompt)
 	}

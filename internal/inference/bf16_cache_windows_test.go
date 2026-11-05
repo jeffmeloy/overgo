@@ -11,6 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -100,9 +101,7 @@ func TestTheKeyValueCacheIsStoredInBF16(t *testing.T) {
 	open := func(f32 bool) *Runner {
 		t.Helper()
 		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = runner.Close() })
 		return runner
 	}
@@ -152,19 +151,13 @@ func TestTheKeyValueCacheIsStoredInBF16(t *testing.T) {
 					result.bytes += value.CapacityBytes
 				}
 				host, err := runner.downloadDeviceCache(ctx, next)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				result.first = append(slices.Clone(host.Layers[0].Key.Data), host.Layers[0].Value.Data...)
 				uploaded, err := runner.uploadDeviceCache(ctx, host)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				back, err := runner.downloadDeviceCache(ctx, uploaded)
 				_ = uploaded.Release(ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				if !slices.Equal(append(slices.Clone(back.Layers[0].Key.Data), back.Layers[0].Value.Data...), result.first) {
 					t.Fatal("the cache moved to host memory and back holds other values")
 				}

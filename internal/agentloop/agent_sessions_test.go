@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -55,9 +56,7 @@ func newAgentWorld(t *testing.T) *agentWorld {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Create(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	world := &agentWorld{store: store}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "agent-session-recipe")
@@ -90,23 +89,17 @@ func newAgentWorld(t *testing.T) *agentWorld {
 		Arguments: []agenttool.Field{{Name: "step", Kind: agenttool.FieldInteger}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/read"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mutate, err := agenttool.NewManual(agenttool.Manual{
 		Name: "session.write", Description: "Change state for the session.", Effect: agenttool.EffectMutation,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/write"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{inspect, mutate}); err != nil {
 		t.Fatal(err)
 	}
 	coordinator, err := New(store, agenttool.NewOperatorExecutor(), Identity{Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond")}, 1000)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	world.coordinator = coordinator
 	return world
 }

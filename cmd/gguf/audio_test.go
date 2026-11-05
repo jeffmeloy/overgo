@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -34,19 +35,13 @@ func TestAudioDecodeCommand(t *testing.T) {
 			root := t.TempDir()
 			input := filepath.Join(root, "input.wav")
 			encoded := testutil.MonoPCM16WAV(16000, test.samples)
-			if err := os.WriteFile(input, encoded, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(input, encoded, 0o600))
 			policy := dataset.AudioInspectionPolicy{MaximumEncodedBytes: 1024, MaximumSamples: 2, ClipThreshold: 1,
 				Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1, MaximumAbsoluteDCOffset: 1}}
 			data, err := json.Marshal(policy)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			policyPath := filepath.Join(root, "policy.json")
-			if err := os.WriteFile(policyPath, data, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(policyPath, data, 0o600))
 			args := []string{"-repo", t.TempDir(), "-input", input, "-policy", policyPath}
 			var output bytes.Buffer
 			err = runAudio(t, args, &output)
@@ -54,9 +49,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 				t.Fatalf("error=%v output=%s", err, &output)
 			}
 			var result dataset.AudioInspection
-			if err := json.Unmarshal(bytes.SplitN(output.Bytes(), []byte{'\n'}, 2)[0], &result); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(bytes.SplitN(output.Bytes(), []byte{'\n'}, 2)[0], &result))
 			if result.SignalID.Kind() != artifact.KindEvidence || result.Signal.SampleCount != 2 || !strings.Contains(output.String(), "inspected=1") {
 				t.Fatalf("output=%s", &output)
 			}
@@ -66,9 +59,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 			}
 			// A wrong pinned source must fail before inspecting any samples.
 			expect := filepath.Join(root, "expect.json")
-			if err := os.WriteFile(expect, []byte(`{"container_sha256":"wrong","observations":[{}]}`), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(expect, []byte(`{"container_sha256":"wrong","observations":[{}]}`), 0o600))
 			output.Reset()
 			if err := runAudio(t, append(args, "-expect", expect), &output); err == nil || output.Len() != 0 {
 				t.Fatal("wrong source expectation accepted")

@@ -10,27 +10,20 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestComponentImportInspectionRoutes(t *testing.T) {
 	path := t.TempDir()
-	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	weights := filepath.Join(path, "model.safetensors")
-	if err := safetensors.Save(weights, map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(weights, map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model, projector, err := ModelFiles(path, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	initial, _ := store.Head()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -42,16 +35,12 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 		t.Fatal("cancelled import published facts")
 	}
 	receipt, err := Register(t.Context(), store, model, projector)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if receipt["inspection"] == nil || receipt["recipe"] != nil || receipt["qualification"] != "structural-only" {
 		t.Fatalf("source registration receipt = %+v", receipt)
 	}
 	beforeCorruption, _ := store.Head()
-	if err := os.WriteFile(weights, []byte("corrupt"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, []byte("corrupt"), 0600))
 	if _, err := Register(t.Context(), store, model, projector); err == nil {
 		t.Fatal("corrupt source was registered")
 	}
@@ -67,9 +56,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
@@ -80,21 +67,15 @@ func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
 		t.Fatalf("the directory does not validate: %v", err)
 	}
 	receipt, err := Register(t.Context(), store, directory, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if request.Recipe != receipt["recipe"] {
 		t.Fatalf("validates under %v, registers under %v", request.Recipe, receipt["recipe"])
 	}
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer loaded.Close()
 	identity, err := loaded.Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if identity.Model != receipt["model"] {
 		t.Fatalf("ran as %v, registered as %v", identity.Model, receipt["model"])
 	}

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // citation is a rule's citation of the checks that hold it: "(check: <package directory> <TestName>, ...)".
@@ -37,9 +39,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 	read := func(path string) string {
 		t.Helper()
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return string(data)
 	}
 	tests := map[string]string{}
@@ -50,9 +50,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 			var all strings.Builder
 			for _, file := range files {
 				data, err := os.ReadFile(file)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				all.Write(data)
 			}
 			source = all.String()
@@ -91,9 +89,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 			Text    string `json:"text"`
 		} `json:"paragraphs"`
 	}
-	if err := json.Unmarshal([]byte(read("docs/plan.json")), &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal([]byte(read("docs/plan.json")), &document))
 	for index, paragraph := range document.Paragraphs {
 		if paragraph.Governs != "standing" {
 			continue
@@ -111,9 +107,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 func TestAJudgementLineSaysWhyNoCodeHoldsIt(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	section, judged := "", 0
 	for number, line := range strings.Split(string(data), "\n") {
 		if strings.HasPrefix(line, "#") {
@@ -156,9 +150,7 @@ var unsoundCitations = []struct{ rule, test string }{
 func TestNoRuleCitesACheckThatDoesNotProveIt(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for number, line := range strings.Split(string(data), "\n") {
 		rule, cited, citing := strings.Cut(strings.TrimPrefix(line, ruleLine.FindString(line)), "(check: ")
 		if !ruleLine.MatchString(line) || !citing {
@@ -188,9 +180,7 @@ var history = regexp.MustCompile(`\b(\d{4}-\d{2}-\d{2}|[0-9a-f]{9,40})\b`)
 func TestTheDoctrineHoldsItsOwnForm(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stated := map[string]int{}
 	for number, line := range strings.Split(string(data), "\n") {
 		if !ruleLine.MatchString(line) {
@@ -234,9 +224,7 @@ func TestDoctrineHoldsNoRetiredClaim(t *testing.T) {
 		text, read := texts[retired.source]
 		if !read {
 			data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(retired.source)))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			text = string(data)
 			if retired.source == "docs/plan.json" {
 				var document struct {
@@ -244,9 +232,7 @@ func TestDoctrineHoldsNoRetiredClaim(t *testing.T) {
 						Text string `json:"text"`
 					} `json:"paragraphs"`
 				}
-				if err := json.Unmarshal(data, &document); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal(data, &document))
 				var paragraphs strings.Builder
 				for _, paragraph := range document.Paragraphs {
 					paragraphs.WriteString(paragraph.Text + "\n")

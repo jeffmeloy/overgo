@@ -5,17 +5,15 @@ import (
 	"math"
 	"os"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func BenchmarkFrontend(b *testing.B) {
 	encoded, err := os.ReadFile("testdata/power_logmel_frontend.json")
-	if err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, err)
 	var config FrontendConfig
-	if err := json.Unmarshal(encoded, &config); err != nil {
-		b.Fatal(err)
-	}
+	testcheck.NoError(b, json.Unmarshal(encoded, &config))
 	// Fixed synthetic input, not an ASR quality or real-time serving claim.
 	samples := make([]float32, config.SampleRate)
 	for index := range samples {
@@ -42,9 +40,7 @@ func BenchmarkFrontend(b *testing.B) {
 		}
 		b.Run(name, func(b *testing.B) {
 			plan, err := NewFrontend(config, uint64(math.MaxInt))
-			if err != nil {
-				b.Fatal(err)
-			}
+			testcheck.NoError(b, err)
 			var workspace Workspace
 			ctx := b.Context()
 			if _, _, err := plan.Process(ctx, chunks, config.SampleRate, &workspace, ProcessOptions{}); err != nil {
@@ -72,9 +68,7 @@ func TestFrontendSteadyStateAllocations(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			plan, err := NewFrontend(config, 1<<20)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			chunks := [][]float32{nil, samples[:3], nil, samples[3:], nil}
 			ctx := t.Context()
 			var workspace Workspace
@@ -86,9 +80,7 @@ func TestFrontendSteadyStateAllocations(t *testing.T) {
 					} else {
 						_, _, err = plan.Process(ctx, chunks, sampleRate, &workspace, ProcessOptions{})
 					}
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 				}
 				run()
 				if allocations := testing.AllocsPerRun(100, run); allocations != 0 {

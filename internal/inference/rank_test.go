@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -39,9 +40,7 @@ func TestRankPairPromptUsesConfiguredSeparators(t *testing.T) {
 		BOS: 1, EOS: 2, SEP: 3, AddBOS: true, AddEOS: true, AddSEP: true,
 	}
 	prompt, err := assembleRankPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []tokenizer.TokenID{1, 4, 2, 3, 5, 2}
 	if len(prompt) != len(want) {
 		t.Fatalf("rank tokens = %v", prompt)
@@ -71,9 +70,7 @@ func TestRankAdmission(t *testing.T) {
 
 func TestProjectRankScoresHost(t *testing.T) {
 	var tensorData bytes.Buffer
-	if err := binary.Write(&tensorData, binary.LittleEndian, []float32{1, 0, 0, 1}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, binary.Write(&tensorData, binary.LittleEndian, []float32{1, 0, 0, 1}))
 	var encoded bytes.Buffer
 	if err := gguf.Write(&encoded, nil, []gguf.TensorData{{
 		Name: "cls.output.weight", Shape: []uint64{2, 2},
@@ -82,18 +79,14 @@ func TestProjectRankScoresHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	info, ok := file.Tensor("cls.output.weight")
 	if !ok {
 		t.Fatal("classifier tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{ClassifierOutput: &info}}}
 	scores, err := runner.projectRankScores(t.Context(), []float32{2, 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(scores) != 2 || scores[0] != 2 || scores[1] != 3 {
 		t.Fatalf("scores = %v", scores)
 	}

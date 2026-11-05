@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // storeFlagNames are the flags that name an OvergoDB store.
@@ -72,9 +74,7 @@ func storeFlagFindings(t *testing.T, root string) []string {
 		})
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for directory := range defined {
 		if !resolved[directory] {
 			findings = append(findings, filepath.ToSlash(directory)+" defines a store flag and never asks the data root")

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func publishVerification(
@@ -24,13 +25,9 @@ func publishVerification(
 			Outcome: runrecord.StepSucceeded, DurationNS: 1,
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := record.Batch(key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -42,13 +39,9 @@ func publishVerificationEnvironment(t testing.TB, store artifact.Repository, key
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := environment.Batch(key)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		t.Fatal(err)
 	}

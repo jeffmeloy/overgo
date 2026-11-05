@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // TestImageEmbeddingCapability runs the catalog's image embedding end to end
@@ -30,29 +31,19 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	t.Parallel()
 	directory := modeltest.Directory(t, "webssl-dino300m-full2b-224")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	capability := Catalog[recipe.TaskImageEmbedding]
 	embed := func(t *testing.T, directory string, encoded []byte) ([]float32, error) {
 		t.Helper()
 		source, err := capability.Resolve(t.Context(), directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskImageEmbedding, source.Inventory.Manifest.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		program, err := modelrecipe.CompileCapability(definition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		request, err := json.Marshal(map[string]any{"image": encoded})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
 		if err != nil {
 			return nil, err
@@ -66,33 +57,23 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	gradient := encodePNG(t, 240, 300, func(x, y, c int) uint8 { return uint8((x*7 + y*13 + c*29 + (x*y)%17) % 256) })
 	checker := encodePNG(t, 240, 300, func(x, y, c int) uint8 { return uint8(255 * ((x/20 + y/20 + c) % 2)) })
 	first, err := embed(t, directory, gradient)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var config struct {
 		Hidden int `json:"hidden_size"`
 	}
 	data, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &config); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(data, &config))
 	if len(first) != config.Hidden {
 		t.Fatalf("embedding has %d values, the checkpoint's hidden size is %d", len(first), config.Hidden)
 	}
 	again, err := embed(t, directory, gradient)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !equalEmbeddings(first, again) {
 		t.Fatal("the same image embedded differently twice")
 	}
 	other, err := embed(t, directory, checker)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cosine(first, other) > 0.99 {
 		t.Fatalf("different images embed alike: cosine %.4f", cosine(first, other))
 	}
@@ -102,9 +83,7 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	for _, name := range []string{"config.json", "preprocessor_config.json", "model.safetensors"} {
 		source := filepath.Join(directory, name)
 		if name == "config.json" {
-			if err := os.WriteFile(filepath.Join(foreign, name), bytes.Replace(data, []byte(`"dinov2"`), []byte(`"unreviewed"`), 1), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(foreign, name), bytes.Replace(data, []byte(`"dinov2"`), []byte(`"unreviewed"`), 1), 0o600))
 			continue
 		}
 		if err := os.Link(source, filepath.Join(foreign, name)); err != nil {
@@ -129,9 +108,7 @@ func encodePNG(t *testing.T, height, width int, value func(x, y, c int) uint8) [
 		}
 	}
 	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, picture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&encoded, picture))
 	return encoded.Bytes()
 }
 

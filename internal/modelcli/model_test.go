@@ -5,14 +5,13 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 )
 
 func TestModelFlagsOpenOptions(t *testing.T) {
 	flags := flag.NewFlagSet("test", flag.ContinueOnError)
 	modelFlags := AddModelFlags(flags, "adapter")
-	if err := flags.Parse([]string{"-device", "2", "-lora", "a.gguf", "-lora", "b.gguf"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, flags.Parse([]string{"-device", "2", "-lora", "a.gguf", "-lora", "b.gguf"}))
 	options := modelFlags.OpenOptions(0.5)
 	if options.DeviceOrdinal != 2 {
 		t.Fatalf("unexpected options: %+v", options)
@@ -33,9 +32,7 @@ func TestModelFlagsRepositoryAndAdapters(t *testing.T) {
 	if _, err := modelFlags.RepositoryPath(); err == nil {
 		t.Fatal("missing default repository accepted")
 	}
-	if err := flags.Parse([]string{"-repo", "chosen-store", "-lora", "adapter.gguf"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, flags.Parse([]string{"-repo", "chosen-store", "-lora", "adapter.gguf"}))
 	if repository, err := modelFlags.RepositoryPath(); err != nil || repository != "chosen-store" {
 		t.Fatalf("explicit repository = %q, %v", repository, err)
 	}

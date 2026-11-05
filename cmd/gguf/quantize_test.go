@@ -11,6 +11,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestParseQuantizationType(t *testing.T) {
@@ -51,9 +52,7 @@ func TestQuantizeModelCreatesOutputWithoutOverwrite(t *testing.T) {
 		binary.LittleEndian.PutUint32(values[index*4:], math.Float32bits(value))
 	}
 	input, err := os.Create(inputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	err = gguf.Write(
 		input,
 		nil,
@@ -68,21 +67,15 @@ func TestQuantizeModelCreatesOutputWithoutOverwrite(t *testing.T) {
 	if closeErr := input.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	report, err := quantizeModel(inputPath, outputPath, dtype.Q4_0, false, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Converted != 1 || report.Preserved != 0 {
 		t.Fatalf("report = %#v", report)
 	}
 	output, err := gguf.Open(outputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer output.Close()
 	tensor, ok := output.Tensor("weight")
 	if !ok || tensor.Type != dtype.Q4_0 || tensor.Size != 36 {
@@ -133,29 +126,21 @@ func TestQuantizeModelUsesImportanceMatrix(t *testing.T) {
 		t.Fatalf("failed output remains: %v", err)
 	}
 	report, err := quantizeModel(inputPath, outputPath, dtype.IQ2XXS, false, imatrixPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if report.Converted != 1 || report.Preserved != 0 {
 		t.Fatalf("report = %#v", report)
 	}
 	output, err := gguf.Open(outputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer output.Close()
 	want, err := quant.QuantizeWeighted(dtype.IQ2XXS, values, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensor, ok := output.Tensor(name)
 	if !ok || tensor.Type != dtype.IQ2XXS {
 		t.Fatalf("output tensor = %#v, present=%v", tensor, ok)
 	}
 	got := make([]byte, tensor.Size)
-	if err := output.ReadTensorData(tensor, got); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, output.ReadTensorData(tensor, got))
 	if !bytes.Equal(got, want) {
 		t.Fatal("weighted tensor mismatch")
 	}
@@ -175,16 +160,12 @@ func TestQuantizeModelUsesImportanceMatrix(t *testing.T) {
 func writeGGUFFixture(t *testing.T, path string, metadata []gguf.Metadata, tensors []gguf.TensorData) {
 	t.Helper()
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{})
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 }
 
 func encodeFloat32(values []float32) []byte {

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // strataServed is a served model off the device as the suite meets it over
@@ -132,20 +134,14 @@ func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 	docs := t.TempDir()
 	write := func(name string, words int) {
 		path := filepath.Join(docs, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(strings.Repeat(name+" word\n", words/2)), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		testcheck.NoError(t, os.WriteFile(path, []byte(strings.Repeat(name+" word\n", words/2)), 0o644))
 	}
 	write("README.md", 2400)
 	write("docs/HOW_IT_WORKS.md", 800)
 	write("docs/DETAILS.md", 100)
 	var output, kept bytes.Buffer
-	if err := runStrata([]string{server.URL + "/", docs}, &output, &kept); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runStrata([]string{server.URL + "/", docs}, &output, &kept))
 
 	// Four warm-up requests, nine short questions, six fresh prompts and three sessions of six turns.
 	if len(served.requests) != 4+9+6+18 {
@@ -192,21 +188,15 @@ func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 		Prompts map[string]map[string]json.RawMessage
 		Agent   map[string]json.RawMessage
 	}
-	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(output.Bytes(), &result))
 	median := func(raw json.RawMessage) strataStat {
 		t.Helper()
 		var stat strataStat
-		if err := json.Unmarshal(raw, &stat); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(raw, &stat))
 		return stat
 	}
 	var turns map[string]json.RawMessage
-	if err := json.Unmarshal(result.Agent["turns"], &turns); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(result.Agent["turns"], &turns))
 	if decode, first := median(result.Chat["decode_tps"]), median(result.Chat["ttft_s"]); decode.Median != servedDecode || decode.N != 9 || first.Median <= 0 {
 		t.Fatalf("short chat decode %+v, first token %+v", decode, first)
 	}

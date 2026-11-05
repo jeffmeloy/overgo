@@ -13,6 +13,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestServerScorecardReadsTheStore(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	head, _ := store.Head()
 	rows, err := serverScorecard(t.Context(), store, discovery.NewMemo())
@@ -91,9 +90,7 @@ func TestScorecardHistoryReadsPublishedRecords(t *testing.T) {
 	}
 	// A record from before the scorecard's own rules (a cell nothing explains) is refused.
 	refused := filepath.Join(scorecard.Directory(storeRoot), "scorecard-"+published.Add(time.Hour).UTC().Format("20060102T150405Z")+".json")
-	if err := os.WriteFile(refused, []byte(`{"commit":"third","rows":[{"name":"alpha","task":"inference","cells":{"throughput":{"value":1}}}]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(refused, []byte(`{"commit":"third","rows":[{"name":"alpha","task":"inference","cells":{"throughput":{"value":1}}}]}`), 0o644))
 	if history, err := read(); err == nil || history != nil {
 		t.Fatalf("a record with an unexplained cell read as %+v, %v", history, err)
 	}

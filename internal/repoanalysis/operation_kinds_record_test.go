@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // kindsRecord is the record of the reading of the switches over the tensor operations.
@@ -294,9 +295,7 @@ func checkKindsReadingRecord(t *testing.T, snapshot gosyntax.Snapshot, reading s
 	t.Helper()
 	const fixtureFile = "internal/fixture/launch.go"
 	planted, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{fixtureFile: []byte(kindsFixture)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	counts, err := countSwitch(planted, shapePlace{file: fixtureFile, function: "launch", from: fixtureSwitchLine})
 	plantedCounts := switchCounts{fixtureClauses, fixtureDispatch, fixtureCheckLines, fixtureCheckLines, fixtureCheckLines}
 	if err != nil || counts != plantedCounts {
@@ -309,9 +308,7 @@ func checkKindsReadingRecord(t *testing.T, snapshot gosyntax.Snapshot, reading s
 	}
 	family := reading.families[index]
 	raw, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(kindsRecord)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The record's switch entries keep their readings, keyed by the place they cite.
 	part, held := kindsPart(string(raw), kindsSwitchesPart)
@@ -344,9 +341,7 @@ func checkKindsReadingRecord(t *testing.T, snapshot gosyntax.Snapshot, reading s
 			named[constant]++
 		}
 		counts, err := countSwitch(snapshot, kind.place)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if repeated := counts.recheck + counts.dimension + counts.count; repeated != 0 {
 			t.Errorf("%s holds %d lines that check again what a compiled graph holds (%d recheck, %d dimension check, %d count check), want 0", kind.place, repeated, counts.recheck, counts.dimension, counts.count)
 		}

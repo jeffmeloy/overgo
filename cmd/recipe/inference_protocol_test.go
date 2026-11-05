@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -125,24 +126,18 @@ func (fixture *protocolFixture) Close() error {
 // binding the observation; when one case is answered wrongly nothing is.
 func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 	document, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "protocol_acceptance.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, wrong := range []string{"", "43"} {
 		t.Run("wrong="+wrong, func(t *testing.T) {
 			ctx := t.Context()
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}
 			candidate, err := prepareExactCandidate(ctx, store, testutil.HermeticLlamaGGUF(t, servedContext), modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			head, sequence := store.Head()
 			model := &protocolFixture{wrong: wrong}
 			verification, err := acceptProtocol(ctx, store, candidate.Definition, candidate.Resolved.Document.ID, strings.Repeat("a", 40), string(document),
@@ -181,9 +176,7 @@ func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 				}
 			}
 			// The gate and run are what recipe activate takes.
-			if err := modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, "protocol cases accepted"); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, "protocol cases accepted"))
 			if active, found, err := modelrecipe.ActiveRecord(ctx, store, candidate.Definition.Model, recipe.TaskInference); err != nil || !found || active.Definition.ID != candidate.Definition.ID {
 				t.Fatalf("active recipe %+v found %t, %v; want the protocol-accepted candidate", active.Definition.ID, found, err)
 			}

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ const needleProcessRuns = 3
 func TestNeedleProcessPeakLeadership(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	adaptiveRoot := filepath.Dir(roots.Models)
 	adaptiveGo := filepath.Join(adaptiveRoot, "go")
 	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {

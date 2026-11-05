@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 	"overgo/internal/worklease"
 	"path/filepath"
 	"slices"
@@ -126,16 +127,10 @@ func TestPersistentStopHook(t *testing.T) {
 	git("commit", "--allow-empty", "-qm", "baseline")
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "requested", Detail: "operator stopped", CodeCommit: gitHead()}
 	stopped, err := plan.RecordStop(t.Context(), event)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	git("commit", "--allow-empty", "-qm", "another worker committed")
-	if err := os.MkdirAll("docs", 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(plan.Path, []byte("{broken plan"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll("docs", 0700))
+	testcheck.NoError(t, os.WriteFile(plan.Path, []byte("{broken plan"), 0600))
 	dispatch := nextDispatch()
 	if dispatch.Stop == nil || !dispatch.Stop.Blocked || dispatch.Stop.Event.CodeCommit == dispatch.Stop.CurrentHead {
 		t.Fatalf("hook lost stop across HEAD: %+v", dispatch)

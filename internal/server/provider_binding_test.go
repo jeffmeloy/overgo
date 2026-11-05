@@ -12,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -100,9 +101,7 @@ func TestAProviderKeyGoesOnlyToItsDeclaredEndpoint(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			target := serve(t, store)
 			declared, other := newKeyRecorder(t), newKeyRecorder(t)

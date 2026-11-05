@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -112,9 +113,7 @@ func TestAgentRetrievalCitation(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	results, err := fixture.builder.Search(t.Context(), AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		Embedder: fixture.build.Embedder, Reranker: fixture.reranker,
@@ -130,9 +129,7 @@ func TestAgentRetrievalRebuild(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
 	first, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, _ := fixture.store.Head()
 	second, err := fixture.Build(t)
 	secondHead, _ := fixture.store.Head()
@@ -145,9 +142,7 @@ func TestAgentRetrievalIdentityMismatch(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query := AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		Embedder: agentRetrievalEmbedder{model: testutil.ArtifactID(t, artifact.KindModel, "wrong-embedding-model")},
@@ -170,9 +165,7 @@ func TestAgentRetrievalBuildRejectsFabricatedSourceContentOrStructure(t *testing
 		Text: "grounded source text", Facet: AgentRetrievalFacetTable,
 		Structure: []string{"chapter", "table"},
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, test := range []struct {
 		name   string
 		mutate func(*AgentRetrievalDocument)
@@ -206,9 +199,7 @@ func TestRetrievalBuildAndSearchStayWithinBudget(t *testing.T) {
 		MaxIntermediateBytes: artifact.MaxContentBytes, MaxPublishedFacts: 7,
 	}
 	built, err := fixture.builder.BuildWithWork(t.Context(), build)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if built.Budget != build.Budget || built.Work.DocumentsInspected != 3 || built.Work.ChunksBuilt != 3 ||
 		built.Work.EmbeddingCalls != 3 || built.Work.PublishedFacts != 7 ||
 		built.Work.SourceBytesLoaded == 0 || built.Work.SourceBytesLoaded > build.Budget.MaxSourceBytes ||
@@ -231,9 +222,7 @@ func TestRetrievalBuildAndSearchStayWithinBudget(t *testing.T) {
 		},
 	}
 	searched, err := fixture.builder.SearchWithWork(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loadedBytes := searched.Work.ChunkBytesLoaded + searched.Work.EmbeddingBytesLoaded
 	if searched.Budget != query.Budget || searched.Work.EntriesInspected != 3 ||
 		searched.Work.ChunksLoaded != 3 || searched.Work.EmbeddingsLoaded != 3 ||
@@ -254,14 +243,10 @@ func TestAgentRetrievalColdReadsRejectForgedLineage(t *testing.T) {
 			fixture := newAgentRetrievalFixture(t)
 			defer fixture.store.Close()
 			projection, err := fixture.Build(t)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			entry := projection.Entries[0]
 			chunk, err := RequireAgentRetrievalChunk(t.Context(), fixture.store, entry.Chunk)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			id := map[string]artifact.ID{
 				"source": chunk.Source, "chunk": entry.Chunk,
 				"embedding": entry.Embedding, "projection": projection.ID,
@@ -314,9 +299,7 @@ func TestGroundedHybridRetrievalPreservesStructureAndCitations(t *testing.T) {
 		Parent: parent, Previous: previous, Next: next, StartRune: 17, StartByte: 31,
 	}}
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	search, err := fixture.builder.SearchWithWork(t.Context(), AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		Embedder: fixture.build.Embedder, Reranker: fixture.reranker,
@@ -363,9 +346,7 @@ func TestGroundedHybridRetrievalFiltersBeforeCandidateLimit(t *testing.T) {
 		{Source: fixture.sources[1], Text: "allowed evidence", Facet: AgentRetrievalFacetTable},
 	}
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	search, err := fixture.builder.SearchWithWork(t.Context(), AgentRetrievalQuery{
 		Projection: projection.ID, Text: "query", Limit: 1, AllowedSources: []artifact.ID{fixture.sources[1]},
 		AllowedFacets: []AgentRetrievalFacet{AgentRetrievalFacetTable}, Embedder: embedder, Reranker: fixture.reranker,
@@ -398,33 +379,23 @@ func TestGroundedHybridRetrievalDeterministic(t *testing.T) {
 		{Source: fixture.sources[2], Text: "needle evidence", Facet: AgentRetrievalFacetText},
 	}
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query := AgentRetrievalQuery{
 		Projection: projection.ID, Text: "needle", Limit: 2, Embedder: embedder, Reranker: fixture.reranker,
 	}
 	first, err := fixture.builder.SearchWithWork(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := fixture.builder.SearchWithWork(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	permutedDocuments := slices.Clone(fixture.build.Documents)
 	slices.Reverse(permutedDocuments)
 	fixture.build.Documents = permutedDocuments
 	permutedProjection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	permuted, err := fixture.builder.SearchWithWork(t.Context(), AgentRetrievalQuery{
 		Projection: permutedProjection.ID, Text: "needle", Limit: 2, Embedder: embedder, Reranker: fixture.reranker,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(first, second) || !reflect.DeepEqual(first, permuted) || permutedProjection.ID != projection.ID ||
 		len(first.Results) != 2 ||
 		first.Results[0].Citation.Text != "needle evidence" || first.Results[0].DenseCandidate ||
@@ -454,9 +425,7 @@ func TestGroundedHybridRetrievalCandidateLimitBoundsUnion(t *testing.T) {
 		{Source: fixture.sources[1], Text: "needle evidence"},
 	}
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	search, err := fixture.builder.SearchWithWork(t.Context(), AgentRetrievalQuery{
 		Projection: projection.ID, Text: "needle", Limit: 2, Embedder: embedder, Reranker: fixture.reranker,
 	})
@@ -471,9 +440,7 @@ func TestGroundedHybridRetrievalRejectsCrossProjectionChunk(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	foreignDataset := testutil.ArtifactID(t, artifact.KindDataset, "foreign-retrieval-dataset")
 	foreignPolicy := testutil.ArtifactID(t, artifact.KindProfile, "foreign-retrieval-policy")
 	if _, err := fixture.store.Commit(t.Context(), artifact.Batch{
@@ -520,9 +487,7 @@ func TestGroundedHybridRetrievalCompleteAndLegacyFilterKeys(t *testing.T) {
 		Source: fixture.sources[0], Text: "target evidence", Facet: AgentRetrievalFacetTable, Parent: parent,
 	}}
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	completeMismatch := projection
 	completeMismatch.Entries = slices.Clone(projection.Entries)
 	completeMismatch.Entries[0].Facet = ""
@@ -567,22 +532,16 @@ func TestGroundedHybridRetrievalCandidateStageDigestsEmpty(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
 	projection, err := fixture.Build(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	query := AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		AllowedSources: []artifact.ID{testutil.ArtifactID(t, artifact.KindFile, "absent-retrieval-source")},
 		Embedder:       fixture.build.Embedder, Reranker: fixture.reranker,
 	}
 	first, err := fixture.builder.SearchWithWork(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := fixture.builder.SearchWithWork(t.Context(), query)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(first, second) || len(first.Results) != 0 || first.Work.EntriesInspected != 3 ||
 		first.Work.FilteredEntries != 3 || first.Work.ChunksLoaded != 0 || first.Work.ChunkBytesLoaded != 0 ||
 		first.Work.EmbeddingsLoaded != 0 || first.Work.EmbeddingBytesLoaded != 0 || first.Work.UnionCandidates != 0 ||
@@ -601,13 +560,9 @@ func publishAgentRetrievalProjection(
 	t.Helper()
 	value.ID = artifact.ID{}
 	identified, err := agentRetrievalProjectionCodec.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := agentRetrievalProjectionCodec.Content(identified)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "retrieval/test-projection/" + identified.ID.String(), Contents: []artifact.Content{content},
 		Lineage: agentRetrievalProjectionLineage(identified),
@@ -629,9 +584,7 @@ func agentRetrievalStoredBytes(t *testing.T, store *overgodb.Store, id artifact.
 func newAgentRetrievalFixture(t *testing.T) agentRetrievalFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "retrieval-dataset")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "retrieval-embedding-model")
 	rerankID := testutil.ArtifactID(t, artifact.KindProfile, "retrieval-rerank-policy")

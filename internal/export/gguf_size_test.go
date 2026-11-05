@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -15,9 +16,7 @@ import (
 func fileBytes(t *testing.T, file string) uint64 {
 	t.Helper()
 	info, err := os.Stat(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return uint64(info.Size())
 }
 
@@ -40,9 +39,7 @@ func TestSizesAreTheBytesWritten(t *testing.T) {
 			t.Fatalf("the size of a %s export: %v", leg.typeName, err)
 		}
 		file, err := GGUF(ctx, leg.source, root, leg.typeName, leg.typeName)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if wrote, source := fileBytes(t, file), fileBytes(t, leg.source); size != wrote || size == source {
 			t.Fatalf("a %s export was sized at %d bytes and wrote %d, from a source of %d", leg.typeName, size, wrote, source)
 		}
@@ -53,9 +50,7 @@ func TestSizesAreTheBytesWritten(t *testing.T) {
 		t.Fatalf("the size of a merge: %v", err)
 	}
 	file, err := MergeGGUF(ctx, hermetic, tuned, scales, root, "merged")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if wrote := fileBytes(t, file); size != wrote {
 		t.Fatalf("a merge was sized at %d bytes and wrote %d", size, wrote)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 func TestBenchmarkComparisonRecord(t *testing.T) {
@@ -17,9 +18,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 	candidate := baseline
 	candidate.CachePrompt = true
 	baseDigest, err := baseline.Digest()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidateDigest, err := candidate.Digest()
 	if err != nil || baseDigest == candidateDigest {
 		t.Fatalf("options digest did not bind the changed factor: %v", err)
@@ -96,16 +95,12 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 		})
 	}
 	record, err := NewBenchmarkComparisonRecord(input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !record.ID.Valid() || record.Outcome != "all-pairs-faster" || record.MedianDeltaMilliseconds != -10 {
 		t.Fatalf("comparison verdict = %+v", record)
 	}
 	content, err := record.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := benchmarkComparisonCodec.Parse(content.Data)
 	if err != nil || replay.ID != record.ID || replay.Outcome != record.Outcome {
 		t.Fatalf("comparison replay = %+v, %v", replay, err)

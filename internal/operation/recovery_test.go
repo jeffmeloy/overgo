@@ -10,6 +10,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,13 +32,9 @@ func TestRecoverableOperationStatus(t *testing.T) {
 				func(context.Context, Reporter) (Completion, error) {
 					return Completion{Run: runID}, testutil.Recoverable(errors.New("artifact unavailable"), block)
 				})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			status, err := manager.Wait(t.Context(), id)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if status.State != StateBlocked || status.Run == nil || *status.Run != runID || status.Recovery == nil ||
 				status.Recovery.Subject != recipeID || status.Recovery.Actions[0].Argv[2] != "--recipe" {
 				t.Fatalf("recoverable status = %+v", status)
@@ -61,13 +58,9 @@ func TestRecoverableOperationStatus(t *testing.T) {
 				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry", Argv: []string{"overgo", "train"}}},
 			})
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status, err := manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status.State != StateFailed || status.Recovery != nil {
 		t.Fatalf("cross-subject recovery was advertised: %+v", status)
 	}
@@ -109,9 +102,7 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 			<-interrupt
 			return Completion{Run: runID}, errors.New("interrupted")
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		first := waitInBackground(manager, id)
 		synctest.Wait()
 		close(interrupt)
@@ -149,9 +140,7 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 		}
 
 		retaining, err := NewManager(1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(retaining.Close)
 		retained := make(chan Status, 2)
 		retaining.Notify(func(event Event) {
@@ -164,9 +153,7 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 			<-complete
 			return Completion{Run: runID}, nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		attached := waitInBackground(retaining, evicted)
 		synctest.Wait()
 		close(complete)
@@ -217,20 +204,14 @@ func TestBlockedOperationResumesAfterDecision(t *testing.T) {
 			}
 			return Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status, err := manager.Wait(t.Context(), id); err != nil || status.State != StateBlocked {
 		t.Fatalf("blocked status = (%+v, %v)", status, err)
 	}
 	approval, err := operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	decision, err := runrecord.NewHumanDecision(approval, operatoraction.AnswerGrant)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := manager.RecoverAfterDecision(t.Context(), decision); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/organ"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ func TestComponentDecompositionContract(t *testing.T) {
 		{Name: "blk.0.attn_norm.weight", Shape: []uint64{896}, Storage: "f32"},
 	}
 	document, err := NewComponentDecomposition(model, "qwen2", "text", tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := NewComponentDecomposition(model, "qwen2", "text", tensors)
 	if err != nil || replay.ID != document.ID {
 		t.Fatalf("replayed decomposition = (%v, %v), want identical identity %v", replay.ID, err, document.ID)

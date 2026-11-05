@@ -8,6 +8,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -35,9 +36,7 @@ var componentProfileFixtureCodec = artifact.JSONDocumentCodec(
 func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	roles := []recipe.DependencyRole{
@@ -47,28 +46,20 @@ func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 	}
 	dependencies := make([]recipe.Dependency, 0, len(roles)+1)
 	modelID, err := artifact.JSONID(artifact.KindModel, "fixture model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyModel, Artifact: modelID})
 	for _, role := range roles {
 		profile, err := componentProfileFixtureCodec.New(componentProfileFixture{Name: string(role)})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := componentProfileFixtureCodec.Batch("fixture/"+string(role), profile, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
 		dependencies = append(dependencies, recipe.Dependency{Role: role, Artifact: profile.ID})
 	}
 	definition, err := inference(dependencies, recipe.PlacementHost, DecodeSessionRequest, recipe.ResidencyHostCache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, role := range roles {
 		profile, err := ResolveProfileDependency(ctx, store, definition, role, componentProfileFixtureCodec)
 		if err != nil || profile.Name != string(role) {
@@ -83,37 +74,25 @@ func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 func TestResolvedProfileDocumentDependencyRequiresStoredDerivationLineage(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	profile, _ := model.LookupArchitecture("llama")
 	document, err := NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := profileContent(document)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("fixture/profile/unbound-dependency", []artifact.Content{content}, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
 	modelID, err := artifact.JSONID(artifact.KindModel, "profile dependency model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition, err := inference([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
 		{Role: recipe.DependencyProfile, Artifact: document.ID},
 	}, recipe.PlacementHost, DecodeSessionRequest, recipe.ResidencyHostCache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := resolveProfileDocumentDependency(ctx, store, definition, recipe.DependencyProfile); err == nil {
 		t.Fatal("profile dependency without derivation lineage loaded")
 	}

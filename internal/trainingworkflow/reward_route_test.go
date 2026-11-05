@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -38,9 +39,7 @@ func orderedRewardFixture(t *testing.T, answers ...string) (string, Request) {
 		fmt.Fprintf(&rows, `{"id":"candidate-%c","group":"prompt-a","prompt":"%s","completion":"%s","reward":%d,"evaluator":"%s"}`+"\n",
 			'a'+rune(index), orderedPrompt, answer, len(answers)-1-2*index, evaluator)
 	}
-	if err := os.WriteFile(dataset, []byte(rows.String()), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(dataset, []byte(rows.String()), 0o600))
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
 	return root, Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Device: hostWeightedStep}
 }
@@ -134,15 +133,11 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	answers := []string{"cc", "d", "cab"}
 	root, request := orderedRewardFixture(t, answers...)
 	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded := func(directory string) *densecausal.Model {
 		t.Helper()
 		model, err := loadTrainableModel(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return model
 	}
 	// margin is how far a model puts the best answer above the worst: the
@@ -150,23 +145,17 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	margin := func(model *densecausal.Model) float64 {
 		t.Helper()
 		prompt, err := tokens.encode(orderedPrompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var standing []float64
 		for _, answer := range []string{answers[0], answers[len(answers)-1]} {
 			ids, err := tokens.encode(orderedPrompt + answer)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			completion := make([]bool, len(ids))
 			for token := len(prompt); token < len(ids); token++ {
 				completion[token] = true
 			}
 			score, err := model.SequenceLogProb(trainingdata.PreferenceSequence{Tokens: ids, Completion: completion})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			standing = append(standing, score.LogProbability)
 		}
 		return standing[0] - standing[1]
@@ -176,9 +165,7 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 		t.Helper()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(root, name)
 		result, err := Execute(t.Context(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result, loaded(request.OutputDirectory)
 	}
 	// The step teaches what the rewards say.
@@ -242,13 +229,9 @@ func TestRewardSessionsTrainThroughTheWeightedStepAlone(t *testing.T) {
 				session.name, result.Backend, result.Checkpoint.ID(), stepped.OutputDirectory, published.ID(), published.Optimizer.Step, err)
 		}
 		began, err := loadTrainableModel(stepped.ModelDirectory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ended, err := loadTrainableModel(stepped.OutputDirectory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		moved := false
 		for name, values := range began.Weights {
 			moved = moved || !slices.Equal(values, ended.Weights[name])

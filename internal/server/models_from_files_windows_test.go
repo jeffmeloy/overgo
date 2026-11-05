@@ -19,6 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -40,9 +41,7 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 		vocabulary[string(rune('['+token))] = token
 	}
 	tokenizer, err := json.Marshal(map[string]any{"model": map[string]any{"merges": []string{}, "vocab": vocabulary}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	testutil.WriteTextFile(t, directory, "tokenizer.json", string(tokenizer))
 	for name, path := range map[string]string{
 		"a GGUF":                  testutil.HermeticLlamaGGUFWith(t, 64, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template)),
@@ -51,29 +50,19 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := filepath.Join(t.TempDir(), "store")
 			created, err := overgodb.Create(root)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := created.Close(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, created.Close())
 			runner, err := modelcli.OpenRunner(t.Context(), root, path, inference.OpenOptions{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer runner.Close()
 			store, err := overgodb.Open(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer store.Close()
 			handler, err := New(Config{
 				ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 				Analysis: testAnalysisPolicy, Repository: store,
 			}, runner)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			t.Cleanup(func() { handler.Close() })
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(
@@ -82,9 +71,7 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 			}
 			var answer chatResponse
-			if err := json.Unmarshal(response.Body.Bytes(), &answer); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &answer))
 			state := string(modelrecipe.StateNotVerified)
 			if answer.Verification != state || response.Header().Get(modelVerificationHeader) != state {
 				t.Fatalf("answer reads %q, header %q", answer.Verification, response.Header().Get(modelVerificationHeader))

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 type ifevalNativeScores struct {
@@ -32,9 +33,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 	t.Helper()
 	parse := func(value string) artifact.ID {
 		id, err := artifact.ParseID(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return id
 	}
 	if len(responses) != 541 || len(scores.Rows) != 541 || scores.Prompts != 541 || scores.Instructions != 834 {
@@ -74,9 +73,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 		t.Fatal("retained parameter catalog binding is absent or ambiguous")
 	}
 	parameters, err := readIFEvalParameters(t.Context(), store, imported, parameterID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := map[string]int{"language:response_language": 31, "change_case:english_capital": 25, "change_case:english_lowercase": 39, "length_constraints:number_sentences": 52, "change_case:capital_word_frequency": 25, "length_constraints:nth_paragraph_first_word": 12, "keywords:letter_frequency": 33, "keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
 	counts := map[string]int{}
 	instructions := 0
@@ -91,12 +88,8 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 		}
 		var ids []string
 		var kwargs []map[string]json.RawMessage
-		if err := json.Unmarshal(fields["instruction_id_list"], &ids); err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(fields["kwargs"], &kwargs); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(fields["instruction_id_list"], &ids))
+		testcheck.NoError(t, json.Unmarshal(fields["kwargs"], &kwargs))
 		name := fmt.Sprintf("ifeval/default/train/%d", ordinal)
 		row, found := byName[name]
 		raw, present := responses[name]
@@ -117,13 +110,9 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 				t.Fatalf("native instruction %s is not mapped once", id)
 			}
 			rule, err := compileInstructionRule(rules[0])
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			strict, loose, err := evaluateInstructionViews(raw, []compiledInstructionRule{rule})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if strict[0] != row.Strict[index] || loose[0] != row.Loose[index] {
 				t.Errorf("%s %s: strict=%t/%t loose=%t/%t", name, id, strict[0], row.Strict[index], loose[0], row.Loose[index])
 			}
@@ -159,12 +148,8 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 func readRetainedEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
 	t.Helper()
 	content, err := artifact.RequireTypedContent(t.Context(), store, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(content.Data, target); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(content.Data, target))
 }
 
 func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID artifact.ID) {
@@ -183,9 +168,7 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 	}
 	var previous struct{ Scores artifact.ID }
 	referenceID, err := artifact.ParseID("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	readRetainedEvidence(t, store, referenceID, &previous)
 	var reference, actual nativeReference
 	readRetainedEvidence(t, store, previous.Scores, &reference)
@@ -199,20 +182,14 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 	}
 	if actual.Input.Valid() {
 		content, err := artifact.RequireTypedContent(t.Context(), store, actual.Input)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contract := artifact.JSONContract(artifact.KindEvidence, "overgo/ifeval-native-input/v1")
 		if err := contract.ValidateContent(content, actual.Input); err != nil || actual.InputSHA256 != actual.Input.DigestHex() {
 			t.Fatal("native input content differs from its recorded hash or contract")
 		}
 		var input nativeIFEvalInput
-		if err := strictjson.DecodeBytes(content.Data, &input); err != nil {
-			t.Fatal(err)
-		}
-		if err := checkNativeIFEvalCases(t.Context(), store, input); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, strictjson.DecodeBytes(content.Data, &input))
+		testcheck.NoError(t, checkNativeIFEvalCases(t.Context(), store, input))
 	} else if actual.InputSHA256 != reference.InputSHA256 {
 		t.Fatal("legacy native input identity changed without retained task inputs")
 	}

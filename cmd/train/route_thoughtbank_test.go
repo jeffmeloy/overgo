@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/pytorchzip"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/thoughtbank"
 	"overgo/internal/trainingprogram"
 )
@@ -24,14 +25,10 @@ func TestThoughtBankRoutePublishesCheckpoint(t *testing.T) {
 	root := t.TempDir()
 	model := writeTinyThoughtBank(t, filepath.Join(root, "model"))
 	dataset := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(dataset, []byte("abcdabcd"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(dataset, []byte("abcdabcd"), 0o600))
 	_, out := requireRoutePublishes(t, "thoughtbank", "-model", model, "-dataset", dataset, "-rows", "3")
 	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer weights.Close()
 	bank := []string{"bank.fw_a", "bank.fw_b", "bank.fw_o", "bank.norm"}
 	for _, name := range bank {
@@ -99,14 +96,10 @@ func writeTinyThoughtBank(t *testing.T, directory string) string {
 		}
 		writePickleTensor(&pickle, name, key, count, shape, stride)
 		storage, err := files.CreateHeader(&zip.FileHeader{Name: "archive/data/" + key, Method: zip.Store})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for element := range count {
 			value := float32(math.Sin(float64(int64(index)*count+element))) / 2
-			if err := binary.Write(storage, binary.LittleEndian, value); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, binary.Write(storage, binary.LittleEndian, value))
 		}
 	}
 	writePickleString(&pickle, "mem_read_swiglu")
@@ -117,25 +110,15 @@ func writeTinyThoughtBank(t *testing.T, directory string) string {
 	}
 	pickle.Write([]byte{'u', '.'}) // SETITEMS, STOP
 	data, err := files.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := data.Write(pickle.Bytes()); err != nil {
 		t.Fatal(err)
 	}
-	if err := files.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, thoughtbankCheckpoint), archive.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, files.Close())
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, thoughtbankCheckpoint), archive.Bytes(), 0o600))
 	tokenizer := `{"model":{"type":"BPE","vocab":{"a":0,"b":1,"c":2,"d":3},"merges":[]}}`
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(tokenizer), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(tokenizer), 0o600))
 	return directory
 }
 

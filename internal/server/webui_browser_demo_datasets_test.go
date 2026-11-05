@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +21,7 @@ func TestWebUIBrowserDemoDatasets(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the demo datasets leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	datasets := t.TempDir()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}), func(config *Config) {
@@ -37,9 +36,7 @@ func TestWebUIBrowserDemoDatasets(t *testing.T) {
 	audited := func(state string) {
 		t.Helper()
 		for _, scheme := range webuilane.ColourSchemes {
-			if err := browser.SetColorScheme(ctx, scheme); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 			for _, viewport := range webuilane.ScreenViewports {
 				findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, state+"-"+scheme)
 				if err != nil || len(findings) != 0 {

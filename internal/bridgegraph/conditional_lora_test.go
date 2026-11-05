@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestConditionalLoRAScale(t *testing.T) {
@@ -25,9 +26,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 		LoRARank: 1, ScaleLimit: 0.5,
 	}
 	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	builder := tensor.NewBuilder()
 	condition := builder.Input("condition", dtype.F32, tensor.MustShape(2, 2))
 	targetInput := builder.Input("target", dtype.F32, tensor.MustShape(3, 2))
@@ -37,9 +36,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 	output, err := program.BuildConditionalLoRA(builder, condition, targetInput, ConditionalLoRAWeights{
 		Conditioner: conditioner, A: a, B: b,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ops := make([]tensor.Op, 0, len(builder.Nodes()))
 	for _, node := range builder.Nodes() {
 		ops = append(ops, node.Op)
@@ -55,9 +52,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 	}
 	baseFeeds[condition] = inferenceValue(t, condition.Shape, []float32{100, 100, -100, -100})
 	conditioned, err := reference.Execute([]*tensor.Tensor{output}, baseFeeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{2.5, 4, 5.5, -0.5, -2, -3.5}
 	for index, value := range conditioned[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -66,9 +61,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 	}
 	baseFeeds[condition] = reference.ZeroValue(condition.Shape)
 	identity, err := reference.Execute([]*tensor.Tensor{output}, baseFeeds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(identity[output].Data, baseFeeds[targetInput].Data) {
 		t.Fatalf("zero-conditioned LoRA changed target: %v", identity[output].Data)
 	}

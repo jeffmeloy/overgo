@@ -3,6 +3,8 @@ package testevidence
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestPackageExecutionCostAcceptance(t *testing.T) {
@@ -23,9 +25,7 @@ func TestPackageExecutionCostAcceptance(t *testing.T) {
 {"Action":"fail","Package":"invalid-time","Elapsed":-1}
 `
 	report, err := GoTestJSONReport(events)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !report.PackagePassed("good") || report.PackagePassed("bad") || report.PackagePassed("empty") || RequireComplete(report) == nil {
 		t.Fatal("cost reporting changed evidence eligibility")
 	}

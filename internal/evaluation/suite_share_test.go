@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestEvaluationSuitesAreSizedForTheirDecisions holds the part of a family a
@@ -100,9 +101,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	drawn := slices.Clone(cases)
 	drawShare(drawn, tenth)
 	assembled, _, err := assembleMMLUProSuite(drawn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scored := len(assembled.(GroupedChoiceSuite).Cases); scored != len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]) {
 		t.Fatalf("the MMLU-Pro suite scores %d cases, and the draw kept %d", scored, len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]))
 	}
@@ -115,9 +114,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	}
 	drawShare(task, suiteShares["bbh"])
 	grouped, _, err := assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", task)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scored := grouped.(GroupedChoiceSuite).Cases; len(scored) != 4 || len(scored[0].Candidates) != len(answers) {
 		t.Fatalf("a task of 40 cases and %d answers scores %d cases, each among %d answers, want 4 cases among all %d", len(answers), len(scored), len(scored[0].Candidates), len(answers))
 	}
@@ -126,39 +123,27 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	var raw []byte
 	const prompts = 25
 	for prompt := range prompts {
 		line, err := json.Marshal(map[string]any{"prompt": fmt.Sprintf("Write about item %d.", prompt), "instruction_id_list": []string{"punctuation:no_comma"}, "kwargs": []map[string]any{{}}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		raw = append(append(raw, line...), '\n')
 	}
 	path := filepath.Join(root, "source.jsonl")
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, raw, 0o600))
 	digest := sha256.Sum256(raw)
 	imported, err := dataset.ImportBenchmark(ctx, store, path, dataset.BenchmarkImportSpec{
 		Source: "share-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1",
 		Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manifest, err := json.Marshal(benchmarkManifest{Datasets: []benchmarkDeclaration{{Name: "ifeval/default/train", Dataset: imported.ID}}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manifestPath := filepath.Join(root, "manifest.json")
-	if err := os.WriteFile(manifestPath, manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(manifestPath, manifest, 0o600))
 	if _, err := CatalogLocalBenchmarks(ctx, store, manifestPath); err != nil {
 		t.Fatal(err)
 	}
@@ -182,9 +167,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 		}
 		var suite instructionRulesSuite
 		// The first authority a plan binds is its case profile, which for this kind is the suite's document.
-		if err := json.Unmarshal(suites[0].plan.authorities[0].Data, &suite); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(suites[0].plan.authorities[0].Data, &suite))
 		names := make([]string, len(suite.Cases))
 		for index, entry := range suite.Cases {
 			names[index] = entry.Name

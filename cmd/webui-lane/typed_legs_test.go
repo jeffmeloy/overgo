@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/webuilane"
 )
@@ -24,9 +25,7 @@ func TestLaneJudgesTypedLegOutcomes(t *testing.T) {
 	ran := func(path string, outcomes ...[2]string) []string {
 		event := func(action, test string) string {
 			encoded, err := json.Marshal(map[string]string{"Action": action, "Package": path, "Test": test})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return string(encoded)
 		}
 		events, verdict := []string{event("start", "")}, "pass"
@@ -43,9 +42,7 @@ func TestLaneJudgesTypedLegOutcomes(t *testing.T) {
 	}
 	judge := func(records []webuilane.LegRecord, required []string, events ...[]string) error {
 		report, err := testevidence.GoTestJSONReport(strings.Join(slices.Concat(events...), "\n"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return webuilane.LaneVerdict(report, records, required)
 	}
 	passes := ran(server, [2]string{"TestWebUIBrowserPasses", "pass"})

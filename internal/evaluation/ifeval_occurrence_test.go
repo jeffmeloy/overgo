@@ -3,6 +3,8 @@ package evaluation
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
@@ -19,9 +21,7 @@ func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
 	}
 	suite := assembled.(instructionRulesSuite)
 	compiled, err := compileInstructionRules(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(compiled.rules[0]) != 2 {
 		t.Fatal("repeated instruction disappeared")
 	}
@@ -41,9 +41,7 @@ func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
 		t.Fatal("instruction occurrence names differ")
 	}
 	repeated, _, err := assembleIFEvalSuite([]storeCase{entry})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	replay, err := compileInstructionRules(repeated.(instructionRulesSuite))
 	if err != nil || replay.identity != compiled.identity {
 		t.Fatal("compilation is not deterministic")

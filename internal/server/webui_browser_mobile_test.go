@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -15,9 +16,7 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "mobile interaction runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &responseControlGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Final response."}}), starts: make(chan context.Context), release: make(chan error), prefix: strings.Repeat("Read this earlier line without losing your place.\n", 80)}
 	handler := newTestHandlerForRepository(t, store, generator)
@@ -43,9 +42,7 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
  })()`)
 	settle(`document.querySelectorAll('.attachment-strip > span').length===12 && !document.querySelector('.send-button').disabled`)
 	for _, viewport := range []webuilane.Viewport{{Name: "phone", Width: 390, Height: 844}, {Name: "keyboard", Width: 390, Height: 320}, {Name: "landscape", Width: 844, Height: 390}, {Name: "small", Width: 320, Height: 568}} {
-		if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.SetViewport(ctx, viewport.Width, viewport.Height))
 		settle(`Math.abs(document.querySelector('.shell').getBoundingClientRect().height-innerHeight)<2`)
 		check(`mobileVisible(document.querySelector('.composer textarea')) && mobileVisible(document.querySelector('.send-button')) && document.querySelector('.chat-log').clientHeight>0 && document.documentElement.scrollWidth<=innerWidth && document.querySelector('.composer-extras').scrollHeight>document.querySelector('.composer-extras').clientHeight`)
 		check(`(() => {document.querySelector('#navigation-toggle').click();const nav=document.querySelector('#navigation'),controls=[...nav.querySelectorAll('button:not(:disabled),a[href],input')].filter(node=>node.getClientRects().length);controls.at(-1).focus();return nav.getAttribute('aria-modal')==='true'&&document.querySelector('.content').inert;})()`)
@@ -62,28 +59,18 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
 			}
 		}
 	}
-	if err := browser.SetViewport(ctx, 390, 844); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, 390, 844))
 	settle(`Math.abs(document.querySelector('.shell').getBoundingClientRect().height-innerHeight)<2`)
 	// Test safe-area geometry through Chromium's declared emulation surface.
-	if err := browser.Call(ctx, "Emulation.setSafeAreaInsetsOverride", map[string]any{"insets": map[string]int{"top": 32, "left": 24, "right": 24, "bottom": 20}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Emulation.setSafeAreaInsetsOverride", map[string]any{"insets": map[string]int{"top": 32, "left": 24, "right": 24, "bottom": 20}}, nil))
 	settle(`parseFloat(getComputedStyle(document.querySelector('.topbar')).paddingTop)>=32 && parseFloat(getComputedStyle(document.querySelector('.composer')).paddingBottom)>=20`)
 	check(`document.querySelector('.composer textarea').getBoundingClientRect().left>=24 && document.querySelector('.send-button').getBoundingClientRect().right<=innerWidth-24`)
-	if err := browser.Call(ctx, "Emulation.setSafeAreaInsetsOverride", map[string]any{"insets": map[string]int{"top": 0, "left": 0, "right": 0, "bottom": 0}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Emulation.setSafeAreaInsetsOverride", map[string]any{"insets": map[string]int{"top": 0, "left": 0, "right": 0, "bottom": 0}}, nil))
 	check(`(() => {window.mobileHeight=document.documentElement.style.getPropertyValue('--viewport-height');return true;})()`)
-	if err := browser.Call(ctx, "Emulation.setPageScaleFactor", map[string]any{"pageScaleFactor": 2}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Emulation.setPageScaleFactor", map[string]any{"pageScaleFactor": 2}, nil))
 	settle(`visualViewport.scale===2`)
 	check(`document.documentElement.style.getPropertyValue('--viewport-height')===mobileHeight && !document.querySelector('meta[name=viewport]').content.includes('user-scalable=no')`)
-	if err := browser.Call(ctx, "Emulation.setPageScaleFactor", map[string]any{"pageScaleFactor": 1}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Call(ctx, "Emulation.setPageScaleFactor", map[string]any{"pageScaleFactor": 1}, nil))
 	settle(`visualViewport.scale===1`)
 	check(`(() => {for(const remove of document.querySelectorAll('.attachment-strip button'))remove.click();return !document.querySelector('.send-button').disabled;})()`)
 	say(t, ctx, browser, "Stream a long response")
@@ -129,9 +116,7 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
 	check(`(() => {mobileThread.errorRow('A recoverable error');return document.querySelector('.msg.error').getAttribute('role')==='alert';})()`)
 	if dir := os.Getenv("OVERGO_WEBUI_LANE_SCREENS"); dir != "" {
 		for _, scheme := range webuilane.ColourSchemes {
-			if err := browser.SetColorScheme(ctx, scheme); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, browser.SetColorScheme(ctx, scheme))
 			if _, err := webuilane.CaptureState(ctx, browser, dir, webuilane.Viewport{Name: "phone", Width: 390, Height: 844}, "mobile-reply-"+scheme); err != nil {
 				t.Fatal(err)
 			}

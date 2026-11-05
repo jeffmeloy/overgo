@@ -11,6 +11,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestFlashNextSparseAttention(t *testing.T) {
@@ -21,9 +22,7 @@ func TestFlashNextSparseAttention(t *testing.T) {
 func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)) {
 	t.Helper()
 	data, err := os.ReadFile("testdata/flashnext_sparse.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var fixture struct {
 		Tolerance     float64
 		Ratio, Budget uint32
@@ -39,9 +38,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 			Selected                       []bool
 		}
 	}
-	if err := json.Unmarshal(data, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &fixture))
 	spec := qwen35TestSpec()
 	spec.Architecture, spec.BlockCount = "qwen4exp", 1
 	spec.RecurrentLayers = []bool{false}
@@ -105,9 +102,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 				operands := layerOperands{}
 				operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue] = context.PastKey, context.PastValue
 				result, err := executeAttentionOperator(options, plan, layerOperatorAttentionGatedProjection, operands, &layerExecution{current: context.Input})
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				outputs := result.States.AppendValues([]*tensor.Tensor{result.Output, result.Key, result.Value})
 				var selected *tensor.Tensor
 				for _, node := range builder.Nodes() {
@@ -117,9 +112,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 					}
 				}
 				values, err := run(outputs, feeds)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				for _, check := range []struct {
 					name string
 					node *tensor.Tensor
@@ -216,16 +209,12 @@ func RunBlockSelectionChunks(t *testing.T, run func([]*tensor.Tensor, map[*tenso
 			keys := builder.Input("keys", dtype.F32, tensor.MustShape(width, stored/ratio))
 			query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, tokens))
 			indices := selectBlocksByChunk(builder, keys, query, chunk, blockSelection{budget: budget, ratio: ratio, start: layout.start, stored: stored})
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, builder.Err())
 			results, err := run([]*tensor.Tensor{indices}, map[*tensor.Tensor]reference.Value{
 				keys:  {Shape: keys.Shape, Data: keyData},
 				query: {Shape: query.Shape, Data: queryData},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return results[indices].Data
 		}
 		whole := selected(tokens)

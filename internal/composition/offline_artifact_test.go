@@ -10,24 +10,21 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	base := publishOfflineModel(t, store, "base", offlineTensorWidth, false)
 	trained := publishOfflineModel(t, store, "trained", offlineTensorWidth, false)
 	passthrough, err := CompileOfflineArtifactPlan(ctx, store, OfflineArtifactExactPassthrough,
 		[]OfflineArtifactInput{{Definition: base, Coefficient: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if passthrough.Operator != OfflineArtifactExactPassthrough || len(passthrough.Inputs) != tensor.SingletonExtent ||
 		passthrough.ID.Kind() != artifact.KindRecipe || passthrough.Inputs[0].Definition != base {
 		t.Fatalf("passthrough plan = %+v", passthrough)
@@ -35,21 +32,15 @@ func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 
 	arithmetic, err := CompileOfflineArtifactPlan(ctx, store, OfflineArtifactTaskArithmetic,
 		[]OfflineArtifactInput{{Definition: base, Coefficient: 0.5}, {Definition: trained, Coefficient: 0.5}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := arithmetic.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if bytes := string(content.Data); strings.Contains(bytes, "bridge") || strings.Contains(bytes, "contract") ||
 		strings.Contains(bytes, "injection") || strings.Contains(bytes, "activation") {
 		t.Fatalf("offline plan leaked representation-runtime authority: %s", bytes)
 	}
 	batch, err := arithmetic.Batch("composition/offline/test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expectedParents := map[artifact.ID]bool{}
 	for _, input := range arithmetic.Inputs {
 		expectedParents[input.Model], expectedParents[input.Definition] = true, true
@@ -67,9 +58,7 @@ func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 	}
 
 	brokenStore, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer brokenStore.Close()
 	broken := publishOfflineModel(t, brokenStore, "broken-lineage", offlineTensorWidth, true)
 	if _, err := CompileOfflineArtifactPlan(ctx, brokenStore, OfflineArtifactExactPassthrough,
@@ -101,9 +90,7 @@ func publishOfflineModel(
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weight,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensors, err := modelartifact.NewTensorInventoryDocument(
 		manifest.ID, modelartifact.TensorFormatSafetensors,
 		[]modelartifact.TensorFact{{
@@ -111,17 +98,13 @@ func publishOfflineModel(
 			Bytes: width * width * offlineFloatBytes,
 		}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile, found := model.LookupArchitecture("llama")
 	if !found {
 		t.Fatal("llama profile is absent")
 	}
 	profileDocument, err := modelrecipe.NewProfileDocument(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec := model.Spec{
 		CommonSpec: model.CommonSpec{
 			Architecture: "llama", BlockCount: 1, ContextLength: 128,
@@ -132,20 +115,14 @@ func publishOfflineModel(
 		},
 	}
 	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, tensors, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resolved, err := document.Resolve(profileDocument, tensors)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory := modelartifact.Inventory{
 		Manifest: manifest, TensorInventory: tensors, Components: []artifact.Descriptor{{ID: weight}},
 	}
 	batch, err := resolved.Batch("composition/offline/fixture/"+label, inventory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if removeDefinitionInventoryLineage {
 		filtered := batch.Lineage[:0]
 		for _, edge := range batch.Lineage {

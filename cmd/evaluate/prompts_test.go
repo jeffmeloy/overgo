@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -30,9 +31,7 @@ func TestReadPromptsGivesEachCaseAsTheModelIsGivenIt(t *testing.T) {
 	write := func(name, content string) string {
 		t.Helper()
 		path := filepath.Join(directory, name)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 		return path
 	}
 	// The file's vocabulary holds four letters, so the cases are written in them.

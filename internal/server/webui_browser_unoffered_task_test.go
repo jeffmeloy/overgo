@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -38,9 +39,7 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the unoffered task leg runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	stages := []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}
 	controls := []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}}
@@ -56,9 +55,7 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "unoffered"), capability: image,
 	}, embedding: embedding}
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()

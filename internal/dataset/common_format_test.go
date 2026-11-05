@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCommonFormatsConvert: alpaca, ShareGPT and OpenAI-messages records,
@@ -50,14 +51,10 @@ func TestCommonFormatsConvert(t *testing.T) {
 	}
 
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	source := filepath.Join(t.TempDir(), "chats.jsonl")
-	if err := os.WriteFile(source, []byte(alpaca+"\n"+shareGPT+"\n"+openAI+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(source, []byte(alpaca+"\n"+shareGPT+"\n"+openAI+"\n"), 0o644))
 	root := t.TempDir()
 	registered, formats, err := ImportCommonFormat(t.Context(), store, "chats", source, root)
 	if err != nil || registered.Files != 3 || !registered.Dataset.Valid() || len(formats) != 3 {

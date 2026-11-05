@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"testing"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 func TestCounterConversion(t *testing.T) {
@@ -30,9 +32,7 @@ func TestCounterConversion(t *testing.T) {
 
 func TestCounterPrecision(t *testing.T) {
 	previous, err := Counter()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	advanced := false
 	for range 1000 {
 		next, err := Counter()

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestArgvPolicyGatesPublicationAndInvocation pins the durable
@@ -14,18 +15,14 @@ import (
 func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	manual, err := NewManual(Manual{
 		Name: "probe.exec", Description: "Run the fixture program.",
 		Effect:    EffectMutation,
 		Transport: Transport{Kind: TransportArgv, Program: "git", Args: []string{"status"}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PublishManualCatalog(ctx, store, []Manual{manual}); err == nil {
 		t.Fatal("argv manual published with NO committed policy")
 	}
@@ -57,9 +54,7 @@ func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
 		Name: "probe.pure", Description: "Inspect nothing.",
 		Effect: EffectInspection, Transport: Transport{Kind: TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := CheckArgvAuthority(ctx, store, builtin); err != nil {
 		t.Fatalf("non-argv manual consulted the argv policy: %v", err)
 	}

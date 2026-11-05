@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestProtocolsEncodeOneOutcome holds every text protocol to one outcome for
@@ -40,9 +42,7 @@ func TestProtocolsEncodeOneOutcome(t *testing.T) {
 						OutputTokens int `json:"output_tokens"`
 					} `json:"usage"`
 				}
-				if err := json.Unmarshal([]byte(payload), &delta); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, json.Unmarshal([]byte(payload), &delta))
 				ending := delta.Delta.StopReason
 				if delta.Delta.StopSequence != nil {
 					ending += ":" + *delta.Delta.StopSequence
@@ -63,9 +63,7 @@ func TestProtocolsEncodeOneOutcome(t *testing.T) {
 				OutputTokens     int `json:"output_tokens"`
 			} `json:"usage"`
 		}
-		if err := json.Unmarshal(answer.Body.Bytes(), &decoded); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(answer.Body.Bytes(), &decoded))
 		switch {
 		case len(decoded.Choices) != 0:
 			return outcome{decoded.Choices[0].FinishReason, decoded.Usage.CompletionTokens}

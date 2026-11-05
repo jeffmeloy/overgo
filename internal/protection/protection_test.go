@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -42,9 +43,7 @@ func TestProtectionContract(t *testing.T) {
 
 func TestGPUWorkflowContract(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	configured, _, err := Verify(root)
 	if err != nil || configured == "" {
 		t.Fatalf("GPU workflow contract = (%q, %v)", configured, err)

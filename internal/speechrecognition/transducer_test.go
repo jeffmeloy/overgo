@@ -12,6 +12,7 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // tinyTransducer is a shape/lifecycle fixture, not a numerical model oracle.
@@ -38,18 +39,12 @@ func tinyTransducer(t *testing.T) (*safetensors.Source, Declaration, TransducerB
 		Embedding: add("embedding", []int{3, 2}, make([]float32, 6)), Recurrent: []RecurrentBinding{{Input: AffineBinding{Weight: add("lstm.input", []int{8, 2}, make([]float32, 16))}, Recurrent: AffineBinding{Weight: add("lstm.recurrent", []int{8, 2}, make([]float32, 16))}}},
 		DecoderProjection: identity, Joint: AffineBinding{Weight: add("joint", []int{3, 2}, make([]float32, 6)), Bias: add("joint.bias", []int{3}, []float32{0, 1, -1})}, Blank: 2, MaxSymbolsPerFrame: 2}
 	directory := t.TempDir()
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil))
 	source, err := safetensors.OpenSource(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { source.Close() })
 	model, err := LoadTransducer(t.Context(), source, d, b, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return source, d, b, model
 }
 
@@ -69,14 +64,10 @@ func TestTransducerCheckpointRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	counts, _, err := model.checkpointLayout()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for boundary := range 8 {
 		checkpoint, err := model.checkpoint(&reference)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(checkpoint.Values) != len(counts) {
 			t.Fatal("checkpoint retained an undeclared buffer")
 		}
@@ -86,49 +77,33 @@ func TestTransducerCheckpointRestart(t *testing.T) {
 			}
 		}
 		data, err := json.Marshal(checkpoint)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var persisted transducerCheckpoint
-		if err := strictjson.DecodeBytes(data, &persisted); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, strictjson.DecodeBytes(data, &persisted))
 		var restart TransducerWorkspace
-		if err := model.restore(persisted, &restart); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, model.restore(persisted, &restart))
 		if boundary != 0 {
 			model.joint.bias[model.binding.Blank] = 2
 		}
 		want, err := model.RecognizeChunk(t.Context(), x, 2, false, &reference, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got, err := model.RecognizeChunk(t.Context(), x, 2, false, &restart, nil)
 		if err != nil || !slices.Equal(got.Tokens, want.Tokens) || !slices.Equal(got.Durations, want.Durations) {
 			t.Fatalf("boundary %d: restored emissions differ: %v", boundary, err)
 		}
 		wantState, err := model.checkpoint(&reference)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		gotState, err := model.checkpoint(&restart)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		wantJSON, err := json.Marshal(wantState)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		gotJSON, err := json.Marshal(gotState)
 		if err != nil || !slices.Equal(wantJSON, gotJSON) {
 			t.Fatalf("boundary %d: numerical restart state differs: %v", boundary, err)
 		}
 	}
 	checkpoint, err := model.checkpoint(&reference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, change := range []func(*transducerCheckpoint){
 		func(c *transducerCheckpoint) { c.Final = true },
 		func(c *transducerCheckpoint) { c.Frames++ },
@@ -161,9 +136,7 @@ func TestTransducerStateIsolationAndForcedAdvance(t *testing.T) {
 		t.Fatalf("forced progress=%+v: %v", result, err)
 	}
 	first, err := model.RecognizeChunk(t.Context(), x, 2, false, &a, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(first.Tokens, wantTokens) || !slices.Equal(first.Durations, wantDurations) {
 		t.Fatal("first chunk differs")
 	}
@@ -246,9 +219,7 @@ func TestTransducerAdmissionAndCancellation(t *testing.T) {
 		t.Fatal("under-budget weights admitted")
 	}
 	limited, err := LoadTransducer(t.Context(), source, d, b, model.weightBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := limited.Recognize(t.Context(), x, 2, &TransducerWorkspace{}, nil); err == nil {
 		t.Fatal("unbudgeted workspace admitted")
 	}

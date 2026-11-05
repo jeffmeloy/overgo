@@ -23,6 +23,7 @@ import (
 	"overgo/internal/rae"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -35,9 +36,7 @@ import (
 func installedBridgedPair(t *testing.T, work string, count int) (pair, manifest string) {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	pair = roots.ResolveModelPath("webssl-dino-to-rae-bridge")
 	if _, held, err := rae.ResolveBridgedPair(pair); err != nil || !held {
 		testskip.NotApplicable(t, "no bridged pair with its encoder and collection is at "+pair)
@@ -54,23 +53,15 @@ func installedBridgedPair(t *testing.T, work string, count int) (pair, manifest 
 	for index := range count {
 		name := fmt.Sprintf("clip-%02d.mp4", index)
 		source, err := os.Open(clips[index])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		target, err := os.Create(filepath.Join(work, name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, copyErr := io.Copy(target, source)
-		if err := firstError(copyErr, source.Close(), target.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, firstError(copyErr, source.Close(), target.Close()))
 		names.WriteString(name + "\n")
 	}
 	manifest = filepath.Join(work, "frames.txt")
-	if err := os.WriteFile(manifest, []byte(names.String()), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(manifest, []byte(names.String()), 0o600))
 	return pair, manifest
 }
 
@@ -89,21 +80,15 @@ func firstError(errs ...error) error {
 func recordedBridgeCheckpoint(t *testing.T, storePath, out string) trainingprogram.Checkpoint {
 	t.Helper()
 	checkpoint, err := trainingprogram.LoadCheckpoint(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, recorded, err := store.Artifact(t.Context(), checkpoint.ID()); err != nil || !recorded {
 		t.Fatalf("checkpoint %s recorded %t (%v), want the trained bridge recorded", checkpoint.ID(), recorded, err)
 	}
 	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer weights.Close()
 	if len(weights.Tensors) != 2 || checkpoint.ParameterCount != 768*1025 {
 		t.Fatalf("the checkpoint holds %d tensors and %d parameters, want the bridge's weights and offsets", len(weights.Tensors), checkpoint.ParameterCount)
@@ -136,9 +121,7 @@ func TestCodecRouteTrainsADecoderOrNamesTheMissingOperator(t *testing.T) {
 	})
 	t.Run("the bridge of the representation autoencoder takes a step", func(t *testing.T) {
 		pair, _ := installedBridgedPair(t, work, 2)
-		if err := runRoute(t.Context(), append(required, "-pair", pair)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runRoute(t.Context(), append(required, "-pair", pair)))
 		if checkpoint := recordedBridgeCheckpoint(t, filepath.Join(work, "store"), filepath.Join(work, "out")); checkpoint.Optimizer.Step != 1 {
 			t.Fatalf("the checkpoint is at step %d, want the one step taken", checkpoint.Optimizer.Step)
 		}
@@ -161,18 +144,14 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	pair, manifest := installedBridgedPair(t, work, frames)
 	ctx := t.Context()
 	pictures := filepath.Join(work, "pictures")
-	if err := runRoute(ctx, []string{"codec", "-pair", pair, "-frames", manifest, "-cut", pictures}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, runRoute(ctx, []string{"codec", "-pair", pair, "-frames", manifest, "-cut", pictures}))
 	cut, err := filepath.Glob(filepath.Join(pictures, "*"+codecPictureExtension))
 	if err != nil || len(cut) != frames {
 		t.Fatalf("cut %d pictures (%v), want one for each of the %d clips", len(cut), err, frames)
 	}
 	for _, name := range cut {
 		file, err := os.Open(name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		shape, decodeErr := png.DecodeConfig(file)
 		if err := firstError(decodeErr, file.Close()); err != nil || shape.Width != shape.Height || shape.Width == 0 {
 			t.Fatalf("%s is %d by %d (%v), want a square picture", name, shape.Width, shape.Height, err)
@@ -180,18 +159,14 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	}
 	storePath, out := filepath.Join(work, "store"), filepath.Join(work, "out")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, training := registerSplit(t, ctx, store, "frames", pictures, frames, nil)
 	registerObjective(t, ctx, store, work, pictureObjectiveAlias, trainingprogram.ObjectiveSpec{
 		Name: "frames", Kind: trainingprogram.ObjectiveImageLatent,
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityImage}, Outputs: []recipecontract.Modality{recipecontract.ModalityImage}},
 		Dataset:   source, Split: training, Metric: trainingprogram.MetricImagePSNRUnit,
 	})
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	if err := runRoute(ctx, []string{"codec", "-pair", pair, "-objective", pictureObjectiveAlias, "-batch", "2", "-steps", "1",
 		"-cache", filepath.Join(work, "cache"), "-store", storePath, "-out", out}); err != nil {
 		t.Fatal(err)
@@ -223,13 +198,9 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	// keeps no file of the checkpoint it trains, whose identity is all its
 	// claim reads, and leaves the one verdict as it was.
 	resolved, _, err := rae.ResolveBridgedPair(pair)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID, err := trainingworkflow.BootstrapObjectiveRecipe(ctx, store, resolved.Bridge, pictureObjectiveAlias)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	kept := func() int {
 		var files int
 		cache := filepath.Join(work, "cache")
@@ -255,9 +226,7 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		t.Fatalf("the proof left its output at %s (%v), want no file of its checkpoint kept", proofOut, err)
 	}
 	// The route wrote through a handle of its own; this one reads what it left.
-	if err := store.Refresh(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Refresh(ctx))
 	verdicts = 0
 	err = evaluation.VisitHeldoutVerdicts(ctx, store, func(artifact.ID, evaluation.EvalSummary, evaluation.EvalSummary) error {
 		verdicts++

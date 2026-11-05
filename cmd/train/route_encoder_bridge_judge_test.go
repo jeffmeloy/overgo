@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/media"
 	"overgo/internal/rae"
+	"overgo/internal/testcheck"
 )
 
 // TestEncoderBridgeJudgmentScoresAFrameDrawnAsItIsAtNoError holds the encoder-bridge
@@ -45,9 +46,7 @@ func TestEncoderBridgeJudgmentScoresAFrameDrawnAsItIsAtNoError(t *testing.T) {
 		t.Fatalf("the verdict %+v cannot be printed: %v", verdict, err)
 	}
 	var printed map[string]float64
-	if err := json.Unmarshal(encoded, &printed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(encoded, &printed))
 	// Own errors of 0, 0 and 4 and bridged errors of 0, 1 and 0 differ frame by frame by
 	// 0, 1 and -4: a mean of -1 whose squared distances from it sum to 14 over three frames.
 	for key, want := range map[string]float64{

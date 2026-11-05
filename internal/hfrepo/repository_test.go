@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestOpenReadsIdentityCompanionsAndTensors(t *testing.T) {
@@ -20,9 +22,7 @@ func TestOpenReadsIdentityCompanionsAndTensors(t *testing.T) {
 	writeSingleTensor(t, filepath.Join(directory, "model.safetensors"))
 
 	repository, err := Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	if repository.Identity.ModelType != "unified" || repository.Identity.TextModelType != "decoder" ||
 		len(repository.Identity.Architectures) != 1 || repository.Identity.Architectures[0] != "UnifiedForGeneration" {
@@ -46,9 +46,7 @@ func TestInspectIdentityAllowsPipelineOnlyArtifact(t *testing.T) {
 	directory := t.TempDir()
 	writeFile(t, filepath.Join(directory, "model_index.json"), `{"_class_name":"ImagePipeline","scheduler":["module","Scheduler"]}`)
 	identity, err := InspectIdentity(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if identity.Pipeline != "ImagePipeline" || identity.ModelType != "" || len(identity.Architectures) != 0 {
 		t.Fatalf("identity = %+v", identity)
 	}
@@ -61,14 +59,10 @@ func writeSingleTensor(t *testing.T, path string) {
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
 	data = append(data, header...)
 	data = append(data, 1)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 }
 
 func writeFile(t *testing.T, path string, data string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 }

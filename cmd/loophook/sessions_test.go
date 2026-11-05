@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testcheck"
 )
 
 // sessionCheckout makes the working directory a repository whose plan holds
@@ -27,12 +28,8 @@ func sessionCheckout(t *testing.T) func(name, content string) {
 	t.Cleanup(func() { gateCommitting = committing })
 	write := func(name, content string) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(name), 0o755))
+		testcheck.NoError(t, os.WriteFile(name, []byte(content), 0o600))
 	}
 	git := func(arguments ...string) {
 		t.Helper()
@@ -42,9 +39,7 @@ func sessionCheckout(t *testing.T) func(name, content string) {
 		}
 	}
 	git("init", "-q")
-	if err := os.MkdirAll("docs", 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll("docs", 0o755))
 	if err := plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Lane: "master-lead", Items: []plan.Item{{
 		ID: "row", Title: "row", Owner: "master-lead", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}},
 	}}}); err != nil {
@@ -203,12 +198,8 @@ func TestAStopAfterWorkSinceItsBlockIsBlockedAgain(t *testing.T) {
 	}
 	// A block that cannot be kept could never be read back, so the stop passes rather than wedge the session.
 	path := stopBlockFile("lead")
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(path, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(path))
+	testcheck.NoError(t, os.Mkdir(path, 0o700))
 	write("internal/edited.go", "package internal\n\n// changed again\n")
 	if got := retry(); got != 0 {
 		t.Fatalf("a stop whose block cannot be kept = %d, want it let through", got)

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestReinspectStoredFilesRefusesPhysicalDrift(t *testing.T) {
@@ -16,18 +17,12 @@ func TestReinspectStoredFilesRefusesPhysicalDrift(t *testing.T) {
 	path := filepath.Join(root, "model.safetensors")
 	writeSafetensor(t, path, "first")
 	inventory, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	batch, err := inventory.Batch("test/model")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -44,9 +39,7 @@ func TestReinspectStoredFilesRefusesPhysicalDrift(t *testing.T) {
 	if _, err := ReinspectFiles(t.Context(), store, inventory.Manifest.ID); err == nil {
 		t.Fatal("modified checkpoint accepted")
 	}
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(path))
 	if _, err := ReinspectFiles(t.Context(), store, inventory.Manifest.ID); err == nil {
 		t.Fatal("missing checkpoint accepted")
 	}

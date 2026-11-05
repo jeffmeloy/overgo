@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 
@@ -32,9 +33,7 @@ func TestDecodeSessionServesOnlyItsOwnPastPage(t *testing.T) {
 	overhang := band / 2
 	reference := openPagePairRunner(t, path)
 	clean := decodePagePairOnce(t, reference, band)
-	if err := reference.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, reference.Close())
 	runner := openPagePairRunner(t, path)
 	defer runner.Close()
 	decodePagePairOnce(t, runner, band+overhang)
@@ -48,9 +47,7 @@ func TestDecodeSessionServesOnlyItsOwnPastPage(t *testing.T) {
 func openPagePairRunner(t *testing.T, path string) *Runner {
 	t.Helper()
 	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if runner.spec.ContextLength != pagePairContext {
 		t.Fatalf("fixture context = %d, want %d", runner.spec.ContextLength, pagePairContext)
 	}

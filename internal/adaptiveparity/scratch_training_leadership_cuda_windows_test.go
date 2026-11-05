@@ -22,6 +22,7 @@ import (
 	"overgo/internal/scratchmodeltest"
 	"overgo/internal/scratchtrain"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -71,21 +72,13 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	}
 	processInitialization := measureScratchProcessInitialization(t)
 	oracleBytes, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	oracle, _, err := adaptiveparity.NormalizeScratchOracle(oracleBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceBytes, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_performance.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var evidence scratchPerformanceEvidence
-	if err := strictjson.DecodeBytes(evidenceBytes, &evidence); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(evidenceBytes, &evidence))
 	oracleDigest := sha256.Sum256(oracleBytes)
 	if evidence.Schema != "overgo/adaptive-scratch-performance/v1" || evidence.SourceCommit != oracle.SourceCommit ||
 		evidence.SourceEntrypoint != "go/training/run_from_docs.go:RunFromDocsRich" || evidence.SourceOptions != "seed=7;steps=3;batch_size_override=1" || evidence.Environment.CPU == "" ||
@@ -107,29 +100,19 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps},
 		scratchmodeltest.Profile(t),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compileWall := time.Since(compileStarted)
 	policy := trainingprogram.BuiltinOptimizerPolicy()
 	host, err := construction.TrainShared(oracle.Steps, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	initStarted := time.Now()
 	trainer, err := scratchtrain.NewResidentTrainer(construction, oracle.Steps, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	initWall := time.Since(initStarted)
 	lifecycle, err := trainer.Lifecycle()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := trainer.ResetPeakMemory(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, trainer.ResetPeakMemory())
 
 	// All interval allocations bound incremental live heap from above.
 	// TotalAlloc is monotonic; HeapSys can fall as stack ownership changes.
@@ -140,34 +123,22 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	walls := make([]time.Duration, oracle.Steps)
 	for step := range oracle.Steps {
 		tokens, err := construction.Tokens(oracle.Train[step%len(oracle.Train)])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		started := time.Now()
 		losses[step], err = trainer.Step(tokens, step+1)
 		walls[step] = time.Since(started)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	var finalHeap runtime.MemStats
 	runtime.ReadMemStats(&finalHeap)
 	validationTokens, err := construction.Tokens(oracle.Validation[0])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	validation, err := trainer.Evaluate(validationTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	memory, err := trainer.MemoryStats()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights, gradients, momentum, err := trainer.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostPeak := finalHeap.TotalAlloc - baseline.TotalAlloc
 	candidatePeak := memory.PeakBytes + hostPeak
 	stepWall := walls[0] + walls[1] + walls[2]
@@ -203,15 +174,11 @@ func measureScratchProcessInitialization(t *testing.T) time.Duration {
 	command := exec.Command(os.Args[0], "-test.run=^TestScratchTrainingLeadership$", "-test.count=1", "-test.v")
 	command.Env = append(os.Environ(), scratchProcessReady+"=1")
 	stdout, err := command.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	started := time.Now()
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, command.Start())
 	var initialization time.Duration
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -219,9 +186,7 @@ func measureScratchProcessInitialization(t *testing.T) time.Duration {
 			initialization = time.Since(started)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, scanner.Err())
 	if err := command.Wait(); err != nil {
 		t.Fatalf("scratch process probe: %v: %s", err, stderr.String())
 	}

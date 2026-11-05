@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // parityRunners opens the same fixture on the CPU and CUDA backends;
@@ -15,15 +16,11 @@ func parityRunners[T Projector](t *testing.T, path string, options OpenOptions) 
 	t.Helper()
 	options.CUDA = false
 	cpu, err := openImageProjectorAs[T](path, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = cpu.Close() })
 	options.CUDA = true
 	cuda, err := openImageProjectorAs[T](path, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = cuda.Close() })
 	return cpu, cuda
 }
@@ -50,13 +47,9 @@ func referenceParityCase[T interface {
 	t.Helper()
 	cpu, cuda := parityRunners[T](t, path, OpenOptions{})
 	want, err := cpu.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, name, got.Data, want.Data, tolerance)
 }
 
@@ -73,22 +66,14 @@ func qwenImageVideoParityCase[T interface {
 	})
 	options := mediaPixelBudget{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gotImage, err := cuda.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, name+" image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
 	frames := []image.Image{input, input, input, input}
 	wantVideo, err := cpu.EncodeFrames(t.Context(), frames, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gotVideo, err := cuda.EncodeFrames(t.Context(), frames, options)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compareFloat32Tolerance(t, name+" video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data, 2e-3)
 }

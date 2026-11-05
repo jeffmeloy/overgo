@@ -9,15 +9,14 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestLateStimulusReconciliation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	manual := testutil.ArtifactID(t, artifact.KindRecipe, "followup-manual")
 	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "followup-ceiling")
@@ -26,19 +25,13 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "followup-operation")
 	arguments, err := AttemptArgumentContent([]byte(`{"initial":true}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	effect, err := invocation.NewEffect(invocation.Effect{
 		Manual: manual, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection, Known: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	effectContent, err := effect.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	head, _ := store.Head()
 	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
 		MaxTokens: arguments.Descriptor.Size, MaxBytes: arguments.Descriptor.Size,
@@ -47,16 +40,12 @@ func TestLateStimulusReconciliation(t *testing.T) {
 		Source: arguments.Descriptor.ID, CausalRoot: operation, Tokens: arguments.Descriptor.Size,
 		Bytes: arguments.Descriptor.Size, Documents: 1, Depth: 1,
 	}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
 		Operation: operation, Attempt: 1, Manual: manual, Class: invocation.ClassInspection,
 		Arguments: arguments.Descriptor.ID, Effect: effect.ID, Ceiling: ceiling, Selection: selection,
 	}, []artifact.Content{arguments, effectContent})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	late := []artifact.ID{
 		testutil.ArtifactID(t, artifact.KindEvidence, "late-a"),
 		testutil.ArtifactID(t, artifact.KindEvidence, "late-b"),

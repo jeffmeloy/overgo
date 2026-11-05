@@ -11,6 +11,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,13 +24,9 @@ import (
 func TestDenseModelsServePromptTensorCores(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	claim := discovery.LoadMemo(t.Context(), store).Claim
 	for _, served := range []string{
@@ -53,9 +50,7 @@ func TestDenseModelsServePromptTensorCores(t *testing.T) {
 			t.Errorf("%s: %v", served, err)
 			continue
 		}
-		if err := file.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, file.Close())
 		if !spec.Profile().Runtime.PromptTensorCores {
 			t.Errorf("%s's active definition names a profile that reads its prompts on the F32 paths: activate it over the current catalog's profile", filepath.Base(served))
 		}

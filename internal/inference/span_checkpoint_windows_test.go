@@ -11,6 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -27,9 +28,7 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openFixtureRunnerWithResidency(writeHermeticFlashNextGGUF(t), OpenOptions{}, recipe.ResidencyDeviceNative)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -39,9 +38,7 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 	span := func(tokens []tokenizer.TokenID, past *deviceKVCache, checkpoints ...uint32) *deviceKVCache {
 		t.Helper()
 		cache, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, past, nil, checkpoints...)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := cache.Release(context.Background()); err != nil {
 				t.Error(err)
@@ -60,22 +57,16 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 			t.Fatalf("a span with %d checkpoints keeps %d", len(checkpoints), len(verified.checkpoints))
 		}
 		kept := append(slices.Clone(pending), drafts[:accepted]...)
-		if err := runner.commitSpanCheckpoint(ctx, verified, boundary, kept); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, runner.commitSpanCheckpoint(ctx, verified, boundary, kept))
 		alone := span(kept, boundary)
 		if verified.Tokens != alone.Tokens || verified.Position != alone.Position || !slices.Equal(verified.ngramHistory, alone.ngramHistory) {
 			t.Fatalf("%d drafts kept: committed %d tokens at %d with history %v, alone %d at %d with %v", accepted,
 				verified.Tokens, verified.Position, verified.ngramHistory, alone.Tokens, alone.Position, alone.ngramHistory)
 		}
 		committed, err := runner.downloadDeviceCache(ctx, verified)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		aloneCache, err := runner.downloadDeviceCache(ctx, alone)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for layer, got := range committed.Layers {
 			want := aloneCache.Layers[layer]
 			pairs := map[string][2]reference.Value{"key": {got.Key, want.Key}, "value": {got.Value, want.Value}}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 
 	storeRoot := t.TempDir()
 	store, err := Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "causality/corpus", Artifacts: descriptors, Causality: links,
 		Aliases: []artifact.AliasBinding{{Name: "causality/live", Target: evaluation}},
@@ -46,14 +45,10 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	if _, err := store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 
 	checkpointed, err := OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !checkpointed.SnapshotReplay().Loaded {
 		t.Fatal("causality projection did not load from its anchored checkpoint set")
 	}
@@ -64,31 +59,23 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	if err != nil || rebuildReport.CausalLinks != len(links) {
 		t.Fatalf("rebuild report = (%+v, %v)", rebuildReport, err)
 	}
-	if err := checkpointed.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkpointed.Close())
 	// The live set follows causal roots, subjects and motivations from the
 	// aliased evaluation: every execution but the unreferenced replay.
 	writable, err := Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	releaseReport, err := Release(ctx, writable, nil, RetentionPolicy{}, releaseEverything)
 	if closeErr := writable.Close(); err != nil || closeErr != nil || releaseReport.Retained != len(all)-1 {
 		t.Fatalf("release report = (%+v, %v, %v)", releaseReport, err, closeErr)
 	}
 	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	rebuiltHead, rebuiltSequence := rebuilt.Head()
 	assertCausalityProjection(t, rebuilt, rebuiltHead, rebuiltSequence, root, motivation, attempt, retry, replay, evaluation)
 
 	refusal, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer refusal.Close()
 	if _, err := refusal.Commit(ctx, artifact.Batch{
 		Key: "causality/missing-root", Artifacts: []artifact.Descriptor{{ID: attempt}},

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestProjectionCheckpointAnchorAndFallback holds the checkpoint set
@@ -24,9 +26,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	openAndDigest := func(t *testing.T, expectLoaded bool, expectReason string) string {
 		t.Helper()
 		store, err := OpenReadOnly(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		replay := store.SnapshotReplay()
 		if replay.Loaded != expectLoaded {
@@ -47,25 +47,17 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		t.Helper()
 		path := filepath.Join(newestCheckpoints(t, root), name+checkpointExtension)
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, mutate(data), storeFileMode); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(path, mutate(data), storeFileMode))
 	}
 	restore := func(t *testing.T) {
 		t.Helper()
 		store, err := Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 	}
 
 	corrupt(t, "aliases", func(data []byte) []byte {
@@ -88,14 +80,10 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		corrupt(t, edit.member, func(data []byte) []byte {
 			line, payload, _ := bytes.Cut(data, []byte{'\n'})
 			var header checkpointHeader
-			if err := json.Unmarshal(line, &header); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(line, &header))
 			edit.header(&header)
 			mutated, err := json.Marshal(header)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return append(append(mutated, '\n'), payload...)
 		})
 		if digest := openAndDigest(t, false, edit.reason); digest != baseline {
@@ -104,9 +92,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		restore(t)
 	}
 
-	if err := os.RemoveAll(directory); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.RemoveAll(directory))
 	if digest := openAndDigest(t, false, "unreadable"); digest != baseline {
 		t.Fatal("full-replay fallback answered differently")
 	}
@@ -118,9 +104,7 @@ func newestCheckpoints(t *testing.T, root string) string {
 	t.Helper()
 	parent := filepath.Join(root, checkpointDirectory)
 	entries, err := os.ReadDir(parent)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index := len(entries) - 1; index >= 0; index-- {
 		if entries[index].IsDir() {
 			return filepath.Join(parent, entries[index].Name())

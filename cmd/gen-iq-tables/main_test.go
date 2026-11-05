@@ -3,6 +3,8 @@ package main
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestExtractTable(t *testing.T) {
@@ -18,9 +20,7 @@ GGML_TABLE_END()
 		goName: "sampleGrid",
 		size:   2,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{"0x0102030405060708", "0x0000000000000009"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("values = %v, want %v", got, want)

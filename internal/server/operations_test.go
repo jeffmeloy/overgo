@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -30,9 +31,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 			return operation.Completion{Run: runID}, nil
 		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	statusResponse := httptest.NewRecorder()
 	handler.ServeHTTP(statusResponse, httptest.NewRequest(http.MethodGet, "/operations?id="+id.String(), nil))
@@ -40,26 +39,20 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 		t.Fatalf("status code = %d, body=%s", statusResponse.Code, statusResponse.Body.String())
 	}
 	var status operation.Status
-	if err := json.Unmarshal(statusResponse.Body.Bytes(), &status); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(statusResponse.Body.Bytes(), &status))
 	if status.ID != id || status.Recipe != recipeID || status.State == operation.StateCompleted {
 		t.Fatalf("status = %+v", status)
 	}
 
 	body, err := json.Marshal(operationCancelRequest{ID: id})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cancelResponse := httptest.NewRecorder()
 	handler.ServeHTTP(cancelResponse, httptest.NewRequest(http.MethodPost, "/operations/cancel", bytes.NewReader(body)))
 	if cancelResponse.Code != http.StatusAccepted {
 		t.Fatalf("cancel code = %d, body=%s", cancelResponse.Code, cancelResponse.Body.String())
 	}
 	status, err = handler.operations.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status.State != operation.StateCancelled || status.Run == nil || *status.Run != runID {
 		t.Fatalf("cancelled status = %+v", status)
 	}

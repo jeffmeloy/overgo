@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,17 +36,11 @@ func TestParallelReadySet(t *testing.T) {
 		},
 		[]Output{{Name: "output", Data: DataText, Source: Endpoint{Node: sink.ID, Port: "output"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	catalog, err := NewCatalog(branch, join)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileProgram(definition, catalog)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sets := program.ReadySets()
 	if len(sets) != 2 || len(sets[0]) != 2 || sets[0][0].Node.ID != left.ID ||
 		sets[0][1].Node.ID != right.ID || len(sets[1]) != 1 || sets[1][0].Node.ID != sink.ID {

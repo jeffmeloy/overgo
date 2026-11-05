@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 	"overgo/internal/webuilane"
 )
@@ -68,9 +69,7 @@ func TestWebUIBrowserSessionContinuation(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the session continuation leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &sessionGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), blocked: make(chan struct{})}
 	generator.armed.Store(true)
@@ -112,9 +111,7 @@ func TestWebUIBrowserSessionContinuation(t *testing.T) {
 	check(`(() => { const body = sessionRequests.at(-1); return body.continue === true && !!body.previous_response_id && body.input === undefined; })()`)
 
 	// Reopened, the conversation holds the one whole reply.
-	if err := browser.Reload(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Reload(ctx))
 	check(helpers)
 	settle(`document.querySelectorAll('.chat-log .msg.assistant').length === 1 && sessionReplies()[0] === 'The quick brown fox jumps over the dog.' && !sessionStopped() && document.querySelectorAll('.chat-log .msg.user').length === 1`)
 	webuilane.Leg(t, "session continuation leg", "a turn stopped after three words offered Continue, continuing resumed the stopped turn without new input in the same message, and the reopened conversation held the one whole reply")

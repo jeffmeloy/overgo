@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestHighFanoutReadsAreBatched proves shard-report verification does
@@ -26,9 +27,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 		})
 	}
 	exact, err := CompileExact(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan, err := BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "batched-model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "batched-recipe"),
@@ -36,9 +35,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 		Environment:     planID(t, artifact.KindEvidence, "batched-environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleIsolated},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, storeErr := overgodb.Open(t.TempDir())
 	if storeErr != nil {
 		t.Fatal(storeErr)

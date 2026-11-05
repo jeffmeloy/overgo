@@ -3,6 +3,7 @@ package composition_test
 import (
 	"overgo/internal/composition"
 	"overgo/internal/composition/compositiontest"
+	"overgo/internal/testcheck"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -13,48 +14,32 @@ func TestCompositeGenerationPromotionGate(t *testing.T) {
 	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
 	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composite-generation/promotion-activate", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, activation); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := composition.CompileCompositionExecutionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidence, dependencies := compositeGenerationPromotionFixture(t, plan)
 	promotion, err := (composition.CompositeGenerationPromotionAuthority{}).Promote(plan, evidence)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	planContent, err := plan.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evidenceContent, err := evidence.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	promotionContent, err := promotion.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	alias, err := composition.CompositeGenerationPromotionAlias(plan.SourceModel, plan.TargetModel, plan.Task)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(
 		"fixture/composite-generation/promotion",
 		[]artifact.Content{planContent, evidenceContent, promotionContent},
 		append(append(plan.Lineage(), evidence.Lineage()...), promotion.Lineage()...),
 		[]artifact.AliasBinding{{Name: alias, Target: promotion.ID}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Artifacts = append(batch.Artifacts, dependencies...)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
@@ -69,9 +54,7 @@ func TestCompositeGenerationPromotionGate(t *testing.T) {
 	changed.ExecutionPlan = testutil.ArtifactID(t, artifact.KindProfile, "foreign execution plan")
 	changed.ID = artifact.ID{}
 	changed, err = (composition.CompositeGenerationCUDAAuthority{}).New(changed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := (composition.CompositeGenerationPromotionAuthority{}).Promote(plan, changed); err == nil {
 		t.Fatal("CUDA evidence for a foreign execution plan promoted the composition")
 	}
@@ -81,9 +64,7 @@ func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
 	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composite-generation/refusal-activate", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, activation); err != nil {
 		t.Fatal(err)
 	}
@@ -114,9 +95,7 @@ func compositeGenerationPromotionFixture(
 		ExactOutputParity: true,
 	}
 	evidence, err := (composition.CompositeGenerationCUDAAuthority{}).New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents := evidence.Lineage()
 	descriptors := make([]artifact.Descriptor, 0, len(parents))
 	for _, edge := range parents {

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,9 +32,7 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	declined := testutil.ArtifactID(t, artifact.KindModel, "Qwen3.5-9B")
 	named := func(cell ModelValidation) bool { return cell.Model == declined }
 	only, err := plan.OnlyModel("Qwen3.5-9B", named)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(only.Suites) != 0 {
 		t.Errorf("one model's measurement runs %d lanes, want none", len(only.Suites))
 	}
@@ -57,12 +56,8 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	// cell of the model refuses it by name.
 	storePath := t.TempDir()
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	if err := runArgs(t.Context(), []string{"-root", "../..", "-repo", storePath, "-model", "Carbon-500M"}, io.Discard); err == nil || !strings.Contains(err.Error(), "no cell of the plan is that model's") {
 		t.Errorf("validate -model on a store without the model gave %v, want the selection's refusal", err)
 	}
@@ -83,9 +78,7 @@ func TestOneModelsCellsOfOneValidationAreMeasuredAlone(t *testing.T) {
 	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell(servingValidation), cell("mmlu-pro"), cell("bbh")}})
 	served := func(cell ModelValidation) bool { return cell.Model == declined && cell.Validation == servingValidation }
 	only, err := plan.OnlyModel("Bonsai-27B serving", served)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if kept := append(append(only.Run, only.Background...), only.OperatorOwned...); len(kept) != 1 || kept[0].Validation != servingValidation {
 		t.Errorf("one validation of one model kept %v, want its serving cell alone", kept)
 	}

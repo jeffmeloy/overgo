@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestRepositoryEnvironmentRemovesGitOverrides(t *testing.T) {
@@ -72,9 +74,7 @@ func TestRepositoryRootUsesExplicitRepository(t *testing.T) {
 		t.Fatalf("explicit repository root was redirected by ambient Git state: %v", err)
 	}
 	subdirectory := filepath.Join(repository, "nested")
-	if err := os.Mkdir(subdirectory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(subdirectory, 0o755))
 	if _, err := RepositoryRoot(t.Context(), subdirectory); err == nil ||
 		!strings.Contains(err.Error(), "exact repository root") {
 		t.Fatalf("repository subdirectory result = %v", err)

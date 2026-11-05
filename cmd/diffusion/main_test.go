@@ -10,6 +10,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 )
 
 // Interior schedule input for parser fixtures, not a runtime default.
@@ -38,9 +39,7 @@ func TestParseCLI(t *testing.T) {
 		"-gumbel", "-shift-logits", "false",
 		"-lora", want.lora[0], want.model, want.prompt,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(config, want) {
 		t.Fatalf("config = %+v, want %+v", config, want)
 	}
@@ -52,9 +51,7 @@ func TestParseCLIUsesRecipeDefaults(t *testing.T) {
 		t.Fatalf("runtime policy: found=%t err=%v", found, err)
 	}
 	config, err := parseCLI([]string{"-eps", fmt.Sprint(fixtureEpsilon), "model.gguf", "prompt"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := policy.Interactive.Diffusion
 	got := config.diffusion
 	if got.MaxLength != want.Length || got.Steps != want.Steps || int(got.Algorithm) != want.Algorithm ||

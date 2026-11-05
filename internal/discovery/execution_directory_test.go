@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/pathidentity"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,19 +22,13 @@ func TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parent, err := pathidentity.Canonical(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	child, dead := filepath.Join(parent, "LiveEdit"), filepath.Join(parent, "Moved")
 	for _, directory := range []string{child, filepath.Join(parent, "Wan2.1-T2V-1.3B")} {
-		if err := os.Mkdir(directory, 0o700); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Mkdir(directory, 0o700))
 	}
 	record := func(name string, directories ...string) artifact.ID {
 		t.Helper()
@@ -41,9 +36,7 @@ func TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory(t *testing.T) {
 		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 			Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch := artifact.Batch{
 			Key:       "fixture/discovery/execution-directory/" + name,
 			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(name))}},

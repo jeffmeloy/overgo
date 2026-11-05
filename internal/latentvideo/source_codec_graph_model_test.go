@@ -8,14 +8,13 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestLiveEditSourceCodecGraph(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checkpoint := filepath.Join(roots.ResolveModelPath("Wan2.1-T2V-1.3B"), "Wan2.1_VAE.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
@@ -23,9 +22,7 @@ func TestLiveEditSourceCodecGraph(t *testing.T) {
 	}
 	metas := catalog.Tensors
 	plan, err := CompileVAEEncoderPlan(metas)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prefixes := plan.Names()
 	if plan.InputChannels != 3 || plan.LatentChannels != 16 || plan.MomentChannels != 32 ||
 		plan.Stride != [3]int{4, 8, 8} || len(plan.Operations) != 17 ||

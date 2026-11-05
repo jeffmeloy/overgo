@@ -11,6 +11,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -32,14 +33,10 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the onboarding leg runs through cmd/webui-lane")
 	weights := filepath.Join(t.TempDir(), "lane.gguf")
-	if err := os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644))
 	hub := hubFixtureServer(t, weights)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "onboarding-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "onboarding-run")
@@ -55,16 +52,12 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 		},
 	}
 	downloads := filepath.Join(t.TempDir(), "downloads")
-	if err := os.MkdirAll(downloads, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(downloads, 0o755))
 	handler, err := New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: downloads,
 	}, GenerationRefused{Reason: idleRefusal})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -78,9 +71,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 			t.Fatalf("%s: %v; %s", expression, err, page)
 		}
 	}
-	if err := webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]))
 	settle(`!!document.querySelector('#panel-library.active input[aria-label="Search the Hugging Face hub"]') && overgo.api.inFlight() === 0`)
 	effort, requests := measureEffort(t, ctx, browser, settle, onboardingTask)
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)

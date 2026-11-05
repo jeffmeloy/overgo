@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -12,17 +13,13 @@ func TestCompositeGenerationEvidence(t *testing.T) {
 	value := compositeGenerationEvidenceFixture(t)
 	authority := CompositeGenerationEvidenceAuthority{}
 	evidence, err := authority.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evidence.ID.Kind() != artifact.KindEvidence || evidence.Trials[0].Seed != 7 ||
 		evidence.Trials[0].Arm != CompositeGenerationTargetBaseline {
 		t.Fatalf("evidence = %+v", evidence)
 	}
 	content, err := evidence.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := authority.Parse(content.Data)
 	if err != nil || parsed.ID != evidence.ID || !slices.Equal(parsed.Trials, evidence.Trials) {
 		t.Fatalf("round trip = %+v, %v", parsed, err)
@@ -67,9 +64,7 @@ func TestCompositeGenerationIdentity(t *testing.T) {
 	value := compositeGenerationEvidenceFixture(t)
 	authority := CompositeGenerationEvidenceAuthority{}
 	first, err := authority.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	slices.Reverse(value.Trials)
 	second, err := authority.New(value)
 	if err != nil || first.ID != second.ID {

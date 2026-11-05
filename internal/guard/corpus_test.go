@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestBuildAdviceNamesBin holds the guard's advice to the place an executable
@@ -47,12 +49,8 @@ type corpus struct {
 func TestARawCommitDuringAMergeIsRefused(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, ".git", "MERGE_HEAD"), []byte("deadbeef\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, ".git", "MERGE_HEAD"), []byte("deadbeef\n"), 0o644))
 	call := ToolCall{ToolName: "Bash"}
 	call.ToolInput.Command = "git commit --no-edit"
 	if message, _ := Verdict(call, root); !strings.Contains(message, "cmd/loop -land") {

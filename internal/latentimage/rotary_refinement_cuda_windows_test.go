@@ -13,6 +13,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 	"path/filepath"
 	"testing"
 )
@@ -68,27 +69,19 @@ func TestMOSSRotaryRefinementRMSBoundary(t *testing.T) {
 	cudatest.Require(t)
 	mossFixtureBytes(t, "refinement-rms.safetensors", "1764b08ccfe0ff3c1509e644cff112e89a0922dba27f511031a51fa414e24436")
 	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "refinement-rms.safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	runtime, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runtime.Close(context.WithoutCancel(t.Context()))
 	b := tensor.NewBuilder()
 	x := b.Input("x", dtype.F32, tensor.MustShape(128))
 	y := b.BF16Round(b.RMSNormNativeMean(x, 1e-6))
 	program, err := runtime.Compile(t.Context(), "native RMS boundary", nil, y)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runtime.Release(context.WithoutCancel(t.Context()), program)
 	got, err := runtime.Execute(t.Context(), program, map[*tensor.Tensor]reference.Value{x: {Shape: x.Shape, Data: refinementValues(t, source, "input")}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := refinementValues(t, source, "raw")
 	dtype.RoundBF16Slice(want)
 	for i, value := range got[y].Data {

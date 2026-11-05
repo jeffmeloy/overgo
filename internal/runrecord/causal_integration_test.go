@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,16 +20,12 @@ func TestRSICausalChainClosure(t *testing.T) {
 	motivation := id(artifact.KindEvidence, "motivating-observation")
 	proposalEvidence := id(artifact.KindEvidence, "controller-proposal")
 	root, err := NewCausalRoot(TriggerControllerProposal, proposalEvidence, motivation)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	attemptValue := fixtureAttempt(t)
 	attemptValue.Causal = &root
 	attempt, err := NewAttemptRecord(attemptValue)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	lifecycle := ExperimentLifecycle{
 		Version: artifact.InitialDocumentVersion, State: ExperimentProposed,
@@ -37,9 +34,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Causal:     &root,
 	}
 	lifecycle, err = experimentLifecycleCodec.New(lifecycle)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	decision := improvementDecision{
 		Version: artifact.SecondDocumentVersion, State: ImprovementPromote,
@@ -56,24 +51,18 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Causal:   &root,
 	}
 	decision, err = improvementDecisionCodec.New(decision)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	servingValue := servingObservationFixture(t)
 	servingValue.Version = artifact.InitialDocumentVersion
 	servingValue.Causal = &root
 	serving, err := servingObservationCodec.New(servingValue)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The rollback follow-up is caused by the failing serving evidence,
 	// derived inside the same chain.
 	rollbackCausal, err := root.Derive(TriggerRecovery, serving.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// The traversal: typed causal fields only. The rollback names the
 	// serving evidence it recovers from; every record answers to the

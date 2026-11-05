@@ -4,17 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestReadInputFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "schema.json")
-	if err := os.WriteFile(path, []byte(`{"type":"boolean"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(`{"type":"boolean"}`), 0o600))
 	got, err := readInput([]string{path})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if string(got) != `{"type":"boolean"}` {
 		t.Fatalf("input = %q", got)
 	}

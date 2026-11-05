@@ -3,6 +3,8 @@ package hostoptimizer
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestAbsentGradientLeavesAGroupAlone: a group told to have received no gradient keeps its weights and its momentum, where
@@ -15,13 +17,9 @@ func TestAbsentGradientLeavesAGroupAlone(t *testing.T) {
 		{Name: "absent", Start: 0, End: elements / 2, Rows: side, Cols: side},
 		{Name: "present", Start: elements / 2, End: elements, Rows: side, Cols: side},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizer, err := New(weights, gradients, plan, Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fill := func() {
 		for index := range gradients {
 			gradients[index] = float32(index + 1)

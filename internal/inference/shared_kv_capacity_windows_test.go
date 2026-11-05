@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -30,9 +31,7 @@ func openSharedKVRunner(t *testing.T, path string, session modelrecipe.DecodeSes
 		t.Fatalf("%s session: %v", session, err)
 	}
 	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return runner
 }
 
@@ -43,13 +42,9 @@ func generateSharedKV(t *testing.T, path string, session modelrecipe.DecodeSessi
 	runner := openSharedKVRunner(t, path, session)
 	defer runner.Close()
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: sharedKVSteps, Sampler: greedy, PromptTokenIDs: sharedKVPrompt,
 		DeviceGreedy: true, ContinueAfterEOG: true,
@@ -58,9 +53,7 @@ func generateSharedKV(t *testing.T, path string, session modelrecipe.DecodeSessi
 		t.Fatalf("%s session generate: %v", session, err)
 	}
 	after, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return ids, after.GraphLaunches - before.GraphLaunches
 }
 

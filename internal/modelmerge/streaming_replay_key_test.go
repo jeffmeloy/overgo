@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -49,9 +50,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 				t.Fatalf("the first run left its destination visible (%v), want only a stage", err)
 			}
 			if repeat.bytes != nil {
-				if err := safetensors.Save(filepath.Join(first, streamingSingleShardName), repeat.bytes, map[string][]int{sealed: {2}, stopped: {2}}, nil); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, safetensors.Save(filepath.Join(first, streamingSingleShardName), repeat.bytes, map[string][]int{sealed: {2}, stopped: {2}}, nil))
 			}
 			again := sealStreamingPlan(t, composition.OfflineArtifactTaskArithmetic, models, repeat.coefficients, tensors)
 			if _, err := ExecuteStreaming(t.Context(), again, sources, destination); err != nil {

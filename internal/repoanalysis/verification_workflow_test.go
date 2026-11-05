@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // TestIncrementalStaticAnalysisContracts holds the shared static-analysis
@@ -29,29 +30,21 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 		"a/a.go": []byte("package a\nimport \"time\"\nfunc A() { time.Sleep(2 * time.Second) }\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// Shared parse: one parse per file serves repeated consumers.
 	firstA, err := fileByPath(base, "a/a.go").Syntax()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if secondA, _ := fileByPath(base, "a/a.go").Syntax(); firstA != secondA {
 		t.Fatal("a file parsed twice for two consumers")
 	}
 	baseB, err := fileByPath(base, "b/b.go").Syntax()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	// Rule-specific invalidation: change only a/a.go. The unchanged file keeps
 	// its cached parse; the changed file re-parses and carries the edit.
 	candidate, err := base.Overlay(map[string][]byte{"a/a.go": []byte("package a\nfunc A() {}\n")})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if candidateB, _ := fileByPath(candidate, "b/b.go").Syntax(); baseB != candidateB {
 		t.Fatal("unchanged file re-parsed under the overlay")
 	}
@@ -61,13 +54,9 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 
 	// A real census reuses the shared parses and reflects only the change.
 	baseTimers, err := FixedTimerCensus(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidateTimers, err := FixedTimerCensus(candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(baseTimers) == 0 {
 		t.Fatal("seeded fixed timer not detected in the base census")
 	}
@@ -80,13 +69,9 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 		"a/a.go": []byte("package a\nfunc A() {}\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullTimers, err := FixedTimerCensus(full)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(fullTimers) != len(candidateTimers) {
 		t.Fatalf("incremental census %d differs from a full analysis %d", len(candidateTimers), len(fullTimers))
 	}

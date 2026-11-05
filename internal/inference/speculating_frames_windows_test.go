@@ -11,6 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -24,24 +25,18 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 	prompt := []tokenizer.TokenID{1, 4, 5}
 	for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
 		runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{}, residency)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)
 			}
 		})
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		generate := func(speculative bool, tokens int) ([]tokenizer.TokenID, uint64, uint64) {
 			t.Helper()
 			before, err := runner.cuda.Metrics(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, PlainDecode: !speculative,
 				PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -50,9 +45,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 				t.Fatalf("%s: %v", residency, err)
 			}
 			after, err := runner.cuda.Metrics(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return ids[len(prompt):], after.GraphCaptures - before.GraphCaptures, after.GraphCacheCapacity
 		}
 		plain, _, kept := generate(false, 12)
@@ -86,15 +79,11 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 			defer runner.mu.Unlock()
 			ctx := t.Context()
 			boundary, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, prompt, nil, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			text := []tokenizer.TokenID{boundary.Selected}
 			pending := []tokenizer.TokenID{boundary.Selected}
 			before, err := runner.cuda.Metrics(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var spans []span
 			for round, keep := range accepted {
 				next := plain[len(text)]
@@ -114,26 +103,18 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 				if keep {
 					correction := result.SpanSelected[len(pending)]
 					text = append(text, draft, correction)
-					if err := boundary.Release(ctx); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, boundary.Release(ctx))
 					boundary, pending = result, []tokenizer.TokenID{correction}
 					continue
 				}
 				correction := result.SpanSelected[len(pending)-1]
 				text = append(text, correction)
-				if err := result.Release(ctx); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, result.Release(ctx))
 				pending = append(pending, correction)
 			}
 			after, err := runner.cuda.Metrics(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := boundary.Release(ctx); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, boundary.Release(ctx))
 			return spans, after.GraphCaptures - before.GraphCaptures, text
 		}
 		first, _, firstText := pass()
@@ -165,18 +146,14 @@ func TestPromptCachedRequestsReplayTheirFrames(t *testing.T) {
 	const served = 8
 	for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
 		runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{PromptCacheEntries: 1}, residency)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)
 			}
 		})
 		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// storage is the first address the prompt cache's entry holds in its token storage.
 		storage := func() uint64 {
 			t.Helper()
@@ -197,9 +174,7 @@ func TestPromptCachedRequestsReplayTheirFrames(t *testing.T) {
 		generate := func(speculative bool) ([]tokenizer.TokenID, uint64, uint64) {
 			t.Helper()
 			before, err := runner.cuda.Metrics(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: served, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, CachePrompt: true,
 				PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -208,9 +183,7 @@ func TestPromptCachedRequestsReplayTheirFrames(t *testing.T) {
 				t.Fatalf("%s: %v", residency, err)
 			}
 			after, err := runner.cuda.Metrics(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			return ids[len(prompt):], after.GraphCaptures - before.GraphCaptures, storage()
 		}
 		plain, _, first := generate(false)

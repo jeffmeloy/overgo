@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 func TestModelTensorName(t *testing.T) {
@@ -64,9 +65,7 @@ func TestProportionalRopeTensor(t *testing.T) {
 		t.Fatalf("tensor = %+v", tensor)
 	}
 	encoded, err := io.ReadAll(tensor.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index := range 8 {
 		got := math.Float32frombits(binary.LittleEndian.Uint32(encoded[index*4:]))
 		want := float32(1e30)

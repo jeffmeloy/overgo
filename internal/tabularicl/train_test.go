@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
@@ -31,16 +32,12 @@ func TestDecoderTrainerRealArtifacts(t *testing.T) {
 				t.Fatalf("%s fixture absent", task)
 			}
 			head, err := LoadHead(headDir(t, task))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			before := append([]float32(nil), head.decL1W...)
 			trainer, err := NewTrainer(head, optimizer.Config{
 				BaseLearningRate: 1e-5, Momentum: 0.9, Schedule: optimizer.ScheduleConstant,
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			result, stepErr := trainer.Step(request)
 			closeErr := trainer.Close()
 			if stepErr != nil || closeErr != nil {
@@ -94,13 +91,9 @@ func tinyRegressionHead() *Head {
 func TestDecoderTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	head := tinyRegressionHead()
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(head.TrainableParameterCount())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer, err := NewTrainer(head, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	if _, err := trainer.Step(Request{
 		Task: TaskRegression, Rows: 4, Cols: 2, TrainRows: 2,

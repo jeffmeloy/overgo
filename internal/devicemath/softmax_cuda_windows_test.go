@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 )
 
 // hostSoftmaxRows returns row-wise softmax of s[rows,d] in float64.
@@ -39,9 +40,7 @@ func hostSoftmaxRows(s []float32, rows, d int) []float64 {
 func TestSoftmaxBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	const rows, d = 8, 12
@@ -55,9 +54,7 @@ func TestSoftmaxBackwardGradCheck(t *testing.T) {
 		p[i] = float32(pF64[i])
 	}
 	ds, err := SoftmaxBackward(worker, p, dp, rows, d)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	loss := func() float64 {
 		pp := hostSoftmaxRows(s, rows, d)

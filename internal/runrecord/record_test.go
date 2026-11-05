@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -42,13 +43,9 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 	inputID := testutil.ArtifactID(t, artifact.KindFile, "input")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
 	run, err := NewRun(recipeID, OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := run.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsedRun, err := ParseRun(content.Data)
 	if err != nil || parsedRun.ID != run.ID {
 		t.Fatalf("run round trip = (%+v, %v)", parsedRun, err)
@@ -57,13 +54,9 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 		{Name: "latency", Value: 12.5, Unit: "ms", Direction: DirectionMinimize},
 		{Name: "quality", Value: 0.9, Direction: DirectionMaximize},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	evaluationContent, err := evaluation.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsedEvaluation, err := ParseEvaluation(evaluationContent.Data)
 	if err != nil || parsedEvaluation.ID != evaluation.ID || len(evaluation.Lineage()) != 3 {
 		t.Fatalf("evaluation round trip = (%+v, %v)", parsedEvaluation, err)
@@ -76,9 +69,7 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
@@ -90,13 +81,9 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, err := NewRun(recipeID, OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := run.Batch("fixture/run")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -107,13 +94,9 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 	evaluation, err := NewEvaluation(recipeID, run.ID, datasetID, []Metric{{
 		Name: "quality", Value: 1, Direction: DirectionMaximize,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err = evaluation.Batch("fixture/evaluation")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -149,13 +132,9 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 		Host: "fixture-host", OS: "windows", Arch: "amd64",
 		Device: "RTX 4090", Backend: "cuda", Driver: "591.44", Runtime: "go1.25",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := environment.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsedEnvironment, err := environmentCodec.Parse(content.Data)
 	if err != nil || parsedEnvironment != environment {
 		t.Fatalf("environment round trip = (%+v, %v)", parsedEnvironment, err)
@@ -169,9 +148,7 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 			{Phase: PhasePrefill, DurationNS: 35},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if run.MeasuredNS != 100 || !slices.Equal(run.Phases, []PhaseMetric{
 		{Phase: PhaseDecode, DurationNS: 55},
 		{Phase: PhasePrefill, DurationNS: 35},
@@ -179,9 +156,7 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 		t.Fatalf("bound timing = (%d, %+v)", run.MeasuredNS, run.Phases)
 	}
 	content, err = run.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsedRun, err := ParseRun(content.Data)
 	if err != nil || parsedRun.ID != run.ID || parsedRun.MeasuredNS != run.MeasuredNS ||
 		!slices.Equal(parsedRun.Phases, run.Phases) {
@@ -250,23 +225,17 @@ func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
 func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	environment, err := environmentCodec.New(Environment{
 		Version: artifact.InitialDocumentVersion, Host: "fixture-host", OS: "linux", Arch: "amd64",
 		Device: "A100", Backend: "cuda", Driver: "580.65", Runtime: "go1.25",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bound-recipe")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "bound-output")
 	environmentContent, err := environment.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/bound-facts",
 		Artifacts: []artifact.Descriptor{
@@ -280,13 +249,9 @@ func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
 		environment.ID, 100, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 90}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := run.Batch("fixture/bound-run")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // campaignStructuralViolations reports the campaign policy the doctrine prose
@@ -119,9 +121,7 @@ func loadCampaignPlan(t *testing.T) Plan {
 	// the test was compiled at, which a trimmed build replaces with the import path.
 	root := filepath.Join("..", "..")
 	document, err := Load(filepath.Join(root, filepath.FromSlash(Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := Validate(document); err != nil {
 		t.Fatalf("validate campaign plan: %v", err)
 	}

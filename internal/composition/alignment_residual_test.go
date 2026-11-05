@@ -3,6 +3,8 @@ package composition
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // seamSamples generates deterministic pseudo-activations wide enough to
@@ -53,9 +55,7 @@ func TestSeamAlignmentResidual(t *testing.T) {
 		{0, -0.5, 0, 1}, {0.25, 0, 0.5, 0}, {0, 0.25, 0, -0.5},
 	}
 	exact, err := SeamAlignmentResidual(source, applyLinearMap(source, adapter, func(int, int) float64 { return 0 }))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if exact > 1e-9 {
 		t.Fatalf("linearly composable seam residual = %v", exact)
 	}
@@ -64,20 +64,14 @@ func TestSeamAlignmentResidual(t *testing.T) {
 		return func(row, column int) float64 { return scale * stream[row][column] }
 	}
 	small, err := SeamAlignmentResidual(source, applyLinearMap(source, adapter, noiseAt(0.1)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	large, err := SeamAlignmentResidual(source, applyLinearMap(source, adapter, noiseAt(1.5)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !(exact < small && small < large && large < 1) {
 		t.Fatalf("residual is not monotone in the unexplainable part: %v %v %v", exact, small, large)
 	}
 	unrelated, err := SeamAlignmentResidual(source, seamSamples(48, 4, 5077))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if unrelated < 0.5 {
 		t.Fatalf("unrelated representations look composable: %v", unrelated)
 	}
@@ -113,33 +107,25 @@ func TestAlignmentResidualBiasAudit(t *testing.T) {
 		parities[index] = 1 - residuals[index]
 	}
 	audit, err := AlignmentResidualBiasAudit(residuals, parities)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !audit.Admitted || audit.Violations != 0 || audit.Comparisons == 0 || audit.Bound <= 0 {
 		t.Fatalf("perfectly predictive proxy refused: %+v", audit)
 	}
 
 	inverted, err := AlignmentResidualBiasAudit(residuals, residuals[:len(residuals)])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if inverted.Admitted || inverted.Violations != inverted.Comparisons {
 		t.Fatalf("anti-predictive proxy admitted: %+v", inverted)
 	}
 
 	tiny, err := AlignmentResidualBiasAudit([]float64{0.1, 0.2, 0.3}, []float64{0.9, 0.8, 0.7})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if tiny.Admitted || tiny.Bound > 0 {
 		t.Fatalf("three seams admitted a proxy: %+v", tiny)
 	}
 
 	tied, err := AlignmentResidualBiasAudit([]float64{0.1, 0.1, 0.3}, []float64{0.9, 0.5, 0.5})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if tied.Ties != 2 || tied.Comparisons != 1 {
 		t.Fatalf("tie accounting = %+v", tied)
 	}

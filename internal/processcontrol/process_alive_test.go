@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestProcessAlive holds the liveness probe: the test's own process is
@@ -17,13 +19,9 @@ func TestProcessAlive(t *testing.T) {
 		t.Fatal("a non-positive pid was reported alive")
 	}
 	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	child := exec.Command(executable, "-test.run=^$")
-	if err := child.Run(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, child.Run())
 	if ProcessAlive(child.Process.Pid) {
 		t.Fatal("an exited child was reported alive")
 	}

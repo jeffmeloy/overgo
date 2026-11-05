@@ -13,36 +13,27 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestMADNormDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const rows, width = 7, 8
 	const epsilon = 1e-8
 	rng := rand.New(rand.NewSource(7))
 	input, incoming := randSlice(rng, rows*width), randSlice(rng, rows*width)
 	wantForward, err := hostmath.MADNorm(input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantBackward, err := hostmath.MADNormBackward(incoming, input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gotForward, err := MADNormForward(worker, input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gotBackward, err := MADNormBackward(worker, incoming, input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	forwardDelta, backwardDelta := 0.0, 0.0
 	for index := range input {
 		forwardDelta = max(forwardDelta, math.Abs(float64(gotForward[index]-wantForward[index])))
@@ -57,29 +48,21 @@ func TestMADNormDeviceMatchesHost(t *testing.T) {
 func TestMADNormBackwardResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	const rows, width = 9, 12
 	const epsilon = 1e-8
 	rng := rand.New(rand.NewSource(29))
 	input, incoming := randSlice(rng, rows*width), randSlice(rng, rows*width)
 	output, err := MADNormForward(worker, input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := MADNormBackward(worker, incoming, input, rows, width, epsilon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var pointers []driver.DevicePtr
 	allocate := func(initial []float32) driver.DevicePtr {
 		t.Helper()
 		pointer, err := AllocResidentF32(worker, len(input), initial)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		pointers = append(pointers, pointer)
 		return pointer
 	}
@@ -92,13 +75,9 @@ func TestMADNormBackwardResidentMatchesShared(t *testing.T) {
 	inputPtr := allocate(input)
 	outputPtr := allocate(output)
 	gradientPtr := allocate(nil)
-	if err := MADNormBackwardResident(worker, incomingPtr, inputPtr, outputPtr, gradientPtr, rows, width, epsilon); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, MADNormBackwardResident(worker, incomingPtr, inputPtr, outputPtr, gradientPtr, rows, width, epsilon))
 	got := make([]float32, len(want))
-	if err := ReadResident(worker, gradientPtr, ResidentSlice{Data: got}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ReadResident(worker, gradientPtr, ResidentSlice{Data: got}))
 	delta := testutil.MaxAbsDiff(got, want)
 	t.Logf("resident/shared MADNorm VJP=%.3e", delta)
 	if delta != 0 {

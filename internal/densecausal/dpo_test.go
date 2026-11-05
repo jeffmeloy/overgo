@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hostmath"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -34,13 +35,9 @@ func dpoFixture(t *testing.T) (*Model, *Model, trainingdata.PreferencePair) {
 func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 	policy, _, pair := dpoFixture(t)
 	got, err := policy.SequenceLogProb(pair.Chosen)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, logits, err := policy.Loss(pair.Chosen.Tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	row := logits[(len(pair.Chosen.Tokens)-2)*policy.Dims.Vocab : (len(pair.Chosen.Tokens)-1)*policy.Dims.Vocab]
 	hostmath.SoftmaxInPlace(row)
 	want := math.Log(float64(row[pair.Chosen.Tokens[len(pair.Chosen.Tokens)-1]]))
@@ -64,13 +61,9 @@ func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 func dpoMargin(t *testing.T, model *Model, pair trainingdata.PreferencePair) float64 {
 	t.Helper()
 	chosen, err := model.SequenceLogProb(pair.Chosen)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rejected, err := model.SequenceLogProb(pair.Rejected)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return chosen.LogProbability - rejected.LogProbability
 }
 
@@ -95,17 +88,11 @@ func TestDPOResumeMatchesUninterrupted(t *testing.T) {
 	resumed, _, _ := dpoFixture(t)
 	batches := dpoBatches(t, pair, 2)
 	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, derivedTestLearningRate(t, uninterrupted), 0.9, dpoPolicy, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], derivedTestLearningRate(t, resumed), 0.9, dpoPolicy, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], derivedTestLearningRate(t, resumed), 0.9, dpoPolicy, &firstState, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if gotState.Stream != wantState.Stream || gotState.Optimizer.Step != wantState.Optimizer.Step ||
 		gotState.Optimizer.PlanIdentity != wantState.Optimizer.PlanIdentity ||
 		!slices.Equal(gotState.Optimizer.Momentum, wantState.Optimizer.Momentum) {
@@ -147,9 +134,7 @@ func TestPreferenceModesDescend(t *testing.T) {
 			model, reference, pair := dpoFixture(t)
 			before := preferenceLoss(t, model, reference, pair, policy)
 			observations, _, err := model.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, model), 0.9, policy, nil, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			after := preferenceLoss(t, model, reference, pair, policy)
 			if len(observations) != 1 || observations[0].Loss != before || !(after < before) {
 				t.Fatalf("observed %+v, %s loss before=%g after=%g", observations, policy.Mode, before, after)
@@ -165,17 +150,13 @@ func preferenceLoss(t *testing.T, model, reference *Model, pair trainingdata.Pre
 	t.Helper()
 	score := func(scorer *Model, sequence trainingdata.PreferenceSequence) sequencescore.Score {
 		result, err := scorer.SequenceLogProb(sequence)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	result, err := policy.Loss(trainingprogram.PreferenceScores{
 		PolicyChosen: score(model, pair.Chosen), PolicyRejected: score(model, pair.Rejected),
 		ReferenceChosen: score(reference, pair.Chosen), ReferenceRejected: score(reference, pair.Rejected),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return result.Loss
 }

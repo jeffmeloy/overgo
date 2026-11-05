@@ -1,6 +1,10 @@
 package inference
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestJSONChatOutputStreamDeltas(t *testing.T) {
 	stream := NewChatOutputStream(
@@ -60,9 +64,7 @@ func assertChatStreamDeltas(
 	var got []ChatToolCallDelta
 	for _, piece := range pieces {
 		deltas, err := stream.Accept(piece)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		got = append(got, deltas...)
 	}
 	if len(got) != len(want) {
@@ -74,9 +76,7 @@ func assertChatStreamDeltas(
 		}
 	}
 	message, err := stream.Finish()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Name != "weather" {
 		t.Fatalf("message = %#v", message)
 	}

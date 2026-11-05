@@ -1,14 +1,16 @@
 package repoanalysis
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestRepositoryStateParsesDirtyStatus(t *testing.T) {
 	t.Parallel()
 	raw := []byte(" M docs/a file.md\x00R  new.go\x00old.go\x00?? new.txt\x00")
 	paths, err := ParseDirtyStatus(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(paths) != 3 {
 		t.Fatalf("dirty paths = %+v", paths)
 	}

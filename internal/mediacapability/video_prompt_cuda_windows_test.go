@@ -20,6 +20,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -35,30 +36,20 @@ func TestVideoPromptActivation(t *testing.T) {
 	cudatest.Require(t)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec := latentvideo.WanTextConditioningSpec(wan, 1)
 	if _, err := os.Stat(spec.EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
 	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-prompt-activation")
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, wan)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -75,16 +66,12 @@ func TestVideoPromptActivation(t *testing.T) {
 			Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
 			Seed:   31, Frames: 5, Width: 32, Height: 16, Steps: 2, Format: format,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		mediaType := map[latentvideo.ClipFormat]string{"": media.GIFMediaType, "mp4": media.MP4MediaType}[format]
 		var first artifact.Content
 		for run := 1; run <= 2; run++ {
 			output, err := capability.Execute(t.Context(), store, wan, execution, string(raw))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 			if !ok {
 				t.Fatalf("video output type=%T", output)
@@ -92,15 +79,11 @@ func TestVideoPromptActivation(t *testing.T) {
 			frames := 0
 			if format == "" {
 				animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				frames = len(animation.Image)
 			} else {
 				shape, err := media.DecodeMP4Shape(video.Data)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				frames = shape.Frames
 			}
 			wantRun := 0

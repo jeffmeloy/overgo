@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/densecausal"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -40,9 +41,7 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 		weights[headName], shapes[headName] = head, slices.Clone(shapes[embeddingName])
 	}
 	m, err := densecausal.NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, densecausal.MoERouterPolicy{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return m
 }
 
@@ -51,9 +50,7 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 func derivedTestLearningRate(t *testing.T, model *densecausal.Model) float64 {
 	t.Helper()
 	plan, err := model.TrainingPlan()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(plan.ParameterCount())
 }
 
@@ -83,9 +80,7 @@ func readQwen2Golden(t *testing.T) *qwen2Golden {
 		t.Skipf("UNAVAILABLE: %s absent; training parity NOT verified", path)
 	}
 	var g qwen2Golden
-	if err := json.Unmarshal(raw, &g); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &g))
 	if g.Schema != "qwen2_train_golden/v1" {
 		t.Fatalf("golden schema %q, want qwen2_train_golden/v1", g.Schema)
 	}
@@ -105,9 +100,7 @@ func modelFromGolden(t *testing.T, g *qwen2Golden) *densecausal.Model {
 		shapes[name] = p.Shape
 	}
 	m, err := densecausal.NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, densecausal.MoERouterPolicy{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !m.Dims.AttnBias {
 		t.Fatal("qwen2 golden must derive AttnBias=true")
 	}

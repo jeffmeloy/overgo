@@ -7,6 +7,7 @@ import (
 	"overgo/internal/checkpointtest"
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -16,13 +17,9 @@ import (
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	model := tinyModel()
 	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	trainer, err := NewTrainer(model, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	if _, err := trainer.Step(TrainingPair{Source: []int{3, 4}, DecoderInput: []int{1, 5}, Targets: []int{5, 1}}); err != nil {
 		t.Fatal(err)

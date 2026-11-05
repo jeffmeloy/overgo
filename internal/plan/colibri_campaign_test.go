@@ -3,6 +3,8 @@ package plan
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // The Colibri lane has its own queue. Master obligations are retained only
@@ -10,9 +12,7 @@ import (
 // without claiming completion; first-parent-target merges preserve this queue.
 func assertColibriCampaign(t *testing.T, document Plan) {
 	t.Helper()
-	if err := Validate(document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, Validate(document))
 	// A lane's plan may still hold its doctrine as one string; either form is searched.
 	var doctrine strings.Builder
 	doctrine.WriteString(document.DoctrineBefore)

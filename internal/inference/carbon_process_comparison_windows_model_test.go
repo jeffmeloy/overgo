@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
@@ -40,14 +41,10 @@ var carbonProcessLineMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE[^\r\n]*`)
 func TestCarbonColdLifecyclePhases(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	storePath := filepath.Join(t.TempDir(), "repodb")
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	if err := servingtest.PublishActiveGGUFWithPolicy(
 		context.Background(), store, modelPath, recipe.PlacementHybrid,
@@ -55,9 +52,7 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	t.Setenv("OVERGO_CARBON_REPODB", storePath)
 	probe, err := os.ReadFile(carbonReferenceProbe)
 	if err != nil {
@@ -65,9 +60,7 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 			carbonReferenceCommit, err)
 	}
 	adaptiveGo := testprocess.PinnedTree(t, filepath.Dir(roots.Models), carbonReferenceCommit, "go")
-	if err := os.WriteFile(filepath.Join(adaptiveGo, "cmd", "adaptive-gpt-server", filepath.Base(carbonReferenceProbe)), probe, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(adaptiveGo, "cmd", "adaptive-gpt-server", filepath.Base(carbonReferenceProbe)), probe, 0o644))
 	// Adaptive serves Carbon from the checkpoint the GGUF is converted from,
 	// through the active recipe its catalog holds: its own seeder writes that
 	// catalog for the models directory into a fresh store, and the reference
@@ -161,9 +154,7 @@ func carbonCandidatePhaseMedians(t testing.TB, results []testprocess.Result) (ti
 		}
 		for field, target := range []*time.Duration{&resolveWalls[index], &openWalls[index], &generationWalls[index]} {
 			value, err := strconv.ParseUint(string(match[field+1]), 10, 64)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			*target = time.Duration(value)
 		}
 	}
@@ -185,17 +176,11 @@ func carbonProbeMedians(t testing.TB, results []testprocess.Result) (time.Durati
 			t.Fatalf("Carbon process marker is malformed: %s", result.Output)
 		}
 		wall, err := strconv.ParseUint(string(match[1]), 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		warm, err := strconv.ParseUint(string(match[2]), 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		peak, err := strconv.ParseUint(string(match[3]), 10, 64)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		walls[index], warms[index], peaks[index] = time.Duration(wall), time.Duration(warm), peak
 	}
 	slices.Sort(walls)

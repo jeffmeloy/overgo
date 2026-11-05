@@ -14,6 +14,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestMOSSConditioningAttentionGolden(t *testing.T) {
@@ -28,9 +29,7 @@ func testConditioningAttentionGolden(t *testing.T, file, digest string, count in
 	cudatest.Require(t)
 	mossFixtureBytes(t, file, digest)
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	policies := map[string]struct {
 		Scale  float32
@@ -70,13 +69,9 @@ func testConditioningAttentionGolden(t *testing.T, file, digest string, count in
 				t.Fatal(b.Err())
 			}
 			got, err := run([]*tensor.Tensor{out}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			again, err := run([]*tensor.Tensor{out}, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			want := refinementValues(t, s, name+".output")
 			if len(got[out].Data) != len(want) {
 				t.Fatal("output length")

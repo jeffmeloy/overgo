@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -23,24 +24,18 @@ func TestWebUIBrowserWaitDeadline(t *testing.T) {
 		testskip.NotApplicable(t, "waits on a real page run through cmd/webui-lane")
 	}
 	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ctx := t.Context()
 	const shown = "a page that is alive and shows this"
 	browser, err := Open(ctx, path, `data:text/html,<body><div id="panels">`+shown+`</div></body>`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	declared := browser.socket.budget
 	if declared <= 0 {
 		t.Fatalf("the browser a leg opened waits %s for its page: the lane declared it no budget", declared)
 	}
 	// A wait that holds reports what the page shows as it begins, so the next wait's failure has it.
-	if err := browser.Eventually(ctx, "true"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, "true"))
 	const brief = time.Millisecond
 	browser.socket.budget = brief
 	err = browser.Eventually(ctx, "false")

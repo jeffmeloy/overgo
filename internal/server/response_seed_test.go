@@ -9,6 +9,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ import (
 func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "seed-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "seed-model")
@@ -37,9 +36,7 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
 	}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
 	if next := handler.nextID.Add(1); next <= 7 {
 		t.Fatalf("next identifier = %d, want the counter seeded past the durable resp_7", next)
@@ -53,20 +50,14 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 func TestResponsesRefuseNonDurablePublication(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer handler.Close()
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	response := serveTestRequest(handler, http.MethodPost, "/v1/responses",
 		`{"input":"durability probe","max_output_tokens":1}`)
 	if response.Code != http.StatusInternalServerError ||

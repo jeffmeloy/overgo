@@ -3,6 +3,8 @@ package webuilane
 import (
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCensusClassifiesWithoutRegex holds the census to reading what the
@@ -38,9 +40,7 @@ func TestCensusClassifiesWithoutRegex(t *testing.T) {
 		"}",
 	}, "\n")
 	document, err := ParseDesign(stylesheet)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Schemes[0].Colours["ink"] != "#eeeeee" || document.Schemes[1].Colours["ink"] != "#111111" ||
 		document.Spacing["s1"] != "4px" || document.Type["t-h"] != "18px" || document.Radius["radius-s"] != "4px" {
 		t.Fatalf("design tokens misread: %+v", document)

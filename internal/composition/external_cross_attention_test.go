@@ -3,6 +3,7 @@ package composition_test
 import (
 	"overgo/internal/composition"
 	"overgo/internal/composition/compositiontest"
+	"overgo/internal/testcheck"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -23,19 +24,13 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 		Adapter: authority.Recipe.BridgeWeights, Layers: []uint32{layer},
 		SourceChannels: sourceChannels, HeadCount: headCount, SourceTokenLimit: sourceTokenLimit,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority.Recipe.ExternalCrossAttention = external.ID
 	authority.Recipe, err = composition.NewCompositionRecipe(authority.Recipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority.ExternalCrossAttention = &external
 	batch, err := authority.Batch("fixture/composition/external-cross-attention")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -55,27 +50,21 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 			KeyLength: uint32(keyChannels), ValueLength: uint32(keyChannels),
 		},
 	}, model.Weights{}, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
 	); err == nil {
 		t.Fatal("external cross-attention compiled before recipe activation")
 	}
 	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/external-activate", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, activation); err != nil {
 		t.Fatal(err)
 	}
 	compiled, err := composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if compiled.CompositionRecipe != authority.Recipe.ID || compiled.Definition != external.ID ||
 		compiled.Adapter != authority.Recipe.BridgeWeights || compiled.CacheIdentity.Kind() != artifact.KindProfile ||
 		compiled.TargetChannels != targetChannels || compiled.HeadChannels != keyChannels ||

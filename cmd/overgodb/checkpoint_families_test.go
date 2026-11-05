@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestCheckpointFamiliesPrintsTheCensusAndWritesNothing runs the subcommand
@@ -28,14 +29,10 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 	commit := func(key, body string, snapshot bool) {
 		t.Helper()
 		store, err := overgodb.Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: "test/counted/v1"}
 		content, err := contract.ContentBytes([]byte(body))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, artifact.Batch{Key: key, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -44,9 +41,7 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, store.Close())
 	}
 	run := func() (string, error) {
 		t.Helper()
@@ -79,9 +74,7 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 	commit("counted/third", `{"n":3}`, false)
 	before := files()
 	output, err := run()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if after := files(); after != before {
 		t.Fatalf("the census changed the store's files:\n%s\nwere\n%s", after, before)
 	}

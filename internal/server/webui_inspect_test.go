@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestFrontPageInspect pins inspecting a turn (professional GUI campaign,
@@ -23,18 +25,14 @@ func TestFrontPageInspect(t *testing.T) {
 		t.Fatalf("response status = %d body=%s", first.Code, first.Body.String())
 	}
 	var stored responsesResponse
-	if err := json.Unmarshal(first.Body.Bytes(), &stored); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(first.Body.Bytes(), &stored))
 
 	inspected := serveTestRequest(handler, http.MethodGet, "/interactions/inspect?response="+stored.ID, "")
 	if inspected.Code != http.StatusOK {
 		t.Fatalf("inspect status = %d body=%s", inspected.Code, inspected.Body.String())
 	}
 	var record turnInspection
-	if err := json.Unmarshal(inspected.Body.Bytes(), &record); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(inspected.Body.Bytes(), &record))
 	if record.Status != turnStatusIncomplete || record.IncompleteDetails == nil || record.IncompleteDetails.Reason != "max_output_tokens" || !slices.Equal(record.Statuses, turnStatuses) || record.Prompt != "hello there world" ||
 		record.Completion == "" || !record.Model.Valid() || !record.Trace.Valid() || !record.Receipt.Valid() {
 		t.Fatalf("inspection = %+v", record)
@@ -56,9 +54,7 @@ func TestFrontPageInspect(t *testing.T) {
 
 	messages := serveTestRequest(handler, http.MethodGet, "/interactions/messages?response="+stored.ID, "")
 	var chain conversationMessagesResponse
-	if err := json.Unmarshal(messages.Body.Bytes(), &chain); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(messages.Body.Bytes(), &chain))
 	if len(chain.Messages) != 2 || chain.Messages[1].Role != "assistant" || chain.Messages[1].Response != stored.ID {
 		t.Fatalf("chain = %+v", chain.Messages)
 	}

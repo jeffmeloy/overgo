@@ -5,6 +5,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 )
@@ -12,13 +13,9 @@ import (
 func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	parse := func(s string) artifact.ID {
 		id, e := artifact.ParseID(s)
@@ -30,9 +27,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	// The conversion's activation is retired since the 4B is served from its own files
 	// (RetireSupersededActivation); its retained evidence binds to the recipe it was activated under.
 	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if model, found := activated.PrimaryDependency(recipe.DependencyModel); !found || model != parse("model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b") {
 		t.Fatal("the recipe is not the conversion's")
 	}
@@ -41,9 +36,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 		t.Fatal("definition missing")
 	}
 	value, err := RequireEvaluationEvidence(t.Context(), store, parse("evidence:sha256:c8cb148849f1c3d030094d7d1ed44c89529f4a910ca3a8ee69a6f8236341a43d"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if value.Recipe != activated.ID || value.ModelDefinition != definition {
 		t.Fatal("activation identity differs")
 	}
@@ -54,9 +47,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	var execution ExecutionPolicy
 	readRetainedEvidence(t, store, body.Execution, &execution)
 	compiled, err := CompileMultipleChoice(suite)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bound, err := BindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution})
 	if err != nil || bound.Identity() != value.Plan {
 		t.Fatalf("binding differs: %v", err)
@@ -70,9 +61,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	if len(suite.Cases) != 12032 || len(stored.Categories) != 14 || execution.Prompting != PromptingChatTemplate {
 		t.Fatal("denominator or prompting differs")
 	}
-	if err := checkRetainedGeneratedChoices(suite.Cases, stored.GroupedChoiceReport, 5617); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkRetainedGeneratedChoices(suite.Cases, stored.GroupedChoiceReport, 5617))
 	corrupt := stored.GroupedChoiceReport
 	corrupt.Observations = corrupt.Observations[1:]
 	if checkRetainedGeneratedChoices(suite.Cases, corrupt, 5617) == nil {

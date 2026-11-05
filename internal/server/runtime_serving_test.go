@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // Each flushed frame parks until the test releases it. Publication while parked
@@ -77,9 +78,7 @@ func (probe *runtimeServingProbe) next(t *testing.T, want string, target any) {
 			t.Fatalf("wanted %s, got %q", want, frame)
 		}
 		if target != nil {
-			if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(rest, "data: "))), target); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(rest, "data: "))), target))
 		}
 	case <-probe.done:
 		t.Fatalf("stream closed before %s", want)
@@ -102,9 +101,7 @@ func (probe *runtimeServingProbe) release(t *testing.T) {
 func servingStreamFixture(t *testing.T, limit int) (*Handler, *overgodb.Store) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	generator := responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"visible answer"}})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -199,13 +196,9 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 			t.Fatalf("reconnected live event = %+v", next)
 		}
 		reconnected.stop()
-		if err := handler.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, handler.Close())
 		restarted, err := New(handler.config, handler.generator)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = restarted.Close() })
 		afterRestart := openRuntimeServingProbe(t, restarted)
 		restored := servingStreamInitial(t, afterRestart)

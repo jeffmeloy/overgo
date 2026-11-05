@@ -13,6 +13,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "served-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served-recipe")
@@ -47,13 +46,9 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 		t.Helper()
 		attempt.Model, attempt.Recipe, attempt.Environment, attempt.Task = model, cmp.Or(attempt.Recipe, recipeID), environment, recipe.TaskImageGen
 		observation, err := runrecord.NewServingObservation(attempt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("serving/" + label)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -68,21 +63,15 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	observe("never", runrecord.ServingObservation{Recipe: never, Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})
 	gate, err := runrecord.NewGateRecord(recipeID, environment, "0123456789abcdef0123456789abcdef01234567", runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "interrupts", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := gate.Batch("validation/interrupts")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(gate.Result.ID, interrupt.ID)...)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.failures != 1 {
 		t.Fatalf("serving summary = %+v, want the two attempts of the user, not the validation run's, nor the failure a success with no commit ended", summary)
@@ -136,9 +125,7 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "measured-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "measured-environment")
@@ -163,13 +150,9 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 			value.Phases = append(value.Phases, runrecord.PhaseMetric{Phase: runrecord.PhaseLoad, DurationNS: loadMS * millisecond})
 		}
 		observation, err := runrecord.NewServingObservation(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("measured/" + label)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -192,18 +175,12 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 	resumed := attempt("between-fast", between, 3, 4000, 100, 1000, 80, peak)
 
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stale := evaluation.BenchmarkSummary{FirstTokenMS: 250, DecodeTokensPerSecond: 4, LoadMS: 12000, PeakDeviceBytes: 2 * peak}
 	comparison := testutil.ArtifactID(t, artifact.KindProfile, "benchmark-execution")
 	staleData, err := json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment, "comparison": comparison})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(staleData, &stale); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(staleData, &stale))
 	summary := summaries[measuredRecipe]
 	for name, cell := range map[string]Cell{
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, summary), "throughput": throughputCell(recipe.TaskInference, stale, true, summary),
@@ -258,9 +235,7 @@ func TestPeakMemoryReadsASampledZero(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const wall, resident, peak = 2_000_000, 1 << 20, 3 << 20
 	attempts := map[string][]runrecord.ServingHardwareSample{
@@ -288,22 +263,16 @@ func TestPeakMemoryReadsASampledZero(t *testing.T) {
 			Model: model, Recipe: recipes[name], Environment: environment, Task: recipe.TaskForecast,
 			Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: wall, Hardware: hardware,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch, err := observation.Batch("sampled/" + name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 		observed[name] = observation.ID
 	}
 	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var none evaluation.BenchmarkSummary
 	host := summaries[recipes["host"]]
 	want := Cell{Unit: "bytes", Label: "0 bytes: runs on the host", Source: observed["host"], Environment: host.environment,

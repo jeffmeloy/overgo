@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // querySurfaceDigest reduces the complete public query surface to one
@@ -25,9 +26,7 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 	}
 	for page := 0; ; page++ {
 		result, err := store.Query(ctx, query)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		out.WriteString(fmt.Sprintf("page/%d/matched=%d/truncated=%v\n", page, result.Matched, result.Truncated))
 		for _, descriptor := range result.Artifacts {
 			out.WriteString(fmt.Sprintf("artifact/%s/%d/%s\n", descriptor.ID, descriptor.Size, descriptor.MediaType))
@@ -48,32 +47,24 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 	}
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found {
 			t.Fatalf("alias %d: %v", ordinal, err)
 		}
 		out.WriteString(fmt.Sprintf("resolve/%s/%s\n", aliasName(ordinal), target))
 		parents, err := store.Parents(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, edge := range parents {
 			out.WriteString(fmt.Sprintf("parent/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation))
 		}
 		children, err := store.Children(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, edge := range children {
 			out.WriteString(fmt.Sprintf("child/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation))
 		}
 		locations, err := store.Locations(ctx, id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, location := range locations {
 			out.WriteString(fmt.Sprintf("location/%s/%s\n", location.Kind, location.Value))
 		}
@@ -100,9 +91,7 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 	copyScaleCorpus(t, root)
 
 	checkpointed, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer checkpointed.Close()
 	if !checkpointed.SnapshotReplay().Loaded {
 		t.Fatal("checkpoint anchor unavailable")
@@ -114,9 +103,7 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(coldRoot, blobDirectory))
 	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(coldRoot, segmentDirectory))
 	cold, err := OpenReadOnly(coldRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cold.Close()
 	if cold.SnapshotReplay().Loaded {
 		t.Fatal("cold path unexpectedly used an anchor")
@@ -130,9 +117,7 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 	// must serialize to exactly the checkpoint the anchored open holds.
 	for _, registered := range projections(&checkpointed.state) {
 		expected, err := registered.view.checkpoint()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		independent := newCatalogState()
 		target := projections(&independent)[indexOfProjection(t, registered.name)]
 		if target.name != registered.name {
@@ -157,9 +142,7 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 		}
 		_ = log.Close()
 		rebuilt, err := target.view.checkpoint()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if string(rebuilt) != string(expected) {
 			t.Fatalf("projection %s rebuilt independently differs from the anchored state", registered.name)
 		}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 // parseMeter is a reasoning generator that notes how many bytes the process
@@ -56,9 +57,7 @@ func newThinkingHandler(t testing.TB, generator Generator) *Handler {
 		ModelID: testModelID, MaxTokens: 2048,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 	}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return handler
 }
 
@@ -148,9 +147,7 @@ func TestStreamedThinkingStopsAndFlushesAsABufferedTurnDoes(t *testing.T) {
 				}
 				if !stream {
 					var result anthropicResponse
-					if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &result))
 					sequence := ""
 					if result.StopSequence != nil {
 						sequence = *result.StopSequence

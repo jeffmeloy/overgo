@@ -15,6 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -77,9 +78,7 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	// Serial: both arms share the one card and the resident model.
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	model, draft := roots.ResolveModelPath(flashNextModel), filepath.Join(roots.References(), flashNextDraft)
 	for _, path := range []string{model, draft} {
 		if _, err := os.Stat(path); err != nil {
@@ -87,9 +86,7 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 		}
 	}
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "flash-next"), RuntimeRecipe: planID(t, artifact.KindRecipe, "flash-next"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "device"),
@@ -101,9 +98,7 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	}
 	suite := suites[0]
 	runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{Draft: draft})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -116,16 +111,12 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	answer := func(runtime *speculationRuntime) float64 {
 		t.Helper()
 		answers, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer answers.Close()
 		publishPlanFixtureAuthorities(t, answers, suite.plan)
 		started := time.Now()
 		result, err := suite.execute(t.Context(), answers, runtime)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		metrics := map[string]float64{}
 		for _, metric := range result.Metrics {
 			metrics[metric.Name] = metric.Value

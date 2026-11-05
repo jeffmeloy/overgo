@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -125,9 +126,7 @@ func TestProtocolPromptCacheReuse(t *testing.T) {
 		handler := newTestHandler(t, inspected)
 		selected := &fakeGenerator{}
 		sessions, err := capabilityruntime.NewResidentModelSessionDirector[Generator]("inference", "compiled", 1, selected)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		handler.sessions = sessions
 		response := serveTestRequest(handler, http.MethodPost, "/v1/chat/completions", `{"messages":[{"role":"user","content":"hi"}],"max_tokens":1}`)
 		if response.Code != http.StatusOK || selected.cachePrompt {

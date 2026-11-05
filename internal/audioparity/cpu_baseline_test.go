@@ -22,6 +22,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,30 +39,20 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	baselineCommand(t, root, "go", "run", "./cmd/recipe", "register", "-repo", storeRoot,
 		"-root", filepath.Join(dataRoot, "models"), "-spec", declarationPath)
 	store, err := overgodb.Create(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	commitBatch := func(batch artifact.Batch, err error) {
 		t.Helper()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 			t.Fatal(err)
 		}
 	}
 	declarationBytes, err := os.ReadFile(declarationPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := verifyRegisteredAudioModels(t.Context(), store, dataRoot, declarationBytes); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, verifyRegisteredAudioModels(t.Context(), store, dataRoot, declarationBytes))
 	electionBytes, err := os.ReadFile("testdata/granite_speech_5_election.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	election, err := NormalizeElection(electionBytes)
 	if err != nil || len(election.Observations) == 0 {
 		t.Fatalf("pinned election: %v", err)
@@ -75,36 +66,24 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		"../dataset/testdata/audio_inspection_policy.json": &policy,
 	} {
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(data, destination); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, json.Unmarshal(data, destination))
 	}
 	architecture, _, err := graniteRecipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: int(architecture.Preprocessor.StackFactor),
 		DeltaRadius: int(architecture.Preprocessor.DeltaWinLength-1) / 2, FinalFrameSamples: 1}
 	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: encoder, BlankToken: int(architecture.Config.PadTokenID), Language: "en"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitBatch(profile.Batch("baseline/profile/" + profile.ID.String()))
 	commitBatch(contract.Batch("baseline/contract/" + contract.ID.String()))
 	var registered []struct {
 		Model     artifact.ID `json:"model"`
 		Inventory artifact.ID `json:"tensor_inventory"`
 	}
-	if err := json.Unmarshal(declarationBytes, &registered); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(declarationBytes, &registered))
 	var inventory artifact.ID
 	for _, entry := range registered {
 		if entry.Model == election.Model.ID {
@@ -121,9 +100,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		}
 	}
 	definition, err := modelrecipe.TranscriptionDefinition(election.Model.ID, contract.ID, profile.ID, tokenizer, inventory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "baseline/recipe/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
@@ -135,9 +112,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	batch := artifact.Batch{Key: "baseline/source/" + election.Dataset.Artifact.String(),
 		Artifacts: []artifact.Descriptor{{ID: election.Dataset.Artifact, Size: election.Dataset.Bytes, MediaType: election.Dataset.MediaType}}}
 	location, err := artifact.CanonicalLocalLocation(election.Dataset.Artifact, artifact.LocationFile, corpusPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch.Locations = []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}
 	if prior, found, err := store.Artifact(t.Context(), election.Dataset.Artifact); err != nil {
 		t.Fatal(err)
@@ -148,9 +123,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	// Fixed integration workspace, not an observed process peak or runtime default.
 	const memoryBytes = 4 << 30
 	source, err := dataset.NewAudioPayloadReader(memoryBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "overgo/asr-cpu-baseline/v1",
 		Source:  "Pinned validation rows from the CPU oracle election plus synthetic negative controls; no held-out or full-corpus claim",
@@ -160,9 +133,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	add := func(name, group, path, target string, origin dataset.AudioPayloadOrigin, encoded []byte, samples, rate uint64, silent bool) {
 		t.Helper()
 		inspection, err := dataset.InspectAudio(t.Context(), store, encoded, origin, policy)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		suite.Cases = append(suite.Cases, evaluation.TranscriptionCase{Name: name, Group: group, Source: inspection.Signal.Source,
 			Reference: target, SampleCount: samples, SampleRate: rate, SilentControl: silent})
 		inputs = append(inputs, map[string]any{"name": name, "path": path, "origin": origin, "policy": policy})
@@ -170,9 +141,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	for index, observation := range election.Observations {
 		origin := dataset.AudioPayloadOrigin{Container: election.Dataset.Artifact, Column: "audio.bytes", Row: new(uint64(index))}
 		encoded, err := source.Read(t.Context(), dataset.AudioPayloadReference{Path: corpusPath, Audio: observation.Audio, Origin: origin}, policy.MaximumEncodedBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		add(observation.Fixture, "librispeech-validation", corpusPath, observation.Expected, origin, encoded, observation.Samples, uint64(observation.SampleRate), false)
 	}
 	for _, name := range []string{"silence", "clipped", "wrong-rate"} {
@@ -198,26 +167,18 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		}
 		encoded := testutil.MonoPCM16WAV(uint32(rate), samples)
 		id, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path := filepath.Join(fixtureRoot, name+".wav")
-		if err := os.WriteFile(path, encoded, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		commitBatch(artifact.Batch{Key: "baseline/control/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(encoded))}},
 			Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, nil)
 		add(name, "negative-controls", path, target, dataset.AudioPayloadOrigin{Container: id}, encoded, uint64(len(samples)), rate, name == "silence")
 	}
 	sourceIdentity := audioSources(t, root).Identity()
 	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commitBatch(environment.Batch("baseline/environment/" + environment.ID.String()))
 	commit := strings.TrimSpace(baselineCommand(t, root, "git", "rev-parse", "HEAD"))
 	suitePath := filepath.Join(fixtureRoot, "suite.json")
@@ -231,16 +192,10 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			"code_commit": commit, "environment": environment.ID, "memory_bytes": memoryBytes, "options": options, "inputs": inputs},
 	} {
 		encoded, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, encoded, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	output := baselineCommand(t, root, "go", "run", "./cmd/evaluate", "-repo", storeRoot, "-transcription-resource-manifest", manifestPath)
 	var reportID artifact.ID
 	for field := range strings.FieldsSeq(output) {
@@ -251,18 +206,12 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		}
 	}
 	store, err = overgodb.OpenReadOnly(storeRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	content, err := artifact.RequireTypedContent(t.Context(), store, reportID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report evaluation.TranscriptionResourceReport
-	if err := json.Unmarshal(content.Data, &report); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(content.Data, &report))
 	if report.Model != election.Model.ID || report.Dataset != suite.Dataset || report.Split != suite.Split ||
 		report.Options != options || report.Summary.Runs != uint64(options.TimedRuns)*uint64(len(suite.Cases)) ||
 		len(report.Executions) != int(options.WarmupRuns+options.TimedRuns)*len(suite.Cases) ||
@@ -301,21 +250,15 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			}
 		}
 		observation, err := runrecord.RequireObservationChunkSummary(t.Context(), store, measured.Observation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, known := observation.Aggregate.Measure(runrecord.ResourcePeakHostBytes); known || observation.Aggregate.Interactions != nil {
 			t.Fatal("unmeasured resources became available")
 		}
 	}
 	qualityContent, err := artifact.RequireTypedContent(t.Context(), store, report.Quality)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var quality evaluation.TranscriptionReport
-	if err := json.Unmarshal(qualityContent.Data, &quality); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(qualityContent.Data, &quality))
 	for _, group := range quality.Groups {
 		t.Logf("group=%s utterances=%d WER=%.6f CER=%.6f admission_failures=%d inference_failures=%d", group.Name, group.Utterances, group.WordErrorRate, group.CharacterErrorRate, group.AdmissionFailures, group.InferenceFailures)
 	}

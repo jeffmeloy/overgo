@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func tinyMuonModel(t *testing.T) *Model {
 	}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
 	m, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, MoERouterPolicy{}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return m
 }
 
@@ -54,9 +53,7 @@ func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			rows, cols, err := tensorGeometry(test.shape, test.length)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if rows != test.rows || cols != test.cols {
 				t.Fatalf("geometry = %dx%d, want %dx%d", rows, cols, test.rows, test.cols)
 			}
@@ -82,9 +79,7 @@ func TestMuonTrainingDecreasesLossTiny(t *testing.T) {
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	const steps = 20
 	trajectory, _, err := m.Train(slices.Repeat([][]int{tokens}, steps), derivedTestLearningRate(t, m), 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(trajectory) != steps {
 		t.Fatalf("trajectory length %d, want %d", len(trajectory), steps)
 	}
@@ -94,9 +89,7 @@ func TestMuonTrainingDecreasesLossTiny(t *testing.T) {
 		}
 	}
 	after, _, err := m.Loss(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("loss %.6f -> %.6f over %d Muon steps", trajectory[0], after, steps)
 	if !(after < trajectory[0]) {
 		t.Fatalf("Muon training did not reduce loss: before %.6f after %.6f", trajectory[0], after)
@@ -115,9 +108,7 @@ func TestTrainBatchesResumeMatchesUninterrupted(t *testing.T) {
 	}
 	resumed := tinyMuonModel(t)
 	_, state, err := resumed.Train(batches[:2], derivedTestLearningRate(t, resumed), 0.9, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := resumed.Train(batches[2:], derivedTestLearningRate(t, resumed), 0.9, &state, nil); err != nil {
 		t.Fatal(err)
 	}

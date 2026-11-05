@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -25,9 +26,7 @@ func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {
 		Mask: tokenizer.NullToken,
 	}}}
 	vocabulary, err := runner.SamplingInfillVocabulary()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(vocabulary.Pieces, []string{"a", "", ""}) {
 		t.Fatalf("infill pieces = %q", vocabulary.Pieces)
 	}

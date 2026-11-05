@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func TestMoERouterObservationIdentityCoverageAndValidation(t *testing.T) {
 		Margins: []MoERouterMargin{{Observed: true, Value: 0.2}, {Observed: true}},
 	}
 	observation, err := NewMoERouterObservation(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := moeRouterObservationCodec.Content(observation)
 	if err != nil || content.Descriptor.ID != observation.ID {
 		t.Fatalf("observation content = (%s, %v)", content.Descriptor.ID, err)

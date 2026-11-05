@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -22,9 +23,7 @@ func TestWebUIBrowserConversationActions(t *testing.T) {
 		[]runrecord.InteractionMessage{{Role: "user", Content: "前after", Media: []runrecord.InteractionMedia{{Type: "image", Data: "https://example.invalid/image.png", TextOffset: len("前")}}}, {Role: "user", Content: "Second input"}, {Role: "assistant", Content: "Media fixture answer"}}, runrecord.OutcomeSucceeded); err != nil {
 		t.Fatal(err)
 	}
-	if err := seed.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, seed.Close())
 	generator := &responseControlGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Branched answer"}}), starts: make(chan context.Context), release: make(chan error), prefix: "Branch prefix "}
 	handler := newTestHandlerForRepository(t, seed.repository, generator)
 	server := httptest.NewServer(handler)
@@ -53,9 +52,7 @@ func TestWebUIBrowserConversationActions(t *testing.T) {
 			t.Fatal("branch execution did not release")
 		}
 	}
-	if err := browser.SetViewport(ctx, 390, 844); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.SetViewport(ctx, 390, 844))
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(async () => {
   window.actionButton=text=>[...document.querySelectorAll('#panel-chat button,#conversation-settings button')].find(node=>node.textContent===text);

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -26,9 +27,7 @@ func TestWebUIBrowserFrontSurfaces(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the front surfaces leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Front answer"}}))
 	server := httptest.NewServer(handler)
@@ -86,9 +85,7 @@ func TestWebUIBrowserFrontSurfaces(t *testing.T) {
 
 	// An image past the served dimension limit is refused where it was attached.
 	var wide bytes.Buffer
-	if err := png.Encode(&wide, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, png.Encode(&wide, image.NewRGBA(image.Rect(0, 0, 2, 2))))
 	check(`(() => {
   window.frontDimension = overgo.capabilities().media.max_image_dimension;
   overgo.capabilities().media.max_image_dimension = 1;

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 )
 
 // TestLineageRestoresFromItsCompactBody holds lineage's checkpoint to its compact body: a facet of several children,
@@ -33,13 +34,9 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 		facet.add(relationKey{child: ids[edge[0]], parent: ids[edge[1]], relation: artifact.Relation(edge[2])})
 	}
 	payload, err := facet.checkpoint()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var body lineageCheckpointBody
-	if err := json.Unmarshal(payload, &body); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(payload, &body))
 	if len(body.IDs) != 5 || len(body.Relations) != 2 || len(body.Edges) != lineageEdgeIndexes*facet.edges {
 		t.Fatalf("the body holds %d identities, %d relations and %d indexes for %d edges", len(body.IDs), len(body.Relations), len(body.Edges), facet.edges)
 	}
@@ -48,9 +45,7 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 		return left.edges == right.edges && equal(left.parents, right.parents) && equal(left.children, right.children)
 	}
 	var restored lineageFacet
-	if err := restored.restore(payload); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, restored.restore(payload))
 	if !same(restored, facet) {
 		t.Fatal("the compact body restores other lists than the facet's")
 	}
@@ -65,19 +60,13 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 	state := newCatalogState()
 	state.lineage = facet
 	root := t.TempDir()
-	if err := writeProjectionCheckpoints(root, &state, 1, artifact.CommitID{}, storeHeaderBytes, hex.EncodeToString(make([]byte, sha256.Size))); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writeProjectionCheckpoints(root, &state, 1, artifact.CommitID{}, storeHeaderBytes, hex.EncodeToString(make([]byte, sha256.Size))))
 	member := filepath.Join(root, checkpointDirectory, checkpointGeneration(1), "lineage"+checkpointExtension)
 	document, err := os.ReadFile(member)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	line, _, _ := bytes.Cut(document, []byte{'\n'})
 	var header checkpointHeader
-	if err := strictjson.DecodeBytes(line, &header); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes(line, &header))
 	var edges []artifact.Lineage
 	for _, child := range slices.SortedFunc(maps.Keys(facet.parents), artifact.CompareID) {
 		for _, key := range facet.parents[child] {
@@ -85,18 +74,12 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 		}
 	}
 	earlier, err := json.Marshal(edges)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	digest := sha256.Sum256(earlier)
 	header.Version, header.PayloadDigest = initialProjectionVersion, hex.EncodeToString(digest[:])
 	line, err = json.Marshal(header)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(member, append(append(line, '\n'), earlier...), storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(member, append(append(line, '\n'), earlier...), storeFileMode))
 	loaded, _, ok, reason := loadProjectionCheckpoints(root)
 	if !ok {
 		t.Fatalf("a set holding lineage's version-1 body is refused: %s", reason)

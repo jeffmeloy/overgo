@@ -15,6 +15,7 @@ import (
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -31,13 +32,9 @@ func torchStateDict(t *testing.T, value string) []byte {
 		if err == nil {
 			_, err = writer.Write([]byte(entry[1]))
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
-	if err := archive.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, archive.Close())
 	return encoded.Bytes()
 }
 
@@ -45,13 +42,9 @@ func torchStateDict(t *testing.T, value string) []byte {
 func oneWeight(t *testing.T, value float32) []byte {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "model.safetensors")
-	if err := safetensors.Save(path, map[string][]float32{"weight": {value}}, map[string][]int{"weight": {1}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(path, map[string][]float32{"weight": {value}}, map[string][]int{"weight": {1}}, nil))
 	encoded, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return encoded
 }
 
@@ -76,18 +69,12 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	models, err := pathidentity.Canonical(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	write := func(data []byte, parts ...string) string {
 		t.Helper()
 		path := filepath.Join(append([]string{models}, parts...)...)
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 		return path
 	}
 	write([]byte("a checkpoint only looked for"), "collection", filepath.FromSlash(pairCheckpoint))
@@ -98,9 +85,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	sourceConfig := write([]byte(`{"source":"config"}`), "other-encoder", "config.json")
 	sourceProcessor := write([]byte(`{"source":"processor"}`), "other-encoder", "preprocessor_config.json")
 	pairDirectory := filepath.Join(models, "pair")
-	if err := rae.SaveEncoderBridge(pairDirectory, rae.EncoderBridge{Weight: []float32{1, 0, 2, 0, -1, 0.5}, Bias: []float32{10, 20}}, "other-encoder", "collection"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rae.SaveEncoderBridge(pairDirectory, rae.EncoderBridge{Weight: []float32{1, 0, 2, 0, -1, 0.5}, Bias: []float32{10, 20}}, "other-encoder", "collection"))
 	resolved, held, err := rae.ResolveBridgedPair(pairDirectory)
 	if err != nil || !held {
 		t.Fatalf("the saved pair did not resolve (%t, %v)", held, err)
@@ -110,17 +95,13 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	component := func(role artifact.ComponentRole, ordinal uint32, name, path string) artifact.Component {
 		t.Helper()
 		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		kind := artifact.KindFile
 		if role == artifact.ComponentWeights {
 			kind = artifact.KindTensorSet
 		}
 		id, err := artifact.IdentifyBytes(kind, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return artifact.Component{Role: role, Ordinal: ordinal, Name: name, Artifact: id}
 	}
 	served := func(directory string) artifact.ID {
@@ -145,9 +126,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// move of the layout that renamed or reordered one would shift the served
 	// and the trained model together, so this holds the served one in place.
 	source, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), pairDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []artifact.Component{
 		component(artifact.ComponentWeights, 0, "bridge", bridge),
 		component(artifact.ComponentWeights, 1, "decoder", decoder),
@@ -195,20 +174,14 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 		{"own encoder's image processor", ownProcessor, []byte(`{"own":"other processor"}`)},
 	} {
 		original, err := os.ReadFile(part.path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(part.path, part.changed, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(part.path, part.changed, 0o600))
 		servedAs, trainedAs := served(pairDirectory), trained(bridge)
 		if servedAs != trainedAs || seen[trainedAs] {
 			t.Errorf("with another %s of the same shape the pair is served as %s and trains as %s, want one model not seen before", part.name, servedAs, trainedAs)
 		}
 		seen[servedAs], seen[trainedAs] = true, true
-		if err := os.WriteFile(part.path, original, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(part.path, original, 0o600))
 	}
 
 	// What neither reads leaves the model as it was: the collection's DiT
@@ -224,12 +197,8 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 
 	// The same bytes under another root are the same model.
 	copied, err := pathidentity.Canonical(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.CopyFS(copied, os.DirFS(models)); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.CopyFS(copied, os.DirFS(models)))
 	if servedAs, trainedAs := served(filepath.Join(copied, "pair")), trained(filepath.Join(copied, "pair", filepath.Base(bridge))); servedAs != first || trainedAs != first {
 		t.Errorf("copied under another root the pair is served as %s and trains as %s, want %s", servedAs, trainedAs, first)
 	}
@@ -240,15 +209,11 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// first under a key of its own.
 	for _, registered := range []bool{false, true} {
 		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		if registered {
 			registration, err := source.Inventory.Batch("registered/" + first.String())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := artifact.CommitBatch(ctx, store, registration); err != nil {
 				t.Fatal(err)
 			}
@@ -260,16 +225,12 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 			}
 		}
 		definition, err := recipe.RequireDefinition(ctx, store, recipes[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if definition.Model != first || recipes[1] != recipes[0] {
 			t.Errorf("served first: %t: the run's recipe %s names model %s and a second run got recipe %s, want one recipe for model %s", registered, recipes[0], definition.Model, recipes[1], first)
 		}
 		locations, err := store.Locations(ctx, first)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if own := (artifact.Location{Artifact: first, Kind: artifact.LocationDirectory, Value: pairDirectory}); !slices.Contains(locations, own) {
 			t.Errorf("served first: %t: the store records no directory %s for the model the run trained: %+v", registered, pairDirectory, locations)
 		}
@@ -278,9 +239,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// The collection's own pair is still served by its five files, the own
 	// encoder's three among them.
 	collection, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), filepath.Join(models, "collection"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	own := filepath.Join(models, pairOwnEncoder)
 	if want := []artifact.Component{
 		component(artifact.ComponentWeights, 0, "decoder", decoder),
@@ -303,9 +262,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 
 	// A pair with a file gone is no model to train: the run would otherwise
 	// record a model it could not have loaded.
-	if err := os.Remove(sourceConfig); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(sourceConfig))
 	if id, err := trainingworkflow.WeightsIdentity(bridge); err == nil {
 		t.Errorf("a pair whose source encoder has no configuration was identified as %s", id)
 	}

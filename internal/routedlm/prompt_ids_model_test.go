@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/hfbpe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -39,9 +40,7 @@ func TestSenseNovaPromptIDsMatchUpstream(t *testing.T) {
 			Conditional []int  `json:"conditional_ids"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(raw, &fixture); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
 	if len(fixture.Cases) == 0 || len(fixture.Unconditional) == 0 {
 		t.Fatalf("the fixture holds %d prompts and %d unconditional ids", len(fixture.Cases), len(fixture.Unconditional))
 	}
@@ -53,9 +52,7 @@ func TestSenseNovaPromptIDsMatchUpstream(t *testing.T) {
 	rendered := func(prompt string, role PromptRole) []int {
 		t.Helper()
 		query, err := RenderEditPrompt(tokenizer, prompt, role, template, PromptSource{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids := make([]int, len(query.IDs))
 		for index, id := range query.IDs {
 			ids[index] = int(id)

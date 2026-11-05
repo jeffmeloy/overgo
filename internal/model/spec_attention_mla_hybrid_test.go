@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 
 	"math"
 
@@ -24,9 +25,7 @@ func TestReadQwenSpec(t *testing.T) {
 		metadata("qwen.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.FeedForwardLength != 12 || spec.HeadCountKV != 2 || spec.RopeDimensionCount != 4 {
 		t.Fatalf("unexpected Qwen spec: %+v", spec)
 	}
@@ -45,9 +44,7 @@ func TestReadChatGLMSpec(t *testing.T) {
 		metadata("chatglm.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.RopeDimensionCount != 4 || !usesNormalRoPE(spec.Architecture) || !usesFusedGateUp(spec.Architecture) {
 		t.Fatalf("unexpected ChatGLM spec: %+v", spec)
 	}
@@ -69,9 +66,7 @@ func TestReadCogVLMSpecUsesFusedNormalRoPEDecoder(t *testing.T) {
 		metadata("cogvlm.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "cogvlm" || spec.RopeDimensionCount != 4 ||
 		!usesNormalRoPE(spec.Architecture) {
 		t.Fatalf("unexpected CogVLM spec: %+v", spec)
@@ -92,9 +87,7 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 		metadata("hunyuan-dense.rope.scaling.alpha", gguf.ValueTypeFloat32, float32(2)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.RopeDimensionCount != 4 || spec.RopeFrequencyBase != 40000 {
 		t.Fatalf("unexpected Hunyuan-Dense spec: %+v", spec)
 	}
@@ -104,9 +97,7 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 			Data: []int32{1, 1, 0, 0}},
 	})
 	spec, err = ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.RopeSections != [4]int32{1, 1, 0, 0} {
 		t.Fatalf("Hunyuan-Dense MRoPE sections = %v", spec.RopeSections)
 	}
@@ -132,9 +123,7 @@ func TestReadHunyuanMoESpecDefaultsSharedWidthToModel(t *testing.T) {
 		metadata("hunyuan-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 || !spec.ExpertWeightsNorm {
 		t.Fatalf("unexpected Hunyuan-MoE spec: %+v", spec)
 	}
@@ -164,9 +153,7 @@ func TestReadHunyuanVLSpecUsesOptionalMRoPEAndXDRoPE(t *testing.T) {
 		}},
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "hunyuan_vl" || spec.RopeDimensionCount != 4 ||
 		spec.RopeFrequencyBase != 40000 || spec.RopeSections != [4]int32{1, 1, 0, 0} ||
 		!usesNormalRoPE(spec.Architecture) {
@@ -196,9 +183,7 @@ func TestReadAFMoESpec(t *testing.T) {
 		metadata("afmoe.attention.sliding_window", gguf.ValueTypeUint32, uint32(64)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "afmoe" || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		spec.SharedExpertCount != 2 || spec.SharedExpertFF != 12 ||
 		!spec.ExpertWeightsNorm || spec.NoRopeLayerStep != 4 ||
@@ -221,9 +206,7 @@ func TestReadChameleonSandwichSpec(t *testing.T) {
 		metadata("chameleon.swin_norm", gguf.ValueTypeBool, true),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "chameleon" || !spec.SandwichNorm ||
 		spec.QKNormEpsilon != 1e-5 || spec.KeyLength != 4 {
 		t.Fatalf("unexpected Chameleon spec: %+v", spec)
@@ -249,9 +232,7 @@ func TestReadLFM2HybridSpec(t *testing.T) {
 		metadata("lfm2.shortconv.l_cache", gguf.ValueTypeUint32, uint32(4)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "lfm2" || spec.HeadCountKV != 1 ||
 		spec.ShortConvCacheLength != 4 || !spec.IsRecurrentLayer(0) ||
 		spec.IsRecurrentLayer(1) || !spec.IsRecurrentLayer(2) {
@@ -285,9 +266,7 @@ func TestReadLFM2MoEHybridSpec(t *testing.T) {
 		metadata("lfm2moe.attention.sliding_window", gguf.ValueTypeUint32, uint32(128)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "lfm2moe" || spec.HeadCountKV != 1 ||
 		spec.ShortConvCacheLength != 4 || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
@@ -315,9 +294,7 @@ func TestReadPLMMLASpec(t *testing.T) {
 		metadata("plm.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "plm" || spec.KVLoRARank != 3 || spec.RopeDimensionCount != 2 {
 		t.Fatalf("unexpected PLM spec: %+v", spec)
 	}
@@ -339,9 +316,7 @@ func TestReadMiniCPM3Spec(t *testing.T) {
 		metadata("minicpm3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defaults := spec.Profile().MetadataDefaults
 	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
 		spec.RopeDimensionCount != 2 || spec.RopeFrequencyBase != 10000 ||
@@ -382,9 +357,7 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 		metadata("deepseek2.expert_shared_count", gguf.ValueTypeUint32, uint32(1)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
 		spec.RopeDimensionCount != 2 || spec.RopeScalingType != "yarn" ||
 		spec.RopeYaRNLogMultiplier != 1 || spec.LeadingDenseBlocks != 1 ||
@@ -398,9 +371,7 @@ func TestReadDeepSeek2Spec(t *testing.T) {
 	profile := spec.Profile()
 	profile.Experts.Routing = expertRouteSigmoid
 	sigmoid, err := ReadSpecWithProfile(file, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sigmoid.ExpertGatingFunc != expertGatingSigmoid {
 		t.Fatalf("profile-selected expert gating = %d", sigmoid.ExpertGatingFunc)
 	}
@@ -441,9 +412,7 @@ func TestReadGLMDSASpec(t *testing.T) {
 		{Key: prefix + "attention.indexer.types", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{1, 1, 1, 0, 0, 0}}},
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "glm-dsa" || spec.BlockCount != 6 || spec.NextNPredictLayers != 1 ||
 		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 ||
 		spec.IndexerTopK != 4 || spec.ExpertGatingFunc != expertGatingSigmoid || spec.RopeScalingType != "yarn" ||
@@ -496,9 +465,7 @@ func TestReadDeepSeek32Spec(t *testing.T) {
 		metadata(prefix+"attention.indexer.top_k", gguf.ValueTypeUint32, uint32(4)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "deepseek32" || spec.BlockCount != 62 || spec.NextNPredictLayers != 1 ||
 		spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 8 || spec.IndexerTopK != 4 ||
 		spec.ExpertGatingFunc != expertGatingSigmoid || spec.LayerNormEpsilon != 1e-6 ||
@@ -552,9 +519,7 @@ func TestReadDeepSeek4Spec(t *testing.T) {
 		{Key: prefix + "attention.compress_ratios", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: ratios}},
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "deepseek4" || spec.BlockCount != 43 || spec.QLoRARank != 3 ||
 		len(spec.CompressRatios) != 43 || spec.CompressRatios[1] != 4 || spec.CompressRatios[2] != 128 || spec.HyperConnectionCount != 4 ||
 		spec.AttentionOutputGroups != 1 || spec.AttentionOutputRank != 3 || spec.HashLayerCount != 1 ||
@@ -591,9 +556,7 @@ func TestReadMistral4Spec(t *testing.T) {
 		metadata(prefix+"attention.temperature_length", gguf.ValueTypeUint32, uint32(8192)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "mistral4" || spec.QLoRARank != 3 || spec.KVLoRARank != 3 ||
 		spec.KeyLength != 6 || spec.ValueLength != 4 || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 || spec.SharedExpertFF != 6 ||
@@ -628,9 +591,7 @@ func TestReadDenseDeepSeek2LiteSpec(t *testing.T) {
 	}
 	profile.Validation.QLoRARankOptional = true
 	spec, err := ReadSpecWithProfile(file, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.QLoRARank != 0 || spec.ExpertCount != 0 || spec.ExpertUsedCount != 0 ||
 		spec.LeadingDenseBlocks != spec.BlockCount || spec.HeadCountKV != 1 {
 		t.Fatalf("unexpected dense DeepSeek2 spec: %+v", spec)
@@ -652,9 +613,7 @@ func TestReadQwen2Spec(t *testing.T) {
 		metadata("qwen2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "qwen2" || spec.BlockCount != 28 || spec.KeyLength != 128 {
 		t.Fatalf("unexpected Qwen 2 spec: %+v", spec)
 	}
@@ -675,9 +634,7 @@ func TestReadGPT2AndStarCoderLearnedPositionSpecs(t *testing.T) {
 				metadata(prefix+"vocab_size", gguf.ValueTypeUint32, uint32(32)),
 			}}
 			spec, err := ReadSpec(file)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if spec.Architecture != architecture || spec.HeadCountKV != 4 ||
 				spec.KeyLength != 4 || !spec.RopeDisabled || spec.UsesRoPE(0) ||
 				!spec.UsesLayerNorm() {
@@ -699,9 +656,7 @@ func TestReadBloomALiBiSpec(t *testing.T) {
 		metadata("bloom.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !spec.RopeDisabled || spec.MaxALiBiBias != 8 || spec.HeadCountKV != 4 ||
 		!spec.UsesLayerNorm() {
 		t.Fatalf("unexpected Bloom spec: %+v", spec)
@@ -745,9 +700,7 @@ func TestReadMPTAndRefactALiBiSpecs(t *testing.T) {
 				))
 			}
 			spec, err := ReadSpec(&gguf.File{Metadata: metadataItems})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !spec.RopeDisabled || spec.MaxALiBiBias != 8 ||
 				spec.HeadCountKV != 2 || spec.UsesLayerNorm() != test.layerNorm {
 				t.Fatalf("unexpected %s spec: %+v", test.architecture, spec)
@@ -774,9 +727,7 @@ func TestReadRefactMoESpec(t *testing.T) {
 		metadata("refact.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.ExpertCount != 8 || spec.ExpertUsedCount != 2 ||
 		spec.ExpertFeedForward != 64 || !spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1 {
 		t.Fatalf("unexpected Refact MoE spec: %+v", spec)
@@ -803,9 +754,7 @@ func TestReadInternLM2EXAONEAndXVERSESpecs(t *testing.T) {
 				),
 			}}
 			spec, err := ReadSpec(file)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if spec.Architecture != architecture ||
 				spec.KeyLength != 32 ||
 				spec.ValueLength != 32 {
@@ -830,9 +779,7 @@ func TestReadOLMo2SlidingSpec(t *testing.T) {
 		metadata("olmo2.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "olmo2" ||
 		spec.SlidingWindow != 1024 ||
 		spec.SlidingPattern != 4 ||
@@ -863,9 +810,7 @@ func TestReadCohere2Spec(t *testing.T) {
 		metadata("cohere2.logit_scale", gguf.ValueTypeFloat32, float32(0.125)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "cohere2" ||
 		spec.VocabularySize != 256000 ||
 		spec.RopeDimensionCount != 32 ||
@@ -903,9 +848,7 @@ func TestReadCohere2ArraySlidingSpec(t *testing.T) {
 		},
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(spec.SlidingLayers) != 4 || spec.NoRopeLayerStep != 0 ||
 		!spec.IsSlidingLayer(0) || spec.IsSlidingLayer(1) ||
 		!spec.IsSlidingLayer(2) || spec.IsSlidingLayer(3) ||
@@ -946,9 +889,7 @@ func TestReadCohere2MoESpec(t *testing.T) {
 		},
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "cohere2moe" || spec.BlockCount != 4 || spec.RMSNormEpsilon != 1e-5 ||
 		spec.NextNPredictLayers != 1 ||
 		spec.UsesWeightOnlyLayerNorm() || spec.LeadingDenseBlocks != 1 ||
@@ -981,9 +922,7 @@ func TestReadHYV3SpecPreservesNextNCount(t *testing.T) {
 		metadata("hy_v3.expert_weights_scale", gguf.ValueTypeFloat32, float32(1.25)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "hy_v3" || spec.BlockCount != 4 || spec.NextNPredictLayers != 1 || spec.RMSNormEpsilon != 1e-5 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 6 || spec.ExpertGatingFunc != expertGatingSigmoid ||
 		!spec.ExpertWeightsNorm || spec.ExpertWeightsScale != 1.25 ||
@@ -1010,9 +949,7 @@ func TestReadDeepSeek2OCRSpec(t *testing.T) {
 		metadata("deepseek2-ocr.expert_shared_count", gguf.ValueTypeUint32, uint32(2)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "deepseek2-ocr" || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 ||
 		spec.ExpertGatingFunc != expertGatingSoftmax || spec.RopeDimensionCount != 4 ||
@@ -1040,9 +977,7 @@ func TestReadCommandRSpec(t *testing.T) {
 		metadata("command-r.logit_scale", gguf.ValueTypeFloat32, float32(0.0625)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "command-r" || spec.KeyLength != 128 ||
 		!spec.UsesWeightOnlyLayerNorm() || !spec.UsesRoPE(39) ||
 		spec.OutputLogitMultiplier() != 0.0625 {
@@ -1063,9 +998,7 @@ func TestReadPLaMoSpec(t *testing.T) {
 		metadata("plamo.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "plamo" || spec.KeyLength != 128 ||
 		!usesParallelResidual(spec.Architecture) {
 		t.Fatalf("unexpected PLaMo spec: %+v", spec)
@@ -1096,9 +1029,7 @@ func TestReadPLaMo3Spec(t *testing.T) {
 		metadata("plamo3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.LayerHeadCount(0) != 2 || spec.LayerHeadCount(1) != 4 ||
 		spec.LayerKVHeadCount(0) != 1 || spec.LayerKVHeadCount(1) != 2 ||
 		spec.LayerFeedForwardLength(0) != 12 || spec.LayerFeedForwardLength(1) != 16 ||
@@ -1121,9 +1052,7 @@ func TestReadJaisSpec(t *testing.T) {
 		metadata("jais.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "jais" || spec.HeadCountKV != 2 || spec.KeyLength != 4 ||
 		spec.AttentionScale != 0.25 || spec.MaxALiBiBias != 8 || spec.UsesRoPE(0) ||
 		!spec.UsesLayerNorm() || !spec.RequiresLayerNormBias() {
@@ -1145,9 +1074,7 @@ func TestReadStableLMSpec(t *testing.T) {
 		metadata("stablelm.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "stablelm" || spec.KeyLength != 128 ||
 		spec.RopeDimensionCount != 32 || !spec.UsesLayerNorm() {
 		t.Fatalf("unexpected StableLM spec: %+v", spec)
@@ -1168,9 +1095,7 @@ func TestReadPhi2Spec(t *testing.T) {
 		metadata("phi2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "phi2" || spec.KeyLength != 80 ||
 		spec.RopeDimensionCount != 32 || !spec.UsesLayerNorm() ||
 		!usesParallelResidual(spec.Architecture) {
@@ -1191,9 +1116,7 @@ func TestReadGPTJSpec(t *testing.T) {
 		metadata("gptj.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "gptj" || spec.HeadCountKV != 16 || spec.KeyLength != 256 ||
 		spec.RopeDimensionCount != 64 || spec.RopeFrequencyBase != 10000 ||
 		!spec.UsesLayerNorm() || !spec.RequiresLayerNormBias() ||
@@ -1241,9 +1164,7 @@ func TestReadPhi3LongRoPESpec(t *testing.T) {
 		metadata("phi3.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "phi3" || spec.KeyLength != 96 ||
 		spec.RopeScalingType != "longrope" || spec.OriginalContextLength != 4096 ||
 		spec.RopeAttentionFactor != 1.19 || spec.RMSNormEpsilon != 1e-5 {
@@ -1276,9 +1197,7 @@ func TestReadApertusSpecWithLayerXIELU(t *testing.T) {
 		metadata("apertus.xielu.eps", gguf.ValueTypeFloat32, float32(-1e-6)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "apertus" || spec.RopeDimensionCount != 4 ||
 		spec.OriginalContextLength != 8192 || spec.RopeAttentionFactor != 1.2 ||
 		len(spec.XIELUAlphaN) != 2 || spec.XIELUAlphaN[1] != 0.8 ||
@@ -1301,9 +1220,7 @@ func TestReadGPTNeoXSpec(t *testing.T) {
 		metadata("gptneox.use_parallel_residual", gguf.ValueTypeBool, true),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "gptneox" || spec.HeadCountKV != 16 ||
 		spec.KeyLength != 64 || spec.RopeDimensionCount != 16 ||
 		spec.RopeFrequencyBase != 10000 || !spec.ParallelResidual ||
@@ -1326,9 +1243,7 @@ func TestReadTextGLM4Spec(t *testing.T) {
 		metadata("glm4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "glm4" || spec.KeyLength != 128 ||
 		spec.RopeDimensionCount != 64 || !usesNormalRoPE(spec.Architecture) ||
 		!hasPostNorm(spec.Architecture) || !usesFusedGateUp(spec.Architecture) {
@@ -1337,9 +1252,7 @@ func TestReadTextGLM4Spec(t *testing.T) {
 
 	file.Metadata = append(file.Metadata, metadata("glm4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
 	nextNSpec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if nextNSpec.BlockCount != 39 || nextNSpec.NextNPredictLayers != 1 {
 		t.Fatalf("GLM4 NextN tail was not preserved: %+v", nextNSpec)
 	}
@@ -1351,9 +1264,7 @@ func TestReadTextGLM4Spec(t *testing.T) {
 		},
 	}
 	spec, err = ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.RopeSections != [4]int32{16, 24, 24, 0} {
 		t.Fatalf("GLM4 MRoPE sections = %v", spec.RopeSections)
 	}
@@ -1372,9 +1283,7 @@ func TestReadEXAONE4Spec(t *testing.T) {
 		metadata("exaone4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 	}}
 	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if spec.Architecture != "exaone4" || spec.RopeDimensionCount != 4 ||
 		spec.SlidingWindow != 4096 || spec.SlidingPattern != 4 ||
 		spec.NoRopeLayerStep != 4 || !spec.IsSlidingLayer(0) ||
@@ -1385,9 +1294,7 @@ func TestReadEXAONE4Spec(t *testing.T) {
 	file.Metadata[1] = metadata("exaone4.block_count", gguf.ValueTypeUint32, uint32(65))
 	file.Metadata = append(file.Metadata, metadata("exaone4.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)))
 	nextNSpec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if nextNSpec.BlockCount != 64 || nextNSpec.NextNPredictLayers != 1 ||
 		nextNSpec.SlidingWindow != 4096 {
 		t.Fatalf("EXAONE 4 NextN tail was not preserved: %+v", nextNSpec)

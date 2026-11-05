@@ -7,20 +7,17 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 func TestDispositionSupersedesAnOpenFinding(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	original, batch, err := NewTextBatch("routing sizes are manifest sizes", SeverityHigh,
 		[]string{"internal/evaluation"}, []string{"cheapest chose the 12B"}, "price by component bytes", "grep size")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -28,9 +25,7 @@ func TestDispositionSupersedesAnOpenFinding(t *testing.T) {
 		t.Fatalf("fresh finding disposed = %v, %v", disposed, err)
 	}
 	closed, closeBatch, err := NewDispositionBatch(ctx, store, original, StatusClosed, "fixed in dc8a485c")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, closeBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -59,23 +54,17 @@ func TestDispositionSupersedesAnOpenFinding(t *testing.T) {
 
 func TestDeferredDispositionIsAcknowledgedDebt(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	original, batch, err := NewTextBatch("vision tower absent", SeverityMedium,
 		[]string{"internal/modelrecipe"}, []string{"no mmproj bytes"}, "owner downloads the projector", "recipe status vqa")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	deferred, deferBatch, err := NewDispositionBatch(ctx, store, original, StatusDeferred, "owner decision: projector download is out of the validation freeze")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, deferBatch); err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 // TestExternalProcessLifecycle proves the MP4 encoder rides the
@@ -17,34 +18,24 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	}
 	const height, width = 16, 16
 	encoder, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	frame := make([]float32, 3*height*width)
 	for index := range frame {
 		frame[index] = float32(index%17)/17*2 - 1
 	}
 	for ordinal := range 4 {
-		if err := encoder.Add(ordinal, frame, height, width); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, encoder.Add(ordinal, frame, height, width))
 	}
 	video, err := encoder.Finish()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(video.Data) == 0 || video.Frames != 4 {
 		t.Fatalf("encoded video = frames %d bytes %d", video.Frames, len(video.Data))
 	}
 
 	// FFmpeg starts at the first frame, so the abandoned encoder takes one.
 	abandoned, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := abandoned.Add(0, frame, height, width); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, abandoned.Add(0, frame, height, width))
 	if err := abandoned.Close(); err == nil {
 		// Termination reports through the receipt; Close may surface the
 		// kill as an error or absorb it -- either way the tree is reaped.

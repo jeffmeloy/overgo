@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 func TestReplayGUI(t *testing.T) {
@@ -22,9 +23,7 @@ func TestReplayGUI(t *testing.T) {
 		t.Fatalf("replay status=%d body=%s", response.Code, response.Body.String())
 	}
 	var replay interactionReplayResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &replay); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &replay))
 	if replay.ID.Kind() != artifact.KindEvidence || replay.Trace.Request.Kind() != artifact.KindEvidence ||
 		len(replay.Trace.Events) != 2 || replay.Trace.Events[1].Kind != runrecord.InteractionEventOutput {
 		t.Fatalf("replay response = %+v", replay)

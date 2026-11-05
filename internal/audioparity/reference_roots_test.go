@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gosource"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -36,9 +37,7 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 		{"-deps", "./cmd/evaluate", "./cmd/recipe"},
 	} {
 		selection, err := gosource.HostBuildSelection(root, patterns...)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for path, selected := range selection.Files {
 			if selected {
 				paths[path] = true
@@ -46,9 +45,7 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 		}
 	}
 	source, err := gosource.LoadGo(root, slices.Sorted(maps.Keys(paths)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return source
 }
 
@@ -60,9 +57,7 @@ func resolveReferenceRoots(t *testing.T) referenceRoots {
 	t.Helper()
 	testskip.StoreAcceptance(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), roots.AudioReference)
 	return referenceRoots{store: store, datasets: roots.Datasets, models: filepath.Join(filepath.Dir(store), "models")}
 }
@@ -78,19 +73,13 @@ func retainedAudioFile(t *testing.T, digest string, size uint64) string {
 	t.Helper()
 	testskip.StoreAcceptance(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id := alignmentFileID(t, digest)
 	path, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verifyASRFile(t, path, id, size)
 	return path
 }

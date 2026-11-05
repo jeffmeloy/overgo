@@ -7,22 +7,19 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first := commitDeltaContent(t, "first")
 	firstCommit, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/commit-delta/first", Contents: []artifact.Content{first},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	record := commitDeltaContent(t, "review record")
 	expected := firstCommit
 	request := artifact.Batch{
@@ -31,19 +28,13 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 		Aliases:  []artifact.AliasBinding{{Name: "fixture/review", Target: record.Descriptor.ID}},
 	}
 	_, requestDigest, err := encodeBatch(request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit, err := store.Commit(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for ordinal := range 32 {
 		payload := []byte{byte(ordinal)}
 		id, err := artifact.IdentifyBytes(artifact.KindFile, payload)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(t.Context(), artifact.Batch{
 			Key:       fmt.Sprintf("fixture/commit-delta/unrelated/%d", ordinal),
 			Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(payload))}},
@@ -73,17 +64,11 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 		}
 	}
 	assert("active")
-	if err := store.sealActiveSegment(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.sealActiveSegment(t.Context()))
 	assert("sealed")
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	assert("reopened sealed")
 }
@@ -94,9 +79,7 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 
 	root := t.TempDir()
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var coordinate commitCoordinate
 	for ordinal := range unrelatedCommitPopulation {
 		unrelated := commitDeltaContent(t, fmt.Sprintf("unrelated before reviewed commit %d", ordinal))
@@ -116,25 +99,17 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	journal, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_RDWR, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := journal.WriteAt([]byte{0xff}, coordinate.offset+frameHeaderBytes); err != nil {
 		t.Fatal(err)
 	}
-	if err := journal.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, journal.Close())
 
 	targetSequence := uint64(unrelatedCommitPopulation + 1)
 	view, found, err := store.CommitDeltaAt(t.Context(), targetSequence)
@@ -152,9 +127,7 @@ func commitDeltaContent(t *testing.T, value string) artifact.Content {
 	t.Helper()
 	payload := []byte(value)
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return artifact.Content{
 		Descriptor: artifact.Descriptor{
 			ID: id, Size: uint64(len(payload)), MediaType: "text/plain", Schema: "fixture/commit-delta/v1",

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -33,9 +34,7 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	store, err := overgodb.Create(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	configured := func(config *Config) { config.OvergoDBPath = directory }
 	serveRunner := func(runner *inference.Runner, configure ...func(*Config)) *Handler {
@@ -77,9 +76,7 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	const save, restore = "/slots/0?action=save", "/slots/0?action=restore"
 	objectFile := func(id string) string {
 		parsed, err := artifact.ParseID(id)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return filepath.Join(directory, objectstore.Directory, parsed.Kind().String(), parsed.DigestHex())
 	}
 
@@ -97,9 +94,7 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 		t.Fatalf("the same state under a second name = %v, want %s", copied, stateID)
 	}
 	parsedState, err := artifact.ParseID(stateID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parents, err := store.Parents(t.Context(), parsedState)
 	if err != nil || len(parents) != 2 {
 		t.Fatalf("saved state lineage = %v err=%v, want the model and the recipe", parents, err)
@@ -179,13 +174,9 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	// The same model under another recipe finds the state and refuses it, since the recipe binds its numeric path.
 	path := testutil.HermeticLlamaGGUFWith(t, 64, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, joinedMessagesTemplate))
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	otherRecipe, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer otherRecipe.Close()
 	if otherRecipe.ModelID() != firstRunner.ModelID() {
 		t.Fatalf("the other recipe serves model %s, not %s", otherRecipe.ModelID(), firstRunner.ModelID())

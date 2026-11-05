@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -33,9 +34,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		},
 	}
 	scratch, err := CompileScratchConstruction(scratchSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scratch.ID().Kind() != artifact.KindRecipe || scratch.InitializedModel() != scratchSpec.InitializedModel {
 		t.Fatalf("scratch construction identity/model = %s / %s", scratch.ID(), scratch.InitializedModel())
 	}
@@ -44,9 +43,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2},
 		{Name: "bias", Start: 4, End: 6, Rows: 2, Cols: 1, Frozen: true},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	programSpec := ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
@@ -63,9 +60,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		Optimizer: muon,
 	}
 	program, err := CompileTrainingProgram(programSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if program.ID().Kind() != artifact.KindRecipe || program.Objective() != ObjectiveTokenPrediction || program.OptimizerIdentity() != muon.Identity() {
 		t.Fatalf("program identity/objective/Muon = %s / %s / %s", program.ID(), program.Objective(), program.OptimizerIdentity())
 	}
@@ -91,9 +86,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		Program: program,
 	}
 	plan, err := CompileTrainingRunPlan(runSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.ID().Kind() != artifact.KindRecipe || plan.InitialMode() != InitialScratch ||
 		plan.Model() != scratchSpec.InitializedModel || plan.Dataset() != scratchSpec.Dataset ||
 		plan.Program().ID() != program.ID() {
@@ -154,9 +147,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 
 func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
@@ -168,9 +159,7 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 		Parameters: []ParameterSpec{{Name: "scalar", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  plan,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	type state struct{ order []string }
 	binding := func(id string) Binding[state] {
 		return Binding[state]{Operator: id, Execute: func(value *state) error {
@@ -179,17 +168,11 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 		}}
 	}
 	execution, err := Bind(program, []Binding[state]{binding("optimize"), binding("evaluate"), binding("backward"), binding("forward")})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	execution, err = execution.Select(PhaseForward, PhaseBackward, PhaseOptimize)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	value := state{}
-	if err := execution.Run(&value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, execution.Run(&value))
 	want := []string{"forward", "backward", "optimize"}
 	if !slices.Equal(value.order, want) {
 		t.Fatalf("bound order = %v, want %v", value.order, want)

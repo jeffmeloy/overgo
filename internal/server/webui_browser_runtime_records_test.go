@@ -14,6 +14,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -50,9 +51,7 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 		Model: model, Recipe: recipeID, Environment: environment, Operation: operationID, Task: recipe.TaskInference,
 		Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
 		Model: model, Recipe: recipeID, Environment: environment, Operation: operationID, Task: recipe.TaskInference,
 		Previous: local.ID, Attempt: local.Attempt + 1, Compatibility: compatibility,
@@ -81,9 +80,7 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 			}
 			return operation.Completion{Run: runID}, nil
 		})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if status, err := handler.operations.Wait(ctx, blocked); err != nil || status.State != operation.StateBlocked {
 		t.Fatalf("fixture operation = %+v, %v", status, err)
 	}
@@ -91,13 +88,9 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {

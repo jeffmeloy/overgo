@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -68,16 +69,12 @@ func TestMOSSDenoiserWallIsAccountedFor(t *testing.T) {
 		After    mossDenoiserReading `json:"after"`
 		Scope    string              `json:"scope"`
 	}
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mossDenoiserWallRecordPath), &record); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mossDenoiserWallRecordPath), &record))
 	if _, err := gitauthority.Query(t.Context(), root, "cat-file", "-e", record.BaseCommit+"^{commit}"); err != nil {
 		t.Fatalf("commit %s: %v", record.BaseCommit, err)
 	}
 	var resources mossResourceRecord
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mossResourceRecordPath), &resources); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mossResourceRecordPath), &resources))
 	native, upstream := resources.Native.Requests[0], resources.Upstream.Requests[0]
 	request := record.Request
 	if request.Label != native.Label || request.Prompt != native.Prompt || request.Height != native.Height ||
@@ -89,9 +86,7 @@ func TestMOSSDenoiserWallIsAccountedFor(t *testing.T) {
 			record.Before.IntegrateSeconds, record.Upstream, native.Phases["integrate"], upstream.Phases["transformer"])
 	}
 	var parity mossParityRecord
-	if err := jsonfile.DecodeStrict(filepath.Join(root, mossParityRecordPath), &parity); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mossParityRecordPath), &parity))
 	pictured := false
 	for _, compared := range parity.Cases {
 		if compared.Prompt == request.Prompt && compared.Negative == "" && compared.Height == request.Height &&

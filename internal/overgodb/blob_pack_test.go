@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestPackIndexRejectsImpossibleCounts holds the pack reader to its file: a
@@ -56,9 +57,7 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := store.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
@@ -88,9 +87,7 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	}
 	loose := func(content artifact.Content) bool {
 		path, err := store.blobs.path(content.Descriptor.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, statErr := os.Stat(path)
 		return statErr == nil
 	}
@@ -115,14 +112,10 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	if _, err := store.Backup(t.Context(), backup); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, store.Close())
 	for _, location := range []string{root, backup} {
 		reopened, err := OpenReadOnly(location)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer reopened.Close()
 		reads(reopened)
 		if location == backup {
@@ -131,13 +124,9 @@ func TestSmallBlobsArePacked(t *testing.T) {
 			}
 			pack := filepath.Join(backup, blobDirectory, blobPackFilename)
 			document, err := os.ReadFile(pack)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			document[len(document)-1] ^= 0xFF
-			if err := os.WriteFile(pack, document, storeFileMode); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(pack, document, storeFileMode))
 			if _, err := reopened.VerifyBlobs(t.Context()); err == nil || errors.Is(err, context.Canceled) {
 				t.Fatalf("a changed byte in a packed payload answered %v, want the mismatch", err)
 			}
@@ -148,24 +137,16 @@ func TestSmallBlobsArePacked(t *testing.T) {
 				t.Fatalf("a cancelled loose blob's verification answered %v", err)
 			}
 		}
-		if err := reopened.Close(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, reopened.Close())
 	}
 
 	pack := filepath.Join(root, blobDirectory, blobPackFilename)
 	document, err := os.ReadFile(pack)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	document[packHeaderBytes+packKeyBytes] ^= 0xFF
-	if err := os.WriteFile(pack, document, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(pack, document, storeFileMode))
 	damaged, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer damaged.Close()
 	if _, _, _, err := damaged.OpenContent(t.Context(), contents[0].Descriptor.ID); err == nil {
 		t.Fatal("a pack whose index does not match its digest still served a blob")
@@ -180,9 +161,7 @@ func TestSmallBlobsArePacked(t *testing.T) {
 func TestPackStreamsItsMembers(t *testing.T) {
 	// Serial: it measures the process's allocations, so no other test may allocate beside it.
 	store, err := Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	var contents []artifact.Content
 	var volume uint64
@@ -199,9 +178,7 @@ func TestPackStreamsItsMembers(t *testing.T) {
 		var before, after runtime.MemStats
 		runtime.GC()
 		runtime.ReadMemStats(&before)
-		if err := operation(); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, operation())
 		runtime.ReadMemStats(&after)
 		return after.TotalAlloc - before.TotalAlloc
 	}

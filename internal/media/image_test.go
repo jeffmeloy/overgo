@@ -1,13 +1,15 @@
 package media
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func TestEncodePlanarRGB8Into(t *testing.T) {
 	destination := make([]byte, RGBChannels)
 	err := EncodePlanarRGB8Into(destination, []float32{1, 2, 3}, 1, 1, func(value float32) uint8 { return uint8(value) })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if destination[0] != 1 || destination[1] != 2 || destination[2] != 3 {
 		t.Fatalf("RGB=%v", destination)
 	}

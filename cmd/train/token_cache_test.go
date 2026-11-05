@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // writeTinyEncoder writes directory as an encoder checkpoint of three files:
@@ -14,16 +15,10 @@ import (
 // name tokens are kept under reads its bytes.
 func writeTinyEncoder(t *testing.T, directory string, weight float32, config, processor string) string {
 	t.Helper()
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {weight}}, map[string][]int{"weight": {1}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o700))
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {weight}}, map[string][]int{"weight": {1}}, nil))
 	for name, content := range map[string]string{"config.json": config, "preprocessor_config.json": processor} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
 	return directory
 }
@@ -70,9 +65,7 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 		t.Errorf("the same encoder under another root keeps its tokens in %s, not in %s where it kept them before", same, own)
 	}
 	tokens := []float32{0.25, -1.5, 3}
-	if err := writeTokens(own, "picture.source", tokens); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, writeTokens(own, "picture.source", tokens))
 	if read, found := readTokens(same, "picture.source", len(tokens)); !found || !slices.Equal(read, tokens) {
 		t.Errorf("tokens kept as %v were read back as %v (found %t)", tokens, read, found)
 	}
@@ -82,13 +75,9 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 
 	for _, changed := range []string{"changed-producing-implementation", ""} {
 		directory, err := tokenCache(cache, changed, first)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if changed == "" {
-			if err := writeTokens(directory, filepath.Join(own, "picture.source"), []float32{9}); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, writeTokens(directory, filepath.Join(own, "picture.source"), []float32{9}))
 			if _, found := readTokens(directory, filepath.Join(own, "picture.source"), len(tokens)); found {
 				t.Error("unknown producer read persisted tokens")
 			}
@@ -118,9 +107,7 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 	// An encoder with no image processor is another encoder still; the loader
 	// is what refuses it.
 	bare := writeTinyEncoder(t, filepath.Join(root, "f", "enc"), 1, config, processor)
-	if err := os.Remove(filepath.Join(bare, "preprocessor_config.json")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(bare, "preprocessor_config.json")))
 	if directory := kept(bare); seen[directory] != "" {
 		t.Errorf("an encoder with no image processor keeps its tokens in %s, as %s does", directory, seen[directory])
 	}
@@ -138,9 +125,7 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 	// alone would have given it a directory.
 	for name, file := range map[string]string{"configuration": "config.json", "weights": "model.safetensors"} {
 		broken := writeTinyEncoder(t, filepath.Join(root, name, "enc"), 1, config, processor)
-		if err := os.Remove(filepath.Join(broken, file)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.Remove(filepath.Join(broken, file)))
 		if directory, err := tokenCache(cache, producer, broken); err == nil {
 			t.Errorf("an encoder with no %s was given the token directory %s", name, directory)
 		}

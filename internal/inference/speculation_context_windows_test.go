@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -21,9 +22,7 @@ func TestSpeculationStopsAtTheContextLimit(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompt := []tokenizer.TokenID{1, 4, 5}
 	flashNext := writeHermeticFlashNextGGUF(t)
 	for _, draft := range []struct {
@@ -36,9 +35,7 @@ func TestSpeculationStopsAtTheContextLimit(t *testing.T) {
 		{"mtp", flashNext, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, flashNext, true)}, int(flashNextContext)},
 	} {
 		runner, err := openFixtureRunnerWithResidency(draft.path, draft.options, recipe.ResidencyDeviceF32)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)

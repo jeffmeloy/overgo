@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // The thresholds of the shape reading.
@@ -1036,9 +1037,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	t.Parallel()
 	fixture := fixtureSnapshot(t, shapeFixture)
 	reading, err := readShapes(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{
 		"run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import",
 		"run call-and-test lines=18 places=2 cmd/alpha/main.go:8-16 main, cmd/beta/main.go:8-16 main",
@@ -1066,9 +1065,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	{
 		fixture := fixtureSnapshot(t, shapeFixture, caseFixture)
 		reading, err := readShapes(fixture)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		compile := []string{"internal/suites/suites.go Compile"}
 		planted := []consolidatedGroup{
 			{name: "planted cases", functions: compile, cases: []string{`"a"`, `"b"`}, calls: []string{"decode"}},
@@ -1083,13 +1080,9 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 		})
 	}
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reading, err = readShapes(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if reading.files == 0 {
 		t.Fatal("the shape reading read no production file of the repository, want the files of cmd and internal")
 	}
@@ -1125,9 +1118,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 		t.Log(family)
 	}
 	repeats, err := consolidatedRepeats(snapshot, reading, slices.Concat(consolidatedGroups, consolidatedSurfaceGroups))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(repeats) > 0 {
 		t.Errorf("a consolidated group repeats again, want its places served by the common component:\n%s", strings.Join(repeats, "\n"))
 	}

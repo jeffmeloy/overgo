@@ -7,6 +7,7 @@ import (
 	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +23,7 @@ func TestStageReceiptIdentity(t *testing.T) {
 		}}},
 	}
 	first, err := NewStageReceipt(fixture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := NewStageReceipt(fixture)
 	if err != nil || first.ID != second.ID {
 		t.Fatalf("stage receipt identity = (%s, %s, %v)", first.ID, second.ID, err)
@@ -46,9 +45,7 @@ func TestStageAdmittedCrashRecovers(t *testing.T) {
 		Attempt: 1, State: StageAdmitted,
 	}
 	previous, err := NewStageReceipt(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retry := base
 	retry.Attempt, retry.State = 2, StageAdmitted
 	if !stageTransition(previous, retry) {
@@ -72,17 +69,11 @@ func TestStageAdmittedCrashRecovers(t *testing.T) {
 func earlierStageReceipt(t *testing.T, store artifact.Repository, value StageReceipt) artifact.ID {
 	t.Helper()
 	receipt, err := NewStageReceipt(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	present, err := stageReceiptCodec.Content(receipt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	earlier, err := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: StageReceiptMediaType, Schema: stageReceiptEarlierSchema}.ContentBytes(present.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if earlier.Descriptor.ID != receipt.ID {
 		t.Fatalf("an earlier receipt of the same bytes is %s, the present one %s; a receipt's identity is its bytes'", earlier.Descriptor.ID, receipt.ID)
 	}
@@ -107,9 +98,7 @@ func earlierStageReceipt(t *testing.T, store artifact.Repository, value StageRec
 func TestStageReceiptOfTheEarlierFormIsRead(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "earlier-receipt-recipe")
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "earlier-receipt-operation")
@@ -137,9 +126,7 @@ func TestStageReceiptOfTheEarlierFormIsRead(t *testing.T) {
 		t.Fatalf("the stage's alias resolves %s (found %t, %v); want the next receipt %s", tip.ID, found, err, next.ID)
 	}
 	timeline, err := DeriveOperatorTimeline(ctx, store, operation, 8)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	walked := map[artifact.ID]bool{}
 	for _, event := range timeline {
 		walked[event.Artifact] = true

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestLocalEditSuiteChecksTheChangeAndTheRestApart holds the measure of what
@@ -62,32 +64,22 @@ func TestLocalEditSuiteChecksTheChangeAndTheRestApart(t *testing.T) {
 	} {
 		vid := fmt.Sprintf("clip%02d%s0001", index, sceneMarker)
 		rows = append(rows, captionRow{Vid: vid, Caption: caption})
-		if err := os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600))
 	}
 	// Another scene of the first clip's source video, which shows the same man
 	// in the same garage: no question may offer it.
 	sibling := "The same man in the garage closes the car door and wipes his hands."
 	rows = append(rows, captionRow{Vid: "clip00" + sceneMarker + "0002", Caption: sibling})
 	data, err := json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	captions := filepath.Join(t.TempDir(), "captions.json")
-	if err := os.WriteFile(captions, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	// Six of the twelve clips' captions name one worn thing by a colour an edit can change.
 	const editable = 6
 	items, err := PickLocalVideoEdits(directory, captions, editable, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := PickLocalVideoEdits(directory, captions, editable, 17)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(items) != editable {
 		t.Fatalf("%d clips were picked, want %d", len(items), editable)
 	}
@@ -122,9 +114,7 @@ func TestLocalEditSuiteChecksTheChangeAndTheRestApart(t *testing.T) {
 		videos[item.ID] = item.ID + ".gif"
 	}
 	suite, err := BuildGeneratedVideoLocalEdit(items, videos, "a judge")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first := suite.Cases[0]
 	if len(suite.Cases) != editable || suite.Source != localEditSource || first.Name != localEditSource+"/"+items[0].ID ||
 		!slices.Equal(first.Answers, []string{string(captionLetters[items[0].Question.Answer])}) || !strings.Contains(first.Prompt, items[0].ID+".gif") {

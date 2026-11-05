@@ -14,6 +14,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -117,17 +118,11 @@ func writeQwen35Fixture(t *testing.T, g qwen35Geometry, last string, context uin
 		data := testutil.GGUFTensorF32(name, shape, seed)
 		seed++
 		raw, err := io.ReadAll(data.Data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		values := make([]float32, len(raw)/4)
-		if err := binary.Read(bytes.NewReader(raw), binary.LittleEndian, values); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Read(bytes.NewReader(raw), binary.LittleEndian, values))
 		quantized, err := quant.Quantize(g.gates, values)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		tensors = append(tensors, gguf.TensorData{Name: name, Shape: shape, Type: g.gates, Data: bytes.NewReader(quantized)})
 	}
 	for _, block := range []string{"blk.0.", "blk.1.", "blk.2."} {
@@ -168,16 +163,12 @@ func writeQwen35Fixture(t *testing.T, g qwen35Geometry, last string, context uin
 
 	path := filepath.Join(t.TempDir(), "hermetic-hybrid.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	return path
 }
 
@@ -191,26 +182,20 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	cudatest.Require(t)
 	path := writeHermeticQwen35GGUF(t)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	release := func(cache *deviceKVCache) {
-		if err := cache.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, cache.Release(t.Context()))
 	}
 
 	// Boundary: committed prefix with live recurrent state.
 	boundary, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release(boundary)
 
 	// Draft span from the boundary, twice: identical selections prove the
@@ -218,18 +203,14 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	first, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	firstSelected := append([]tokenizer.TokenID(nil), first.SpanSelected...)
 	// Reject the draft: roll back by releasing the speculative cache.
 	release(first)
 	second, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release(second)
 	if len(firstSelected) != 2 || len(second.SpanSelected) != 2 {
 		t.Fatalf("span selections = %v/%v", firstSelected, second.SpanSelected)
@@ -249,16 +230,12 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	alternative, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release(alternative)
 	fresh, err := runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer release(fresh)
 	if len(alternative.SpanSelected) != 1 || len(fresh.SpanSelected) != 3 {
 		t.Fatalf("selections = %v/%v", alternative.SpanSelected, fresh.SpanSelected)

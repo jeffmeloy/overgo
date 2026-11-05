@@ -10,6 +10,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -36,15 +37,11 @@ func TestCandidateRecipeDerivationUsesSharedSpine(t *testing.T) {
 	first, err := DeriveCandidateRecipes(
 		t.Context(), fixture.store, fixture.materialization.ID, policy,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	second, err := DeriveCandidateRecipes(
 		t.Context(), fixture.store, fixture.materialization.ID, policy,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, _ := fixture.store.Head()
 	if before != after {
 		t.Fatalf("read-only derivation changed HEAD: %s -> %s", before, after)
@@ -130,9 +127,7 @@ func newCandidateRecipeDerivationFixture(t *testing.T) candidateRecipeDerivation
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	primary := derivationResolvedDefinition(t, "candidate-recipe-primary")
 	ablated := derivationResolvedDefinition(t, "candidate-recipe-ablation")
 	publishDerivationResolvedDefinition(t, store, primary, "primary")
@@ -330,17 +325,11 @@ func publishDerivationResolvedDefinition(
 ) {
 	t.Helper()
 	profileContents, profileLineage, err := ProfilePublicationFacts(resolved.Profile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tensorContent, err := resolved.Tensors.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definitionContent, err := resolved.Document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lineage := append(slices.Clone(profileLineage), resolved.Tensors.Lineage()...)
 	lineage = append(lineage, resolved.Document.Lineage()...)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
@@ -377,9 +366,7 @@ func mustCandidateRecipeContent(t *testing.T, value any) artifact.Content {
 	default:
 		t.Fatalf("unsupported candidate recipe fixture document %T", value)
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return content
 }
 

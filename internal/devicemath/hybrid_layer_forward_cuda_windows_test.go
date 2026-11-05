@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	// Parity class of the sibling backward test (same configs, same fp32 attention
@@ -62,9 +61,7 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 
 		want, _ := hostmath.HybridDecoderLayerForward(x, w, d, nil)
 		got, cache, err := HybridDecoderLayerForwardDevice(worker, x, w, d, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if cache.IsLinear {
 			t.Fatal("device cache flagged IsLinear for the attention mix")
 		}
@@ -117,9 +114,7 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 
 		want, _ := hostmath.HybridDecoderLayerForward(x, w, d, state)
 		got, cache, err := HybridDecoderLayerForwardDevice(worker, x, w, d, state)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !cache.IsLinear {
 			t.Fatal("device cache not flagged IsLinear for the GDN mix")
 		}

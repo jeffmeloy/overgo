@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func readGrad(t *testing.T, name string, out any) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %s absent; backward parity NOT verified", name)
 	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, out))
 }
 
 func f32(v []float64) []float32 {
@@ -76,9 +75,7 @@ func TestResidualBlockBackwardMatchesGolden(t *testing.T) {
 	}
 	grads := Grads{}
 	dx, err := model.residualBlockBackward("blk", f32(g.X), f32(g.Dout), grads)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	closeTo(t, "grad_x", dx, g.GradX, wiredTol)
 	closeTo(t, "grad_hidden_weight", grads["blk.hidden_layer.weight"], g.GradHiddenWeight, wiredTol)
 	closeTo(t, "grad_hidden_bias", grads["blk.hidden_layer.bias"], g.GradHiddenBias, wiredTol)
@@ -171,9 +168,7 @@ func TestPatchEmbedBackwardMatchesGolden(t *testing.T) {
 	patchStats(series, masks, g.PatchLen, mu, sigma)
 	grads := Grads{}
 	dSeries, err := model.patchEmbedBackward(series, masks, mu, sigma, f32(g.Dout), grads)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	closeTo(t, "grad_series", dSeries, g.GradSeries, wiredTol)
 	closeTo(t, "grad_hidden_weight", grads["tokenizer.hidden_layer.weight"], g.GradHiddenWeight, wiredTol)
 	closeTo(t, "grad_output_weight", grads["tokenizer.output_layer.weight"], g.GradOutputWeight, wiredTol)
@@ -279,9 +274,7 @@ func TestDecoderLayerBackwardMatchesGolden(t *testing.T) {
 	grads := Grads{}
 	invFreq := hostmath.RopeInvFreq(model.Dims.RopeTheta, hd)
 	dx, err := model.layerBackward(0, vec("x"), vec("dout"), invFreq, n, grads)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	closeTo(t, "grad_x", dx, want("grad_x"), wiredTol)
 	for name, key := range map[string]string{
 		"stacked_xf.0.pre_attn_ln.scale":                "grad_preA",

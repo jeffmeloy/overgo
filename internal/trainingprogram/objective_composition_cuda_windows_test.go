@@ -19,6 +19,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -33,15 +34,11 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for index, corpus := range []controllertrain.Corpus{base, added, aggregate} {
 		batch, err := corpus.PublicationBatch(fmt.Sprintf("objective-corpus-%d", index))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -67,13 +64,9 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 		spec.Name = fmt.Sprintf("controller component %d", index)
 		spec.Dataset, spec.Split = corpus.Dataset(), corpus.Split()
 		objectives[index], err = trainingprogram.NewObjective(spec)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := objectives[index].Content()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, artifact.Batch{Key: fmt.Sprintf("objective-%d", index), Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -87,13 +80,9 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	composition, err := trainingprogram.NewObjectiveComposition(trainingprogram.ObjectiveCompositionSpec{
 		ObjectiveSpec: contract, Components: []artifact.ID{objectives[0].ID, objectives[1].ID},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	compositionContent, err := composition.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "objective-composition", Contents: []artifact.Content{compositionContent}, Lineage: composition.Lineage(),
 	}); err != nil {
@@ -127,13 +116,9 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 		return meanFinal{loss: total.loss / n, action: total.action / n, modality: total.modality / n}, nil
 	}
 	incumbent, err := meanOver(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	candidate, err := meanOver(aggregate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if candidate.loss >= incumbent.loss || candidate.action < incumbent.action || candidate.modality < incumbent.modality {
 		t.Fatalf("composed descendant did not improve over %d seeds: incumbent=%+v candidate=%+v", len(seeds), incumbent, candidate)
 	}
@@ -144,13 +129,9 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repository, composition trainingprogram.ObjectiveComposition, objective trainingprogram.ObjectiveSpec) {
 	t.Helper()
 	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	profile := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindProfile, name) }
 	spec := trainingprogram.RunSpec{
 		Initial: trainingprogram.InitialStateSpec{Model: testutil.ArtifactID(t, artifact.KindModel, "incumbent")},
@@ -180,18 +161,12 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 		[]recipe.Node{{ID: "train", Module: "train", Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "train", Port: "checkpoint"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	spec.Recipe = definition.ID
 	definitionContent, err := definition.ArtifactContent()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerContent, err := trainingprogram.BuiltinOptimizerPolicy().Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "composed-run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
@@ -199,17 +174,13 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 		t.Fatal(err)
 	}
 	_, err = trainingprogram.CompileTrainingRunPlanFromRepository(ctx, store, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 }
 
 func objectiveCorpus(t *testing.T, train, holdout []controllertrain.Record) controllertrain.Corpus {
 	t.Helper()
 	corpus, err := controllertrain.Compile(controllertrain.Spec{Train: train, Holdout: holdout})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return corpus
 }
 

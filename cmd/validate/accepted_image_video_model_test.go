@@ -14,6 +14,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -27,12 +28,8 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	// from a call that names its document and its digest as literals (internal/landing pins).
 	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "b8f2c57cda7b23f2e0f570c60f309f049717a3916076734a554b41c4fc111555", &coverage)
 	var protocol imageVideoProtocol
-	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkAcceptedMediaCases(protocol, coverage); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol))
+	testcheck.NoError(t, checkAcceptedMediaCases(protocol, coverage))
 	store := requireAcceptedCoverage(t, root, coverage.acceptedCoverage, recipe.TaskImageGen, recipe.TaskVideoGen)
 	for i, binding := range coverage.Cases {
 		t.Run(binding.Case, func(t *testing.T) {
@@ -43,33 +40,23 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 			// Corrected outputs supersede earlier encoding errors, not inputs or judges.
 			value.Run, value.Outputs = binding.Run, []artifact.ID{binding.Output}
 			run, err := runrecord.RequireRun(t.Context(), store, binding.Run)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := checkImageVideoCaseRun(value, run); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
+			testcheck.NoError(t, checkImageVideoCaseRun(value, run))
 			content, found, err := artifact.ReadContent(t.Context(), store, binding.Output)
 			if err != nil || !found {
 				t.Fatalf("required output absent: %v", err)
 			}
-			if err := content.Validate(); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, content.Validate())
 			observed := value.Observations[0]
 			observed.Artifact, observed.Delay = binding.Output, 0
 			if observed.FPS != 0 {
 				for frame := range observed.Frames {
 					delay, err := media.GIFFrameDelay(observed.FPS, frame)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					observed.Delay += delay
 				}
 			}
-			if err := checkImageVideoObservation(observed, content); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, checkImageVideoObservation(observed, content))
 			name, want, ok := sampleFile(content)
 			actual, err := os.ReadFile(filepath.Join(root, mediaSamplesDir, name))
 			if !ok || err != nil || !bytes.Equal(actual, want) {

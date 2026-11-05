@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestIdentitiesReadEmbeddedIDs holds the identity scan to the syntax
@@ -15,13 +16,9 @@ func TestIdentitiesReadEmbeddedIDs(t *testing.T) {
 	t.Parallel()
 	digest := strings.Repeat("ab", 32)
 	evidence, err := artifact.ParseID("evidence:sha256:" + digest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recipe, err := artifact.ParseID("recipe:sha256:" + strings.Repeat("cd", 32))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := `{"result": "evidence:sha256:` + digest + `"} cites 2recipe:sha256:` + strings.Repeat("cd", 32) +
 		" and evidence:sha256:" + digest + " again; nothing:sha256:" + digest + " evidence:sha256:abc"
 	want := []artifact.ID{evidence, recipe}

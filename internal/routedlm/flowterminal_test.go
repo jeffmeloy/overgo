@@ -7,15 +7,14 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 // Reference formula: [cos half | sin half], angle_i = v*period^(-i/half).
 func TestSinusoidalEmbeddingMatchesReference(t *testing.T) {
 	got, err := SinusoidalEmbedding([]float64{0.375}, 4, 10000, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float64{
 		math.Cos(0.375), math.Cos(0.375 * math.Exp(-math.Log(10000)/2)),
 		math.Sin(0.375), math.Sin(0.375 * math.Exp(-math.Log(10000)/2)),
@@ -26,9 +25,7 @@ func TestSinusoidalEmbeddingMatchesReference(t *testing.T) {
 		}
 	}
 	multi, err := SinusoidalEmbedding([]float64{0, 1, 999}, 8, 10000, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(multi) != 24 {
 		t.Fatalf("rows*dim = %d, want 24", len(multi))
 	}
@@ -49,9 +46,7 @@ func TestSinusoidalEmbeddingMatchesReference(t *testing.T) {
 // Standard shifted schedule: t_i = 1 - shift*s/(1+(shift-1)s), s=1-i/steps.
 func TestShiftedFlowTimeSchedule(t *testing.T) {
 	got, err := ShiftedFlowTimeSchedule(2, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float64{0, 0.25, 1}
 	if len(got) != len(want) {
 		t.Fatalf("schedule = %v, want %v", got, want)
@@ -62,18 +57,14 @@ func TestShiftedFlowTimeSchedule(t *testing.T) {
 		}
 	}
 	uniform, err := ShiftedFlowTimeSchedule(2, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, w := range []float64{0, 0.5, 1} {
 		if math.Abs(uniform[i]-w) > 1e-15 {
 			t.Fatalf("shift=1 knot %d = %g, want %g", i, uniform[i], w)
 		}
 	}
 	long, err := ShiftedFlowTimeSchedule(20, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i := 1; i < len(long); i++ {
 		if long[i] <= long[i-1] {
 			t.Fatalf("schedule not strictly ascending at %d: %v", i, long)
@@ -116,9 +107,7 @@ func TestNoiseScaleDerivation(t *testing.T) {
 	}
 	for _, c := range cases {
 		shape, err := plan.ImagePlan(c.size, c.size)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.Abs(shape.NoiseScale-c.want) > 1e-12 {
 			t.Fatalf("%dx%d noise scale = %g, want %g", c.size, c.size, shape.NoiseScale, c.want)
 		}
@@ -126,18 +115,14 @@ func TestNoiseScaleDerivation(t *testing.T) {
 	sqrtPlan := plan
 	sqrtPlan.NoiseScaleMode = "dynamic_sqrt"
 	shape, err := sqrtPlan.ImagePlan(512, 512)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.Abs(shape.NoiseScale-math.Sqrt(2)) > 1e-12 {
 		t.Fatalf("dynamic_sqrt 512 = %g, want sqrt(2)", shape.NoiseScale)
 	}
 	constPlan := plan
 	constPlan.NoiseScaleMode = ""
 	shape, err = constPlan.ImagePlan(512, 512)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if shape.NoiseScale != 1 {
 		t.Fatalf("constant-mode scale = %g, want 1", shape.NoiseScale)
 	}
@@ -166,9 +151,7 @@ func TestScalarConditionRowSmallCase(t *testing.T) {
 	identity := bf16MatrixFromRows([][]float32{{1, 0}, {0, 1}})
 	w := FlowMLPWeights{W0: identity, B0: []float32{0, 0}, W2: identity, B2: []float32{0, 0}}
 	got, err := ScalarConditionRow(w, 0.375, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i, angle := range []float64{0.375, 0} { // dim=2: half=1 -> [cos v, sin v]
 		freq := math.Cos(angle)
 		if i == 1 {
@@ -183,9 +166,7 @@ func TestScalarConditionRowSmallCase(t *testing.T) {
 	// condition row = bf16(t_emb + n_emb); broadcast add rounds the base.
 	tw := FlowTerminalWeights{Timestep: w, NoiseScale: w}
 	condition, err := FlowConditionRow(tw, plan, 0.375, 0.375)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i := range condition {
 		want := dtype.RoundBF16(got[i] + got[i])
 		if condition[i] != want {
@@ -193,9 +174,7 @@ func TestScalarConditionRowSmallCase(t *testing.T) {
 		}
 	}
 	hidden := []float32{0.1, 0.2, 0.3, 0.4}
-	if err := AddConditionRows(hidden, condition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, AddConditionRows(hidden, condition))
 	if want := dtype.RoundBF16(dtype.RoundBF16(0.3) + condition[0]); hidden[2] != want {
 		t.Fatalf("broadcast add = %g, want %g", hidden[2], want)
 	}
@@ -217,9 +196,7 @@ func TestFlowHeadVelocityClampsDenominator(t *testing.T) {
 	}
 	// t=0.99: denom = max(0.01, 0.05) = 0.05 (the clamp).
 	got, err := FlowHeadVelocity(w, plan, hidden, z, 0.99)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for i := range got {
 		mid := dtype.RoundBF16(geluOf(dtype.RoundBF16(hidden[i]))) // linear0 round, gelu, linear2 round
 		want := dtype.RoundBF16((mid - z[i]) / 0.05)
@@ -315,13 +292,9 @@ func TestSenseNovaFlowScheduleMatchesGenerationOracle(t *testing.T) {
 			} `json:"z"`
 		} `json:"steps"`
 	}
-	if err := json.Unmarshal(raw, &oracle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &oracle))
 	schedule, err := ShiftedFlowTimeSchedule(oracle.Request.Steps, oracle.Request.TimestepShift)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(oracle.Steps) != oracle.Request.Steps {
 		t.Fatalf("fixture steps = %d, request %d", len(oracle.Steps), oracle.Request.Steps)
 	}
@@ -332,9 +305,7 @@ func TestSenseNovaFlowScheduleMatchesGenerationOracle(t *testing.T) {
 	}
 	plan := testFlowPlan()
 	shape, err := plan.ImagePlan(oracle.Request.Width, oracle.Request.Height)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if wantZ := shape.Tokens * plan.FlowDim; oracle.Steps[0].Z.Elements != wantZ {
 		t.Fatalf("fixture z elements = %d, plan tokens*flow = %d", oracle.Steps[0].Z.Elements, wantZ)
 	}

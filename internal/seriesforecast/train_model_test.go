@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modeltest"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 )
 
@@ -52,9 +53,7 @@ func leadingRecords(t *testing.T, path string, limit int) []string {
 	for len(records) < limit && scanner.Scan() {
 		records = append(records, scanner.Text())
 	}
-	if err := scanner.Err(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, scanner.Err())
 	if len(records) == 0 {
 		t.Fatal("Supernova dataset is empty")
 	}
@@ -78,17 +77,11 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 	records := leadingRecords(t, datasetPath, trainingCandidateRecords)
 	datasetID := identifyDataset(t, datasetPath)
 	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(datasetID.String()+"/train"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	processor, err := LightCurveTrainingProcessor(model.Dims.PatchLen, model.Dims.Horizon)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	authority := trainingdata.Authority{
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
 		Signature: recipecontract.ModalitySignature{
@@ -144,9 +137,7 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 	t.Logf("training record ordinal=%d input_spread=%.6g", ordinal, inputSpread(input))
 
 	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer trainer.Close()
 	t.Logf("trainable parameters=%d dataset=%s split=%s context=%d horizon=%d",
 		trainer.ParameterCount(), datasetID, splitID, len(input), len(target))
@@ -156,9 +147,7 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 	for step := range steps {
 		stepStart := time.Now()
 		result, err := trainer.Step(input, target)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if math.IsNaN(result.Total) || math.IsInf(result.Total, 0) {
 			t.Fatalf("step %d loss is non-finite: %+v", step+1, result)
 		}
@@ -176,9 +165,7 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 		}
 	}
 	after, err := trainer.Loss(input, target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first.Total) {
 		t.Fatalf("real training loss did not descend: before=%.6f after=%.6f", first.Total, after)
 	}

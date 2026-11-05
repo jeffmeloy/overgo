@@ -6,17 +6,14 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/devicemath"
+	"overgo/internal/testcheck"
 )
 
 func TestResidentMatrixGradientViews(t *testing.T) {
 	model, err := BuildModel(smallHybrid(), testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plans, err := model.matrixPlans()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Simulated disjoint allocations; no device acquisition is needed to test
 	// the optimizer-layout-to-view binding.
 	for _, base := range []driver.DevicePtr{1, driver.DevicePtr(model.MatrixParamCount()*4 + 1)} {

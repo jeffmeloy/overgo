@@ -3,6 +3,8 @@ package artifact
 import (
 	"encoding/json"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCanonicalDocumentPublicationOwners holds ContentJSON to the
@@ -17,21 +19,13 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 		Name string `json:"name"`
 	}{Name: "publication-owner"}
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	id, err := contract.Identify(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	owned, err := contract.ContentJSON(id, value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manual, err := contract.Content(id, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if owned.Descriptor != manual.Descriptor || string(owned.Data) != string(manual.Data) {
 		t.Fatalf("owner output differs from manual pair: %+v vs %+v", owned, manual)
 	}

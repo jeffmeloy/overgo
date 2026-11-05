@@ -4,6 +4,8 @@ import (
 	"io"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestPublishedMatricesAreCurrent holds the committed compatibility and
@@ -13,7 +15,5 @@ import (
 // re-runs its verify.
 func TestPublishedMatricesAreCurrent(t *testing.T) {
 	t.Parallel()
-	if err := publishedClaims(t.Context(), io.Discard, filepath.Join("..", ".."), false); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, publishedClaims(t.Context(), io.Discard, filepath.Join("..", ".."), false))
 }

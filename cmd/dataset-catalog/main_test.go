@@ -12,31 +12,22 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
 )
 
 func TestPublishDatasetCatalogCommand(t *testing.T) {
 	repository, legacyRoot, contentRoot := t.TempDir(), t.TempDir(), t.TempDir()
-	if err := os.WriteFile(filepath.Join(legacyRoot, "datasets.log"), nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(contentRoot, "fixture.txt"), []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(legacyRoot, "datasets.log"), nil, 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(contentRoot, "fixture.txt"), []byte("x"), 0o600))
 	var output bytes.Buffer
 	args := []string{"-repo", repository, "-legacy", legacyRoot, "-root", contentRoot}
-	if err := run(args, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run(args, &output))
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	coverage, err := dataset.InspectCatalog(t.Context(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !coverage.Complete || coverage.Registered != 1 || coverage.Available != coverage.Registered ||
 		!strings.Contains(output.String(), "changed=true") {
 		t.Fatalf("coverage=%+v output=%q", coverage, output.String())
@@ -52,17 +43,11 @@ func TestCatalogPublishesAMixture(t *testing.T) {
 	corpora := map[string]string{"alpha": "alpha record", "beta": "beta record"}
 	for name, text := range corpora {
 		root := t.TempDir()
-		if err := os.WriteFile(filepath.Join(root, name+".txt"), []byte(text), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := run([]string{"-repo", repository, "-register", name, "-root", root, "-modality", "text"}, io.Discard); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name+".txt"), []byte(text), 0o600))
+		testcheck.NoError(t, run([]string{"-repo", repository, "-register", name, "-root", root, "-modality", "text"}, io.Discard))
 	}
 	var output bytes.Buffer
-	if err := run([]string{"-repo", repository, "-mixture", "mix", "-members", "alpha=6,beta=2"}, &output); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, run([]string{"-repo", repository, "-mixture", "mix", "-members", "alpha=6,beta=2"}, &output))
 	if err := run([]string{"-repo", repository, "-mixture", "mix", "-members", "alpha=6,beta=2"}, io.Discard); err != nil {
 		t.Fatalf("republishing the same mixture: %v", err)
 	}
@@ -70,9 +55,7 @@ func TestCatalogPublishesAMixture(t *testing.T) {
 		t.Fatal("a mixture of an unregistered dataset published")
 	}
 	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	mixture, found, err := dataset.Resolve(ctx, store, dataset.RegisteredAliasPrefix+"mix")
@@ -80,32 +63,22 @@ func TestCatalogPublishesAMixture(t *testing.T) {
 		t.Fatalf("registered mixture = %+v, %t, %v; output %q", mixture, found, err, output.String())
 	}
 	processor, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("mixture-test/text"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	text := []recipecontract.Modality{recipecontract.ModalityText}
 	materialized, err := trainingdata.MaterializeWhole(ctx, store, trainingdata.Authority{
 		Dataset: mixture.ID, Processors: []artifact.ID{processor},
 		Signature: recipecontract.ModalitySignature{Inputs: text, Outputs: text},
 	}, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: text,
 		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, trainingdata.EncodingUTF8)}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer materialized.Close()
 	stream, err := trainingdata.NewStream(materialized, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const draws = 8
 	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: draws, DecodeWorkers: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := batcher.Next(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	drawn := map[string]int{}
 	for _, example := range batch.Examples {
 		drawn[string(example.Values[0].Data)]++

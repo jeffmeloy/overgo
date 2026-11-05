@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics(t *t
 		Outputs: []artifact.ID{id(artifact.KindDatasetShard, "output")}, ReplayEvidence: id(artifact.KindEvidence, "replay"),
 		Deterministic: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := transformCodec.Content(value)
 	if err != nil || content.Descriptor.ID != value.ID || len(transformLineage(value)) != 8 {
 		t.Fatalf("dataset transform = (%+v, %v)", value, err)

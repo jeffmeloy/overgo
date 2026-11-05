@@ -17,6 +17,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/worklease"
@@ -133,26 +134,16 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The gate verifies an immutable candidate checkout while explicitly
 	// binding external data to the original worktree through OVERGO_DATA_ROOT.
 	dataRoot, err := gitauthority.RepositoryRoot(t.Context(), os.Getenv(dataroot.Env))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := kernel.ValidateAssets(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, kernel.ValidateAssets())
 	ffmpeg, err := media.ResolveFFmpeg("")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Logf("private store=%s imported head=%s sequence=%d; models=%s datasets=%s checkpoints=%s; FFmpeg=%s; no model execution", roots.Store, identity.Head, identity.Sequence, roots.Models, roots.Datasets, roots.Checkpoints, ffmpeg)
 }
 
@@ -160,9 +151,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	source, err := overgodb.Create(filepath.Join(t.TempDir(), "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	payload := []byte("retained record")
 	content := artifact.Content{Descriptor: artifact.Descriptor{ID: testutil.ArtifactBytesID(t, artifact.KindEvidence, payload), Size: uint64(len(payload)), MediaType: "text/plain"}, Data: payload}
@@ -174,9 +163,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, field := range []string{"store", "models", "datasets", "checkpoints"} {
 		t.Run("missing-"+field, func(t *testing.T) {
 			bad := roots
@@ -198,9 +185,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		bad := identity
 		bad.Sequence++
 		sealPath := filepath.Join(roots.Store, "backup-seal.json")
-		if err := jsonfile.Write(sealPath, bad, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Write(sealPath, bad, 0o600))
 		t.Cleanup(func() {
 			if err := jsonfile.Write(sealPath, identity, 0o600); err != nil {
 				t.Error(err)
@@ -213,12 +198,8 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	t.Run("hardlinked-file", func(t *testing.T) {
 		linked := filepath.Join(roots.Store, "overgodb.log.shared")
 		sourceFile := filepath.Join(identity.Source, "overgodb.log.shared")
-		if err := os.WriteFile(sourceFile, []byte("shared"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Link(sourceFile, linked); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(sourceFile, []byte("shared"), 0o600))
+		testcheck.NoError(t, os.Link(sourceFile, linked))
 		t.Cleanup(func() { _ = os.Remove(linked) })
 		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err == nil || !strings.Contains(err.Error(), "shares source storage") {
 			t.Fatalf("hardlinked source storage: %v", err)
@@ -226,13 +207,9 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	})
 	t.Run("local-append", func(t *testing.T) {
 		local, err := overgodb.Create(roots.Store)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, commitErr := local.Commit(t.Context(), artifact.Batch{Key: "readiness/local", Aliases: []artifact.AliasBinding{{Name: "readiness/local", Target: content.Descriptor.ID}}})
-		if err := errors.Join(commitErr, local.Close()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, errors.Join(commitErr, local.Close()))
 		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err != nil {
 			t.Fatalf("valid local append invalidated the imported snapshot: %v", err)
 		}

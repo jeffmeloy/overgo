@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,13 +18,9 @@ func TestBoundedInteractionSelection(t *testing.T) {
 	var sources []dataset.InteractionSelectionSource
 	for index, text := range []string{"recent request", "older request"} {
 		transcript, err := newInteractionTranscript([]InteractionMessage{{Role: "user", Content: text}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		content, err := interactionTranscriptCodec.Content(transcript)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sources = append(sources, dataset.InteractionSelectionSource{
 			Source: transcript.ID, CausalRoot: root, Tokens: uint64(index + 2), Bytes: content.Descriptor.Size,
 			Documents: 1, Depth: uint32(index + 1),

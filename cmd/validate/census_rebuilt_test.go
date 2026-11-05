@@ -13,6 +13,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestACensusIsTakenAgainOnARebuiltStore holds the acceptance of a census to
@@ -33,27 +34,19 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	ctx := t.Context()
 	sourcePath := t.TempDir()
 	source, err := overgodb.Create(sourcePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = source.Close() })
 	commit := strings.Repeat("c", 40)
 	registerCensusModel(t, source, "frozen", true, true)
 	base, err := buildCapabilityCensus(ctx, source, commit, catalogLimit, discovery.NewMemo())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := capabilityCensusBatch(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, source, batch); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "binding.json")
-	if err := os.WriteFile(path, []byte(`{"Base": "`+base.ID.String()+`"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(`{"Base": "`+base.ID.String()+`"}`), 0o600))
 	if err := runArgs(ctx, []string{"-repo", sourcePath, "-check-census-binding", path}, io.Discard); err != nil {
 		t.Fatalf("original census binding: %v", err)
 	}
@@ -61,30 +54,22 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 		t.Fatal("second missing census binding was ignored")
 	}
 	beforeBinding, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rebuiltPath := filepath.Join(t.TempDir(), "rebuilt")
 	if _, err := overgodb.Rebuild(ctx, source, rebuiltPath, nil, runrecord.RetiredGateAliasesAtRest, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, source.Close())
 
 	if err := acceptCensus(sourcePath, commit, path, "the same models", io.Discard); err == nil || !strings.Contains(err.Error(), "nothing to accept") {
 		t.Fatalf("accepting the same models on the store the census was taken on = %v, want it refused: there is nothing to accept", err)
 	}
 	rebuilt, err := overgodb.OpenReadOnly(rebuiltPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := readCensusVerifications(ctx, rebuilt, base); !errors.Is(err, errCensusCheckpointAbsent) {
 		t.Fatalf("reading the census's verifications on the rebuilt store = %v, want its checkpoint absent", err)
 	}
-	if err := rebuilt.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rebuilt.Close())
 	if err := runArgs(ctx, []string{"-repo", rebuiltPath, "-check-census-binding", path}, io.Discard); !errors.Is(err, errCensusCheckpointAbsent) {
 		t.Fatalf("candidate binding: %v, want absent checkpoint", err)
 	}
@@ -103,21 +88,15 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 		t.Fatalf("reaccepted candidate binding: %v", err)
 	}
 	var binding acceptedCensus
-	if err := jsonfile.DecodeStrict(path, &binding); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &binding))
 	rebuilt, err = overgodb.OpenReadOnly(rebuiltPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	if err := checkCensusDisposition(ctx, rebuilt, binding); err != nil {
 		t.Fatalf("the binding written on the rebuilt store fails the acceptance tests' check: %v", err)
 	}
 	current, err := capabilityCensusCodec.Require(ctx, rebuilt, binding.Current)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if binding.Base != base.ID || current.ID == base.ID || !sameCensusModels(base.Models, current.Models) {
 		t.Fatalf("the census taken again = %+v over base %s, want another census of the same models", binding, base.ID)
 	}

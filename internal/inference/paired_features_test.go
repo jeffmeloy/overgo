@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestPairedFeatureLogitRowSkipsLastTokenRow(t *testing.T) {
@@ -22,9 +23,7 @@ func TestPairedFeatureLogitRowSkipsLastTokenRow(t *testing.T) {
 		Data:  data,
 	}
 	row, err := pairedFeatureLogitRow(logits, rowIndex, vocabulary)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantStart := data[rowIndex*vocabulary]
 	wantEnd := data[(rowIndex+1)*vocabulary-1]
 	if len(row) != vocabulary || row[0] != wantStart || row[vocabulary-1] != wantEnd {

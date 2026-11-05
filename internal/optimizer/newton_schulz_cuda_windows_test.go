@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/testcheck"
 )
 
 // TestDeviceNewtonSchulzMatchesHost gates the fp32 device Newton-Schulz against
@@ -21,14 +22,10 @@ import (
 func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 	var ops *deviceOps
-	if err := worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }))
 	defer worker.Do(context.Background(), func(_ *device.State) error { ops.close(); return nil })
 
 	cases := []struct {
@@ -88,9 +85,7 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 				}
 				t.Run(tc.name+"/"+distribution+"/"+schedule, func(t *testing.T) {
 					got, squared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32)
-					if err != nil {
-						t.Fatal(err)
-					}
+					testcheck.NoError(t, err)
 					guarded := math.Sqrt(float64(squared)) < hostoptimizer.NewtonSchulzFrobeniusGuard
 					for i, v := range got {
 						if guarded && math.Float32bits(v) != math.Float32bits(input[i]) {

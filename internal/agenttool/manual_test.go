@@ -1,6 +1,10 @@
 package agenttool
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 func validManual() Manual {
 	return Manual{
@@ -17,20 +21,14 @@ func validManual() Manual {
 
 func TestNewManualCanonicalizesAndIdentifies(t *testing.T) {
 	manual, err := NewManual(validManual())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !manual.ID.Valid() || manual.Version != ManualVersion {
 		t.Fatalf("manual = %+v, want identified version %d", manual, ManualVersion)
 	}
 	content, err := manual.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := manualCodec.Parse(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != manual.ID || parsed.Name != manual.Name || parsed.Effect != EffectInspection {
 		t.Fatalf("parsed = %+v, want the round-tripped manual", parsed)
 	}

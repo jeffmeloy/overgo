@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -24,35 +25,23 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 		weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 			Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: seed,
 		})
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), weights, shapes, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.MkdirAll(directory, 0o755))
+		testcheck.NoError(t, safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), weights, shapes, nil))
 		config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
-		if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600))
 	}
 	tokens, storePath, out := filepath.Join(root, "tokens.json"), t.TempDir(), filepath.Join(root, "bridges")
-	if err := os.WriteFile(tokens, []byte("[1, 2, 3, 4, 2, 3, 4, 1, 1, 3, 2, 4]"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(tokens, []byte("[1, 2, 3, 4, 2, 3, 4, 1, 1, 3, 2, 4]"), 0o600))
 	if err := runRoute(t.Context(), []string{"graft", "-target", targetDir, "-donor", donorDir, "-tokens", tokens,
 		"-record", storePath, "-out", out, "-steps", "1", "-window", "4"}); err != nil {
 		t.Fatal(err)
 	}
 	store, err := overgodb.Create(storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	for _, seed := range graftSeeds {
 		checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(out, fmt.Sprintf("seed-%d", seed)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, recorded, err := store.Artifact(t.Context(), checkpoint.ID())
 		if err != nil || !recorded || checkpoint.Optimizer.Step != 1 || checkpoint.ParameterCount != checkpoint.Optimizer.Parameters() {
 			t.Fatalf("seed %d checkpoint %s at step %d recorded %t (%v), want the one-step bridge recorded", seed, checkpoint.ID(), checkpoint.Optimizer.Step, recorded, err)
@@ -67,9 +56,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 // refusals recorded as loudly as ships.
 func TestProbeRejectsUncompiledGenerationRecord(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	config := trainingworkflow.GraftConfig{
 		TargetDir: "fixture/target", DonorDir: "fixture/donor",

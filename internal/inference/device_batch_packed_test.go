@@ -9,6 +9,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -20,9 +21,7 @@ func TestDecodeCandidatePairsSplitsPackedRows(t *testing.T) {
 	sets, err := runner.decodeCandidatePairs(
 		[]float32{3, 2.5, 1, 1.5, 4, 3.5, 0, 0.5}, 2, 2,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := [][]LogitCandidate{
 		{{ID: 3, Logit: 2.5}, {ID: 1, Logit: 1.5}},
 		{{ID: 4, Logit: 3.5}, {ID: 0, Logit: 0.5}},
@@ -72,9 +71,7 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 		{Pointer: firstPointer, Shape: baseShape},
 		{Pointer: secondPointer, Shape: baseShape},
 	}, dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPackedShape := tensor.MustShape(width, heads, pastTokens, sequences)
 	if !copySpec.Shape.Equal(wantPackedShape) || len(copySpec.Segments) != sequences {
 		t.Fatalf("packed copy = shape %v segments %d", copySpec.Shape.Slice(), len(copySpec.Segments))
@@ -83,14 +80,10 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 		Pointer: packedPointer, Shape: tensor.MustShape(width, heads, nextTokens, sequences),
 	}
 	second, err := executor.SplitPackedValue(packed, baseShape, dtype.F32, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantShape := tensor.MustShape(width, heads, nextTokens)
 	sequenceBytes, err := wantShape.Bytes(dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPointer := packedPointer + driver.DevicePtr(sequenceBytes)
 	if !second.Shape.Equal(wantShape) || second.Pointer != wantPointer {
 		t.Fatalf("split value = pointer %d shape %v", second.Pointer, second.Shape.Slice())
@@ -109,13 +102,9 @@ func TestSplitPackedDeviceValueRetainsExplicitSequenceAxis(t *testing.T) {
 		Pointer: packedPointer, Shape: tensor.MustShape(stateWidth, stateWidth, heads, sequences),
 	}
 	second, err := executor.SplitPackedValue(packed, template, dtype.F32, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sequenceBytes, err := template.Bytes(dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantPointer := packedPointer + driver.DevicePtr(sequenceBytes)
 	if !second.Shape.Equal(template) || second.Pointer != wantPointer {
 		t.Fatalf("split state = pointer %d shape %v", second.Pointer, second.Shape.Slice())
@@ -132,9 +121,7 @@ func TestPackedDeviceViewRequiresContiguousSequenceSlabs(t *testing.T) {
 	)
 	shape := tensor.MustShape(width, heads, tokens)
 	strideBytes, err := shape.Bytes(dtype.F32)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	stride := driver.DevicePtr(strideBytes)
 	values := []executor.DeviceValue{
 		{Pointer: firstPointer, Shape: shape},

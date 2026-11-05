@@ -4,6 +4,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestTensorPackRestoreIsAtomic(t *testing.T) {
@@ -14,9 +16,7 @@ func TestTensorPackRestoreIsAtomic(t *testing.T) {
 	}
 	weights := map[string][]float32{"a": {1, 2}, "b": {3, 4}}
 	pack, err := NewTensorPack(weights, MatrixGeometry(map[string][2]int{"a": {2, 1}, "b": {1, 2}}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for name, replacement := range map[string]map[string][]float32{
 		"missing":  {"a": {5, 6}},
 		"extra":    {"a": {5, 6}, "b": {7, 8}, "c": {}},
@@ -37,9 +37,7 @@ func TestTensorPackRestoreIsAtomic(t *testing.T) {
 	gradients := pack.BindMapViews(weights)
 	gradients["a"][0] = 9
 	// Cross-aliased ranges must swap, not overwrite a source before it is read.
-	if err := pack.RestoreWeights(map[string][]float32{"a": weights["b"], "b": weights["a"]}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, pack.RestoreWeights(map[string][]float32{"a": weights["b"], "b": weights["a"]}))
 	if !slices.Equal(pack.weights, []float32{3, 4, 1, 2}) || !slices.Equal(weights["a"], []float32{3, 4}) || !slices.Equal(weights["b"], []float32{1, 2}) || !slices.Equal(pack.gradients, make([]float32, 4)) {
 		t.Fatal("restoration lost aliased input or retained stale gradients")
 	}

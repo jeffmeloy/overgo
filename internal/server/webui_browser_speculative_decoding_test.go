@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
 
@@ -43,9 +44,7 @@ func TestWebUIBrowserSpeculativeDecoding(t *testing.T) {
 	settle(`[...document.querySelectorAll('#inspector .stat')].some(card => card.textContent.includes('Drafts accepted') && card.textContent.includes('5 / 6') && card.textContent.includes('83% speculative'))`)
 
 	// A model without a draft head offers no toggle.
-	if err := browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Evaluate(ctx, `location.href = `+"`"+plain.URL+"`", nil))
 	settle(`location.origin === ` + "`" + plain.URL + "`" + ` && !!document.querySelector('#conversation-settings input[aria-label="temperature"]')`)
 	check(`!` + toggle)
 	webuilane.Leg(t, "speculative decoding leg", "a served model declaring a draft head offered the toggle with its draft span, a turn with it on asked to speculate at temperature 0 and its inspector showed the drafts accepted, and a model without a draft head offered no toggle")

@@ -3,6 +3,7 @@
 package inference
 
 import (
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"testing"
 
@@ -34,9 +35,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
@@ -44,9 +43,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	// Teacher-forced host oracle: consume each span token one step at a
 	// time and record the greedy selection after every position.
 	oracle, err := runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	var oracleTokens, oraclePosition uint32
@@ -66,13 +63,9 @@ func TestDeviceDecodeSpan(t *testing.T) {
 
 	// Whole-history span from an empty cache.
 	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := span.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, span.Release(t.Context()))
 	}()
 	if len(span.SpanSelected) != len(tokens) {
 		t.Fatalf("span selections = %d, want %d", len(span.SpanSelected), len(tokens))
@@ -94,22 +87,14 @@ func TestDeviceDecodeSpan(t *testing.T) {
 
 	// The MTP shape proper: a committed prefix cache plus a draft span.
 	prefix, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens[:1], nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := prefix.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, prefix.Release(t.Context()))
 	}()
 	draft, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens[1:], prefix, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
-		if err := draft.Release(t.Context()); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, draft.Release(t.Context()))
 	}()
 	if len(draft.SpanSelected) != len(tokens)-1 {
 		t.Fatalf("draft selections = %d, want %d", len(draft.SpanSelected), len(tokens)-1)

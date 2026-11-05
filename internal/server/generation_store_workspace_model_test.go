@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -38,9 +39,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	ctx := t.Context()
 	catalog := BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent)
 	capabilities, err := NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, workflowGeneration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var oscillator *WorkflowCapability
 	tasks := map[recipe.Task]int{}
 	for index, capability := range capabilities {
@@ -57,9 +56,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 		t.Errorf("the store's speech and video activations are not listed: %v", tasks)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	activateModelAt(t, store, oscillator.Location, oscillatorImageDefinition)
 	workspace := NewStoreGenerationWorkspace(store, catalog, 256)
@@ -69,9 +66,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	}
 	reporter := &recordingReporter{}
 	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptor, found, err := store.Artifact(ctx, completion.Outputs[0])
 	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
 		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
@@ -87,9 +82,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	// same output behind the same request document (a page's regenerate),
 	// and the request with another seed answers with a different output.
 	replayed, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	again, err := requireRecordedRequest(ctx, store, replayed.Run)
 	if err != nil || again.ID != request.ID || replayed.Outputs[0] != completion.Outputs[0] {
 		t.Fatalf("replay = %+v request %s, %v; want output %s behind %s", replayed, again.ID, err, completion.Outputs[0], request.ID)

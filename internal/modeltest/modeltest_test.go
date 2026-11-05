@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -19,16 +20,12 @@ import (
 // root found nothing. A name nothing registers resolves to nothing.
 func TestRegisteredModelResolvesThroughTheStore(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
 		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
 	directory, err := registeredDirectory(t.Context(), roots.Store, "FireRedVAD")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if directory == "" {
 		testskip.NotApplicable(t, "FireRedVAD is not registered in this store")
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -38,9 +39,7 @@ func decodeVAEFrames(t *testing.T, decode func(sink VideoFrameSink) (VAEDecodeSt
 		frames = append(frames, append([]float32(nil), frame...))
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return frames, stats
 }
 
@@ -55,9 +54,7 @@ func runVAEDecodeCUDAAgainstHost(t *testing.T, manifestName string) {
 		return DecodeLatentVideo(checkpoint, plan, stats, golden.latent, shape.LatentFrames, shape.LatentHeight, shape.LatentWidth, sink)
 	})
 	session, err := NewVAEDecoderCUDASession(checkpoint, plan, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
@@ -92,9 +89,7 @@ func TestVAEDecodeCUDAGoldenG4(t *testing.T) {
 func loadF32LE(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(raw) != 4*elements {
 		t.Fatalf("%s: %d bytes, want %d", path, len(raw), 4*elements)
 	}
@@ -132,9 +127,7 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 		}
 	}
 	session, err := NewVAEDecoderCUDASession(checkpoint, plan, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
@@ -150,9 +143,7 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 		frames++
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wall := time.Since(started)
 	if frames != 81 {
 		t.Fatalf("decoded %d frames, want 81", frames)

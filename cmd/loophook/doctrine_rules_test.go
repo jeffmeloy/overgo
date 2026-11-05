@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"overgo/internal/testcheck"
 )
 
 // TestEveryDoctrineSentenceCitesItsCheck holds the session-start text to skill.md's form: past its title, each line is
@@ -22,9 +24,7 @@ func TestEveryDoctrineSentenceCitesItsCheck(t *testing.T) {
 			var all strings.Builder
 			for _, file := range files {
 				data, err := os.ReadFile(file)
-				if err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, err)
 				all.Write(data)
 			}
 			source = all.String()

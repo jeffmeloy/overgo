@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -30,30 +31,20 @@ import (
 func TestBootstrapKeepsRecordedFileFacts(t *testing.T) {
 	t.Parallel()
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	if err := os.Remove(filepath.Join(root, "reference.safetensors")); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(filepath.Join(root, "reference.safetensors")))
 	source := []byte("class MOSSImagePipeline:\n    pass\n")
-	if err := os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), source, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), source, 0o600))
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	id, err := artifact.IdentifyBytes(artifact.KindFile, source)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const recorded = "text/plain"
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "registered", Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(source)), MediaType: recorded}}}); err != nil {
 		t.Fatal(err)
 	}
 	model, err := identifyAndRecordWeights(t.Context(), store, root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, found, err := store.Manifest(t.Context(), model); err != nil || !found {
 		t.Fatalf("the pipeline was not recorded: %v", err)
 	}
@@ -66,16 +57,10 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 	root := t.TempDir()
 	modelPath := filepath.Join(root, "model.safetensors")
 	datasetPath := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
+	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("training data"), 0o600))
 	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	ctx := t.Context()
@@ -83,9 +68,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("weights"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	recorded, err := artifact.AvailablePath(ctx, store, modelID, artifact.LocationFile)
 	if err != nil {
 		t.Fatalf("bootstrapped model has no recorded weights location: %v", err)
@@ -110,41 +93,29 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 // supplied a fabricated verification.
 func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	sources, err := build.ImportDir(".", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if slices.Contains(sources.Imports, "overgo/internal/modelrecipetest") {
 		t.Fatal("production training workflow imports the modelrecipetest fixture")
 	}
 	root := t.TempDir()
 	modelPath := writeTrainingGGUF(t)
 	datasetPath := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(datasetPath, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(datasetPath, bytes.Repeat([]byte("a b c d "), 64), 0o600))
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	modelID, err := identifyModel(modelPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	status := func() recipe.Status {
 		t.Helper()
 		state, _, err := modelrecipe.Status(ctx, store, recipeID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return state
 	}
 	if state := status(); state != recipe.StatusCandidate {
@@ -157,9 +128,7 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 			ModelDirectory: modelPath, DatasetPath: datasetPath, OutputDirectory: filepath.Join(root, output),
 			Steps: 1, MaximumSequence: 16, Host: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	prior := executableCodeCommit
@@ -177,13 +146,9 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 			t.Fatalf("run %d activation = (%s, found %t, %v), want %s active", index, activation.Definition.ID, found, err, recipeID)
 		}
 		verified, err := runrecord.VerifyEvidence(ctx, store, recipeID, activation.Event.Evidence)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		observation, err := runrecord.RequireServingObservation(ctx, store, result.Observation)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if verified.Gate.CodeCommit != commit || verified.Run.CodeCommit != commit || verified.Gate.Environment != observation.Environment ||
 			!slices.Contains(verified.Run.Inputs, result.Observation) || !slices.Contains(verified.Run.Inputs, result.Checkpoint.ID()) || verified.Run.MeasuredNS == 0 {
 			t.Fatalf("run %d verification = gate %+v run %+v, want it bound to commit %s, environment %s, observation %s and checkpoint %s",
@@ -203,33 +168,21 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	t.Parallel()
 	root, ctx := t.TempDir(), t.Context()
 	modelPath, data := filepath.Join(root, "model.safetensors"), []byte("training data")
-	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
 	source, err := overgodb.Create(filepath.Join(root, "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	recipeID, err := BootstrapRecipe(ctx, source, modelPath, data, TokenContract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	dataset, split, _, err := TextAuthority(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rebuilt, err := overgodb.Create(filepath.Join(root, "rebuilt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer rebuilt.Close()
 	_, head := source.Head()
 	for sequence := uint64(1); sequence <= head; sequence++ {
 		delta, _, err := source.CommitDeltaAt(ctx, sequence)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch := delta.Delta
 		batch.Key = fmt.Sprintf("rebuild/%06d", sequence)
 		batch.Artifacts = slices.DeleteFunc(batch.Artifacts, func(descriptor artifact.Descriptor) bool {
@@ -240,9 +193,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 		}
 	}
 	definition, err := recipe.RequireDefinition(ctx, rebuilt, recipeID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
 	if _, err := trainingprogram.CompileObjectiveMatrix(ctx, rebuilt, []artifact.ID{objective}); err == nil {
 		t.Fatal("the rebuilt store resolves an objective whose dataset and split it never declared")
@@ -259,34 +210,22 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	root := t.TempDir()
 	modelPath := filepath.Join(root, "model.safetensors")
 	datasetPath := filepath.Join(root, "dataset.txt")
-	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(modelPath, []byte("model"), 0o600))
+	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("training data"), 0o600))
 	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 
 	ctx := t.Context()
 	definitionID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, ok, err := artifact.ReadContent(ctx, store, definitionID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !ok {
 		t.Fatalf("recipe definition %s was not stored", definitionID)
 	}
 	definition, err := recipe.ParseDefinition(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerID, ok := definition.PrimaryDependency(recipe.DependencyOptimizer)
 	if !ok {
 		t.Fatal("bootstrap recipe has no optimizer policy dependency")

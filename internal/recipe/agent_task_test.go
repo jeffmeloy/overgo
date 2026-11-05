@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,14 +18,10 @@ func TestAgentTaskContractIdentity(t *testing.T) {
 		PauseConditions: []string{"unresolved mutation target"},
 	}
 	first, err := NewAgentTaskContract(contract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	contract.Scope[0], contract.Scope[1] = contract.Scope[1], contract.Scope[0]
 	second, err := NewAgentTaskContract(contract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.ID != second.ID || len(first.Lineage()) == 0 {
 		t.Fatalf("task identities differ: %s %s", first.ID, second.ID)
 	}

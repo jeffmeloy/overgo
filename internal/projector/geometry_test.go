@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 func TestPixelMergePlan(t *testing.T) {
@@ -15,9 +16,7 @@ func TestPixelMergePlan(t *testing.T) {
 		valueWidth    = 1
 	)
 	plan, err := newPixelMergePlan(gridSide, gridSide, mergeSize)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantSets := [][]uint32{{0, 2, 8, 10}, {1, 3, 9, 11}, {4, 6, 12, 14}, {5, 7, 13, 15}}
 	for index := range wantSets {
 		if !slices.Equal(plan.indexSets[index], wantSets[index]) {
@@ -29,9 +28,7 @@ func TestPixelMergePlan(t *testing.T) {
 		values[index] = float32(index)
 	}
 	merged, err := plan.shuffle(values, valueWidth)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15}
 	if !slices.Equal(merged, want) {
 		t.Fatalf("merged = %v, want %v", merged, want)
@@ -67,9 +64,7 @@ func TestSplitTemporalPatchPairs(t *testing.T) {
 	)
 	values := []float32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 	first, second, width, err := splitTemporalPatchPairs(values, rows, patchArea)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if width != media.RGBChannels*patchArea || !slices.Equal(first, []float32{0, 1, 4, 5, 8, 9}) ||
 		!slices.Equal(second, []float32{2, 3, 6, 7, 10, 11}) {
 		t.Fatalf("split = width %d, %v / %v", width, first, second)

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -21,17 +22,13 @@ func TestHeldoutVerdictSummaryCountsItsRecords(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
 	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
 		t.Helper()
 		batch, err := stage(key)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, id := range declared {
 			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
 		}
@@ -58,17 +55,13 @@ func TestHeldoutVerdictSummaryCountsItsRecords(t *testing.T) {
 		observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: "falling"})
 	}
 	trained, err := forecast.plan.Score(observations)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)
 	commit("test-plan", forecast.plan.Batch)
 	commit("test-base", base.Batch)
 	commit("test-trained", trained.Batch)
 	verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, trained, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit("test-verdict", verdict.Batch)
 
 	records := trained.RecordScores()

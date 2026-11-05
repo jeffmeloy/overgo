@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -48,9 +49,7 @@ func TestSchedulerRankedByRealizedDelta(t *testing.T) {
 	scheduler, err := CompileCandidateScheduler(outcomes, candidates, SchedulerBudget{
 		WallNS: uint64(candidateBudget), VRAMBytes: budgetVRAM,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if scheduler.Selected != fastCandidate || len(scheduler.Ranking) != 2 || scheduler.Ranking[1] != slowCandidate {
 		t.Fatalf("scheduler ranking = %v; selected=%s", scheduler.Ranking, scheduler.Selected)
 	}

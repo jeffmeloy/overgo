@@ -5,6 +5,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 
 	"encoding/json"
 	"math"
@@ -205,17 +206,13 @@ func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
 	const c, h, w, patch = 2, 2, 2, 2
 	planar := []float32{0, 1, 2, 3, 10, 11, 12, 13}
 	packed, gh, gw, err := media.PackPlanar(planar, c, h, w, patch, media.PatchChannelsLast)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []float32{0, 10, 1, 11, 2, 12, 3, 13}
 	if !slices.Equal(packed, want) || gh != 1 || gw != 1 {
 		t.Fatalf("packed=%v grid=%dx%d, want=%v grid=1x1", packed, gh, gw, want)
 	}
 	back, err := media.UnpackPlanar(packed, c, gh, gw, patch, media.PatchChannelsLast)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(back, planar) {
 		t.Fatalf("round trip=%v, want=%v", back, planar)
 	}

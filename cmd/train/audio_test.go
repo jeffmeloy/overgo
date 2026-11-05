@@ -9,13 +9,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 func TestAudioTrainingContract(t *testing.T) {
 	id, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("audio training admission fixture"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, tc := range []struct {
 		name, manifest, refusal string
 		arguments               []string
@@ -29,9 +28,7 @@ func TestAudioTrainingContract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
 			manifest := filepath.Join(root, "audio.json")
-			if err := os.WriteFile(manifest, []byte(tc.manifest), 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(manifest, []byte(tc.manifest), 0600))
 			previousArgs, previousFlags := os.Args, flag.CommandLine
 			t.Cleanup(func() { os.Args, flag.CommandLine = previousArgs, previousFlags })
 			flag.CommandLine = flag.NewFlagSet("train", flag.ContinueOnError)

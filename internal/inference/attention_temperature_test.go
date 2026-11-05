@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestMistral3AttentionTemperatureInput(t *testing.T) {
@@ -90,9 +91,7 @@ func TestBindLayerSideInputs(t *testing.T) {
 		&weights,
 		layerSideInputs{embeddingSkip: skip, perLayerInput: perLayer, attentionBlock: blocks},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if weights.EmbeddingSkip != skip || weights.PerLayerInput != perLayer ||
 		weights.AttentionBlockIDs != blocks || bound.currentPositions == nil {
 		t.Fatalf("bound side inputs = %+v, weights = %+v", bound, weights)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -21,9 +22,7 @@ func TestPromptReaderReadsAPromptWithoutTheModel(t *testing.T) {
 	const template = "{% for message in messages %}a{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}"
 	path := testutil.HermeticLlamaGGUFWith(t, 16, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template))
 	reader, err := OpenPromptReader(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := reader.Close(); err != nil {
 			t.Error(err)
@@ -34,20 +33,14 @@ func TestPromptReaderReadsAPromptWithoutTheModel(t *testing.T) {
 		t.Fatalf("the conversation is shaped as %q (%v), and the file's template gives %q", shaped, err, "acdb")
 	}
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = file.Close() })
 	vocabulary, err := tokenizer.Load(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	encode := func(text string, parseSpecial bool) []tokenizer.TokenID {
 		t.Helper()
 		ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{AddSpecial: true, ParseSpecial: parseSpecial})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return ids
 	}
 	started, err := reader.GenerationTokens(shaped, true)

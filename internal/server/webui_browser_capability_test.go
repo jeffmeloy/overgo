@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
@@ -15,9 +17,7 @@ func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 	defer server.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
-	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-chat .composer')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-chat .composer')`))
 	assertBrowserPredicate(t, ctx, browser, `!overgo.capabilities().modes.find(mode => mode.id === 'agent').enabled`)
 	ensureLaneAgent(t, server.URL)
 	for index, state := range []string{"active", "paused", "active"} {
@@ -28,9 +28,7 @@ func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 			}
 		}
 		assertBrowserPredicate(t, ctx, browser, `(() => { window.previousComposer = document.querySelector('#panel-chat .composer'); overgo.openConversation(null); return true; })()`)
-		if err := browser.Eventually(ctx, `!!document.querySelector('#panel-chat .composer') && document.querySelector('#panel-chat .composer') !== previousComposer`); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-chat .composer') && document.querySelector('#panel-chat .composer') !== previousComposer`))
 		predicate := `overgo.capabilities().modes.find(mode => mode.id === 'agent').enabled && !!document.querySelector('.composer select[aria-label="mode"] option[value="agent"]')`
 		if state == "paused" {
 			predicate = `!overgo.capabilities().modes.find(mode => mode.id === 'agent').enabled && !document.querySelector('.composer select[aria-label="mode"] option[value="agent"]')`
@@ -42,17 +40,11 @@ func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
       overgo.api.get=async function(path,options){if(path==='/workspace/manifest')return new Promise((resolve,reject)=>{window.rejectCapabilityManifest=reject;window.releaseCapabilityManifest=async()=>resolve(await get.call(this,path,options));});return get.call(this,path,options);};
       window.pendingCapabilityOpen=overgo.openConversation(null);return true;
     })()`)
-	if err := browser.Eventually(ctx, `typeof releaseCapabilityManifest === 'function'`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `typeof releaseCapabilityManifest === 'function'`))
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash='agent'; return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-agent.active')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-agent.active')`))
 	assertBrowserPredicate(t, ctx, browser, `(async () => { await releaseCapabilityManifest(); await pendingCapabilityOpen; return location.hash === '#agent' && !!document.querySelector('#panel-agent.active'); })()`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { window.pendingCapabilityOpen=overgo.openConversation(null); location.hash='recipe'; return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-recipe.active')`); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, browser.Eventually(ctx, `!!document.querySelector('#panel-recipe.active')`))
 	assertBrowserPredicate(t, ctx, browser, `(async () => { rejectCapabilityManifest(new Error('obsolete manifest failure')); await pendingCapabilityOpen; return location.hash === '#recipe' && !document.querySelector('#panel-chat').textContent.includes('obsolete manifest failure'); })()`)
 }

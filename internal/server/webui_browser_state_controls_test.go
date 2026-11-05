@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -21,9 +22,7 @@ func TestWebUIBrowserStateControls(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the state controls leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	generator := &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{},

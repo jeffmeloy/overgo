@@ -11,29 +11,22 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	image, err := ImageContract.ContentBytes([]byte("image"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	answer, result, err := RunProgram(
 		t.Context(), store, modelID, program,
 		"vqa/runtime", image, "where?",
@@ -93,9 +86,7 @@ func TestRequestFormAndBudget(t *testing.T) {
 	if err := ValidateRequest(Request{Image: imageID, Question: "what?", MaxTokens: -1}); err == nil {
 		t.Fatal("a negative budget validated")
 	}
-	if err := ValidateRequest(Request{Image: imageID, Question: "what?"}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateRequest(Request{Image: imageID, Question: "what?"}))
 	if budget := (Request{Image: imageID, Question: "what?"}).Budget(); budget != Policy.DecodeMaxSteps || budget <= 0 {
 		t.Fatalf("blank budget = %d, policy %d", budget, Policy.DecodeMaxSteps)
 	}
@@ -103,17 +94,13 @@ func TestRequestFormAndBudget(t *testing.T) {
 		t.Fatalf("typed budget = %d", budget)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	if _, err := ReadImage(t.Context(), store, imageID); err == nil || !strings.Contains(err.Error(), "absent") {
 		t.Fatalf("an absent image read: %v", err)
 	}
 	question, err := artifact.JSONContent(QuestionContract, "what?")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/vqa/question", Contents: []artifact.Content{question}}); err != nil {
 		t.Fatal(err)
 	}
@@ -130,9 +117,7 @@ func TestRequestFormAndBudget(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			content, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: test.media, Schema: test.schema}).ContentBytes([]byte(test.name))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "test/vqa/" + test.name, Contents: []artifact.Content{content}}); err != nil {
 				t.Fatal(err)
 			}

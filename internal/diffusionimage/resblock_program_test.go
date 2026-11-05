@@ -2,6 +2,8 @@ package diffusionimage
 
 import (
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestResBlockProgramMatchesTinyReference(t *testing.T) {
@@ -17,13 +19,9 @@ func TestResBlockProgramMatchesTinyReference(t *testing.T) {
 		t.Fatal("first tiny encoder block is not residual")
 	}
 	program, err := compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := program.execute(t.Context(), nil, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := block.forward(model, input, 1, model.Cfg.BaseChannels, height, width)
 	requireWithin(t, "residual block graph", got, want, tolTight)
 }

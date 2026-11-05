@@ -20,6 +20,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/tabularicl"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -69,15 +70,11 @@ func TestTabFMObjectiveApprovesOnHeldOutRows(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	registerTableSplit(t, ctx, store, root, tables, groups, trainingprogram.MetricTableAccuracy)
 	result, err := trainTableObjective(ctx, store, tableObjectiveAlias, model, filepath.Join(root, "trained"), tabfmSteps, artifact.ID{}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The session records how long the head, the requests and the trainer took to load.
 	session, err := runrecord.RequireServingObservation(ctx, store, result.Observation)
 	if err != nil || !slices.ContainsFunc(session.Phases, func(phase runrecord.PhaseMetric) bool {
@@ -118,9 +115,7 @@ func TestTabFMObjectiveApprovesOnHeldOutRows(t *testing.T) {
 func tabfmRequests(t *testing.T, path string) ([]tabularicl.Request, []string) {
 	t.Helper()
 	file, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	rows, err := csv.NewReader(file).ReadAll()
 	if err != nil || len(rows) < 2 {

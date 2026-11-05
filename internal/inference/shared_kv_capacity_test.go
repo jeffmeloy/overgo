@@ -6,6 +6,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +29,7 @@ func TestSharedKVFixtureResolvesCapacitySession(t *testing.T) {
 			t.Fatalf("%s session: %v", session, err)
 		}
 		file, _, _, _, plan, _, err := loaded.Take()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if closeErr := file.Close(); closeErr != nil {
 			t.Fatal(closeErr)
 		}

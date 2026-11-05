@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
+	"overgo/internal/testcheck"
 )
 
 type segmentTrainer func(*Model, int, optimizer.Config, TrainingOptions) ([]float64, error)
@@ -17,9 +18,7 @@ type segmentTrainer func(*Model, int, optimizer.Config, TrainingOptions) ([]floa
 func progressModel(t *testing.T) *Model {
 	t.Helper()
 	m, err := BuildModel(smallHybrid(), testSeed)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return m
 }
 
@@ -30,29 +29,21 @@ func verifyOptimizerResume(t *testing.T, train segmentTrainer) {
 		whole := progressModel(t)
 		var want optimizer.State
 		losses, err := train(whole, testSteps, cfg, TrainingOptions{Checkpoint: func(s optimizer.State) error { want = s; return nil }})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for _, split := range []int{0, 1, 3, testSteps - 1} {
 			first := progressModel(t)
 			var saved optimizer.State
 			prefix, err := train(first, split, cfg, TrainingOptions{Checkpoint: func(s optimizer.State) error { saved = s; return nil }})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			// Restore into independently allocated masters and round-trip the existing
 			// portable optimizer representation, not a live optimizer instance.
 			restarted := progressModel(t)
 			copy(restarted.matW, first.matW)
 			copy(restarted.vecW, first.vecW)
 			raw, err := json.Marshal(saved)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var restored optimizer.State
-			if err := json.Unmarshal(raw, &restored); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(raw, &restored))
 			var got optimizer.State
 			observed := split
 			suffix, err := train(restarted, testSteps-split, cfg, TrainingOptions{
@@ -66,9 +57,7 @@ func verifyOptimizerResume(t *testing.T, train segmentTrainer) {
 				},
 				Checkpoint: func(s optimizer.State) error { got = s; return nil },
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !slices.Equal(append(prefix, suffix...), losses) || !slices.Equal(whole.matW, restarted.matW) || !slices.Equal(whole.vecW, restarted.vecW) || !reflect.DeepEqual(got, want) || observed != testSteps {
 				t.Fatalf("schedule=%v split=%d: loss, masters, momentum, schedule or observation progress differs", schedule, split)
 			}
@@ -99,13 +88,9 @@ func verifyOptimizerStop(t *testing.T, train segmentTrainer) {
 	}
 	whole := progressModel(t)
 	want, err := train(whole, testSteps, cfg, TrainingOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	more, err := train(m, testSteps-1, cfg, TrainingOptions{Resume: &saved})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(append(losses, more...), want) || !slices.Equal(m.matW, whole.matW) || !slices.Equal(m.vecW, whole.vecW) {
 		t.Fatal("observer stop did not expose matching weight/optimizer state")
 	}

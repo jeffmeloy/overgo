@@ -14,6 +14,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -168,16 +169,12 @@ func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 		tensor(name, shape...)
 		data := &tensors[len(tensors)-1]
 		values := make([]float32, data.Data.(*bytes.Reader).Len()/binary.Size(float32(0)))
-		if err := binary.Read(data.Data, binary.LittleEndian, values); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Read(data.Data, binary.LittleEndian, values))
 		for index := range values {
 			values[index] *= factor
 		}
 		var buffer bytes.Buffer
-		if err := binary.Write(&buffer, binary.LittleEndian, values); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Write(&buffer, binary.LittleEndian, values))
 		data.Data = bytes.NewReader(buffer.Bytes())
 	}
 	// The attention layer's values and output projection are scaled up, so its block selection decides the selected token.
@@ -243,16 +240,12 @@ func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 	}
 	path := filepath.Join(t.TempDir(), "hermetic-flash-next.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	return path
 }
 
@@ -265,9 +258,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 	cudatest.Require(t)
 	const steps = 14
 	runner, err := openF32FixtureRunner(writeHermeticFlashNextGGUF(t), OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	runner.mu.Lock()
@@ -284,9 +275,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 	generate := func(mode deviceOutputMode, fresh bool, forced []tokenizer.TokenID) generation {
 		t.Helper()
 		past, err := runner.forwardDeviceCachedModeLocked(ctx, mode, prompt, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		result := generation{selected: []tokenizer.TokenID{past.Selected}}
 		for step := range steps {
 			if fresh {
@@ -307,9 +296,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 		if result.cache, err = runner.downloadDeviceCache(ctx, past); err != nil {
 			t.Fatal(err)
 		}
-		if err := past.Release(ctx); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, past.Release(ctx))
 		return result
 	}
 	// replay generates afresh, then twice from the kept sessions, and holds the second, which compiles nothing, to the fresh one.

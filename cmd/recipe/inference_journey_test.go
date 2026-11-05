@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // requestMoments reads the three moments of a request out of what a
@@ -51,9 +52,7 @@ func TestMeasurementSeparatesLoadPrefillAndVisibleOutput(t *testing.T) {
 	request, other := requests[0], requests[1]
 	var said bytes.Buffer
 	observation, _, err := observeInference(ctx, open, request, &said, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if text := said.String(); !strings.Contains(text, "recipe: the load took ") || !strings.Contains(text, "a part of the fixture's load") || !strings.Contains(text, "(no part names)") {
 		t.Fatalf("the measurement said\n%s\nwant how long the load took, the part of it that named itself and the time no part names", text)
 	}
@@ -80,9 +79,7 @@ func TestMeasurementSeparatesLoadPrefillAndVisibleOutput(t *testing.T) {
 
 	asked := len(model.prompts)
 	said.Reset()
-	if err := journeyInference(ctx, directory, path, open, &said); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, journeyInference(ctx, directory, path, open, &said))
 	ways := []string{
 		"recipe: a first load in this process\n", "recipe: a second load in this process\n",
 		"recipe: the same request again on a loaded model\n", "recipe: another request on a loaded model\n",

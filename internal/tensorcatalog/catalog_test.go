@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestValidateCatalog(t *testing.T) {
@@ -32,9 +33,7 @@ func TestValidateCatalog(t *testing.T) {
 func TestValidateRelationalRequirement(t *testing.T) {
 	requirement := Requirement{Rank: 1, NonEmpty: true, Storages: []dtype.Type{dtype.I64}}
 	valid := gguf.TensorInfo{Name: "mapping", Type: dtype.I64, Dimensions: 1, Shape: [gguf.MaxDimensions]uint64{3}}
-	if err := ValidateInfo(valid, requirement); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, ValidateInfo(valid, requirement))
 	for _, invalid := range []gguf.TensorInfo{
 		{Name: "mapping", Type: dtype.F32, Dimensions: 1, Shape: [gguf.MaxDimensions]uint64{3}},
 		{Name: "mapping", Type: dtype.I64, Dimensions: 2, Shape: [gguf.MaxDimensions]uint64{3, 1}},
@@ -53,9 +52,7 @@ func TestValidateAllowedRanks(t *testing.T) {
 		for axis := range rank {
 			info.Shape[axis] = 1
 		}
-		if err := ValidateInfo(info, requirement); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, ValidateInfo(info, requirement))
 	}
 	if err := ValidateInfo(
 		gguf.TensorInfo{Name: "value", Dimensions: 2, Shape: [gguf.MaxDimensions]uint64{1, 1}}, requirement,

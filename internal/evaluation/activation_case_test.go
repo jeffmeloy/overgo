@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -13,9 +14,7 @@ func TestActivationCaseRegistry(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	contract := testutil.ArtifactID(t, artifact.KindRecipe, "activation-task-contract")
 	input := testutil.ArtifactID(t, artifact.KindDataset, "activation-case-input")
@@ -26,9 +25,7 @@ func TestActivationCaseRegistry(t *testing.T) {
 	first := ActivationCase{Name: "generate.exact", Task: recipe.TaskGeneration, Contract: contract, Input: input, EvidenceCheck: check}
 	second := ActivationCase{Name: "generate.bounded", Task: recipe.TaskGeneration, Contract: contract, Input: input, EvidenceCheck: check}
 	registry, _, err := PublishActivationCaseRegistry(ctx, store, []ActivationCase{first, second})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reordered, _, err := PublishActivationCaseRegistry(ctx, store, []ActivationCase{second, first})
 	if err != nil || reordered.ID != registry.ID {
 		t.Fatalf("reordered registry = (%s, %v), want %s", reordered.ID, err, registry.ID)

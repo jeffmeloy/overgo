@@ -1,16 +1,16 @@
 package routedlm
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/testcheck"
+)
 
 // Table values verified against the checkpoints' model.safetensors.index.json.
 func TestBindingLayerTensorNames(t *testing.T) {
 	rx, sn := RxBrainBinding(), SenseNovaBinding()
-	if err := rx.validate(); err != nil {
-		t.Fatal(err)
-	}
-	if err := sn.validate(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, rx.validate())
+	testcheck.NoError(t, sn.validate())
 	cases := []struct {
 		b              BranchBinding
 		layer, branch  int

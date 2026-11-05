@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -39,9 +40,7 @@ func TestTypedMediaProjection(t *testing.T) {
 	row.verification.Gate.Steps = []runrecord.GateStep{{Evidence: "peak_device_bytes=1048576"}, {Evidence: "peak_device_bytes=1073741824"}}
 	stale := reportRow{model: "fixture", modelID: row.modelID, task: string(recipe.TaskVideoGen), stale: "missing verification"}
 	projection, err := projectMediaRows([]reportRow{row, stale}, scope, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if projection.Counts != (mediaProjectionCounts{Activations: 2, Stale: 1, MeasuredVerifiers: 1}) || !projection.Truncated {
 		t.Fatal("wrong denominator or completeness", projection)
 	}
@@ -49,13 +48,9 @@ func TestTypedMediaProjection(t *testing.T) {
 		t.Fatal("lost history or invented generation acceptance")
 	}
 	data, err := json.Marshal(projection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var decoded mediaProjection
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &decoded))
 	if !reflect.DeepEqual(projection, decoded) {
 		t.Fatal("typed values changed in JSON")
 	}
@@ -98,17 +93,11 @@ func TestTypedMediaProjection(t *testing.T) {
 		changed := row.verification
 		changed.Gate.Steps = []runrecord.GateStep{{Evidence: marker}}
 		value, err := projectMediaVerifier(changed)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		encoded, err := json.Marshal(value)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var roundtrip mediaVerifierProjection
-		if err := json.Unmarshal(encoded, &roundtrip); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(encoded, &roundtrip))
 		if !reflect.DeepEqual(*value, roundtrip) || (value.PeakStepDeviceBytes == nil) != (marker == "") {
 			t.Fatal("absent, zero or exact large integer changed", marker)
 		}

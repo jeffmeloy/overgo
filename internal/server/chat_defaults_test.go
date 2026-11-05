@@ -12,6 +12,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -21,9 +22,7 @@ import (
 func TestChatDefaults(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, openSessionRunner(t, 64))
 	var manifest workspaceManifestResponse
@@ -38,9 +37,7 @@ func TestChatDefaults(t *testing.T) {
 		t.Helper()
 		body["model"] = testModelID
 		data, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		response := serveTestRequest(handler, http.MethodPost, "/v1/responses", string(data))
 		var decoded map[string]any
 		if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil || response.Code != http.StatusOK {
@@ -55,15 +52,11 @@ func TestChatDefaults(t *testing.T) {
 			t.Fatalf("interaction %s found=%v err=%v", id, found, err)
 		}
 		transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ids := []uint32{}
 		if interaction.Context.Valid() {
 			tokens, err := runrecord.RequireInteractionContext(t.Context(), store, interaction.Context)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for _, token := range tokens.Tokens {
 				ids = append(ids, uint32(token))
 			}

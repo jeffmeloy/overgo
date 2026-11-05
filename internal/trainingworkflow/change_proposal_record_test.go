@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func TestChangeProposalRecordIsTheJudgmentItNames(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	read := func(name string) map[string]string {
 		raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		fields := map[string]string{}
 		for line := range strings.Lines(string(raw)) {
 			if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {
@@ -36,13 +35,9 @@ func TestChangeProposalRecordIsTheJudgmentItNames(t *testing.T) {
 	}
 	record := read("change-proposal-qwen25-05b.txt")
 	named, err := artifact.ParseID(record["judgment"])
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var judgment changeJudgment
-	if err := strictjson.DecodeBytes([]byte(record["document"]), &judgment); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, strictjson.DecodeBytes([]byte(record["document"]), &judgment))
 	canonical, err := changeJudgmentCodec.New(judgment)
 	if err != nil || canonical.ID != named {
 		t.Fatalf("the record's document is judgment %s (%v), and the record names %s", canonical.ID, err, named)

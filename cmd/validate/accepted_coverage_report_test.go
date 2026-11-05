@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -29,22 +30,16 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 	t.Run("specialized", TestAcceptedSpecializedTaskEvidence)
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	entries, truncated, err := discovery.RegisteredCatalog(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store))
 	if err != nil || truncated {
 		t.Fatal("full denominator unavailable", err)
 	}
 	value, err := projectModalityCoverage(t.Context(), root, store, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	first := slices.IndexFunc(value.Models, func(row modalityModelProjection) bool { return len(row.Cells) > 0 && row.Cells[0].Accepted })
 	gap := slices.IndexFunc(value.Models, func(row modalityModelProjection) bool { return len(row.Cells) > 0 && !row.Cells[0].Accepted })
 	if first < 0 || gap < 0 {
@@ -69,13 +64,9 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 	} {
 		t.Run(name, func(t *testing.T) {
 			data, err := json.Marshal(value)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var changed modalityCoverageProjection
-			if err := json.Unmarshal(data, &changed); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(data, &changed))
 			mutate(&changed)
 			if checkModalityCoverageProjection(&changed, entries) == nil {
 				t.Fatal("invalid coverage received credit")
@@ -83,19 +74,13 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 		})
 	}
 	output, err := generateMediaReport(root, retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report mediaProjection
-	if err := json.Unmarshal(output.JSON, &report); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(output.JSON, &report))
 	if report.Coverage == nil {
 		t.Fatal("combined coverage omitted")
 	}
-	if err := checkModalityCoverageProjection(report.Coverage, entries); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkModalityCoverageProjection(report.Coverage, entries))
 	var rendered bytes.Buffer
 	writeModalityCoverage(&rendered, report.Coverage)
 	if !bytes.Contains(output.Markdown, rendered.Bytes()) {

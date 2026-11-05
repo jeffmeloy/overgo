@@ -24,6 +24,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -148,12 +149,8 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
 	})
-	if err := os.MkdirAll(fixture.model, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(fixture.model, trainingprogram.CheckpointWeights), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(fixture.model, 0o755))
+	testcheck.NoError(t, safetensors.Save(filepath.Join(fixture.model, trainingprogram.CheckpointWeights), weights, shapes, nil))
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "workbench reward evaluator")
 	rows := fmt.Sprintf(`{"id":"candidate-a","group":"prompt-a","prompt":"ab","completion":"c","reward":1,"evaluator":"%[1]s"}`+"\n"+
 		`{"id":"candidate-b","group":"prompt-a","prompt":"ab","completion":"d","reward":-1,"evaluator":"%[1]s"}`+"\n", evaluator)
@@ -162,14 +159,10 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 		filepath.Join(fixture.model, "tokenizer.json"): `{"model":{"type":"BPE","vocab":{"a":1,"b":2,"c":3,"d":4},"merges":[]}}`,
 		fixture.dataset: rows,
 	} {
-		if err := os.WriteFile(path, []byte(document), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(document), 0o600))
 	}
 	store, err := overgodb.Create(fixture.storePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -177,9 +170,7 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 	})
 	fixture.store = store
 	weightsPath, err := trainingworkflow.IdentifyModelWeights(fixture.model)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if fixture.policy, err = trainingworkflow.WeightsIdentity(weightsPath); err != nil {
 		t.Fatal(err)
 	}
@@ -206,18 +197,12 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 		Evaluation: policies.Evaluation, Metric: trainingprogram.MetricTokenAccuracy,
 		Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policies.Objective = objective.ID
 	objectiveContent, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerContent, err := optimizerPolicy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var descriptors []artifact.Descriptor
 	for _, id := range []artifact.ID{
 		fixture.policy, dataset, split, processor, loss, evidence, evaluator, policies.Precision,
@@ -248,19 +233,13 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 		}, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/reward-command/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/reward-command/verification", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "reward command fixture"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "reward command fixture"))
 	fixture.recipe = definition.ID
 	return fixture
 }
@@ -280,26 +259,18 @@ func (fixture rewardCommandFixture) request(output string) trainingworkflow.Requ
 func (fixture rewardCommandFixture) sessions(t *testing.T) []runrecord.ServingObservation {
 	t.Helper()
 	ctx := t.Context()
-	if err := fixture.store.Refresh(ctx); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, fixture.store.Refresh(ctx))
 	dependents, err := fixture.store.Children(ctx, fixture.recipe)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var sessions []runrecord.ServingObservation
 	for _, edge := range dependents {
 		dependent, _, err := fixture.store.Artifact(ctx, edge.Child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if dependent.Schema != runrecord.ServingObservationSchema {
 			continue
 		}
 		observation, err := runrecord.RequireServingObservation(ctx, fixture.store, edge.Child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if observation.Task == recipe.TaskTraining {
 			sessions = append(sessions, observation)
 		}
@@ -312,9 +283,7 @@ func (fixture rewardCommandFixture) sessions(t *testing.T) []runrecord.ServingOb
 func modelWeights(t *testing.T, directory string) map[string][]float32 {
 	t.Helper()
 	model, err := densecausal.Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return model.Weights
 }
 
@@ -368,9 +337,7 @@ func TestTrainingCommandRunsAWorkbenchRewardRun(t *testing.T) {
 	first.ObserveGRPO = func(step trainingprogram.GRPOObservation) { observed = append(observed, step) }
 	first.Progress = &printed
 	result, err := trainingworkflow.ExecuteInCommand(ctx, os.Args[0], fixture.storePath, first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(observed) != 1 || observed[0].Step != 1 || observed[0].Loss != standInLoss || !observed[0].Valid() || len(result.GRPO) != 0 {
 		t.Fatalf("the run handed its observer %+v and returned %+v; want the one step the child took, handed to the observer alone", observed, result.GRPO)
 	}
@@ -425,9 +392,7 @@ func TestTrainingCommandRunsAWorkbenchRewardRun(t *testing.T) {
 	// commit, until the child says it is waiting for it.
 	t.Setenv(commandChildEnvironment, childAnnouncesStoreWait)
 	held, err := processlock.AcquireContext(ctx, fixture.storePath+".lock", clioptions.PrivateFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	waiting := processcontrol.WatchLine(nil, storeWaitLine)
 	ended, released := make(chan struct{}), make(chan error, 1)
 	go func() {
@@ -486,9 +451,7 @@ func TestTrainingCommandRefusesRewardTrainingHeldToTheHost(t *testing.T) {
 		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: arguments, Env: append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written),
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// A command that ended well wrote no error.
 		refusal, _ := os.ReadFile(written)
 		return receipt.ExitCode, string(refusal)

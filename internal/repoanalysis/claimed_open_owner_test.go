@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/testcheck"
 )
 
 // hashingOpeners are the production files that still resolve a model through
@@ -29,18 +30,14 @@ var hashingOpeners = map[string]string{
 func TestModelOpensShareTheClaimedLoad(t *testing.T) {
 	t.Parallel()
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var found []string
 	for _, file := range snapshot.Files {
 		if file.Test || filepath.ToSlash(filepath.Dir(file.Path)) == "internal/modelrecipe" {
 			continue
 		}
 		syntax, err := file.Syntax()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ast.Inspect(syntax, func(node ast.Node) bool {
 			if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == "ResolveActiveGGUF" && !slices.Contains(found, file.Path) {
 				found = append(found, file.Path)

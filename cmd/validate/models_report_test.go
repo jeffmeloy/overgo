@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -46,9 +47,7 @@ var modelsReportRender = sync.OnceValues(func() (modelsReport, error) {
 func renderedModelsReport(t *testing.T) modelsReport {
 	t.Helper()
 	report, err := modelsReportRender()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return report
 }
 
@@ -63,15 +62,9 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteTextFile(t, root, "compatibility.json", `{"models": {"zeta": {"features": ["z"]}}}`)
 	weights := filepath.Join(root, "weights", "model.safetensors")
-	if err := os.MkdirAll(filepath.Dir(weights), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(weights, []byte("st"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "weights", "config.json"), []byte(`{"model_type":"zeta"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(weights), 0o755))
+	testcheck.NoError(t, os.WriteFile(weights, []byte("st"), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "weights", "config.json"), []byte(`{"model_type":"zeta"}`), 0o600))
 	commit := strings.Repeat("ab", 20)
 	model := testutil.ArtifactID(t, artifact.KindModel, "alpha")
 	proof := testutil.ArtifactID(t, artifact.KindEvidence, "proof")
@@ -93,27 +86,17 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 	writeSpecification(t, root, "external.json", map[string]any{
 		"model": map[string]any{"tool": "external"}, "result": "ignored",
 	})
-	if err := os.WriteFile(filepath.Join(root, "docs", "verification", "external-array.json"), []byte(`[{"result":"external oracle"}]`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "docs", "verification", "external-array.json"), []byte(`[{"result":"external oracle"}]`), 0o600))
 	malformed := filepath.Join(root, "docs", "verification", "malformed.json")
-	if err := os.WriteFile(malformed, []byte(`[{`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(malformed, []byte(`[{`), 0o600))
 	if _, err := loadVerificationInventory(root); err == nil {
 		t.Fatal("malformed external oracle accepted")
 	}
-	if err := os.Remove(malformed); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.Remove(malformed))
 	data, err := generateModelsReport(root, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var report modelsReport
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &report))
 	alpha, ok := report.Prototypes["zeta"].Models["Alpha-1B"]
 	if !ok || alpha.Model != model.String() || len(alpha.Training) != 0 {
 		t.Fatalf("zeta models = %+v", report.Prototypes["zeta"].Models)
@@ -136,12 +119,8 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 		},
 	})
 	data, err = generateModelsReport(root, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, json.Unmarshal(data, &report))
 	models := report.Prototypes["zeta"].Models
 	if len(models) != 2 {
 		t.Fatalf("same-name artifacts lost or duplicated: %+v", models)
@@ -158,14 +137,8 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 func writeSpecification(t *testing.T, root, name string, document map[string]any) {
 	t.Helper()
 	directory := filepath.Join(root, "docs", "verification")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	data, err := json.Marshal(document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, name), data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o600))
 }

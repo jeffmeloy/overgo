@@ -3,6 +3,8 @@ package dataroot
 import (
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestStoreRoot proves the shared resolver: a non-empty -repo flag overrides
@@ -11,9 +13,7 @@ import (
 func TestStoreRoot(t *testing.T) {
 	t.Run("flag overrides the contract", func(t *testing.T) {
 		root, err := StoreRoot("  C:/somewhere/overgodb-store  ")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if root != "C:/somewhere/overgodb-store" {
 			t.Fatalf("flag not honored verbatim after trim: %q", root)
 		}
@@ -24,13 +24,9 @@ func TestStoreRoot(t *testing.T) {
 		t.Chdir(dir)
 		t.Setenv(Env, dir)
 		root, err := StoreRoot("")
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		roots, err := ResolveCurrent()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if root != roots.Store {
 			t.Fatalf("fallback %q differs from the resolved store %q", root, roots.Store)
 		}

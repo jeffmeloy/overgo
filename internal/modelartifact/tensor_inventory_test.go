@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -19,21 +20,13 @@ func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 		{Name: "matrix", Shape: []uint64{2, 3}, Storage: "bf16", Bytes: 12},
 		{Name: "scalar", Shape: []uint64{}, Storage: "f32", Bytes: 4},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed, err := tensorInventoryCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsedContent, err := parsed.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if parsed.ID != document.ID || !bytes.Equal(parsedContent.Data, content.Data) {
 		t.Fatal("tensor inventory round trip drifted")
 	}
@@ -65,9 +58,7 @@ func TestPyTorchTensorInventoryDocument(t *testing.T) {
 	document, err := NewTensorInventoryDocument(modelID, TensorFormatPyTorch, []TensorFact{
 		{Name: "weights/embed", Shape: []uint64{16, 8}, Storage: "bf16", Bytes: 256},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Format != TensorFormatPyTorch {
 		t.Fatalf("format = %s", document.Format)
 	}
@@ -78,20 +69,14 @@ func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
 	document, err := NewTensorInventoryDocument(owner, TensorFormatGGUF, []TensorFact{{
 		Name: "projection.weight", Shape: []uint64{2, 2}, Storage: "f32", Bytes: 16,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if document.Owner != owner || document.Version != TensorInventoryVersion {
 		t.Fatalf("inventory owner/version = %s/%d", document.Owner, document.Version)
 	}
 	content, err := document.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	_, err = store.Commit(t.Context(), artifact.Batch{
 		Key: "test/projector-inventory", Artifacts: []artifact.Descriptor{{ID: owner}},
@@ -99,9 +84,7 @@ func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
 			Child: document.ID, Parent: owner, Relation: artifact.RelationDerivedFrom,
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	loaded, found, err := LoadTensorInventory(t.Context(), store, owner)
 	if err != nil || !found || loaded.ID != document.ID {
 		t.Fatalf("loaded projector inventory = (%s, %t, %v)", loaded.ID, found, err)

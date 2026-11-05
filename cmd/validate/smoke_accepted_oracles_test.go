@@ -16,6 +16,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -24,9 +25,7 @@ func TestSmokeOracleRejectsFalseGreen(t *testing.T) {
 	t.Parallel()
 	c := evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2 + 2?", MaxTokens: 16, Answers: []string{"4"}}
 	good := evaluation.ExactResult{Name: c.Name, PromptTokens: 4, GeneratedTokens: 1, Text: "4"}
-	if err := acceptSmokeAnswer(c, good); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, acceptSmokeAnswer(c, good))
 	for _, text := range []string{"", c.Prompt, "Paris", "4 4 4", "{broken", "5"} {
 		bad := good
 		bad.Text = text
@@ -68,9 +67,7 @@ func TestSmokeNativeReferenceRejectsWrongScoring(t *testing.T) {
 	t.Parallel()
 	reference := smokeReferenceCase{Text: "native", IDs: []tokenizer.TokenID{1, 2, 3}, LogProbabilities: []float64{-1, -2}}
 	good := inference.PerplexityResult{TokenCount: 3, EvaluatedTokens: 2, Scores: []inference.TokenScore{{Position: 1, TokenID: 2, NegativeLogLik: 1}, {Position: 2, TokenID: 3, NegativeLogLik: 2}}}
-	if err := acceptSmokeScores(reference, good); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, acceptSmokeScores(reference, good))
 	for _, mutate := range []func(*inference.PerplexityResult){func(r *inference.PerplexityResult) { r.Scores = r.Scores[:1] }, func(r *inference.PerplexityResult) { r.Scores[1].TokenID = 4 }, func(r *inference.PerplexityResult) { r.Scores[1].NegativeLogLik = 0 }, func(r *inference.PerplexityResult) { r.Scores[1].NegativeLogLik = 1 }} {
 		bad := good
 		bad.Scores = slices.Clone(good.Scores)
@@ -87,9 +84,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	var declarations []smokeOracle
-	if err := jsonfile.DecodeStrict(filepath.Join(root, smokeOraclePath), &declarations); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, smokeOraclePath), &declarations))
 	entries := make([]discovery.Entry, len(declarations))
 	text, dna, chat, referenceCases := 0, 0, 0, 0
 	for i, d := range declarations {
@@ -111,9 +106,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		if d.ReferenceFile != "" {
 			d.ReferenceFile = filepath.Join(root, d.ReferenceFile)
 			cases, err := readSmokeReference(d)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			referenceCases += len(cases)
 		}
 	}
@@ -125,15 +118,11 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 	if referenceStore != "" || os.Getenv(dataroot.Env) != "" {
 		if referenceStore == "" {
 			roots, err := dataroot.Resolve(root)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			referenceStore = roots.Store
 		}
 		store, err := overgodb.OpenReadOnly(referenceStore)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer store.Close()
 		catalog, err := store.Query(t.Context(), overgodb.Query{Kind: artifact.KindModel, MaxResults: 10_000, Projection: overgodb.ProjectManifests})
 		if err != nil || catalog.Truncated {
@@ -143,13 +132,9 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		extra := 0
 		for _, manifest := range catalog.Manifests {
 			active, err := modelrecipe.HasActiveRecipe(t.Context(), store, manifest.ID, recipe.TaskInference)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			trained, err := modelrecipe.IsTrained(t.Context(), store, manifest.ID, recipe.TaskInference)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if !active || trained {
 				continue
 			}
@@ -184,20 +169,12 @@ func TestSmokePublishesCompleteBoundRecord(t *testing.T) {
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
 	path := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, err = store.Commit(t.Context(), artifact.Batch{Key: "smoke-test-inputs", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipe}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, store.Close())
 	oracle := smokeOracle{Model: model, Recipe: recipe, Domain: "text", Chat: true, Claim: "addition", Generation: &evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2+2?", MaxTokens: 16, Answers: []string{"4"}}}
 	observation := smokeObservation{Claim: oracle.Claim, Generation: &evaluation.ExactResult{Name: "addition", PromptTokens: 4, GeneratedTokens: 1, Text: "4"}}
 	entry := discovery.Entry{Model: model, Recipe: recipe, Present: true}
-	if err := recordSmokeTransaction(t.Context(), path, entry, oracle, observation, nil, time.Second, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, recordSmokeTransaction(t.Context(), path, entry, oracle, observation, nil, time.Second, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 }

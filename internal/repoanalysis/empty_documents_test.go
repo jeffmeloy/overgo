@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestNoDocumentRecordsNothing refuses a tracked JSON document that records
@@ -16,18 +18,14 @@ func TestNoDocumentRecordsNothing(t *testing.T) {
 	t.Parallel()
 	root := "../.."
 	documents, err := TrackedDocuments(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	checked := 0
 	for _, document := range documents {
 		if path.Ext(document) != ".json" {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		var value any
 		if json.Unmarshal(data, &value) != nil {
 			continue

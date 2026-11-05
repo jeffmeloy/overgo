@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -34,18 +35,14 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 		Cases     []rxBrainSample `json:"cases"`
 	}
 	raw := readRxFixture(t, "rxbrain-reference.json", referenceSHA)
-	if err := json.Unmarshal(raw, &reference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &reference))
 	if reference.SourceSHA != sourceSHA || reference.Version != "0.22.2" || len(reference.Cases) != 153 {
 		t.Fatal("RxBrain reference provenance or cardinality changed")
 	}
 	projection := readRxFixture(t, "rxbrain-tokenizer-projection.json", projectionSHA)
 	modelDir := modeltest.Directory(t, "Hy-Embodied-RxBrain-1.0")
 	full, err := os.ReadFile(filepath.Join(modelDir, "tokenizer.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(full)); got != sourceSHA {
 		t.Fatalf("RxBrain tokenizer source drifted: %s", got)
 	}
@@ -57,13 +54,9 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 	} {
 		t.Run(artifact.name, func(t *testing.T) {
 			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "tokenizer.json"), artifact.raw, 0600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), artifact.raw, 0600))
 			encoder, err := Load(dir)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			for index, tc := range reference.Cases {
 				if artifact.name == "projection" {
 					parts := encoder.preTokenize(tc.Text)
@@ -94,9 +87,7 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 func readRxFixture(t *testing.T, name, digest string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("testdata", name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != digest {
 		t.Fatalf("%s digest changed: %s", name, got)
 	}
@@ -114,9 +105,7 @@ func checkRxBrainStages(t *testing.T, artifact []byte, cases []rxBrainSample) {
 			} `json:"pretokenizers"`
 		} `json:"pre_tokenizer"`
 	}
-	if err := json.Unmarshal(artifact, &declaration); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(artifact, &declaration))
 	if len(declaration.PreTokenizer.Stages) != 4 {
 		t.Fatal("RxBrain stage count changed")
 	}
@@ -127,9 +116,7 @@ func checkRxBrainStages(t *testing.T, artifact []byte, cases []rxBrainSample) {
 		parts := []string{tc.Text}
 		for stage := range tc.Stages {
 			split, _, err := tokenizer.CompileBPESplit(declaration.PreTokenizer.Stages[stage].Pattern.Regex)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			var next []string
 			for _, part := range parts {
 				next = append(next, split(part)...)

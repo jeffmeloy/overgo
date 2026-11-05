@@ -18,6 +18,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -31,14 +32,10 @@ func TestExportQuantizedGGUF(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	source := testutil.HermeticLlamaGGUF(t, 64)
-	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, source, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, source, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowExport)
@@ -62,9 +59,7 @@ func TestExportQuantizedGGUF(t *testing.T) {
 	}
 	file := filepath.Join(root, "shared", "hermetic.f16.gguf")
 	written, err := gguf.Open(file)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	converted := slices.ContainsFunc(written.Tensors, func(info gguf.TensorInfo) bool { return info.Name == "output.weight" && info.Type == dtype.F16 })
 	_ = written.Close()
 	if !converted {
@@ -114,13 +109,9 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	exportRun := func(commit, output string) runrecord.Run {
 		t.Helper()
 		workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, commit)
@@ -130,13 +121,9 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 		}
 		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, capabilities[0],
 			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		run, err := runrecord.RequireRun(ctx, store, completion.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return run
 	}
 	bound := exportRun(ggufTestCommit, "bound")
@@ -157,13 +144,9 @@ func TestRepeatExportKeepsItsOutput(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowExport)
@@ -198,13 +181,9 @@ func TestModelBuilderListsNothingWithoutAMerge(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
-	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	if capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild); err != nil || len(capabilities) != 0 {
 		t.Fatalf("one model lists %+v for Model Builder, %v", capabilities, err)

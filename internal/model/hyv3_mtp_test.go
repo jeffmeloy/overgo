@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 func TestBuildHYV3MTPPipeline(t *testing.T) {
@@ -22,9 +23,7 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 	projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 	current, err := draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
 		AttentionQ:      builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
@@ -42,15 +41,11 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 	block, err := draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{4}, Layer: plan.Layer,
 	}, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if nextHidden == block.Output || !logits.Shape.Equal(tensor.MustShape(13, 1)) ||
 		!nextHidden.Shape.Equal(tensor.MustShape(8, 1)) ||
 		!block.Key.Shape.Equal(tensor.MustShape(4, 1, 1)) {

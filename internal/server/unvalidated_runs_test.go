@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 )
 
 // TestAnUnvalidatedModelRunsWithItsStateShown: a media model the store holds as a registration leaves it, its candidate
@@ -24,14 +25,10 @@ import (
 func TestAnUnvalidatedModelRunsWithItsStateShown(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	location := filepath.Join(t.TempDir(), "model.safetensors")
-	if err := os.WriteFile(location, []byte("oscillator-weights"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(location, []byte("oscillator-weights"), 0o600))
 	model, candidate := candidateModelAt(t, store, location, oscillatorImageDefinition)
 	var executed modelrecipe.CapabilityEvidenceSelection
 	requestContract := artifact.JSONContract(artifact.KindFile, "overgo.test-unvalidated-input.v1")
@@ -44,9 +41,7 @@ func TestAnUnvalidatedModelRunsWithItsStateShown(t *testing.T) {
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
 	handler, err := New(Config{Repository: store, Workflows: workspace}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	request := func(method, path string, body any, status int, out any) {
 		t.Helper()
@@ -60,9 +55,7 @@ func TestAnUnvalidatedModelRunsWithItsStateShown(t *testing.T) {
 		if response.Code != status {
 			t.Fatalf("%s %s: %d %s", method, path, response.Code, response.Body)
 		}
-		if err := json.Unmarshal(response.Body.Bytes(), out); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), out))
 	}
 
 	var listed []struct {

@@ -5,15 +5,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // reachedByNothing lists the keys of the functions and methods of the module at root that no command and no test reaches.
 func reachedByNothing(t *testing.T, root string, outside map[string]bool) []string {
 	t.Helper()
 	reach, err := reachTypes(t.Context(), root, outside, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var nothing []string
 	for _, function := range reach.functions {
 		if !reach.entered[function.at] {
@@ -45,9 +45,7 @@ func TestNoDeclarationIsReachedByNothing(t *testing.T) {
 	}
 
 	outside, err := outsideMethods(t.Context(), checkoutRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	nothing := reachedByNothing(t, checkoutRoot, outside)
 	kept, classOf, err := sortedEntries(keptList(t, unreachedList))
 	if err != nil {

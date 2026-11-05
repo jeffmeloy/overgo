@@ -21,6 +21,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -105,27 +106,17 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_processing.json")
 	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoProcessingSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoProcessingSHA256))
 	var value mediaProcessingComparison
-	if err := jsonfile.DecodeStrict(path, &value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(path, &value))
 	if value.Version != artifact.InitialDocumentVersion || value.Rationale == "" || len(value.Quality) == 0 || len(value.Sources) == 0 {
 		t.Fatal("incomplete processing comparison")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -137,21 +128,13 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	}
 	protocol := read(value.Protocol)
 	var limits mediaProcessingLimits
-	if err := json.Unmarshal(protocol, &limits); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(protocol, &limits))
 	current, err := os.ReadFile(filepath.Join(root, "docs/image_video_processing_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var frozen any
-	if err := json.Unmarshal(protocol, &frozen); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(protocol, &frozen))
 	canonical, err := json.Marshal(frozen)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := checkMediaProtocolIdentity(current, fmt.Sprintf("%x", sha256.Sum256(canonical))); err != nil {
 		t.Fatalf("processing protocol changed after acquisition: %v", err)
 	}
@@ -163,24 +146,16 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	}
 	for _, check := range value.Quality {
 		report, err := testevidence.GoTestJSONReport(string(read(check.Evidence)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 || check.Name == "" || check.Command == "" {
 			t.Fatal("empty processing quality check")
 		}
 	}
 	for _, variant := range []string{"baseline", "candidate", "ablation"} {
 		report, err := testevidence.GoTestJSONReport(string(read(value.Acquisitions[variant])))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 {
 			t.Fatal("empty processing acquisition")
 		}
@@ -189,9 +164,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 			t.Fatal("missing processing lifetime")
 		}
 		recorded, err := mediaProcessingRecordedRows(read(value.Acquisitions[variant]))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if !reflect.DeepEqual(recorded, rows) {
 			t.Fatal("processing observations differ from retained acquisition")
 		}
@@ -204,9 +177,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	baseline := value.Observations["baseline"]
 	candidate := value.Observations["candidate"]
 	accepted, err := compareMediaProcessing(baseline, candidate, limits)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if value.Decision != "accepted" && value.Decision != "rejected" {
 		t.Fatal("missing processing decision")
 	}

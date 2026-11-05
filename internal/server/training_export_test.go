@@ -12,6 +12,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -55,9 +56,7 @@ func (generator *trainingExportGenerator) ExecuteWorkflow(
 func TestGUITrainingAndExportShareServices(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	capability := func(kind WorkflowKind) WorkflowCapability {
 		return WorkflowCapability{
@@ -80,9 +79,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 		},
 	}
 	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	for _, kind := range []WorkflowKind{WorkflowTraining, workflowExport} {
 		capability := generator.capabilities[kind]
@@ -93,9 +90,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 		body := `{"task":"training","recipe":"` + capability.Recipe.String() + `","input":{"source":"fixture"}}`
 		accepted := serveTestRequest(handler, http.MethodPost, "/"+string(kind)+"/run", body)
 		var submission workflowResponse
-		if err := json.Unmarshal(accepted.Body.Bytes(), &submission); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(accepted.Body.Bytes(), &submission))
 		waited := serveTestRequest(handler, http.MethodGet, "/operations/wait?id="+submission.Operation.String(), "")
 		if waited.Code != http.StatusOK {
 			t.Fatalf("%s wait status=%d body=%s", kind, waited.Code, waited.Body.String())

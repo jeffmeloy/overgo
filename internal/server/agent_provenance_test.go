@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 // TestAgentProvenance pins the per-step evidence walk: an approved
@@ -21,18 +22,14 @@ func TestAgentProvenance(t *testing.T) {
 	t.Parallel()
 	handler := agentTestHandler(t, func(ctx context.Context, store *overgodb.Store) {
 		manuals, err := agenttool.StandardManuals()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		write, err := agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the provenance walk.",
 			Effect:    agenttool.EffectMutation,
 			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"git"}); err != nil {
 			t.Fatal(err)
 		}

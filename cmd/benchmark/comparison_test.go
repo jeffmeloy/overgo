@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -42,17 +43,11 @@ func TestBenchmarkResultTokenDigest(t *testing.T) {
 
 func TestPromptSuiteRotation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "suite.json")
-	if err := os.WriteFile(path, []byte(`["cold","repeat","rotate"]`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(`["cold","repeat","rotate"]`), 0o644))
 	opts, err := parseOptions([]string{"-prompt-suite", path, "-runs", "5", "model.gguf"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prompts, err := benchmarkPrompts(opts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want := []string{"cold", "repeat", "rotate", "cold", "repeat"}
 	for index, expected := range want {
 		if got := prompts[benchmarkPromptIndex(index, len(prompts))]; got != expected {
@@ -66,9 +61,7 @@ func TestPromptSuiteRotation(t *testing.T) {
 		t.Fatal("workload identity ignores prompt order")
 	}
 	for _, invalid := range []string{`[]`, `["ok",""]`, `{"prompt":"wrong type"}`} {
-		if err := os.WriteFile(path, []byte(invalid), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(invalid), 0o644))
 		if _, err := benchmarkPrompts(opts); err == nil {
 			t.Fatalf("accepted invalid suite %s", invalid)
 		}
@@ -79,9 +72,7 @@ func TestPairedComparison(t *testing.T) {
 	baseline, candidate := pairedFixture(t)
 	first := []string{"baseline", "candidate", "baseline"}
 	comparison, err := compareBenchmarkResults(baseline, candidate, "cache_prompt", first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !comparison.ID.Valid() || comparison.Outcome != "all-pairs-faster" || comparison.MedianDeltaMilliseconds != -10 || comparison.CacheUpperBound {
 		t.Fatalf("paired comparison = %+v", comparison)
 	}
@@ -140,8 +131,6 @@ func pairedFixture(t *testing.T) (benchmarkResult, benchmarkResult) {
 	}
 	var err error
 	candidate.OptionsDigest, err = benchmarkOptionsDigest(options{Tokens: 4, Runs: 3, Warmup: 1, CachePrompt: true}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return baseline, candidate
 }

@@ -5,6 +5,7 @@ package inference
 import (
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,16 +38,12 @@ func TestHermeticCUDAContinuationScoringHoldsDeviceMemory(t *testing.T) {
 	}
 	cycle()
 	warm, err := runner.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for range 4 {
 		cycle()
 	}
 	after, err := runner.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if after.CurrentBytes > warm.CurrentBytes || after.Allocations > warm.Allocations {
 		t.Fatalf("device memory grew over four cycles of every prompt length: %d -> %d bytes, %d -> %d allocations",
 			warm.CurrentBytes, after.CurrentBytes, warm.Allocations, after.Allocations)

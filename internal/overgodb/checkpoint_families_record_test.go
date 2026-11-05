@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -38,9 +39,7 @@ import (
 func TestCheckpointFamiliesRecordIsWhole(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	number := func(what, text string) int64 {
 		t.Helper()
 		value, err := strconv.ParseInt(text, 10, 64)

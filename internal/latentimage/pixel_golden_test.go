@@ -10,14 +10,13 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 func mossPixelGolden(t *testing.T) {
 	mossFixtureBytes(t, "pixels.safetensors", "9a21e4e43ca18c249355898f426e8bd9db0176fd24812505ca0b66828c4a993b")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "pixels.safetensors"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer s.Close()
 	for _, name := range []string{"square", "wide", "tall", "ties"} {
 		t.Run(name, func(t *testing.T) {
@@ -29,9 +28,7 @@ func mossPixelGolden(t *testing.T) {
 			h, w := int(shape[1]), int(shape[2])
 			values := refinementValues(t, s, key)
 			got, err := encodeUnitPNG(values, h, w)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if got.Height != h || got.Width != w || got.Channels != 3 || got.MediaType != "image/png" {
 				t.Fatalf("encoded geometry differs: %+v", got)
 			}
@@ -40,23 +37,17 @@ func mossPixelGolden(t *testing.T) {
 				t.Fatalf("encoded pixels do not repeat: %v", err)
 			}
 			content, err := PNGContent(got)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if err = content.Validate(); err != nil {
 				t.Fatal(err)
 			}
 			decoded, err := png.Decode(bytes.NewReader(got.Data))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if decoded.Bounds().Dx() != w || decoded.Bounds().Dy() != h {
 				t.Fatal("PNG geometry differs")
 			}
 			raw, err := io.ReadAll(s.Tensors[name+".rgb"].Reader())
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if len(raw) != h*w*3*8 {
 				t.Fatal("native RGB fixture length differs")
 			}

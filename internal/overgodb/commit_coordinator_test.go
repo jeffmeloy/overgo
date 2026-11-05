@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 // TestCommitCoordinatorAtomicity holds the one transaction path to its
@@ -17,15 +18,11 @@ func TestCommitCoordinatorAtomicity(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	base := fixtureBatch(t)
 	baseID, err := store.Commit(ctx, base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	digestBefore := catalogDigest(t, store.state)
 	headBefore, sequenceBefore := store.Head()
 
@@ -59,9 +56,7 @@ func TestCommitCoordinatorAtomicity(t *testing.T) {
 		Aliases:  []artifact.AliasBinding{{Name: "coordinator/alias", Target: descriptor.ID}},
 		Lineage:  []artifact.Lineage{{Child: descriptor.ID, Parent: base.Artifacts[0].ID, Relation: artifact.RelationDerivedFrom}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if head, sequence := store.Head(); head != advanceID || sequence != sequenceBefore+1 {
 		t.Fatalf("advance head = (%s, %d)", head, sequence)
 	}

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/hfhub"
+	"overgo/internal/testcheck"
 )
 
 // TestDownloadShutdownOwnership pins the one download shutdown owner:
@@ -77,9 +78,7 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	// interruption, and returns only after the transfer goroutine has
 	// unwound -- so every assertion below reads settled state, and any
 	// still-running transfer would race the partial-file walk into flaking.
-	if err := handler.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, handler.Close())
 	jobs := handler.downloads.snapshot()
 	if len(jobs) != 1 || jobs[0].State != downloadStateCancelled ||
 		!strings.Contains(jobs[0].Error, "shutdown interrupted") {
@@ -105,9 +104,7 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 		t.Fatalf("shutdown published partial: %v", err)
 	}
 	client, err := hfhub.New(hub.URL, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := client.Download(t.Context(), hfhub.DownloadRequest{Kind: hfhub.KindModel, Repository: "acme/tiny", Destination: filepath.Dir(final)}); err != nil {
 		t.Fatal(err)
 	}
@@ -162,9 +159,7 @@ func TestDownloadJobCallerBudget(t *testing.T) {
 	}
 	// The retained prefix lives in the destination's sibling bookkeeping directory.
 	partials, err := filepath.Glob(filepath.Join(root, ".tiny.download", "weights.bin.partial-*"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	retained := false
 	for _, path := range partials {
 		if strings.HasSuffix(path, ".etag") {

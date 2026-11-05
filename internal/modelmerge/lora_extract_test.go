@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func TestLoRAExtractionExactBase(t *testing.T) {
 func TestLoRAExtractionResidualBudget(t *testing.T) {
 	base, tuned := loraSnapshots(t)
 	extraction, err := ExtractLoRA(base, tuned, loraPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	factors := extraction.Weights["weight"]
 	if factors.Rank != uint32(tensor.SingletonExtent) || factors.RelativeResidual > extraction.Policy.MaximumRelativeResidual {
 		t.Fatalf("derived factors = %+v", factors)
@@ -38,13 +37,9 @@ func TestLoRAExtractionResidualBudget(t *testing.T) {
 func TestLoRAExtractionFrozenReconstruction(t *testing.T) {
 	base, tuned := loraSnapshots(t)
 	extraction, err := ExtractLoRA(base, tuned, loraPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reconstructed, err := extraction.Reconstruct(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for index, value := range reconstructed.Tensors["weight"].Values {
 		if math.Abs(float64(value-tuned.Tensors["weight"].Values[index])) > extraction.Policy.MaximumRelativeResidual {
 			t.Fatalf("reconstructed[%d]=%g tuned=%g", index, value, tuned.Tensors["weight"].Values[index])
@@ -58,9 +53,7 @@ func TestLoRAExtractionFrozenReconstruction(t *testing.T) {
 func TestLoRAExtractionLineage(t *testing.T) {
 	base, tuned := loraSnapshots(t)
 	extraction, err := ExtractLoRA(base, tuned, loraPolicy())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if extraction.ID.Kind() != artifact.KindAdapter {
 		t.Fatalf("adapter identity = %s", extraction.ID)
 	}
@@ -80,15 +73,11 @@ func loraSnapshots(t *testing.T) (Snapshot, Snapshot) {
 	base, err := compiler.Seal(definition, artifact.ID{}, map[string]Weight{
 		"weight": {Layout: tensor.MustShape(3, 2), Values: []float32{1, 2, 3, 4, 5, 6}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tuned, err := compiler.Seal(definition, base.ID, map[string]Weight{
 		"weight": {Layout: tensor.MustShape(3, 2), Values: []float32{3, 4, 5, 8, 9, 10}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return base, tuned
 }
 

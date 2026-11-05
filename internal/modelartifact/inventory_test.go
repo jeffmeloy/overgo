@@ -16,6 +16,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -27,29 +28,21 @@ const (
 func TestGGUFInventoryUsesPhysicalContent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fixture.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	err = gguf.Write(file, nil, []gguf.TensorData{{
 		Name: fixtureTensorName, Shape: []uint64{1}, Type: gguf.DTypeF32,
 		Data: bytes.NewReader(make([]byte, 4)),
 	}}, gguf.WriteOptions{})
 	closeErr := file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
 	opened, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer opened.Close()
 	inventory, err := FromGGUF(opened, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(inventory.Components) != 1 || len(inventory.Manifest.Components) != 1 ||
 		inventory.Manifest.Components[0].Role != artifact.ComponentWeights {
 		t.Fatalf("inventory = %+v", inventory)
@@ -67,23 +60,15 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 	first := writeHFRepository(t)
 	second := writeHFRepository(t)
 	firstRepository, err := hfrepo.Open(first)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer firstRepository.Close()
 	secondRepository, err := hfrepo.Open(second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer secondRepository.Close()
 	firstInventory, err := FromHFRepository(firstRepository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	secondInventory, err := FromHFRepository(secondRepository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if firstInventory.Manifest.ID != secondInventory.Manifest.ID {
 		t.Fatalf("relocated identities differ: %s != %s", firstInventory.Manifest.ID, secondInventory.Manifest.ID)
 	}
@@ -94,17 +79,13 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 		t.Fatalf("components/locations = %d/%d", len(firstInventory.Components), len(firstInventory.Locations))
 	}
 	batch, err := firstInventory.Batch("fixture/hf/import")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(batch.Manifests) != 1 || len(batch.Contents) != 1 || len(batch.Lineage) != 1 ||
 		len(batch.Locations) != len(firstInventory.Locations) {
 		t.Fatalf("batch = %+v", batch)
 	}
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
@@ -117,30 +98,20 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 
 func TestHFShardedInventoryUsesOrderedLogicalSlots(t *testing.T) {
 	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600))
 	shards := []string{"model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"}
 	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
 	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
 	index, err := json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), index, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), index, 0o600))
 	repository, err := hfrepo.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	inventory, err := FromHFRepository(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var weights []artifact.Component
 	for _, component := range inventory.Manifest.Components {
 		if component.Role == artifact.ComponentWeightsShard {
@@ -155,12 +126,8 @@ func TestHFShardedInventoryUsesOrderedLogicalSlots(t *testing.T) {
 func writeHFRepository(t *testing.T) string {
 	t.Helper()
 	directory := t.TempDir()
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(fixtureTokenizer), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(fixtureConfig), 0o600))
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(fixtureTokenizer), 0o600))
 	writeSafetensor(t, filepath.Join(directory, "model.safetensors"), fixtureTensorName)
 	return directory
 }
@@ -172,9 +139,7 @@ func writeSafetensor(t *testing.T, path, name string) {
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
 	data = append(data, header...)
 	data = append(data, 1)
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 }
 
 // writeGGUFFixture writes a one-file model and returns its path.
@@ -185,9 +150,7 @@ func writeGGUFFixture(t *testing.T) string {
 		Name: fixtureTensorName, Shape: []uint64{1}, Type: gguf.DTypeF32,
 		Data: bytes.NewReader(make([]byte, 4)),
 	}}, gguf.WriteOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return path
 }
 
@@ -203,21 +166,15 @@ func writeSplitGGUFFixture(t *testing.T) string {
 			Data: bytes.NewReader(bytes.Repeat([]byte{byte(index + 1)}, 16)),
 		})
 	}
-	if err := gguf.Write(&whole, nil, tensors, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, gguf.Write(&whole, nil, tensors, gguf.WriteOptions{}))
 	source, err := gguf.Parse(bytes.NewReader(whole.Bytes()), uint64(whole.Len()), gguf.DefaultOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	prefix := filepath.Join(t.TempDir(), "split")
 	name := func(index, count uint16) string { return fmt.Sprintf("%s-%05d-of-%05d.gguf", prefix, index+1, count) }
 	err = source.WriteSplit(func(index, count uint16) (io.WriteCloser, error) {
 		return os.Create(name(index, count))
 	}, gguf.SplitOptions{MaxTensors: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return name(0, 2)
 }
 
@@ -230,14 +187,10 @@ func TestFromGGUFClaimedTakesFreshClaimsWithoutReadingTheFile(t *testing.T) {
 	for name, path := range map[string]string{"single": writeGGUFFixture(t), "split": writeSplitGGUFFixture(t)} {
 		t.Run(name, func(t *testing.T) {
 			file, err := gguf.Open(path)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			defer file.Close()
 			hashed, err := FromGGUF(file, artifact.KindModel)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			truth := map[string]artifact.Descriptor{}
 			for index, location := range hashed.Locations[:len(hashed.Components)] {
 				truth[location.Value] = hashed.Components[index]
@@ -251,9 +204,7 @@ func TestFromGGUFClaimedTakesFreshClaimsWithoutReadingTheFile(t *testing.T) {
 			same := func(_ string, descriptor artifact.Descriptor) (artifact.Descriptor, bool) { return descriptor, true }
 
 			inventory, claims, err := FromGGUFClaimed(file, artifact.KindModel, claimerFor(same))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if inventory.Manifest.ID != hashed.Manifest.ID || len(claims) != len(hashed.Components) ||
 				!slices.Equal(inventory.Components, hashed.Components) || !slices.Equal(inventory.Locations, hashed.Locations) {
 				t.Fatalf("claimed inventory differs from the hashed one: %+v vs %+v", inventory, hashed)
@@ -312,21 +263,15 @@ func TestFromGGUFClaimedTakesFreshClaimsWithoutReadingTheFile(t *testing.T) {
 func TestVerifyClaimsHashesEveryShard(t *testing.T) {
 	path := writeSplitGGUFFixture(t)
 	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer file.Close()
 	inventory, err := FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var claims []artifact.ID
 	for _, component := range inventory.Components {
 		claims = append(claims, component.ID)
 	}
-	if err := VerifyClaims(file, claims); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, VerifyClaims(file, claims))
 	if err := VerifyClaims(file, claims[:1]); err == nil {
 		t.Fatal("verified one claim for two shards")
 	}
@@ -336,13 +281,9 @@ func TestVerifyClaimsHashesEveryShard(t *testing.T) {
 	}
 	second := file.SourcePaths()[1]
 	data, err := os.ReadFile(second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	data[len(data)-1] ^= 1
-	if err := os.WriteFile(second, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(second, data, 0o600))
 	if err := VerifyClaims(file, claims); !errors.Is(err, artifact.ErrContentMismatch) {
 		t.Fatalf("verified claims for a changed file: %v", err)
 	}

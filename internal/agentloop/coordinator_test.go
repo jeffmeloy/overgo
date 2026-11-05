@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "agent-loop-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "agent-loop-model")
@@ -46,17 +45,13 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 		Arguments: []agenttool.Field{{Name: "step", Kind: agenttool.FieldInteger}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/read"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	mutate, err := agenttool.NewManual(agenttool.Manual{
 		Name: "probe.write", Description: "Change state for the loop fixture.",
 		Effect:    agenttool.EffectMutation,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/write"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{inspect, mutate}); err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +59,7 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	coordinator, err := New(store, executor, Identity{
 		Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond"),
 	}, fixtureSessionSteps)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return coordinator, store
 }
 
@@ -75,9 +68,7 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 func previewedOperation(t *testing.T, coordinator *Coordinator, session *Session, name string) artifact.ID {
 	t.Helper()
 	preview, err := coordinator.PreviewMutationDecision(t.Context(), session, name, json.RawMessage(`{}`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return preview.Operation
 }
 
@@ -172,16 +163,12 @@ func TestRestoreResolvesToolByExactIdentity(t *testing.T) {
 		Name: "probe.read", Description: "Now a mutation under the old name.",
 		Effect: agenttool.EffectMutation, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{mutated}); err != nil {
 		t.Fatal(err)
 	}
 	restored, err := coordinator.RestoreSession(ctx, "identity-session")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if restored.Steps != 1 || !restored.Inspection.Valid() || !restored.InspectionEffect.Valid() {
 		t.Fatalf("restored = %+v, want the step-one inspection preserved despite the alias effect change", restored)
 	}
@@ -202,9 +189,7 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	inspectOperation, err := MutationReceiptOperation("receipt-session-step-1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, found, err := runrecord.ResolveStageReceipt(ctx, store, inspectOperation, coordinator.identity.Node); err != nil || found {
 		t.Fatalf("inspection carried a receipt: found=%t err=%v", found, err)
 	}
@@ -216,9 +201,7 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation, err := MutationReceiptOperation("receipt-session-step-2")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tip, found, err := runrecord.ResolveStageReceipt(ctx, store, operation, coordinator.identity.Node)
 	if err != nil || !found {
 		t.Fatalf("mutation receipt chain absent: found=%t err=%v", found, err)
@@ -230,9 +213,7 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 	states := []runrecord.StageState{tip.State}
 	for previous := tip.Previous; previous.Valid(); {
 		parsed, err := readStageReceipt(t, ctx, store, previous)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		states = append(states, parsed.State)
 		previous = parsed.Previous
 	}
@@ -248,17 +229,13 @@ func TestFailingMutationStillLeavesReceipt(t *testing.T) {
 	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	inspection, err := agenttool.ResolveRegisteredManual(ctx, store, "probe.read")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	broken, err := agenttool.NewManual(agenttool.Manual{
 		Name: "probe.break", Description: "Fail for the receipt fixture.",
 		Effect:    agenttool.EffectMutation,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: strings.TrimSuffix(inspection.Transport.URL, "/read") + "/break"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{broken}); err != nil {
 		t.Fatal(err)
 	}
@@ -274,9 +251,7 @@ func TestFailingMutationStillLeavesReceipt(t *testing.T) {
 		t.Fatal("broken mutation transport succeeded")
 	}
 	operation, err := MutationReceiptOperation("failing-session-step-2")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tip, found, err := runrecord.ResolveStageReceipt(ctx, store, operation, coordinator.identity.Node)
 	if err != nil || !found {
 		t.Fatalf("failed mutation left no receipt: found=%t err=%v", found, err)

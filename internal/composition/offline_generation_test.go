@@ -8,6 +8,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func TestOfflineArtifactGenerationExactPassthrough(t *testing.T) {
 		plan, directory, testutil.ArtifactID(t, artifact.KindModel, "generated passthrough"),
 		offlineGenerationTrials(t),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evidence.Operator != OfflineArtifactExactPassthrough || evidence.ExecutionPlan != plan.ID ||
 		evidence.TensorCount != uint32(len(plan.Operations)) || evidence.TensorBytes != plan.Operations[0].OutputBytes {
 		t.Fatalf("passthrough generation evidence = %+v", evidence)
@@ -34,9 +33,7 @@ func TestOfflineArtifactGenerationTaskArithmetic(t *testing.T) {
 		plan, directory, testutil.ArtifactID(t, artifact.KindModel, "generated arithmetic"),
 		offlineGenerationTrials(t),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evidence.Operator != OfflineArtifactTaskArithmetic || len(evidence.Trials) != tensor.PairedExtent {
 		t.Fatalf("task arithmetic generation evidence = %+v", evidence)
 	}
@@ -65,9 +62,7 @@ func offlineGenerationPlan(t *testing.T, operator OfflineArtifactOperator) Offli
 		}
 	}
 	bytes, err := safetensors.TensorBytes("F32", []uint64{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resident := bytes * uint64(modelCount)
 	sourceBytes := make([]uint64, modelCount)
 	for index := range sourceBytes {
@@ -91,9 +86,7 @@ func offlineGenerationPlan(t *testing.T, operator OfflineArtifactOperator) Offli
 func mustOfflineExecutionPlan(t *testing.T, value OfflineTensorExecutionPlan) OfflineTensorExecutionPlan {
 	t.Helper()
 	plan, err := offlineTensorExecutionPlanCodec.New(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return plan
 }
 

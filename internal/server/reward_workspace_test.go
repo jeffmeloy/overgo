@@ -23,6 +23,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -104,9 +105,7 @@ func newRewardFixture(t *testing.T, rewards func(context.Context, trainingworkfl
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
 	store, err := overgodb.Create(filepath.Join(root, "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
@@ -116,12 +115,8 @@ func newRewardFixture(t *testing.T, rewards func(context.Context, trainingworkfl
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "reward workspace evaluator")
 	rows := fmt.Sprintf(`{"id":"candidate-a","group":"prompt-a","prompt":"ab","completion":"c","reward":1,"evaluator":"%[1]s"}`+"\n"+
 		`{"id":"candidate-b","group":"prompt-a","prompt":"ab","completion":"d","reward":-1,"evaluator":"%[1]s"}`+"\n", evaluator)
-	if err := os.MkdirAll(roots.Datasets, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(fixture.datasetPath, []byte(rows), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(roots.Datasets, 0o755))
+	testcheck.NoError(t, os.WriteFile(fixture.datasetPath, []byte(rows), 0o600))
 	fixture.dataset = testutil.ArtifactID(t, artifact.KindDataset, rows)
 	split := testutil.ArtifactID(t, artifact.KindDatasetShard, "all\x00"+rows)
 	profile := func(name string) artifact.ID {
@@ -145,18 +140,12 @@ func newRewardFixture(t *testing.T, rewards func(context.Context, trainingworkfl
 		Evaluation: policies.Evaluation, Metric: trainingprogram.MetricTokenAccuracy,
 		Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	policies.Objective = objective.ID
 	objectiveContent, err := objective.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	optimizerContent, err := optimizerPolicy.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	descriptors := []artifact.Descriptor{{ID: fixture.policy, Size: 1}, {ID: fixture.dataset, Size: uint64(len(rows))}}
 	for _, id := range []artifact.ID{
 		split, processor, loss, evidence, evaluator, policies.Precision, policies.Placement,
@@ -177,19 +166,13 @@ func newRewardFixture(t *testing.T, rewards func(context.Context, trainingworkfl
 	dependencies := append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: fixture.policy}}, modelrecipetest.PolicyDependencies(policies)...)
 	fixture.definition, err = trainingWorkspaceAdmissionDefinition(trainingprogram.ObjectiveGRPO,
 		append(dependencies, recipe.Dependency{Role: recipe.DependencyEvaluator, Artifact: evaluator}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/reward-workspace/candidate", fixture.definition); err != nil {
 		t.Fatal(err)
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/reward-workspace/verification", fixture.definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(ctx, store, fixture.definition, verification, recipe.EvidenceVerified, "reward workspace fixture"); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, fixture.definition, verification, recipe.EvidenceVerified, "reward workspace fixture"))
 	if fixture.workspace, err = NewTrainingWorkspace(ctx, store, roots, fixture.policy, rewards); err != nil {
 		t.Fatal(err)
 	}
@@ -201,9 +184,7 @@ func newRewardFixture(t *testing.T, rewards func(context.Context, trainingworkfl
 func (fixture rewardTrainingFixture) input(t *testing.T, output string, steps int) json.RawMessage {
 	t.Helper()
 	input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": output, "steps": steps})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return input
 }
 
@@ -218,29 +199,21 @@ func sessionDevices(t *testing.T, store *overgodb.Store, recipeID artifact.ID) [
 	t.Helper()
 	ctx := t.Context()
 	dependents, err := store.Children(ctx, recipeID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var devices []string
 	for _, edge := range dependents {
 		dependent, _, err := store.Artifact(ctx, edge.Child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if dependent.Schema != runrecord.ServingObservationSchema {
 			continue
 		}
 		observation, err := runrecord.RequireServingObservation(ctx, store, edge.Child)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if observation.Task != recipe.TaskTraining {
 			continue
 		}
 		environment, err := runrecord.RequireEnvironment(ctx, store, observation.Environment)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		devices = append(devices, environment.Device)
 	}
 	return devices
@@ -339,9 +312,7 @@ func TestTrainingWorkspaceTrainsRewardsInTheTrainingCommand(t *testing.T) {
 		t.Fatalf("the preference capability is listed as %+v (%v); want it on the host processor with no note and no refusal", hosted, err)
 	}
 	input, err := json.Marshal(map[string]any{"dataset": preference.dataset, "output": "trained", "steps": 1, "objective_scale": 0.1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := preference.workspace.ExecuteWorkflow(ctx, WorkflowTraining, hosted[0], input, testReporter{}); err != nil {
 		t.Fatal(err)
 	}
@@ -381,9 +352,7 @@ func TestRewardRunIsWeighedBesideTheServedModel(t *testing.T) {
 		}
 		generator := &memoryOwnersGenerator{fakeGenerator: &fakeGenerator{}, memory: testDeviceMemory()}
 		handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, generator)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = handler.Close() })
 		return handler, generator
 	}
@@ -397,9 +366,7 @@ func TestRewardRunIsWeighedBesideTheServedModel(t *testing.T) {
 		var status operation.Status
 		if response.Code == http.StatusAccepted {
 			var submission workflowResponse
-			if err := json.Unmarshal(response.Body.Bytes(), &submission); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), &submission))
 			waited := serveTestRequest(handler, http.MethodGet, "/operations/wait?id="+submission.Operation.String(), "")
 			if err := json.Unmarshal(waited.Body.Bytes(), &status); err != nil || waited.Code != http.StatusOK {
 				t.Fatalf("wait status=%d body=%s (%v)", waited.Code, waited.Body.String(), err)

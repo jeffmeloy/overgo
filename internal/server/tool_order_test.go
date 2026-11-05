@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 )
 
 // TestToolSchemasKeepTheirKeyOrderAcrossProtocols holds the two protocols
@@ -18,17 +19,11 @@ func TestToolSchemasKeepTheirKeyOrderAcrossProtocols(t *testing.T) {
 	t.Parallel()
 	const schema = `{"type": "object", "required": ["zeta"], "properties": {"zeta": {"type": "string"}, "alpha": {"type": "integer"}}}`
 	want, err := inference.FunctionTool("lookup", "Look it up.", json.RawMessage(schema))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	anthropic, err := selectAnthropicTools(json.RawMessage(`[{"name": "lookup", "description": "Look it up.", "input_schema": `+schema+`}]`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	responses, err := selectResponsesTools(json.RawMessage(`[{"type": "function", "name": "lookup", "description": "Look it up.", "parameters": `+schema+`}]`), nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for protocol, selection := range map[string]chatToolSelection{"Anthropic": anthropic, "Responses": responses} {
 		if len(selection.prompt) != 1 || !reflect.DeepEqual(selection.prompt[0], want) {
 			t.Errorf("the %s protocol hands on %+v, and the tool made from the request's bytes is %+v", protocol, selection.prompt, want)

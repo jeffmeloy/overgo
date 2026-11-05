@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/testcheck"
 )
 
 // TestRunRefusesHostedModel: a hosted model has no local decode to
@@ -22,9 +23,7 @@ func TestParseOptionsBounds(t *testing.T) {
 		model, prompt string
 	}{4, 3, "model.gguf", "hello"}
 	options, err := parseOptions([]string{"-tokens", "4", "-runs", "3", "-warmup", "0", "model.gguf", "hello"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got := struct {
 		tokens, runs  int
 		model, prompt string

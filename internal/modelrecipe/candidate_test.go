@@ -7,15 +7,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 	spec := candidateFixture(t)
 	first, err := NewCandidate(spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if first.ID().Kind() != artifact.KindRecipe || first.ValidateIdentity() != nil {
 		t.Fatal("candidate identity is not a valid recipe document")
 	}
@@ -24,9 +23,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 	slices.Reverse(permuted.Components)
 	slices.Reverse(permuted.References)
 	second, err := NewCandidate(permuted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if second.ID() != first.ID() {
 		t.Fatal("candidate identity depends on component or reference input order")
 	}
@@ -39,16 +36,12 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 	}
 
 	content, err := first.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if content.Descriptor.MediaType != CandidateMediaType || content.Descriptor.Schema != CandidateSchema {
 		t.Fatalf("unexpected candidate contract: %+v", content.Descriptor)
 	}
 	parsedDocument, err := candidateCodec.Parse(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parsed := Candidate{document: parsedDocument}
 	if parsed.ID() != first.ID() || parsed.ValidateIdentity() != nil {
 		t.Fatal("candidate document did not round-trip with exact identity")
@@ -122,9 +115,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 			changed := cloneCandidateSpec(spec)
 			change(&changed)
 			candidate, err := NewCandidate(changed)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			if candidate.ID() == first.ID() {
 				t.Fatal("field change did not change candidate identity")
 			}

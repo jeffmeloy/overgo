@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // hubFixture serves a minimal hub: one model with an LFS weights file and a
@@ -55,9 +57,7 @@ func hubFixture(t *testing.T, weights []byte) (*httptest.Server, *[]string) {
 func TestHubSearchAuthorizesAndBounds(t *testing.T) {
 	server, authorizations := hubFixture(t, []byte("weights"))
 	client, err := New(server.URL, "secret-token")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	listings, err := client.Search(t.Context(), SearchQuery{Kind: KindModel, Search: "tiny", Limit: 5})
 	if err != nil || len(listings) != 1 || listings[0].ID != "acme/tiny" {
 		t.Fatalf("listings=%v err=%v", listings, err)
@@ -77,18 +77,14 @@ func TestHubDownloadVerifiesDeclaredDigest(t *testing.T) {
 	weights := []byte("exact weight bytes")
 	server, _ := hubFixture(t, weights)
 	client, err := New(server.URL, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	destination := t.TempDir()
 	var observed []Progress
 	resolved, err := client.Download(t.Context(), DownloadRequest{
 		Kind: KindModel, Repository: "acme/tiny", Destination: destination,
 		Observe: func(progress Progress) { observed = append(observed, progress) },
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if resolved.Revision != "rev0" || len(resolved.Files) != 2 {
 		t.Fatalf("resolved=%+v", resolved)
 	}
@@ -100,9 +96,7 @@ func TestHubDownloadVerifiesDeclaredDigest(t *testing.T) {
 		t.Fatalf("progress=%v", observed)
 	}
 	entries, err := os.ReadDir(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range entries {
 		if strings.Contains(entry.Name(), ".partial-") {
 			t.Fatalf("partial file survived: %s", entry.Name())
@@ -115,21 +109,15 @@ func TestHubDownloadVerifiesDeclaredDigest(t *testing.T) {
 func TestDownloadPublishesOnlyRepositoryFiles(t *testing.T) {
 	server, _ := hubFixture(t, []byte("exact weight bytes"))
 	client, err := New(server.URL, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request := DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Destination: filepath.Join(t.TempDir(), "tiny")}
 	resolved, err := client.Download(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var want, published []string
 	for _, file := range resolved.Files {
 		want = append(want, file.Path)
 		book, err := bookkeepingPath(request.Destination, file.Path)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := os.Stat(book + ".lock"); err != nil {
 			t.Errorf("%s has no bookkeeping lock: %v", file.Path, err)
 		}
@@ -170,9 +158,7 @@ func TestHubDownloadRefusesTamperedBytes(t *testing.T) {
 	lying := httptest.NewServer(mux)
 	defer lying.Close()
 	liar, err := New(lying.URL, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := liar.Download(t.Context(), DownloadRequest{
 		Kind: KindModel, Repository: "acme/tiny", Destination: destination,
 	}); err == nil {

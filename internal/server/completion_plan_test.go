@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // TestCompletionsShareThePlan holds /v1/completions to the shared generation
@@ -21,17 +23,11 @@ func TestCompletionsShareThePlan(t *testing.T) {
 			generator := &protocolAdmissionGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, base)}
 			handler := newTestHandlerWithRepository(t, generator)
 			prepared, err := handler.preparePrompt(t.Context(), nativePrompt{Text: "inspect"}, true)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			short, err := json.Marshal(prepared.TokenIDs)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			long, err := json.Marshal(append(prepared.TokenIDs, prepared.TokenIDs...))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fits, over := uint32(len(prepared.TokenIDs)), uint32(2*len(prepared.TokenIDs))
 			generator.limit = fits + 1
 			body := fmt.Sprintf(`{"prompt":[%s,%s],"max_tokens":1,"stream":%t}`, short, long, stream)

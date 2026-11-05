@@ -5,6 +5,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"overgo/internal/testcheck"
 )
 
 // TestSynthWall: matched-protocol wall measurement against the reference's
@@ -47,15 +49,11 @@ func TestSynthWall(t *testing.T) {
 			EOSThreshold: math.Inf(1),
 			NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		backbone[run] = time.Since(start).Seconds()
 		codecStart := time.Now()
 		pcm, err := m.LatentsToPCM(t.Context(), latents)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		codec[run] = time.Since(codecStart).Seconds()
 		total[run] = time.Since(start).Seconds()
 		if len(pcm) == 0 {

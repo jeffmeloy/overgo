@@ -7,20 +7,18 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 func TestKimiDeclaredSplitIntegration(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var source struct {
 		SourceSHA256 string `json:"source_sha256"`
 		Pattern      string `json:"pattern"`
 	}
-	if err := json.Unmarshal(raw, &source); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(raw, &source))
 	if source.SourceSHA256 != "99b5ff4e6cc9f14bcdc9c4e1d854c35d4afc087af8e825f3264b1ebbc10132eb" {
 		t.Fatal("Kimi declaration source changed")
 	}
@@ -54,16 +52,10 @@ func TestKimiDeclaredSplitIntegration(t *testing.T) {
 		t.Helper()
 		directory := t.TempDir()
 		data, err := json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600))
 		tok, err := Load(directory)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return tok
 	}
 	declared := load(declaration(source.Pattern))

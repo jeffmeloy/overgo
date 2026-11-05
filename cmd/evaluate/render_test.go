@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -26,9 +27,7 @@ func renderedDirectory(t *testing.T, model, recipeID artifact.ID) (directory, ke
 	directory = t.TempDir()
 	var err error
 	store, err = overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -36,40 +35,26 @@ func renderedDirectory(t *testing.T, model, recipeID artifact.ID) (directory, ke
 	})
 	picture := []byte("a picture the model drew")
 	output, err := artifact.IdentifyBytes(artifact.KindOutput, picture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	request, key, err := renderRequest(map[string]any{"seed": float64(1)}, nil, renderPrompt{ID: "coco_1", Prompt: "a cat"}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inputContent, err := capabilityruntime.InputContent("overgo.image-gen-input.v1", json.RawMessage(request))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input := inputContent.Descriptor.ID
 	commit := strings.Repeat("a", 40)
 	run, err := runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{input}, []artifact.ID{output}, "", commit, testutil.ArtifactID(t, artifact.KindEvidence, "environment"), 1, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := run.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "render-fixture", Contents: []artifact.Content{content, inputContent}}); err != nil {
 		t.Fatal(err)
 	}
 	name := output.DigestHex() + ".png"
-	if err := os.WriteFile(filepath.Join(directory, name), picture, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), picture, 0o600))
 	manifest := renderManifest{Model: model, Recipe: recipeID, Task: recipe.TaskImageGen, CodeCommit: commit, Draws: map[string]renderedMedia{
 		key: {File: name, Request: request, Input: input, Output: output, Run: run.ID},
 	}}
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	return directory, key, store
 }
 
@@ -83,13 +68,9 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "drawing-recipe")
 	directory, name, store := renderedDirectory(t, model, recipeID)
 	held, err := verifyRendered(t.Context(), store, directory, model, recipeID, name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var manifest renderManifest
-	if err := jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest))
 	for label, change := range map[string]func(*renderedMedia){
 		"missing producer":     func(v *renderedMedia) { v.Run = artifact.ID{} },
 		"unrecorded producer":  func(v *renderedMedia) { v.Run = testutil.ArtifactID(t, artifact.KindRun, "other") },
@@ -99,9 +80,7 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 		changed := held
 		change(&changed)
 		manifest.Draws[name] = changed
-		if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 		if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err == nil {
 			t.Errorf("%s was qualified", label)
 		}
@@ -113,35 +92,23 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 		forged := held
 		forged.Request = raw
 		forgedKey, err := artifact.JSONID(artifact.KindFile, forged.Request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		manifest.Draws = map[string]renderedMedia{forgedKey.DigestHex(): forged}
-		if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 		if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, forgedKey.DigestHex()); err == nil {
 			t.Errorf("%s borrowed another producer", label)
 		}
 	}
 	zero := held
 	var zeroFields map[string]any
-	if err := json.Unmarshal(held.Request, &zeroFields); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(held.Request, &zeroFields))
 	zeroFields["steps"] = 0
 	zero.Request, err = json.Marshal(zeroFields)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	zeroKey, err := artifact.JSONID(artifact.KindFile, zero.Request)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	manifest.Draws = map[string]renderedMedia{zeroKey.DigestHex(): zero}
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, zeroKey.DigestHex()); err != nil {
 		t.Fatalf("omitted numeric zero changed request semantics: %v", err)
 	}
@@ -149,44 +116,32 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	// stays bound by its recipe, request and output; one that records another
 	// commit than the manifest's does not qualify.
 	bare, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{held.Input}, []artifact.ID{held.Output}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	bareContent, err := bare.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "render-fixture/bare", Contents: []artifact.Content{bareContent}}); err != nil {
 		t.Fatal(err)
 	}
 	unstamped := held
 	unstamped.Run = bare.ID
 	manifest.Draws = map[string]renderedMedia{name: unstamped}
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err != nil {
 		t.Fatalf("a run that records no commit was refused: %v", err)
 	}
 	drawnAt := manifest.CodeCommit
 	manifest.CodeCommit, manifest.Draws = strings.Repeat("b", len(drawnAt)), map[string]renderedMedia{name: held}
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err == nil {
 		t.Error("a run of another commit was judged")
 	}
 	manifest.CodeCommit, manifest.Draws = drawnAt, nil
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err == nil {
 		t.Error("legacy provenance was qualified")
 	}
 	manifest.Draws = map[string]renderedMedia{name: held}
-	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, testutil.ArtifactID(t, artifact.KindModel, "another-model"), recipeID, name); err == nil {
 		t.Error("a picture another model drew was judged as this one's")
 	}
@@ -196,9 +151,7 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, "unlisted.png"); err == nil {
 		t.Error("a picture the manifest does not list was judged")
 	}
-	if err := os.WriteFile(filepath.Join(directory, held.File), []byte("another picture"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, held.File), []byte("another picture"), 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err == nil {
 		t.Error("bytes that are not the digest the file is named for were judged")
 	}
@@ -255,9 +208,7 @@ func TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew(t *testing.T) {
 		{"size", renderPrompt{Prompt: "a cat"}, map[string]float64{"width": 416}, 0, false},
 	} {
 		_, request, err := renderRequest(map[string]any{"seed": float64(1)}, item.settings, item.prompt, item.index)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, hit := held.Draws[request]
 		if hit != item.same {
 			t.Errorf("%s reuse=%v want %v", item.label, hit, item.same)
@@ -279,9 +230,7 @@ func TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture(t *testing.T) {
 		t.Fatalf("the judge names itself %q", judge.Judge())
 	}
 	input, err := judge.ResolveMedia(t.Context(), evaluation.MediaImage, name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !input.Producer.Valid() || !input.Request.Valid() {
 		t.Fatal("producing request was lost")
 	}
@@ -291,33 +240,23 @@ func TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture(t *testing.T) {
 		t.Fatal("changed admitted judge recipe kept its identity")
 	}
 	reference, err := input.Reference()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := judge.mediaFiles.read(reference); err != nil {
 		t.Fatal(err)
 	}
 	bound := judge.files[reference]
 	fixed := &mediaFiles{}
 	original, err := fixed.bind(bound.path, evaluation.MediaInput{Runtime: judge.identity, Decode: evaluation.MediaDecode{Format: "image"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	copyPath := filepath.Join(t.TempDir(), "relocated.png")
 	raw, err := os.ReadFile(bound.path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(copyPath, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(copyPath, raw, 0o600))
 	relocated, err := fixed.bind(copyPath, evaluation.MediaInput{Runtime: judge.identity, Decode: evaluation.MediaDecode{Format: "image"}})
 	if err != nil || relocated != original {
 		t.Fatalf("identical content relocation changed binding: %v", err)
 	}
-	if err := os.WriteFile(bound.path, []byte("changed after binding"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(bound.path, []byte("changed after binding"), 0o600))
 	if _, err := judge.mediaFiles.read(reference); err == nil {
 		t.Fatal("changed bytes reached the judge")
 	}

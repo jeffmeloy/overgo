@@ -16,6 +16,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -49,23 +50,15 @@ func tinyModel(t *testing.T) (model *densecausal.Model, directory string, origin
 	for index := range weights["model.embed_tokens.weight"] {
 		weights["model.embed_tokens.weight"][index] *= embeddingScale
 	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
 	config, err := json.Marshal(map[string]any{
 		"model_type": "llama", "num_attention_heads": spec.Heads, "head_dim": spec.HeadDim, "max_position_embeddings": 16,
 		"rope_theta": 10000.0, "rms_norm_eps": 1e-6, "tie_word_embeddings": true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), config, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), config, 0o600))
 	model, err = densecausal.Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	original = make(map[string][]float32, len(model.Weights))
 	for name, values := range model.Weights {
 		original[name] = slices.Clone(values)
@@ -78,9 +71,7 @@ var periodic = []int{1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4}
 func loss(t *testing.T, model *densecausal.Model, tokens []int) float64 {
 	t.Helper()
 	value, _, _, err := model.LossAndGrads(tokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return value
 }
 
@@ -98,9 +89,7 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 	t.Helper()
 	model, _, _ := tinyModel(t)
 	trainer, err := New(model, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	random := rand.New(rand.NewSource(2))
 	// In name order, so the same adapter is checked on every run: a map's order would draw another.
 	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
@@ -109,16 +98,10 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 			up[index] = float32(random.NormFloat64()) / 4
 		}
 	}
-	if err := trainer.apply(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, trainer.apply())
 	_, _, grads, err := model.LossAndGrads(periodic)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := projectAll(trainer, grads); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, projectAll(trainer, grads))
 	checked := 0
 	for _, name := range []string{"model.layers.0.self_attn.q_proj", "model.layers.1.self_attn.k_proj", "model.layers.0.mlp.down_proj"} {
 		module := trainer.adapter.Modules[name]
@@ -126,14 +109,10 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 			for _, index := range []int{0, 3, len(factor) - 1} {
 				original := factor[index]
 				factor[index] = original + float32(step)
-				if err := trainer.apply(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, trainer.apply())
 				up := loss(t, model, periodic)
 				factor[index] = original - float32(step)
-				if err := trainer.apply(); err != nil {
-					t.Fatal(err)
-				}
+				testcheck.NoError(t, trainer.apply())
 				down := loss(t, model, periodic)
 				factor[index] = original
 				numeric := (up - down) / (2 * step)
@@ -148,9 +127,7 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 	if checked != 18 {
 		t.Fatalf("checked %d entries, want 18", checked)
 	}
-	if err := trainer.apply(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, trainer.apply())
 }
 
 // TestTrainingLowersTheLossAndFreezesTheBase: Muon over the factors lowers the
@@ -160,9 +137,7 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 	model, _, original := tinyModel(t)
 	trainer, err := New(model, Config{Rank: 4, Alpha: 8, Seed: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(trainer.adapter.Modules) != 14 {
 		t.Fatalf("%d modules, want seven projections in each of two layers", len(trainer.adapter.Modules))
 	}
@@ -178,9 +153,7 @@ func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 	}
 	var seen []int
 	losses, err := trainer.Train(batches, nil, 0.02, 0.9, func(step int, _ float64, _ time.Duration) error { seen = append(seen, step); return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(losses) != 40 || len(seen) != 40 || seen[39] != 39 {
 		t.Fatalf("%d losses and %d observed steps, want forty", len(losses), len(seen))
 	}
@@ -191,9 +164,7 @@ func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 	for name := range trainer.adapter.Modules {
 		adapted[name+".weight"] = true
 		delta, err := trainer.adapter.Delta(name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index, value := range model.Weights[name+".weight"] {
 			if want := original[name+".weight"][index] + delta[index]; math.Abs(float64(value-want)) > 1e-6 {
 				t.Fatalf("%s[%d] = %v, want the base plus the update %v", name, index, value, want)
@@ -230,28 +201,20 @@ func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 func TestAdapterCarriesTheTrainingThroughPEFT(t *testing.T) {
 	model, directory, _ := tinyModel(t)
 	trainer, err := New(model, Config{Rank: 2, Alpha: 4, Seed: 3, BaseModel: "tiny"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batches := [][]int{periodic, periodic, periodic, periodic, periodic, periodic}
 	if _, err := trainer.Train(batches, nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
 	saved := filepath.Join(t.TempDir(), "adapter")
-	if err := peft.Save(saved, trainer.Adapter()); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, peft.Save(saved, trainer.Adapter()))
 	loaded, err := peft.Load(saved)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loaded.Config.BaseModel != "tiny" || len(loaded.Modules) != len(trainer.adapter.Modules) {
 		t.Fatalf("loaded %+v with %d modules", loaded.Config, len(loaded.Modules))
 	}
 	fresh, err := densecausal.Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := Resume(fresh, loaded); err != nil {
 		t.Fatal(err)
 	}
@@ -260,16 +223,12 @@ func TestAdapterCarriesTheTrainingThroughPEFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, err := safetensors.OpenSource(merged)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	for name := range loaded.Modules {
 		tensor := name + ".weight"
 		fromFile, err := safetensors.ReadF32(source.Tensors[tensor])
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for index := range fromFile {
 			trained, resumed := model.Weights[tensor][index], fresh.Weights[tensor][index]
 			if math.Abs(float64(trained-resumed)) > 1e-6 || math.Abs(float64(trained-fromFile[index])) > 1e-5 {
@@ -297,9 +256,7 @@ func TestRefusesWhatItCannotTrain(t *testing.T) {
 		}
 	}
 	trainer, err := New(model, Config{Rank: 2, Alpha: 4, Targets: []string{"q_proj"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(trainer.adapter.Modules) != 2 {
 		t.Fatalf("%d modules for q_proj alone, want one per layer", len(trainer.adapter.Modules))
 	}
@@ -326,13 +283,9 @@ func trainedAdapter(t *testing.T, batches [][]int, trained [][]bool) (peft.Adapt
 	t.Helper()
 	model, _, _ := tinyModel(t)
 	trainer, err := New(model, Config{Rank: 2, Alpha: 4, Seed: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	losses, err := trainer.Train(batches, trained, 0.02, 0.9, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return trainer.Adapter(), losses
 }
 
@@ -376,9 +329,7 @@ func TestMaskedBatchesLearnOnlyTheirTrainedTokens(t *testing.T) {
 	}
 	model, _, _ := tinyModel(t)
 	trainer, err := New(model, Config{Rank: 2, Alpha: 4})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := trainer.Train(batches, flags(masked)[:2], 0.02, 0.9, nil); err == nil {
 		t.Error("flags for two of three batches were accepted")
 	}
@@ -402,9 +353,7 @@ func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
 
 	model, _, _ := tinyModel(t)
 	stepped, err := New(model, config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	expected := map[string][2][]float64{}
 	for name, module := range stepped.Adapter().Modules {
 		expected[name] = [2][]float64{widen(module.Down), widen(module.Up)}
@@ -425,18 +374,12 @@ func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
 
 	averagedModel, _, original := tinyModel(t)
 	averaged, err := New(averagedModel, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := averaged.Average(decay); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, averaged.Average(decay))
 	if _, err := averaged.Train(batches, nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := averaged.UseAverage(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, averaged.UseAverage())
 	for name, module := range averaged.Adapter().Modules {
 		for factor, values := range [2][]float32{module.Down, module.Up} {
 			for index, value := range values {
@@ -448,9 +391,7 @@ func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
 	}
 	for name, module := range averaged.Adapter().Modules {
 		delta, err := averaged.Adapter().Delta(name)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		weight := averagedModel.Weights[name+weightSuffix]
 		for index, value := range weight {
 			if want := original[name+weightSuffix][index] + delta[index]; math.Abs(float64(value-want)) > 1e-5 {
@@ -485,38 +426,24 @@ func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
 
 	wholeModel, _, _ := tinyModel(t)
 	whole, err := New(wholeModel, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := whole.Average(decay); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, whole.Average(decay))
 	if _, err := whole.Train(batches, nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := whole.UseAverage(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, whole.UseAverage())
 
 	firstModel, _, _ := tinyModel(t)
 	first, err := New(firstModel, config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := first.Average(decay); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, first.Average(decay))
 	if _, err := first.Train(batches[:stop], nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
 	state, err := first.OptimizerState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	average, err := optimizer.RestoreAverage(slices.Clone(first.AverageState().Values()), first.AverageState().Updates(), first.AverageState().Decay())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// What a checkpoint holds: the adapter's factors, copied, and the model its factors adapt.
 	stopped := peft.Adapter{Config: first.Adapter().Config, Modules: map[string]peft.Module{}}
 	for name, module := range first.Adapter().Modules {
@@ -526,18 +453,12 @@ func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
 
 	resumedModel, _, _ := tinyModel(t)
 	resumed, err := Resume(resumedModel, stopped)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := resumed.Restore(state, average, 0.02, 0.9); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, resumed.Restore(state, average, 0.02, 0.9))
 	if _, err := resumed.Train(batches[stop:], nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := resumed.UseAverage(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, resumed.UseAverage())
 	for name, module := range whole.Adapter().Modules {
 		other := resumed.Adapter().Modules[name]
 		if !slices.Equal(module.Down, other.Down) || !slices.Equal(module.Up, other.Up) {

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -23,9 +24,7 @@ import (
 func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	publish := func(name string, payloads ...string) artifact.ID {
 		if len(payloads) == 0 {
@@ -36,9 +35,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		for ordinal, payload := range payloads {
 			component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte(payload))
 			location := filepath.Join(t.TempDir(), fmt.Sprintf("%s-%d.gguf", name, ordinal))
-			if err := os.WriteFile(location, []byte(payload), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(location, []byte(payload), 0o600))
 			role := artifact.ComponentWeights
 			if ordinal != 0 {
 				role = artifact.ComponentWeightsShard
@@ -54,9 +51,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 			components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: uint32(len(components)), Name: "shared-shard", Artifact: components[1].Artifact})
 		}
 		manifest, err := artifact.NewManifest(artifact.KindModel, components)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		batch.Manifests = []artifact.Manifest{manifest}
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
@@ -88,9 +83,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	split := publish("split", shards...)
 	publishVerifiedActivation(t, store, split, "split")
 	sized, err := LocalServable(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(sized) != 2 || sized[0].Model != healthy || sized[1].Model != split ||
 		sized[0].Bytes != int64(len("discovery-weights-healthy")) || sized[1].Bytes != int64(len(shards[0])+len(shards[1])) {
 		t.Fatalf("local weights = %+v, want healthy then the complete split model without duplicate shard bytes", sized)
@@ -113,9 +106,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	drifted, err := Servable(ctx, store, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for _, entry := range drifted {
 		if entry.Model == healthy && !strings.Contains(entry.Stale, "not measured") {
 			t.Fatalf("drifted entry = %+v, want it reported stale", entry)
@@ -131,33 +122,23 @@ func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID arti
 	testutil.PublishArtifact(t, store, definitionID)
 	definition, err := modelrecipe.InferenceWithModelDefinition(modelID, profile, definitionID,
 		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipetest.PublishActivation(t.Context(), store, "fixture/discovery/"+suffix, definition); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, modelrecipetest.PublishActivation(t.Context(), store, "fixture/discovery/"+suffix, definition))
 }
 
 func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	oldPayload, currentPayload := []byte("old-weights"), []byte("current-weights")
 	oldComponent := testutil.ArtifactBytesID(t, artifact.KindTensorSet, oldPayload)
 	location := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(location, currentPayload, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(location, currentPayload, 0o600))
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: oldComponent,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/replaced",
 		Artifacts: []artifact.Descriptor{{ID: oldComponent, Size: uint64(len(oldPayload))}},
@@ -191,28 +172,20 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 		modelID, profile, definitionID, recipe.PlacementHost,
 		modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/legacy-candidate/"+suffix, definition); err != nil {
 		t.Fatal(err)
 	}
 	_, validated, err := modelrecipe.Transition(
 		ctx, store, "fixture/discovery/legacy-validated/"+suffix, definition, recipe.StatusValidated, nil, nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	active, err := recipe.NewLifecycleEvent(
 		definition, recipe.StatusValidated, recipe.StatusActive, &validated.ID, nil, []artifact.ID{intent},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	content, err := active.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch(
 		"fixture/discovery/legacy-active/"+suffix, []artifact.Content{content}, nil,
 		[]artifact.AliasBinding{
@@ -220,9 +193,7 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 			{Name: "recipe.active.inference." + modelID.String(), Target: definition.ID},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -235,9 +206,7 @@ func TestEveryPresentModelListsWithItsState(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	register := func(name string, kind artifact.LocationKind, present bool) artifact.ID {
 		payload := []byte("catalog-weights-" + name)
@@ -247,16 +216,12 @@ func TestEveryPresentModelListsWithItsState(t *testing.T) {
 			location = "remote://retired/" + name
 		}
 		if present {
-			if err := os.WriteFile(location, payload, 0o600); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
 		}
 		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{
 			{Role: artifact.ComponentWeights, Name: "weights", Artifact: component},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       "fixture/discovery/states/" + name,
 			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
@@ -286,9 +251,7 @@ func TestEveryPresentModelListsWithItsState(t *testing.T) {
 		t.Fatalf("states = %v", states)
 	}
 	measured, err := Servable(ctx, store, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(measured) != 1 || measured[0].Model != verified {
 		t.Fatalf("the measured surface holds %+v, want only the activated model", measured)
 	}

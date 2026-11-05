@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 	"overgo/internal/torchrng"
 )
 
@@ -28,9 +29,7 @@ var torchRandnSeed31Second = []float32{
 func TestSeededInitLatentMatchesTorchRandn31(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer worker.Close()
 
 	first := make([]float32, len(torchRandnSeed31First))
@@ -52,9 +51,7 @@ func TestSeededInitLatentMatchesTorchRandn31(t *testing.T) {
 		copy(second, got)
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	wantFirst := make([]float32, len(torchRandnSeed31First))
 	for i, v := range torchRandnSeed31First {

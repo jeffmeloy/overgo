@@ -8,6 +8,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -25,35 +26,23 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ and OVERGO_GEMMA4_IMAGE")
 	}
 	handle, err := os.Open(imagePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	input, err := png.Decode(handle)
 	_ = handle.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 
 	cpu, err := openImageProjectorAs[*Gemma4Runner](projectorPath, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cpu.Close()
 	cuda, err := openImageProjectorAs[*Gemma4Runner](projectorPath, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer cuda.Close()
 
 	ctx := t.Context()
 	want, err := cpu.EncodeImage(ctx, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, err := cuda.EncodeImage(ctx, input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	rows := got.GridH * got.GridW
 	if !got.Embeddings.Shape.Equal(mustShape(uint64(cuda.Spec().Hidden), uint64(rows))) {
 		t.Fatalf("device embedding shape = %v, want [%d %d]", got.Embeddings.Shape, cuda.Spec().Hidden, rows)
@@ -111,9 +100,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 	perForwardMs := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
 
 	stats, err := cuda.cuda.worker.MemoryStats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	peakMiB := float64(stats.PeakBytes) / (1024 * 1024)
 	currentMiB := float64(stats.CurrentBytes) / (1024 * 1024)
 	t.Logf("device projector forward: %.3f ms/forward (%d iters) peak=%.1f MiB current=%.1f MiB",

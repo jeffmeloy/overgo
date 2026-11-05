@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -108,13 +109,9 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 		t.Helper()
 		before := prepared
 		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, _, err = ConfirmOnPool(ctx, store, pool.Acceptance.ID, candidate(name), reading)
 		_, after, chargesErr := runrecord.BudgetCharges(ctx, store, granted.ID)
 		if err == nil || !strings.Contains(err.Error(), "fresh partition") || prepared != before || chargesErr != nil || len(after) != len(charges) {
@@ -165,13 +162,9 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	weighed.Weights = [poolPartCount]uint64{4, 2, 3, 2}
 	repartitioned := publishedPool(t, store, weighed, 6)
 	charged, err := partDocuments(ctx, store, original.Partition.Promotion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	moved, err := partDocuments(ctx, store, repartitioned.Partition.Promotion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const spent = 4
 	left := uint64(6 - 1)
 	if slices.ContainsFunc(moved, func(document string) bool { return slices.Contains(charged, document) }) {
@@ -186,9 +179,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	// has answered, by content alone; a part of documents no charged part
 	// holds, by record or by content, starts whole.
 	contents, err := recordContents(ctx, store, objective.Dataset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	holds := func(part []string, record string) bool {
 		return slices.ContainsFunc(part, func(held string) bool { return contents[held] == contents[record] })
 	}
@@ -233,9 +224,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	one.Objective, two.Objective, two.Weights = contested, contested, [poolPartCount]uint64{4, 2, 3, 2}
 	lost, won := publishedPool(t, raced, one, 2), publishedPool(t, raced, two, 6)
 	shared, err := partDocuments(ctx, raced, won.Partition.Promotion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if mine, err := partDocuments(ctx, raced, lost.Partition.Promotion); err != nil || lost.Partition.Promotion == won.Partition.Promotion || !slices.ContainsFunc(mine, func(document string) bool { return slices.Contains(shared, document) }) {
 		t.Fatalf("the two pools' promotion parts are one part or share no document (%v); the test needs two that overlap", err)
 	}
@@ -269,13 +258,9 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	contentsOf := func(pool HeldoutPool) map[string]bool {
 		t.Helper()
 		named, err := recordContents(ctx, twice, pool.Partition.Dataset)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		documents, err := partDocuments(ctx, twice, pool.Partition.Promotion)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		held := map[string]bool{}
 		for _, document := range documents {
 			held[named[document]] = true
@@ -331,9 +316,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	// Each charge is still the grant's it was made against.
 	for name, pool := range map[string]HeldoutPool{"first": original, "regained": regained, "rewindowed": rewindowed} {
 		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID); err != nil || len(charges) != 1 {
 			t.Fatalf("the %s pool's grant holds %d charges (%v), want the one made against it", name, len(charges), err)
 		}
@@ -346,9 +329,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch, err := poolAcceptanceCodec.Batch("pool-fixture/historical", historical, artifact.DependencyLineage(historical.ID, original.Partition.ID, objective.ID), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}

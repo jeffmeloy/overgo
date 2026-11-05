@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
+	"overgo/internal/testcheck"
 )
 
 func TestLiveEditSourceCodecBoundary(t *testing.T) {
@@ -13,9 +14,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		LatentStats: VAELatentStats{Mean: []float32{1, -2}, Std: []float32{2, 4}},
 	}
 	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 24})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if plan.Latent != (SourceVideoShape{Channels: 2, Frames: 2, Height: 2, Width: 3}) ||
 		!slices.Equal(plan.SourceChunks, []int{1, 4}) {
 		t.Fatalf("source plan = %+v", plan)
@@ -28,9 +27,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		want[index], want[12+index] = float32(index), float32(index)
 	}
 	got := make([]float32, len(meanOutput))
-	if err := normalizeSourceLatent(got, meanOutput, plan); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, normalizeSourceLatent(got, meanOutput, plan))
 	if !slices.Equal(got, want) {
 		t.Fatalf("normalized latent = %v, want %v", got, want)
 	}
@@ -41,9 +38,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		source[index] = float32(index)
 	}
 	chunk := make([]float32, plan.Source.Channels*plan.SourceChunks[1]*spatial)
-	if err := media.CopyPlanarFrames(chunk, plan.SourceChunks[1], 0, source, plan.Source.Frames, 1, plan.Source.Channels, plan.SourceChunks[1], spatial); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, media.CopyPlanarFrames(chunk, plan.SourceChunks[1], 0, source, plan.Source.Frames, 1, plan.Source.Channels, plan.SourceChunks[1], spatial))
 	for channel := range plan.Source.Channels {
 		wantStart := (channel*plan.Source.Frames + 1) * spatial
 		gotStart := channel * plan.SourceChunks[1] * spatial

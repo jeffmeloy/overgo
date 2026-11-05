@@ -6,6 +6,7 @@ import (
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/modeltest"
+	"overgo/internal/testcheck"
 )
 
 // TestDeepSeekOCRProjectorReadsBackThroughItsRuntime holds the mmproj the
@@ -17,17 +18,11 @@ import (
 func TestDeepSeekOCRProjectorReadsBackThroughItsRuntime(t *testing.T) {
 	t.Parallel()
 	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer repository.Close()
 	metadata, tensors, err := hfgguf.DeepSeekOCRProjectorConversion(repository)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := requireDeepSeekOCRProjector(metadata, tensors); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, requireDeepSeekOCRProjector(metadata, tensors))
 	if err := requireDeepSeekOCRProjector(metadata, tensors[:len(tensors)-1]); err == nil {
 		t.Fatal("an mmproj missing a tensor read back")
 	}

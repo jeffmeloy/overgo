@@ -10,6 +10,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 func TestFlashNextSparseAttentionCUDA(t *testing.T) {
@@ -28,9 +29,7 @@ func runFlashNextCUDA(t *testing.T, check func(*testing.T, func([]*tensor.Tensor
 	t.Helper()
 	cudatest.Require(t)
 	device, err := executor.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() {
 		if err := device.Close(); err != nil {
 			t.Error(err)

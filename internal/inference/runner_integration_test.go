@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -20,31 +21,19 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen3"), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	full, err := runner.Forward(ctx, []tokenizer.TokenID{9707, 27})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, cache, err := runner.ForwardCached(ctx, []tokenizer.TokenID{9707}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	state, err := runner.SaveCache(cache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	cache, err = runner.LoadCache(state)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	incremental, cache, err := runner.ForwardCached(ctx, []tokenizer.TokenID{27}, cache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cache.Tokens != 2 {
 		t.Fatalf("cache token count = %d, want 2", cache.Tokens)
 	}
@@ -62,17 +51,11 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 		t.Fatalf("incremental/full max absolute difference = %g", maximum)
 	}
 	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shiftedState, err := runner.SaveCache(shifted)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	shifted, err = runner.LoadCache(shiftedState)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if shifted.Tokens != 1 || shifted.Position != 2 {
 		t.Fatalf(
 			"shifted cache count/position = %d/%d, want 1/2",
@@ -85,9 +68,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 		[]tokenizer.TokenID{18},
 		shifted,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if shifted.Tokens != 2 || shifted.Position != 3 {
 		t.Fatalf(
 			"appended shifted cache count/position = %d/%d, want 2/3",
@@ -99,25 +80,19 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	runner.spec.ContextLength = 2
 	defer func() { runner.spec.ContextLength = originalContext }()
 	shiftSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// Context shift lets a generation run past the two-token context.
 	shiftedIDs, _, err := runner.Generate(ctx, "Hello", GenerateOptions{
 		MaxNewTokens: 3,
 		Sampler:      shiftSampler,
 		ContextShift: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(shiftedIDs) != 4 {
 		t.Fatalf("shifted generation history = %d, want 4", len(shiftedIDs))
 	}
 	firstPromptSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var firstEvaluation PromptEvaluation
 	_, _, err = runner.Generate(ctx, "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -128,13 +103,9 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 			firstEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reusedSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reusedEvaluation PromptEvaluation
 	reusedIDs, _, err := runner.Generate(ctx, "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -146,21 +117,15 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 			reusedEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullIDs, _, err := runner.Generate(ctx, "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        fullSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if firstEvaluation.Cached != 0 ||
 		reusedEvaluation.Cached != 1 ||
 		reusedIDs[len(reusedIDs)-1] != fullIDs[len(fullIDs)-1] {
@@ -181,25 +146,17 @@ func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen3"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	layers := []int32{0, int32(len(runner.weights.Layers) / 2), int32(len(runner.weights.Layers) - 1)}
 	tokens := []tokenizer.TokenID{9707, 27}
 	ctx := t.Context()
 	full, err := runner.ExtractLayerInputs(ctx, tokens, layers)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, cache, first, err := runner.ForwardCachedExtractLayerInputs(ctx, tokens[:1], nil, layers)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, _, second, err := runner.ForwardCachedExtractLayerInputs(ctx, tokens[1:], cache, layers)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	width := int(full.Shape.Dims[0])
 	assertMaximumDifference(t, "prefix layer inputs", first.Data, full.Data[:width], 1e-2)
 	assertMaximumDifference(t, "incremental layer inputs", second.Data, full.Data[width:], 1e-2)
@@ -224,28 +181,20 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen3"), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	replacement, err := runner.gatherTensor(ctx, runner.weights.TokenEmbedding, []uint32{27})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	want, err := runner.Forward(ctx, []tokenizer.TokenID{9707, 27})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	got, cache, err := forwardProjected(
 		t,
 		runner,
 		[]tokenizer.TokenID{9707, 9707},
 		ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{TokenIndex: 1, Embedding: append([]float32(nil), replacement.Data...)}}},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cache.Tokens != 2 || cache.Position != 2 {
 		t.Fatalf("override cache count/position = %d/%d, want 2/2", cache.Tokens, cache.Position)
 	}
@@ -258,9 +207,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 		}
 	}
 	_, cache, err = runner.ForwardCached(ctx, []tokenizer.TokenID{18}, cache)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cache.Tokens != 3 || cache.Position != 3 {
 		t.Fatalf("continued cache count/position = %d/%d, want 3/3", cache.Tokens, cache.Position)
 	}
@@ -274,22 +221,16 @@ func TestProjectedPromptDecodesOnTheDeviceCache(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen2"), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	if !runner.persistentDeviceCache() {
 		t.Fatal("the fixture keeps no device cache, so nothing here decodes on the device")
 	}
 	ctx := t.Context()
 	replacement, err := runner.gatherTensor(ctx, runner.weights.TokenEmbedding, []uint32{27})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	generate := func(prompt []tokenizer.TokenID, inputs *ProjectedInputs) (generated []tokenizer.TokenID, logits bool) {
 		t.Helper()
 		_, _, err := runner.Generate(ctx, "", GenerateOptions{
@@ -299,9 +240,7 @@ func TestProjectedPromptDecodesOnTheDeviceCache(t *testing.T) {
 				return nil
 			},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return generated, logits
 	}
 	row := func(index uint32) *ProjectedInputs {
@@ -330,44 +269,30 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, qwen3Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	runner.spec.ContextLength = 2
 	sampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{
 		MaxNewTokens: 3,
 		Sampler:      sampler,
 		ContextShift: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	hostIDs, hostText, err := runner.Generate(t.Context(), "Hello", GenerateOptions{
 		MaxNewTokens: 3,
 		Sampler:      hostSampler,
 		ContextShift: true,
 		CachePrompt:  true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(ids, hostIDs) ||
 		text != hostText ||
 		after.StreamSynchronizations-before.StreamSynchronizations != 3 {
@@ -382,13 +307,9 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		)
 	}
 	cachedShiftSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	beforeCachedShift, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   2,
 		Sampler:        cachedShiftSampler,
@@ -396,13 +317,9 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		ContextShift:   true,
 		CachePrompt:    true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	afterCachedShift, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if afterCachedShift.DeviceToDeviceCopies <=
 		beforeCachedShift.DeviceToDeviceCopies {
 		t.Fatalf(
@@ -412,9 +329,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		)
 	}
 	reuseSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var cachedShiftEvaluation PromptEvaluation
 	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -426,9 +341,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 			cachedShiftEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if cachedShiftEvaluation.Cached != 2 {
 		t.Fatalf("preserved device prompt cached %d tokens, want 2",
 			cachedShiftEvaluation.Cached)
@@ -436,13 +349,9 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 
 	runner.spec.ContextLength = 5
 	keepSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	beforeKeep, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	keptIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   6,
 		Sampler:        keepSampler,
@@ -450,17 +359,13 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		ContextShift:   true,
 		KeepTokens:     1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(keptIDs) != 7 {
 		t.Fatalf("prefix-preserving context shift returned %d IDs, want 7",
 			len(keptIDs))
 	}
 	afterKeep, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if afterKeep.DeviceToDeviceCopies <= beforeKeep.DeviceToDeviceCopies {
 		t.Fatalf(
 			"prefix-preserving context shift performed no device copies: %+v/%+v",
@@ -471,22 +376,16 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 
 	runner.spec.ContextLength = 16
 	firstCacheSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        firstCacheSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27, 358},
 		CachePrompt:    true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	divergentSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var divergentEvaluation PromptEvaluation
 	divergentIDs, _, err := runner.Generate(
 		t.Context(),
@@ -502,21 +401,15 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 			},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fullIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        fullSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27, 18},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if divergentEvaluation.Cached != 2 ||
 		divergentIDs[len(divergentIDs)-1] != fullIDs[len(fullIDs)-1] {
 		t.Fatalf(
@@ -551,9 +444,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		}
 	}
 	multiReuseSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var multiEvaluation PromptEvaluation
 	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -565,9 +456,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 			multiEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if multiEvaluation.Cached != 3 || len(runner.promptCaches) != 2 {
 		t.Fatalf("multi-entry prompt reuse = %+v entries=%d, want 3/2",
 			multiEvaluation, len(runner.promptCaches))
@@ -586,16 +475,12 @@ func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, qwen35Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 
 	ctx := t.Context()
 	firstSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumedIDs, text := resumeGeneration(t, runner, "Hello", firstSampler)
 	wantIDs := []tokenizer.TokenID{9419, 11, 353, 1044}
 	if !slices.Equal(resumedIDs, wantIDs) || text != "Hello, I am" {
@@ -612,21 +497,15 @@ root ::= "{" ws "\"ok\"" ws ":" ws boolean ws "}"
 boolean ::= "true" | "false"
 ws ::= [ \t\n\r]*
 `, "root")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gbnfSampler, err := sampling.New(sampling.Config{GBNF: gbnf})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	gbnfIDs, gbnfText, err := runner.Generate(
 		ctx,
 		"Return a boolean object:",
 		GenerateOptions{MaxNewTokens: 32, Sampler: gbnfSampler},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantGBNFIDs := []tokenizer.TokenID{
 		5423, 264, 2623, 1576, 25, 4754, 547, 763, 1802, 92, 248046,
 	}
@@ -644,21 +523,15 @@ ws ::= [ \t\n\r]*
 		`root ::= <|im_start|>`,
 		"root",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenSampler, err := sampling.New(sampling.Config{GBNF: tokenGBNF})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokenIDs, tokenText, err := runner.Generate(
 		ctx,
 		"Hello",
 		GenerateOptions{MaxNewTokens: 4, Sampler: tokenSampler},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantTokenIDs := []tokenizer.TokenID{9419, 248045, 248046}
 	if !slices.Equal(tokenIDs, wantTokenIDs) || tokenText != "Hello" {
 		t.Fatalf(
@@ -675,21 +548,15 @@ ws ::= [ \t\n\r]*
 		[]string{`(,)`},
 		nil,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lazySampler, err := sampling.New(sampling.Config{GBNF: lazyGBNF})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	lazyIDs, lazyText, err := runner.Generate(
 		ctx,
 		"Hello",
 		GenerateOptions{MaxNewTokens: 8, Sampler: lazySampler},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantLazyIDs := []tokenizer.TokenID{9419, 11, 353, 1044, 248046}
 	if !slices.Equal(lazyIDs, wantLazyIDs) || lazyText != "Hello, I am" {
 		t.Fatalf(
@@ -705,9 +572,7 @@ ws ::= [ \t\n\r]*
 		strings.Repeat("Hello world. ", 40),
 		PerplexityOptions{ContextSize: 32},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const oraclePerplexity = 1.0785
 	if math.Abs(perplexity.Perplexity-oraclePerplexity) > 0.002 {
 		t.Fatalf(
@@ -724,27 +589,19 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen35"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ids, err := runner.TokenizeText("Hello", true, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2, Device: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer batch.Close(t.Context())
 	outputs, err := batch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 10, Tokens: ids}, {ID: 20, Tokens: ids},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(outputs) != 2 || !slices.Equal(outputs[0].Logits, outputs[1].Logits) {
 		t.Fatal("fused identical branches diverged")
 	}
@@ -761,16 +618,12 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	greedyBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2, Device: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer greedyBatch.Close(t.Context())
 	selected, err := greedyBatch.StepGreedy(t.Context(), []SequenceBatchInput{
 		{ID: 30, Tokens: ids}, {ID: 40, Tokens: ids},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(selected) != 2 || selected[0].Token != next || selected[1].Token != next {
 		t.Fatalf("device selections = %+v, want token %d", selected, next)
 	}
@@ -784,16 +637,12 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	sessionBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 1, Device: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer sessionBatch.Close(t.Context())
 	sessionOutput, err := sessionBatch.StepGreedy(t.Context(), []SequenceBatchInput{{
 		ID: 50, Tokens: ids,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	// The session is rebuilt each time the sequence outgrows its cache's capacity and replayed between, so the sequence
 	// decodes past its first capacity, whichever storage the runner keeps: an int8 cell page holds 64 tokens.
 	var session *deviceDecodeSession
@@ -801,9 +650,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		sessionOutput, err = sessionBatch.StepGreedy(t.Context(), []SequenceBatchInput{{
 			ID: 50, Tokens: []tokenizer.TokenID{sessionOutput[0].Token},
 		}})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		sessionBatch.mu.Lock()
 		session = sessionBatch.sequences[50].device.session
 		sessionBatch.mu.Unlock()
@@ -816,17 +663,13 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		{ID: 10, Tokens: []tokenizer.TokenID{next}},
 		{ID: 20, Tokens: []tokenizer.TokenID{alternate}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	singles := make([]*ContinuousBatch, 2)
 	for index := range singles {
 		singles[index], err = runner.NewContinuousBatch(ContinuousBatchOptions{
 			MaxSequences: 1, Device: true,
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		defer singles[index].Close(t.Context())
 		if _, err = singles[index].Step(t.Context(), []SequenceBatchInput{{
 			ID: SequenceID(index + 1), Tokens: ids,
@@ -851,9 +694,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 			}
 		}
 	}
-	if err := batch.Remove(t.Context(), 10); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, batch.Remove(t.Context(), 10))
 	states := batch.Snapshot()
 	if len(states) != 1 || states[0].ID != 20 {
 		t.Fatalf("post-remove states = %+v", states)
@@ -868,43 +709,29 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, "Qwen3.5-4B-f16.gguf"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
 		next.Position != session.Position+1 || next.Layer.Key.Shape.Dims[2] != 1 ||
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Qwen3.5 MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
 	_, third, err := runner.AdvanceMTP(ctx, 0, next)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if third.Position != next.Position+1 || third.Layer.Key.Shape.Dims[2] != 2 {
 		t.Fatalf("Qwen3.5 MTP cache did not advance: %+v", third)
 	}
 	coordinatorSession, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draft, err := runner.DraftMTPGreedy(ctx, 0, coordinatorSession, 2, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != coordinatorSession.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.TrunkCache.Position != verification.Session.Position {
@@ -913,38 +740,26 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	draftSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerBefore, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, coordinatorSession, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerAfter, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Qwen3.5 sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 ||
 		sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position !=
@@ -961,75 +776,51 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	assistant, err := openNativeFixtureRunner(modeltest.GGUF(t, "gemma4-assistant"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer assistant.Close()
 	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "gemma4"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer target.Close()
 	ctx := t.Context()
 	session, err := assistant.NewPairedProjectionSession(ctx, target, []tokenizer.TokenID{0}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	projected := ProjectedInputs{}
 	projectedSession, err := assistant.NewPairedProjectionSession(
 		ctx, target, []tokenizer.TokenID{0}, &projected,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if projectedSession.Position != session.Position ||
 		projectedSession.PendingHidden.Shape != session.PendingHidden.Shape {
 		t.Fatalf("projected Gemma 4 assistant session mismatch: text=%+v projected=%+v", session, projectedSession)
 	}
 	draft, err := assistant.DraftPairedProjectionGreedy(ctx, target, 0, session, 2, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := assistant.VerifyPairedProjectionGreedy(ctx, target, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.TargetCache.Position != verification.Session.Position {
 		t.Fatalf("unexpected Gemma 4 assistant verification: draft=%+v result=%+v", draft, verification)
 	}
 	draftSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerBefore, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := assistant.DraftPairedProjectionSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerAfter, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Gemma 4 assistant sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := assistant.VerifyPairedProjectionSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
 		sampledVerification.Session.TargetCache.Position != sampledVerification.Session.Position {
@@ -1041,65 +832,43 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	draftRunner, err := openNativeFixtureRunner(modeltest.GGUF(t, "eagle3"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer draftRunner.Close()
 	// EAGLE3's reference drafts serve Llama targets.
 	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "llama"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer target.Close()
 	ctx := t.Context()
 	session, err := draftRunner.NewFeatureDraftSession(ctx, target, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draft, err := draftRunner.DraftFeaturesGreedy(ctx, target, 0, session, 2, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := draftRunner.VerifyFeatureDraftGreedy(ctx, target, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.TargetCache.Position != verification.Session.Position+1 {
 		t.Fatalf("unexpected Eagle3 verification: draft=%+v result=%+v", draft, verification)
 	}
 	draftSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := draftRunner.DraftFeaturesSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(before, after) {
 		t.Fatal("Eagle3 sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := draftRunner.VerifyFeatureDraftSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
 		sampledVerification.Session.TargetCache.Position != sampledVerification.Session.Position+1 {
@@ -1111,15 +880,11 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	draftRunner, err := openNativeFixtureRunner(modeltest.GGUF(t, "dflash"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer draftRunner.Close()
 	// DFlash's published drafts serve Qwen3 targets.
 	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen3"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer target.Close()
 	maximum := min(2, int(draftRunner.spec.DFlashBlockSize)-1)
 	if maximum <= 0 {
@@ -1127,17 +892,11 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	}
 	ctx := t.Context()
 	session, err := draftRunner.NewPairedFeatureSession(ctx, target, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draft, err := draftRunner.DraftPairedFeatureGreedy(ctx, target, 0, session, maximum, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := draftRunner.VerifyPairedFeatureGreedy(ctx, target, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.Cache.Position != verification.Session.Position ||
@@ -1145,36 +904,24 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 		t.Fatalf("unexpected DFlash verification: draft=%+v result=%+v", draft, verification)
 	}
 	draftSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	before, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := draftRunner.DraftPairedFeatureSampled(
 		ctx, target, session, draftSampler, []tokenizer.TokenID{0}, maximum, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	after, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(before, after) {
 		t.Fatal("DFlash sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := draftRunner.VerifyPairedFeatureSampled(
 		ctx, target, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
 		sampledVerification.Session.Cache.Position != sampledVerification.Session.Position ||
@@ -1187,14 +934,10 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "wavtokenizer-dec"), OpenOptions{DeviceOrdinal: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	audio, err := runner.DecodeAudioWaveform(t.Context(), []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(audio) != 320 {
 		t.Fatalf("AudioDecoder waveform length = %d, want 320", len(audio))
 	}
@@ -1211,43 +954,29 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "cohere2moe"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ctx := t.Context()
 	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	logits, next, err := runner.AdvanceMTP(ctx, 0, session)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if logits.Shape.Dims[0] != uint64(runner.spec.VocabularySize) ||
 		next.Position != session.Position+1 || next.Layer.Key.Shape.Dims[2] != 1 ||
 		session.Layer.Key.Shape.Rank != 0 {
 		t.Fatalf("unexpected Cohere2-MoE MTP state: logits=%v before=%+v after=%+v", logits.Shape, session, next)
 	}
 	state, err := runner.SaveMTPSession(next)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	restored, err := runner.LoadMTPSession(state)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if restored.Position != next.Position || restored.Layer.Key.Shape.Dims[2] != 1 {
 		t.Fatalf("unexpected restored Cohere2-MoE MTP state: %+v", restored)
 	}
 	draft, err := runner.DraftMTPGreedy(ctx, 0, session, 2, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	verification, err := runner.VerifyMTPGreedy(ctx, runner, draft)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if verification.Accepted < 0 || verification.Accepted > len(draft.Tokens) ||
 		verification.Session.Position != session.Position+uint32(verification.Accepted)+1 ||
 		verification.Session.TrunkCache.Position != verification.Session.Position {
@@ -1256,38 +985,26 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	draftSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 17,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	targetSampler, err := sampling.New(sampling.Config{
 		Temperature: 0.8, TopK: 32, TopP: 0.95, Seed: 23,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerBefore, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	sampledDraft, err := runner.DraftMTPSampled(
 		ctx, session, draftSampler, []tokenizer.TokenID{0}, 2, 0,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	draftSamplerAfter, err := draftSampler.SaveState()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(draftSamplerBefore, draftSamplerAfter) {
 		t.Fatal("Cohere2-MoE sampled drafting changed caller sampler state")
 	}
 	sampledVerification, err := runner.VerifyMTPSampled(
 		ctx, runner, sampledDraft, draftSampler, targetSampler,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if sampledVerification.Accepted < 0 || sampledVerification.Accepted > len(sampledDraft.Tokens) ||
 		sampledVerification.Session.Position != session.Position+uint32(sampledVerification.Accepted)+1 ||
 		sampledVerification.Session.TrunkCache.Position != sampledVerification.Session.Position {
@@ -1301,17 +1018,13 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, bonsaiFixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	if runner.rawWeights == nil {
 		t.Fatal("Bonsai Q1_0 weights did not use native device storage")
 	}
 	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantIDs := []tokenizer.TokenID{9419, 11, 353}
 	if !slices.Equal(ids, wantIDs) || text != "Hello, I" {
 		t.Fatalf(
@@ -1330,26 +1043,20 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, gemma3Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	chatPrompt, err := runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const oracleChatPrompt = "<start_of_turn>user\nBe concise.\n\nHello" +
 		"<end_of_turn>\n<start_of_turn>model\n"
 	if chatPrompt != oracleChatPrompt {
 		t.Fatalf("Gemma 3 chat prompt = %q, want %q", chatPrompt, oracleChatPrompt)
 	}
 	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantIDs := []tokenizer.TokenID{2, 9259, 255999, 1018, 3689}
 	if !slices.Equal(ids, wantIDs) || text != "Hello**What" {
 		t.Fatalf(
@@ -1370,9 +1077,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 		probe,
 		PerplexityOptions{ContextSize: 32},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	const oracle = 33.1217
 	relative := math.Abs(result.Perplexity-oracle) / oracle
 	if relative > 0.005 {
@@ -1391,25 +1096,19 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 	runner, err := openNativeFixtureRunner(modeltest.Directory(t, umt5Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	ids, err := runner.Vocab().Encode(
 		"Hello world!",
 		tokenizer.EncodeOptions{AddSpecial: true},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantIDs := []tokenizer.TokenID{23231, 3914, 332, 1}
 	if !slices.Equal(ids, wantIDs) {
 		t.Fatalf("UMT5 token IDs = %v, want %v", ids, wantIDs)
 	}
 	hidden, err := runner.Forward(t.Context(), ids)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	width := int(hidden.Shape.Dims[0])
 	tokens := int(hidden.Shape.Dims[1])
 	mean := make([]float64, width)
@@ -1452,9 +1151,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 		ids,
 		EmbeddingOptions{Pooling: EmbeddingPoolingNone, Normalize: 2},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if perToken.Tokens != len(ids) ||
 		len(perToken.Vectors) != len(ids) ||
 		len(perToken.Vectors[0]) != width {
@@ -1481,22 +1178,14 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer runner.Close()
 	beforeExecution, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	beforeMemory, err := runner.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	wantIDs := []tokenizer.TokenID{9707, 27, 18, 198}
 	if !slices.Equal(ids, wantIDs) {
 		t.Fatalf("token IDs = %v, want %v", ids, wantIDs)
@@ -1505,13 +1194,9 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatalf("text = %q, want %q", text, "Hello<3\n")
 	}
 	afterExecution, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	afterMemory, err := runner.DeviceMemoryStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if afterExecution.StreamSynchronizations-beforeExecution.StreamSynchronizations != 3 ||
 		afterExecution.HostToDeviceCopies-beforeExecution.HostToDeviceCopies != 6 ||
 		afterExecution.DeviceToHostCopies-beforeExecution.DeviceToHostCopies != 3 {
@@ -1529,23 +1214,17 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		)
 	}
 	tokenizedHello, err := runner.TokenizeText("Hello", false, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(tokenizedHello, []tokenizer.TokenID{9707}) {
 		t.Fatalf("tokenized Hello = %v, want [9707]", tokenizedHello)
 	}
 	helloPiece, err := runner.TokenPiece(9707)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if helloPiece != "Hello" {
 		t.Fatalf("token piece 9707 = %q, want Hello", helloPiece)
 	}
 	exactSampler, err := sampling.New(sampling.Config{Temperature: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	probabilityEvents := 0
 	exactIDs, exactText, err := runner.Generate(
 		t.Context(),
@@ -1570,9 +1249,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 			},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(exactIDs, wantIDs) ||
 		exactText != text ||
 		probabilityEvents != 3 {
@@ -1585,9 +1262,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		)
 	}
 	cacheSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var firstCacheEvaluation PromptEvaluation
 	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -1598,17 +1273,11 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 			firstCacheEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	beforeReuse, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	reuseSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var reuseEvaluation PromptEvaluation
 	reusedIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
@@ -1620,13 +1289,9 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 			reuseEvaluation = evaluation
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	afterReuse, err := runner.DeviceExecutionStats(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if firstCacheEvaluation.Cached != 0 ||
 		reuseEvaluation.Cached != 1 ||
 		afterReuse.KernelLaunches != beforeReuse.KernelLaunches ||
@@ -1642,24 +1307,18 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		)
 	}
 	firstSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumedIDs, resumedText := resumeGeneration(t, runner, "Hello", firstSampler)
 	if !slices.Equal(resumedIDs, wantIDs) || resumedText != "Hello<3\n" {
 		t.Fatalf("resumed generation = %v %q, want %v %q", resumedIDs, resumedText, wantIDs, "Hello<3\n")
 	}
 	dryBreakers, err := runner.TokenizeDryBreakers([]string{"\n", ":"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(dryBreakers) == 0 {
 		t.Fatal("DRY breaker expansion produced no token sequences")
 	}
 	embedding, tokenCount, err := runner.Embed(t.Context(), "Hello")
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(embedding) != int(runner.Spec().EmbeddingLength) {
 		t.Fatalf("embedding length = %d, want %d", len(embedding), runner.Spec().EmbeddingLength)
 	}
@@ -1670,9 +1329,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Context(),
 		[]tokenizer.TokenID{9707},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if exactTokenCount != tokenCount || !slices.Equal(exactEmbedding, embedding) {
 		t.Fatalf(
 			"exact embedding count/equality = %d/%v, want %d/true",
@@ -1689,35 +1346,25 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatalf("embedding squared norm = %g, want 1", sumSquares)
 	}
 	chatPrompt, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "Hello"}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chatPromptIDs, err := runner.Vocab().Encode(chatPrompt, tokenizer.EncodeOptions{
 		AddSpecial:   true,
 		ParseSpecial: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	countedChatIDs, err := runner.TokenizeText(chatPrompt, true, true)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if !slices.Equal(countedChatIDs, chatPromptIDs) {
 		t.Fatalf("chat token count path IDs differ: %v vs %v", countedChatIDs, chatPromptIDs)
 	}
 	greedy, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	chatIDs, _, err := runner.Generate(t.Context(), chatPrompt, GenerateOptions{
 		MaxNewTokens: 1,
 		Sampler:      greedy,
 		ParseSpecial: true,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if len(chatIDs) != len(chatPromptIDs)+1 {
 		t.Fatalf("chat token count = %d, want prompt %d + 1", len(chatIDs), len(chatPromptIDs))
 	}
@@ -1729,21 +1376,15 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 func resumeGeneration(t *testing.T, runner *Runner, prompt string, sampler *sampling.Sampler) ([]tokenizer.TokenID, string) {
 	t.Helper()
 	first, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{MaxNewTokens: 1, Sampler: sampler, CachePrompt: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	resumedSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var evaluation PromptEvaluation
 	resumed, text, err := runner.Generate(t.Context(), "", GenerateOptions{
 		PromptTokenIDs: first, MaxNewTokens: 2, Sampler: resumedSampler, CachePrompt: true,
 		OnPromptEvaluated: func(value PromptEvaluation) { evaluation = value },
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if evaluation.Cached != len(first)-1 {
 		t.Fatalf("resumed generation re-evaluated its context: %+v of %d tokens", evaluation, len(first))
 	}

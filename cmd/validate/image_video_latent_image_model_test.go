@@ -16,6 +16,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -126,27 +127,17 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	testskip.Short(t, "retained image case bundle")
 	root := testutil.RepoRoot(t)
 	var bundle mediaLatentImageBundle
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_latent_images.json"), &bundle); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_latent_images.json"), &bundle))
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_latent_images.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(raw, imageVideoLatentImagesSHA256); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoLatentImagesSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || len(bundle.Numerical) != 5 || bundle.Scope == "" || len(bundle.Failed) != 3 {
 		t.Fatal("incomplete image bundle")
 	}
 	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -159,12 +150,8 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	checkTest := func(id artifact.ID) {
 		t.Helper()
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty image check")
 		}
@@ -176,9 +163,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 		Harness    string `json:"krea_harness_sha256"`
 		Acceptance string `json:"initial_acceptance_sha256"`
 	}
-	if err := json.Unmarshal(primary, &header); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(primary, &header))
 	if header.Source != bundle.Source || header.Quality != imageVideoProtocolSHA256 {
 		t.Fatal("image acquisition protocol differs from frozen source or quality criteria")
 	}
@@ -192,28 +177,20 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 		Protocol string `json:"protocol_sha256"`
 		Harness  string `json:"harness_sha256"`
 	}
-	if err := json.Unmarshal(read(bundle.Instrumentation["media-diffusion-acquisition-instrumentation-third.json"]), &instrumentation); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(read(bundle.Instrumentation["media-diffusion-acquisition-instrumentation-third.json"]), &instrumentation))
 	if instrumentation.Source != bundle.Source || instrumentation.Protocol != fmt.Sprintf("%x", sha256.Sum256(primary)) || instrumentation.Harness != fmt.Sprintf("%x", sha256.Sum256(read(bundle.Instrumentation["media_diffusion_acquisition_test.go"]))) {
 		t.Fatal("changed diffusion instrumentation")
 	}
 	for _, id := range bundle.Failed {
 		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if len(report.Failed) == 0 {
 			t.Fatal("lost failed acquisition evidence")
 		}
 	}
 	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkImageVideoProtocolIdentity(quality); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol struct {
 		Cases []struct {
 			ID     string        `json:"id"`
@@ -222,18 +199,14 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 			Inputs []artifact.ID `json:"inputs"`
 		} `json:"cases"`
 	}
-	if err := json.Unmarshal(quality, &protocol); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(quality, &protocol))
 	var expected []string
 	for _, c := range protocol.Cases {
 		if strings.HasPrefix(c.ID, "Krea-") || strings.HasPrefix(c.ID, "SimpleDiffusion-") {
 			expected = append(expected, c.ID)
 		}
 	}
-	if err := checkMediaLatentCoverage(bundle.Cases, expected); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, checkMediaLatentCoverage(bundle.Cases, expected))
 	if err := checkMediaLatentCoverage(bundle.Cases[1:], expected); err == nil {
 		t.Fatal("accepted omitted image case")
 	}
@@ -246,9 +219,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	for _, c := range bundle.Cases {
 		checkTest(c.Test)
 		run, err := runrecord.RequireExactRun(t.Context(), store, c.Run)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := runrecord.RequireEnvironment(t.Context(), store, run.Environment); err != nil {
 			t.Fatal(err)
 		}
@@ -256,24 +227,18 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 		var identity struct {
 			Protocol string `json:"protocol_sha256"`
 		}
-		if err := json.Unmarshal(acquisition, &identity); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(acquisition, &identity))
 		if identity.Protocol != fmt.Sprintf("%x", sha256.Sum256(primary)) {
 			t.Fatal("image acquisition used a different protocol")
 		}
 		rows, closed, err := mediaLatentRows(acquisition)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		index := slices.IndexFunc(rows, func(row mediaLatentObservation) bool { return row.Case == c.Case })
 		if index < 0 {
 			t.Fatal("case missing from raw acquisition")
 		}
 		row := rows[index]
-		if err := checkMediaLatentObservation(row, run, bundle.Source, closed); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkMediaLatentObservation(row, run, bundle.Source, closed))
 		found := false
 		for _, frozen := range protocol.Cases {
 			if frozen.ID == c.Case {
@@ -290,9 +255,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 		if err != nil || !found {
 			t.Fatal("missing generated image", err)
 		}
-		if err := checkImageVideoObservation(imageVideoObservation{Artifact: row.Output, Width: row.Width, Height: row.Height, Frames: 1}, output); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, checkImageVideoObservation(imageVideoObservation{Artifact: row.Output, Width: row.Width, Height: row.Height, Frames: 1}, output))
 		var review struct {
 			Output       artifact.ID `json:"output"`
 			Subject      string      `json:"subject"`
@@ -300,9 +263,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 			Defects      string      `json:"visible_defects"`
 			Video        string      `json:"video"`
 		}
-		if err := json.Unmarshal(read(c.Review), &review); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, json.Unmarshal(read(c.Review), &review))
 		if review.Output != row.Output || review.Subject == "" || review.Preservation == "" || review.Defects == "" || review.Video == "" {
 			t.Fatal("image review omits a question or refers to other bytes")
 		}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -17,9 +18,7 @@ func TestADirectoryThatIsItsConversionsImageServesFromItself(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	root := t.TempDir()
 	conversion, directory := filepath.Join(root, "Tiny-LM-f16.gguf"), filepath.Join(root, "Tiny-LM")
@@ -28,9 +27,7 @@ func TestADirectoryThatIsItsConversionsImageServesFromItself(t *testing.T) {
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	batch := artifact.Batch{Key: "fixture/discovery/directory-image", Artifacts: []artifact.Descriptor{descriptor}, Manifests: []artifact.Manifest{manifest}}
 	for _, location := range []artifact.Location{
 		{Artifact: component, Kind: artifact.LocationFile, Value: conversion},

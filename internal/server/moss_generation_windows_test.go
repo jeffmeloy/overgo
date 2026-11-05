@@ -23,6 +23,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -48,9 +49,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 	t.Helper()
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	fixture := &mossGenerationFixture{store: store, root: root}
 	image := tinyPNG(t)
@@ -104,9 +103,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 	}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
 	handler, err := New(Config{Repository: store, Workflows: workspace, LibraryIntake: intake}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	t.Cleanup(func() { _ = handler.Close() })
 	fixture.handler, fixture.workspace = handler, workspace
 	return fixture
@@ -124,18 +121,14 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		var err error
 		if body != nil {
 			raw, err = json.Marshal(body)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 		}
 		response := serveTestRequest(handler, method, path, string(raw))
 		if response.Code != status {
 			t.Fatalf("%s %s: %d %s", method, path, response.Code, response.Body)
 		}
 		if out != nil {
-			if err := json.Unmarshal(response.Body.Bytes(), out); err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, json.Unmarshal(response.Body.Bytes(), out))
 		}
 	}
 	var receipt struct{ Recipe artifact.ID }

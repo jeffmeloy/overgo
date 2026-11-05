@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -16,9 +17,7 @@ import (
 func TestCapabilityCatalogReadsEveryActivation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	const bound = 64
 	descriptors := make([]artifact.Descriptor, 0, 4*bound)
@@ -32,9 +31,7 @@ func TestCapabilityCatalogReadsEveryActivation(t *testing.T) {
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
 	}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/paged-model",
 		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len("paged-weights"))}},
@@ -46,9 +43,7 @@ func TestCapabilityCatalogReadsEveryActivation(t *testing.T) {
 	publishVerifiedActivation(t, store, modelID, "paged")
 
 	entries, truncated, err := CapabilityCatalog(ctx, store, bound, LoadMemo(ctx, store))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if truncated {
 		t.Fatal("one activated model reported as a truncated catalog")
 	}

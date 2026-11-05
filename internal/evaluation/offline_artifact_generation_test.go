@@ -10,6 +10,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -18,9 +19,7 @@ func TestOfflineArtifactGenerationRepeatedSeeds(t *testing.T) {
 	evidence := offlinePromotionEvidence(t, false)
 	policy := offlinePromotionPolicy(t)
 	promotion, err := PromoteOfflineArtifactGeneration(evidence, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if promotion.ExecutionPlan != evidence.ExecutionPlan || promotion.GenerationEvidence != evidence.ID ||
 		promotion.DistinctSeeds != policy.MinimumDistinctSeeds || promotion.RunCount != uint32(len(evidence.Trials)) {
 		t.Fatalf("offline generation promotion = %+v", promotion)
@@ -37,13 +36,9 @@ func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
 	insufficient := offlinePromotionEvidence(t, false)
 	insufficient.Trials = insufficient.Trials[:tensor.PairedExtent]
 	data, err := json.Marshal(insufficient)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	insufficient.ID, err = artifact.IdentifyBytes(artifact.KindEvidence, data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PromoteOfflineArtifactGeneration(insufficient, policy); err == nil {
 		t.Fatal("insufficient seed coverage promoted")
 	}
@@ -51,9 +46,7 @@ func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
 		policy.MinimumDistinctSeeds, policy.RunsPerSeed, 1, policy.MaximumPeakHostBytes,
 		"strict measured latency envelope", "re-evaluate after hardware or runtime changes",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := PromoteOfflineArtifactGeneration(offlinePromotionEvidence(t, false), strict); err == nil {
 		t.Fatal("resource regression promoted")
 	}
@@ -66,9 +59,7 @@ func offlinePromotionPolicy(t *testing.T) offlineArtifactGenerationPolicy {
 		"two repeated seeds bound deterministic generation and measured host resources",
 		"re-evaluate when generation, hardware, or the execution recipe changes",
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return policy
 }
 
@@ -96,9 +87,7 @@ func offlinePromotionEvidence(t *testing.T, unstable bool) composition.OfflineAr
 		offlinePromotionTrial(t, 29, second, "d"),
 	}
 	evidence, err := composition.ValidateOfflineArtifactGeneration(plan, directory, model, trials)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return evidence
 }
 
@@ -115,9 +104,7 @@ func offlinePromotionTrial(t *testing.T, seed uint64, output artifact.ID, suffix
 func offlinePromotionPlan(t *testing.T, model artifact.ID) composition.OfflineTensorExecutionPlan {
 	t.Helper()
 	bytes, err := safetensors.TensorBytes("F32", []uint64{2})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan := composition.OfflineTensorExecutionPlan{
 		Version:        artifact.InitialDocumentVersion,
 		ArtifactPlan:   testutil.ArtifactID(t, artifact.KindRecipe, "offline promotion artifact plan"),
@@ -139,15 +126,9 @@ func offlinePromotionPlan(t *testing.T, model artifact.ID) composition.OfflineTe
 		PeakResidentBytes: bytes,
 	}
 	data, err := json.Marshal(plan)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	plan.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := plan.ValidateIdentity(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, plan.ValidateIdentity())
 	return plan
 }

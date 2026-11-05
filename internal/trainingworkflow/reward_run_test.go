@@ -13,6 +13,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
@@ -56,13 +57,9 @@ func rewardFixture(t *testing.T) (string, Request) {
 	writeModel(t, model, weights, shapes)
 	// The end token is declared in config.json, which a checkpoint carries with it.
 	config, err := os.ReadFile(filepath.Join(model, "config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for path, content := range map[string]string{filepath.Join(model, "config.json"): strings.Replace(string(config), "{", `{"eos_token_id":0,`, 1), prompts: rewardPrompts} {
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
 	store, recipeID := trainingAuthority(t, model, "", prompts, trainingprogram.ObjectiveGRPO)
 	return root, Request{
@@ -116,17 +113,13 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 		t.Helper()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(filepath.Dir(request.ModelDirectory), name)
 		result, err := Execute(ctx, request)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return result
 	}
 	trained := func(request Request, name string) map[string][]float32 {
 		t.Helper()
 		model, err := loadTrainableModel(filepath.Join(filepath.Dir(request.ModelDirectory), name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return model.Weights
 	}
 	const prompts, passes = 5, 2
@@ -147,29 +140,19 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 
 	// Every group is in the store under the weights it was drawn from.
 	base, err := identifyModel(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	suite, err := evaluation.ParseInstructionPrompts([]byte(rewardPrompts))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	held := map[string]int{}
 	for _, name := range suite.Names() {
 		prompt, limit, _ := suite.Asked(name)
 		encoded, err := tokens.encode(prompt)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		for updates := 0; updates <= trace.Updated; updates++ {
 			weights, err := evaluation.UpdatedWeights(base, request.Rewards.Training, uint64(updates))
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			group := evaluation.SampledGroup{
 				Group: name, Code: request.Rewards.Code, Weights: weights, Tokenizer: base, Template: "none",
 				Ends: []tokenizer.TokenID{0}, Temperature: 1, Seed: request.Rewards.Seed, MaxTokens: limit,

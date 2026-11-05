@@ -1,34 +1,34 @@
 {
-  "branch": "master",
-  "candidate_review": {
-    "assessment": "The growth is real:31215 nodes across test files that grew, offset by11629 across files that shrank, net19586. New typed analysis/policy machinery is a major contributor; numerical, recovery and security coverage also grew. Only small deletions have established retained owners. Add311 for generated-fixture lifetime,312 for one coordinated resident-test migration;306 and310 already own the other supported deletions. No duplicate finding or new alias.",
-    "current_review_order": [
-      "SQA-277",
-      "SQA-283",
-      "SQA-271",
-      "SQA-309",
-      "SQA-310",
-      "SQA-311",
-      "SQA-312",
-      "SQA-306"
-    ],
-    "rank_basis": "Keep serious correctness/recovery priorities; existing309 order dependence outranks optional savings. New311/312 are bounded P3 test/resource improvements. Other active IDs retain separate contracts and evidence rather than gaining fresh certification.",
-    "declined_candidates": [
-      "Do not delete the typed reach walker simply because it is test code:4106 of its4463 nodes are outside the actual Test declaration and implement shared analysis, which now has real callers. Removing it requires an established replacement for exact type/interface/build/lane reach.",
-      "Do not blanket-delete the new landing authorization/failure/replay checks, candidate nonactivation check or generated session state reference. They expose different real failures.",
-      "Fused/unfused CUDA paths are intentionally distinct; retaining intermediates prevents fusion. Numerical-ordering checks are not redundant self-comparisons.",
-      "Prompt prefetch repeats graph/GGUF setup, but no safe invariant-lifetime rewrite or complete net saving established in this bound. Retain rather than prescribe a new helper.",
-      "No new scheduler, selector, polling, telemetry, policy suite, confidence workload or global parsed-module cache. Existing process/dispatch/gate/resume owners and native Go caching remain."
-    ]
-  },
-  "committed_plan": {
-    "git_blob": "7103b5871e4cc40c9ae8331d359eb04bd78e2ef2",
+    "branch": "master",
+    "candidate_review": {
+      "assessment": "Expand canonical310 to the third committed checkout reader and quantify its complete migration;309 stays separate and scheduled. Current inline-forwarders landing removes873production but adds948test(+75 Go total), so it is not a whole-source reduction. No new finding, alias or closure.",
+      "current_review_order": [
+        "SQA-277",
+        "SQA-283",
+        "SQA-271",
+        "SQA-309",
+        "SQA-310",
+        "SQA-311",
+        "SQA-312",
+        "SQA-306"
+      ],
+      "rank_basis": "Retain serious correctness/recovery priorities. Three readers share exactly the same loaded checkout/linked-package contract; distinct arithmetic and fixtures remain. Unvisited findings are not recertified.",
+      "declined_candidates": [
+        "Do not delete positive decode identity matching: otherwise a matcher that always refuses would pass its negative cases. Geometry table and identity membership are distinct owners.",
+        "Open(t.TempDir()) uses an existing directory and is admitted by current open; it is not the missing nested-path failure in retained audio/adaptiveparity records. No blanket replacement finding.",
+        "BlobReader closes at final expected byte/EOF; successful io.ReadAll in the sampled blob fixture does not establish a leaked descriptor. Abandoning callers still own Close.",
+        "Query index cardinalities are measured under the current store read lock, not inferred from uniformity. Retain narrow/wide,seed and fallback/refusal coverage.",
+        "Existing271 already distinguishes post-worker waiting from post-improvement waiting. Do not create a duplicate from the stale wording in the plan or infer delivered wakeup from a completed run record."
+      ]
+    },
+    "committed_plan": {
+    "git_blob": "50dbdc35421f78a88dca984b8a4428c95abaf2af",
     "path": "docs/plan.json",
-    "revision": "b6f76a3377ea7415ba4f3b92905d44fc25e90213",
-    "sha256": "ed9e311662ff86bbad6810fa6e5c72f98f691cb9baa6cc4b02329248a2316f8e",
+    "revision": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+    "sha256": "be689fa5d9cdfbba3cb9c53307d945764bf8866033445ee628a0826a2afd8d93",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
-  "findings": [
+    "findings": [
     {
       "category": "transfer-resource-lifetime",
       "classification": "committed-finalizer-repair-with-retained-counterfactual",
@@ -524,14 +524,31 @@
       "title": "Single tool-output pieces now obey the display tail bound"
     },
     {
-      "id": "SQA-309",
-      "status": "open",
-      "severity": "P2",
-      "category": "automation-correctness",
-      "classification": "source-established-order-dependent-gate",
-      "title": "Make near-repeat counts independent of map traversal order",
-      "evidence_commit": "bb4fc706add312c975b4c4e637ac483e05d65b20",
-      "sources": [
+    "category": "automation-correctness",
+    "classification": "source-established-order-dependent-gate",
+    "closure_criteria": [
+        "Same admitted sites in differing input orders produce the same groups and repeated count; representative selection has a deterministic source owner.",
+        "Existing exact/parameter distinctions, locals normalization, four-value exclusion and below20-node exclusion remain; any changed retained count is explained by named groups.",
+        "Account for the sorting and smallest retained fixture growth, no new census, cache, selector or timing-dependent numerical acceptance."
+      ],
+    "comparison": "Use the existing generated fixture's A/B/C/D bodies; rearrange the already parsed sites to place C first and compare with A/B first. This needs no additional module load, process, model or timing assertion. For implementation only, the existing native check decides the final current-tree groups; SQA did not run it.",
+    "displaced_surface": "Remove the implicit reliance on package map order. No production Go or behavior owner disappears. Retain bodyRepeats and holdCeiling; one local slices.SortFunc using strings.Compare(a.at,b.at), no new helper/import/fixture. Existing TestParameterRepeatsStayUnderTheirCeiling owns the ordering case until any separately justified test merge. Preserve parser/type errors, host build/tag selection, test cancellation, exact and near-repeat distinctions, and recorded group identities. No model arithmetic, security, data or resource-lifetime contract changes.",
+    "evidence": "productionBodies ranges load.module, a Go map, and appends each package's bodies to per-skeleton slices. bodyRepeats greedily picks the first group whose representative differs in at most parameterLeast=3 values; final sorting changes only printed names/groups, after repeated is counted. This distance is not transitive. The existing repeatFixture's literal vectors A=B=[1,9,3,5], C=[2,9,3,5], D=[2,8,4,6] give A-C1,C-D3,A-D4. If those same bodies stand in separate admitted linked packages, order A,B,C,D yields a parameter group of3 (2N repeated nodes), whereas C,A,B,D yields4 (3N). holdCeiling requires exact equality to1945, so an unchanged tree can be refused when map order changes. This is a source-derived admitted counterexample; no flaky committed-tree execution or delay was observed. Exact most=0 equivalence does not have this count defect. Selected bodyShape/bodySite/differing/bodyRepeats typecheck with standard-library imports:46defs/223uses/40selections; no repository census or application execution.",
+    "evidence_commit": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+    "expected_benefit": {
+        "outcome": "Production0. Current repeats test1434 AST; parsed sorting statement28 nodes and the smallest retained order comparison estimated30..65, giving1492..1527(+58..93). No new module load/static fixture. This is necessary correctness growth, not an optimization saving.",
+        "uncertainty": "No current-tree flaky execution or measured wall/heap effect. Expanded310 now shares the third forwarder reader:two-file2326->2253(-73), counted once. Combined309+310 estimated2311..2346, net-15..+20. No threshold/clustering/telemetry added."
+      },
+    "id": "SQA-309",
+    "impact": "Avoid false gate refusal and unstable recommendations for the same admitted source set. Actual wall/memory savings unknown; correctness takes priority over source reduction.",
+    "likely_effort": "Small local ordering correction and one existing fixture extension; no new application test identity required.",
+    "plan_coverage": "Master-lead triage atb6118e1c7 schedules stable source ordering and the existing A/C/D fixture with310. c66bc509f extracts linkedPackages but leaves grouping unchanged. Retain the separate correctness obligation; no plan edits or new SQA run.",
+    "plan_references": [
+        "compact-tests/exact-folds"
+      ],
+    "recommended_change": "Stabilize each skeleton's site order once by the existing unique source coordinate at before the first-representative grouping. Keep the existing most=0/3 arithmetic, representative-based grouping, diagnostic owner and ceiling semantics. Extend the existing parameter fixture once to compare the same sites in two deliberately different input orders that expose the A/C/D boundary; retain exact-repeat and small-body exclusions. Do not replace this with clustering, new thresholds, selectors or a registry. If stable ordering changes the current count, reconcile the actual named groups in the ordinary implementation check rather than calling a new count a code saving.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "internal/repoanalysis/production_repeats_test.go",
           "symbol": "productionBodies; bodyRepeats; differing; holdCeiling; TestRepeatedProductionBodiesStayUnderTheirCeiling; TestParameterRepeatsStayUnderTheirCeiling"
@@ -541,26 +558,9 @@
           "symbol": "loadModule.module map; fixtureModule"
         }
       ],
-      "evidence": "productionBodies ranges load.module, a Go map, and appends each package's bodies to per-skeleton slices. bodyRepeats greedily picks the first group whose representative differs in at most parameterLeast=3 values; final sorting changes only printed names/groups, after repeated is counted. This distance is not transitive. The existing repeatFixture's literal vectors A=B=[1,9,3,5], C=[2,9,3,5], D=[2,8,4,6] give A-C1,C-D3,A-D4. If those same bodies stand in separate admitted linked packages, order A,B,C,D yields a parameter group of3 (2N repeated nodes), whereas C,A,B,D yields4 (3N). holdCeiling requires exact equality to1945, so an unchanged tree can be refused when map order changes. This is a source-derived admitted counterexample; no flaky committed-tree execution or delay was observed. Exact most=0 equivalence does not have this count defect. Selected bodyShape/bodySite/differing/bodyRepeats typecheck with standard-library imports:46defs/223uses/40selections; no repository census or application execution.",
-      "recommended_change": "Stabilize each skeleton's site order once by the existing unique source coordinate at before the first-representative grouping. Keep the existing most=0/3 arithmetic, representative-based grouping, diagnostic owner and ceiling semantics. Extend the existing parameter fixture once to compare the same sites in two deliberately different input orders that expose the A/C/D boundary; retain exact-repeat and small-body exclusions. Do not replace this with clustering, new thresholds, selectors or a registry. If stable ordering changes the current count, reconcile the actual named groups in the ordinary implementation check rather than calling a new count a code saving.",
-      "displaced_surface": "Remove the implicit reliance on package map order. No production Go or behavior owner disappears. Retain bodyRepeats and holdCeiling; one local slices.SortFunc using strings.Compare(a.at,b.at), no new helper/import/fixture. Existing TestParameterRepeatsStayUnderTheirCeiling owns the ordering case until any separately justified test merge. Preserve parser/type errors, host build/tag selection, test cancellation, exact and near-repeat distinctions, and recorded group identities. No model arithmetic, security, data or resource-lifetime contract changes.",
-      "impact": "Avoid false gate refusal and unstable recommendations for the same admitted source set. Actual wall/memory savings unknown; correctness takes priority over source reduction.",
-      "expected_benefit": {
-        "outcome": "Production0 delta. Current complete test file1395 AST; a parsed sorting statement costs28 nodes. One retained-fixture order comparison is estimated30..65 additional nodes, giving1453..1488(+58..93), with no new setup or fixture bytes. This is necessary correctness growth, not a net reduction.",
-        "uncertainty": "Sorting cost is bounded by existing per-skeleton site lists; no profile or full census executed. Current checkout membership/count sensitivity remains unmeasured. SQA-310's independent merge saves48 only once: if both land, combined file estimated1405..1440, net+10..45 versus1395."
-      },
-      "likely_effort": "Small local ordering correction and one existing fixture extension; no new application test identity required.",
-      "plan_references": [
-        "compact-tests/exact-folds"
-      ],
-      "plan_coverage": "New advisory at the pinned revision. exact-folds-outside and param-folds-outside are completed; no plan row changed or adopted by SQA. Keep distinct from SQA-310's duplicated-loading reduction.",
-      "closure_criteria": [
-        "Same admitted sites in differing input orders produce the same groups and repeated count; representative selection has a deterministic source owner.",
-        "Existing exact/parameter distinctions, locals normalization, four-value exclusion and below20-node exclusion remain; any changed retained count is explained by named groups.",
-        "Account for the sorting and smallest retained fixture growth, no new census, cache, selector or timing-dependent numerical acceptance."
-      ],
-      "comparison": "Use the existing generated fixture's A/B/C/D bodies; rearrange the already parsed sites to place C first and compare with A/B first. This needs no additional module load, process, model or timing assertion. For implementation only, the existing native check decides the final current-tree groups; SQA did not run it."
-    },
+    "status": "open",
+    "title": "Make near-repeat counts independent of map traversal order"
+  },
     {
       "category": "measurement-cost",
       "classification": "open-with-action-deferred-until-ordinary-package-evidence",
@@ -1109,14 +1109,31 @@
       "comparison": "Use the existing no-generation count endpoint to establish the request's exact geometry, then the existing model-tagged acceptance is the deciding implementation check. A deliberately smaller context ceiling above the old exercised size but below the required size should not earn 262K acceptance. Retained counts suffice to identify this gap; SQA runs no model or calibration."
     },
     {
-      "id": "SQA-310",
-      "status": "open",
-      "severity": "P3",
-      "category": "test-and-automation-consolidation",
-      "classification": "bounded-net-reduction-existing-fixture",
-      "title": "Read repeat-analysis inputs once for both existing checks",
-      "evidence_commit": "bb4fc706add312c975b4c4e637ac483e05d65b20",
-      "sources": [
+    "category": "test-and-automation-consolidation",
+    "classification": "bounded-net-reduction-existing-fixture",
+    "closure_criteria": [
+        "One checkout load serves all three checks; repeatFixture is loaded once, distinct forwarder fixture once, with no persistent/global cache or new helper layer.",
+        "All unique repeat and forwarder acceptance cases/diagnostics remain under the named retained owner; displaced names have no active reader.",
+        "Complete two-file/accounted fixture/setup migration is a net reduction; count73 once and charge309's correctness growth separately."
+      ],
+    "comparison": "The complete parsed migration establishes the73-node/source/setup estimate. During implementation, ordinary affected native repoanalysis validation decides the final current-tree readings, with309's smallest reordered-site fixture retained. No new SQA workload, full census, benchmark, timing assertion, selector or telemetry.",
+    "displaced_surface": "Delete two Test declarations, duplicate checkout reads/surfaceDirectories setup and one repeatFixture generation/read. Existing linkedPackages/loadModule, repeatFixture/fixtureModule, productionBodies/bodyShape/bodyRepeats/holdCeiling, localForwarders/madeCalls remain. Preserve exact A/B, parameter A/B/C, four-value D and small-body E exclusions, both independent repeat ceilings; preserve twice/apply positives and two-call, function-literal, cross-package, value-use and four-call forwarder negatives plus its ceiling/named diagnostics. No production exports/config/model arithmetic/build-tag selection change. Parent test remains parallel; local subtests run synchronously. Shared load errors still fail the run, but an early fixture/setup fatal can now prevent sibling checks, as with ordinary sequential tests.",
+    "evidence": "Three committed native checks now call linkedPackages/loadModule on the identical checkoutRoot and surfaceDirectories domain: exact repeats, parameter repeats and local forwarders. Each also loads its own fixture; the two repeat fixtures are identical, the forwarder fixture intentionally differs. linkedPackages extracts one command-import closure; productionBodies and localForwarders only read the same loaded files/types. Native Go caching does not reuse these in-process maps. Current full files are1434+892=2326 AST. A complete parse-only coordinated migration into the existing first test, passing the existing moduleLoad/linked map directly to both collectors, measures1555+698=2253(-73). No helper/cache/wrapper is added; the forwarder fixture contents and negative cases remain. Both displaced Test names have no committed reader outside their definitions and this report. madeCalls alone typechecks against real standard-library types:7defs/25uses/3selections. No application/census execution.",
+    "evidence_commit": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+    "expected_benefit": {
+        "outcome": "Complete two-file test2326->2253(-73 AST):repeats1434->1555,forwarders892->698. Source17803->16049 bytes and418->404 lines. Production0,new helper/wrapper/import/static-fixture0; one testing import disappears from the now helper-only forwarder file. Checkout loads3->1; fixture loads3->2; total linkedPackages/loadModule/go-list6->3; surfaceDirectories3->1. Generated fixture instances3->2,files9->6,bytes2530->1640 includinggo.mod(repeat890 each,forwarder750 unchanged). All4 repeat evaluations and2 forwarder evaluations remain. Signature migration, named subtests and diagnostics are included.",
+        "uncertainty": "Parsed only, not full application typechecked/compiled/executed. No runtime savings measured. This replaces, rather than adds to, the earlier48-node two-check estimate.309's separate ordering/fixture growth58..93 yields combined2311..2346 from2326, net-15..+20 across these files. Recheck test-name references at implementation."
+      },
+    "id": "SQA-310",
+    "impact": "One fewer repeated-fixture load and two fewer checkout parse/typecheck loads per uncached package execution; reduced transient AST/type allocations and duplicated setup. These are operation-count proxies, not measured seconds/heap savings.",
+    "likely_effort": "Small coordinated migration across the existing two test files; no new owner abstraction.",
+    "plan_coverage": "Master-lead triage atb6118e1c7 explicitly schedules309/310 in compact-tests/exact-folds and recognizes the third reader. This report reconciles that same canonical obligation; it creates no duplicate finding or plan change.",
+    "plan_references": [
+        "compact-tests/exact-folds"
+      ],
+    "recommended_change": "Retain TestRepeatedProductionBodiesStayUnderTheirCeiling as the setup owner, with exact/parameter rows and a named local-forwarders subtest. Load the checkout once with existing linkedPackages and share that load/linked set with productionBodies and localForwarders. Those two collectors take the existing typed inputs instead of loading inside themselves; delete their redundant t.Helper/load prefixes, not the shared loader. Generate/load repeatFixture once and preserve the separate forwarder fixture. Move all distinct assertions before deleting TestParameterRepeatsStayUnderTheirCeiling and TestLocalForwardersStayUnderTheirCeiling. Keep existing ceilings/diagnostics and apply309's ordering correction separately. No new cache, fixture factory, wrapper, selector or policy check.",
+    "severity": "P3",
+    "sources": [
         {
           "path": "internal/repoanalysis/production_repeats_test.go",
           "symbol": "productionBodies; bodyRepeats; differing; holdCeiling; TestRepeatedProductionBodiesStayUnderTheirCeiling; TestParameterRepeatsStayUnderTheirCeiling"
@@ -1124,28 +1141,15 @@
         {
           "path": "internal/repoanalysis/typed_reach_test.go",
           "symbol": "loadModule.module map; fixtureModule"
+        },
+        {
+          "path": "internal/repoanalysis/local_forwarders_test.go",
+          "symbol": "localForwarders; madeCalls; TestLocalForwardersStayUnderTheirCeiling"
         }
       ],
-      "evidence": "The two native tests call the same productionBodies/loadModule twice each: once over a separately generated repeatFixture and once over the identical checkoutRoot/surfaceDirectories filter. Both use the same host build, linked-package selection, generated-file exclusion and repeatLeast20; only bodyRepeats' most=0 versus3, expected group names and ceiling differ. loadModule runs go list -deps -export, parses/typechecks every selected module package and computes closures on each call. Native Go caching helps the external command but does not reuse these in-process syntax/types/maps. Repository-wide symbol references at the pin name these tests only in this file, with no active plan/compatibility/fixture export requirement for the second name. A complete parse-only counterfactual retaining the first test, one shared fixture/live read and a two-row subtest table measures1395->1347(-48 AST). No application test/census ran.",
-      "recommended_change": "Retain TestRepeatedProductionBodiesStayUnderTheirCeiling and extend its local table with exact and parameterised rows; obtain the fixture and checkout skeleton maps once before the rows. Delete TestParameterRepeatsStayUnderTheirCeiling only after moving its A/B/C-vs-D and parameter ceiling requirements. Keep repeatFixture, fixtureModule, productionBodies, bodyShape, bodyRepeats and holdCeiling as the existing owners; no new helper, cache or wrapper. Apply SQA-309's ordering repair separately and retain its smallest order comparison in the parameter row.",
-      "displaced_surface": "Delete the second Test function, duplicated t.Parallel/surfaceDirectories/load/fixture construction and repeated assertion body. Retain all exact A/B, parameter A/B/C, D four-value and E small-body exclusions, nonzero count, both independent ceilings and named diagnostics. One table adds kind/most/ceiling/want data and t.Run; its full cost is included. Same native package, errors/cancellation and host build tags; no exports/config or model numerical changes. Production command paths remain untouched.",
-      "impact": "One fewer full-checkout parse/typecheck and one fewer generated-module parse/typecheck/setup each uncached package run; less transient syntax/type allocation and duplicated test maintenance. No measured seconds or peak-memory delta.",
-      "expected_benefit": {
-        "outcome": "Production0. Complete test file1395->1347(-48 AST), including table/migration/comment cost; removed function235-node pair replaced by one187-node owner. No new helper/wrapper/import/static fixture. Generated fixture instances2->1, files6->3, bytes1780->890 including go.mod; total loadModule/go-list invocations4->2, checkout loads2->1, fixture loads2->1, surfaceDirectories2->1. bodyRepeats arithmetic evaluations remain4 so exact/parameter behavioral work remains.",
-        "uncertainty": "Counterfactual parsed only, not compiled or executed. No elapsed/heap measurement; native Go test caching remains credited. Cost excludes the independent SQA-309 repair; combined estimate is net+10..45 test AST, not an overall reduction. Losing a separate -run test name is acceptable only after rechecking live references at implementation."
-      },
-      "likely_effort": "Small one-file test table migration after confirming the two exact shared callers; no new fixture or application test needed.",
-      "plan_references": [
-        "compact-tests/exact-folds"
-      ],
-      "plan_coverage": "Fits the existing test consolidation row but is not adopted by this report. Distinct from SQA-309's determinism contract; count the same48-node saving once.",
-      "closure_criteria": [
-        "The retained table exercises both distinct readings and ceilings with their full unique cases; the displaced test name has no live contractual reader.",
-        "Each fixture and checkout input is generated/loaded once; no global cache, second selector or helper layer replaces duplicated work.",
-        "Complete production/test/fixture/setup accounting stays a net reduction for this migration; charge correctness growth separately and disclose the combined total."
-      ],
-      "comparison": "Source ownership plus a complete parse-only table comparison already establishes the proposed48-node saving and two omitted loads. Implementation uses its existing native repoanalysis validation; no additional SQA confidence run, whole-module analysis, benchmark, performance threshold or telemetry."
-    },
+    "status": "open",
+    "title": "Read one checkout for repeat and local-forwarder checks"
+  },
     {
       "status": "open",
       "severity": "P3",
@@ -6161,375 +6165,304 @@
       "title": "Release built view tensors by their read endpoint, not overlapping byte totals"
     }
   ],
-  "gate_test_assessment": {
-    "requested_growth_analysis": {
-      "window": {
-        "date": "2026-11-04",
-        "timezone": "America/New_York",
-        "base": "9be8221e31ae6aa9ef1f44b3f3a48ae491fc3da8",
-        "end": "6948da07b9b76a615a28ae4bc8359c8aeb80a0cb",
-        "review_pin": "b6f76a3377ea7415ba4f3b92905d44fc25e90213"
+    "gate_test_assessment": {
+      "requested_growth_analysis": {
+        "window": {
+          "date": "2026-11-04",
+          "timezone": "America/New_York",
+          "base": "9be8221e31ae6aa9ef1f44b3f3a48ae491fc3da8",
+          "end": "6948da07b9b76a615a28ae4bc8359c8aeb80a0cb",
+          "review_pin": "b6f76a3377ea7415ba4f3b92905d44fc25e90213"
+        },
+        "method": "Direct per-file old/new committed AST difference across288 changed Go paths; test *_test.go, excluding generated/testdata. Positive/negative sums below are file net changes grouped by sign, not gross inserted/deleted syntax. Retained gate sums differ by9 test nodes, so direct endpoint trees are the numerical authority.",
+        "net": {
+          "written_production_go_nodes": 6439,
+          "written_production_go_lines": 1047,
+          "test_go_nodes": 19586,
+          "test_go_lines": 3455,
+          "cuda_lines": 464
+        },
+        "test_growth_file_nets": 31215,
+        "test_shrink_file_nets": -11629,
+        "test_package_net_nodes": {
+          "cmd/gate": 0,
+          "cmd/loop": 566,
+          "cmd/loophook": 580,
+          "cmd/plan": 42,
+          "cmd/server": 199,
+          "cmd/train": -1804,
+          "cmd/training-objective": -65,
+          "cmd/validate": 1302,
+          "internal/agentloop": 1480,
+          "internal/cuda": 2664,
+          "internal/evaluation": 804,
+          "internal/gguf": 718,
+          "internal/graphruntime": 855,
+          "internal/guard": 519,
+          "internal/inference": 4116,
+          "internal/landing": 3510,
+          "internal/latentimage": 332,
+          "internal/latentvideo": 215,
+          "internal/loop": -84,
+          "internal/model": -30,
+          "internal/modelcli": 344,
+          "internal/modeldevice": 731,
+          "internal/modelswap": 322,
+          "internal/overgodb": 707,
+          "internal/plan": 728,
+          "internal/repoanalysis": 5825,
+          "internal/scorecard": 737,
+          "internal/server": 1730,
+          "internal/trainingworkflow": -7457
+        },
+        "largest_test_file_growth": [
+          {
+            "path": "internal/repoanalysis/typed_reach_test.go",
+            "net_nodes": 4463,
+            "net_lines": 749
+          },
+          {
+            "path": "internal/agentloop/agent_sessions_test.go",
+            "net_nodes": 1480,
+            "net_lines": 263
+          },
+          {
+            "path": "internal/repoanalysis/production_repeats_test.go",
+            "net_nodes": 1395,
+            "net_lines": 245
+          },
+          {
+            "path": "internal/inference/bf16_cache_windows_test.go",
+            "net_nodes": 1332,
+            "net_lines": 212
+          },
+          {
+            "path": "internal/inference/prompt_prefetch_windows_test.go",
+            "net_nodes": 1058,
+            "net_lines": 161
+          },
+          {
+            "path": "internal/graphruntime/resident_chunk_windows_test.go",
+            "net_nodes": 855,
+            "net_lines": 143
+          },
+          {
+            "path": "internal/scorecard/decline_sequences_test.go",
+            "net_nodes": 737,
+            "net_lines": 111
+          },
+          {
+            "path": "internal/server/unvalidated_runs_test.go",
+            "net_nodes": 736,
+            "net_lines": 100
+          },
+          {
+            "path": "internal/overgodb/lineage_checkpoint_test.go",
+            "net_nodes": 722,
+            "net_lines": 107
+          },
+          {
+            "path": "internal/evaluation/moss_denoiser_wall_model_test.go",
+            "net_nodes": 685,
+            "net_lines": 119
+          },
+          {
+            "path": "internal/landing/landed_again_test.go",
+            "net_nodes": 668,
+            "net_lines": 91
+          },
+          {
+            "path": "internal/landing/row_changes_test.go",
+            "net_nodes": 606,
+            "net_lines": 85
+          }
+        ],
+        "largest_test_file_offsets": [
+          {
+            "path": "internal/trainingworkflow/throwaway_test.go",
+            "net_nodes": -2632,
+            "net_lines": -374
+          },
+          {
+            "path": "cmd/train/pilot_record_test.go",
+            "net_nodes": -1904,
+            "net_lines": -297
+          },
+          {
+            "path": "internal/trainingworkflow/instruction_pilot_test.go",
+            "net_nodes": -1886,
+            "net_lines": -268
+          },
+          {
+            "path": "internal/trainingworkflow/instruction_pilot_authority_cuda_windows_test.go",
+            "net_nodes": -1475,
+            "net_lines": -222
+          },
+          {
+            "path": "internal/trainingworkflow/reward_sampler_cuda_windows_test.go",
+            "net_nodes": -904,
+            "net_lines": -122
+          },
+          {
+            "path": "internal/trainingworkflow/instruction_pilot_record_test.go",
+            "net_nodes": -779,
+            "net_lines": -118
+          },
+          {
+            "path": "internal/repoanalysis/declaration_reach_test.go",
+            "net_nodes": -418,
+            "net_lines": -87
+          },
+          {
+            "path": "internal/trainingworkflow/instruction_pilot_authority_test.go",
+            "net_nodes": -406,
+            "net_lines": -72
+          }
+        ],
+        "interpretation": "repoanalysis+5825 is primarily new typed-walk/repeat-analysis machinery. typed_reach_test.go+4463 comprises357 nodes in TestTheReachWalkReadsTypes and4106 elsewhere; production_repeats_test.go+1395 has235 in its two tests and1160 elsewhere. Inference+4116 adds BF16/cache/prefetch/attention cases;landing+3510 adds authority and failed-publication/recovery checks;CUDA+2664 adds distinct operator/numerical paths;server+1730 andagentloop+1480 add request/mutation boundary checks. This is not evidence that all growth is necessary, but line/AST similarity alone supplies no safe wholesale deletion.",
+        "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
       },
-      "method": "Direct per-file old/new committed AST difference across288 changed Go paths; test *_test.go, excluding generated/testdata. Positive/negative sums below are file net changes grouped by sign, not gross inserted/deleted syntax. Retained gate sums differ by9 test nodes, so direct endpoint trees are the numerical authority.",
-      "net": {
-        "written_production_go_nodes": 6439,
-        "written_production_go_lines": 1047,
-        "test_go_nodes": 19586,
-        "test_go_lines": 3455,
-        "cuda_lines": 464
-      },
-      "test_growth_file_nets": 31215,
-      "test_shrink_file_nets": -11629,
-      "test_package_net_nodes": {
-        "cmd/gate": 0,
-        "cmd/loop": 566,
-        "cmd/loophook": 580,
-        "cmd/plan": 42,
-        "cmd/server": 199,
-        "cmd/train": -1804,
-        "cmd/training-objective": -65,
-        "cmd/validate": 1302,
-        "internal/agentloop": 1480,
-        "internal/cuda": 2664,
-        "internal/evaluation": 804,
-        "internal/gguf": 718,
-        "internal/graphruntime": 855,
-        "internal/guard": 519,
-        "internal/inference": 4116,
-        "internal/landing": 3510,
-        "internal/latentimage": 332,
-        "internal/latentvideo": 215,
-        "internal/loop": -84,
-        "internal/model": -30,
-        "internal/modelcli": 344,
-        "internal/modeldevice": 731,
-        "internal/modelswap": 322,
-        "internal/overgodb": 707,
-        "internal/plan": 728,
-        "internal/repoanalysis": 5825,
-        "internal/scorecard": 737,
-        "internal/server": 1730,
-        "internal/trainingworkflow": -7457
-      },
-      "largest_test_file_growth": [
+      "fresh_ast": [
         {
-          "path": "internal/repoanalysis/typed_reach_test.go",
-          "net_nodes": 4463,
-          "net_lines": 749
+          "path": "internal/inference/cache_paging.go",
+          "nodes": 114,
+          "functions": 2
         },
         {
-          "path": "internal/agentloop/agent_sessions_test.go",
-          "net_nodes": 1480,
-          "net_lines": 263
+          "path": "internal/inference/device_cache_paging_test.go",
+          "nodes": 2036,
+          "functions": 7
+        },
+        {
+          "path": "internal/inference/device_cache_fixture_test.go",
+          "nodes": 222,
+          "functions": 4
+        },
+        {
+          "path": "internal/inference/decode_session_identity_test.go",
+          "nodes": 186,
+          "functions": 1
+        },
+        {
+          "path": "internal/overgodb/query.go",
+          "nodes": 3720,
+          "functions": 22
+        },
+        {
+          "path": "internal/overgodb/query_plan_test.go",
+          "nodes": 719,
+          "functions": 1
+        },
+        {
+          "path": "internal/overgodb/blobs.go",
+          "nodes": 1236,
+          "functions": 11
+        },
+        {
+          "path": "internal/overgodb/blob_commit_test.go",
+          "nodes": 531,
+          "functions": 1
+        },
+        {
+          "path": "internal/overgodb/retention.go",
+          "nodes": 1512,
+          "functions": 6
+        },
+        {
+          "path": "internal/server/workspace_conversations.go",
+          "nodes": 3501,
+          "functions": 18
+        },
+        {
+          "path": "internal/server/conversation_history_test.go",
+          "nodes": 1441,
+          "functions": 3
+        },
+        {
+          "path": "internal/server/protocol_io.go",
+          "nodes": 1047,
+          "functions": 15
+        },
+        {
+          "path": "internal/loop/driver.go",
+          "nodes": 1204,
+          "functions": 7
+        },
+        {
+          "path": "internal/loop/dispatch_wait_test.go",
+          "nodes": 104,
+          "functions": 2
+        },
+        {
+          "path": "internal/repoanalysis/local_forwarders_test.go",
+          "nodes": 892,
+          "functions": 3
         },
         {
           "path": "internal/repoanalysis/production_repeats_test.go",
-          "net_nodes": 1395,
-          "net_lines": 245
-        },
-        {
-          "path": "internal/inference/bf16_cache_windows_test.go",
-          "net_nodes": 1332,
-          "net_lines": 212
-        },
-        {
-          "path": "internal/inference/prompt_prefetch_windows_test.go",
-          "net_nodes": 1058,
-          "net_lines": 161
-        },
-        {
-          "path": "internal/graphruntime/resident_chunk_windows_test.go",
-          "net_nodes": 855,
-          "net_lines": 143
-        },
-        {
-          "path": "internal/scorecard/decline_sequences_test.go",
-          "net_nodes": 737,
-          "net_lines": 111
-        },
-        {
-          "path": "internal/server/unvalidated_runs_test.go",
-          "net_nodes": 736,
-          "net_lines": 100
-        },
-        {
-          "path": "internal/overgodb/lineage_checkpoint_test.go",
-          "net_nodes": 722,
-          "net_lines": 107
-        },
-        {
-          "path": "internal/evaluation/moss_denoiser_wall_model_test.go",
-          "net_nodes": 685,
-          "net_lines": 119
-        },
-        {
-          "path": "internal/landing/landed_again_test.go",
-          "net_nodes": 668,
-          "net_lines": 91
-        },
-        {
-          "path": "internal/landing/row_changes_test.go",
-          "net_nodes": 606,
-          "net_lines": 85
+          "nodes": 1434,
+          "functions": 9
         }
       ],
-      "largest_test_file_offsets": [
+      "tests": [
         {
-          "path": "internal/trainingworkflow/throwaway_test.go",
-          "net_nodes": -2632,
-          "net_lines": -374
+          "classification": "merge",
+          "ids": [
+            "SQA-310"
+          ],
+          "owner": "TestRepeatedProductionBodiesStayUnderTheirCeiling",
+          "cases": "Move exact/parameter rows plus the distinct forwarder fixture into this existing setup owner. Preserve exactA/B,parameterA/B/C,D/E exclusions; twice/apply positives and two-call/literal/cross-package/value-use/four-call negatives. Remove only the two displaced Test declarations after migration.",
+          "cost": "Two-file2326->2253(-73 AST),go-list/load6->3,checkout3->1,fixture3->2,generatedfiles9->6/bytes2530->1640. No new helper/cache/wrapper."
         },
         {
-          "path": "cmd/train/pilot_record_test.go",
-          "net_nodes": -1904,
-          "net_lines": -297
+          "classification": "retain",
+          "ids": [
+            "SQA-309"
+          ],
+          "owner": "Existing parameter-repeat row",
+          "cases": "Retain smallest A/C/D reordered-site comparison and deterministic grouping repair.",
+          "cost": "+58..93 test AST estimate; combined309/310 isnet-15..+20, not an unqualified net saving."
         },
         {
-          "path": "internal/trainingworkflow/instruction_pilot_test.go",
-          "net_nodes": -1886,
-          "net_lines": -268
+          "classification": "retain",
+          "owner": "TestCachePageCapacityFollowsSessionPolicy; TestDecodeSessionIdentityDistinguishesSourcePageCapacity",
+          "cases": "Independent literal page expectations and request-versus-capacity behavior; identity distinguishes256/300 source extents sharing512 target, target growth and block selection. The positive identity case prevents an always-false matcher from passing; do not delete it as a self-comparison.",
+          "cost": "The186-node identity file and capacity table remain; no safe new reduction established."
         },
         {
-          "path": "internal/trainingworkflow/instruction_pilot_authority_cuda_windows_test.go",
-          "net_nodes": -1475,
-          "net_lines": -222
+          "classification": "retain",
+          "owner": "device_cache_paging_test.go and device_cache_fixture_test.go",
+          "cases": "Distinct key/value widths2/3, slot separation, named-state storage, pointer offsets, fixed state and partial last-page slices remain. Reuse existing fixture shape/advanced helpers; same-helper expected sizing is backed by the independent literal table.",
+          "cost": "2036+222 AST retained. Fake pointers are fixture offsets, not memory calibration; no device run or new generic fixture."
         },
         {
-          "path": "internal/trainingworkflow/reward_sampler_cuda_windows_test.go",
-          "net_nodes": -904,
-          "net_lines": -122
+          "classification": "retain",
+          "owner": "TestProjectionQueryPlanEfficiency; TestExternalBlobCommitAtomicity",
+          "cases": "Current-cardinality media/schema selection, seed/catalog/refusal and deterministic same-head plan; external payload envelope, absent-blob identity and replay. Keep faults/recovery separated by existing owners.",
+          "cost": "719+531 AST retained.8192-byte payload ensures external storage, not a throughput claim; successful full reads auto-close via blobReader."
         },
         {
-          "path": "internal/trainingworkflow/instruction_pilot_record_test.go",
-          "net_nodes": -779,
-          "net_lines": -118
+          "classification": "retain",
+          "owner": "TestConversationHistoryPaging and conversationHistoryFixture callers",
+          "cases": "More leaves/ancestry thanpage2; duplicate-title filtering, stale cursor/head and changed-filter refusal, archive transitions and other-model identity. Browser action/navigation callers share the fixture already. Streaming keeps assistant-only replay, terminal identity and explicit cancellation independent of connection.",
+          "cost": "1441 test AST retained. No new setup/fixture; same-name aliases/dedup semantics are not erased to shorten assertions."
         },
         {
-          "path": "internal/repoanalysis/declaration_reach_test.go",
-          "net_nodes": -418,
-          "net_lines": -87
-        },
-        {
-          "path": "internal/trainingworkflow/instruction_pilot_authority_test.go",
-          "net_nodes": -406,
-          "net_lines": -72
+          "classification": "retain",
+          "ids": [
+            "SQA-271"
+          ],
+          "owner": "TestDispatchContentionPreservesWork and existing filingWorld/TestRowsFiledBeforeTheLanesKeepTheLoopGoing",
+          "cases": "Initial waiting is covered; after-worker waiting already returns through the top of Run. The distinct post-improvement Current error still needs271's existing-fixture contention case; completion timestamps do not prove delivered continuation.",
+          "cost": "104-node initial-wait fixture retained; currentdriver1204. No new scheduler/polling or duplicate wait fixture."
         }
       ],
-      "interpretation": "repoanalysis+5825 is primarily new typed-walk/repeat-analysis machinery. typed_reach_test.go+4463 comprises357 nodes in TestTheReachWalkReadsTypes and4106 elsewhere; production_repeats_test.go+1395 has235 in its two tests and1160 elsewhere. Inference+4116 adds BF16/cache/prefetch/attention cases;landing+3510 adds authority and failed-publication/recovery checks;CUDA+2664 adds distinct operator/numerical paths;server+1730 andagentloop+1480 add request/mutation boundary checks. This is not evidence that all growth is necessary, but line/AST similarity alone supplies no safe wholesale deletion.",
-      "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
+      "automation_sequence": "Exact/parameter/forwarder checks each load identical checkout state; expanded310 removes two checkout loads and one repeat fixture load through existing owners. Native Go cache still helps build/test/export work but not duplicate in-process syntax/types. Retained c66bc509f audio claim failures arise before meaningful model verification at a missing store path; the existing adaptiveparity-lane owner groups that shared cause, so no new dependent investigation is recommended here. DriverRun checksstop/budgets and post-worker ErrWorkWaiting continues; post-improvement Current still misclassifies contention under271. Store/current source error distinctions and partial records remain; no completion-delivery inference or added scheduler.",
+      "assumptions": "cachePageTokens selects highest power-of-two<=tokens except request policy; capacity rounds inuint64 and clamps tolimit. Preserve zero handling and source256/300 versus target512 identity, rectangular key/value widths2/3, last token axis and stored dtype. Fake pointer offsets only test layout. Query planner uses actual per-index counts, head-bound cursor and contract digest; no normality/uniformity assumption. Conversation page2 and five-turn ancestry deliberately expose pagination, whilehead/filter checks prevent mixing snapshots. blob8192 is a fixture payload beyond inline storage; copyVerified shares bounded copy/hash with verify/packing, and retention refuses live store-local aliases without their established admission. forwarderMost3/ceil1272 and repeatLeast20/radius3 are policy/proxy decisions, not mathematical proof that a helper is profitable; each proposed removal still requires caller review. Numerical acceptance remains separate from timing.",
+      "retained_results": "c66bc509f landing:-873production/+948test=+75totalGo,schemas0,CUDA0,staticfixtures0. Retained invariants1m54.183s(repoanalysis22s),test3m14.478s,lanes21m0.431s,device14m23.127s,webui2m52.044s,CUDA6m36.459s; scopes overlap and are not summed as a per-test speed estimate. Retained Bonsai outputs identical andpeak5389.8MiB unchanged. Restore-forwarder check counted47/1304 versus46/1272 and refused it. No new SQA run."
     },
-    "fresh_ast": [
-      {
-        "path": "internal/agentloop/agent_sessions_test.go",
-        "nodes": 1480,
-        "functions": 4
-      },
-      {
-        "path": "internal/agentloop/attempts_test.go",
-        "nodes": 1459,
-        "functions": 5
-      },
-      {
-        "path": "internal/agentloop/coordinator_test.go",
-        "nodes": 1994,
-        "functions": 8
-      },
-      {
-        "path": "internal/inference/bf16_cache_windows_test.go",
-        "nodes": 1332,
-        "functions": 2
-      },
-      {
-        "path": "internal/inference/prompt_prefetch_windows_test.go",
-        "nodes": 1058,
-        "functions": 1
-      },
-      {
-        "path": "internal/graphruntime/resident_chunk_windows_test.go",
-        "nodes": 855,
-        "functions": 2
-      },
-      {
-        "path": "internal/graphruntime/resident_windows_test.go",
-        "nodes": 614,
-        "functions": 2
-      },
-      {
-        "path": "internal/landing/landed_again_test.go",
-        "nodes": 668,
-        "functions": 1
-      },
-      {
-        "path": "internal/landing/row_changes_test.go",
-        "nodes": 606,
-        "functions": 4
-      },
-      {
-        "path": "internal/landing/dispatch_admission_test.go",
-        "nodes": 490,
-        "functions": 1
-      },
-      {
-        "path": "internal/cuda/executor/moss_rotary_windows_test.go",
-        "nodes": 605,
-        "functions": 1
-      },
-      {
-        "path": "internal/cuda/executor/moss_situ_windows_test.go",
-        "nodes": 389,
-        "functions": 1
-      },
-      {
-        "path": "internal/cuda/executor/rounded_elementwise_windows_test.go",
-        "nodes": 486,
-        "functions": 1
-      },
-      {
-        "path": "internal/evaluation/moss_denoiser_wall_model_test.go",
-        "nodes": 685,
-        "functions": 2
-      },
-      {
-        "path": "internal/scorecard/decline_sequences_test.go",
-        "nodes": 737,
-        "functions": 1
-      },
-      {
-        "path": "internal/server/unvalidated_runs_test.go",
-        "nodes": 736,
-        "functions": 1
-      },
-      {
-        "path": "internal/repoanalysis/typed_reach_test.go",
-        "nodes": 4463,
-        "functions": 14
-      },
-      {
-        "path": "internal/repoanalysis/production_repeats_test.go",
-        "nodes": 1395,
-        "functions": 8
-      },
-      {
-        "path": "internal/graphruntime/resident.go",
-        "nodes": 2347,
-        "functions": 20
-      },
-      {
-        "path": "internal/agentloop/coordinator.go",
-        "nodes": 4455,
-        "functions": 23
-      }
-    ],
-    "tests": [
-      {
-        "classification": "simplify",
-        "ids": [
-          "SQA-311"
-        ],
-        "owner": "TestGeneratedAgentSessions",
-        "cases": "Keep all40 deterministic seeds and30 action slots per seed, failure trace, mutation authorization/write count, cancellation and receipt/restore checks; remove redundant broken/aggregate-error bookkeeping and scope existing cleanups to sequential subtests.",
-        "cost": "1480->1482(+2 AST);40 setups remain, live store/server pairs40->1. Necessary lifetime structure, not a source saving."
-      },
-      {
-        "classification": "merge",
-        "ids": [
-          "SQA-312"
-        ],
-        "owner": "TestAResidentProgramHoldsItsWeightsInOneAllocation",
-        "cases": "Move all three measured allocation-charge cases and their calibration provenance from TestAResidentProgramTakesNoMoreThanItsInputs after packing-program release; retain every packing, output and release assertion.",
-        "cost": "855->786(-69 AST);sessions2->1,programs4/bindings6/executions1 unchanged. No helper/fixture growth."
-      },
-      {
-        "classification": "remove",
-        "ids": [
-          "SQA-312"
-        ],
-        "owner": "TestAResidentProgramTakesNoMoreThanItsInputs",
-        "cases": "Only remove this declaration after its entire64/153600/393216-element loop belongs to the preceding retained test. SQA-304 calibration requirements are not retired.",
-        "cost": "Saving included in312's69nodes once, not the whole301-node function."
-      },
-      {
-        "classification": "simplify",
-        "ids": [
-          "SQA-306"
-        ],
-        "owner": "TestTheKeyValueCacheIsStoredInBF16",
-        "cases": "Delete only sorted/lead-dependent argmax implication. Keep storage halving, BF16 values, host roundtrip,212-token100/100/12 prompt chunks, six decode steps, common forced tokens, max-error tolerance and cleanup.",
-        "cost": "Reconfirmed source/whole-file1332->1273(-59 AST);seven32-value sorts disappear;two runner opens andoneGGUF fixture remain."
-      },
-      {
-        "classification": "merge",
-        "ids": [
-          "SQA-310"
-        ],
-        "owner": "TestRepeatedProductionBodiesStayUnderTheirCeiling",
-        "cases": "Move both exact and parameter expectations into two rows over one fixture and one checkout load. Retain locals/literal distinctions, four-value and small-body exclusions, both independent ceilings and named diagnostics.",
-        "cost": "Committed1395->1347(-48 AST);loadModule4->2,checkout2->1,fixtures2->1/files6->3/bytes1780->890;no helper/cache. Uncommitted worker edits excluded."
-      },
-      {
-        "classification": "retain",
-        "ids": [
-          "SQA-309"
-        ],
-        "owner": "Parameter row of the existing repeat fixture",
-        "cases": "Fix map-order-dependent grouping in the existing owner and extend it with the smallest reordered-site comparison; do not suppress its failure for size.",
-        "cost": "Sort+28 measured;case+30..65 estimated. Combined309+310 is+10..45 AST, not a net reduction."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestTheReachWalkReadsTypes and typed walk/loadModule",
-        "cases": "Keep receiver/selector and interface-method identity, embedded/generic methods, host build-tag twin, test-support exclusions and command/lane reach. The4463-node file contains only357 nodes in its Test function;4106 are other declarations/support, not thousands of repeated assertions.",
-        "cost": "No safe whole-walk deletion established. Existing shared loadModule/fixtureModule retained; no new policy check, full census or cache."
-      },
-      {
-        "classification": "retain",
-        "owner": "attempts_test.go and coordinator_test.go native tests",
-        "cases": "Specific failed/cancelled mutation recovery, attempt/checkpoint identity, session tip/restore, inspection/grant, budget and receipt-before-execution cases remain. Their targeted workspace fixtures differ from the generated reference-world contract.",
-        "cost": "1459+1994 AST unchanged; no helper migration or setup savings claimed."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestResidentSessionReclaimsReleasedRecords; TestCompiledFeedsUseIndexedInputs",
-        "cases": "Retain repeated request reclamation, shared indexed bindings, partial release, sealing and close behavior. They are different from single-program packing/calibration.",
-        "cost": "614 AST unchanged; no new setup."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestAPromptReadCopiesTheNextGroupsExpertsAhead",
-        "cases": "Retain card-resident baseline, first host read and warmed host read; bit identity and0/0/8 prefetch counts differ. Hoisting repeated graph/GGUF setup is not established safe until compiled-binding and predictor-state identities are traced.",
-        "cost": "1058 AST unchanged;three builds remain. No speculative saving, new table/helper or device comparison prescribed by SQA."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestEveryStageFailureLeavesTheTrunkAlone; TestALandingThatDeletesARowNamesIt; TestAReplacedCheckMustFailWithoutTheChange; TestALandingRefusesWhatDispatchWouldPass",
-        "cases": "Stage failures must preserveHEAD/plan; landed-row replay after interrupted plan save must fail; retirement needs authorization/trailer; changed acceptance fails its base; dependencies, lane ownership and stops gate dispatch. Existing rowChangeFixture/editPlan already share setup.",
-        "cost": "668+606+490 AST retained. These integration failures are distinct from unit predicates; no evidence-backed retirement."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestARoundedRotaryFoldsIntoOneKernel; TestARoundedSITUFoldsIntoOneKernel; TestABF16RoundingFoldsIntoTheProductItRounds",
-        "cases": "Retain each actual operator layout/rounding contract. Keeping intermediate outputs deliberately prevents fusion on the comparison path, so these are not self-comparisons. Preserve bit identity and the expected fusion identities.",
-        "cost": "605+389+486 AST retained;existing newFixtureExecutor/patternedValue/compareBits reused. Six graph executions remain;no generic graph-construction abstraction proposed."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestMOSSDenoiserWallIsAccountedFor; TestGeneratedSlowQualityDecline",
-        "cases": "Retain exact retained-record/request/source identity and accounted work; keep cumulative decline exposed despite individually small readings. One is evidence provenance, the other a deterministic paired-decision counterexample.",
-        "cost": "685+737 AST retained. No new model/timing/statistical workload or universal threshold."
-      },
-      {
-        "classification": "retain",
-        "owner": "TestAnUnvalidatedModelRunsWithItsStateShown",
-        "cases": "Keep candidate state visibility, explicit request/run identity and absence of implicit activation. Catalog/UI controls and stored outputs protect different authority boundaries.",
-        "cost": "736 AST retained;separate SQA-285 server-session consolidation remains its canonical obligation, not duplicated here."
-      }
-    ],
-    "automation_sequence": "Retain landing phase failure/refusal, dispatch dependency/lane/stop admission and landed-row recovery through existing Run owners. Those tests validate publication/authority, not completion notification.311 removes retention between sequential seeds;312 removes one CUDA session setup;310 removes one fixture and one checkout parse/typecheck per uncached package run. Native Go caching can skip unchanged package tests and reuse compiler exports, but does not eliminate duplicate in-process analyses when the package runs. No new scheduler or completion-delivery claim. Existing process/driver/resume findings retain their evidence; this requested pass did not establish unattended wakeup reliability from timestamps.",
-    "assumptions": "40 seeds and30 steps are an explicit bounded deterministic fixture, not a probability/coverage guarantee; do not reduce them based on normality or independence assumptions. Prefetch fixture evenly routes8experts using topK2 with a coprime3 offset; it establishes this warmup/copy path, not production skew/tail profitability. BF16's1% reference-spread tolerance is fixture-specific; the deleted lead>2*maxerror check is a finite-vector implication, not an independent signal. Resident512KiB/1MiB/2MiB limits and256-byte alignment trace to retained measured-granule evidence and checked.Align overflow, not arbitrary constants; keep all three calibration cases. MOSS rotary64x4x12, SITU96x24/gate4/hidden25 and retained intermediate outputs encode admitted operator geometry and rounding order. Slow-decline100x12 deterministic readings test accumulated deterioration, not stationary/noise distribution calibration. Wall-record0.98 accounting and4/8steps read exact frozen evidence; no inference of universal timing acceptance. Keep numerical acceptance independent of timing; Strata is not presumed optimal.",
-    "retained_results": "Existing SQA-304 implementation response records256 allocations at13sizes,8B..8MiB, and a restored2MiB rule causing the256B case to charge2097152B.312 preserves that requirement. No calibration rerun. Existing repeat/deletion evidence and gates are retained; the newb6f76a337 landing reports-762production/-189test/fixturebytes-587, outputs identical andpeak5389.8MiB unchanged; it is subsequent to the fixed day window. No SQA model or gate execution."
-  },
-  "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
-  "implementation_review": {
+    "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
+    "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
       {
@@ -7891,14 +7824,13 @@
     "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
-  "limitations": [
-    "AST totals count repository-written Go according to landing.writtenNodes/gosyntax.Generated rules:all nonnil go/ast nodes, generated files and testdata excluded, all committed build-tag variants parsed. Pure source accounting is not executable coverage, package build selection or memory/time measurement.",
-    "Day growth is a fixed November4 local-calendar comparison ending6948da07; current review pinb6f76a337 is later, at November5 00:04:24-05:00. Its retained gate reports an additional-189 test/-762 production nodes, outside the day window.",
-    "New candidates use parser-local symbol links plus concrete caller/lifetime source inspection, not full application typechecking or CUDA execution. Final native validation belongs to implementation; SQA adds no confidence run.",
-    "The supported source deletions total176 test nodes(306:59,310:48,312:69), less than1% of the19586 day growth.311 adds2 nodes for earlier cleanup;309's necessary determinism correction adds an estimated58..93. Including all five yields net81..116 fewer nodes, not a promise to erase the day's growth.",
-    "Unvisited functions and existing unresolved findings keep their own evidence revisions. No claim of independent third-party review; this chat previously implemented changes. All implementation-owned/unknown fields remain unchanged."
-  ],
-  "master_lead_triage": {
+    "limitations": [
+      "Bounded source review only. AST, setup and retained-resource counts are proxies, not new elapsed/heap/device measurements. New sample uses parser-local resolution except isolatedmadeCalls typecheck; no full application build.",
+      "73-node310 migration replaces its previous48-node estimate.309 correctness growth may exceed that saving; no new blanket test deletion or reduction quota.",
+      "Keep the prior requested November4 accounting as a fixed historical window; the new landing is outside it. No repeat day census was run.",
+      "Other findings retain their evidence revisions. No new observed delivery failure, current-tree flaky run or unsupported claim about all GPU geometries. This chat previously implemented Overgo changes and is not an independent third-party reviewer."
+    ],
+    "master_lead_triage": {
     "at": "2026-11-05",
     "head": "b6118e1c765e0923e9256709968d8477bf5e01d3",
     "findings": {
@@ -8653,13 +8585,13 @@
       }
     }
   },
-  "next_finding_number": 313,
-  "publication_context": {
-    "checked_head": "b6f76a3377ea7415ba4f3b92905d44fc25e90213",
-    "assessment": "Re-read committed source/report/owner state immediately before writing. Parse replacement and check all stable IDs, canonical ranks/aliases and raw-exact implementation/unknown fields. Preserve unrelated index and worktree edits.",
-    "publication": "Substantive docs/sqa_findings.json-only commit through existing hooks and landing/gate ownership locks; no plan/skill/timer changes, production gate, push or application tests."
-  },
-  "ranked_active_finding_ids": [
+    "next_finding_number": 313,
+    "publication_context": {
+      "checked_head": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+      "assessment": "Re-read current code/report/owner changes before write; parse replacement, preserve raw owner/unknown fields and canonical IDs/ranks. Exclude concurrent worker edits.",
+      "publication": "Substantive report-only path-limited commit through existing hooks and ownership locks; no gate, plan/skill/timer change or push."
+    },
+    "ranked_active_finding_ids": [
     "SQA-277",
     "SQA-283",
     "SQA-271",
@@ -8713,50 +8645,45 @@
     "SQA-247",
     "SQA-262"
   ],
-  "repository": "C:\\Users\\jeffm\\overgo",
-  "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
-  "review_notes": [
-    "The requested explanation separates new analysis machinery from behavioral assertions and credits deletions already landed; direct endpoints are authoritative for the day totals.",
-    "311 retains generated mutation/recovery coverage while narrowing resource lifetime;312 consolidates only the two identical resident-session setup contracts and keeps304 calibration intact.",
-    "306/310 remain canonical for existing supported deletions; no duplicate backlog entry or double-counted savings.309 remains separate because correctness can require test growth.",
-    "Concurrent b6f76a337 test-held deletion is outside November4 and does not alter the selected candidate files. Its new committed plan identity is captured. Dirty production_repeats/local_forwarders work is not reviewed as landed.",
-    "This chat previously implemented Overgo changes. This is report-only SQA, not independent third-party verification."
-  ],
-  "reviewed_at": "2026-11-05T05:18:21Z",
-  "reviewed_master": "b6f76a3377ea7415ba4f3b92905d44fc25e90213",
-  "schema_version": 2,
-  "scope": [
-    "Requested explanation of November4 test growth, with bounded consolidation review on committed master b6f76a3377ea7415ba4f3b92905d44fc25e90213. Repository instructions read; skill blob e5add23887345549e59fc730675ae83f9be950cb. Committed plan blob7103b5871e4cc40c9ae8331d359eb04bd78e2ef2; campaign Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance. The new test-held-deletions landing is credited; inline-forwarders/surface-folds/held-claims remain distinct plan work.",
-    "Direct old/new Git-blob syntax count only for288 changed Go paths in the requested November4 America/New_York interval. Baseline9be8221e31ae6aa9ef1f44b3f3a48ae491fc3da8, endpoint6948da07b9b76a615a28ae4bc8359c8aeb80a0cb. This targeted historical accounting is not a full recurring census or a fresh application test.",
-    "Fresh semantic sample20 committed files,26854 AST nodes:6802 production/20052 test,102 functions and5868 parser-local bindings. Concrete owners across generated agent/DB lifetimes, BF16 transfers/cache, resident allocation/release, MOSS numerical comparisons, catalog/GUI request authority and gate admission/recovery. Provisional conclusions preceded prior report rankings.",
-    "Actual complete-file parse-only candidates:agent_sessions1480->1482(+2),resident_chunk855->786(-69). Reuse retained306 BF16 deletion1332->1273(-59) and310 repeats merge1395->1347(-48), with source identities rechecked at current pin. Selected repeat-analysis type result46defs/223uses/40selections is retained for unchanged declarations, not a new typecheck of CUDA or agent code.",
-    "Current source/report/implementation responses re-read before publication. Worktree production_repeats edits and new local_forwarders test belong to workers and are excluded. Only touched obligations reassessed; no application tests, model/device workloads, services, benchmarks, profiles, gates, agents, worker messages or plan/skill/timer changes."
-  ],
-  "sqa_response": {
-    "reviewed_master": "b6f76a3377ea7415ba4f3b92905d44fc25e90213",
-    "assessment": "52 canonical open,81 resolved,4 deferred,2 aliases;139 stable IDs. New311/312; no closure, reopening or alias. Existing306/310 are reconfirmed retained-owner reductions;309 remains a separate correctness obligation.",
-    "new_findings": [
-      "SQA-311",
-      "SQA-312"
+    "repository": "C:\\Users\\jeffm\\overgo",
+    "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
+    "review_notes": [
+      "Newforwarder policy machinery offsets its production deletion:report the+75combined Go cost, not873nodes of whole-source savings.",
+      "310 remains the single coordinated shared-input migration; its73node estimate supersedes48, with no duplicate ID/alias.309 is a distinct correctness issue despite the same file.",
+      "Existing311/312 and306 obligations remain unchanged. No current application/device execution or worker disturbance.",
+      "This chat previously implemented Overgo changes; report-only review is not independent third-party assurance."
     ],
-    "resolved_findings": [],
-    "partially_addressed_findings": [],
-    "reopened_findings": [],
-    "deferred_findings": [],
-    "priority_changes": [],
-    "consolidated_findings": [],
-    "evidence": "Requested direct day AST accounts for+19586 test nodes.20-file selected sample26854nodes/102functions/5868local bindings. Whole-file parse-only new candidates1480->1482 and855->786; retained306/310 counterfactuals and exact current blob identities rechecked. No application test or implementation executed.",
-    "implementation_response_context": {
-      "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-      "current_triage_head": "ea8ed43a70ca812877a437e377ca2250d3e364e5",
-      "status": "Preserve the current120-comment implementation block, master-lead triage and all unknown fields raw-exact. Touched306/309/310 have no new owner response;304's measured calibration response constrains312 and is retained."
-    },
-    "refactor": {
-      "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
-      "history_path": "docs/sqa_findings.json",
-      "layout": "Full canonical open/deferred findings; resolved closure evidence/costs; explicit canonical aliases are neither active nor resolved."
-    },
-    "recommendation": "Retain distinct security/recovery/numerical coverage; remove the176 nodes with established retained owners, and bound generated-world lifetime for+2nodes. Charge309's necessary correction separately. Do not replace removed setup with helpers/frameworks or add a new policy check just to enforce each reduction.",
-    "uncertainty": "No safe thousand-node deletion established. Source/setup/lifetime estimates are not measured wall/heap/device savings. Uncommitted worker changes, including repeat-analysis work, are excluded and not prematurely closed."
+    "reviewed_at": "2026-11-05T06:20:28Z",
+    "reviewed_master": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+    "schema_version": 2,
+    "scope": [
+      "Report-only recurring SQA at committed masterc66bc509f1e8df03795c019e0bac0aa070a1aeab; read unchanged skill blob e5add23887345549e59fc730675ae83f9be950cb and current plan blob50dbdc35421f78a88dca984b8a4428c95abaf2af first. Campaign:Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance. inline-forwarders is landed; compact-production retains surface-folds/held-claims.",
+      "Fresh provisional conclusions preceded prior rankings. Rotated16 committed files:19899 AST nodes(production12334,test7565),112functions,3903parser-local bindings. Sampled cache paging/transfer lifetime, query/blob/retention, conversation paging/follow, native gate analysis and driver failure/dispatch. Full-file AST counts do not certify unvisited functions.",
+      "Selected madeCalls declaration fully typechecked with installed standard-library importer:7defs/25uses/3selections. Complete two-file consolidation candidate parsed2326->2253; generated fixture string bytes evaluated from committed source. No application compilation/test or repository census.",
+      "Read current owner triage scheduling309/310 and recheck source at pin. Preserve implementation_review, master_lead_triage and all unknown fields exactly; exclude worker edits. No application tests, model/device workloads, services, benchmarks, profiles, gates, agents, worker messages or plan/skill changes."
+    ],
+    "sqa_response": {
+      "reviewed_master": "c66bc509f1e8df03795c019e0bac0aa070a1aeab",
+      "assessment": "52 canonical open,81 resolved,4 deferred,2 aliases;139 stable IDs unchanged. Expanded310 covers the new third reader;309 remains open/scheduled. No new or resolved issue.",
+      "new_findings": [],
+      "resolved_findings": [],
+      "partially_addressed_findings": [],
+      "reopened_findings": [],
+      "deferred_findings": [],
+      "priority_changes": [],
+      "consolidated_findings": [],
+      "evidence": "16-file AST19899nodes/112functions/3903local bindings;madeCalls type7defs/25uses/3selections. Complete310 candidate2326->2253(-73);fixture/load costs counted once. No application test, model or census executed.",
+      "implementation_response_context": {
+        "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
+        "current_triage_head": "b6118e1c765e0923e9256709968d8477bf5e01d3",
+        "status": "Read current120-comment block and new309/310 scheduled notes. Preserve both owner blocks and unknown fields raw-exact; no implementation response rewritten."
+      },
+      "refactor": {
+        "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
+        "history_path": "docs/sqa_findings.json",
+        "layout": "Full canonical open/deferred findings, resolved closure evidence/costs, explicit aliases neither active nor resolved."
+      },
+      "recommendation": "Use the existing linkedPackages input once for all three checks; keep separate fixture contracts and fix309 ordering in the same ordinary implementation work. No additional policy machinery to enforce this recommendation.",
+      "uncertainty": "No safe new broad production deletion established. Combined309/310 can range from15nodes saved to20added; full lifetime/fixture costs remain explicit. Other findings keep prior evidence."
+    }
   }
-}

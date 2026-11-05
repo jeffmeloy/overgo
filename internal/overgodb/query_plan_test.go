@@ -42,38 +42,27 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	media, err := store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts})
-	testcheck.NoError(t, err)
-	if media.Plan.Index != "media" || media.Plan.Inspected != 2 || media.Plan.Matched != 2 ||
-		media.Plan.Returned != 2 || media.Plan.Loaded != 2 {
-		t.Fatalf("media plan = %+v", media.Plan)
-	}
-	kind, err := store.Query(ctx, Query{Kind: artifact.KindEvidence, MaxResults: 10, Projection: ProjectArtifacts})
-	testcheck.NoError(t, err)
-	if kind.Plan.Index != "kind" || kind.Plan.Inspected != 2 || kind.Plan.Returned != 2 {
-		t.Fatalf("kind plan scans beyond its projection: %+v", kind.Plan)
-	}
-	pair, err := store.Query(ctx, Query{
-		MediaType: "application/narrow", Schema: "overgo/wide/v1", MaxResults: 10, Projection: ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
-	if pair.Plan.Index != "media" || pair.Plan.Inspected != 2 || pair.Plan.Matched != 1 || pair.Plan.Returned != 1 {
-		t.Fatalf("pair plan did not ride the narrower index: %+v", pair.Plan)
-	}
-	solo, err := store.Query(ctx, Query{
-		MediaType: "application/wide", Schema: "overgo/solo/v1", MaxResults: 10, Projection: ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
-	if solo.Plan.Index != "schema" || solo.Plan.Inspected != 1 || solo.Plan.Matched != 0 {
-		t.Fatalf("pair plan tie-break is not head-measured: %+v", solo.Plan)
-	}
-	seeded, err := store.Query(ctx, Query{
-		Artifact: &narrowOne.ID, MaxResults: 10, Projection: ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
-	if seeded.Plan.Index != "seed" || seeded.Plan.Inspected != 1 || seeded.Plan.Matched != 1 ||
-		seeded.Plan.Returned != 1 || seeded.Plan.Loaded != 1 {
-		t.Fatalf("seed plan = %+v", seeded.Plan)
+	// Each contract rides the index that owns it and inspects only what that index holds: the media index for its
+	// media type and for a pair whose media is the narrower, the kind index for its kind, the schema index when the
+	// head measures it narrower than the pair's media, and the seed for a named artifact.
+	media := QueryPlanReport{Index: "media", Inspected: 2, Matched: 2, Returned: 2, Loaded: 2}
+	for _, test := range []struct {
+		name  string
+		query Query
+		want  QueryPlanReport
+	}{
+		{"media", Query{MediaType: "application/narrow"}, media},
+		{"kind", Query{Kind: artifact.KindEvidence}, QueryPlanReport{Index: "kind", Inspected: 2, Matched: 2, Returned: 2, Loaded: 2}},
+		{"narrower media", Query{MediaType: "application/narrow", Schema: "overgo/wide/v1"}, QueryPlanReport{Index: "media", Inspected: 2, Matched: 1, Returned: 1, Loaded: 1}},
+		{"head-measured schema", Query{MediaType: "application/wide", Schema: "overgo/solo/v1"}, QueryPlanReport{Index: "schema", Inspected: 1}},
+		{"seed", Query{Artifact: &narrowOne.ID}, QueryPlanReport{Index: "seed", Inspected: 1, Matched: 1, Returned: 1, Loaded: 1}},
+	} {
+		test.query.MaxResults, test.query.Projection = 10, ProjectArtifacts
+		result, err := store.Query(ctx, test.query)
+		testcheck.NoError(t, err)
+		if result.Plan != test.want {
+			t.Fatalf("%s plan = %+v, want %+v", test.name, result.Plan, test.want)
+		}
 	}
 
 	unowned := Query{MaxResults: 100, Projection: ProjectArtifacts}
@@ -90,7 +79,7 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 
 	repeat, err := store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts})
 	testcheck.NoError(t, err)
-	if repeat.Plan != media.Plan {
-		t.Fatalf("equal contract and head produced unequal plans: %+v vs %+v", repeat.Plan, media.Plan)
+	if repeat.Plan != media {
+		t.Fatalf("equal contract and head produced unequal plans: %+v vs %+v", repeat.Plan, media)
 	}
 }

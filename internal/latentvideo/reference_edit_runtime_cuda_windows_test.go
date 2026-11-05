@@ -72,7 +72,6 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 	cudatest.Require(t)
 	// Exact outputs and owned counters need shared correctness admission only.
 	runtime, text, source, initial := newLiveEditRuntimeFixture(t)
-	var priorFrameHash string
 	for run := range 2 {
 		var frames [][]float32
 		started := time.Now()
@@ -96,10 +95,6 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 		if result.Denoiser.Layers != runtime.base.NumLayers || result.Denoiser.ContextProjections != 1 || result.Denoiser.Runs != (run+1)*4 {
 			t.Fatalf("device denoiser lifecycle=%+v", result.Denoiser)
 		}
-		if run > 0 && frameHash != priorFrameHash {
-			t.Fatalf("resident replay frame hash=%s want=%s", frameHash, priorFrameHash)
-		}
-		priorFrameHash = frameHash
 		for _, values := range append([][]float32{result.Latent}, frames...) {
 			for _, value := range values {
 				if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {

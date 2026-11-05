@@ -104,6 +104,12 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	if !compiledBeyond.matches(beyond, beyondSource, 1, plan, false, lora) {
 		t.Fatal("the session does not match its own past class")
 	}
+	if compiledBeyond.matches(contextTokens, beyondSource, 1, plan, false, lora) {
+		t.Fatal("a different target capacity matched")
+	}
+	if compiledBeyond.matches(beyond, beyondSource, 1, plan, true, lora) {
+		t.Fatal("a session compiled without block selection matched a step that selects blocks")
+	}
 	multiple := appendFor(2)
 	multiple[0].Tokens = []tokenizer.TokenID{1, 2}
 	if got := runner.cacheAppendPlan(multiple, deviceOutputPlan{}); got.CapacityTokens != 4 || got.replay {

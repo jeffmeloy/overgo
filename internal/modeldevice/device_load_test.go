@@ -535,37 +535,31 @@ func TestLoaderReleasesEverythingOnFailure(t *testing.T) {
 		counting := NewLoader(source.parse(t))
 		source.route(counting, newStores(counted), counting.file)
 		testcheck.NoError(t, counting.Load(t.Context(), expect))
-		for failure := 1; failure <= counted.allocs; failure++ {
-			t.Run(fmt.Sprintf("allocation %d claimed=%t", failure, claimed), func(t *testing.T) {
-				file, device := source.parse(t), newFakeDevice()
-				device.failAlloc = failure
-				s := newStores(device)
-				loader := NewLoader(file)
-				source.route(loader, s, file)
-				err := loader.Load(t.Context(), expect)
-				if !driver.IsOutOfMemory(err) {
-					t.Fatalf("load = %v, want the injected out-of-memory error", err)
-				}
-				if device.liveCount() != 0 || s.loaded() != 0 {
-					t.Fatalf("%d allocations live, %d tensors stored", device.liveCount(), s.loaded())
-				}
-			})
-		}
-		for failure := 1; failure <= 7; failure++ {
-			t.Run(fmt.Sprintf("write %d claimed=%t", failure, claimed), func(t *testing.T) {
-				file, device := source.parse(t), newFakeDevice()
-				device.failWrite = failure
-				s := newStores(device)
-				loader := NewLoader(file)
-				loader.chunkBytes = 64
-				source.route(loader, s, file)
-				if err := loader.Load(t.Context(), expect); err == nil {
-					t.Fatal("load survived a failed write")
-				}
-				if device.liveCount() != 0 || s.loaded() != 0 {
-					t.Fatalf("%d allocations live, %d tensors stored", device.liveCount(), s.loaded())
-				}
-			})
+		// Then each of the first seven writes, in 64-byte chunks.
+		for _, failing := range []struct {
+			kind string
+			last int
+		}{{"allocation", counted.allocs}, {"write", 7}} {
+			for failure := 1; failure <= failing.last; failure++ {
+				t.Run(fmt.Sprintf("%s %d claimed=%t", failing.kind, failure, claimed), func(t *testing.T) {
+					file, device := source.parse(t), newFakeDevice()
+					s := newStores(device)
+					loader := NewLoader(file)
+					if failing.kind == "allocation" {
+						device.failAlloc = failure
+					} else {
+						device.failWrite, loader.chunkBytes = failure, 64
+					}
+					source.route(loader, s, file)
+					err := loader.Load(t.Context(), expect)
+					if err == nil || failing.kind == "allocation" && !driver.IsOutOfMemory(err) {
+						t.Fatalf("load = %v, want the injected %s failure", err, failing.kind)
+					}
+					if device.liveCount() != 0 || s.loaded() != 0 {
+						t.Fatalf("%d allocations live, %d tensors stored", device.liveCount(), s.loaded())
+					}
+				})
+			}
 		}
 		t.Run(fmt.Sprintf("cancelled claimed=%t", claimed), func(t *testing.T) {
 			file, device := source.parse(t), newFakeDevice()

@@ -363,7 +363,7 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 		if query.FromSequence != 0 || query.ToSequence != 0 {
 			return selected, nil, nil, 0, 0, false, nil
 		}
-		candidateCount := s.descriptorCandidateCount(query)
+		_, candidateCount := s.queryIndexPlan(query)
 		bounded := query.Cursor != nil || query.MaxResults < candidateCount
 		ids := make([]artifact.ID, 0, min(candidateCount, query.MaxResults))
 		matched := 0
@@ -500,11 +500,6 @@ func (s catalogState) visitDescriptorCandidates(query Query, visit func(artifact
 			visit(id)
 		}
 	}
-}
-
-func (s catalogState) descriptorCandidateCount(query Query) int {
-	_, count := s.queryIndexPlan(query)
-	return count
 }
 
 func (s catalogState) matchesDescriptor(query Query, id artifact.ID) bool {

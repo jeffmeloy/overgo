@@ -1,11 +1,6 @@
 package server
 
 import (
-	"bufio"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"overgo/internal/hfhub"
@@ -48,43 +43,29 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 		}
 	}
 
-	server := httptest.NewServer(handler)
-	defer server.Close()
-	// Closing the body ends the stream.
-	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/runtime/activity/stream", nil)
-	testcheck.NoError(t, err)
-	response, err := server.Client().Do(request)
-	testcheck.NoError(t, err)
-	defer response.Body.Close()
-	lines := bufio.NewScanner(response.Body)
-	nextDownloads := func() []downloadJob {
-		t.Helper()
-		event := ""
-		for lines.Scan() {
-			line := lines.Text()
-			if name, found := strings.CutPrefix(line, "event: "); found {
-				event = name
-			}
-			if data, found := strings.CutPrefix(line, "data: "); found && event == "hub.downloads" {
-				var jobs []downloadJob
-				testcheck.NoError(t, json.Unmarshal([]byte(data), &jobs))
-				return jobs
-			}
-		}
-		t.Fatalf("the runtime stream ended before hub.downloads: %v", lines.Err())
-		return nil
+	// The stream stops before the handler closes.
+	probe := openRuntimeServingProbe(t, handler)
+	defer probe.stop()
+	for _, event := range []string{"runtime.sessions", "runtime.activity", "operation.snapshot"} {
+		probe.next(t, event, nil)
+		probe.release(t)
 	}
-	if jobs := nextDownloads(); len(jobs) != 0 {
+	var jobs []downloadJob
+	if probe.next(t, "hub.downloads", &jobs); len(jobs) != 0 {
 		t.Fatalf("a fresh server lists downloads %+v", jobs)
 	}
+	probe.release(t)
+	probe.next(t, "resync", nil)
+	probe.release(t)
 	admitted := &downloadJob{ID: handler.downloads.next.Add(1), Repository: "acme/tiny", State: downloadStateRunning}
 	testcheck.NoError(t, handler.downloads.admit(admitted, func() {}))
 	defer handler.downloads.transfers.Done()
-	if jobs := nextDownloads(); len(jobs) != 1 || jobs[0].Repository != "acme/tiny" || jobs[0].State != downloadStateRunning {
+	if probe.next(t, "hub.downloads", &jobs); len(jobs) != 1 || jobs[0].Repository != "acme/tiny" || jobs[0].State != downloadStateRunning {
 		t.Fatalf("an admitted download reached the stream as %+v", jobs)
 	}
+	probe.release(t)
 	handler.downloads.cancel(admitted.ID)
-	if jobs := nextDownloads(); len(jobs) != 1 || jobs[0].State != downloadStateCancelled {
+	if probe.next(t, "hub.downloads", &jobs); len(jobs) != 1 || jobs[0].State != downloadStateCancelled {
 		t.Fatalf("a cancelled download reached the stream as %+v", jobs)
 	}
 }

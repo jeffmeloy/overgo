@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -86,7 +87,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 				wins++
 			}
 		}
-		chance := signTest(losses, wins)
+		chance := min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses, wins)), uint64(min(losses, wins)), 0).Tail)
 		t.Logf("%s: the span kernels alone answer %d right, the native products alone %d (p %.3g)", family, losses, wins, chance)
 		if losses > wins && chance < cellsChance {
 			t.Errorf("%s: the native products lose %d cases the span kernels answer and win %d, a lean chance gives %.3g", family, losses, wins, chance)

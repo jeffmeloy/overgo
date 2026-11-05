@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 24,
         "reason": "param-folds folds test bodies of a few values repeated across packages into shared test support the gate counts as production: testcheck.Must, testutil.Map, testutil.HubModelInfo and the doc of testutil.WriteJSON, testutil's own JSON writer now exported."
       },
       "steps": [
-        {
-          "id": "sqa-reductions",
-          "title": "Land the register's test reductions",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheRegistersTestReductionsLand$'",
-          "rationale": "compact-tests/exact-folds folded every test body that stood three times or more, by the check it filed, and left the register's test reductions its text named, each a merge of tests or a removal its finding states rather than a repeated body: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255, 230, 233 and 240, and SQA-310, one read of the checkout for the repeat, forwarder and test-repeat checks.\nChange: each finding's recommended change, in the test owner it names, the merged tests keeping every case and the removed ones only those another check implies; SQA-310's one module load serving the checks of internal/repoanalysis that read the checkout. TestTheRegistersTestReductionsLand holds that no finding of docs/sqa_findings.json this step names stays open with its cited test file unchanged since the finding's commit.\nServes: development velocity and test-code size.\nDisappears: the duplicated test bodies and redundant checks the findings name.\nEvidence: test-code nodes on the gate's line; each finding annotated implemented.\nBatch: host lane, with whichever device packages a finding names in the device lane."
-        },
         {
           "id": "statement-folds",
           "title": "Fold runs of statements repeated in the tests",
@@ -170,7 +163,7 @@
           "title": "Take the cell step records' window from Reads",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run 'CellAttention'",
-          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads.\n\nSQA-217 and the CUDA folds compact-production/surface-folds held back join this step, since any change under internal/cuda/driver or internal/cuda/executor runs the device lane in full, which waits on compact-production/adaptiveparity-lane: the graph cache matches the retained compiled graph and the exact frame, compiledSerials and both serial fields going with the graph-drop test's second-compile tail; the two strata recorders' side-stream switch is one onStream over their device state; and the driver's version and device count read through one int32Out. TestSurfaceRepeatsStayUnderTheirCeiling's ceilings fall by what the folds remove."
+          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads.\n\nSQA-217 and the CUDA folds compact-production/surface-folds held back join this step, since any change under internal/cuda/driver or internal/cuda/executor runs the device lane in full, which waits on compact-production/adaptiveparity-lane: the graph cache matches the retained compiled graph and the exact frame, compiledSerials and both serial fields going with the graph-drop test's second-compile tail; the two strata recorders' side-stream switch is one onStream over their device state; and the driver's version and device count read through one int32Out. TestSurfaceRepeatsStayUnderTheirCeiling's ceilings fall by what the folds remove.\n\nTestSurfaceRepeatsStayUnderTheirCeiling is now the subtest inside the inference surface of TestRepeatedProductionBodiesStayUnderTheirCeiling, which reads the checkout once for every repeat and forwarder ceiling; its two surface ceilings fall by what the folds remove.\n\nThe register's test reductions in internal/cuda/executor's tests join this step from compact-tests/sqa-reductions, since a change to them runs the device lane in full: SQA-204, the full-rank doorbell cases into the captured-execution table; SQA-209, replay metrics into the reference replay test; SQA-220, the smaller-after-growth arena check into the metrics test; SQA-166, the verify-span graph into the decode graph fixture; SQA-188, the prefill attention cases into the flash attention table; SQA-174, worker statistics in the MoE and read-back tests; and SQA-230, each QSA and cell parity graph built once for its two backends."
         }
       ]
     },
@@ -705,7 +698,8 @@
       "blocks": [
         "kernel-notices"
       ],
-      "asked": "2026-11-01"
+      "asked": "2026-11-01",
+      "answer": "Treat them as independent writing and reword the comments"
     },
     {
       "id": "one-findings-register",

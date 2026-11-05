@@ -14,6 +14,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -114,7 +115,7 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 						wins++
 					}
 				}
-				chance := signTest(losses, wins)
+				chance := min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses, wins)), uint64(min(losses, wins)), 0).Tail)
 				t.Logf("%s: the F32 cache alone answers %d right, the cells alone %d (p %.3g)", family, losses, wins, chance)
 				if losses > wins && chance < cellsChance {
 					t.Errorf("%s: the cells lose %d cases the F32 cache answers and win %d, a lean chance gives %.3g", family, losses, wins, chance)

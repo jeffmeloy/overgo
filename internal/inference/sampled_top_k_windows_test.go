@@ -20,7 +20,10 @@ import (
 // (GenerateOptions.DeviceTopK) to the host sampler's draws from the whole row: on the hermetic Flash-Next with its
 // draft layer, which steps and verifies its spans, and on the fixture at Strata's geometry, which decodes through
 // windows, a request at temperature one with the top-k and top-p cuts decodes the same text from the same seed either
-// way, plainly and speculating, and draws from the top K with no row's logits brought to the host.
+// way, plainly and speculating, and draws from the top K with no row's logits brought to the host. A sampled tool
+// request's lazy grammar masks no token until its trigger: plainly and speculating, a seed's text is the whole rows'
+// text, its tokens through the trigger drawn from the top K and those after from whole rows; plainly, the text through
+// the trigger is the seed's text without the grammar, and the grammar's token follows it.
 func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
@@ -79,35 +82,11 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 				}
 			}
 		}
-		testcheck.NoError(t, runner.Close())
-		if drafted == 0 {
-			t.Fatalf("%s: no window drafted", fixture.name)
-		}
-		t.Logf("%s: %d seeds draw the same text from the top K as from the whole rows, plainly and over %d drafts", fixture.name, seeds, drafted)
-	}
-}
-
-// TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger: a sampled tool request's lazy grammar masks no token until its
-// trigger, so its rows come down as the card's top K until a token it accepts triggers it, and whole after, which the
-// grammar masks: on the stepping fixture and the windows' fixture, plainly and speculating, a seed's text is the whole
-// rows' text, its tokens through the trigger drawn from the top K and those after from whole rows; plainly, the text
-// through the trigger is the seed's text without the grammar, and the grammar's token follows it.
-func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
-	requireIntegration(t)
-	cudatest.Require(t)
-	const generated = 24
-	prompt := []tokenizer.TokenID{4, 9, 17}
-	hermetic := writeHermeticFlashNextGGUF(t)
-	windows := writeFlashNextFixture(t, strataFlashNextWindows)
-	for _, fixture := range []struct{ name, trunk, draft string }{
-		{"hermetic", hermetic, writeHermeticFlashNextMTPGGUF(t, hermetic, false)},
-		{"windows", windows, writeFlashNextMTPFixture(t, windows, false, strataFlashNextWindows)},
-	} {
-		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
-		// generate decodes the seed's text under the grammar, if any, which may end it, and counts the tokens drawn from
+		// A sampled tool request's lazy grammar masks no token until its trigger, so its rows come down as the card's top K
+		// until a token it accepts triggers it, and whole after, which the grammar masks.
+		// tool decodes the seed's text under the grammar, if any, which may end it, and counts the tokens drawn from
 		// whole rows.
-		generate := func(grammar string, trigger tokenizer.TokenID, plain, card bool) ([]tokenizer.TokenID, int) {
+		tool := func(grammar string, trigger tokenizer.TokenID, plain, card bool) ([]tokenizer.TokenID, int) {
 			t.Helper()
 			config := sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: 3}
 			if grammar != "" {
@@ -134,7 +113,7 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 			}
 			return ids[len(prompt):], rows
 		}
-		free, _ := generate("", 0, true, false)
+		free, _ := tool("", 0, true, false)
 		// The trigger is a token of the free text at its first place, after a few drawn before it.
 		at := 4
 		for slices.Index(free, free[at]) != at {
@@ -148,8 +127,8 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 		})]
 		grammar := fmt.Sprintf("root ::= <[%d]> <[%d]>+", trigger, forced)
 		for _, plain := range []bool{true, false} {
-			whole, wholeRows := generate(grammar, trigger, plain, false)
-			card, cardRows := generate(grammar, trigger, plain, true)
+			whole, wholeRows := tool(grammar, trigger, plain, false)
+			card, cardRows := tool(grammar, trigger, plain, true)
 			if !slices.Equal(card, whole) || wholeRows != len(whole) {
 				_ = runner.Close()
 				t.Fatalf("%s plain=%t: the top K drew %v, the whole rows %v (%d of them whole)", fixture.name, plain, card, whole, wholeRows)
@@ -164,8 +143,12 @@ func TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger(t *testing.T) {
 				t.Fatalf("%s: the text through the trigger %v is not the free text's %v", fixture.name, card[:triggered+1], free[:at+1])
 			}
 		}
-		testcheck.NoError(t, runner.Close())
 		t.Logf("%s: the trigger %d at %d of the free text %v", fixture.name, trigger, at, free)
+		testcheck.NoError(t, runner.Close())
+		if drafted == 0 {
+			t.Fatalf("%s: no window drafted", fixture.name)
+		}
+		t.Logf("%s: %d seeds draw the same text from the top K as from the whole rows, plainly and over %d drafts", fixture.name, seeds, drafted)
 	}
 }
 

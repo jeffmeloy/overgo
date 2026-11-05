@@ -1291,7 +1291,7 @@
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:4de16086362da3b9f2c6098a2e95a18b8dd9468eac8b921f347ea82b90790a05"
+     "identity": "evidence:sha256:55b0627b33876316aa79739f23a4f361ee15cdcacecb17e4a9a1981c7ae67298"
     }
    ],
    "id": "paged-continuous-cache",

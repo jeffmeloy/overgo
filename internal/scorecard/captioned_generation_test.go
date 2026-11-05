@@ -35,7 +35,9 @@ func TestOnlyAPromptTakingGeneratorIsAskedAboutItsCaption(t *testing.T) {
 // video recipe's quality reads: a generator keeps the proposal of its task; an
 // editor, which takes an instruction and a video, is proposed the edit
 // evaluation and so files a row until it is measured; and a model that takes
-// no words is not applicable and files none.
+// no words is not applicable and files none. The Proposed flag decides what
+// files a row: a proposed held-out evaluation does, and a quality declared not
+// applicable with its reason does not, though both read not applicable.
 func TestAnEditorIsProposedItsOwnEvaluation(t *testing.T) {
 	t.Parallel()
 	input := func(kind recipe.DataKind) recipe.Input { return recipe.Input{Name: recipe.PortName(kind), Data: kind} }
@@ -52,39 +54,23 @@ func TestAnEditorIsProposedItsOwnEvaluation(t *testing.T) {
 	if classed.Proposed || !classed.NotApplicable || classed.Reason != uncaptionedGeneration {
 		t.Fatalf("a class-conditioned model's unmeasured quality = %+v, want not applicable with no proposal", classed)
 	}
+	captioned, _ := qualityCell(recipe.TaskImageGen, nil, nil)
+	declared := inapplicable(uncaptionedGeneration)
+	if !captioned.Proposed || !captioned.NotApplicable || declared.Proposed || !declared.NotApplicable {
+		t.Fatalf("an image generator's proposed quality %+v, a declared inapplicable one %+v", captioned, declared)
+	}
 	record := Record{Rows: []Row{
 		{Name: "editor", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.Quality: editor}},
 		{Name: "class-conditioned", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.Quality: classed}},
+		{Name: "captioned", Task: recipe.TaskImageGen, Cells: map[metric.Name]Cell{metric.Quality: captioned}},
+		{Name: "declared-inapplicable", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.Quality: declared}},
 	}}
 	var detail []string
 	for _, gap := range record.Gaps(nil) {
 		detail = append(detail, gap.Detail)
 	}
-	if joined := strings.Join(detail, "\n"); !strings.Contains(joined, "editor held-out-quality") || strings.Contains(joined, "class-conditioned") {
-		t.Fatalf("gaps filed:\n%s\nwant the editor's row only", joined)
-	}
-}
-
-// TestADeclaredNotApplicableQualityIsNotWorkToDefine holds the Proposed flag to
-// what files a row: a proposed held-out evaluation does, and a quality declared
-// not applicable with its reason does not, though both read not applicable.
-func TestADeclaredNotApplicableQualityIsNotWorkToDefine(t *testing.T) {
-	t.Parallel()
-	proposed, _ := qualityCell(recipe.TaskImageGen, nil, nil)
-	declared := inapplicable(uncaptionedGeneration)
-	if !proposed.Proposed || !proposed.NotApplicable || declared.Proposed || !declared.NotApplicable {
-		t.Fatalf("proposed %+v, declared %+v", proposed, declared)
-	}
-	record := Record{Rows: []Row{
-		{Name: "captioned", Task: recipe.TaskImageGen, Cells: map[metric.Name]Cell{metric.Quality: proposed}},
-		{Name: "class-conditioned", Task: recipe.TaskVideoGen, Cells: map[metric.Name]Cell{metric.Quality: declared}},
-	}}
-	var detail []string
-	for _, gap := range record.Gaps(nil) {
-		detail = append(detail, gap.Detail)
-	}
-	joined := strings.Join(detail, "\n")
-	if !strings.Contains(joined, "captioned held-out-quality") || strings.Contains(joined, "class-conditioned") {
-		t.Fatalf("gaps filed:\n%s\nwant the proposed row only", joined)
+	if joined := strings.Join(detail, "\n"); !strings.Contains(joined, "editor held-out-quality") || !strings.Contains(joined, "captioned held-out-quality") ||
+		strings.Contains(joined, "class-conditioned") || strings.Contains(joined, "declared-inapplicable") {
+		t.Fatalf("gaps filed:\n%s\nwant the editor's and the captioned rows only", joined)
 	}
 }

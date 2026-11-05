@@ -171,20 +171,23 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 func TestCachePageCapacityFollowsSessionPolicy(t *testing.T) {
 	const limit = uint32(10)
 	for _, fixture := range []struct {
-		session recipe.SessionPolicy
-		tokens  uint32
-		want    uint32
+		session             recipe.SessionPolicy
+		tokens, limit, want uint32
 	}{
-		{recipe.SessionRequest, 1, 1},
-		{recipe.SessionRequest, 5, 5},
-		{recipe.SessionCapacity, 1, 1},
-		{recipe.SessionCapacity, 3, 4},
-		{recipe.SessionCapacity, 5, 8},
-		{recipe.SessionCapacity, 9, limit},
-		{recipe.SessionCapacity, limit, limit},
+		{recipe.SessionRequest, 1, limit, 1},
+		{recipe.SessionRequest, 5, limit, 5},
+		{recipe.SessionCapacity, 1, limit, 1},
+		{recipe.SessionCapacity, 3, limit, 4},
+		{recipe.SessionCapacity, 5, limit, 8},
+		{recipe.SessionCapacity, 9, limit, limit},
+		{recipe.SessionCapacity, limit, limit, limit},
+		// 256 tokens sit on a 256-token page, and 300 and 257 append into a 512-token one.
+		{recipe.SessionCapacity, 256, 4096, 256},
+		{recipe.SessionCapacity, 300, 4096, 512},
+		{recipe.SessionCapacity, 257, 4096, 512},
 	} {
-		if got := cachePageCapacity(fixture.tokens, limit, fixture.session); got != fixture.want {
-			t.Fatalf("capacity(%d) = %d, want %d", fixture.tokens, got, fixture.want)
+		if got := cachePageCapacity(fixture.tokens, fixture.limit, fixture.session); got != fixture.want {
+			t.Fatalf("capacity(%d of %d) = %d, want %d", fixture.tokens, fixture.limit, got, fixture.want)
 		}
 	}
 }

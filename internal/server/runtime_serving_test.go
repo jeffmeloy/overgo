@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
@@ -175,6 +176,11 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 		retained, err := runrecord.RequireServingObservation(t.Context(), store, event.Activity.ID)
 		if err != nil || retained.ID != event.Activity.ID || retained.Usage != event.Activity.Usage {
 			t.Fatalf("event preceded durable publication: %+v, %v", retained, err)
+		}
+		// The held-open stream names itself so, and an ordinary route does not, so a swap's drain waits for the
+		// requests that are finishing and not for a page's own subscription.
+		if probe.recorder.Header().Get(apimanifest.HeldOpenHeader) == "" || serveTestRequest(handler, http.MethodGet, "/v1/models", "").Header().Get(apimanifest.HeldOpenHeader) != "" {
+			t.Fatalf("the activity stream answers with header %q and /v1/models with it too, want the stream alone", probe.recorder.Header())
 		}
 		probe.stop()
 		handler.events.mu.Lock()

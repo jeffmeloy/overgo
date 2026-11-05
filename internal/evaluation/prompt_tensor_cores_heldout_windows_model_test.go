@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -28,10 +29,6 @@ var promptTensorCoreModels = []struct {
 	{"gemma-4-E4B-it (gemma4)", `overgo-hfconvert/gemma-4-E4B-it-bf16.gguf`, PromptingChatTemplate},
 	{"Unlimited-OCR (deepseek2-ocr)", `overgo-hfconvert/Unlimited-OCR-bf16.gguf`, PromptingRawCompletion},
 }
-
-// rawRuntime answers a case through the runner by raw completion alone: it shapes no chat prompt, so a raw-completion
-// part is scored on its continuations.
-type rawRuntime struct{ *inference.Runner }
 
 // TestPromptTensorCoresHoldHeldOut: a dense model of each admitted architecture answers BBH by raw completion and IFEval
 // by its scored protocol as well with its prompts' attention on the tensor-core kernel as on the F32 paths: of the cases
@@ -82,7 +79,7 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 				})
 				right[tensorCores] = map[string]map[string]bool{}
 				for family, suite := range parts {
-					var runtime Runtime = rawRuntime{runner}
+					var runtime Runtime = runner
 					if family == "ifeval" && served.ifeval == PromptingChatTemplate {
 						runtime = cellsRuntime{runner}
 					}
@@ -100,7 +97,7 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 						wins++
 					}
 				}
-				chance := signTest(losses, wins)
+				chance := min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses, wins)), uint64(min(losses, wins)), 0).Tail)
 				t.Logf("%s: the F32 paths alone answer %d right, the tensor cores alone %d (p %.3g)", family, losses, wins, chance)
 				if losses > wins && chance < cellsChance {
 					t.Errorf("%s: the tensor cores lose %d cases the F32 paths answer and win %d, a lean chance gives %.3g", family, losses, wins, chance)

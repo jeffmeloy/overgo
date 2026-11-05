@@ -5,7 +5,6 @@ package evaluation
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,6 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -101,7 +101,7 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 						wins++
 					}
 				}
-				chance := signTest(losses, wins)
+				chance := min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses, wins)), uint64(min(losses, wins)), 0).Tail)
 				t.Logf("%s: the F32 cache alone answers %d right, the cells alone %d (p %.3g)", family, losses, wins, chance)
 				if losses > wins && chance < cellsChance {
 					t.Errorf("%s: the cells lose %d cases the F32 cache answers and win %d, a lean chance gives %.3g", family, losses, wins, chance)
@@ -148,18 +148,4 @@ func answerCells(t *testing.T, suite CompiledSuite, runtime Runtime) map[string]
 		}
 	}
 	return right
-}
-
-// signTest is the two-sided sign test's chance of a split of losses against wins at least as uneven, each case
-// equally likely to fall either way.
-func signTest(losses, wins int) float64 {
-	cases := losses + wins
-	tail := 0.0
-	for k := range min(losses, wins) + 1 {
-		ways, _ := math.Lgamma(float64(cases + 1))
-		first, _ := math.Lgamma(float64(k + 1))
-		rest, _ := math.Lgamma(float64(cases - k + 1))
-		tail += math.Exp(ways - first - rest - float64(cases)*math.Ln2)
-	}
-	return min(1, 2*tail)
 }

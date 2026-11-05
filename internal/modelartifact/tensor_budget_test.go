@@ -25,10 +25,20 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 	for i := range values {
 		values[i] = float32(i%4) + 1
 	}
-	file := openGGUF(t, []gguf.TensorData{
+	// One fixture serves every measurement through a counted parse of its bytes; the inventory, which names the
+	// file's physical paths, comes from the file opened where it lies.
+	path := testutil.TempGGUF(t, "counted.gguf", nil, []gguf.TensorData{
 		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
 	})
-	inventory, err := FromGGUF(file, artifact.KindModel)
+	opened, err := gguf.Open(path)
+	testcheck.NoError(t, err)
+	defer opened.Close()
+	inventory, err := FromGGUF(opened, artifact.KindModel)
+	testcheck.NoError(t, err)
+	encoded, err := os.ReadFile(path)
+	testcheck.NoError(t, err)
+	source := &countedReader{source: bytes.NewReader(encoded)}
+	file, err := gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions())
 	testcheck.NoError(t, err)
 
 	// Sampling alone: 4 samples x 4 bytes = 16 bytes recorded.
@@ -60,15 +70,8 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 		t.Fatalf("under-budget spectral read: status=%q read=%d sampled=%d err=%v", deferred.Measurements[0].SpectralStatus, deferred.ReadBytes, sampled.ReadBytes, err)
 	}
 	// Sampling itself still refuses a budget it cannot fit, before it reads a byte of the tensor.
-	encoded, err := os.ReadFile(testutil.TempGGUF(t, "counted.gguf", nil, []gguf.TensorData{
-		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
-	}))
-	testcheck.NoError(t, err)
-	source := &countedReader{source: bytes.NewReader(encoded)}
-	counted, err := gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
 	source.reads = 0
-	if _, err := MeasureGGUF(inventory.TensorInventory, counted, MeasurementPolicy{
+	if _, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: sampled.ReadBytes - 1,
 	}); err == nil || !strings.Contains(err.Error(), "read budget") || source.reads != 0 {
 		t.Fatalf("under-budget sampled read: %v after %d tensor reads, want a refusal before any", err, source.reads)

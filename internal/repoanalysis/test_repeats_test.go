@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 
@@ -60,14 +59,13 @@ func boundTests(t *testing.T, root string) map[string]bool {
 	return bound
 }
 
-// testBodies reads the function and closure bodies of repeatLeast nodes or more of the module's test files by skeleton,
-// each package's tests type-checked as its test binary builds them: the in-package tests with the package's files, the
-// external tests against that build.
-func testBodies(t *testing.T, root string) map[string][]bodySite {
+// testBodies reads the function and closure bodies of repeatLeast nodes or more of the loaded module's test files by
+// skeleton, each package's tests type-checked as its test binary builds them: the in-package tests with the package's
+// files, the external tests against that build. It reads the tests that change freely: not those bound by a claim or
+// a record (boundTests), nor those of testRepeatDeferred.
+func testBodies(t *testing.T, load *moduleLoad) map[string][]bodySite {
 	t.Helper()
-	load, err := loadModule(t.Context(), root)
-	testcheck.NoError(t, err)
-	bound := boundTests(t, root)
+	bound := boundTests(t, load.root)
 	var guard sync.Mutex
 	var group sync.WaitGroup
 	skeletons := map[string][]bodySite{}
@@ -128,58 +126,6 @@ func testBodies(t *testing.T, root string) map[string][]bodySite {
 		testcheck.NoError(t, failure)
 	}
 	return skeletons
-}
-
-// TestNoTestBodyRepeatsThreeTimes holds the module's tests to testRepeatMost bodies of one skeleton, read as the
-// production repeat checks read theirs, so a body a third case repeats is folded into one the cases share and named
-// for them. It reads the tests that change freely: not those bound by a claim or a record (boundTests), nor those of
-// testRepeatDeferred.
-func TestNoTestBodyRepeatsThreeTimes(t *testing.T) {
-	t.Parallel()
-	groups, _ := bodyRepeats(testBodies(t, checkoutRoot), 0)
-	over := 0
-	for _, group := range groups {
-		if len(group)-1 > testRepeatMost {
-			over++
-			t.Errorf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
-		}
-	}
-	if over > 0 {
-		t.Errorf("%d test bodies stand more than %d times, so fold each into one body its cases share", over, testRepeatMost)
-	}
-}
-
-// TestNoTestBodyOfThreeValuesRepeatsThreeTimes holds the module's tests to testRepeatMost bodies of one skeleton that
-// differ in a value or more and at most parameterLeast, read as TestParameterRepeatsStayUnderTheirCeiling reads
-// production's: a third such body is a case of one body that takes those values as its parameters, except the group
-// testParameterHeld names, which must still stand.
-func TestNoTestBodyOfThreeValuesRepeatsThreeTimes(t *testing.T) {
-	t.Parallel()
-	groups, _ := bodyRepeats(testBodies(t, checkoutRoot), parameterLeast)
-	over, held := 0, false
-	for _, group := range groups {
-		if len(group)-1 <= testRepeatMost {
-			continue
-		}
-		files := make([]string, 0, len(group)-1)
-		for _, site := range group[1:] {
-			file, _, _ := strings.Cut(site, ":")
-			files = append(files, file)
-		}
-		slices.Sort(files)
-		if slices.Equal(files, testParameterHeld) {
-			held = true
-			continue
-		}
-		over++
-		t.Errorf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
-	}
-	if over > 0 {
-		t.Errorf("%d test bodies of a few values stand more than %d times, so fold each into one body that takes them", over, testRepeatMost)
-	}
-	if !held {
-		t.Errorf("the group testParameterHeld names, %q, no longer stands more than %d times, so drop it", testParameterHeld, testRepeatMost)
-	}
 }
 
 // testParameterHeld are the files of the one group of test bodies of a few values that stands three times: the fakes'

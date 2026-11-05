@@ -64,7 +64,7 @@ func newAdapterLifecycle(t *testing.T) *adapterLifecycle {
 	l := &adapterLifecycle{fixture: loadCTCTrainingFixture(t)}
 	var err error
 	l.storePath = filepath.Join(t.TempDir(), "store")
-	l.store, err = overgodb.Open(l.storePath)
+	l.store, err = overgodb.Create(l.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

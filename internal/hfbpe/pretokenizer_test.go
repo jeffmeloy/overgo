@@ -91,7 +91,22 @@ func TestDeclaredPipeline(t *testing.T) {
 	if got, err := tok.Encode("a<raw>b"); err != nil || !slices.Equal(got, want) {
 		t.Fatalf("raw token boundary: %v %v", got, err)
 	}
-	for _, flag := range []string{"single_word", "lstrip", "rstrip", "normalized"} {
+	// Raw added tokens are matched before normalized ones, as Hugging Face's
+	// added vocabulary does in two passes: the raw "n>" takes the text the
+	// longer normalized "<n>" would have matched in one.
+	twoPass := []map[string]any{{"id": 256, "content": "n>", "normalized": false}, {"id": 257, "content": "<n>", "normalized": true}}
+	ordered := loadTokenizerFixture(t, nil, byteLevel(false, false), twoPass)
+	if got, err := ordered.Encode("a<n>b<n"); err != nil || !slices.Equal(got, slices.Concat(byteIDs("a<"), []int{256}, byteIDs("b<n"))) {
+		t.Fatalf("raw before normalized added tokens: %v %v", got, err)
+	}
+	if got, err := ordered.Encode("<n"); err != nil || !slices.Equal(got, byteIDs("<n")) {
+		t.Fatalf("partial added token: %v %v", got, err)
+	}
+	normalizedOnly := loadTokenizerFixture(t, nil, byteLevel(false, false), twoPass[1:])
+	if got, err := normalizedOnly.Encode("a<n>b"); err != nil || !slices.Equal(got, slices.Concat(byteIDs("a"), []int{257}, byteIDs("b"))) {
+		t.Fatalf("normalized added token under an identity normalizer: %v %v", got, err)
+	}
+	for _, flag := range []string{"single_word", "lstrip", "rstrip"} {
 		invalid := []map[string]any{{"id": 256, "content": "<raw>", "normalized": false, flag: true}}
 		tok := loadTokenizerFixture(t, nil, byteLevel(false, false), invalid)
 		if _, err := tok.Encode("a<raw>b"); err == nil {
@@ -118,6 +133,32 @@ func TestDeclaredPipeline(t *testing.T) {
 		if _, err := declared.Encode("a"); err == nil {
 			t.Fatalf("unsupported model option accepted: %s", option)
 		}
+	}
+	// An unknown token never applies where the vocabulary holds every byte's
+	// symbol, so declaring one leaves the byte-level path exact.
+	var every Tokenizer
+	every.buildByteAlphabet()
+	vocabulary := map[string]int{}
+	for value, symbol := range every.b2u {
+		vocabulary[string(symbol)] = value
+	}
+	model, err := json.Marshal(map[string]any{
+		"model":         map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []string{}, "unk_token": "<unk>"},
+		"pre_tokenizer": byteLevel(false, false),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), model, 0600); err != nil {
+		t.Fatal(err)
+	}
+	unknown, err := Load(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := unknown.Encode("a b"); err != nil || !slices.Equal(got, byteIDs("a b")) {
+		t.Fatalf("unknown token over every byte: %v %v", got, err)
 	}
 	t.Run("marker-conflict", func(t *testing.T) {
 		directory := t.TempDir()

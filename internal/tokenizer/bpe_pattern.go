@@ -1,19 +1,25 @@
 package tokenizer
 
-import "errors"
+import (
+	"cmp"
+	"errors"
+	"strings"
+)
 
 // Exact artifact expressions select shared native scanners. The RxBrain
 // stages are partial matches and preserve unmatched spans as separate pieces.
 // CompileBPESplit recognizes artifact syntax, not model names.
 const (
 	// BPEPatternGPT2 is the default byte-level split expression declared by HF.
-	BPEPatternGPT2      = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
-	bpePatternQwen2     = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
-	bpePatternLlama3    = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
-	bpePatternRxNumber  = "\\p{N}{1,3}"
-	rxCJKClass          = "一-龥぀-ゟ゠-ヿ"
-	bpePatternRxCJK     = "[" + rxCJKClass + "]+"
-	bpePatternRxUnicode = "[!\"#$%&'()*+,\\-./:;<=>?@\\[\\\\\\]^_`{|}~][A-Za-z]+|[^\r\n\\p{L}\\p{P}\\p{S}]?[\\p{L}\\p{M}]+| ?[\\p{P}\\p{S}]+[\r\n]*|\\s*[\r\n]+|\\s+(?!\\S)|\\s+"
+	BPEPatternGPT2   = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
+	bpePatternQwen2  = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	bpePatternLlama3 = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	// bpePatternNumberRuns is bpePatternLlama3 with number runs of any length.
+	bpePatternNumberRuns = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}+| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	bpePatternRxNumber   = "\\p{N}{1,3}"
+	rxCJKClass           = "一-龥぀-ゟ゠-ヿ"
+	bpePatternRxCJK      = "[" + rxCJKClass + "]+"
+	bpePatternRxUnicode  = "[!\"#$%&'()*+,\\-./:;<=>?@\\[\\\\\\]^_`{|}~][A-Za-z]+|[^\r\n\\p{L}\\p{P}\\p{S}]?[\\p{L}\\p{M}]+| ?[\\p{P}\\p{S}]+[\r\n]*|\\s*[\r\n]+|\\s+(?!\\S)|\\s+"
 	// BPEPatternKimi is the exact Split declaration used by Colibri's
 	// tiktoken-derived Kimi tokenizer. It also selects its rank-vocabulary BPE.
 	BPEPatternKimi = `[\p{Han}]+|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
@@ -29,6 +35,8 @@ func CompileBPESplit(pattern string) (func(string) []string, bool, error) {
 		return preTokenizeQwen2, true, nil
 	case bpePatternLlama3:
 		return preTokenizeLlama3, true, nil
+	case bpePatternNumberRuns:
+		return func(text string) []string { return preTokenizeLetterRuns(text, 0) }, true, nil
 	case bpePatternRxNumber:
 		return preTokenizeRxNumber, false, nil
 	case bpePatternRxCJK:
@@ -40,4 +48,10 @@ func CompileBPESplit(pattern string) (func(string) []string, bool, error) {
 	default:
 		return nil, false, errors.New("unsupported BPE split expression")
 	}
+}
+
+// LongestFirst orders texts longest first and those of one length by their bytes, the order literal matching tries
+// overlapping candidates in.
+func LongestFirst(left, right string) int {
+	return cmp.Or(cmp.Compare(len(right), len(left)), strings.Compare(left, right))
 }

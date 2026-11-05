@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -21,25 +22,30 @@ import (
 )
 
 type Tokenizer struct {
-	vocab             map[string]int
-	mergeRank         map[string]int
-	special           map[string]int
-	specials          []string // longest-first
-	b2u               [binaryschema.ByteValueCount]rune
-	u2bDense          [2 * binaryschema.ByteValueCount]int16
-	id2tok            map[int]string
-	spaceMarker       string
-	byteFallback      bool
-	ignoreMerges      bool
-	rankBPE           bool
-	rankBPEEligible   bool
-	decodeMarker      string
-	stripDecodePrefix bool
-	omitSpecial       map[int]bool
-	normalizeNFC      bool
-	normalizerErr     error
-	preTokenize       preTokenizerStage
-	preTokenizerErr   error
+	vocab      map[string]int
+	mergeRank  map[string]int
+	special    map[string]int // every added token, by its content
+	rawSpecial map[string]int // the added tokens matched in raw text
+	specials   []string       // rawSpecial's, longest-first
+	// normalizedSpecial holds the added tokens declared normalized, by their normalized content, which Hugging Face's
+	// added vocabulary matches in each span between raw added tokens once it is normalized.
+	normalizedSpecial  map[string]int
+	normalizedSpecials []string // normalizedSpecial's, longest-first
+	b2u                [binaryschema.ByteValueCount]rune
+	u2bDense           [2 * binaryschema.ByteValueCount]int16
+	id2tok             map[int]string
+	spaceMarker        string
+	byteFallback       bool
+	ignoreMerges       bool
+	rankBPE            bool
+	rankBPEEligible    bool
+	decodeMarker       string
+	stripDecodePrefix  bool
+	omitSpecial        map[int]bool
+	normalizeNFC       bool
+	normalizerErr      error
+	preTokenize        preTokenizerStage
+	preTokenizerErr    error
 }
 
 type tokenizerJSON struct {
@@ -86,6 +92,7 @@ func Load(dir string) (*Tokenizer, error) {
 		vocab:        tj.Model.Vocab,
 		mergeRank:    make(map[string]int, len(tj.Model.Merges)),
 		special:      map[string]int{},
+		rawSpecial:   map[string]int{},
 		byteFallback: tj.Model.ByteFallback,
 		ignoreMerges: tj.Model.IgnoreMerges,
 		omitSpecial:  make(map[int]bool),
@@ -107,10 +114,13 @@ func Load(dir string) (*Tokenizer, error) {
 			t.rankBPE = true
 		}
 	}
+	t.buildByteAlphabet()
+	// Hugging Face's BPE gives the unknown token only for a symbol its vocabulary lacks, which a vocabulary of every
+	// byte symbol never does.
+	unknown := (tj.Model.UnkToken != nil || tj.Model.FuseUnk) && !t.holdsEveryByte()
 	if t.preTokenizerErr == nil && t.preTokenize != nil &&
-		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
-			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
-			tj.Model.FuseUnk) {
+		(tj.Model.ByteFallback || tj.Model.Dropout != nil || unknown ||
+			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "")) {
 		t.preTokenizerErr = fmt.Errorf("declared BPE options require an unsupported encoding path")
 	}
 	for i, raw := range tj.Model.Merges {
@@ -126,20 +136,44 @@ func Load(dir string) (*Tokenizer, error) {
 		}
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)
 	}
+	declared := t.normalizeNFC || t.preTokenize != nil
 	for _, a := range tj.AddedTokens {
-		if (t.normalizeNFC || t.preTokenize != nil) && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
-			t.normalizerErr = fmt.Errorf("declared tokenizer added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
+		if declared && (a.Content == "" || a.Normalized == nil || a.SingleWord || a.LStrip || a.RStrip) {
+			t.normalizerErr = fmt.Errorf("declared tokenizer added-token matching requires nonempty tokens with an explicit normalized flag and no boundary flags")
 		}
 		t.special[a.Content] = a.ID
-		t.specials = append(t.specials, a.Content)
+		if declared && a.Normalized != nil && *a.Normalized {
+			content := a.Content
+			if t.normalizeNFC {
+				content = tokenizer.NormalizeNFC(content)
+			}
+			if t.normalizedSpecial == nil {
+				t.normalizedSpecial = map[string]int{}
+			}
+			t.normalizedSpecial[content] = a.ID
+			t.normalizedSpecials = append(t.normalizedSpecials, content)
+		} else {
+			t.rawSpecial[a.Content] = a.ID
+			t.specials = append(t.specials, a.Content)
+		}
 		if a.Special {
 			t.omitSpecial[a.ID] = true
 		}
 	}
 	sort.Slice(t.specials, func(i, j int) bool { return len(t.specials[i]) > len(t.specials[j]) })
-	t.buildByteAlphabet()
+	slices.SortFunc(t.normalizedSpecials, tokenizer.LongestFirst)
 	t.buildID2Vocab()
 	return t, nil
+}
+
+// holdsEveryByte reports whether the vocabulary holds the symbol of every byte.
+func (t *Tokenizer) holdsEveryByte() bool {
+	for _, symbol := range t.b2u {
+		if _, found := t.vocab[string(symbol)]; !found {
+			return false
+		}
+	}
+	return true
 }
 
 // buildByteAlphabet: the GPT-2 reversible byte<->unicode map.
@@ -196,18 +230,12 @@ func (t *Tokenizer) encode(text string, parseAdded bool) ([]int, error) {
 		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
 	var ids []int
-	segments := []string{text}
-	if parseAdded {
-		segments = t.splitOnSpecials(text)
-	}
-	for _, seg := range segments {
-		if id, ok := t.special[seg]; ok && parseAdded {
-			ids = append(ids, id)
+	for _, part := range t.addedParts(text, parseAdded) {
+		if part.added {
+			ids = append(ids, part.id)
 			continue
 		}
-		if t.normalizeNFC {
-			seg = tokenizer.NormalizeNFC(seg)
-		}
+		seg := part.text
 		if t.spaceMarker != "" {
 			segIDs, err := t.encodeSentencepiece(seg)
 			if err != nil {
@@ -382,12 +410,46 @@ func (t *Tokenizer) SpecialID(lit string) (int, bool) {
 	return id, ok
 }
 
-func (t *Tokenizer) splitOnSpecials(text string) []string {
+// addedPart is one span of text to encode, or an added token matched there.
+type addedPart struct {
+	text  string
+	id    int
+	added bool
+}
+
+// addedParts splits text as Hugging Face's added vocabulary does: the raw added tokens in the text first, then, in each
+// span between them once it is normalized, the normalized ones. With parseAdded false the text is one normalized span.
+func (t *Tokenizer) addedParts(text string, parseAdded bool) []addedPart {
+	if !parseAdded {
+		if t.normalizeNFC {
+			text = tokenizer.NormalizeNFC(text)
+		}
+		return []addedPart{{text: text}}
+	}
+	var parts []addedPart
+	for _, raw := range splitAdded(text, t.specials, t.rawSpecial) {
+		if id, ok := t.rawSpecial[raw]; ok {
+			parts = append(parts, addedPart{text: raw, id: id, added: true})
+			continue
+		}
+		if t.normalizeNFC {
+			raw = tokenizer.NormalizeNFC(raw)
+		}
+		for _, normalized := range splitAdded(raw, t.normalizedSpecials, t.normalizedSpecial) {
+			id, ok := t.normalizedSpecial[normalized]
+			parts = append(parts, addedPart{text: normalized, id: id, added: ok})
+		}
+	}
+	return parts
+}
+
+// splitAdded splits text around each of tokens, longest first, leaving a span that is already one of ids whole.
+func splitAdded(text string, tokens []string, ids map[string]int) []string {
 	segs := []string{text}
-	for _, sp := range t.specials {
+	for _, sp := range tokens {
 		var next []string
 		for _, s := range segs {
-			if _, isSpecial := t.special[s]; isSpecial {
+			if _, isSpecial := ids[s]; isSpecial {
 				next = append(next, s)
 				continue
 			}

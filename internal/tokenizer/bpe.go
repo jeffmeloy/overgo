@@ -650,6 +650,12 @@ func isQwen35NonWord(value rune) bool {
 }
 
 func preTokenizeLlama3(text string) []string {
+	return preTokenizeLetterRuns(text, 3)
+}
+
+// preTokenizeLetterRuns scans Llama 3's split expression with its number runs of at most digits, or of any length
+// when digits is 0, as \p{N}+ takes them.
+func preTokenizeLetterRuns(text string, digits int) []string {
 	values := []rune(text)
 	output := make([]string, 0, len(values)/3+1)
 	for position := 0; position < len(values); {
@@ -679,7 +685,7 @@ func preTokenizeLlama3(text string) []string {
 
 		if unicode.IsNumber(values[position]) {
 			position++
-			for position < len(values) && position-start < 3 && unicode.IsNumber(values[position]) {
+			for position < len(values) && (digits == 0 || position-start < digits) && unicode.IsNumber(values[position]) {
 				position++
 			}
 			output = append(output, string(values[start:position]))

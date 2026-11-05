@@ -74,6 +74,23 @@ func TestDBRXPreTokenizerUsesLlama3Segmentation(t *testing.T) {
 	}
 }
 
+// The Llama 3 expression with \p{N}+ takes a number run whole where \p{N}{1,3} takes it three digits at a time, and
+// splits every other span as Llama 3 does.
+func TestNumberRunsSplitTakesARunWhole(t *testing.T) {
+	t.Parallel()
+	split, complete, err := CompileBPESplit(bpePatternNumberRuns)
+	if err != nil || !complete {
+		t.Fatalf("compile = (%v, %v)", complete, err)
+	}
+	text := "Hello'S 12345678 x9\n\n  ok"
+	if got, want := split(text), []string{"Hello", "'S", " ", "12345678", " x", "9", "\n\n", " ", " ok"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("split = %q, want %q", got, want)
+	}
+	if got, want := preTokenizeLlama3(text), []string{"Hello", "'S", " ", "123", "456", "78", " x", "9", "\n\n", " ", " ok"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Llama 3 split = %q, want %q", got, want)
+	}
+}
+
 func TestLlama4PreTokenizerUsesGPT4OSegmentation(t *testing.T) {
 	got := preTokenizeFor("llama4", "Hello'S 1234!!\n next")
 	want := []string{"Hello'S", " ", "123", "4", "!!\n", " next"}

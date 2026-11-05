@@ -31,7 +31,7 @@
      "path": "internal/audioparity/speaker_session_test.go",
      "contains": "verifySpeakerCommand(",
      "role": "source",
-     "identity": "file:sha256:7d3576d4b996a37202dc9778055ec9d8494537835ac6563f199e18151db38f8e"
+     "identity": "file:sha256:aad6441646cdd6f82b4c9ec0ea24e762eb22b230c22a3b6c269475f313828712"
     },
     {
      "path": "internal/speechrecognition/speaker_boundary_test.go",
@@ -66,7 +66,7 @@
      "path": "internal/audioparity/alignment_acceptance_test.go",
      "contains": "func TestSpeechAlignmentAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:06f830b3341e2ec39adef53b8397a2669722927de351b013fba890e3308e3307"
+     "identity": "evidence:sha256:352159b53d8d2d6e70cf81b4599c73035c936e361e153f5a116c2af843f58955"
     },
     {
      "path": "internal/audioparity/testdata/ami_alignment.json",
@@ -349,7 +349,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
+     "identity": "evidence:sha256:d31b1d496045cb7934b54061d85d23a1f0b7ef34cd96fc6121a141ee22ccb32e"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -371,7 +371,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
+     "identity": "evidence:sha256:d31b1d496045cb7934b54061d85d23a1f0b7ef34cd96fc6121a141ee22ccb32e"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",
@@ -548,7 +548,7 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1b584ea136140870085554022c34997ae498175211f8a2faf3dbe507f9332bfb"
+     "identity": "evidence:sha256:3bd706eef3d5657a3a64fb89281f5f3848dc0ea851be3942c9bcb58bf62154e1"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",

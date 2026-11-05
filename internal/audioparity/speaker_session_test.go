@@ -41,7 +41,7 @@ func verifySpeakerStoredSession(t *testing.T, corpus speakerCorpus) {
 	verifySpeakerModel(t, modelRoot)
 	sourceDirectory, commit := snapshotAudioSource(t)
 	storePath := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 9650,
+        "nodes": 9307,
         "reason": "surface-folds measured at -857 production nodes: the folds inside the surface off the per-token paths and outside the CUDA executor and driver, the biased linear given a home in hostmath, the dead inside group, the old grammar entry and SQA-265's switch; the executor's and driver's folds wait for consolidate/cell-step-reads, and the rest stays under the surface ceilings."
       },
       "steps": [
-        {
-          "id": "adaptiveparity-lane",
-          "title": "Make the device and acceptance tests that open a fresh store, and the composed artifact's, pass in their lane",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_STORE_ACCEPTANCE=1 go test ./internal/adaptiveparity ./internal/audioparity -count=1 -run '^(TestMultimodalTrainingMatrix|TestComposedArtifactExecutesAndResolvesLineage|TestAudioCancellationAcceptance|TestValidatedTranscriptionConsumers)$'",
-          "rationale": "Findings evidence:sha256:fec0038932c6d24f90a92aaf4d175186c6249916842bfc60a62f10f1160f4416 and evidence:sha256:51208092900020b8527cde191ea77f693ff2ad218feb5846aa74bbfd0e96ac79 (high): device and store-acceptance tests open a store at a path that does not exist, which overgodb.Open refuses since c4af5a1b6, and skip without their variables, so the default run does not see it. TestMultimodalTrainingMatrix, the verify of claim repodb-multimodal-training-objective-matrix, does so after its training ran (internal/adaptiveparity/multimodal_training_cuda_windows_test.go:179), and TestAudioCancellationAcceptance and TestValidatedTranscriptionConsumers, the verifies of claims audio-cpu-cancellation-lifecycle and audio-cpu-segmented-transcription, through newAdapterLifecycle (internal/audioparity/adapter_lifecycle_test.go:67), with the same call at five more audioparity sites. TestComposedArtifactExecutesAndResolvesLineage stops where hfbpe refuses its model pair's tokenizer, the added-token rule of 3eac92e48 and 78065057c (internal/adaptiveparity/composed_artifact_windows_test.go:138).\nWhile they fail, a device lane that runs internal/adaptiveparity refuses the change, and any change under internal/cuda/driver or internal/cuda/executor runs the lane in full; held-claims needs repodb-multimodal-training-objective-matrix verified again, and consolidate/cell-step-reads opens the executor.\nChange: each test that starts a store calls overgodb.Create, and one that reopens it keeps Open; the composed artifact test is given a pair whose tokenizer the rule admits, or holds the refusal, read first whether the rule refuses what it should; the claims these tests verify are verified again.\nServes: failure-rate of the gate; the claims' truth.\nDisappears: four failing device and acceptance tests.\nEvidence: the four tests pass, and the claims verify again.\nBatch: device lane."
-        },
         {
           "id": "held-claims",
           "title": "Delete the test-held entries a claim waits on, verifying the claims again",

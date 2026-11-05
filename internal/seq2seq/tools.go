@@ -2,11 +2,11 @@ package seq2seq
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"overgo/internal/tokenizer"
 	"slices"
 	"strconv"
 	"strings"
@@ -112,9 +112,7 @@ func restoreToolNames(answer string, names map[string]string) string {
 		for snake := range names {
 			snakes = append(snakes, snake)
 		}
-		slices.SortFunc(snakes, func(left, right string) int {
-			return cmp.Or(cmp.Compare(len(right), len(left)), strings.Compare(left, right))
-		})
+		slices.SortFunc(snakes, tokenizer.LongestFirst)
 		for _, snake := range snakes {
 			answer = strings.ReplaceAll(answer, snake, names[snake])
 		}

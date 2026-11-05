@@ -43,7 +43,17 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 			t.Fatalf("raw added-token boundary: %v %v", got, err)
 		}
 	}
-	for _, flag := range []string{"normalized", "single_word", "lstrip", "rstrip"} {
+	// A normalized added token is matched as Hugging Face's added vocabulary
+	// matches it: its content and each span between raw tokens composed first,
+	// so decomposed and composed spellings both reach it.
+	decomposed := []map[string]any{{"id": binaryschema.ByteValueCount, "content": "éx", "normalized": true}}
+	normalized := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, decomposed)
+	for _, text := range []string{"éx", "éx"} {
+		if got, err := normalized.Encode("a" + text); err != nil || !slices.Equal(got, append(byteIDs("a"), binaryschema.ByteValueCount)) {
+			t.Fatalf("normalized added token in %q: %v %v", text, got, err)
+		}
+	}
+	for _, flag := range []string{"single_word", "lstrip", "rstrip"} {
 		added := map[string]any{"id": binaryschema.ByteValueCount, "content": "token", "normalized": false}
 		added[flag] = true
 		tokenizer := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, []map[string]any{added})

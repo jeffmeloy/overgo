@@ -7,10 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/tokenizer"
 )
 
 // LoadSplit: vocab.json + merges.txt + optional added_tokens.json.
@@ -24,7 +25,7 @@ func LoadSplit(dir string) (*Tokenizer, error) {
 		return nil, err
 	}
 	defer file.Close()
-	t := &Tokenizer{vocab: vocab, mergeRank: map[string]int{}, special: map[string]int{}}
+	t := &Tokenizer{vocab: vocab, mergeRank: map[string]int{}, special: map[string]int{}, rawSpecial: map[string]int{}}
 	reader, rank := bufio.NewReader(file), 0
 	for {
 		text, readErr := reader.ReadString('\n')
@@ -49,13 +50,10 @@ func LoadSplit(dir string) (*Tokenizer, error) {
 		return nil, fmt.Errorf("parse added_tokens.json: %w", err)
 	}
 	for token, id := range added {
-		t.special[token] = id
+		t.special[token], t.rawSpecial[token] = id, id
 		t.specials = append(t.specials, token)
 	}
-	sort.Slice(t.specials, func(i, j int) bool {
-		left, right := t.specials[i], t.specials[j]
-		return len(left) > len(right) || len(left) == len(right) && left < right
-	})
+	slices.SortFunc(t.specials, tokenizer.LongestFirst)
 	t.buildByteAlphabet()
 	t.buildID2Vocab()
 	return t, nil

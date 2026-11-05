@@ -176,7 +176,7 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 	}
 	trainWall := time.Since(started)
 
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "objective-store"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "objective-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

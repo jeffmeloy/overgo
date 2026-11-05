@@ -1,11 +1,31 @@
 package speechsynth
 
 import (
+	"context"
+	"fmt"
 	"math"
 	"testing"
 
+	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
+
+// generateFromConditioning prompts already-projected voice conditioning rows, [voiceFrames][d] as the reference's
+// trace records them, and the text, then runs the live seeded loop the exported voice state's generation runs.
+func generateFromConditioning(m *Model, ctx context.Context, voiceCond []float32, voiceFrames int, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+	d := m.Dims.DModel
+	if len(voiceCond) != voiceFrames*d {
+		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voice conditioning %d values != %d rows x %d", len(voiceCond), voiceFrames, d)
+	}
+	st := m.NewDecodeState(voiceFrames + len(textIDs) + p.MaxFrames + tensor.SingletonExtent)
+	prompt := make([]float32, (voiceFrames+len(textIDs))*d)
+	copy(prompt, voiceCond)
+	if err := m.TextEmbedInto(prompt[voiceFrames*d:], textIDs); err != nil {
+		return LatentBatch{}, nil, err
+	}
+	m.AppendForward(st, prompt, voiceFrames+len(textIDs))
+	return m.generateFromState(ctx, st, p)
+}
 
 // TestGenerationGolden gates the backbone-scoped generation loop (ladder
 // g7): with the reference's recorded noise injected per frame, the loop
@@ -31,7 +51,7 @@ func TestGenerationGolden(t *testing.T) {
 		noises[i] = f32of(g7.FlowCalls[2+i].Noise.Values)
 	}
 
-	latents, eos, err := m.GenerateLatents(t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
+	latents, eos, err := generateFromConditioning(m, t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
 		MaxFrames:    nFrames,
 		EOSThreshold: math.Inf(1),
 		NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },
@@ -77,16 +97,23 @@ func TestGenerationGolden(t *testing.T) {
 func TestGenerateLatentsInputContracts(t *testing.T) {
 	m := loadArtifactModel(t)
 	noise := func(int, []float32) {}
-	if _, _, err := m.GenerateLatents(t.Context(), make([]float32, m.Dims.DModel), 2, nil, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
-		t.Fatal("want refusal on voice conditioning size mismatch")
-	}
-	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, nil, GenerateParams{MaxFrames: 0, NoiseAt: noise}); err == nil {
+	voice := &VoiceState{Frames: 1, K: make([][]float32, m.Dims.Layers), V: make([][]float32, m.Dims.Layers)}
+	if _, _, err := m.GenerateLatentsWithVoice(t.Context(), voice, []int{0}, GenerateParams{MaxFrames: 0, NoiseAt: noise}); err == nil {
 		t.Fatal("want refusal on MaxFrames <= 0")
 	}
-	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, nil, GenerateParams{MaxFrames: 1}); err == nil {
+	if _, _, err := m.GenerateLatentsWithVoice(t.Context(), voice, []int{0}, GenerateParams{MaxFrames: 1}); err == nil {
 		t.Fatal("want refusal on missing noise source")
 	}
-	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, []int{-1}, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+	if _, _, err := m.GenerateLatentsWithVoice(t.Context(), voice, nil, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+		t.Fatal("want refusal on voiced generation without text")
+	}
+	if _, _, err := m.GenerateLatentsWithVoice(t.Context(), &VoiceState{Frames: 1}, []int{0}, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+		t.Fatal("want refusal on a voice state of other layers")
+	}
+	if _, _, err := generateFromConditioning(m, t.Context(), make([]float32, m.Dims.DModel), 2, nil, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+		t.Fatal("want refusal on voice conditioning size mismatch")
+	}
+	if _, _, err := generateFromConditioning(m, t.Context(), nil, 0, []int{-1}, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
 		t.Fatal("want refusal on out-of-table text id")
 	}
 }

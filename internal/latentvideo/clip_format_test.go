@@ -271,7 +271,7 @@ func TestRepeatedGIFRequestReplaysAndPublishes(t *testing.T) {
 	}
 	input := definition.Inputs[0]
 	inputs := map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)}
-	key := capabilityruntime.RunKey(definition, content)
+	key := capabilityruntime.RunKeyOf[WanRequest](definition, content)
 	clip := movingClip(frames, height, width)
 	served, _, err := capabilityruntime.ExecuteMeasured[EncodedVideo](t.Context(), store, model, program, key, inputs, func(runtime *workflowruntime.Runtime) error {
 		return registerWanRuntime(runtime, model, func(ctx context.Context, request WanRequest) (EncodedVideo, error) {

@@ -50,7 +50,7 @@ func TestSpeechRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		key := capabilityruntime.RunKey(definition, content)
+		key := capabilityruntime.RunKeyOf[*Synthesizer](definition, content)
 		operation, err := workflowruntime.ExecutionID(definition.ID, key)
 		if err != nil {
 			t.Fatal(err)
@@ -193,7 +193,7 @@ func testSpeechRecoveryAfterGenerationCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := capabilityruntime.RunKey(definition, content)
+	key := capabilityruntime.RunKeyOf[*Synthesizer](definition, content)
 	operation, err := workflowruntime.ExecutionID(definition.ID, key)
 	if err != nil {
 		t.Fatal(err)

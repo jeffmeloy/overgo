@@ -71,10 +71,3 @@ func AnswerScope[Model any]() string {
 func RunKeyOf[Model any](definition recipe.Definition, request artifact.Content) string {
 	return runKeyPrefix + definition.ID.String() + "/" + request.Descriptor.ID.String() + "/" + AnswerScope[Model]()
 }
-
-// RunKey is the key of a run by a build that counted no identity, as every
-// test's build is: the recipe, the request and the scope of the code as a
-// whole. A capability that serves keys its runs with RunKeyOf.
-func RunKey(definition recipe.Definition, request artifact.Content) string {
-	return runKeyPrefix + definition.ID.String() + "/" + request.Descriptor.ID.String() + "/" + codeScope()
-}

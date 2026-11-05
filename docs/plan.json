@@ -74,16 +74,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 9307,
-        "reason": "surface-folds measured at -857 production nodes: the folds inside the surface off the per-token paths and outside the CUDA executor and driver, the biased linear given a home in hostmath, the dead inside group, the old grammar entry and SQA-265's switch; the executor's and driver's folds wait for consolidate/cell-step-reads, and the rest stays under the surface ceilings."
+        "nodes": 9671,
+        "reason": "held-claims measured at -364 production nodes: GenerateLatents, AtLeast, RunKey and TrainDeviceResident go with their tests on live entries; adaptertrain's resume entries wait for adapter-resume."
       },
       "steps": [
         {
-          "id": "held-claims",
-          "title": "Delete the test-held entries a claim waits on, verifying the claims again",
+          "id": "adapter-resume",
+          "title": "cmd/train's route adapter resumes its checkpoint, and the adapter tests compare saved weights",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestHeldEntryWaitsOnAClaim$'",
-          "rationale": "test-held-deletions deleted the test-held entries whose tests change alone and left those a compatibility claim binds: adaptertrain's LinearCTC.WeightSnapshot, Model.WeightSnapshot, Model.Restore and Model.RestoreWeights and speechsynth's Model.GenerateLatents (training-test-entries; claims gemma-e4b-real-adapter-training and pocket-tts-production-oracle, and the pins of docs/verification/specialized-coverage.json), trainingprogram's ObjectiveAuthority.AtLeast (outside-test-accessors; claim repodb-multimodal-training-objective-matrix), and capabilityruntime's RunKey (outside-test-entries; the pin of internal/speechsynth/recovery_test.go). Each group's reason in docs/verification/unreached-declarations.txt says how its tests change.\nChange: the tests take the live entries the reasons name, the entries go, and each moved claim is verified again on the device (go run ./cmd/validate -claims -run) and each pin set again. The new check holds that no test-held entry is one a claim waits on.\nServes: doctrine.\nDisappears: those entries.\nEvidence: the list shrinks, the claims verify again.\nBatch: device lane for the claims."
+          "verify": "go test ./cmd/train -count=1 -run '^TestRouteAdapterResumesItsCheckpoint$'",
+          "rationale": "held-claims left internal/adaptertrain's test-held entries (training-test-entries in docs/verification/unreached-declarations.txt): Model.Restore and Model.RestoreWeights resume the E4B route adapter only in internal/adaptiveparity/e4b_training_cuda_windows_test.go, since cmd/train's route adapter (cmd/train/route_adapter_windows.go) publishes checkpoints through trainingprogram.PublishCheckpoint and never resumes from one, while the claim gemma-e4b-real-adapter-training states exact checkpoint resume; and WeightSnapshot of Model and LinearCTC is how the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity compare weights.\nChange: cmd/train's route adapter takes a checkpoint to resume, loads it with trainingprogram.LoadCheckpoint, restores its weights and optimizer state through RestoreWeights and Restore, and continues the run, so a resumed run and an uninterrupted one write the same weights; the resume tests compare the weights SaveWeights writes, and WeightSnapshot goes; the claim gemma-e4b-real-adapter-training is verified again on the device, since it binds internal/adaptertrain/model.go whole.\nServes: an owner's trained adapter resumes from the checkpoint the owner selects.\nDisappears: three test-held entries and the group.\nEvidence: the route adapter's resume test; the claim verifies again.\nBatch: device lane for the claim."
         }
       ]
     },

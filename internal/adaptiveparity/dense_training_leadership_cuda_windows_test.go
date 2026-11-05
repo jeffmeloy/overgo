@@ -88,7 +88,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := densecausaltrain.TrainDeviceResident(warm, worker, [][]int{qwenAdaptiveProfileTokens}, qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true}); err != nil {
+	if _, err := densecausaltrain.TrainDeviceResidentWeighted(warm, worker, [][]densecausal.WeightedSequence{{{Tokens: qwenAdaptiveProfileTokens}}}, qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true}); err != nil {
 		t.Fatal(err)
 	}
 	warm = nil
@@ -104,7 +104,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := densecausaltrain.TrainDeviceResident(model, worker, slices.Repeat([][]int{qwenAdaptiveProfileTokens}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true, Measure: true})
+	result, err := densecausaltrain.TrainDeviceResidentWeighted(model, worker, slices.Repeat([][]densecausal.WeightedSequence{{{Tokens: qwenAdaptiveProfileTokens}}}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true, Measure: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

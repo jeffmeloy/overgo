@@ -42,7 +42,7 @@ func TestSynthWall(t *testing.T) {
 	total := make([]float64, synthWallRuns)
 	for run := range total {
 		start := time.Now()
-		latents, _, err := m.GenerateLatents(t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
+		latents, _, err := generateFromConditioning(m, t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
 			MaxFrames:    nFrames,
 			EOSThreshold: math.Inf(1),
 			NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },

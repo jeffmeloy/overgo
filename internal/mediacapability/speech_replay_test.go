@@ -58,7 +58,7 @@ func TestSpeechReplaysWholeTextBeforeLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	input := definition.Inputs[0]
-	if _, _, err := capabilityruntime.ExecuteMeasured[speechsynth.Audio](t.Context(), store, model, program, capabilityruntime.RunKey(definition, content),
+	if _, _, err := capabilityruntime.ExecuteMeasured[speechsynth.Audio](t.Context(), store, model, program, capabilityruntime.RunKeyOf[*speechsynth.Synthesizer](definition, content),
 		map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)},
 		func(runtime *workflowruntime.Runtime) error {
 			return workflowruntime.RegisterContextPipeline(runtime, model,

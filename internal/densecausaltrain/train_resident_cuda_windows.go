@@ -62,22 +62,11 @@ type Result struct {
 	Skipped int
 }
 
-// TrainDeviceResident trains m on worker, one Muon step per batch, under
-// the selected resident policy. The forward, the backward and the lexical
-// tail run on the device; only the layer norm and bias vectors take their
-// Muon step on the host. A batch is a group of one sequence weighed by the
-// mean of its tokens (TrainDeviceResidentWeighted).
-func TrainDeviceResident(m *densecausal.Model, worker *device.Worker, batches [][]int, baseLR, mu float64, options Options) (Result, error) {
-	groups := make([][]densecausal.WeightedSequence, len(batches))
-	for index, batch := range batches {
-		groups[index] = []densecausal.WeightedSequence{{Tokens: batch}}
-	}
-	return TrainDeviceResidentWeighted(m, worker, groups, baseLR, mu, options)
-}
-
 // TrainDeviceResidentWeighted trains m on worker, one Muon step per group of
-// weighted sequences: the one resident step fine-tuning and training from
-// rewards share. A group's loss is the sum, over its sequences and over each
+// weighted sequences, under the selected resident policy: the one resident
+// step fine-tuning and training from rewards share. The forward, the backward
+// and the lexical tail run on the device; only the layer norm and bias vectors
+// take their Muon step on the host. A group's loss is the sum, over its sequences and over each
 // sequence's predicted tokens, of the token's weight times its next-token
 // loss, and the step descends it. Weights are signed, and nothing else
 // weighs a token: no mean is taken over a sequence's tokens or a group's

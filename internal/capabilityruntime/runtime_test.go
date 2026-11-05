@@ -393,7 +393,7 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 				if err != nil || run.Recipe != definition.ID || run.Outcome != runrecord.OutcomeSucceeded || len(run.Inputs) != 1 || run.Inputs[0] != measured.Input.Descriptor.ID || len(run.Outputs) != 1 || run.Outputs[0] != output.Descriptor.ID {
 					t.Fatalf("execution %d has producer run %+v (%v); want its persisted recipe, input and output", index, run, err)
 				}
-				operation, err := workflowruntime.ExecutionID(definition.ID, RunKey(definition, measured.Input))
+				operation, err := workflowruntime.ExecutionID(definition.ID, RunKeyOf[int](definition, measured.Input))
 				if err != nil {
 					t.Fatal(err)
 				}

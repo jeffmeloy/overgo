@@ -198,7 +198,6 @@ test-held internal/agenttool/stream.go StreamEvent.ArtifactContent
 test-held internal/agenttool/stream.go StreamTerminal.ArtifactContent
 test-held internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch
 test-held internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.ValidateIdentity
-test-held internal/capabilityruntime/run_key.go RunKey
 test-held internal/composition/authority.go CompositionAuthority.Batch
 test-held internal/composition/authority.go CompositionRecipe.Batch
 test-held internal/composition/authority.go definitionLineage
@@ -226,7 +225,6 @@ test-held internal/dataset/agent_retrieval.go validateAgentRetrievalDocument
 test-held internal/dataset/capability_episode.go CapabilityEpisodeProjection.ValidateIdentity
 test-held internal/densecausal/frozen.go Model.WeightBytes
 test-held internal/densecausal/train.go Model.Train
-test-held internal/densecausaltrain/train_resident_cuda_windows.go TrainDeviceResident
 test-held internal/devicemath/cuda_scope_windows.go cudaScope.functions
 test-held internal/diffusionimage/resident_forward.go ResidentForward.Execute
 test-held internal/diffusionimage/resident_forward.go ResidentForward.Stats
@@ -354,7 +352,6 @@ test-held internal/speechactivity/boundary.go BoundaryPolicy.validate
 test-held internal/speechrecognition/profile.go ExecutionProfile.Batch
 test-held internal/speechrecognition/resident.go Transducer.BindDevice
 test-held internal/speechrecognition/session.go Session.Snapshot
-test-held internal/speechsynth/generate.go Model.GenerateLatents
 test-held internal/speechsynth/trainer.go JointTrainer.GradientL2
 test-held internal/strataspec/draft_policy.go DraftPolicy.Chain
 test-held internal/strataspec/draft_policy.go DraftPolicy.ChainRate
@@ -380,5 +377,4 @@ test-held internal/trainingprogram/authority.go TrainingProgram.Operators
 test-held internal/trainingprogram/authority.go TrainingProgram.Preference
 test-held internal/trainingprogram/authority.go TrainingRunPlan.Signature
 test-held internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
-test-held internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
 test-held internal/workflowruntime/audio_stream.go AudioStreamPolicy.Batch

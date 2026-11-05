@@ -536,7 +536,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:0b5c7d93b2cc4b3d1296a6e4a3b966f7d6b25099372afd8eacb2bd08fa4bc72d"
+     "identity": "file:sha256:39b999d165c8b9491d84674207d3dd59a163330ef97adb9a4efff3bc339bc9d6"
     },
     {
      "contains": "func AudioProcessor(",
@@ -560,12 +560,6 @@
   },
   {
    "evidence": [
-    {
-     "contains": "func CompileTrainingObjectiveMatrix(",
-     "path": "internal/trainingprogram/objective.go",
-     "role": "source",
-     "identity": "file:sha256:0b5c7d93b2cc4b3d1296a6e4a3b966f7d6b25099372afd8eacb2bd08fa4bc72d"
-    },
     {
      "contains": "func CompileObjectiveProgram(",
      "path": "internal/trainingprogram/objective_program.go",
@@ -636,13 +630,6 @@
      "symbol": "EncodeAudioFeatures",
      "role": "source",
      "identity": "file:sha256:260b115921f6ce0287dd4e937b0006809c3af73de3f1aeee9e09255134da0a00"
-    },
-    {
-     "contains": "func (r *Gemma4TowerRunner) EncodeAudioTrace(",
-     "path": "internal/projector/gemma4tower_audio_frontend.go",
-     "symbol": "EncodeAudioTrace",
-     "role": "source",
-     "identity": "file:sha256:79000eb04f95b09c8a0cb642859359399f598846a536f675733da869f8758ea4"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -1337,10 +1324,10 @@
   {
    "evidence": [
     {
-     "contains": "func (m *Model) GenerateLatents(",
+     "contains": "func (m *Model) generateFromState(",
      "path": "internal/speechsynth/generate.go",
      "role": "source",
-     "identity": "file:sha256:3d9d5d16f21aaca6ba4a8ab1ed57dd315559f1d7edf8cd0de1ebe35cfa6417a5"
+     "identity": "file:sha256:5054a96bf5701ed35b56f34096622c40eec93bcbdb7daa6bd89f1f71ff3b91fd"
     },
     {
      "contains": "func (m *Model) LatentsToPCM(",
@@ -1352,7 +1339,7 @@
      "contains": "func TestSpeakE2EProducesReferenceAudio(",
      "path": "internal/speechsynth/codec_golden_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f215d60328ab12f695c18399645fbe276a21fbff699d9eb7c37964288c19a6c0"
+     "identity": "evidence:sha256:58a5ec1b5beec6fb4910e22caf39ce5ad5ea1c040fef270381939a130099e377"
     }
    ],
    "id": "pocket-tts-production-oracle",

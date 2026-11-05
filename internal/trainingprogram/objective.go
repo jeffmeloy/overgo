@@ -84,15 +84,6 @@ var objectiveAuthorityLevel = map[ObjectiveAuthority]int{
 	ObjectiveDeclared: 1, ObjectiveAdaptive: 2, ObjectiveApproved: 3,
 }
 
-// AtLeast reports whether this validation level meets or exceeds the
-// floor a consumer requires. An undeclared floor is never satisfiable.
-func (authority ObjectiveAuthority) AtLeast(floor ObjectiveAuthority) bool {
-	if !ValidObjectiveAuthority(floor) {
-		return false
-	}
-	return objectiveAuthorityLevel[authority] >= objectiveAuthorityLevel[floor]
-}
-
 // ValidObjectiveAuthority reports whether the level is a declared rung.
 func ValidObjectiveAuthority(authority ObjectiveAuthority) bool {
 	_, declared := objectiveAuthorityLevel[authority]

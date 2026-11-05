@@ -56,7 +56,7 @@ func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request Synth
 		t.Fatal(err)
 	}
 	input := run.definition.Inputs[0]
-	audio, result, err := capabilityruntime.ExecuteMeasured[Audio](ctx, run.store, run.model, run.program, capabilityruntime.RunKey(run.definition, content),
+	audio, result, err := capabilityruntime.ExecuteMeasured[Audio](ctx, run.store, run.model, run.program, capabilityruntime.RunKeyOf[*Synthesizer](run.definition, content),
 		map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)}, bind)
 	stored, _ := result.Outputs[run.definition.Outputs[0].Name].Single()
 	return audio, stored.Content, err

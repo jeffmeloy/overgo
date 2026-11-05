@@ -29,7 +29,7 @@ func testSpeechCompletionBoundary(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			noises := 0
-			latents, logits, err := m.GenerateLatents(t.Context(), f32of(g6.TransformerCalls[0].In.Values), g6.TransformerCalls[0].In.Shape[1], g1.IDs, GenerateParams{
+			latents, logits, err := generateFromConditioning(m, t.Context(), f32of(g6.TransformerCalls[0].In.Values), g6.TransformerCalls[0].In.Shape[1], g1.IDs, GenerateParams{
 				MaxFrames: test.frames, EOSThreshold: test.threshold, FramesAfterEOS: 2,
 				NoiseAt: func(step int, dst []float32) { noises++; copy(dst, f32of(g7.FlowCalls[2+step].Noise.Values)) },
 			})

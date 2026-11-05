@@ -30,40 +30,9 @@ type LatentBatch struct {
 	Width    int
 }
 
-// GenerateLatents runs the seeded loop. voiceCond is [voiceFrames][d]
-// already-projected conditioning rows; textIDs are tokenizer output. It
-// returns the generated normalized latents and the per-frame EOS logits.
-// The reference break rule holds: the frame that trips the post-EOS budget
-// is never decoded.
-func (m *Model) GenerateLatents(ctx context.Context, voiceCond []float32, voiceFrames int, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
-	if ctx == nil {
-		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation requires a context")
-	}
-	if err := context.Cause(ctx); err != nil {
-		return LatentBatch{}, nil, err
-	}
-	d := m.Dims.DModel
-	if len(voiceCond) != voiceFrames*d {
-		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voice conditioning %d values != %d rows x %d", len(voiceCond), voiceFrames, d)
-	}
-	if p.MaxFrames <= tensor.FirstOffset || p.NoiseAt == nil {
-		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation needs MaxFrames > 0 and a noise source")
-	}
-	st := m.NewDecodeState(voiceFrames + len(textIDs) + p.MaxFrames + tensor.SingletonExtent)
-
-	// Prompt phases: outputs beyond the last row are discarded.
-	prompt := make([]float32, (voiceFrames+len(textIDs))*d)
-	copy(prompt, voiceCond)
-	if err := m.TextEmbedInto(prompt[voiceFrames*d:], textIDs); err != nil {
-		return LatentBatch{}, nil, err
-	}
-	m.AppendForward(st, prompt, voiceFrames+len(textIDs))
-	return m.generateFromState(ctx, st, p)
-}
-
 // GenerateLatentsWithVoice seeds the decode state from an exported
 // voice attention state -- the artifact's only voice representation --
-// then prompts the text and runs the same seeded loop.
+// then prompts the text and runs the seeded loop.
 func (m *Model) GenerateLatentsWithVoice(ctx context.Context, voice *VoiceState, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
 	st, err := m.promptVoice(ctx, voice, textIDs, p)
 	if err != nil {
@@ -97,7 +66,9 @@ func (m *Model) promptVoice(ctx context.Context, voice *VoiceState, textIDs []in
 }
 
 // generateFromState runs the seeded frame loop against a prompted
-// decode state.
+// decode state. It returns the generated normalized latents and the
+// per-frame EOS logits. The reference break rule holds: the frame that
+// trips the post-EOS budget is never decoded.
 func (m *Model) generateFromState(ctx context.Context, st *DecodeState, p GenerateParams) (LatentBatch, []float64, error) {
 	latents := LatentBatch{Width: m.Dims.LatentDim}
 	var eos []float64

@@ -29,7 +29,7 @@ func TestSpeechFrameCancellation(t *testing.T) {
 	}
 	entries := map[string]func(context.Context, GenerateParams) (LatentBatch, []float64, error){
 		"conditioning": func(ctx context.Context, p GenerateParams) (LatentBatch, []float64, error) {
-			return m.GenerateLatents(ctx, f32of(g6.TransformerCalls[0].In.Values), g6.TransformerCalls[0].In.Shape[1], g1.IDs, p)
+			return generateFromConditioning(m, ctx, f32of(g6.TransformerCalls[0].In.Values), g6.TransformerCalls[0].In.Shape[1], g1.IDs, p)
 		},
 		"stored voice": func(ctx context.Context, p GenerateParams) (LatentBatch, []float64, error) {
 			return m.GenerateLatentsWithVoice(ctx, voice, g1.IDs, p)

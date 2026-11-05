@@ -118,15 +118,14 @@ schemas: internal/controllertrain/promotion.go overgo/controller-promotion/v1
 reason: It is a champion and challenger decision record over several seeds, and all four conditions hold, since its evaluator and budget authority are identities made from strings, the live route trains one seed and judges it itself (cmd/train/route_controller_windows.go:91), and its test runs three CUDA trainings to feed it.
 reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
 
-group dense-old-entries
+group host-orthogonalization
 class: test-held
 surface: outside
-declarations: 2
-lines: 21
-members: internal/densecausaltrain/train_resident_cuda_windows.go TrainDeviceResident
+declarations: 1
+lines: 9
 members: internal/hostoptimizer/newton_schulz.go
-reason: The masked loss entries went with compact-production/test-held-deletions, their tests calling MaskedLossAndLayerGradsOf, and the tests of internal/densecausaltrain call TrainDeviceResidentWeighted; TrainDeviceResident stays for internal/adaptiveparity/dense_training_leadership_cuda_windows_test.go, whose package's device tests fail on other grounds, and NewtonSchulz stays, the one way the device tests of internal/optimizer reach the host stepper's orthogonalization, which is unexported.
-reason: TrainDeviceResident goes once that package's lane passes again, and NewtonSchulz when those tests compare with the host stepper's own step.
+reason: NewtonSchulz is the one way the device tests of internal/optimizer reach the host stepper's orthogonalization, which is unexported.
+reason: It goes when those tests compare with the host stepper's own step.
 
 group gemma3n-backward-leaves
 class: prototype
@@ -292,21 +291,17 @@ reason: The claim adaptive-training-objective-program-matrix of compatibility.js
 group outside-test-accessors
 class: test-held
 surface: outside
-declarations: 2
-lines: 17
-members: internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
+declarations: 1
+lines: 9
 members: internal/runrecord/trigger_registry.go
-reason: AtLeast is read by a test in one function with the reached ValidObjectiveAuthority (internal/trainingprogram/objective_test.go:390), and the claim repodb-multimodal-training-objective-matrix of compatibility.json binds its whole file to a device test, so the test reads the levels itself, and AtLeast is deleted, in a commit that verifies that claim again.
 reason: TriggerContractFor is how tests of internal/runrecord and of internal/workflowruntime read the trigger registry, which is no exported value, so it stays until the test of internal/workflowruntime holds its triggers to the registry from internal/runrecord.
 
 group outside-test-entries
 class: test-held
 surface: outside
-declarations: 5
-lines: 58
-members: internal/capabilityruntime/run_key.go
+declarations: 4
+lines: 52
 members: internal/runrecord/resource_fitness_comparison.go
-reason: RunKey keys a run for a build that counted no identity, over the live RunKeyOf (internal/capabilityruntime/run_key.go:71), and tests of four packages enter through it, among them internal/speechsynth/recovery_test.go, whose bytes docs/verification/specialized-coverage.json pins, so those tests take RunKeyOf, and RunKey is deleted, in the commit that pins that record again.
 reason: RequireResourceFitnessComparison and VerifiedBatch are the verified load and the publication of a comparison no command stores, tests of internal/runrecord and internal/audioparity hold the source replay of the live CompareResourceFitness (internal/runrecord/resource_fitness_comparison.go:93) to a forged value through them, and CompareResourceFitness takes no made value, so they stay until a command stores a comparison.
 
 group retired-writer-records
@@ -412,13 +407,12 @@ reason: Finite-difference tests and a hyper-connection backward assembled in a t
 group training-test-entries
 class: test-held
 surface: outside
-declarations: 5
-lines: 74
+declarations: 4
+lines: 44
 members: internal/adaptertrain/linear_ctc.go
 members: internal/adaptertrain/model.go Model.Restore Model.RestoreWeights Model.WeightSnapshot
-members: internal/speechsynth/generate.go
-reason: WeightSnapshot of the two adapter trainers is read by the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity, and GenerateLatents is the entry of tests over the live generation loop (internal/speechsynth/generate.go:67).
-reason: The tests take the live entry in a commit that verifies the claims again and pins the tests again, because the claims gemma-e4b-real-adapter-training and pocket-tts-production-oracle of compatibility.json bind internal/adaptertrain/model.go and internal/speechsynth/generate.go whole, the second by the name GenerateLatents, and docs/verification/specialized-coverage.json pins four tests that call GenerateLatents.
+reason: WeightSnapshot of the two adapter trainers is how the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity compare weights, and Model's Restore and RestoreWeights resume the E4B adapter only in internal/adaptiveparity's test, since cmd/train's route adapter writes checkpoints it never resumes from.
+reason: compact-production/adapter-resume gives the route adapter a resume of its checkpoint, which reaches Restore and RestoreWeights, and the tests compare the weights SaveWeights writes, in a commit that verifies the claim gemma-e4b-real-adapter-training again, since it binds internal/adaptertrain/model.go whole.
 
 group trainingdata-image-test-inputs
 class: test-held

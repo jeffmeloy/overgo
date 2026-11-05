@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func serveTestRequest(
@@ -23,9 +23,7 @@ func serveTestRequest(
 
 func marshalTestJSON(t *testing.T, value any) string {
 	t.Helper()
-	encoded, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	return string(encoded)
+	return testutil.JSON(t, value)
 }
 
 func commitTestBlob(t *testing.T, store artifact.Repository, kind artifact.Kind, label string) artifact.ID {

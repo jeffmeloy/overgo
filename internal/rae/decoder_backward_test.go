@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // smallDecoder is a decoder of two blocks with random weights, small enough
@@ -58,13 +59,7 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 	t.Parallel()
 	d := smallDecoder(7)
 	rng := rand.New(rand.NewPCG(11, 11))
-	direction := func(count int) []float32 {
-		values := make([]float32, count)
-		for index := range values {
-			values[index] = float32(rng.NormFloat64())
-		}
-		return values
-	}
+	direction := func(count int) []float32 { return testutil.NormalVector(rng, count, 1) }
 	rows := direction(d.grid * d.grid * d.latent)
 	side := d.grid * d.patch
 	pixelWeights := direction(3 * side * side)

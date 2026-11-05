@@ -24,12 +24,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(value string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
-		return id
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	model := parse("model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32")
 	// The conversion's activation is retired since MiniCPM5-1B is served from its own files
 	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.

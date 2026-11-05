@@ -1,12 +1,9 @@
 package inferencesurface
 
 import (
-	"os"
-	"path/filepath"
+	"overgo/internal/testutil"
 	"slices"
 	"testing"
-
-	"overgo/internal/testcheck"
 )
 
 // TestMovesSeesDeletedSurfaceInput holds Moves to the inputs a change
@@ -18,12 +15,7 @@ import (
 func TestMovesSeesDeletedSurfaceInput(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content) }
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/inference/inference.go", "package inference\n\nimport \"embed\"\n\n//go:embed catalog rules/*.json\nvar inputs embed.FS\n")
 	write("internal/inference/catalog/kept.json", "{}")

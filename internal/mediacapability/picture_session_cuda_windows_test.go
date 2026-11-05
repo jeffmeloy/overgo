@@ -62,11 +62,7 @@ func pictureService(t *testing.T) *pictureDirector {
 	t.Helper()
 	director, err := pictureSessions()
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := director.Close(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.Background(), director))
 	return director
 }
 

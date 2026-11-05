@@ -18,6 +18,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -32,9 +33,7 @@ type Fixture struct {
 func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture {
 	t.Helper()
 	data, err := os.ReadFile(oraclePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var captured struct {
 		Declaration speechrecognition.Declaration `json:"declaration"`
 		Weights     map[string]struct {
@@ -42,24 +41,18 @@ func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture
 			Values []float32 `json:"values"`
 		} `json:"weights"`
 	}
-	if err := json.Unmarshal(data, &captured); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &captured))
 	values, shapes := make(map[string][]float32), make(map[string][]int)
 	for name, weight := range captured.Weights {
 		values[name], shapes[name] = weight.Values, weight.Shape
 	}
 	directory := t.TempDir()
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil))
 	for name, body := range map[string]string{
 		"config.json":    `{"model_type":"fixture"}`,
 		"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0,"b":1,"c":2,"x":3,"y":4},"merges":[],"byte_fallback":false}}`,
 	} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600))
 	}
 	frontend := audiodsp.FrontendConfig{
 		SampleRate: 16000, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 4},
@@ -69,9 +62,7 @@ func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture
 	}
 	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend,
 		Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}, Encoder: captured.Declaration, BlankToken: 0, Language: "en"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	definition := PublishModel(t, store, directory, profile)
 	return Fixture{Definition: definition, Policy: dataset.AudioInspectionPolicy{
 		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
@@ -85,27 +76,21 @@ func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture
 func PublishModel(t *testing.T, store artifact.Repository, directory string, profile speechrecognition.ExecutionProfile) recipe.Definition {
 	t.Helper()
 	hf, err := hfrepo.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	inventory, err := modelartifact.FromHFRepository(hf)
 	if closeErr := hf.Close(); err != nil || closeErr != nil {
 		t.Fatalf("inventory: %v, close: %v", err, closeErr)
 	}
 	commit := func(batch artifact.Batch, err error) {
 		t.Helper()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	commit(inventory.Batch("transcription-fixture/model/" + inventory.Manifest.ID.String()))
 	definition, contract, err := modelrecipe.CompileTranscription(inventory, profile.ID, uint64(profile.Frontend.SampleRate), profile.Frontend.Geometry)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	commit(profile.Batch("transcription-fixture/profile/" + profile.ID.String()))
 	commit(contract.Batch("transcription-fixture/contract/" + contract.ID.String()))
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe/"+definition.ID.String(), definition); err != nil {

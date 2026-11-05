@@ -338,6 +338,11 @@ type Edge struct {
 	To   Endpoint `json:"to"`
 }
 
+// Connect is the edge from one node's port to another's.
+func Connect(from NodeID, fromPort PortName, to NodeID, toPort PortName) Edge {
+	return Edge{From: Endpoint{Node: from, Port: fromPort}, To: Endpoint{Node: to, Port: toPort}}
+}
+
 type Input struct {
 	Name   PortName `json:"name"`
 	Data   DataKind `json:"data"`

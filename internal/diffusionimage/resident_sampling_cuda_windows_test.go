@@ -21,6 +21,7 @@ import (
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testprocess"
+	"overgo/internal/testutil"
 )
 
 // samplingHostBoundary retains the pre-residency sampling contract as an A/B
@@ -58,11 +59,7 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 	}](t, "real_forward")
 	forward, err := CompileResidentForward(t.Context(), model, 0, golden.H, golden.W)
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := forward.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
 	actual, err := forward.Execute(t.Context(), golden.X)
 	testcheck.NoError(t, err)
 	requireWithin(t, "independent vendor forward", actual, golden.Out, tolReal)
@@ -208,11 +205,7 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 	started := counter()
 	forward, err := CompileResidentForward(t.Context(), model, 0, size, size)
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := forward.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
 	result := samplingMeasurement{Compile: counter() - started}
 	sample := func() []float32 {
 		t.Helper()

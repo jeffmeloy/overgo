@@ -41,11 +41,7 @@ type hybridGolden struct {
 }
 
 func f32(v []float64) []float32 {
-	s := make([]float32, len(v))
-	for i, x := range v {
-		s[i] = float32(x)
-	}
-	return s
+	return testutil.Float32s(v)
 }
 
 // TestHybridDecoderLayerGradParity checks host forward output and the host VJP

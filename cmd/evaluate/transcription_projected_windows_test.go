@@ -40,12 +40,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(value string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
-		return id
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	location := func(value string, kind artifact.LocationKind) string {
 		t.Helper()
 		path, err := artifact.AvailablePath(ctx, canonical, parse(value), kind)

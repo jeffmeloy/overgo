@@ -73,11 +73,7 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 		t.Run(fmt.Sprintf("%s/%d", test.Name, test.Start), func(t *testing.T) {
 			builder := tensor.NewBuilder()
 			feeds := map[*tensor.Tensor]reference.Value{}
-			input := func(name string, value reference.Value) *tensor.Tensor {
-				node := builder.Input(name, dtype.F32, value.Shape)
-				feeds[node] = value
-				return node
-			}
+			input := fedInput(builder, feeds)
 			weights := LayerGraphWeights{Recurrent: true}
 			if err := BindLayerGraphInventory(&inventory.Layers[0], &weights, func(_ LayerBindingSlot, info *gguf.TensorInfo) (*tensor.Tensor, error) {
 				value := fixture.Weights[info.Name]
@@ -132,5 +128,14 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 			}
 			conv, state = values[result.Key], values[result.Value]
 		})
+	}
+}
+
+// fedInput declares an F32 input of each value's shape in builder and feeds the value to it.
+func fedInput(builder *tensor.Builder, feeds map[*tensor.Tensor]reference.Value) func(name string, value reference.Value) *tensor.Tensor {
+	return func(name string, value reference.Value) *tensor.Tensor {
+		node := builder.Input(name, dtype.F32, value.Shape)
+		feeds[node] = value
+		return node
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestTheRunRecordHoldsEachPackagesWallAndPeak runs a lane over a module of two packages, one at a time as the long
@@ -22,12 +23,7 @@ import (
 func TestTheRunRecordHoldsEachPackagesWallAndPeak(t *testing.T) {
 	root := t.TempDir()
 	const committed = 256 << 20
-	writeFixture := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
+	writeFixture := func(name, content string) { testutil.WriteTextFile(t, root, name, content, 0o600) }
 	writeFixture("go.mod", "module lanefixture\n\ngo 1.26\n")
 	writeFixture("small/small_test.go", "package small\n\nimport \"testing\"\n\nfunc TestRuns(t *testing.T) {}\n")
 	writeFixture("large/large_test.go", "package large\n\nimport \"testing\"\n\nfunc TestCommits(t *testing.T) {\n\tdata := make([]byte, 256<<20)\n\tfor index := range data {\n\t\tdata[index] = 1\n\t}\n\tif data[len(data)-1] != 1 {\n\t\tt.Fatal(\"unwritten\")\n\t}\n}\n")

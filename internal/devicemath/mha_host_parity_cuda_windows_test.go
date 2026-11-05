@@ -11,6 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // hostCausalSoftmaxGQA computes the per-head causal softmax p[nh*seq*seq] the
@@ -72,15 +73,7 @@ func TestMultiHeadAttentionBackwardMatchesHostCausal(t *testing.T) {
 	hdv := make([]float32, seq*nkv*hd)
 	hostmath.CausalAttentionBackward(hdq, hdk, hdv, q, k, v, dOut, seq, nh, nkv, hd)
 
-	maxDiff := func(got, want []float32) float64 {
-		var m float64
-		for i := range got {
-			if d := math.Abs(float64(got[i]) - float64(want[i])); d > m {
-				m = d
-			}
-		}
-		return m
-	}
+	maxDiff := testutil.MaxAbsDiff[float32, float32]
 	dqD, dkD, dvD := maxDiff(dQ, hdq), maxDiff(dK, hdk), maxDiff(dV, hdv)
 	t.Logf("device vs host CausalAttentionBackward: dQ %.3e dK %.3e dV %.3e", dqD, dkD, dvD)
 	const tolerance = 1e-4

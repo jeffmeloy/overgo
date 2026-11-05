@@ -56,12 +56,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(value string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
-		return id
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	var retained struct {
 		Inputs       map[string]artifact.ID
 		Plan, Report artifact.ID

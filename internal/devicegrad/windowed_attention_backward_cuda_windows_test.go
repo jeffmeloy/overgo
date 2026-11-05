@@ -3,7 +3,6 @@
 package devicegrad
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 
@@ -27,27 +26,13 @@ func TestWindowedCausalAttentionBackwardDeviceMatchesHost(t *testing.T) {
 
 	const seq, nh, nkv, hd = 7, 4, 2, 8
 	rng := rand.New(rand.NewSource(1234))
-	randSlice := func(n int) []float32 {
-		s := make([]float32, n)
-		for i := range s {
-			s[i] = float32(rng.NormFloat64())
-		}
-		return s
-	}
+	randSlice := func(n int) []float32 { return testutil.NormalVector(rng, n, 1) }
 	q := randSlice(seq * nh * hd)
 	k := randSlice(seq * nkv * hd)
 	v := randSlice(seq * nkv * hd)
 	dOut := randSlice(seq * nh * hd)
 
-	maxDiff := func(got, want []float32) float64 {
-		var m float64
-		for i := range got {
-			if d := math.Abs(float64(got[i]) - float64(want[i])); d > m {
-				m = d
-			}
-		}
-		return m
-	}
+	maxDiff := testutil.MaxAbsDiff[float32, float32]
 
 	const tolerance = 1e-4
 	for _, window := range []int{-1, 0, 1, 3, seq, seq + 5} {

@@ -32,12 +32,7 @@ func TestWebUIBrowserRequestMonitor(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	const helpers = `(() => {
   window.requestsPanel = () => document.querySelector('#panel-api');
   window.requestRows = () => [...requestsPanel().querySelectorAll('tr')].filter((row) => row.querySelector('td')).map((row) => [...row.querySelectorAll('td')].map((cell) => cell.textContent));

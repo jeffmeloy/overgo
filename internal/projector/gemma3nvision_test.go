@@ -2,7 +2,6 @@ package projector
 
 import (
 	"image"
-	"image/color"
 	"slices"
 	"strings"
 	"testing"
@@ -70,9 +69,7 @@ func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
 func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGemma3nVision(t, true)
-	input := patternedRGBA(32, 32, func(x, y int) color.RGBA {
-		return color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha}
-	})
+	input := patternedRGBA(32, 32, fixtureColor)
 	referenceParityCase[*gemma3nVisionRunner](t, "Gemma 3n", path, input, 3e-3)
 }
 
@@ -117,16 +114,7 @@ func tinyGemma3nVisionMetadata() []gguf.Metadata {
 }
 
 func tinyGemma3nVisionTensors(patterned bool) []gguf.TensorData {
-	values := func(count, modulus int, scale float32) []float32 {
-		if !patterned {
-			return nil
-		}
-		result := make([]float32, count)
-		for index := range result {
-			result[index] = float32(index%modulus-modulus/2) * scale
-		}
-		return result
-	}
+	values := patternedValues(patterned)
 	ones4 := slices.Repeat([]float32{1}, 4)
 	return []gguf.TensorData{
 		f32Tensor("v.conv_stem.conv.weight", []uint64{3, 3, 3, 4}, values(108, 7, .01)),

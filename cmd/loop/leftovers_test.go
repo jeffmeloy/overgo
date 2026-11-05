@@ -65,16 +65,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
-	folder := func(slash string) string {
-		t.Helper()
-		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
-		return at(slash)
-	}
-	write := func(slash, content string) {
-		t.Helper()
-		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
-	}
+	folder := func(slash string) string { return madeFolder(t, at(slash)) }
+	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
 	git := func(directory string, arguments ...string) string {
 		t.Helper()
 		return gitFixture(t, directory, arguments...)
@@ -685,16 +677,8 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
-	folder := func(slash string) string {
-		t.Helper()
-		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
-		return at(slash)
-	}
-	write := func(slash, content string) {
-		t.Helper()
-		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
-	}
+	folder := func(slash string) string { return madeFolder(t, at(slash)) }
+	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
 	// savePlan writes the working plan of a checkout: the rows named, each with one open step whose
 	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
 	savePlan := func(checkout string, rows ...string) {

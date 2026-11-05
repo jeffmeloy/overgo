@@ -81,20 +81,7 @@ func TestMultiHeadAttentionBackwardGradCheck(t *testing.T) {
 	}
 	const eps = 1e-3
 	gradCheck := func(name string, param, analytic []float32) float64 {
-		var maxDiff float64
-		for i := range param {
-			orig := param[i]
-			param[i] = orig + float32(eps)
-			lp := loss()
-			param[i] = orig - float32(eps)
-			lm := loss()
-			param[i] = orig
-			if diff := math.Abs((lp-lm)/(2*eps) - float64(analytic[i])); diff > maxDiff {
-				maxDiff = diff
-			}
-		}
-		t.Logf("%s: max |grad-fd| %.3e", name, maxDiff)
-		return maxDiff
+		return finiteDifference(t, name, param, analytic, eps, loss)
 	}
 	const tolerance = 3e-3
 	worst := gradCheck("dQ", q, dQ)

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/server"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 const audioHTTPFixtureKey = "audio-integration-test-only-key"
@@ -44,11 +45,7 @@ func newAudioHTTPFixture(t *testing.T, store *overgodb.Store, definition recipe.
 	testcheck.NoError(t, modelrecipe.ActivateCapability(t.Context(), store, definition, verification, recipe.EvidenceParity, "isolated audio HTTP fixture; not production promotion"))
 	workspace, err := server.NewTranscriptionWorkspace(t.Context(), store, server.TranscriptionPolicy{Recipe: definition.ID, MemoryBytes: adapterAcceptanceMemory, Inspection: policy}, commit)
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := workspace.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), workspace))
 	runtimePolicy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !found {
 		t.Fatalf("HTTP host policy absent: %v", err)

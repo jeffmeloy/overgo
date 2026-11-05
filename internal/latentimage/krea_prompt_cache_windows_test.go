@@ -22,11 +22,7 @@ func TestAKreaPromptMetAgainPlacesNoTextEncoder(t *testing.T) {
 	other.Prompt = "a lighthouse on a cliff at dusk"
 	generator, err := LoadGenerator(ctx, kreaDirOrSkip(t), kreaProfileOrSkip(t), first)
 	testcheck.NoError(t, err)
-	defer func() {
-		if err := generator.Close(ctx); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	}()
+	defer closeReporting(t, ctx, generator)
 	fresh, _ := runResidentGeneration(t, ctx, generator, first)
 	// copied is what giving the session request copies to the card, and how long it takes.
 	copied := func(request Request) (uint64, time.Duration) {

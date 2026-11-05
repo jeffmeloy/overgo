@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // qwen35DirectoryJSON is a Qwen 3.5 Hugging Face directory at the smallest shapes the converter's tables take: its
@@ -29,9 +30,7 @@ func Qwen35Directory(t testing.TB) string {
 		Tokenizer json.RawMessage  `json:"tokenizer"`
 		Shapes    map[string][]int `json:"shapes"`
 	}
-	if err := json.Unmarshal(qwen35DirectoryJSON, &document); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(qwen35DirectoryJSON, &document))
 	directory := t.TempDir()
 	WriteTextFile(t, directory, "config.json", string(document.Config))
 	WriteTextFile(t, directory, "tokenizer.json", string(document.Tokenizer))
@@ -49,8 +48,6 @@ func Qwen35Directory(t testing.TB) string {
 		}
 		weights[name] = values
 	}
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, document.Shapes, nil); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, document.Shapes, nil))
 	return directory
 }

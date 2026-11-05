@@ -3,6 +3,7 @@ package hostmath
 import (
 	"math"
 	"math/rand"
+	"overgo/internal/testutil"
 	"testing"
 )
 
@@ -19,13 +20,7 @@ func TestHybridDecoderLayerTrainStep(t *testing.T) {
 	)
 	keyDim, valDim, K := hk*hd, hv*hd, 3
 	rng := rand.New(rand.NewSource(7))
-	rs := func(n int) []float32 {
-		s := make([]float32, n)
-		for i := range s {
-			s[i] = float32(rng.NormFloat64() * 0.3)
-		}
-		return s
-	}
+	rs := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.3) }
 	w := HybridLayerWeights{
 		InputNorm: rs(hidden), PostNorm: rs(hidden), IsLinear: true,
 		MLP: QwenMLPWeights{Gate: rs(inter * hidden), Up: rs(inter * hidden), Down: rs(hidden * inter)},

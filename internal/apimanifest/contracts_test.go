@@ -1,7 +1,6 @@
 package apimanifest
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -9,6 +8,7 @@ import (
 	"overgo/internal/gosource"
 	"overgo/internal/gosyntax"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func TestDocumentDeclarationsResolvePackageConstantsAndContexts(t *testing.T) {
@@ -126,7 +126,5 @@ var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, 
 
 func writeGeneratorFixture(t *testing.T, root, name, content string) {
 	t.Helper()
-	path := filepath.Join(root, filepath.FromSlash(name))
-	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	testutil.WriteTextFile(t, root, name, content, 0o600)
 }

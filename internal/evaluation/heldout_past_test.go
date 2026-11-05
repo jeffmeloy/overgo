@@ -25,22 +25,8 @@ func TestPastHeldoutVerdictsAreReadAsTheStoreStood(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer store.Close()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
-	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
-		t.Helper()
-		batch, err := stage(key)
-		testcheck.NoError(t, err)
-		for _, id := range declared {
-			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
-		}
-		if _, err := artifact.Publish(ctx, store, batch); err != nil {
-			t.Fatal(err)
-		}
-	}
-	commit("test-split", func(key string) (artifact.Batch, error) { return forecast.split.PublicationBatch(key, nil) }, forecast.objective.Dataset)
-	commit("test-objective", func(key string) (artifact.Batch, error) {
-		content, err := forecast.objective.Content()
-		return artifact.Batch{Key: key, Contents: []artifact.Content{content}}, err
-	})
+	commit := heldoutCommitter(t, store)
+	forecast.publishObjective(commit)
 	session := heldoutTraining(t, store, forecast.objective.Dataset, forecast.view.TrainingMembership)
 	base := forecast.score(t, 2, "falling")
 	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)

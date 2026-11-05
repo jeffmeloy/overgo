@@ -12,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testcheck"
 )
 
 // The shape of the quantized fixture: Q8_0 stores a row in blocks of 32, so every
@@ -91,16 +92,12 @@ func quantizedDenseGGUF(t *testing.T, layers int, architecture string, storedEmb
 	}
 	full := func(name string, extents []uint64, scale float64) gguf.TensorData {
 		var storage bytes.Buffer
-		if err := binary.Write(&storage, binary.LittleEndian, values(extents, scale)); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, binary.Write(&storage, binary.LittleEndian, values(extents, scale)))
 		return gguf.TensorData{Name: name, Shape: extents, Type: gguf.DTypeF32, Data: bytes.NewReader(storage.Bytes())}
 	}
 	stored := func(name string, extents []uint64) gguf.TensorData {
 		data, err := quant.Quantize(dtype.Q8_0, values(extents, quantizedSpread))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return gguf.TensorData{Name: name, Shape: extents, Type: dtype.Q8_0, Data: bytes.NewReader(data)}
 	}
 	metadata := []gguf.Metadata{
@@ -146,15 +143,11 @@ func quantizedDenseGGUF(t *testing.T, layers int, architecture string, storedEmb
 	}
 	path := filepath.Join(t.TempDir(), "quantized.gguf")
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 	return path
 }

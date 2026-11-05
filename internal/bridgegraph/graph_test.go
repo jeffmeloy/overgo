@@ -13,6 +13,7 @@ import (
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func TestMLPBridgeForwardAndValidation(t *testing.T) {
@@ -182,14 +183,10 @@ func bridgeContract(
 
 func bridgeTestID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	testcheck.NoError(t, err)
-	return id
+	return testutil.ArtifactID(t, kind, value)
 }
 
 func mustReferenceValue(t *testing.T, shape tensor.Shape, data []float32) reference.Value {
 	t.Helper()
-	value, err := reference.NewValue(shape, data)
-	testcheck.NoError(t, err)
-	return value
+	return inferenceValue(t, shape, data)
 }

@@ -299,9 +299,9 @@ func bootstrapRecipeForObjective(
 		backward, optimize,
 	}
 	edges := []recipe.Edge{
-		connect("batch", "batch", "forward", "batch"),
-		connect("forward", "loss", "backward", "loss"),
-		connect("backward", "gradients", "optimize", "gradients"),
+		recipe.Connect("batch", "batch", "forward", "batch"),
+		recipe.Connect("forward", "loss", "backward", "loss"),
+		recipe.Connect("backward", "gradients", "optimize", "gradients"),
 	}
 	// A reward objective batches rollouts, scores them under the policy and
 	// weighs them by its evaluators' rewards, where a token objective takes
@@ -314,8 +314,8 @@ func bootstrapRecipeForObjective(
 			backward, optimize,
 		}
 		edges = []recipe.Edge{
-			connect("batch", "batch", "policy", "batch"), connect("policy", "scores", "objective", "policy"),
-			connect("objective", "loss", "backward", "loss"), connect("backward", "gradients", "optimize", "gradients"),
+			recipe.Connect("batch", "batch", "policy", "batch"), recipe.Connect("policy", "scores", "objective", "policy"),
+			recipe.Connect("objective", "loss", "backward", "loss"), recipe.Connect("backward", "gradients", "optimize", "gradients"),
 		}
 		for slot, evaluator := range evaluators {
 			dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyEvaluator, Slot: uint32(slot), Artifact: evaluator})

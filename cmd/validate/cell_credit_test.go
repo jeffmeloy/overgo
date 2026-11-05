@@ -324,8 +324,7 @@ func TestCellCreditCoversADirectoryView(t *testing.T) {
 	directory := t.TempDir()
 	weights, config := filepath.Join(directory, "model.safetensors"), filepath.Join(directory, "config.json")
 	write := func(path, text string) {
-		t.Helper()
-		testcheck.NoError(t, os.WriteFile(path, []byte(text), 0o600))
+		testutil.WriteTextFile(t, filepath.Dir(path), filepath.Base(path), text, 0o600)
 	}
 	write(weights, "weights")
 	write(config, "{}")

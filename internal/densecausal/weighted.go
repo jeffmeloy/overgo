@@ -1,6 +1,8 @@
 package densecausal
 
 import (
+	"slices"
+
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -16,6 +18,11 @@ import (
 type WeightedSequence struct {
 	Tokens  []int
 	Weights []float32
+}
+
+// Weighs reports whether a token of the sequence carries a weight other than zero.
+func (sequence WeightedSequence) Weighs() bool {
+	return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
 }
 
 // RewardSequences is a reward group as the weighted step trains on it. Each

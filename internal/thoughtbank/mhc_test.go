@@ -26,13 +26,7 @@ func identitySubBackward(dHOut []float32, rows, d int) []float32 {
 
 func randHyperConnectionWeights(rng *rand.Rand, n, d int) *HyperConnectionWeights {
 	flat := n * d
-	rs := func(count int, scale float64) []float32 {
-		v := make([]float32, count)
-		for i := range v {
-			v[i] = float32((rng.Float64()*2 - 1) * scale)
-		}
-		return v
-	}
+	rs := func(count int, scale float64) []float32 { return randSlice(rng, count, scale) }
 	nw := make([]float32, flat)
 	for i := range nw {
 		nw[i] = float32(0.8 + 0.4*rng.Float64())

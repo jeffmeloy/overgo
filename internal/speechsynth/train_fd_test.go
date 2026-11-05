@@ -15,6 +15,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // gcStep / gradCheckTol: the reference finite-diff step and tolerance
@@ -28,11 +29,7 @@ func gradCheckTol(step float64, accumDepth int) float64 {
 }
 
 func normVec(rng *rand.Rand, n int, base, s float64) []float32 {
-	v := make([]float32, n)
-	for i := range v {
-		v[i] = float32(base + rng.NormFloat64()*s)
-	}
-	return v
+	return testutil.NormalVectorAbout(rng, n, base, s)
 }
 
 func fixtureSpeechProgram() media.NormalizationProgram {

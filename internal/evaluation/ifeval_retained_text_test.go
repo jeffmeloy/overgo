@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 type ifevalNativeScores struct {
@@ -147,9 +148,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 
 func readRetainedEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
 	t.Helper()
-	content, err := artifact.RequireTypedContent(t.Context(), store, id)
-	testcheck.NoError(t, err)
-	testcheck.NoError(t, json.Unmarshal(content.Data, target))
+	testutil.ReadTypedJSON(t, store, id, target)
 }
 
 func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID artifact.ID) {

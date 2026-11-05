@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/testcheck"
 )
 
 // PinnedTree writes directory as commit holds it in repository into a fresh
@@ -37,9 +38,7 @@ func PinnedTree(t testing.TB, repository, commit, directory string) string {
 		if errors.Is(err, io.EOF) {
 			return filepath.Join(destination, filepath.FromSlash(directory))
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		// A directory is made for the files it holds; git's leading header
 		// only names the commit.
 		if header.Typeflag != tar.TypeReg {
@@ -53,9 +52,7 @@ func PinnedTree(t testing.TB, repository, commit, directory string) string {
 		if err == nil {
 			err = os.WriteFile(target, data, header.FileInfo().Mode())
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 }
 
@@ -120,3 +117,8 @@ func FormatProcessMeasurements(results []Result) string {
 
 // MiB converts bytes to mebibytes.
 func MiB(value uint64) float64 { return float64(value) / (1 << 20) }
+
+// ChildStopper closes a child process's input, kills it and reaps it, for a test's cleanup.
+func ChildStopper(input io.Closer, command *exec.Cmd) func() {
+	return func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() }
+}

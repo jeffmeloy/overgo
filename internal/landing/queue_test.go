@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -61,13 +60,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 		landed, err := Run(ctx, Options{Repo: checkout.repo, Ref: reference, Message: message, Log: io.MultiWriter(&said, log)})
 		return landed, said.String(), err
 	}
-	holds := func(checkout *sliceFixture, name string) string {
-		data, err := os.ReadFile(filepath.Join(checkout.repo, filepath.FromSlash(name)))
-		if err != nil {
-			return ""
-		}
-		return string(data)
-	}
+	holds := heldFile
 	trunk := func() string { return fixture.git("rev-parse", "refs/heads/trunk") }
 	// moveSecond commits, on the trunk, the second row's count and check.
 	moveSecond := func(count int, check string) string {

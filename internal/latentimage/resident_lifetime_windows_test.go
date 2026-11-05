@@ -54,11 +54,7 @@ func checkDecodeLifetimeFixture(t *testing.T) {
 	runtime, err := graphruntime.NewResidentSession(0)
 	testcheck.NoError(t, err)
 	pipeline := &ResidentImagePipeline{runtime: runtime}
-	t.Cleanup(func() {
-		if err := pipeline.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), pipeline))
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(4)
 	input := builder.Input("input", dtype.F32, shape)
@@ -103,11 +99,7 @@ func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 	}
 	generator, err := LoadGenerator(t.Context(), directory, profile, request)
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := generator.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), generator))
 	var library *driver.Library
 	testcheck.NoError(t, generator.pipeline.runtime.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }))
 	session, err := generator.prepare(t.Context(), request)

@@ -31,9 +31,7 @@ type Capability struct {
 func CandidateExecution(t testing.TB, store artifact.Reader, program recipe.Program) modelrecipe.CapabilityEvidenceSelection {
 	t.Helper()
 	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return execution
 }
 

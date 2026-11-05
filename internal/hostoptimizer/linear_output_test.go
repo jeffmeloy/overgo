@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // TestLinearOutputProjectionMatchesHostmath holds the training-side kernel
@@ -14,13 +15,7 @@ import (
 func TestLinearOutputProjectionMatchesHostmath(t *testing.T) {
 	t.Parallel()
 	generator := rand.New(rand.NewPCG(7, 11))
-	fill := func(n int) []float32 {
-		values := make([]float32, n)
-		for index := range values {
-			values[index] = float32(generator.NormFloat64())
-		}
-		return values
-	}
+	fill := func(n int) []float32 { return testutil.NormalVector(generator, n, 1) }
 	for _, shape := range []struct{ rows, inDim, outDim int }{{181, 64, 4099}, {1, 32, 33}, {7, 16, 1}} {
 		x := fill(shape.rows * shape.inDim)
 		projection := fill(shape.inDim * shape.inDim)

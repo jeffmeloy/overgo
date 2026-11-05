@@ -61,12 +61,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(value string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
-		return id
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	// The immutable request fixes the producer, model, recipe and cumulative budget.
 	requestID := parse(requestText)
 	var request struct {

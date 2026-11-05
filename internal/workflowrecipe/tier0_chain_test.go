@@ -120,12 +120,7 @@ func chainDefinition(t *testing.T, modelA, modelB artifact.ID) recipe.Definition
 	node := func(id recipe.NodeID, module recipe.ModuleID, slot uint32) recipe.Node {
 		return recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost, ModelSlot: slot}
 	}
-	edge := func(from recipe.NodeID, fromPort recipe.PortName, to recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{
-			From: recipe.Endpoint{Node: from, Port: fromPort},
-			To:   recipe.Endpoint{Node: to, Port: toPort},
-		}
-	}
+	edge := recipe.Connect
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskGeneration,
 		[]recipe.Dependency{

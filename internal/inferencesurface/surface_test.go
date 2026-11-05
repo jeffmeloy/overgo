@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // The file digest is a function of root-relative paths and contents:
@@ -116,12 +117,7 @@ func TestSurfaceInvariants(t *testing.T) {
 // closure names its tokenizer's regexp module by version.
 func TestSurfaceCoversEmbeddedInputsAndModules(t *testing.T) {
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content) }
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/inference/inference.go", "package inference\n\nimport _ \"embed\"\n\n//go:embed profile.json\nvar profile []byte\n")
 	write("internal/inference/profile.json", `{"heads":2}`)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"reflect"
 	"slices"
@@ -29,12 +28,7 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	testcheck.NoError(t, err)
 	defer store.Close()
-	read := func(id artifact.ID, target any) {
-		t.Helper()
-		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, json.Unmarshal(content.Data, target))
-	}
+	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
 	id, err := artifact.ParseID("evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c")
 	testcheck.NoError(t, err)
 	var provenance struct {

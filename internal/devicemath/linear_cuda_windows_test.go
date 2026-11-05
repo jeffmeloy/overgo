@@ -17,11 +17,7 @@ import (
 )
 
 func randSlice(rng *rand.Rand, n int) []float32 {
-	s := make([]float32, n)
-	for i := range s {
-		s[i] = float32(rng.NormFloat64())
-	}
-	return s
+	return testutil.NormalVector(rng, n, 1)
 }
 
 func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
@@ -35,13 +31,7 @@ func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 	wantX, wantWeight, err := LinearBackwardT(worker, x, weight, dY, rows, in, out)
 	testcheck.NoError(t, err)
 	var pointers []driver.DevicePtr
-	allocate := func(count int, initial []float32) driver.DevicePtr {
-		t.Helper()
-		pointer, err := AllocResidentF32(worker, count, initial)
-		testcheck.NoError(t, err)
-		pointers = append(pointers, pointer)
-		return pointer
-	}
+	allocate := residentAllocation(t, worker, &pointers)
 	defer func() {
 		if err := FreeResident(worker, pointers...); err != nil {
 			t.Error(err)

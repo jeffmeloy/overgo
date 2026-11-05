@@ -120,9 +120,7 @@ func stepsOnNoGradient(model *densecausal.Model, groups [][]densecausal.Weighted
 	var losses []float64
 	skipped := 0
 	for _, group := range groups {
-		if !slices.ContainsFunc(group, func(sequence densecausal.WeightedSequence) bool {
-			return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
-		}) {
+		if !slices.ContainsFunc(group, densecausal.WeightedSequence.Weighs) {
 			skipped++
 			continue
 		}
@@ -215,9 +213,7 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 	}
 	dependencies := append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: fixture.policy}}, modelrecipetest.PolicyDependencies(policies)...)
 	dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyEvaluator, Artifact: evaluator})
-	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
-	}
+	edge := recipe.Connect
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining, dependencies,
 		[]recipe.Node{

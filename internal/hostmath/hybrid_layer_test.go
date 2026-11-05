@@ -3,6 +3,7 @@ package hostmath
 import (
 	"math"
 	"math/rand"
+	"overgo/internal/testutil"
 	"testing"
 )
 
@@ -16,13 +17,7 @@ func TestHybridDecoderLayerBackwardFD(t *testing.T) {
 		hd, eps          = 4, 1e-6
 	)
 	rng := rand.New(rand.NewSource(20260812))
-	rs := func(n int) []float32 {
-		s := make([]float32, n)
-		for i := range s {
-			s[i] = float32(rng.NormFloat64() * 0.4)
-		}
-		return s
-	}
+	rs := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.4) }
 	mlp := QwenMLPWeights{Gate: rs(inter * hidden), Up: rs(inter * hidden), Down: rs(hidden * inter)}
 
 	run := func(t *testing.T, w HybridLayerWeights, d HybridLayerDims, state []float32, pairs func(g HybridDecoderLayerGrads) []fdParam) {

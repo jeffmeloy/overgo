@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -66,12 +65,7 @@ func TestModelInventory(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content) }
 	write("Model/config.json", `{"model_type": "llama"}`)
 	write("Model/shards/part-1.safetensors", "weights")
 	write("notes/README.md", "no weights here")

@@ -64,12 +64,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
 	testcheck.NoError(t, err)
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
 	assertBrowserPredicate(t, ctx, browser, hardenedStatesFilter)
 	var tabs []string

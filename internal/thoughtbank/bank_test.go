@@ -11,13 +11,7 @@ import (
 
 func newFastWeightBankFixture(rng *rand.Rand, swiGLU bool) (*FastWeightBankWeights, []float32, []float32, int, int) {
 	const d, mem, r, rows, slots = 6, 5, 3, 4, 3
-	rs := func(n int, scale float64) []float32 {
-		v := make([]float32, n)
-		for i := range v {
-			v[i] = float32((rng.Float64()*2 - 1) * scale)
-		}
-		return v
-	}
+	rs := func(n int, scale float64) []float32 { return randSlice(rng, n, scale) }
 	na := 1
 	if swiGLU {
 		na = 2

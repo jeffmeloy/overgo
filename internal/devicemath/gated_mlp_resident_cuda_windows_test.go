@@ -3,7 +3,6 @@
 package devicemath
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestGatedMLPBackwardTResidentMatchesPerOp checks the resident SwiGLU MLP
@@ -37,15 +37,7 @@ func TestGatedMLPBackwardTResidentMatchesPerOp(t *testing.T) {
 	res, err := GatedMLPBackwardTResident(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
 	testcheck.NoError(t, err)
 
-	maxAbs := func(p, q []float32) float64 {
-		var m float64
-		for i := range p {
-			if v := math.Abs(float64(p[i]) - float64(q[i])); v > m {
-				m = v
-			}
-		}
-		return m
-	}
+	maxAbs := testutil.MaxAbsDiff[float32, float32]
 	const tolerance = 1e-4
 	for _, c := range []struct {
 		name string

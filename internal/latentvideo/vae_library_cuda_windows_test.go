@@ -114,11 +114,7 @@ func holdToOwnCode(t *testing.T, reference clipRoundTrip, clip SourceVideo, want
 	t.Helper()
 	runtime, err := LoadAutoencoderRuntime(wanModelDir(t))
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := runtime.Close(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.Background(), runtime))
 	halves := map[string]*vaeDecoderCUDASession{"encoder": runtime.encoder.codec, "decoder": runtime.decoder}
 	for _, half := range halves {
 		route(half)

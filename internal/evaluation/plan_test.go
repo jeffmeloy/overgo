@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 const planTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -107,9 +108,7 @@ func TestPlanRejectsInvalidEvaluationAuthority(t *testing.T) {
 
 func planID(t testing.TB, kind artifact.Kind, value string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	testcheck.NoError(t, err)
-	return id
+	return testutil.ArtifactID(t, kind, value)
 }
 
 func publishPlanFixtureAuthorities(t testing.TB, repository artifact.Repository, plan Plan) {

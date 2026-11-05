@@ -9,11 +9,7 @@ import (
 )
 
 func randomVector(rng *rand.Rand, n int, base, s float64) []float32 {
-	v := make([]float32, n)
-	for i := range v {
-		v[i] = float32(base + rng.NormFloat64()*s)
-	}
-	return v
+	return NormalVectorAbout(rng, n, base, s)
 }
 
 // fdTol bounds a central difference by fp32 roundoff plus truncation at an accumulation depth.

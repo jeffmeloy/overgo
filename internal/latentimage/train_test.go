@@ -6,17 +6,13 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
 
 func tinyFinalLayer(hidden, out int) FinalLayerWeights {
 	seed := uint32(2463534242)
-	next := func() float32 {
-		seed ^= seed << 13
-		seed ^= seed >> 17
-		seed ^= seed << 5
-		return (float32(seed%2000)/1000 - 1) * 0.3
-	}
+	next := testutil.XorShift(seed)
 	fill := func(n int) []float32 {
 		values := make([]float32, n)
 		for i := range values {

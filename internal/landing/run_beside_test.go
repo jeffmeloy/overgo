@@ -34,15 +34,7 @@ func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 	held, let := make(chan struct{}), make(chan struct{})
 	ran := make(chan bool, 1)
 	var group sync.WaitGroup
-	group.Go(func() {
-		if err := HoldLaneTurn(func() error {
-			close(held)
-			<-let
-			return nil
-		}); err != nil {
-			t.Error(err)
-		}
-	})
+	group.Go(heldTurn(t, held, let))
 	<-held
 	group.Go(func() {
 		if err := l.inLaneTurn(ctx, func() error {

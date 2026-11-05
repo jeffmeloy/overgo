@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/testcheck"
@@ -18,12 +17,7 @@ import (
 // missing, and a path only remembered runs as what it holds now.
 func TestOnlyMissingPartsRefuseARun(t *testing.T) {
 	t.Parallel()
-	open := func(t *testing.T) artifact.Repository {
-		t.Helper()
-		store := openProgramStore(t)
-		t.Cleanup(func() { store.Close() })
-		return store
-	}
+	open := openedProgramStore
 	t.Run("weights that are not there", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "gone.gguf")

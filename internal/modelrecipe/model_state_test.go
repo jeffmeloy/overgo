@@ -19,12 +19,7 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 	t.Parallel()
 	path := t.TempDir() + "/model.gguf"
 	writeServingDefinitionGGUF(t, path, false)
-	open := func(t *testing.T) artifact.Repository {
-		t.Helper()
-		store := openProgramStore(t)
-		t.Cleanup(func() { store.Close() })
-		return store
-	}
+	open := openedProgramStore
 	read := func(t *testing.T, store artifact.Reader, modelID artifact.ID) (Activation, ModelState) {
 		t.Helper()
 		activation, state, err := ReadModelState(t.Context(), store, modelID, recipe.TaskInference)

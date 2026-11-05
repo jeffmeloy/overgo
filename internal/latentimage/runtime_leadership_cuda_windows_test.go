@@ -57,11 +57,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	testcheck.NoError(b, err)
 	generator, err := LoadGenerator(ctx, kreaModelDir(b), profile, request)
 	testcheck.NoError(b, err)
-	defer func() {
-		if err := generator.Close(ctx); err != nil {
-			b.Errorf("close: %v", err)
-		}
-	}()
+	defer closeReporting(b, ctx, generator)
 	loadWall := time.Since(totalStart)
 
 	prepareStart := time.Now()

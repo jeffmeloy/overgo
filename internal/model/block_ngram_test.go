@@ -82,11 +82,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 			}
 			b := tensor.NewBuilder()
 			feeds := map[*tensor.Tensor]reference.Value{}
-			input := func(name string, value reference.Value) *tensor.Tensor {
-				node := b.Input(name, dtype.F32, value.Shape)
-				feeds[node] = value
-				return node
-			}
+			input := fedInput(b, feeds)
 			weight := func(name string) *tensor.Tensor {
 				value := f.Weights[name+".weight"]
 				return input(name, reference.Value{Shape: tensor.MustShape(value.Shape...), Data: value.Data})

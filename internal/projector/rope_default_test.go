@@ -12,7 +12,7 @@ import (
 func ropeDefaultFixture(t *testing.T, extra ...gguf.Metadata) *gguf.File {
 	t.Helper()
 	scalar := func(key string, kind gguf.ValueType, data any) gguf.Metadata {
-		return gguf.Metadata{Key: key, Value: gguf.Value{Type: kind, Data: data}}
+		return testutil.Metadata(key, kind, data)
 	}
 	array := func(key string, kind gguf.ValueType, data any) gguf.Metadata {
 		return gguf.Metadata{Key: key, Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: kind, Data: data}}

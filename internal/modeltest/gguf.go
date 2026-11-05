@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -30,20 +31,14 @@ const ggufExtension = ".gguf"
 func GGUF(t testing.TB, architecture string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
 		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
 	locations, err := registeredLocations(context.Background(), roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	smallest, err := smallestGGUF(locations, architecture)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if smallest == "" {
 		testskip.NotApplicable(t, "no GGUF registered here declares the architecture "+architecture)
 	}

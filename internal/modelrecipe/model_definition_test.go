@@ -200,7 +200,7 @@ func definitionMetadata() []gguf.Metadata {
 }
 
 func definitionMetadataValue(key string, valueType gguf.ValueType, data any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: valueType, Data: data}}
+	return testutil.Metadata(key, valueType, data)
 }
 
 func writeDefinitionGGUF(t *testing.T, path string) {

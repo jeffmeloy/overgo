@@ -48,14 +48,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	prepared := 0
-	reading := func(documents []string) ([]float64, error) {
-		prepared++
-		differences := make([]float64, len(documents))
-		for index := range differences {
-			differences[index] = 1 + float64(index%2)
-		}
-		return differences, nil
-	}
+	reading := alternatingReading(&prepared)
 	model := func(name string) artifact.ID {
 		return testutil.ArtifactID(t, artifact.KindModel, "naming fixture "+name)
 	}

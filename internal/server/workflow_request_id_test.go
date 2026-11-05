@@ -108,9 +108,7 @@ func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
 
 func mustJSON(t *testing.T, value any) string {
 	t.Helper()
-	encoded, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	return string(encoded)
+	return testutil.JSON(t, value)
 }
 
 // TestRunLedgerForgetsAFailureAndTheOldest checks a submission that failed may be

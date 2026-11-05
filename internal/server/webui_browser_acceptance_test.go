@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
@@ -342,12 +343,7 @@ func openBrowserLeg(t *testing.T, url string) (context.Context, *webuilane.Brows
 	browser, err := webuilane.Open(ctx, path, url)
 	testcheck.NoError(t, err)
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	return ctx, browser, check, settle
 }
 
@@ -476,5 +472,39 @@ func emulateMedia(t *testing.T, ctx context.Context, browser *webuilane.Browser,
 		"features": []map[string]string{{"name": name, "value": value}},
 	}, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// browserSettle waits until expression holds in browser, failing the test with expression when it does not.
+func browserSettle(t *testing.T, ctx context.Context, browser *webuilane.Browser) func(expression string) {
+	return func(expression string) {
+		t.Helper()
+		if err := browser.Eventually(ctx, expression); err != nil {
+			t.Fatalf("%s: %v", expression, err)
+		}
+	}
+}
+
+// browserSettleShowing is browserSettle that fails with the page's text and recorded errors.
+func browserSettleShowing(t *testing.T, ctx context.Context, browser *webuilane.Browser) func(expression string) {
+	return func(expression string) {
+		t.Helper()
+		if err := browser.Eventually(ctx, expression); err != nil {
+			var state string
+			_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &state)
+			t.Fatalf("%v: %s", err, state)
+		}
+	}
+}
+
+// catalogOverride answers /catalog/models with catalog and every other path with handler.
+func catalogOverride(handler http.Handler, catalog []byte) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/catalog/models" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(catalog)
+			return
+		}
+		handler.ServeHTTP(w, r)
 	}
 }

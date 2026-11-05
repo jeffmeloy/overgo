@@ -8,6 +8,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
 
@@ -117,4 +118,15 @@ func openNativeFixtureRunner(path string, options OpenOptions) (*Runner, error) 
 
 func openF32FixtureRunner(path string, options OpenOptions) (*Runner, error) {
 	return openFixtureRunnerWithResidency(path, options, recipe.ResidencyDeviceF32)
+}
+
+// cacheRunnerOpener opens the fixture at path with an F32 cache or without one, closing each runner when the test ends.
+func cacheRunnerOpener(t *testing.T, path string) func(f32 bool) *Runner {
+	return func(f32 bool) *Runner {
+		t.Helper()
+		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
+		testcheck.NoError(t, err)
+		t.Cleanup(func() { _ = runner.Close() })
+		return runner
+	}
 }

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestCloseoutRefusesFinishedLeftovers builds, under a temporary directory, a repository with a
@@ -41,16 +42,8 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	testcheck.NoError(t, err)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
-	folder := func(slash string) string {
-		t.Helper()
-		testcheck.NoError(t, os.MkdirAll(at(slash), 0o755))
-		return at(slash)
-	}
-	write := func(slash, content string) {
-		t.Helper()
-		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
-		testcheck.NoError(t, os.WriteFile(at(slash), []byte(content), 0o644))
-	}
+	folder := func(slash string) string { return madeFolder(t, at(slash)) }
+	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
 
 	// The trunk's checkout: a record that names one experiment, and a plan of one open row. The two
 	// scratch folders below are named for rows no plan holds, which is all their line asks: no
@@ -292,4 +285,11 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	if failure == nil || !slices.Equal(last, []string{"branch|refs/heads/merged-again"}) || !strings.Contains(failure.Error(), "branch 1; 1 in all") {
 		t.Fatalf("with one merged branch made again the close-out ended as %v, naming %q, want it refused for that branch alone:\n%s", failure, last, text)
 	}
+}
+
+// madeFolder makes path with its parents and returns it.
+func madeFolder(t *testing.T, path string) string {
+	t.Helper()
+	testcheck.NoError(t, os.MkdirAll(path, 0o755))
+	return path
 }

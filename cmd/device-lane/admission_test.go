@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
+	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
 
@@ -32,7 +33,7 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		output, err := command.StdoutPipe()
 		testcheck.NoError(t, err)
 		testcheck.NoError(t, command.Start())
-		t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
+		t.Cleanup(testprocess.ChildStopper(input, command))
 		if line, err := bufio.NewReader(output).ReadString('\n'); err != nil || strings.TrimSpace(line) != "probe: admitted" {
 			t.Fatalf("exclusive owner readiness: %q, %v", line, err)
 		}

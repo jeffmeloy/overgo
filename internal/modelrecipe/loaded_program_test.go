@@ -279,3 +279,11 @@ func writeServingDefinitionGGUF(t *testing.T, path string, distinct bool) {
 		tensor("blk.0.ffn_down.weight", uint64(definitionFeedForward), definitionTensorWidth),
 	})
 }
+
+// openedProgramStore opens a program store the test closes at its end.
+func openedProgramStore(t *testing.T) artifact.Repository {
+	t.Helper()
+	store := openProgramStore(t)
+	t.Cleanup(func() { store.Close() })
+	return store
+}

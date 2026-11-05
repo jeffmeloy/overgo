@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/testcheck"
 )
 
 type Float interface {
@@ -107,11 +108,55 @@ func RequireElementsWithin[L, R Float](t testing.TB, name string, got []L, want 
 func ModelArtifactDir(t testing.TB, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if resolved := roots.ResolveModelPath(name); filepath.IsAbs(resolved) {
 		return resolved
 	}
 	return filepath.Join(roots.Models, name)
+}
+
+// NormalVector draws count standard normal values from source, each times scale.
+func NormalVector(source interface{ NormFloat64() float64 }, count int, scale float64) []float32 {
+	values := make([]float32, count)
+	for index := range values {
+		values[index] = float32(source.NormFloat64() * scale)
+	}
+	return values
+}
+
+// NormalVectorAbout draws count values of base plus scale times a standard normal draw from source.
+func NormalVectorAbout(source interface{ NormFloat64() float64 }, count int, base, scale float64) []float32 {
+	values := make([]float32, count)
+	for index := range values {
+		values[index] = float32(base + source.NormFloat64()*scale)
+	}
+	return values
+}
+
+// Float32s narrows each value to float32.
+func Float32s(values []float64) []float32 {
+	narrowed := make([]float32, len(values))
+	for index, value := range values {
+		narrowed[index] = float32(value)
+	}
+	return narrowed
+}
+
+// The xorshift32 generator's three shifts (Marsaglia 2003), and how XorShift folds a state into a draw: its
+// remainder among xorShiftBuckets, over xorShiftPerUnit, less one, times xorShiftScale.
+const (
+	xorShiftFirst, xorShiftSecond, xorShiftThird = 13, 17, 5
+	xorShiftBuckets                              = 2000
+	xorShiftPerUnit                              = 1000
+	xorShiftScale                                = 0.3
+)
+
+// XorShift is the xorshift32 stream from seed, each draw a value in [-0.3, 0.3) at a step of 0.0003.
+func XorShift(seed uint32) func() float32 {
+	return func() float32 {
+		seed ^= seed << xorShiftFirst
+		seed ^= seed >> xorShiftSecond
+		seed ^= seed << xorShiftThird
+		return (float32(seed%xorShiftBuckets)/xorShiftPerUnit - 1) * xorShiftScale
+	}
 }

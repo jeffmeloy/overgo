@@ -36,11 +36,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	profile := kreaProfileOrSkip(t)
 	generator, err := LoadGenerator(ctx, kreaModelDir(t), profile, request)
 	testcheck.NoError(t, err)
-	defer func() {
-		if err := generator.Close(ctx); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	}()
+	defer closeReporting(t, ctx, generator)
 	loadWall := time.Since(totalStart)
 
 	prepareStart := time.Now()
@@ -150,11 +146,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	ctx := t.Context()
 	generator, err := LoadGenerator(ctx, kreaModelDir(t), kreaProfileOrSkip(t), request)
 	testcheck.NoError(t, err)
-	defer func() {
-		if err := generator.Close(ctx); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	}()
+	defer closeReporting(t, ctx, generator)
 	first, firstWall := runResidentGeneration(t, ctx, generator, request)
 	request.Seed++
 	testcheck.NoError(t, generator.Reset(ctx, request))

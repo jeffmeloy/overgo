@@ -433,9 +433,7 @@ func (session denseSession) rewardsOnDevice(groups []trainingdata.RolloutGroup, 
 	result := Result{Backend: "cuda", Objective: session.objective, StreamPosition: groups[len(groups)-1].State.Position, Skipped: uint64(skipped)}
 	step, stepped := state.Step-len(losses), 0
 	for index, group := range groups {
-		if !slices.ContainsFunc(weighted[index], func(sequence densecausal.WeightedSequence) bool {
-			return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
-		}) {
+		if !slices.ContainsFunc(weighted[index], densecausal.WeightedSequence.Weighs) {
 			continue
 		}
 		step++

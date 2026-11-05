@@ -5,10 +5,8 @@ package latentimage
 import (
 	"context"
 	"fmt"
-	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
-	"overgo/internal/quant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -42,12 +40,7 @@ func TestMOSSRotaryRefinementCUDAGolden(t *testing.T) {
 			feeds := refinementFeeds(t, p, oracle, prefix, dtype.BF16)
 			for _, node := range p.weightInputs {
 				values := feeds[node].Data
-				e = runtime.Bind(t.Context(), program, "refinement fixture", node.Name, node, func() ([]byte, error) {
-					if node.Type == dtype.F32 {
-						return driver.Bytes(values), nil
-					}
-					return quant.Quantize(node.Type, values)
-				})
+				e = runtime.Bind(t.Context(), program, "refinement fixture", node.Name, node, storedWeight(node, values))
 				if e != nil {
 					t.Fatal(e)
 				}

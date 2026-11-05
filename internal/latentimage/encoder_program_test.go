@@ -9,6 +9,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testutil"
 )
 
 // syntheticEncoderEmbed builds deterministic per-token embedding rows.
@@ -23,11 +24,7 @@ func syntheticEncoderEmbed(seq, hidden int) []float64 {
 }
 
 func f32slice(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
-	}
-	return out
+	return testutil.Float32s(v)
 }
 
 // The device encoder graph, run on the reference backend, must reproduce the host

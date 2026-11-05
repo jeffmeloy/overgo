@@ -18,6 +18,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
+	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -47,12 +48,8 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 	read := func(name string, target any) {
 		t.Helper()
 		data, err := os.ReadFile(filepath.Join(repo, "internal", "audioparity", filepath.FromSlash(name)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := strictjson.DecodeBytes(data, target); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
+		testcheck.NoError(t, strictjson.DecodeBytes(data, target))
 	}
 	var declaration struct {
 		ModelType  string                              `json:"model_type"`
@@ -67,21 +64,15 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 		t.Fatal("native stream fixture has no registered captures")
 	}
 	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	source, err := overgodb.OpenReadOnly(roots.AudioReference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{
 		Frontend: declaration.Frontend, Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1},
 		Encoder: declaration.Encoder, Transducer: &declaration.Transducer, BlankToken: declaration.Transducer.Blank, Language: "en",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fixture := NativeFixture{Profile: profile}
 	for _, id := range captures {
 		content, err := artifact.RequireTypedContent(t.Context(), source, id)
@@ -104,26 +95,18 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 		}
 		if !fixture.Definition.ID.Valid() {
 			directory, err := artifact.AvailablePath(t.Context(), source, capture.Model, artifact.LocationDirectory)
-			if err != nil {
-				t.Fatal(err)
-			}
+			testcheck.NoError(t, err)
 			fixture.Definition = PublishModel(t, destination, directory, profile)
 		}
 		if fixture.Definition.Model != capture.Model {
 			t.Fatal("registered model bytes differ from native capture")
 		}
 		tensorID, err := artifact.ParseID("file:sha256:" + capture.TensorsSHA256)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		path, err := artifact.AvailablePath(t.Context(), source, tensorID, artifact.LocationFile)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		oracle, err := safetensors.OpenSource(filepath.Dir(path))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		digests, err := oracle.ShardDigests()
 		if err != nil || len(digests) != 1 || hex.EncodeToString(digests[0].Digest[:]) != capture.TensorsSHA256 {
 			oracle.Close()
@@ -136,9 +119,7 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 		}
 		pcm, err := safetensors.ReadF32(wave)
 		oracle.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		fixture.Clips = append(fixture.Clips, NativeClip{Capture: id, Name: capture.Fixture, PCM: pcm,
 			Offline: capture.Captures["offline"].Text, Streaming: capture.Captures["streaming"].Text})
 	}
@@ -172,17 +153,13 @@ func (fixture NativeFixture) PublishStream(t *testing.T, store artifact.Reposito
 		if err == nil {
 			_, err = artifact.Publish(t.Context(), store, batch)
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 	}
 	publish := func(pcm []float32) artifact.ID {
 		t.Helper()
 		data := NativeWave(t, pcm, fixture.Profile.Frontend.SampleRate)
 		id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		commit(artifact.Batch{Key: "native-stream/wave/" + id.String(), Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data))}, Data: data}}}, nil)
 		return id
 	}

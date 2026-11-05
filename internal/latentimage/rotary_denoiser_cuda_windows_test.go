@@ -8,10 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
-	"overgo/internal/quant"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
@@ -38,12 +36,7 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 				feeds := denoiserFeeds(t, p, index, dtype.BF16)
 				for _, node := range p.weightInputs {
 					values := feeds[node].Data
-					if err := runtime.Bind(t.Context(), program, "denoiser fixture", node.Name, node, func() ([]byte, error) {
-						if node.Type == dtype.F32 {
-							return driver.Bytes(values), nil
-						}
-						return quant.Quantize(node.Type, values)
-					}); err != nil {
+					if err := runtime.Bind(t.Context(), program, "denoiser fixture", node.Name, node, storedWeight(node, values)); err != nil {
 						t.Fatal(err)
 					}
 					delete(feeds, node)

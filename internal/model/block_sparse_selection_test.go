@@ -63,11 +63,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 					}
 				}
 				feeds := map[*tensor.Tensor]reference.Value{}
-				input := func(name string, value reference.Value) *tensor.Tensor {
-					node := builder.Input(name, dtype.F32, value.Shape)
-					feeds[node] = value
-					return node
-				}
+				input := fedInput(builder, feeds)
 				weight := func(name string) *tensor.Tensor {
 					value := fixture.Weights[name+".weight"]
 					return input(name, reference.Value{Shape: tensor.MustShape(value.Shape...), Data: value.Data})

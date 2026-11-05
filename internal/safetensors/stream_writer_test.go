@@ -2,13 +2,12 @@ package safetensors
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/testcheck"
 )
 
@@ -127,9 +126,5 @@ func TestStreamingWriterDerivedBounds(t *testing.T) {
 }
 
 func floatPayload(values ...float32) []byte {
-	payload := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(payload[index*4:], math.Float32bits(value))
-	}
-	return payload
+	return binaryschema.LittleEndian.Float32s(values)
 }

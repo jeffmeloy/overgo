@@ -19,6 +19,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
+	"overgo/internal/testprocess"
 )
 
 func TestTransactionWriter(t *testing.T) {
@@ -439,7 +440,7 @@ func testTransactionProcesses(t *testing.T) {
 		testcheck.NoError(t, err)
 		cmd.Stderr = os.Stderr
 		testcheck.NoError(t, cmd.Start())
-		t.Cleanup(func() { _ = input.Close(); _ = cmd.Process.Kill(); _ = cmd.Wait() })
+		t.Cleanup(testprocess.ChildStopper(input, cmd))
 		peer := peer{cmd, json.NewEncoder(input), json.NewDecoder(output)}
 		var reply transactionReply
 		if err := peer.output.Decode(&reply); err != nil || reply.Result != "ready" {

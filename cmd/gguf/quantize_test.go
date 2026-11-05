@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
@@ -169,9 +170,5 @@ func writeGGUFFixture(t *testing.T, path string, metadata []gguf.Metadata, tenso
 }
 
 func encodeFloat32(values []float32) []byte {
-	data := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(data[index*4:], math.Float32bits(value))
-	}
-	return data
+	return binaryschema.LittleEndian.Float32s(values)
 }

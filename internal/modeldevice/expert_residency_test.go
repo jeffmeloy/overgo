@@ -614,11 +614,7 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		weights, err := mem.loadExperts(t.Context(), file, limit, nil)
 		testcheck.NoError(t, err)
 		cache := weights.experts
-		t.Cleanup(func() {
-			if err := cache.close(); err != nil || mem.liveCount() != 0 {
-				t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-			}
-		})
+		t.Cleanup(residencyClosed(t, cache, mem))
 		return cache, mem
 	}
 	// admit runs three advances after decode runs that routed experts 1 and 2, the first admitting them and the second
@@ -758,11 +754,7 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
 			testcheck.NoError(t, err)
 			cache := weights.experts
-			t.Cleanup(func() {
-				if err := cache.close(); err != nil || mem.liveCount() != 0 {
-					t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-				}
-			})
+			t.Cleanup(residencyClosed(t, cache, mem))
 			placed := map[string][]uint32{"gate": onCard(cache, "gate"), "up": onCard(cache, "up")}
 			if len(placed["gate"]) != 2 || len(placed["up"]) != 2 || len(cache.cards) != 2 {
 				t.Fatalf("the load placed %v in %d allocations, want two experts of each bank in one a bank", placed, len(cache.cards))
@@ -802,11 +794,7 @@ func TestRefillKeepsWhatItCannotPlace(t *testing.T) {
 	weights, err := mem.loadExperts(t.Context(), file, experts*8+experts*stride, nil)
 	testcheck.NoError(t, err)
 	cache := weights.experts
-	t.Cleanup(func() {
-		if err := cache.close(); err != nil || mem.liveCount() != 0 {
-			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-		}
-	})
+	t.Cleanup(residencyClosed(t, cache, mem))
 	copy(cache.banks["gate"].usage, []float32{3, 0, 5})
 	testcheck.NoError(t, cache.release(t.Context()))
 	if got := onCard(cache, "gate"); len(got) != 0 {
@@ -852,11 +840,7 @@ func TestReleaseFreesTheColdestClass(t *testing.T) {
 			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
 			testcheck.NoError(t, err)
 			cache := weights.experts
-			t.Cleanup(func() {
-				if err := cache.close(); err != nil || mem.liveCount() != 0 {
-					t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-				}
-			})
+			t.Cleanup(residencyClosed(t, cache, mem))
 			placed := map[string][]uint32{"gate": onCard(cache, "gate"), "up": onCard(cache, "up")}
 			if len(placed["gate"]) != 2 || len(placed["up"]) != 2 || len(cache.cards) != 2 || cache.cards[0].stride == cache.cards[1].stride {
 				t.Fatalf("the load placed %v in %d allocations, want two experts of each bank in one of its own stride", placed, len(cache.cards))
@@ -898,11 +882,7 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 	weights, err := mem.loadExperts(t.Context(), file, oneEach, nil)
 	testcheck.NoError(t, err)
 	cache := weights.experts
-	t.Cleanup(func() {
-		if err := cache.close(); err != nil || mem.liveCount() != 0 {
-			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-		}
-	})
+	t.Cleanup(residencyClosed(t, cache, mem))
 	builder := tensor.NewBuilder()
 	var nodes []*tensor.Tensor
 	for _, bank := range file.Tensors {
@@ -1002,5 +982,14 @@ func TestALayersBanksShareOneBlob(t *testing.T) {
 	together(t, []uint32{2})
 	if downBytes != cache.banks[names[2]].bytes {
 		t.Fatalf("the down bank holds %d bytes an expert", cache.banks[names[2]].bytes)
+	}
+}
+
+// residencyClosed closes cache when the test ends and holds mem to no allocation left.
+func residencyClosed(t *testing.T, cache *expertResidency, mem *fakeExpertDevice) func() {
+	return func() {
+		if err := cache.close(); err != nil || mem.liveCount() != 0 {
+			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+		}
 	}
 }

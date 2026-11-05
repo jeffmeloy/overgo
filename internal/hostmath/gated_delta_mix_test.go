@@ -3,6 +3,7 @@ package hostmath
 import (
 	"math"
 	"math/rand"
+	"overgo/internal/testutil"
 	"testing"
 )
 
@@ -14,13 +15,7 @@ func TestGatedDeltaMixBackwardFD(t *testing.T) {
 	T, H, hk, hv, hd := d.Tokens, d.Hidden, d.KeyHeads, d.ValueHeads, d.HeadDim
 	keyDim, valDim := hk*hd, hv*hd
 	rng := rand.New(rand.NewSource(20260812))
-	rs := func(n int) []float32 {
-		s := make([]float32, n)
-		for i := range s {
-			s[i] = float32(rng.NormFloat64() * 0.4)
-		}
-		return s
-	}
+	rs := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.4) }
 	w := GatedDeltaMixWeights{
 		Wq: rs(keyDim * H), Wk: rs(keyDim * H), Wv: rs(valDim * H),
 		ConvQ: rs(keyDim * d.ConvK), ConvK: rs(keyDim * d.ConvK), ConvV: rs(valDim * d.ConvK),

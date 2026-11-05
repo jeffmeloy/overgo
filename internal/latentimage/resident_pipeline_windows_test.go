@@ -50,11 +50,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	ctx := t.Context()
 	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0)
 	testcheck.NoError(t, err)
-	defer func() {
-		if err := pipeline.Close(ctx); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	}()
+	defer closeReporting(t, ctx, pipeline)
 	embed := f32slice(syntheticEncoderEmbed(fixtureSeq, encoderSpec.Hidden))
 	conditioning, err := pipeline.Condition(ctx, "a fixture", embed)
 	testcheck.NoError(t, err)

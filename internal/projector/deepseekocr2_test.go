@@ -2,7 +2,6 @@ package projector
 
 import (
 	"image"
-	"image/color"
 	"slices"
 	"strings"
 	"testing"
@@ -61,9 +60,7 @@ func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
 func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyDeepSeekOCR2(t, true)
-	input := patternedRGBA(32, 32, func(x, y int) color.RGBA {
-		return color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha}
-	})
+	input := patternedRGBA(32, 32, fixtureColor)
 	referenceParityCase[*deepSeekOCR2Runner](t, "DeepSeek-OCR-2", path, input, 4e-3)
 }
 
@@ -85,16 +82,7 @@ func tinyDeepSeekOCR2Metadata() []gguf.Metadata {
 }
 
 func tinyDeepSeekOCR2Tensors(patterned bool) []gguf.TensorData {
-	values := func(count, modulus int, scale float32) []float32 {
-		if !patterned {
-			return nil
-		}
-		result := make([]float32, count)
-		for index := range result {
-			result[index] = float32(index%modulus-modulus/2) * scale
-		}
-		return result
-	}
+	values := patternedValues(patterned)
 	var tensors []gguf.TensorData
 	for _, item := range tinyDeepSeekOCRTensors(patterned) {
 		if strings.HasPrefix(item.Name, "v.sam.") {

@@ -50,11 +50,7 @@ func loadReferenceGolden(t *testing.T, name string, out any) {
 }
 
 func f32of(values []float64) []float32 {
-	out := make([]float32, len(values))
-	for i, v := range values {
-		out[i] = float32(v)
-	}
-	return out
+	return testutil.Float32s(values)
 }
 
 // requireWithin logs the measured diff verbatim and fails past the gate.

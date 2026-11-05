@@ -43,15 +43,7 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 
 	held, let := make(chan struct{}), make(chan struct{})
 	var group sync.WaitGroup
-	group.Go(func() {
-		if err := HoldLaneTurn(func() error {
-			close(held)
-			<-let
-			return nil
-		}); err != nil {
-			t.Error(err)
-		}
-	})
+	group.Go(heldTurn(t, held, let))
 	<-held
 	freed := make(chan struct{})
 	log := freedLog{freed: sync.OnceFunc(func() { close(freed) })}
@@ -105,15 +97,7 @@ func TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn(t *testing.T) {
 
 	held, let := make(chan struct{}), make(chan struct{})
 	var group sync.WaitGroup
-	group.Go(func() {
-		if err := HoldLaneTurn(func() error {
-			close(held)
-			<-let
-			return nil
-		}); err != nil {
-			t.Error(err)
-		}
-	})
+	group.Go(heldTurn(t, held, let))
 	<-held
 	freed := make(chan struct{})
 	log := freedLog{freed: sync.OnceFunc(func() { close(freed) })}

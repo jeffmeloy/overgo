@@ -55,14 +55,7 @@ func TestConfirmationCountsAChargeThatLandsBetweenItsReadings(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	prepared := 0
-	reading := func(documents []string) ([]float64, error) {
-		prepared++
-		differences := make([]float64, len(documents))
-		for index := range differences {
-			differences[index] = 1 + float64(index%2)
-		}
-		return differences, nil
-	}
+	reading := alternatingReading(&prepared)
 	candidate := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, "candidate "+name) }
 	// pooled is a published pool of so many confirmations in a store of its own, with its grant and what counts the grant's charges.
 	pooled := func(confirmations uint64) (artifact.Repository, HeldoutPool, artifact.ID, func() int) {

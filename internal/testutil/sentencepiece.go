@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"os"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // WriteSentencePiece writes a SentencePiece ModelProto holding only the
@@ -22,9 +24,7 @@ func WriteSentencePiece(t testing.TB, path string, pieces []string, unknown int)
 		model = binary.AppendUvarint(append(model, pieceEntry), uint64(len(entry)))
 		model = append(model, entry...)
 	}
-	if err := os.WriteFile(path, model, sentencePieceMode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, model, sentencePieceMode))
 }
 
 const (

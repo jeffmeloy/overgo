@@ -22,11 +22,7 @@ func readGrad(t *testing.T, name string, out any) {
 }
 
 func f32(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
-	}
-	return out
+	return testutil.Float32s(v)
 }
 
 // Wired-component tolerance: a few composed f64-host ops against the

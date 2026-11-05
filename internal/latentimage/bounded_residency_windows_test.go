@@ -12,6 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // finishedRequestBytes bounds what a finished request leaves on the device, the
@@ -32,11 +33,7 @@ func TestMOSSBoundedResidency(t *testing.T) {
 		t.Helper()
 		g, err := LoadGenerator(t.Context(), root, profile, request)
 		testcheck.NoError(t, err)
-		t.Cleanup(func() {
-			if err := g.Close(context.Background()); err != nil {
-				t.Error(err)
-			}
-		})
+		t.Cleanup(testutil.Closer(t, context.Background(), g))
 		return g
 	}
 	stats := func(g *Generator) graphruntime.ResidentStats {

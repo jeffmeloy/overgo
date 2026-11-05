@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
 
@@ -36,9 +37,7 @@ func RequireRoundTrip(t testing.TB, program trainingprogram.TrainingProgram, tra
 	}
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		value, err := artifact.IdentifyBytes(kind, []byte(name))
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		return value
 	}
 	model, rng := id(artifact.KindModel, "model"), id(artifact.KindProfile, "rng")
@@ -57,23 +56,17 @@ func RequireRoundTrip(t testing.TB, program trainingprogram.TrainingProgram, tra
 		t.Fatal(err)
 	}
 	loaded, err := trainingprogram.LoadCheckpoint(target)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if loaded.Optimizer.Step != state.Step || loaded.Optimizer.Config != state.Config || loaded.Optimizer.PlanIdentity != state.PlanIdentity ||
 		!slices.EqualFunc(loaded.Optimizer.Momentum, state.Momentum, func(left, right float64) bool { return math.Float64bits(left) == math.Float64bits(right) }) ||
 		!slices.EqualFunc(loaded.Optimizer.MomentumF32, state.MomentumF32, func(left, right float32) bool { return math.Float32bits(left) == math.Float32bits(right) }) {
 		t.Fatal("the checkpoint's optimizer state differs from the trainer's")
 	}
 	source, err := safetensors.OpenFile(filepath.Join(target, trainingprogram.CheckpointWeights))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer source.Close()
 	catalog, err := source.MaterializeF32(safetensors.F32Selection{RetainShapes: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	parameters := program.Parameters()
 	if len(catalog.Values) != len(parameters) || len(trained) != len(parameters) {
 		t.Fatalf("checkpoint holds %d tensors of %d trained, want the program's %d", len(catalog.Values), len(trained), len(parameters))

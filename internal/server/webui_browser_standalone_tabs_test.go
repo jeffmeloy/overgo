@@ -52,12 +52,7 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 		testcheck.NoError(t, err)
 		t.Cleanup(func() { _ = browser.Close() })
 		check = func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-		settle = func(expression string) {
-			t.Helper()
-			if err := browser.Eventually(ctx, expression); err != nil {
-				t.Fatalf("%s: %v", expression, err)
-			}
-		}
+		settle = browserSettle(t, ctx, browser)
 		settle(`!!document.querySelector('.composer textarea')`)
 		check(`(() => { location.hash = '` + hash + `'; return true; })()`)
 		settle(`!!document.querySelector('#panel-` + hash + `.active')`)

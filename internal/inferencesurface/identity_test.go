@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestRepositoryCountsEveryCapabilityPackage holds the repository's own tree
@@ -48,12 +49,7 @@ func TestRepositoryCountsEveryCapabilityPackage(t *testing.T) {
 // older process answered.
 func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content) }
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/mediacapability/catalog.go", "package mediacapability\n\nimport (\n\t_ \"fixture/internal/capabilityruntime\"\n\t_ \"fixture/internal/picture\"\n\t_ \"fixture/internal/speech\"\n)\n")
 	write("internal/capabilityruntime/runtime.go", "package capabilityruntime\n")
@@ -187,12 +183,7 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 // an evaluation's answers no longer than it did.
 func TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt(t *testing.T) {
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content) }
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/mediacapability/catalog.go", "package mediacapability\n\nimport (\n\t_ \"fixture/internal/capabilityruntime\"\n\t_ \"fixture/internal/speech\"\n)\n")
 	write("internal/capabilityruntime/runtime.go", "package capabilityruntime\n")

@@ -7,19 +7,16 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/testcheck"
 )
 
 // Profile publishes and returns the bootstrap profile.
 func Profile(t testing.TB) scratchmodel.DerivationProfile {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer store.Close()
 	profile, err := scratchmodel.PublishDerivationProfileCatalog(context.Background(), store)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return profile
 }

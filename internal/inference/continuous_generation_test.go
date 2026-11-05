@@ -11,6 +11,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
 
@@ -174,11 +175,7 @@ func TestGenerationFixedBudgetPreservesGreedyAndExplicitStops(t *testing.T) {
 				options: ContinuousGeneratorOptions{MaxSequences: 1}, ctx: ctx, cancel: cancel,
 				submit: make(chan continuousGenerateRequest, 1), done: make(chan struct{})}
 			go generator.run()
-			t.Cleanup(func() {
-				if err := generator.Close(context.WithoutCancel(t.Context())); err != nil {
-					t.Error(err)
-				}
-			})
+			t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), generator))
 			sampler, err := sampling.New(sampling.Config{Temperature: 0})
 			testcheck.NoError(t, err)
 			observed := 0

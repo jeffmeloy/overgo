@@ -33,12 +33,7 @@ func hookedRepository(t *testing.T) (run func(environment []string, arguments ..
 	setup("init", "-q", "-b", "master")
 	setup("config", "user.name", "fixture")
 	setup("config", "user.email", "fixture@example.invalid")
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(repo, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, repo, name, content) }
 	write("code.go", "first\n")
 	setup("add", "-A")
 	setup("commit", "-q", "-m", "first")

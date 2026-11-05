@@ -8,6 +8,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -110,7 +111,5 @@ func fixtureCorpusSpec() Spec {
 
 func fixtureID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	testcheck.NoError(t, err)
-	return id
+	return testutil.ArtifactID(t, kind, value)
 }

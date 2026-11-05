@@ -2,11 +2,11 @@ package gguf
 
 import (
 	"bytes"
-	"encoding/binary"
 	"math"
 	"strings"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/quant"
 	"overgo/internal/testcheck"
 )
@@ -283,11 +283,7 @@ func quantizeFixtureValues(count int) []float32 {
 }
 
 func float32Bytes(values []float32) []byte {
-	result := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(result[index*4:], math.Float32bits(value))
-	}
-	return result
+	return binaryschema.LittleEndian.Float32s(values)
 }
 
 func assertTensorData(

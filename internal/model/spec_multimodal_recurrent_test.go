@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 
 	"math"
 
@@ -596,7 +597,7 @@ func TestReadNormalRoPELongRoPESpecs(t *testing.T) {
 }
 
 func metadata(key string, valueType gguf.ValueType, data any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: valueType, Data: data}}
+	return testutil.Metadata(key, valueType, data)
 }
 
 func graniteMetadata() []gguf.Metadata {

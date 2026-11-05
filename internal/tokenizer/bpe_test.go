@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func TestByteCodecRoundTrip(t *testing.T) {
@@ -297,7 +298,7 @@ func TestLoadDeclaredFIMMetadata(t *testing.T) {
 }
 
 func scalar(key string, kind gguf.ValueType, data any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: kind, Data: data}}
+	return testutil.Metadata(key, kind, data)
 }
 
 func array(key string, kind gguf.ValueType, data any) gguf.Metadata {

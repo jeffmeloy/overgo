@@ -11,6 +11,7 @@ import (
 	"overgo/internal/landing"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestSmallGateLandsAChange holds the small gate to its contract on a fixture
@@ -20,12 +21,7 @@ import (
 func TestSmallGateLandsAChange(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		full := filepath.Join(repo, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
-		testcheck.NoError(t, os.WriteFile(full, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, repo, name, content) }
 	git := func(arguments ...string) string {
 		t.Helper()
 		command := exec.Command("git", arguments...)

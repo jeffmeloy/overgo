@@ -59,13 +59,7 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	land := func(checkout *sliceFixture, reference string) (string, error) {
 		return Run(ctx, Options{Repo: checkout.repo, Ref: reference, Message: message, Log: io.Discard})
 	}
-	holds := func(checkout *sliceFixture, name string) string {
-		data, err := os.ReadFile(filepath.Join(checkout.repo, filepath.FromSlash(name)))
-		if err != nil {
-			return ""
-		}
-		return string(data)
-	}
+	holds := heldFile
 	// working edits the lead's working plan in place, uncommitted.
 	working := func(edit func(*plan.Plan)) {
 		t.Helper()

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"maps"
 	"strings"
 	"testing"
@@ -23,18 +22,8 @@ func TestMiniCPMIFEvalGoParityAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(text string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
-		return id
-	}
-	read := func(id artifact.ID, target any) {
-		t.Helper()
-		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, json.Unmarshal(content.Data, target))
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
+	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
 	var parity struct {
 		ScorerCommit          string            `json:"scorer_commit"`
 		GatePreparation       artifact.ID       `json:"gate_preparation"`

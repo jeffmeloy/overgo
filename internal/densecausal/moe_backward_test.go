@@ -6,17 +6,13 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // tinyMixture builds a deterministic small mixture exercising every gradient
 // family: router, routed experts, shared expert.
 func tinyMixture(seed uint32, hidden, inter, experts int, shared bool) moeWeights {
-	next := func() float32 {
-		seed ^= seed << 13
-		seed ^= seed >> 17
-		seed ^= seed << 5
-		return (float32(seed%2000)/1000 - 1) * 0.3
-	}
+	next := testutil.XorShift(seed)
 	fill := func(n int) []float32 {
 		values := make([]float32, n)
 		for i := range values {

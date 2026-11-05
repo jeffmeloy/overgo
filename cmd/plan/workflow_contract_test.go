@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/worklease"
 )
 
@@ -24,12 +25,7 @@ import (
 func TestScratchModuleWorkflow(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
-	write := func(rel, content string) {
-		t.Helper()
-		full := filepath.Join(parent, filepath.FromSlash(rel))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
-		testcheck.NoError(t, os.WriteFile(full, []byte(content), 0o644))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, parent, name, content) }
 	const marker = "scratch-linked-internal"
 	write("go.mod", "module fixtureparent\n\ngo 1.26\n")
 	write("internal/probe/probe.go", "package probe\n\n// Marker proves the scratch file linked the parent's internal package.\nconst Marker = \""+marker+"\"\n")

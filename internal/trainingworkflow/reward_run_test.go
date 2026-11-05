@@ -225,9 +225,7 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 		if err != nil || len(groups) != 1 || len(groups[0]) != request.Rewards.Draws {
 			return nil, 0, densecausal.TrainState{}, errors.Join(errors.New("the device was not handed one group of the session's draws"), err)
 		}
-		if !slices.ContainsFunc(groups[0], func(sequence densecausal.WeightedSequence) bool {
-			return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
-		}) {
+		if !slices.ContainsFunc(groups[0], densecausal.WeightedSequence.Weighs) {
 			return nil, 1, update.Snapshot(), nil
 		}
 		update.Step()

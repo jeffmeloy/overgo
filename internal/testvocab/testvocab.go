@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/testcheck"
 )
 
 // ForbidVocabularyRedefinition scans one package directory for
@@ -31,9 +33,7 @@ func ForbidVocabularyRedefinition[T ~string](t testing.TB, packageDir string, vo
 		exempt[name] = true
 	}
 	entries, err := os.ReadDir(packageDir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	fileSet := token.NewFileSet()
 	for _, entry := range entries {
 		name := entry.Name()
@@ -41,9 +41,7 @@ func ForbidVocabularyRedefinition[T ~string](t testing.TB, packageDir string, vo
 			continue
 		}
 		syntax, err := parser.ParseFile(fileSet, filepath.Join(packageDir, name), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		ast.Inspect(syntax, func(node ast.Node) bool {
 			spec, ok := node.(*ast.ValueSpec)
 			if !ok {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // WriteImageProfileFixture writes one complete profile-source artifact.
@@ -41,13 +42,9 @@ func WriteImageInventoryFixture(t testing.TB, root string) {
 	WriteImageProfileFixture(t, root)
 	path := filepath.Join(root, "model_index.json")
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	var index map[string]any
-	if err := json.Unmarshal(data, &index); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, json.Unmarshal(data, &index))
 	index["text_encoder_select_layers"] = []int{1}
 	index["is_distilled"], index["patch_size"] = true, imageFixturePatchSize
 	writeJSONFixture(t, path, index)
@@ -62,23 +59,15 @@ func WriteImageInventoryFixture(t testing.TB, root string) {
 		"transformer/diffusion_pytorch_model-00002-of-00002.safetensors": "second",
 	}
 	for file, name := range files {
-		if err := safetensors.Save(filepath.Join(root, filepath.FromSlash(file)), map[string][]float32{name: {1}}, map[string][]int{name: {1}}, nil); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, safetensors.Save(filepath.Join(root, filepath.FromSlash(file)), map[string][]float32{name: {1}}, map[string][]int{name: {1}}, nil))
 	}
 	writeJSONFixture(t, filepath.Join(root, "transformer", "diffusion_pytorch_model.safetensors.index.json"), map[string]any{"weight_map": map[string]string{"first": "diffusion_pytorch_model-00001-of-00002.safetensors", "second": "diffusion_pytorch_model-00002-of-00002.safetensors"}})
 }
 
 func writeJSONFixture(t testing.TB, path string, value any) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
+	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 }

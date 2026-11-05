@@ -35,14 +35,7 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 		{"model": "model:unmeasured", "location": "C:/models/unmeasured.gguf", "present": true, "recipe": "recipe:unmeasured"},
 	}})
 	testcheck.NoError(t, err)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/catalog/models" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(catalog)
-			return
-		}
-		handler.ServeHTTP(w, r)
-	}))
+	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds runs a lane over a module of three packages, in the
@@ -24,12 +25,7 @@ import (
 // verdict names both.
 func TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds(t *testing.T) {
 	root := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content, 0o600) }
 	write("go.mod", "module lanefixture\n\ngo 1.26\n")
 	write("first/first_test.go", "package first\n\nimport \"testing\"\n\nfunc TestFails(t *testing.T) { t.Fatal(\"the answer is 5, want 4\") }\n")
 	write("long/long_test.go", "package long\n\nimport \"testing\"\n\nfunc TestWaits(t *testing.T) { <-t.Context().Done() }\n")

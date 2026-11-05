@@ -88,11 +88,7 @@ func editService(t *testing.T) capabilityruntime.Executor {
 	t.Helper()
 	director, err := editSessions()
 	testcheck.NoError(t, err)
-	t.Cleanup(func() {
-		if err := director.Close(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
+	t.Cleanup(testutil.Closer(t, context.Background(), director))
 	return editExecutor(director, nil)
 }
 

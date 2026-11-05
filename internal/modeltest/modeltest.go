@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -34,16 +35,12 @@ const registeredBound = 4096
 func Directory(t testing.TB, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
 		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
 	directory, err := registeredDirectory(context.Background(), roots.Store, name)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if directory == "" {
 		testskip.NotApplicable(t, "no model registered here is or sits in a location named "+name)
 	}

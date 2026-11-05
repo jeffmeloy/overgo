@@ -456,9 +456,7 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 		var losses []float64
 		skipped := 0
 		for _, group := range groups {
-			if !slices.ContainsFunc(group, func(sequence densecausal.WeightedSequence) bool {
-				return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
-			}) {
+			if !slices.ContainsFunc(group, densecausal.WeightedSequence.Weighs) {
 				skipped++
 				continue
 			}
@@ -723,9 +721,7 @@ func grpoDefinition(dependencies []recipe.Dependency) (recipe.Definition, error)
 		{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
 		{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
 	}
-	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
-	}
+	edge := recipe.Connect
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining, dependencies, nodes,
 		[]recipe.Edge{
@@ -743,9 +739,7 @@ func tokenDefinition(dependencies []recipe.Dependency) (recipe.Definition, error
 		{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
 		{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
 	}
-	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
-	}
+	edge := recipe.Connect
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining, dependencies, nodes,
 		[]recipe.Edge{
@@ -762,9 +756,7 @@ func compositionTrainingDefinition(dependencies []recipe.Dependency) (recipe.Def
 		{ID: "train", Module: workflowrecipe.ModuleTrainBridge, Placement: recipe.PlacementHost},
 		{ID: "evaluate", Module: workflowrecipe.ModuleEvaluateBridge, Placement: recipe.PlacementHost},
 	}
-	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
-	}
+	edge := recipe.Connect
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining, dependencies, nodes,
 		[]recipe.Edge{

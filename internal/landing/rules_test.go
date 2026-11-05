@@ -25,12 +25,7 @@ func TestExportUseCountsConsumers(t *testing.T) {
 	const exported = "package p\n\nfunc New() int { return 1 }\n"
 	const imports = "package q\n\nimport \"overgo/internal/p\"\n\n"
 	const tested = imports + "var value = p.New()\n"
-	snapshot := func(source string) gosyntax.Snapshot {
-		t.Helper()
-		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-		testcheck.NoError(t, err)
-		return result
-	}
+	snapshot := func(source string) gosyntax.Snapshot { return packageSnapshot(t, source) }
 	for _, test := range []struct {
 		name     string
 		files    map[string]string
@@ -122,12 +117,7 @@ func Stable(values []int) { sort.SliceStable(values, func(i, j int) bool { retur
 
 var twice sync.Once
 `
-	snapshot := func(source string) gosyntax.Snapshot {
-		t.Helper()
-		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-		testcheck.NoError(t, err)
-		return result
-	}
+	snapshot := func(source string) gosyntax.Snapshot { return packageSnapshot(t, source) }
 	if findings := newLegacyForms(snapshot(held), snapshot(held)); len(findings) != 0 {
 		t.Fatalf("an unchanged file was refused: %v", findings)
 	}

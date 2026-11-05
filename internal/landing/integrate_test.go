@@ -64,13 +64,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 		landed, err := Run(ctx, Options{Repo: checkout.repo, Ref: reference, Message: message, Log: &said})
 		return landed, said.String(), err
 	}
-	holds := func(checkout *sliceFixture, name string) string {
-		data, err := os.ReadFile(filepath.Join(checkout.repo, filepath.FromSlash(name)))
-		if err != nil {
-			return ""
-		}
-		return string(data)
-	}
+	holds := heldFile
 	rows := func(checkout *sliceFixture) (ids []string) {
 		t.Helper()
 		document, err := plan.Load(checkout.planPath())

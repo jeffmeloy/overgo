@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestMultiHeadAttentionBackwardResidentMatchesPerOp checks the resident GQA
@@ -36,15 +37,7 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 	dQr, dKr, dVr, err := MultiHeadAttentionBackwardResident(worker, q, k, v, dOut, seq, nh, nkv, hd, scale)
 	testcheck.NoError(t, err)
 
-	maxAbs := func(a, b []float32) float64 {
-		var m float64
-		for i := range a {
-			if x := math.Abs(float64(a[i]) - float64(b[i])); x > m {
-				m = x
-			}
-		}
-		return m
-	}
+	maxAbs := testutil.MaxAbsDiff[float32, float32]
 	const tolerance = 1e-4
 	t.Logf("dQ %.3e dK %.3e dV %.3e", maxAbs(dQp, dQr), maxAbs(dKp, dKr), maxAbs(dVp, dVr))
 	for _, c := range []struct {

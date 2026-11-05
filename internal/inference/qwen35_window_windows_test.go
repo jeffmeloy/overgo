@@ -27,13 +27,7 @@ func TestQwen35DraftsVerifyInAWindow(t *testing.T) {
 	// The family's gated-delta geometry, which Strata's verify window holds (TestQwen35GatedDeltaLayersHoldTheWindow).
 	family := qwen35Geometry{embedding: 64, ffn: 64, inner: 256, state: 128, groups: 1, rank: 2, gates: dtype.Q8_0}
 	path := writeQwen35Fixture(t, family, "w", qwen35CellsContext, qwen35CellsWidth, qwen35CellsHeads, qwen35CellsKVHeads)
-	open := func(f32 bool) *Runner {
-		t.Helper()
-		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { _ = runner.Close() })
-		return runner
-	}
+	open := cacheRunnerOpener(t, path)
 	runner, f32 := open(false), open(true)
 	if !runner.windowsDecode() {
 		t.Fatalf("the hybrid over cells %v decodes outside Strata's window verifier", runner.cellLayers)

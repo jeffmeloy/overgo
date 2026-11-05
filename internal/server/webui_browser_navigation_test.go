@@ -18,14 +18,7 @@ func TestWebUIBrowserConversationNavigation(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var state string
-			_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &state)
-			t.Fatalf("%v: %s", err, state)
-		}
-	}
+	settle := browserSettleShowing(t, ctx, browser)
 	testcheck.NoError(t, browser.SetViewport(ctx, 390, 844))
 	settle(`!!document.querySelector('.composer textarea') && document.querySelectorAll('#history-rows .conversation').length===2`)
 	check(`(() => {

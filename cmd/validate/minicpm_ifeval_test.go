@@ -53,18 +53,8 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	parse := func(value string) artifact.ID {
-		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
-		return id
-	}
-	read := func(id artifact.ID, target any) {
-		t.Helper()
-		value, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, json.Unmarshal(value.Data, target))
-	}
+	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
+	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
 	profileID := parse(miniIFEvalProfile)
 	selectionID, found, err := artifact.ResolveAlias(t.Context(), store, "validation/minicpm-ifeval/acquired/"+profileID.DigestHex())
 	if err != nil || !found {
@@ -224,12 +214,7 @@ func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	read := func(id artifact.ID, target any) {
-		t.Helper()
-		value, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, json.Unmarshal(value.Data, target))
-	}
+	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
 	profile, err := artifact.ParseID(miniIFEvalProfile)
 	testcheck.NoError(t, err)
 	resolve := func(prefix string) artifact.ID {

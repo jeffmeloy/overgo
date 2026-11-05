@@ -85,14 +85,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 
 	// prepared counts the readings, and so what was prepared for them.
 	prepared := 0
-	reading := func(documents []string) ([]float64, error) {
-		prepared++
-		differences := make([]float64, len(documents))
-		for index := range differences {
-			differences[index] = 1 + float64(index%2)
-		}
-		return differences, nil
-	}
+	reading := alternatingReading(&prepared)
 	candidate := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, "candidate "+name) }
 	// confirm asks one acceptance for one candidate and holds what the reading ran and what is left.
 	confirm := func(step string, acceptance PoolAcceptance, name string, readings int, left uint64) PoolConfirmation {

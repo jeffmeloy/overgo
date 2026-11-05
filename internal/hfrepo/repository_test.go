@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func TestOpenReadsIdentityCompanionsAndTensors(t *testing.T) {
@@ -64,5 +65,5 @@ func writeSingleTensor(t *testing.T, path string) {
 
 func writeFile(t *testing.T, path string, data string) {
 	t.Helper()
-	testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
+	testutil.WriteTextFile(t, filepath.Dir(path), filepath.Base(path), data, 0o600)
 }

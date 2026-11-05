@@ -37,13 +37,7 @@ func TestQwen35CellsMatchF32Decoding(t *testing.T) {
 	// within them.
 	const promptTokens, steps = 40, 20
 	path := writeHermeticQwen35GGUFShaped(t, "d", qwen35CellsContext, qwen35CellsWidth, qwen35CellsHeads, qwen35CellsKVHeads)
-	open := func(f32 bool) *Runner {
-		t.Helper()
-		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { _ = runner.Close() })
-		return runner
-	}
+	open := cacheRunnerOpener(t, path)
 	cells, f32 := open(false), open(true)
 	if !slices.Equal(cells.cellLayers, []bool{false, false, false, true}) || f32.cellLayers != nil {
 		t.Fatalf("the hybrid holds cells %v, its F32 runner %v; want its attention layer's alone", cells.cellLayers, f32.cellLayers)

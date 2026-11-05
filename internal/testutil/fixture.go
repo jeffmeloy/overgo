@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 )
 
 var Float32LE = binaryschema.LittleEndian.Float32s
@@ -37,9 +38,7 @@ func ArtifactID(t testing.TB, kind artifact.Kind, content string) artifact.ID {
 func ArtifactBytesID(t testing.TB, kind artifact.Kind, content []byte) artifact.ID {
 	t.Helper()
 	id, err := artifact.IdentifyBytes(kind, content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	return id
 }
 
@@ -57,9 +56,7 @@ func PublishArtifact(t testing.TB, repository artifact.Repository, id artifact.I
 func RepoRoot(t testing.TB) string {
 	t.Helper()
 	directory, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	for {
 		if _, err := os.Stat(filepath.Join(directory, "go.mod")); err == nil {
 			return directory
@@ -82,16 +79,12 @@ func FixturePath(t testing.TB, elements ...string) string {
 func WriteTextFile(t testing.TB, root, name, content string, permissions ...fs.FileMode) {
 	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(name))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	mode := fs.FileMode(0o644)
 	if len(permissions) > 0 {
 		mode = permissions[0]
 	}
-	if err := os.WriteFile(path, []byte(content), mode); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, os.WriteFile(path, []byte(content), mode))
 }
 
 type DenseCausalSpec struct {
@@ -192,16 +185,12 @@ func WriteGGUF(
 ) {
 	t.Helper()
 	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	if err := gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, file.Close())
 }
 
 func TempGGUF(

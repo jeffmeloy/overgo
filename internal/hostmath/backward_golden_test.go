@@ -31,11 +31,7 @@ func checkClose(t *testing.T, name string, got []float32, want []float64) {
 }
 
 func f64To32(v []float64) []float32 {
-	out := make([]float32, len(v))
-	for i, x := range v {
-		out[i] = float32(x)
-	}
-	return out
+	return testutil.Float32s(v)
 }
 
 func TestRMSNormBackwardMatchesGolden(t *testing.T) {

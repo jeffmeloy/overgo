@@ -6,15 +6,12 @@ package hostmath
 import (
 	"math"
 	"math/rand"
+	"overgo/internal/testutil"
 	"testing"
 )
 
 func e4bRandVec(rng *rand.Rand, n int, base, s float64) []float32 {
-	v := make([]float32, n)
-	for i := range v {
-		v[i] = float32(base + rng.NormFloat64()*s)
-	}
-	return v
+	return testutil.NormalVectorAbout(rng, n, base, s)
 }
 
 func TestGELUTanhBackwardFiniteDifference(t *testing.T) {

@@ -296,13 +296,7 @@ func TestStatusAnswersDuringALoad(t *testing.T) {
 	testcheck.NoError(t, err)
 	model := Servable{Name: "alpha"}
 	acquired := make(chan error, 2)
-	acquire := func() {
-		lease, err := supervisor.Acquire(t.Context(), model)
-		if lease != nil {
-			lease.Release()
-		}
-		acquired <- err
-	}
+	acquire := acquirer(t, supervisor, model, acquired)
 	go acquire()
 	<-launcher.started
 	if loading, running := supervisor.Status(); !running || loading != model {
@@ -351,13 +345,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 		testcheck.NoError(t, err)
 		defer supervisor.Close()
 		answers := make(chan error, queued+1)
-		acquire := func() {
-			lease, err := supervisor.Acquire(t.Context(), model)
-			if lease != nil {
-				lease.Release()
-			}
-			answers <- err
-		}
+		acquire := acquirer(t, supervisor, model, answers)
 		go acquire()
 		synctest.Wait()
 		for range queued {
@@ -385,13 +373,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 			answers <- err
 		}()
 		synctest.Wait()
-		go func() {
-			lease, err := resumed.Acquire(t.Context(), model)
-			if lease != nil {
-				lease.Release()
-			}
-			answers <- err
-		}()
+		go acquirer(t, resumed, model, answers)()
 		synctest.Wait()
 		cancel()
 		if err := <-answers; !errors.Is(err, context.Canceled) {
@@ -417,13 +399,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 			go func() { _, err := swapped.Acquire(t.Context(), model); refusals <- err }()
 			synctest.Wait()
 			served := make(chan error, 1)
-			go func() {
-				lease, err := swapped.Acquire(t.Context(), other)
-				if lease != nil {
-					lease.Release()
-				}
-				served <- err
-			}()
+			go acquirer(t, swapped, other, served)()
 			go func() { _, err := swapped.Acquire(t.Context(), model); refusals <- err }()
 			synctest.Wait()
 			close(raced.loading)
@@ -449,4 +425,15 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 			testcheck.NoError(t, swapped.Close())
 		}
 	})
+}
+
+// acquirer asks supervisor for model and sends the answer to acquired, releasing any lease it was given.
+func acquirer(t *testing.T, supervisor *Supervisor, model Servable, acquired chan<- error) func() {
+	return func() {
+		lease, err := supervisor.Acquire(t.Context(), model)
+		if lease != nil {
+			lease.Release()
+		}
+		acquired <- err
+	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestReviewSessionRemovesNothing holds the guard to who may run the one
@@ -90,12 +91,7 @@ func TestReviewSessionEditsNothingTracked(t *testing.T) {
 	if output, err := exec.CommandContext(t.Context(), "git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, output)
 	}
-	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
+	write := func(name, content string) { testutil.WriteTextFile(t, root, name, content, 0o600) }
 	write(".gitignore", "tmp/\n"+processlock.StateDirectory+"/\n")
 	write(processlock.StateDirectory+"/"+SessionState("reviewer"), `{"head": "abc123", "facts": [], "review": true}`)
 	write(processlock.StateDirectory+"/"+SessionState("implementer"), `{"head": "abc123", "facts": []}`)

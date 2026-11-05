@@ -24,13 +24,7 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer worker.Close()
 	var pointers []driver.DevicePtr
-	allocate := func(count int, initial []float32) driver.DevicePtr {
-		t.Helper()
-		pointer, err := AllocResidentF32(worker, count, initial)
-		testcheck.NoError(t, err)
-		pointers = append(pointers, pointer)
-		return pointer
-	}
+	allocate := residentAllocation(t, worker, &pointers)
 	allocateRows := func(rows []uint32) driver.DevicePtr {
 		t.Helper()
 		pointer, err := AllocResidentU32(worker, rows)

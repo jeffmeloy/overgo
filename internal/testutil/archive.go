@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testcheck"
 )
 
 const (
@@ -26,14 +27,10 @@ func ExtractTarGzip(t testing.TB, path, digest string) string {
 		t.Fatal("fixture identity", path, err)
 	}
 	f, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer f.Close()
 	gz, err := gzip.NewReader(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, err)
 	defer gz.Close()
 	tr, root := tar.NewReader(gz), t.TempDir()
 	for {
@@ -41,9 +38,7 @@ func ExtractTarGzip(t testing.TB, path, digest string) string {
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		if h.Typeflag != tar.TypeReg || !filepath.IsLocal(h.Name) {
 			t.Fatal("unsafe fixture member", h.Name)
 		}
@@ -52,9 +47,7 @@ func ExtractTarGzip(t testing.TB, path, digest string) string {
 			t.Fatal(err)
 		}
 		out, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fixtureFileMode)
-		if err != nil {
-			t.Fatal(err)
-		}
+		testcheck.NoError(t, err)
 		_, copyErr := io.Copy(out, tr)
 		closeErr := out.Close()
 		if copyErr != nil || closeErr != nil {

@@ -87,13 +87,7 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 		keyDim, valDim := hk*hd, hv*hd
 		rng := rand.New(rand.NewSource(31))
 		// small scale keeps the GDN recurrence well-conditioned for parity.
-		sc := func(n int) []float32 {
-			s := make([]float32, n)
-			for i := range s {
-				s[i] = float32(rng.NormFloat64() * 0.4)
-			}
-			return s
-		}
+		sc := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.4) }
 
 		gdn := hostmath.GatedDeltaMixWeights{
 			Wq: sc(keyDim * H), Wk: sc(keyDim * H), Wv: sc(valDim * H),

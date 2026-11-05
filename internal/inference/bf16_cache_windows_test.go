@@ -98,13 +98,7 @@ func TestTheKeyValueCacheIsStoredInBF16(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeBF16CacheFixture(t)
-	open := func(f32 bool) *Runner {
-		t.Helper()
-		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { _ = runner.Close() })
-		return runner
-	}
+	open := cacheRunnerOpener(t, path)
 	f32Runner, bf16Runner := open(true), open(false)
 	if f32Runner.cacheType != dtype.F32 || bf16Runner.cacheType != dtype.BF16 {
 		t.Fatalf("the runners keep their caches at %s and %s, want F32 and BF16", f32Runner.cacheType, bf16Runner.cacheType)

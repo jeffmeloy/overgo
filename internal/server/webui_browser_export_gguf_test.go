@@ -41,12 +41,7 @@ func TestWebUIBrowserExportGGUF(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	check(`(() => { location.hash = 'export-jobs'; return true; })()`)
 	settle(`[...document.querySelectorAll('#panel-export-jobs.active select[aria-label="capability"] option')].some(option => option.textContent === 'export / hermetic.gguf')`)
 	check(`(() => {

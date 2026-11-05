@@ -30,6 +30,45 @@ type heldoutFixture struct {
 	split     dataset.SplitPlan
 }
 
+// alternatingReading reads each document a difference of 1 and 2 in turn, counting its calls in prepared.
+func alternatingReading(prepared *int) func(documents []string) ([]float64, error) {
+	return func(documents []string) ([]float64, error) {
+		*prepared++
+		differences := make([]float64, len(documents))
+		for index := range differences {
+			differences[index] = 1 + float64(index%2)
+		}
+		return differences, nil
+	}
+}
+
+// heldoutCommit publishes, under key, the batch stage gives for it, with the artifacts declared beside it.
+type heldoutCommit func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID)
+
+// heldoutCommitter commits into store for a test.
+func heldoutCommitter(t *testing.T, store *overgodb.Store) heldoutCommit {
+	return func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
+		t.Helper()
+		batch, err := stage(key)
+		testcheck.NoError(t, err)
+		for _, id := range declared {
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
+		}
+		if _, err := artifact.Publish(t.Context(), store, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// publishObjective commits the fixture's split, its dataset declared beside it, and its objective.
+func (f heldoutFixture) publishObjective(commit heldoutCommit) {
+	commit("test-split", func(key string) (artifact.Batch, error) { return f.split.PublicationBatch(key, nil) }, f.objective.Dataset)
+	commit("test-objective", func(key string) (artifact.Batch, error) {
+		content, err := f.objective.Content()
+		return artifact.Batch{Key: key, Contents: []artifact.Content{content}}, err
+	})
+}
+
 func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) heldoutFixture {
 	t.Helper()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
@@ -283,22 +322,8 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer store.Close()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
-	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
-		t.Helper()
-		batch, err := stage(key)
-		testcheck.NoError(t, err)
-		for _, id := range declared {
-			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
-		}
-		if _, err := artifact.Publish(ctx, store, batch); err != nil {
-			t.Fatal(err)
-		}
-	}
-	commit("test-split", func(key string) (artifact.Batch, error) { return forecast.split.PublicationBatch(key, nil) }, forecast.objective.Dataset)
-	commit("test-objective", func(key string) (artifact.Batch, error) {
-		content, err := forecast.objective.Content()
-		return artifact.Batch{Key: key, Contents: []artifact.Content{content}}, err
-	})
+	commit := heldoutCommitter(t, store)
+	forecast.publishObjective(commit)
 	session := heldoutTraining(t, store, forecast.objective.Dataset, forecast.view.TrainingMembership)
 	spec := forecast.objective.ObjectiveSpec
 	spec.Evidence = append(slices.Clone(spec.Evidence), session.Observation)

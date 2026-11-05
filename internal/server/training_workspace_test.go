@@ -482,7 +482,7 @@ func linearTrainingDefinition(dependencies []recipe.Dependency, nodes []recipe.N
 }
 
 func trainingEdge(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-	return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
+	return recipe.Connect(fromNode, fromPort, toNode, toPort)
 }
 
 type testReporter struct{ id artifact.ID }

@@ -39,12 +39,7 @@ func TestAGGUFNothingRecordsResolvesFromItsFile(t *testing.T) {
 		testcheck.NoError(t, err)
 		return identity, state, policy
 	}
-	open := func(t *testing.T) artifact.Repository {
-		t.Helper()
-		store := openProgramStore(t)
-		t.Cleanup(func() { store.Close() })
-		return store
-	}
+	open := openedProgramStore
 	t.Run("nothing recorded", func(t *testing.T) {
 		t.Parallel()
 		identity, state, policy := resolve(t, open(t))

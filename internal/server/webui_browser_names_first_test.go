@@ -32,14 +32,7 @@ func TestWebUIBrowserNamesFirst(t *testing.T) {
 		entry("model:solo", "C:/models/solo.gguf"),
 	}})
 	testcheck.NoError(t, err)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/catalog/models" {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(catalog)
-			return
-		}
-		handler.ServeHTTP(w, r)
-	}))
+	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#library")
 	defer browser.Close()

@@ -37,12 +37,7 @@ func TestWebUIBrowserModelMerge(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	check(`(() => { location.hash = 'model-builder'; return true; })()`)
 	settle(`[...document.querySelectorAll('#panel-model-builder.active select[aria-label="capability"] option')].some(option => option.textContent === 'merge / hermetic.gguf')`)
 	check(`(() => {

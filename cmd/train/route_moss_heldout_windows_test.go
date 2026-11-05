@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestAPictureIsHeldOutByItsBytes: a held-out picture that is a copy of a trained one under another name is refused, naming
@@ -42,8 +43,7 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 	root, manifest := mossRouteFixture(t)
 	directory := filepath.Dir(manifest)
 	write := func(path, content string) {
-		t.Helper()
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		testutil.WriteTextFile(t, filepath.Dir(path), filepath.Base(path), content, 0o600)
 	}
 	const unreadable = "no picture"
 	write(filepath.Join(directory, "picture-0.png"), unreadable)

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/checkpointtest"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 
 	"overgo/internal/tensor/dtype"
@@ -15,12 +16,7 @@ import (
 func tinyFlowHead(hidden, flowDim int) (FlowPlan, FlowMLPWeights) {
 	plan := FlowPlan{Hidden: hidden, FlowDim: flowDim, TEps: 1e-3}
 	seed := uint32(362436069)
-	next := func() float32 {
-		seed ^= seed << 13
-		seed ^= seed >> 17
-		seed ^= seed << 5
-		return (float32(seed%2000)/1000 - 1) * 0.3
-	}
+	next := testutil.XorShift(seed)
 	bf16 := func(n int) []uint16 {
 		values := make([]uint16, n)
 		for i := range values {

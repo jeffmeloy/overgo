@@ -3,7 +3,6 @@
 package devicemath
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 	"unsafe"
@@ -14,6 +13,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestGDNForwardMatchesKernel pins hostmath.GatedDeltaNetForward against the
@@ -27,13 +27,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 
 	const size, qHeads, kHeads, heads, tokens, seqs, gateWidth = 8, 2, 2, 2, 4, 1, 1
 	rng := rand.New(rand.NewSource(19))
-	rs := func(n int) []float32 {
-		s := make([]float32, n)
-		for i := range s {
-			s[i] = float32(rng.NormFloat64() * 0.3)
-		}
-		return s
-	}
+	rs := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.3) }
 	query := rs(size * qHeads * tokens * seqs)
 	key := rs(size * kHeads * tokens * seqs)
 	value := rs(size * heads * tokens * seqs)
@@ -104,15 +98,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 	})
 	testcheck.NoError(t, err)
 
-	maxAbs := func(a, b []float32) float64 {
-		var m float64
-		for i := range a {
-			if d := math.Abs(float64(a[i]) - float64(b[i])); d > m {
-				m = d
-			}
-		}
-		return m
-	}
+	maxAbs := testutil.MaxAbsDiff[float32, float32]
 	outDiff := maxAbs(wantOut, out[:attn])
 	stateDiff := maxAbs(wantState, out[attn:])
 	t.Logf("GDN forward: output |dev-host| %.3e, final-state %.3e", outDiff, stateDiff)
@@ -133,15 +119,7 @@ func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer worker.Close()
 
-	maxAbs := func(a, b []float32) float64 {
-		var m float64
-		for i := range a {
-			if d := math.Abs(float64(a[i]) - float64(b[i])); d > m {
-				m = d
-			}
-		}
-		return m
-	}
+	maxAbs := testutil.MaxAbsDiff[float32, float32]
 
 	cases := []struct {
 		name                                                 string
@@ -155,13 +133,7 @@ func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(1009 + tc.size + tc.heads)))
-			rs := func(n int) []float32 {
-				s := make([]float32, n)
-				for i := range s {
-					s[i] = float32(rng.NormFloat64() * 0.3)
-				}
-				return s
-			}
+			rs := func(n int) []float32 { return testutil.NormalVector(rng, n, 0.3) }
 			query := rs(tc.size * tc.qHeads * tc.tokens * tc.seqs)
 			key := rs(tc.size * tc.kHeads * tc.tokens * tc.seqs)
 			value := rs(tc.size * tc.heads * tc.tokens * tc.seqs)

@@ -64,13 +64,7 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 	want, err := AttentionCoreBackward(worker, q, k, v, probability, dOut, seq, headDim, scale)
 	testcheck.NoError(t, err)
 	var pointers []driver.DevicePtr
-	allocate := func(count int, initial []float32) driver.DevicePtr {
-		t.Helper()
-		pointer, err := AllocResidentF32(worker, count, initial)
-		testcheck.NoError(t, err)
-		pointers = append(pointers, pointer)
-		return pointer
-	}
+	allocate := residentAllocation(t, worker, &pointers)
 	defer func() {
 		if err := FreeResident(worker, pointers...); err != nil {
 			t.Error(err)
@@ -131,20 +125,7 @@ func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 	}
 	const eps = 1e-3
 	gradCheck := func(name string, param, analytic []float32) float64 {
-		var maxDiff float64
-		for i := range param {
-			orig := param[i]
-			param[i] = orig + float32(eps)
-			lp := loss()
-			param[i] = orig - float32(eps)
-			lm := loss()
-			param[i] = orig
-			if diff := math.Abs((lp-lm)/(2*eps) - float64(analytic[i])); diff > maxDiff {
-				maxDiff = diff
-			}
-		}
-		t.Logf("%s: max |grad-fd| %.3e", name, maxDiff)
-		return maxDiff
+		return finiteDifference(t, name, param, analytic, eps, loss)
 	}
 	const tolerance = 3e-3
 	worstScore := 0.0

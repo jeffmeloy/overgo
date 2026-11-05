@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"os"
 	"os/exec"
@@ -14,6 +13,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/worklease"
 )
 
@@ -82,9 +82,7 @@ func editedPlan(t *testing.T, root string) plan.Plan {
 // steps whole.
 func rendered(t *testing.T, value any) string {
 	t.Helper()
-	data, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	return string(data)
+	return testutil.JSON(t, value)
 }
 
 // rowIDs are the ids of a plan's rows in order.

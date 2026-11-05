@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"overgo/internal/agentloop"
@@ -42,7 +41,7 @@ type stepCoordinator interface {
 }
 
 func main() {
-	clioptions.MainNamed("agent-loop", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("agent-loop", run)
 }
 
 func run(args []string, output io.Writer) error {

@@ -21,10 +21,20 @@ const repeatLeast = 20
 // wait for a shared home inside the surface.
 const repeatCeiling = 334
 
-// bodyShape writes a body as the checker reads it, with each local variable named by the order it first appears, so
-// two bodies that differ only in the names of their locals have one shape: each node's kind, each operator and literal,
-// each name that is not a local's.
-func bodyShape(body ast.Node, info *types.Info) (shape string, nodes int) {
+// parameterLeast is the most values two bodies of one skeleton may differ in and still be one repeat with those values
+// as its parameters.
+const parameterLeast = 3
+
+// parameterCeiling is the most syntax nodes the production bodies outside the inference surface may repeat beyond one
+// copy of each, among bodies that differ in a value or more and at most parameterLeast: what
+// compact-production/param-folds-outside left, repeats over different types or report fields, which a helper would
+// not shorten.
+const parameterCeiling = 1945
+
+// bodyShape reads a body as the checker resolves it: its skeleton, each node's kind and each operator, with each local
+// variable named by the order it first appears and each literal and each other name a hole; and the values that fill
+// the holes, in order. Two bodies that differ only in their locals' names have one skeleton and one list of values.
+func bodyShape(body ast.Node, info *types.Info) (skeleton string, values []string, nodes int) {
 	var out strings.Builder
 	locals := map[types.Object]int{}
 	ast.Inspect(body, func(node ast.Node) bool {
@@ -48,10 +58,12 @@ func bodyShape(body ast.Node, info *types.Info) (shape string, nodes int) {
 				}
 				out.WriteString(" L" + strconv.Itoa(order))
 			} else {
-				out.WriteString(" " + typed.Name)
+				out.WriteString(" ?")
+				values = append(values, typed.Name)
 			}
 		case *ast.BasicLit:
-			out.WriteString(" " + typed.Value)
+			out.WriteString(" ?")
+			values = append(values, typed.Value)
 		case *ast.BinaryExpr:
 			out.WriteString(" " + typed.Op.String())
 		case *ast.UnaryExpr:
@@ -65,13 +77,19 @@ func bodyShape(body ast.Node, info *types.Info) (shape string, nodes int) {
 		}
 		return true
 	})
-	return out.String(), nodes
+	return out.String(), values, nodes
 }
 
-// productionRepeats groups the function and closure bodies of the module's linked packages, outside generated files
-// and outside inside, by shape, and returns each shape that more than one body has with where they stand, and the
-// nodes repeated beyond one copy of each.
-func productionRepeats(t *testing.T, root string, inside func(directory string) bool) ([][]string, int) {
+// bodySite is one body of repeatLeast nodes or more: where it stands, its nodes and the values its skeleton holds.
+type bodySite struct {
+	at     string
+	nodes  int
+	values []string
+}
+
+// productionBodies reads the function and closure bodies of repeatLeast nodes or more of the module's linked packages,
+// outside generated files and outside inside, by skeleton.
+func productionBodies(t *testing.T, root string, inside func(directory string) bool) map[string][]bodySite {
 	t.Helper()
 	load, err := loadModule(t.Context(), root)
 	if err != nil {
@@ -85,11 +103,7 @@ func productionRepeats(t *testing.T, root string, inside func(directory string) 
 			}
 		}
 	}
-	type site struct {
-		at    string
-		nodes int
-	}
-	shapes := map[string][]site{}
+	skeletons := map[string][]bodySite{}
 	for importPath, checked := range load.module {
 		directory, _ := filepath.Rel(load.root, checked.listed.Dir)
 		if !linked[importPath] || inside(filepath.ToSlash(directory)) {
@@ -110,63 +124,122 @@ func productionRepeats(t *testing.T, root string, inside func(directory string) 
 				if body == nil {
 					return true
 				}
-				if shape, nodes := bodyShape(body, checked.info); nodes >= repeatLeast {
+				if skeleton, values, nodes := bodyShape(body, checked.info); nodes >= repeatLeast {
 					place := load.fset.Position(body.Pos())
 					relative, _ := filepath.Rel(load.root, place.Filename)
-					shapes[shape] = append(shapes[shape], site{fmt.Sprintf("%s:%d", filepath.ToSlash(relative), place.Line), nodes})
+					skeletons[skeleton] = append(skeletons[skeleton], bodySite{fmt.Sprintf("%s:%d", filepath.ToSlash(relative), place.Line), nodes, values})
 				}
 				return true
 			})
 		}
 	}
+	return skeletons
+}
+
+// differing counts the values two bodies of one skeleton differ in.
+func differing(left, right []string) int {
+	count := 0
+	for index := range left {
+		if left[index] != right[index] {
+			count++
+		}
+	}
+	return count
+}
+
+// bodyRepeats groups the bodies of each skeleton into repeats: with most = 0 those of one list of values, and with most
+// above it those whose values differ from the first of their group's in a value or more and at most most, a group
+// whose values are all one counted with no parameter. It returns each repeat with where its bodies stand, and the nodes
+// repeated beyond one copy of each.
+func bodyRepeats(skeletons map[string][]bodySite, most int) ([][]string, int) {
 	var groups [][]string
 	repeated := 0
-	for _, sites := range shapes {
-		if len(sites) < 2 {
-			continue
+	for _, sites := range skeletons {
+		var open [][]bodySite
+		for _, site := range sites {
+			at := slices.IndexFunc(open, func(group []bodySite) bool { return differing(group[0].values, site.values) <= most })
+			if at < 0 {
+				open = append(open, []bodySite{site})
+			} else {
+				open[at] = append(open[at], site)
+			}
 		}
-		repeated += (len(sites) - 1) * sites[0].nodes
-		var at []string
-		for _, held := range sites {
-			at = append(at, held.at)
+		for _, group := range open {
+			parameters := slices.ContainsFunc(group[1:], func(site bodySite) bool { return differing(group[0].values, site.values) > 0 })
+			if len(group) < 2 || most > 0 && !parameters {
+				continue
+			}
+			repeated += (len(group) - 1) * group[0].nodes
+			named := []string{strconv.Itoa(group[0].nodes)}
+			for _, site := range group {
+				named = append(named, site.at)
+			}
+			slices.Sort(named[1:])
+			groups = append(groups, named)
 		}
-		slices.Sort(at)
-		groups = append(groups, append([]string{strconv.Itoa(sites[0].nodes)}, at...))
 	}
 	slices.SortFunc(groups, func(a, b []string) int { return strings.Compare(a[1], b[1]) })
 	return groups, repeated
 }
 
-// TestRepeatedProductionBodiesStayUnderTheirCeiling holds the repeats of production code outside the inference surface
-// to repeatCeiling, so a copy folded into one place does not come back: a function or closure body of repeatLeast
-// nodes or more that another has, once their locals' names are set aside, counts its nodes for each copy beyond the
-// first. A fixture module pins the reading: two bodies that differ in their locals' names are one shape, a body that
-// calls another package's function is another, and a smaller body is no repeat.
-func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
-	t.Parallel()
-	const body = "\tvar sum int\n\tfor _, each := range %s {\n\t\tif each > %d {\n\t\t\tsum += each * each\n\t\t}\n\t}\n\treturn sum\n"
-	fixture := fixtureModule(t, map[string]string{
-		"cmd/tool/main.go": "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() { println(lib.A(nil), lib.B(nil), lib.C(nil), lib.D(nil)) }\n",
-		"internal/lib/lib.go": "package lib\n\n" +
-			"func A(values []int) int {\n" + fmt.Sprintf(body, "values", 1) + "}\n\n" +
-			"func B(numbers []int) int {\n" + fmt.Sprintf(body, "numbers", 1) + "}\n\n" +
-			"func C(values []int) int {\n" + fmt.Sprintf(body, "values", 2) + "}\n\n" +
-			"func D(values []int) int { return len(values) }\n",
-	})
-	groups, repeated := productionRepeats(t, fixture, func(string) bool { return false })
-	if len(groups) != 1 || !slices.Equal(groups[0][1:], []string{"internal/lib/lib.go:13", "internal/lib/lib.go:3"}) || repeated == 0 {
-		t.Fatalf("the fixture's repeats are %q (%d nodes beyond one copy), want A and B alone, which differ in their locals' names", groups, repeated)
-	}
-
-	inside := surfaceDirectories(t)
-	groups, repeated = productionRepeats(t, checkoutRoot, func(directory string) bool { return inside[directory] })
+// holdCeiling refuses repeated nodes over ceiling, and under it, since a ceiling only falls, logging each repeat.
+func holdCeiling(t *testing.T, kind string, groups [][]string, repeated, ceiling int) {
+	t.Helper()
 	for _, group := range groups {
 		t.Logf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
 	}
-	if repeated > repeatCeiling {
-		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each body, over the ceiling of %d, so fold the copy into the body it repeats", repeated, repeatCeiling)
+	if repeated > ceiling {
+		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each %s, over the ceiling of %d, so fold the copy into the body it repeats", repeated, kind, ceiling)
 	}
-	if repeated < repeatCeiling {
-		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each body, under the ceiling of %d, so lower repeatCeiling to %d, since the ceiling only falls", repeated, repeatCeiling, repeated)
+	if repeated < ceiling {
+		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each %s, under the ceiling of %d, so lower the ceiling to %d, since it only falls", repeated, kind, ceiling, repeated)
 	}
+}
+
+// repeatFixture is a module of bodies of one skeleton: A and B differ only in their locals' names, C from A in one
+// literal and D from A in four, and E is too small to count.
+func repeatFixture(t *testing.T) string {
+	t.Helper()
+	const body = "\tvar sum int\n\tfor _, each := range %s {\n\t\tif each > %d && each < %d && each != %d && each != %d {\n\t\t\tsum += each * each\n\t\t}\n\t}\n\treturn sum\n"
+	return fixtureModule(t, map[string]string{
+		"cmd/tool/main.go": "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() { println(lib.A(nil), lib.B(nil), lib.C(nil), lib.D(nil), lib.E(nil)) }\n",
+		"internal/lib/lib.go": "package lib\n\n" +
+			"func A(values []int) int {\n" + fmt.Sprintf(body, "values", 1, 9, 3, 5) + "}\n\n" +
+			"func B(numbers []int) int {\n" + fmt.Sprintf(body, "numbers", 1, 9, 3, 5) + "}\n\n" +
+			"func C(values []int) int {\n" + fmt.Sprintf(body, "values", 2, 9, 3, 5) + "}\n\n" +
+			"func D(values []int) int {\n" + fmt.Sprintf(body, "values", 2, 8, 4, 6) + "}\n\n" +
+			"func E(values []int) int { return len(values) }\n",
+	})
+}
+
+// TestRepeatedProductionBodiesStayUnderTheirCeiling holds the repeats of production code outside the inference surface
+// to repeatCeiling, so a copy folded into one place does not come back: a function or closure body of repeatLeast
+// nodes or more that another has, once their locals' names are set aside, counts its nodes for each copy beyond the
+// first. A fixture module pins the reading: two bodies that differ in their locals' names are one repeat, and a body
+// that differs in a literal, or one too small, is none.
+func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
+	t.Parallel()
+	groups, repeated := bodyRepeats(productionBodies(t, repeatFixture(t), func(string) bool { return false }), 0)
+	if len(groups) != 1 || !slices.Equal(groups[0][1:], []string{"internal/lib/lib.go:13", "internal/lib/lib.go:3"}) || repeated == 0 {
+		t.Fatalf("the fixture's repeats are %q (%d nodes beyond one copy), want A and B alone, which differ in their locals' names", groups, repeated)
+	}
+	inside := surfaceDirectories(t)
+	groups, repeated = bodyRepeats(productionBodies(t, checkoutRoot, func(directory string) bool { return inside[directory] }), 0)
+	holdCeiling(t, "body", groups, repeated, repeatCeiling)
+}
+
+// TestParameterRepeatsStayUnderTheirCeiling holds the repeats of production code outside the inference surface that
+// differ in a value or more and at most parameterLeast to parameterCeiling: bodies of one skeleton whose literals and
+// names other than their locals differ in that many places, which one body with those values as its parameters would
+// hold. A fixture module pins the reading: a body that differs from another in one literal is a repeat of it, and one
+// that differs in four is none.
+func TestParameterRepeatsStayUnderTheirCeiling(t *testing.T) {
+	t.Parallel()
+	groups, repeated := bodyRepeats(productionBodies(t, repeatFixture(t), func(string) bool { return false }), parameterLeast)
+	if len(groups) != 1 || !slices.Equal(groups[0][1:], []string{"internal/lib/lib.go:13", "internal/lib/lib.go:23", "internal/lib/lib.go:3"}) || repeated == 0 {
+		t.Fatalf("the fixture's parameter repeats are %q (%d nodes beyond one copy), want A, B and C, which differ in at most one value, and not D, which differs in four", groups, repeated)
+	}
+	inside := surfaceDirectories(t)
+	groups, repeated = bodyRepeats(productionBodies(t, checkoutRoot, func(directory string) bool { return inside[directory] }), parameterLeast)
+	holdCeiling(t, "parameterised body", groups, repeated, parameterCeiling)
 }

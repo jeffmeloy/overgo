@@ -74,20 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 7025,
-        "reason": "exact-folds-outside measured at -611 production nodes, against about -905 estimated: the folds a helper shortens, with the repeats over different types left under the ceiling."
+        "nodes": 7158,
+        "reason": "param-folds-outside measured at -133 production nodes, against about -1,893 estimated: most bodies of one skeleton differ in types, report fields or result types, which a helper would not shorten, and stay under the ceiling."
       },
       "steps": [
-        {
-          "id": "param-folds-outside",
-          "title": "Fold repeats of at most three parameters outside the surface",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestParameterRepeatsStayUnderTheirCeiling$'",
-          "rationale": "43 folds plus 2 near clusters, about 1,893 net. Largest: evaluation's report publish (internal/evaluation/carried_continuation.go:180, 9 sites) and the compile*TargetPlan trio (internal/evaluation/media_target.go:143). A fold can change error text that a test matches.\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes.\nBatch: evaluation lane.",
-          "depends_on": [
-            "compact-production/exact-folds-outside"
-          ]
-        },
         {
           "id": "test-held-deletions",
           "title": "Delete the test-held entries the record says go",

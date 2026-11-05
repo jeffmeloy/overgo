@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
@@ -17,7 +16,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("profile-catalog", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("profile-catalog", run)
 }
 
 func run(args []string, output io.Writer) error {

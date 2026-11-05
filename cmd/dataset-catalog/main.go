@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -23,7 +22,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("dataset-catalog", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("dataset-catalog", run)
 }
 
 func run(args []string, output io.Writer) error {

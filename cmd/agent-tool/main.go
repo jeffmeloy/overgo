@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("agent-tool", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("agent-tool", run)
 }
 
 type manualFile struct {
@@ -198,7 +198,7 @@ func run(args []string, output io.Writer) error {
 	defer store.Close()
 	if strings.TrimSpace(*argvAllow) != "" {
 		var programs []string
-		for _, program := range strings.Split(*argvAllow, ",") {
+		for program := range strings.SplitSeq(*argvAllow, ",") {
 			if trimmed := strings.TrimSpace(program); trimmed != "" {
 				programs = append(programs, trimmed)
 			}

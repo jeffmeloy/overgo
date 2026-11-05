@@ -31,7 +31,7 @@ import (
 var materializeCandidateTrial = controlleraction.MaterializeCandidateTrial
 
 func main() {
-	clioptions.MainNamed("controller-action", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("controller-action", run)
 }
 
 func run(args []string, output io.Writer) error {

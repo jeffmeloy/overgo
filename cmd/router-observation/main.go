@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("router-observation", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("router-observation", run)
 }
 
 func run(args []string, output io.Writer) error {

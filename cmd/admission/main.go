@@ -37,7 +37,7 @@ type mechanismCandidateSpecification struct {
 }
 
 func main() {
-	clioptions.MainNamed("admission", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("admission", run)
 }
 
 func run(args []string, output io.Writer) error {

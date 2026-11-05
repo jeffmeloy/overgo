@@ -51,7 +51,7 @@ var mechanismEvidenceRoles = [...]trainingprogram.MechanismEvidenceRole{
 }
 
 func main() {
-	clioptions.MainNamed("mechanism-census", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("mechanism-census", run)
 }
 
 func run(args []string, output io.Writer) error {

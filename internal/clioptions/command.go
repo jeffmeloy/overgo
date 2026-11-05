@@ -7,10 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"overgo/internal/fsatomic"
@@ -161,6 +163,26 @@ func MainNamed(name string, run func() error) {
 		}
 		return nil
 	})
+}
+
+// MainWithArguments runs a command as MainNamed does, run reading the process's arguments after the command's name and
+// writing to its standard output.
+func MainWithArguments(name string, run func(args []string, output io.Writer) error) {
+	MainNamed(name, func() error { return run(os.Args[1:], os.Stdout) })
+}
+
+// RunSubcommand dispatches args, the subcommand's name and then its flags and arguments, to the named tool of command,
+// which parses its flags on a set named for it.
+func RunSubcommand(command string, subcommands map[string]func(flags *flag.FlagSet, args []string) error, args []string) error {
+	names := strings.Join(slices.Sorted(maps.Keys(subcommands)), ", ")
+	if len(args) == 0 {
+		return fmt.Errorf("%s needs a subcommand: %s", command, names)
+	}
+	run, known := subcommands[args[0]]
+	if !known {
+		return fmt.Errorf("%s %q is not a subcommand; subcommands: %s", command, args[0], names)
+	}
+	return run(flag.NewFlagSet(command+" "+args[0], flag.ContinueOnError), args[1:])
 }
 
 // Tail bounds diagnostic output while retaining its most recent bytes.

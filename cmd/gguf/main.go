@@ -7,11 +7,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"maps"
 	"os"
-	"slices"
-	"strings"
 
 	"overgo/internal/clioptions"
 )
@@ -38,13 +34,5 @@ func main() {
 // runSubcommand dispatches args (the subcommand name, then its flags and
 // arguments) to the named tool, parsing its flags on a set named for it.
 func runSubcommand(args []string) error {
-	names := strings.Join(slices.Sorted(maps.Keys(subcommands)), ", ")
-	if len(args) == 0 {
-		return fmt.Errorf("gguf needs a subcommand: %s", names)
-	}
-	command, known := subcommands[args[0]]
-	if !known {
-		return fmt.Errorf("gguf %q is not a subcommand; subcommands: %s", args[0], names)
-	}
-	return command(flag.NewFlagSet("gguf "+args[0], flag.ContinueOnError), args[1:])
+	return clioptions.RunSubcommand("gguf", subcommands, args)
 }

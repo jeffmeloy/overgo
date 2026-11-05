@@ -71,15 +71,8 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	inputs := uniqueIDs(transcriber.model, request.Transcription, binding.Dataset, binding.Split,
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile, inspection.SignalID, inspection.PolicyID, inspection.DecisionID)
 	fail := func(code string, cause error) (recipecontract.TimestampedAlignment, runrecord.Run, error) {
-		if ctx.Err() != nil {
-			return recipecontract.TimestampedAlignment{}, runrecord.Run{}, cause
-		}
-		measured := walls.Elapsed(started)
-		if err := walls.Err; err != nil {
-			return recipecontract.TimestampedAlignment{}, runrecord.Run{}, errors.Join(cause, err)
-		}
-		run, err := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, measured, phases)
-		return recipecontract.TimestampedAlignment{}, run, errors.Join(cause, err)
+		run, err := transcriber.failedRun(ctx, binding, inputs, code, started, &walls, phases, cause)
+		return recipecontract.TimestampedAlignment{}, run, err
 	}
 	requestContent, err := artifact.JSONContent(alignmentRequestContract, request)
 	if err != nil {

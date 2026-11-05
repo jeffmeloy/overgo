@@ -420,16 +420,22 @@ func persistSpeechRun(ctx context.Context, repository artifact.Repository, defin
 }
 
 func (transcriber *transcriptionModel) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started processmeasure.Stopwatch, walls *processmeasure.Walls, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
+	run, err := transcriber.failedRun(ctx, binding, inputs, failure, started, walls, phases, executionErr)
+	return recipecontract.Transcription{}, run, err
+}
+
+// failedRun records a run that failed under failure, with what it measured, and returns it with the cause; a run whose
+// context ended, or whose walls could not be read, records nothing.
+func (transcriber *transcriptionModel) failedRun(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started processmeasure.Stopwatch, walls *processmeasure.Walls, phases []runrecord.PhaseMetric, cause error) (runrecord.Run, error) {
 	if ctx.Err() != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, executionErr
+		return runrecord.Run{}, cause
 	}
 	measured := walls.Elapsed(started)
 	if err := walls.Err; err != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, errors.Join(executionErr, err)
+		return runrecord.Run{}, errors.Join(cause, err)
 	}
-	run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
-		failure, measured, phases)
-	return recipecontract.Transcription{}, run, errors.Join(executionErr, runErr)
+	run, err := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil, failure, measured, phases)
+	return run, errors.Join(cause, err)
 }
 
 func completedTranscriptionPhases(decode, prepare, prefill, postprocess uint64) []runrecord.PhaseMetric {

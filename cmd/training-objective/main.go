@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -37,7 +36,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("training-objective", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainWithArguments("training-objective", run)
 }
 
 func run(args []string, output io.Writer) error {

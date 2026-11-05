@@ -55,7 +55,7 @@ func TestQuantizedBaseHoldsNoFullSizeWeightGradients(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, grads, err := second.MaskedLossAndGradsOf(periodic, nil, reference.adapted)
+	_, grads, err := second.MaskedLossAndLayerGradsOf(periodic, nil, reference.adapted, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

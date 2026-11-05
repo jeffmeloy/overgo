@@ -75,9 +75,9 @@ func TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead(t *testing.T) {
 }
 
 // TestMaskedLossWithoutAMaskIsTheLossOfEveryToken holds the contract of a nil
-// mask, that it learns every token as LossAndGradsOf does, to the bit: the
-// same loss and the same gradients, so a run that masks nothing keeps the
-// retained-logits path and its numbers.
+// mask, that it learns every token as a mask of every token does, to the bit:
+// the same loss and the same gradients, so a run that masks nothing keeps the
+// retained-logits path and the numbers of the masked one.
 func TestMaskedLossWithoutAMaskIsTheLossOfEveryToken(t *testing.T) {
 	t.Parallel()
 	model, err := LoadGGUF(testutil.QuantizedDenseGGUF(t, 1))
@@ -86,11 +86,11 @@ func TestMaskedLossWithoutAMaskIsTheLossOfEveryToken(t *testing.T) {
 	}
 	tokens := []int{3, 4, 5, 6, 7, 4, 5, 6}
 	train := func(name string) bool { return strings.Contains(name, "layers.0.") }
-	want, wantGrads, err := model.LossAndGradsOf(tokens, train)
+	want, wantGrads, err := model.MaskedLossAndLayerGradsOf(tokens, slices.Repeat([]bool{true}, len(tokens)), train, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, gotGrads, err := model.MaskedLossAndGradsOf(tokens, nil, train)
+	got, gotGrads, err := model.MaskedLossAndLayerGradsOf(tokens, nil, train, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestMaskedLossWithoutAMaskIsTheLossOfEveryToken(t *testing.T) {
 	}
 	for name, gradient := range wantGrads {
 		if !slices.Equal(gotGrads[name], gradient) {
-			t.Fatalf("%s: the gradient of an unmasked run differs from LossAndGradsOf", name)
+			t.Fatalf("%s: the gradient of an unmasked run differs from a run that masks in every token", name)
 		}
 	}
 }

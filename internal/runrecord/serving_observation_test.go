@@ -128,6 +128,8 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 	}
 }
 
+// TestServingAttemptChainClassifiesRetryReselectionAndSpillover holds the chain of serving attempts: a retry of a
+// failed attempt is published after it, and a second attempt of the same ordinal, a branch, is refused.
 func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -148,7 +150,7 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 		t.Fatal(err)
 	}
 	first, err = PublishServingObservation(ctx, store, first)
-	if err != nil || first.AttemptKind(nil) != servingAttemptPrimary {
+	if err != nil {
 		t.Fatalf("primary attempt = (%+v, %v)", first, err)
 	}
 	next := func(recipeID artifact.ID, compatibilityID artifact.ID) ServingObservation {
@@ -161,17 +163,10 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 	}
 	retry := next(first.Recipe, artifact.ID{})
 	retry, err = PublishServingObservation(ctx, store, retry)
-	if err != nil || retry.AttemptKind(&first) != servingAttemptRetry {
+	if err != nil || retry.Previous != first.ID || retry.Attempt != first.Attempt+1 {
 		t.Fatalf("retry attempt = (%+v, %v)", retry, err)
 	}
-	reselection := next(alternateRecipe, artifact.ID{})
-	if reselection.AttemptKind(&first) != servingAttemptReselection {
-		t.Fatalf("reselection kind = %q", reselection.AttemptKind(&first))
-	}
 	spillover := next(alternateRecipe, compatibility)
-	if spillover.AttemptKind(&first) != ServingAttemptSpillover {
-		t.Fatalf("spillover kind = %q", spillover.AttemptKind(&first))
-	}
 	if _, err := PublishServingObservation(ctx, store, spillover); err == nil {
 		t.Fatal("branched serving attempt accepted")
 	}

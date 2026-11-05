@@ -134,38 +134,3 @@ func GrantEffectAdmission(grant recipe.AgentCapabilityGrant) agenttool.EffectAdm
 		return nil
 	}
 }
-
-// ResolveObligation records exact-scope evidence against one open
-// obligation and reports whether the full acceptance set is now satisfied
-// at the resolved mutation epoch. Absence of a resolution stays open;
-// nothing here infers success.
-func (runtime *DelegatedCapabilityRuntime) ResolveObligation(
-	name string,
-	epoch uint64,
-	evidence []artifact.ID,
-	resolved []runrecord.AgentObligationResolution,
-) ([]runrecord.AgentObligationResolution, bool, error) {
-	if runtime == nil {
-		return nil, false, errors.New("agent loop: delegated runtime is absent")
-	}
-	for _, obligation := range runtime.Obligations {
-		if obligation.Name != name {
-			continue
-		}
-		resolution, err := runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
-			Obligation: obligation.ID, Scope: obligation.Scope,
-			MutationEpoch: epoch, Evidence: evidence,
-		})
-		if err != nil {
-			return nil, false, err
-		}
-		resolved = append(resolved, resolution)
-		for _, remaining := range runtime.Obligations {
-			if !runrecord.AgentObligationSatisfied(remaining, resolved) {
-				return resolved, false, nil
-			}
-		}
-		return resolved, true, nil
-	}
-	return nil, false, fmt.Errorf("agent loop: task contract has no obligation %q", name)
-}

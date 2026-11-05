@@ -63,14 +63,12 @@ A commit that deletes, wires or moves a group takes its lines off the lists and 
 group agentloop-obligation-ledger
 class: test-held
 surface: outside
-declarations: 5
-lines: 83
-members: internal/agentloop/contract.go ContractState.AddResolution ContractState.Outstanding ContractState.RequireComplete
-members: internal/agentloop/delegated_runtime.go
+declarations: 1
+lines: 4
 members: internal/runrecord/agent_obligation.go
 schemas: internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
-reason: TestAgentContractEnforcement holds ContractState.ObserveMutation, which Coordinator.propose calls once a mutation ran, through the three methods of the contract, TestDelegatedCapabilityRuntimeConsumesStagedOwners resolves through ResolveObligation the obligations that NewDelegatedCapabilityRuntime opens for cmd/agent-loop (cmd/agent-loop/main.go:156), and the tests of the trajectory supervisor make with NewAgentObligationResolution the resolutions it reads (internal/evaluation/trajectory_supervisor.go:228).
-reason: The recovery that called them is deleted and no command writes a resolution, so each test reads the state it holds directly or makes its document in a test file, and the five are deleted then.
+reason: The contract state's resolutions and DelegatedCapabilityRuntime.ResolveObligation went with compact-production/test-held-deletions, their tests reading the epochs the state holds, and NewAgentObligationResolution stays, since the tests of the trajectory supervisor make with it the resolution the live supervisor reads (internal/evaluation/trajectory_supervisor.go:224) and the codec that canonicalizes one is runrecord's own.
+reason: No command writes a resolution, so it is deleted when those tests publish a resolution's document of their own making.
 
 group composite-generation-evidence
 class: prototype
@@ -123,13 +121,12 @@ reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds t
 group dense-old-entries
 class: test-held
 surface: outside
-declarations: 5
-lines: 56
-members: internal/densecausal/backward.go
-members: internal/densecausaltrain/train_resident_cuda_windows.go
+declarations: 2
+lines: 21
+members: internal/densecausaltrain/train_resident_cuda_windows.go TrainDeviceResident
 members: internal/hostoptimizer/newton_schulz.go
-reason: Each is an entry over a live core that tests of several packages enter through, TrainDeviceResident over TrainDeviceResidentWeighted, which cmd/train calls (cmd/train/dense_device_windows.go:27), the masked loss entries over the loss of the trainer, and NewtonSchulz over the host stepper's orthogonalization, which a device test of internal/optimizer compares with.
-reason: The tests call the live functions, and the entries are deleted then, the call to TrainDeviceResident of internal/adaptiveparity/qwen35_training_cuda_windows_test.go in a commit that verifies the claim qwen35-real-recurrent-layer-training of compatibility.json again, because that claim binds the test whole.
+reason: The masked loss entries went with compact-production/test-held-deletions, their tests calling MaskedLossAndLayerGradsOf, and the tests of internal/densecausaltrain call TrainDeviceResidentWeighted; TrainDeviceResident stays for internal/adaptiveparity/dense_training_leadership_cuda_windows_test.go, whose package's device tests fail on other grounds, and NewtonSchulz stays, the one way the device tests of internal/optimizer reach the host stepper's orthogonalization, which is unexported.
+reason: TrainDeviceResident goes once that package's lane passes again, and NewtonSchulz when those tests compare with the host stepper's own step.
 
 group gemma3n-backward-leaves
 class: prototype
@@ -369,15 +366,6 @@ lines: 20
 members: internal/inference/sampling_vocab.go
 reason: No command calls Runner.ExecutionMetrics or Runner.ResetDeviceMemoryPeak, and two device tests of live recovery read through them, TestE4BResourceRecovery (cmd/longform/e4b_recovery_windows_test.go) the retained bytes of the buffer pool against its limit and TestE4BMediaResourceRecovery (internal/server/e4b_resource_windows_test.go) the peak device memory of each request alone.
 reason: They stay, because Runner.DeviceMemory (internal/inference/sampling_vocab.go:50) reports neither the retained bytes of the pool nor a peak, so either test would lose what it holds.
-
-group serving-attempt-kind
-class: test-held
-surface: outside
-declarations: 1
-lines: 13
-members: internal/runrecord/serving_observation.go
-reason: TestServingAttemptChainClassifiesRetryReselectionAndSpillover reads ServingObservation.AttemptKind in the one function that holds the live PublishServingObservation to accept a retry and to refuse a second attempt of the same ordinal (internal/runrecord/serving_observation.go:271), and no other test holds that refusal.
-reason: The remote stage adapter that classed its attempts by it is deleted, so the test is to assert on the attempt chain alone, and AttemptKind is deleted then.
 
 group speech-activity-stream
 class: prototype

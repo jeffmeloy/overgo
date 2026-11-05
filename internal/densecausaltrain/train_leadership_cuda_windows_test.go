@@ -75,7 +75,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	if _, err := TrainDeviceResident(warmModel, worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, Options{FrozenLexical: true}); err != nil {
+	if _, err := TrainDeviceResidentWeighted(warmModel, worker, oneSequenceGroups(carbonAdaptiveCausalWindows[:1]), 1.33179e-5, 0.95, Options{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
 	}
 	if err := worker.Do(t.Context(), func(state *device.State) error {
@@ -85,7 +85,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := TrainDeviceResident(model, worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95, Options{FrozenLexical: true, Measure: true})
+	result, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(carbonAdaptiveCausalWindows), 1.33179e-5, 0.95, Options{FrozenLexical: true, Measure: true})
 	totalWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := TrainDeviceResident(model, worker, slices.Repeat([][]int{tokens}, 4), derivedTestLearningRate(t, model), 0.95, Options{FrozenLexical: true})
+	result, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(slices.Repeat([][]int{tokens}, 4)), derivedTestLearningRate(t, model), 0.95, Options{FrozenLexical: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
@@ -216,4 +216,14 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	}
 	t.Logf("Carbon resident Muon: seq=%d steps=%d loss %.6f->%.6f wall=%.3fs (%.3fs/step) peak=%.3fGiB",
 		len(tokens), len(trajectory), trajectory[0], trajectory[len(trajectory)-1], wall.Seconds(), stepWall.Seconds(), float64(memory.PeakBytes)/(1<<30))
+}
+
+// oneSequenceGroups makes each batch a group of one sequence weighed by the mean of its tokens, as a run of plain
+// windows trains.
+func oneSequenceGroups(batches [][]int) [][]densecausal.WeightedSequence {
+	groups := make([][]densecausal.WeightedSequence, len(batches))
+	for index, batch := range batches {
+		groups[index] = []densecausal.WeightedSequence{{Tokens: batch}}
+	}
+	return groups
 }

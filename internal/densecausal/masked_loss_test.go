@@ -50,7 +50,7 @@ func TestMaskedLossNormalizesOverTrainedTokensOnly(t *testing.T) {
 		}
 	}
 	want /= float64(learned)
-	got, _, err := model.MaskedLossAndGrads(maskedTokens, maskedTrained)
+	got, _, err := model.MaskedLossAndLayerGradsOf(maskedTokens, maskedTrained, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestMaskedLossNormalizesOverTrainedTokensOnly(t *testing.T) {
 	for index := range all {
 		all[index] = true
 	}
-	flagged, flaggedGrads, err := model.MaskedLossAndGrads(maskedTokens, all)
+	flagged, flaggedGrads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, all, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,11 +103,11 @@ func TestMaskedTokenHasNoGradient(t *testing.T) {
 	other[len(other)-1] = (other[len(other)-1] + 5) % model.Dims.Vocab
 	masked := slices.Clone(maskedTrained)
 	masked[len(masked)-1] = false
-	loss, grads, err := model.MaskedLossAndGrads(maskedTokens, masked)
+	loss, grads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, masked, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	swappedLoss, swappedGrads, err := model.MaskedLossAndGrads(other, masked)
+	swappedLoss, swappedGrads, err := model.MaskedLossAndLayerGradsOf(other, masked, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,11 +119,11 @@ func TestMaskedTokenHasNoGradient(t *testing.T) {
 			t.Fatalf("a masked final token moved the gradient of %s", name)
 		}
 	}
-	_, learnedGrads, err := model.MaskedLossAndGrads(maskedTokens, maskedTrained)
+	_, learnedGrads, err := model.MaskedLossAndLayerGradsOf(maskedTokens, maskedTrained, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, learnedSwapped, err := model.MaskedLossAndGrads(other, maskedTrained)
+	_, learnedSwapped, err := model.MaskedLossAndLayerGradsOf(other, maskedTrained, everyWeight, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,10 +143,10 @@ func TestMaskedLossRefusesWhatItCannotLearn(t *testing.T) {
 	model := tinyMuonModel(t)
 	none := make([]bool, len(maskedTokens))
 	none[0] = true // the first token is predicted by nothing: its flag does not count
-	if _, _, err := model.MaskedLossAndGrads(maskedTokens, none); err == nil {
+	if _, _, err := model.MaskedLossAndLayerGradsOf(maskedTokens, none, everyWeight, nil); err == nil {
 		t.Fatal("a window with no trained target was accepted")
 	}
-	if _, _, err := model.MaskedLossAndGrads(maskedTokens, maskedTrained[:3]); err == nil {
+	if _, _, err := model.MaskedLossAndLayerGradsOf(maskedTokens, maskedTrained[:3], everyWeight, nil); err == nil {
 		t.Fatal("flags for three of eight tokens were accepted")
 	}
 }
@@ -183,3 +183,6 @@ func TestTrainWithMaskStepsOnTheTrainedTokens(t *testing.T) {
 		t.Fatal("flags for one of two batches were accepted")
 	}
 }
+
+// everyWeight trains every weight.
+func everyWeight(string) bool { return true }

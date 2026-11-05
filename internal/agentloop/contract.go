@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -17,12 +16,11 @@ import (
 const projectAgentScope = "*"
 
 // ContractState is the deterministic runtime view of one immutable task
-// contract. Durable obligations and resolutions remain owned by runrecord.
+// contract. Durable obligations remain owned by runrecord.
 type ContractState struct {
 	mu          sync.Mutex
 	contract    recipe.AgentTaskContract
 	obligations []runrecord.AgentObligation
-	resolutions []runrecord.AgentObligationResolution
 	epochs      map[string]uint64
 }
 
@@ -84,54 +82,6 @@ func (state *ContractState) ObserveMutation(effect agenttool.InvocationEffect) {
 			state.epochs[obligation.Scope]++
 		}
 	}
-}
-
-// AddResolution records evidence for a known obligation, replacing any earlier
-// resolution of the same obligation. Unmatched resolutions are ignored.
-func (state *ContractState) AddResolution(resolution runrecord.AgentObligationResolution) {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	if !slices.ContainsFunc(state.obligations, func(obligation runrecord.AgentObligation) bool {
-		return resolution.Obligation == obligation.ID && resolution.Scope == obligation.Scope
-	}) {
-		return
-	}
-	for index, existing := range state.resolutions {
-		if existing.Obligation == resolution.Obligation {
-			state.resolutions[index] = resolution
-			return
-		}
-	}
-	state.resolutions = append(state.resolutions, resolution)
-}
-
-// Outstanding returns stable obligation identities whose exact-scope evidence
-// is absent or stale after a relevant mutation.
-func (state *ContractState) Outstanding() []runrecord.AgentObligation {
-	if state == nil {
-		return nil
-	}
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	result := make([]runrecord.AgentObligation, 0, len(state.obligations))
-	for _, obligation := range state.obligations {
-		current := obligation
-		current.MutationEpoch += state.epochs[projectAgentScope]
-		current.MutationEpoch += state.epochs[obligation.Scope]
-		if !runrecord.AgentObligationSatisfied(current, state.resolutions) {
-			result = append(result, current)
-		}
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID.String() < result[j].ID.String() })
-	return result
-}
-
-// RequireComplete fails while any task obligation remains open.
-func (state *ContractState) RequireComplete() error {
-	if outstanding := state.Outstanding(); len(outstanding) != 0 {
-		return fmt.Errorf("agent loop: %d task obligations remain open", len(outstanding))
-	}
-	return nil
 }
 
 func scopesOverlap(left, right string) bool {

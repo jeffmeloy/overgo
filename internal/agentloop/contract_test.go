@@ -32,27 +32,8 @@ func TestAgentContractEnforcement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolution, err := runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
-		Obligation: obligation.ID, Scope: obligation.Scope, Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "pass")},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	state.AddResolution(resolution)
-	state.AddResolution(resolution)
-	foreign, err := runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
-		Obligation: testutil.ArtifactID(t, artifact.KindEvidence, "foreign obligation"), Scope: obligation.Scope,
-		Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "foreign pass")},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	state.AddResolution(foreign)
-	if len(state.resolutions) != 1 || len(state.epochs) != 0 {
-		t.Fatalf("contract state is not obligation-bounded: resolutions=%d epochs=%d", len(state.resolutions), len(state.epochs))
-	}
-	if err := state.RequireComplete(); err != nil {
-		t.Fatal(err)
+	if len(state.epochs) != 0 {
+		t.Fatalf("a fresh contract state holds the epochs %v, want none", state.epochs)
 	}
 	manual, err := agenttool.NewManual(agenttool.Manual{
 		Name: "file.write", Description: "Write one file.", Effect: agenttool.EffectMutation,
@@ -71,7 +52,7 @@ func TestAgentContractEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 	state.ObserveMutation(effect)
-	if len(state.Outstanding()) != 1 {
-		t.Fatal("later relevant mutation did not invalidate evidence")
+	if len(state.epochs) != 1 || state.epochs[obligation.Scope] != 1 {
+		t.Fatalf("a mutation inside the obligation's scope advanced the epochs %v, want its scope's advanced once, which leaves its evidence stale", state.epochs)
 	}
 }

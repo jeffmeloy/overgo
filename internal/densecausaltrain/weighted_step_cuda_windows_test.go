@@ -73,7 +73,7 @@ func weightedGradient(t *testing.T, model *densecausal.Model, answers []training
 	t.Helper()
 	total, loss := densecausal.Grads{}, 0.0
 	for index, answer := range answers {
-		mean, gradients, err := model.MaskedLossAndGrads(answer.Tokens, answer.Completion)
+		mean, gradients, err := model.MaskedLossAndLayerGradsOf(answer.Tokens, answer.Completion, func(string) bool { return true }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +188,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 	// Fine-tuning: the mean written out is the mean.
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}, {2, 3, 5, 7, 11, 13, 17, 19}}
 	plain, written, hosted := tinyMuonModel(t), tinyMuonModel(t), tinyMuonModel(t)
-	before, err := TrainDeviceResident(plain, worker, batches, derivedTestLearningRate(t, plain), momentum, Options{})
+	before, err := TrainDeviceResidentWeighted(plain, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, plain), momentum, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

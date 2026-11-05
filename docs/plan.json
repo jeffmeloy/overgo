@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 7158,
-        "reason": "param-folds-outside measured at -133 production nodes, against about -1,893 estimated: most bodies of one skeleton differ in types, report fields or result types, which a helper would not shorten, and stay under the ceiling."
+        "nodes": 7920,
+        "reason": "test-held-deletions measured at -762 production nodes: the eight entries whose tests take live paths; TrainDeviceResident waits for adaptiveparity-lane, and the entries a claim binds for held-claims."
       },
       "steps": [
-        {
-          "id": "test-held-deletions",
-          "title": "Delete the test-held entries the record says go",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "1,261 nodes: agentloop-obligation-ledger, dense-old-entries, training-test-entries, serving-attempt-kind, text-old-entry-points, AtLeast and RunKey. Each reason in docs/verification/unreached-declarations.txt states how its tests change. Claims qwen35-real-recurrent-layer-training, gemma-e4b-real-adapter-training, pocket-tts-production-oracle and constrained-generation are verified again, and pins in specialized-coverage.json move. This check passes before the work, so the evidence is the list shrinking.\nServes: doctrine.\nDisappears: those entries.\nEvidence: the list shrinks, and the claims verify again.\nBatch: device lane for the claims."
-        },
         {
           "id": "inline-forwarders",
           "title": "Inline one-call functions used only in their own package",
@@ -98,6 +91,13 @@
           "status": "open",
           "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSurfaceRepeatsStayUnderTheirCeiling$'",
           "rationale": "87 folds and 8 near clusters, about 3,703 net, in internal/projector, internal/hostmath, internal/tokenizer, internal/cuda/cublas and internal/tensor/reference, for example internal/tokenizer/bpe.go:546,617,706 and internal/projector/hunyuanvl_cuda.go:76 with two more. Any file here moves the surface and expires evidence, so all go in one commit with the surface part of dead-declarations and the kernel steps of consolidate. No fold on a per-token path without a benchmark, since a helper that does not inline moves a rate.\nSQA-265 joins this step: editLayerStates has its own switch (internal/inference/cache_state.go:478-491).\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes; the next run's cells unchanged.\nBatch: one commit before a measurement run."
+        },
+        {
+          "id": "held-claims",
+          "title": "Delete the test-held entries a claim waits on, verifying the claims again",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestHeldEntryWaitsOnAClaim$'",
+          "rationale": "test-held-deletions deleted the test-held entries whose tests change alone and left those a compatibility claim binds: adaptertrain's LinearCTC.WeightSnapshot, Model.WeightSnapshot, Model.Restore and Model.RestoreWeights and speechsynth's Model.GenerateLatents (training-test-entries; claims gemma-e4b-real-adapter-training and pocket-tts-production-oracle, and the pins of docs/verification/specialized-coverage.json), trainingprogram's ObjectiveAuthority.AtLeast (outside-test-accessors; claim repodb-multimodal-training-objective-matrix), and capabilityruntime's RunKey (outside-test-entries; the pin of internal/speechsynth/recovery_test.go). Each group's reason in docs/verification/unreached-declarations.txt says how its tests change.\nChange: the tests take the live entries the reasons name, the entries go, and each moved claim is verified again on the device (go run ./cmd/validate -claims -run) and each pin set again. The new check holds that no test-held entry is one a claim waits on.\nServes: doctrine.\nDisappears: those entries.\nEvidence: the list shrinks, the claims verify again.\nBatch: device lane for the claims."
         }
       ]
     },

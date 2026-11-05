@@ -27,44 +27,6 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 	return m.lossAndGrads(tokens, nil, true, nil, Grads{})
 }
 
-// LossAndGradsOf is LossAndGrads for a run that trains some of the weights,
-// and returns the loss and the gradients of the weights train names alone: the
-// others cost neither their memory nor their weight-gradient arithmetic.
-func (m *Model) LossAndGradsOf(tokens []int, train func(name string) bool) (float64, Grads, error) {
-	skipped := m.skippedGradients(train)
-	loss, _, gradients, err := m.lossAndGrads(tokens, nil, true, nil, skipped)
-	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
-	return loss, gradients, err
-}
-
-// MaskedLossAndGrads runs forward and full backward on one token batch as
-// LossAndGrads does, but learns only some tokens: trained says, token by
-// token, whether the model is judged on predicting it, so the loss is the
-// mean cross-entropy over the trained tokens alone, a token that is not
-// trained adds nothing to it or to any gradient, and a window of no
-// trained token is refused. The first token is predicted by nothing, so
-// its flag is not read. A nil trained learns every token LossAndGrads
-// does.
-func (m *Model) MaskedLossAndGrads(tokens []int, trained []bool) (float64, Grads, error) {
-	return m.MaskedLossAndGradsOf(tokens, trained, func(string) bool { return true })
-}
-
-// MaskedLossAndGradsOf is MaskedLossAndGrads for a run that trains some of the
-// weights, as LossAndGradsOf is for LossAndGrads: it returns the gradients of the
-// weights train names alone. A nil trained is LossAndGradsOf itself, which keeps
-// the logits through the backward, the faster path and the one whose loss and
-// gradients are the same bits as ever; a mask runs the windowed head, which the
-// retained logits cannot serve.
-func (m *Model) MaskedLossAndGradsOf(tokens []int, trained []bool, train func(name string) bool) (float64, Grads, error) {
-	if trained == nil {
-		return m.LossAndGradsOf(tokens, train)
-	}
-	skipped := m.skippedGradients(train)
-	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, nil, skipped)
-	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
-	return loss, gradients, err
-}
-
 // MaskedLossAndLayerGradsOf is MaskedLossAndGradsOf for a run that takes the
 // gradients of each decoder layer's weights as that layer's backward finishes: settle
 // is called with them, layers last to first, and they are released as it returns, so a

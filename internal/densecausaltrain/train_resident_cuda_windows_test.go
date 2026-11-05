@@ -32,7 +32,7 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := TrainDeviceResident(mDev, worker, batches, derivedTestLearningRate(t, mDev), 0.9, Options{})
+	deviceResult, err := TrainDeviceResidentWeighted(mDev, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, mDev), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := TrainDeviceResident(resident, worker, batches, derivedTestLearningRate(t, resident), 0.9, Options{})
+	deviceResult, err := TrainDeviceResidentWeighted(resident, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, resident), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestTrainDeviceResidentUntiedHeadMatchesHost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		deviceResult, err := TrainDeviceResident(resident, worker, batches, derivedTestLearningRate(t, resident), momentum, Options{})
+		deviceResult, err := TrainDeviceResidentWeighted(resident, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, resident), momentum, Options{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	}
 	embedding, _, _ := model.LexicalTensorNames()
 	embedBefore := slices.Clone(model.Weights[embedding])
-	deviceResult, err := TrainDeviceResident(model, worker, slices.Repeat([][]int{tokens}, 8), derivedTestLearningRate(t, model), 0.9, Options{FrozenLexical: true})
+	deviceResult, err := TrainDeviceResidentWeighted(model, worker, oneSequenceGroups(slices.Repeat([][]int{tokens}, 8)), derivedTestLearningRate(t, model), 0.9, Options{FrozenLexical: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,16 +197,16 @@ func TestTrainDeviceResidentResumeExact(t *testing.T) {
 	defer worker.Close()
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}}
 	uninterrupted := tinyMuonModel(t)
-	want, err := TrainDeviceResident(uninterrupted, worker, batches, derivedTestLearningRate(t, uninterrupted), 0.9, Options{})
+	want, err := TrainDeviceResidentWeighted(uninterrupted, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, uninterrupted), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	resumed := tinyMuonModel(t)
-	first, err := TrainDeviceResident(resumed, worker, batches[:1], derivedTestLearningRate(t, resumed), 0.9, Options{})
+	first, err := TrainDeviceResidentWeighted(resumed, worker, oneSequenceGroups(batches[:1]), derivedTestLearningRate(t, resumed), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := TrainDeviceResident(resumed, worker, batches[1:], derivedTestLearningRate(t, resumed), 0.9, Options{Resume: &first.State})
+	got, err := TrainDeviceResidentWeighted(resumed, worker, oneSequenceGroups(batches[1:]), derivedTestLearningRate(t, resumed), 0.9, Options{Resume: &first.State})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -85,7 +85,7 @@ func hostWeightedStep(model *densecausal.Model, groups [][]densecausal.WeightedS
 			if count == 0 {
 				continue
 			}
-			mean, gradients, err := model.MaskedLossAndGrads(sequence.Tokens, trained)
+			mean, gradients, err := model.MaskedLossAndLayerGradsOf(sequence.Tokens, trained, func(string) bool { return true }, nil)
 			if err != nil {
 				return nil, 0, densecausal.TrainState{}, err
 			}

@@ -18,7 +18,7 @@ func TestLossAndGradsOfKeepsOnlyTheNamedGradients(t *testing.T) {
 	}
 	embedding, finalNorm, head := model.LexicalTensorNames()
 	train := func(name string) bool { return name != embedding && name != finalNorm && name != head }
-	loss, got, err := model.LossAndGradsOf(g.Tokens, train)
+	loss, got, err := model.MaskedLossAndLayerGradsOf(g.Tokens, nil, train, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

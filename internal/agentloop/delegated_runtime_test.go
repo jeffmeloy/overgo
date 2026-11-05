@@ -132,25 +132,6 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		t.Fatalf("read-only grant admitted mutation: %v", err)
 	}
 
-	resolved, done, err := runtime.ResolveObligation("tests", 1,
-		[]artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "tests pass")}, nil)
-	if err != nil || done {
-		t.Fatalf("first resolution = done=%t, %v", done, err)
-	}
-	stale, done, err := runtime.ResolveObligation("report", 2,
-		[]artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "stale report")}, resolved)
-	if err != nil || done {
-		t.Fatalf("stale-epoch resolution satisfied the contract: done=%t, %v", done, err)
-	}
-	_, done, err = runtime.ResolveObligation("report", 1,
-		[]artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "report done")}, stale)
-	if err != nil || !done {
-		t.Fatalf("exact resolutions = done=%t, %v", done, err)
-	}
-	if _, _, err := runtime.ResolveObligation("absent", 1, nil, nil); err == nil {
-		t.Fatal("unknown obligation resolved")
-	}
-
 	wrongTask, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Different task.", Scope: []string{"internal"},
 		AllowedEffects: []string{"inspection"},

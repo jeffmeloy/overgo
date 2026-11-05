@@ -5,6 +5,7 @@ package routedlm
 import (
 	"context"
 	"fmt"
+	"overgo/internal/tensor/dtype"
 	"sync"
 	"time"
 
@@ -93,7 +94,7 @@ func NewDeviceGenerationSession(
 		if prefix == nil || !prefix.Complete() || len(prefix.Layers) != cfg.NumHiddenLayers {
 			return fail(fmt.Errorf("routed lm generation session: prefix %d incomplete", index))
 		}
-		graph, err := BuildDeviceGenerationLayer(cfg, rope, prefix.Rows, image.TokenHeight, image.TokenWidth, prefix.ImageTime)
+		graph, err := buildDeviceGenerationLayer(cfg, rope, prefix.Rows, image.TokenHeight, image.TokenWidth, prefix.ImageTime, dtype.BF16)
 		if err != nil {
 			return fail(err)
 		}

@@ -1,6 +1,7 @@
 package routedlm
 
 import (
+	"overgo/internal/tensor/dtype"
 	"testing"
 
 	"overgo/internal/cuda/executor"
@@ -17,7 +18,7 @@ func TestSenseNovaGenerationLayerGraphStructure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	graph, err := BuildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11)
+	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
 	if err != nil {
 		t.Fatal(err)
 	}

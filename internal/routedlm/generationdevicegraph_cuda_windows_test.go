@@ -27,7 +27,7 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	graph, err := BuildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11)
+	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
 	if err != nil {
 		t.Fatal(err)
 	}

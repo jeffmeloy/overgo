@@ -86,7 +86,7 @@ func (stream *synchronizedSSE) write(value any) error {
 	if stream.err != nil {
 		return stream.err
 	}
-	stream.err = writeSSE(stream.writer, value)
+	stream.err = writeSSEEvent(stream.writer, "", value)
 	if stream.err == nil {
 		stream.flusher.Flush()
 	}
@@ -164,10 +164,6 @@ func writeJSON(response http.ResponseWriter, status int, value any) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(status)
 	_, _ = response.Write(body.Bytes())
-}
-
-func writeSSE(response io.Writer, value any) error {
-	return writeSSEEvent(response, "", value)
 }
 
 func writeSSEEvent(response io.Writer, event string, value any) error {

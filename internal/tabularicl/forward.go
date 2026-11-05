@@ -11,6 +11,7 @@ package tabularicl
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"overgo/internal/hostmath"
 )
@@ -29,7 +30,7 @@ type Request struct {
 
 // ValidateRequest checks task and input geometry before model loading.
 func ValidateRequest(req Request) error {
-	if !validTask(req.Task) {
+	if !slices.Contains(taskNames[:], req.Task) {
 		return fmt.Errorf("tabularicl: unsupported task %q", req.Task)
 	}
 	if _, err := requestCatMask(req.X, req.Y, req.Rows, req.Cols, req.TrainRows, req.CatCols); err != nil {

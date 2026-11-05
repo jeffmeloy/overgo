@@ -71,7 +71,7 @@ type stopState struct {
 func validateControl(event ControlEvent) error {
 	if !worklease.ValidAutomationText(event.Lane) || !worklease.ValidAutomationText(event.ReasonCode) || !validAutomationDetail(event.Detail) ||
 		!worklease.ValidCommit(event.CodeCommit) || !filepath.IsAbs(event.Worktree) || strings.Contains(event.Worktree, worklease.NonCanonicalPathSeparator) ||
-		!worklease.ValidAutomationText(event.Worker) || event.Worker == worklease.UnassignedRole || !validStopMode(event.Mode) {
+		!worklease.ValidAutomationText(event.Worker) || event.Worker == worklease.UnassignedRole || !slices.Contains([]string{ExecutionAll, ExecutionInteractive, ExecutionUnattended}, event.Mode) {
 		return errors.New("plan: stop control requires exact worktree, lane, worker and execution scope")
 	}
 	if event.Previous.Valid() && event.Previous.Kind() != artifact.KindEvidence {
@@ -104,10 +104,6 @@ func identify(event ControlEvent) (ControlEvent, error) {
 	id, err := artifact.JSONID(artifact.KindEvidence, event)
 	event.ID = id
 	return event, err
-}
-
-func validStopMode(mode string) bool {
-	return slices.Contains([]string{ExecutionAll, ExecutionInteractive, ExecutionUnattended}, mode)
 }
 
 // ExecutionMode resolves the driver mode without inferring supervision from a PID.

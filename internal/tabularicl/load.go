@@ -107,7 +107,7 @@ type Model struct {
 
 // LoadTask materializes only the requested task head.
 func LoadTask(directory, task string) (*Model, error) {
-	if !validTask(task) {
+	if !slices.Contains(taskNames[:], task) {
 		return nil, fmt.Errorf("tabularicl: unsupported task %q", task)
 	}
 	head, err := LoadHead(filepath.Join(directory, task))
@@ -115,10 +115,6 @@ func LoadTask(directory, task string) (*Model, error) {
 		return nil, fmt.Errorf("tabularicl %s head: %w", task, err)
 	}
 	return &Model{Heads: map[string]*Head{task: head}}, nil
-}
-
-func validTask(task string) bool {
-	return slices.Contains(taskNames[:], task)
 }
 
 // LoadHead reads one task head and materializes every tensor as f32.

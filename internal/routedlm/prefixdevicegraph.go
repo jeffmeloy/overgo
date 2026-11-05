@@ -37,7 +37,7 @@ func BuildDevicePrefixLayer(
 	b := tensor.NewBuilder()
 	g := &DevicePrefixLayerGraph{Builder: b, Tokens: len(positions)}
 	g.Row = b.Input("row", dtype.F32, tensor.MustShape(H, n))
-	g.Weights = newPrefillBranch(b, "prefix", H, qOut, kvOut, hd, f)
+	g.Weights = newTypedPrefillBranch(b, "prefix", H, qOut, kvOut, hd, f, dtype.BF16)
 	w := g.Weights
 	normed := b.BF16Round(b.WeightedRMSNorm(g.Row, w.InputNorm, eps))
 	query := b.Reshape(b.MulMat(w.Q, normed), hd, qHeads, n)

@@ -90,10 +90,10 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		resolved.Process == nil || resolved.Process.StderrBytes != 42 {
 		t.Fatalf("receipt evidence differs: %+v", resolved)
 	}
-	if _, err := RequireFailureObservation(ctx, store, resolved.FailureObservation); err != nil {
+	if _, err := failureObservationCodec.Require(ctx, store, resolved.FailureObservation); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RequireFailureNormalization(ctx, store, resolved.FailureNormalization); err != nil {
+	if _, err := failureNormalizationCodec.Require(ctx, store, resolved.FailureNormalization); err != nil {
 		t.Fatal(err)
 	}
 	chained, found, err := ResolveTerminalAttemptReceipt(ctx, store, operation, 1)

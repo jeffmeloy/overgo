@@ -28,9 +28,6 @@ type FlowSchedule struct {
 	Deltas            []float64 // Steps entries, float32-rounded Sigmas[i+1]-Sigmas[i]
 }
 
-// DynamicShift maps mu to its multiplicative factor.
-func DynamicShift(mu float64) float64 { return math.Exp(mu) }
-
 // CompileFlowSchedule derives knots from declared extents and mu.
 func CompileFlowSchedule(steps, numTrainTimesteps int, mu float64) (FlowSchedule, error) {
 	if !checked.PositiveInts(steps, numTrainTimesteps) {
@@ -39,7 +36,7 @@ func CompileFlowSchedule(steps, numTrainTimesteps int, mu float64) (FlowSchedule
 	if !checked.Finite64(mu) {
 		return FlowSchedule{}, fmt.Errorf("flow schedule: mu must be finite, got %g", mu)
 	}
-	shift := DynamicShift(mu)
+	shift := math.Exp(mu)
 	if !checked.PositiveFinite64(shift) {
 		return FlowSchedule{}, fmt.Errorf("flow schedule: shift exp(mu)=%g is invalid", shift)
 	}

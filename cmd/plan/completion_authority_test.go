@@ -15,7 +15,7 @@ import (
 func mustTestRepositoryBinding(t *testing.T, document plan.Plan) (string, string) {
 	t.Helper()
 	root := initializePlanTestRepository(t, document)
-	headRaw, err := commandOutput(root, "git", "rev-parse", "HEAD")
+	headRaw, err := commandInput(root, nil, "git", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 		{"add", plan.Path},
 		{"commit", "-m", "seed plan"},
 	} {
-		if _, err := commandOutput(root, "git", arguments...); err != nil {
+		if _, err := commandInput(root, nil, "git", arguments...); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -129,7 +129,7 @@ func compileSchedulerEvidence(outcomes []CandidateOutcome) ([]SchedulerEvidenceR
 		metrics := make([]string, 0, len(outcome.Changes))
 		for _, change := range outcome.Changes {
 			if strings.TrimSpace(change.Name) == "" || change.Name != strings.TrimSpace(change.Name) || strings.ContainsAny(change.Name, "\x00\r\n") ||
-				seen[change.Name] || !finite(change.Before) || !finite(change.After) ||
+				seen[change.Name] || !checked.Finite64(change.Before) || !checked.Finite64(change.After) ||
 				change.Direction != runrecord.DirectionMinimize && change.Direction != runrecord.DirectionMaximize {
 				return nil, errors.New("plan: invalid capability change")
 			}
@@ -140,7 +140,7 @@ func compileSchedulerEvidence(outcomes []CandidateOutcome) ([]SchedulerEvidenceR
 				delta = -delta
 			}
 			row.deltas[change.Name] += delta
-			if !finite(row.deltas[change.Name]) {
+			if !checked.Finite64(row.deltas[change.Name]) {
 				return nil, errors.New("plan: capability delta overflows")
 			}
 		}
@@ -307,5 +307,3 @@ func cloneCandidateOutcomes(source []CandidateOutcome) []CandidateOutcome {
 	}
 	return result
 }
-
-func finite(value float64) bool { return checked.Finite64(value) }

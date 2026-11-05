@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 7920,
-        "reason": "test-held-deletions measured at -762 production nodes: the eight entries whose tests take live paths; TrainDeviceResident waits for adaptiveparity-lane, and the entries a claim binds for held-claims."
+        "nodes": 8793,
+        "reason": "inline-forwarders measured at -873 production nodes: 39 one-call functions said in place; 46 stay under the forwarder ceiling, names that read better than their call, entries tests call many times, and speech recognition's profile readers, whose callers' file a claim binds."
       },
       "steps": [
-        {
-          "id": "inline-forwarders",
-          "title": "Inline one-call functions used only in their own package",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestLocalForwardersStayUnderTheirCeiling$'",
-          "rationale": "32 functions, 812 nodes, three uses or fewer, mostly internal/runrecord, for example requireGateLifecycle (internal/runrecord/lifecycle.go:62), about -718 net. A name can read better than its body, so this is the first step to cut.\nServes: less code to keep right.\nDisappears: 32 functions.\nEvidence: gate nodes.\nBatch: store lane."
-        },
         {
           "id": "surface-folds",
           "title": "Fold repeats that touch the inference surface, before one measurement run",

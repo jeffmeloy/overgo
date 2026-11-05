@@ -48,21 +48,11 @@ type NoiseMix = media.NoiseMix
 // to bf16(randn): the raw torch.randn draw rounded once to bf16 storage.
 var InitNoiseMix = media.FreshNoiseMix()
 
-// mixNoiseInto reproduces planar_mix_noise_bf16 element-for-element in host f32.
-// Round-to-nearest-even bf16 (dtype.RoundBF16) equals the device runtime_bf16 for
-// every finite input, which every torch.randn draw is. dst and noise MAY alias
-// (the init contract does): each element reads dst[i] and noise[i] before writing
-// dst[i], so an in-place aliased call is exact. All arithmetic is float32,
-// matching the kernel's __fmul_rn/__fadd_rn round-to-nearest-even.
-func mixNoiseInto(dst, noise []float32, m NoiseMix) {
-	media.MixNoiseBF16Into(dst, noise, m)
-}
-
 // SeededLatentFromNoise applies the NoiseMix contract to a pre-drawn noise buffer
 // IN PLACE (dst aliased to noise, exactly as the adaptive init call site) and
 // returns it. This is the pure, CUDA-free core of the seeded latent-init: given a
 // torch.randn(seed) draw it yields the golden initial latent bit-for-bit.
 func SeededLatentFromNoise(noise []float32, m NoiseMix) []float32 {
-	mixNoiseInto(noise, noise, m)
+	media.MixNoiseBF16Into(noise, noise, m)
 	return noise
 }

@@ -110,11 +110,6 @@ func ParseBudget(data []byte) (Budget, error) {
 	return budgetCodec.Parse(data)
 }
 
-// requireBudget loads one exact immutable budget grant.
-func requireBudget(ctx context.Context, reader artifact.Reader, id artifact.ID) (Budget, error) {
-	return budgetCodec.Require(ctx, reader, id)
-}
-
 func ParseBudgetCharge(data []byte) (BudgetCharge, error) {
 	return budgetChargeCodec.Parse(data)
 }
@@ -164,7 +159,7 @@ func (value BudgetCharge) Batch(key string) (artifact.Batch, error) {
 // grant, in the order of their identities. Nothing else counts what a budget
 // has spent, so any process reads the same charges.
 func BudgetCharges(ctx context.Context, reader artifact.Reader, grant artifact.ID) (Budget, []BudgetCharge, error) {
-	budget, err := requireBudget(ctx, reader, grant)
+	budget, err := budgetCodec.Require(ctx, reader, grant)
 	if err != nil {
 		return Budget{}, nil, err
 	}

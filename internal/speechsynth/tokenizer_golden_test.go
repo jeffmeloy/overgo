@@ -3,6 +3,7 @@ package speechsynth
 import (
 	"os"
 	"overgo/internal/testskip"
+	"overgo/internal/tokenizer"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -39,7 +40,7 @@ func fixtureUnigram(t *testing.T, g8 *g8Golden) *Unigram {
 	for i, p := range g8.Pieces {
 		pieces[i] = Piece{Piece: unquoteEscaped(t, p.Piece), Score: p.Score}
 	}
-	tok, err := NewUnigram(pieces, g8.UnkID)
+	tok, err := tokenizer.NewUnigram(pieces, g8.UnkID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("UNAVAILABLE: tokenizer.model absent at %s; parity NOT verified", path)
 	}
-	pieces, unkID, err := ReadModelFile(path)
+	pieces, unkID, err := tokenizer.ReadSentencePieceModel(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 			t.Fatalf("piece %d score %g != fixture %g", i, pieces[i].Score, p.Score)
 		}
 	}
-	tok, err := NewUnigram(pieces, unkID)
+	tok, err := tokenizer.NewUnigram(pieces, unkID)
 	if err != nil {
 		t.Fatal(err)
 	}

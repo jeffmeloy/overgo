@@ -15,7 +15,10 @@ func FreshNoiseMix() NoiseMix {
 }
 
 // MixNoiseBF16Into applies an elementwise signal/noise mix with bfloat16
-// rounding at both the scaled-noise and output storage boundaries.
+// rounding at both the scaled-noise and output storage boundaries, as
+// planar_mix_noise_bf16 does element for element. destination and noise may
+// alias: each element reads both before it writes, so an in-place call is
+// exact.
 func MixNoiseBF16Into(destination, noise []float32, mix NoiseMix) {
 	for index := range noise {
 		scaledNoise := dtype.RoundBF16(noise[index] * mix.NoiseScale)

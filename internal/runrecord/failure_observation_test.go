@@ -82,7 +82,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		}
 
 		// The raw observation is untouched by both classifications.
-		reread, err := RequireFailureObservation(ctx, store, observation.ID)
+		reread, err := failureObservationCodec.Require(ctx, store, observation.ID)
 		if err != nil {
 			t.Fatal(err)
 		}

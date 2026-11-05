@@ -105,7 +105,7 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 	}
 
 	// Recompute activated router scores for the gating backward.
-	_, scores, err := routeTopK(x, w.router, rows, hidden, experts, policy)
+	_, scores, err := routeTopKSelectionBias(x, w.router, rows, hidden, experts, policy, nil)
 	if err != nil {
 		return nil, grads, err
 	}

@@ -130,7 +130,7 @@ func TestConversationHistoryPaging(t *testing.T) {
 			if response := serveTestRequest(h, http.MethodPost, "/interactions/label", string(body)); response.Code != http.StatusOK {
 				t.Fatal(response.Body)
 			}
-			label, found, err := resolveConversationLabel(t.Context(), h.repository, root)
+			label, found, err := conversationLabelCodec.Resolve(t.Context(), h.repository, conversationLabelAliasRoot+root)
 			if err != nil || !found || label.Archived != archived {
 				t.Fatalf("repeated archive/restore: %+v %v", label, err)
 			}

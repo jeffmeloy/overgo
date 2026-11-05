@@ -115,15 +115,15 @@ func admitCandidate(
 	if err := validateCandidateAdmissionFacts(facts); err != nil {
 		return CandidateAdmission{}, err
 	}
-	binding, err := requireAdmissionBinding(ctx, reader, authority)
+	binding, err := admissionBindingCodec.Require(ctx, reader, authority)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: candidate authority: %w", err)
 	}
-	development, err := requireBudget(ctx, reader, facts.DevelopmentBudget)
+	development, err := budgetCodec.Require(ctx, reader, facts.DevelopmentBudget)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: development budget: %w", err)
 	}
-	promotion, err := requireBudget(ctx, reader, facts.PromotionBudget)
+	promotion, err := budgetCodec.Require(ctx, reader, facts.PromotionBudget)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: promotion budget: %w", err)
 	}

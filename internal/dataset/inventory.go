@@ -69,10 +69,6 @@ func LoadInventory(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 	return inventoryCodec.Read(ctx, reader, id)
 }
 
-func inventoryContent(value Inventory) (artifact.Content, error) {
-	return inventoryCodec.Content(value)
-}
-
 func canonicalizeInventory(inventory *Inventory) error {
 	if inventory == nil || inventory.Version != artifact.InitialDocumentVersion {
 		return errors.New("dataset: invalid inventory")

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 		t.Fatalf("measured-results section absent on the empty store:\n%s", text)
 	}
 
-	if mediaTask(recipe.TaskInference) || mediaTask(recipe.TaskTraining) || !mediaTask(recipe.TaskImageGen) || !mediaTask(recipe.TaskSpeech) {
+	if slices.Contains(mediaTasks, recipe.TaskInference) || slices.Contains(mediaTasks, recipe.TaskTraining) || !slices.Contains(mediaTasks, recipe.TaskImageGen) || !slices.Contains(mediaTasks, recipe.TaskSpeech) {
 		t.Fatal("media scope admits text tasks or drops media tasks")
 	}
 

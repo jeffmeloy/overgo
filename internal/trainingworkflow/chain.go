@@ -280,7 +280,7 @@ func registerChainAdapters(
 	}
 	if err := register(workflowrecipe.ModuleGenerate, "tokens",
 		func(bound *chainModel, request workflowruntime.StepRequest) (workflowruntime.Value, error) {
-			tokens, err := scalarTokens(request, "tokens")
+			tokens, err := singleTokens(request.Inputs["tokens"])
 			if err != nil {
 				return workflowruntime.Value{}, err
 			}
@@ -294,7 +294,7 @@ func registerChainAdapters(
 	}
 	return register(workflowrecipe.ModuleDetokenize, "text",
 		func(bound *chainModel, request workflowruntime.StepRequest) (workflowruntime.Value, error) {
-			tokens, err := scalarTokens(request, "tokens")
+			tokens, err := singleTokens(request.Inputs["tokens"])
 			if err != nil {
 				return workflowruntime.Value{}, err
 			}
@@ -420,10 +420,6 @@ func scalarString(request workflowruntime.StepRequest, name recipe.PortName) (st
 		return "", fmt.Errorf("chain: input %q is not text", name)
 	}
 	return text, nil
-}
-
-func scalarTokens(request workflowruntime.StepRequest, name recipe.PortName) ([]int, error) {
-	return singleTokens(request.Inputs[name])
 }
 
 func singleTokens(value workflowruntime.Value) ([]int, error) {

@@ -450,7 +450,7 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:3f095725de8d1966cfa70432b11f142a5b2de3748d7a3a10bb51d3bee967fabf"
+     "identity": "file:sha256:de210cf51ecb997b2ddc70afc52b00f6cb875e86dc60f71a672b8fce922315c7"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
@@ -1208,7 +1208,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:58bcd55e62c4aca87a1862d62e2093a835c099a0c78193a8597d24b08f48cf13"
+     "identity": "file:sha256:7a286156a89119fcc9364f83e01a0ca6ea815527b86f5bd2c06dd1ece57f7b14"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",

@@ -68,11 +68,6 @@ type FailureNormalization struct {
 	ID                artifact.ID            `json:"-"`
 }
 
-// RequireFailureObservation returns a validated repository observation.
-func RequireFailureObservation(ctx context.Context, reader artifact.Reader, id artifact.ID) (FailureObservation, error) {
-	return failureObservationCodec.Require(ctx, reader, id)
-}
-
 // Content returns the observation's canonical bytes.
 func (value FailureObservation) Content() (artifact.Content, error) {
 	return failureObservationCodec.Content(value)
@@ -135,11 +130,6 @@ func NormalizeFailureObservation(observation FailureObservation) FailureNormaliz
 	}
 }
 
-// RequireFailureNormalization returns a validated derived record.
-func RequireFailureNormalization(ctx context.Context, reader artifact.Reader, id artifact.ID) (FailureNormalization, error) {
-	return failureNormalizationCodec.Require(ctx, reader, id)
-}
-
 // PublishFailureNormalization commits one derived classification. The
 // observation must already exist and is linked as lineage; the alias
 // binds one classification per observation and classifier version, so
@@ -148,7 +138,7 @@ func PublishFailureNormalization(ctx context.Context, repository artifact.Reposi
 	if ctx == nil || repository == nil {
 		return FailureNormalization{}, errors.New("run record: failure normalization repository is absent")
 	}
-	if _, err := RequireFailureObservation(ctx, repository, value.Observation); err != nil {
+	if _, err := failureObservationCodec.Require(ctx, repository, value.Observation); err != nil {
 		return FailureNormalization{}, err
 	}
 	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}

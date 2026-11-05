@@ -35,7 +35,7 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 	if err != nil {
 		return err
 	}
-	head, err := gitOutput(root, "rev-parse", "HEAD")
+	head, err := commandInput(root, nil, "git", "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}

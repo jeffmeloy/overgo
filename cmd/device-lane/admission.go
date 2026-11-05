@@ -210,7 +210,7 @@ func callsMeasurementHelper(body *ast.BlockStmt) bool {
 // selects only them and runs outside it; a step without measurement tests
 // keeps its form and has no measurement run
 func splitTestStep(step, measurement []string) (correctness, measurementRun []string) {
-	selected := stepRunPattern(step)
+	selected := stepTestPattern(step, "-run")
 	var chosen []string
 	for _, name := range measurement {
 		if selected == nil || selected.MatchString(name) {
@@ -226,11 +226,7 @@ func splitTestStep(step, measurement []string) (correctness, measurementRun []st
 	return correctness, measurementRun
 }
 
-// returns the step's own -run selection, or nil when it selects every test
-func stepRunPattern(step []string) *regexp.Regexp {
-	return stepTestPattern(step, "-run")
-}
-
+// stepTestPattern returns the step's own selection under flag, or nil when it selects every test.
 func stepTestPattern(step []string, flag string) *regexp.Regexp {
 	var selected *regexp.Regexp
 	for index, argument := range step {

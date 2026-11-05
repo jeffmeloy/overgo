@@ -43,13 +43,13 @@ func TestScratchModuleWorkflow(t *testing.T) {
 		{parent, "./tmp/work/scratch.go"},
 		{filepath.Join(parent, "tmp"), "./work/scratch.go"},
 	} {
-		out, err := commandOutput(invocation.dir, "go", "run", invocation.file)
+		out, err := commandInput(invocation.dir, nil, "go", "run", invocation.file)
 		if err != nil || !strings.Contains(string(out), marker) {
 			t.Fatalf("scratch run in %s: %v\n%s", invocation.dir, err, out)
 		}
 	}
 
-	listed, err := commandOutput(parent, "go", "list", "./...")
+	listed, err := commandInput(parent, nil, "go", "list", "./...")
 	if err != nil {
 		t.Fatalf("go list ./...: %v\n%s", err, listed)
 	}
@@ -149,7 +149,7 @@ func TestStopStatusProjection(t *testing.T) {
 	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := commandOutput(root, "git", "-c", "core.hooksPath=", "commit", "--allow-empty", "-m", "another worker committed"); err != nil {
+	if _, err := commandInput(root, nil, "git", "-c", "core.hooksPath=", "commit", "--allow-empty", "-m", "another worker committed"); err != nil {
 		t.Fatal(err)
 	}
 	var status plan.Dispatch

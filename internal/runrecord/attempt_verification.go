@@ -18,7 +18,7 @@ func gateFinalizationsForPreparation(
 	if ctx == nil || store == nil {
 		return nil, errors.New("run record: gate finalizations require the store")
 	}
-	preparation, err := requireGateLifecycle(ctx, store, preparationID)
+	preparation, err := gateLifecycleCodec.Require(ctx, store, preparationID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func readGateLifecycleCandidate(
 		content.Descriptor.Schema != GateLifecycleSchema {
 		return gateLifecycle{}, false, nil
 	}
-	lifecycle, err := parseGateLifecycle(content.Data)
+	lifecycle, err := gateLifecycleCodec.Parse(content.Data)
 	if err != nil {
 		return gateLifecycle{}, false, err
 	}

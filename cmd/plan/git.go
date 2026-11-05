@@ -9,15 +9,7 @@ import (
 	"overgo/internal/gitauthority"
 )
 
-func gitOutput(root string, args ...string) ([]byte, error) {
-	return commandOutput(root, "git", args...)
-}
-
-func commandOutput(root, name string, args ...string) ([]byte, error) {
-	return commandInput(root, nil, name, args...)
-}
-
-// commandInput is commandOutput with the bytes the command reads.
+// commandInput runs name with args in root, input the bytes it reads, and returns what it wrote.
 func commandInput(root string, input []byte, name string, args ...string) ([]byte, error) {
 	commandArgs := args
 	if name == "git" {

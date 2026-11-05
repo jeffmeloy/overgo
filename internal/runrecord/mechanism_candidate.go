@@ -41,7 +41,7 @@ func ValidateMechanismCandidateEvidence(
 		}
 		sources[evidence.Source] = struct{}{}
 	}
-	binding, err := requireAdmissionBinding(ctx, reader, authority)
+	binding, err := admissionBindingCodec.Require(ctx, reader, authority)
 	if err != nil {
 		return errors.Join(err, errors.New("run record: mechanism candidate authority is not an admission binding"))
 	}

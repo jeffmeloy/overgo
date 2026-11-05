@@ -373,8 +373,8 @@ func canonicalizeRetrievalReceipt(value *RetrievalReceipt) error {
 		if result.Rank != uint64(index+1) || result.Dataset != value.Dataset ||
 			(result.Source.Kind() != artifact.KindFile && result.Source.Kind() != artifact.KindDatasetShard) ||
 			result.Chunk.Kind() != artifact.KindDatasetShard || result.Embedding.Kind() != artifact.KindTensorSet ||
-			result.EndRune <= result.StartRune || result.TextBytes == 0 || !finiteReceiptScore(result.Similarity) ||
-			!finiteReceiptScore(result.Rerank) || (!result.DenseCandidate && !result.LexicalCandidate) ||
+			result.EndRune <= result.StartRune || result.TextBytes == 0 || !checked.Finite64(result.Similarity) ||
+			!checked.Finite64(result.Rerank) || (!result.DenseCandidate && !result.LexicalCandidate) ||
 			!validReceiptFacet(result.Facet) || !validReceiptStructure(result.Structure) ||
 			!validReceiptRelation(result.Parent) || !validReceiptRelation(result.Previous) || !validReceiptRelation(result.Next) {
 			return errors.New("run record: invalid retrieval receipt result")
@@ -450,10 +450,6 @@ func sortedReceiptIDs(values []artifact.ID) []artifact.ID {
 	values = slices.Clone(values)
 	slices.SortFunc(values, artifact.CompareID)
 	return slices.Compact(values)
-}
-
-func finiteReceiptScore(value float64) bool {
-	return checked.Finite64(value)
 }
 
 func validReceiptFacet(value dataset.AgentRetrievalFacet) bool {

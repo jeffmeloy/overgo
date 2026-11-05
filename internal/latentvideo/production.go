@@ -133,10 +133,6 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 	return profile, nil
 }
 
-func readProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
-	return videoProfileCodec.Require(ctx, store, id)
-}
-
 func (p Profile) Content() (artifact.Content, error) { return videoProfileCodec.Content(p) }
 
 func (p Profile) validate() error {

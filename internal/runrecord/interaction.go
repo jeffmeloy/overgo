@@ -73,11 +73,6 @@ func canonicalizeInteractionContext(value *InteractionContext) error {
 	return nil
 }
 
-// newInteractionContext identifies one turn's token context.
-func newInteractionContext(value InteractionContext) (InteractionContext, error) {
-	return interactionContextCodec.NewInitial(value)
-}
-
 // RequireInteractionContext returns one validated token context.
 func RequireInteractionContext(ctx context.Context, reader artifact.Reader, id artifact.ID) (InteractionContext, error) {
 	return interactionContextCodec.Require(ctx, reader, id)
@@ -202,11 +197,6 @@ func RequireInteractionTranscript(ctx context.Context, reader artifact.Reader, i
 	return interactionTranscriptCodec.Require(ctx, reader, id)
 }
 
-// newInteraction identifies one immutable response event.
-func newInteraction(value Interaction) (Interaction, error) {
-	return interactionCodec.NewInitial(value)
-}
-
 // ParseInteraction decodes and validates one immutable response event.
 func ParseInteraction(content []byte) (Interaction, error) {
 	return interactionCodec.Parse(content)
@@ -277,7 +267,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 func PublishInteractionWithContext(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome, tokens *InteractionContext) (Interaction, error) {
 	var contextContent []artifact.Content
 	if tokens != nil {
-		identified, err := newInteractionContext(*tokens)
+		identified, err := interactionContextCodec.NewInitial(*tokens)
 		if err != nil {
 			return Interaction{}, err
 		}
@@ -318,7 +308,7 @@ func PublishInteractionWithContext(ctx context.Context, repository artifact.Repo
 		return Interaction{}, err
 	}
 	value.Trace = trace.ID
-	value, err = newInteraction(value)
+	value, err = interactionCodec.NewInitial(value)
 	if err != nil {
 		return Interaction{}, err
 	}

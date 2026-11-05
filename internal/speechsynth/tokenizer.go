@@ -12,21 +12,11 @@ type Piece = tokenizer.UnigramPiece
 // Unigram owns Viterbi policy over a parsed piece table.
 type Unigram = tokenizer.Unigram
 
-// NewUnigram builds the table; unkID must index a real piece.
-func NewUnigram(pieces []Piece, unkID int) (*Unigram, error) {
-	return tokenizer.NewUnigram(pieces, unkID)
-}
-
-// ReadModelFile parses a vendor tokenizer.model piece table.
-func ReadModelFile(path string) ([]Piece, int, error) {
-	return tokenizer.ReadSentencePieceModel(path)
-}
-
 // LoadTokenizer reads the artifact's tokenizer.model into a Unigram.
 func LoadTokenizer(path string) (*Unigram, error) {
-	pieces, unkID, err := ReadModelFile(path)
+	pieces, unkID, err := tokenizer.ReadSentencePieceModel(path)
 	if err != nil {
 		return nil, err
 	}
-	return NewUnigram(pieces, unkID)
+	return tokenizer.NewUnigram(pieces, unkID)
 }

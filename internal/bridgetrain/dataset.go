@@ -99,7 +99,7 @@ func (trainer Trainer) trainDataset(ctx context.Context, request Request) (Resul
 		return Result{}, err
 	}
 	if request.Resume.Valid() {
-		checkpoint, loadErr := loadBridgeTrainingCheckpoint(ctx, request.Reader, request.Resume)
+		checkpoint, loadErr := bridgeCheckpointCodec.Require(ctx, request.Reader, request.Resume)
 		if loadErr != nil {
 			return Result{}, loadErr
 		}
@@ -231,14 +231,6 @@ func accumulateLinearBridgeGradient(
 		}
 	}
 	return loss / float64(outputExtent), nil
-}
-
-func loadBridgeTrainingCheckpoint(
-	ctx context.Context,
-	reader artifact.Reader,
-	id artifact.ID,
-) (bridgeTrainingCheckpoint, error) {
-	return bridgeCheckpointCodec.Require(ctx, reader, id)
 }
 
 func canonicalizeBridgeTrainingCheckpoint(value *bridgeTrainingCheckpoint) error {

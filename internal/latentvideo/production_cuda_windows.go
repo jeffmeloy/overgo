@@ -291,7 +291,7 @@ func readProgramProfile(ctx context.Context, store artifact.Reader, program reci
 	if !ok {
 		return Profile{}, errors.New("latent video: compiled recipe has no profile")
 	}
-	profile, err := readProfile(ctx, store, profileID)
+	profile, err := videoProfileCodec.Require(ctx, store, profileID)
 	if err != nil {
 		return Profile{}, err
 	}

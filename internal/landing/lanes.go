@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
@@ -694,8 +693,4 @@ func devicePackages() []string {
 		patterns = append(patterns, "./"+packagePath)
 	}
 	return patterns
-}
-
-func tail(text string) string {
-	return clioptions.Tail(text, clioptions.DiagnosticTailBytes)
 }

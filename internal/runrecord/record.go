@@ -455,10 +455,6 @@ func validCodeCommit(value string) bool {
 	return validLowerHexDigest(value, sha1.Size, sha256.Size)
 }
 
-func validTreeKey(value string) bool {
-	return validLowerHexDigest(value, sha256.Size)
-}
-
 func validLowerHexDigest(value string, sizes ...int) bool {
 	decoded, err := hex.DecodeString(value)
 	return err == nil && value == strings.ToLower(value) && slices.Contains(sizes, len(decoded))

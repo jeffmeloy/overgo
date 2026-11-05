@@ -100,10 +100,6 @@ type DevicePrefillLayerGraph struct {
 	Tokens   int
 }
 
-func newPrefillBranch(bld *tensor.Builder, tag string, H, qOut, kvOut, hd, f uint64) DevicePrefillBranch {
-	return newTypedPrefillBranch(bld, tag, H, qOut, kvOut, hd, f, dtype.BF16)
-}
-
 func newTypedPrefillBranch(
 	bld *tensor.Builder,
 	tag string,
@@ -168,8 +164,8 @@ func buildDevicePrefillLayer(
 	g.Row = b.Input("row", dtype.F32, tensor.MustShape(H, n))
 	g.MaskText = b.Input("mask_text", dtype.F32, tensor.MustShape(1, n))
 	g.MaskVis = b.Input("mask_vis", dtype.F32, tensor.MustShape(1, n))
-	g.Text = newPrefillBranch(b, "text", H, qOut, kvOut, hd, f)
-	g.Vision = newPrefillBranch(b, "vision", H, qOut, kvOut, hd, f)
+	g.Text = newTypedPrefillBranch(b, "text", H, qOut, kvOut, hd, f, dtype.BF16)
+	g.Vision = newTypedPrefillBranch(b, "vision", H, qOut, kvOut, hd, f, dtype.BF16)
 
 	// select over [H, tokens] (mask [1,tokens] broadcasts on dim0).
 	selectHidden := func(text, vis *tensor.Tensor) *tensor.Tensor {

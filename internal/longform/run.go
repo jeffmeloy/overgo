@@ -111,7 +111,7 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 	}
 	return ShortShape{
 		PromptTokens: floors.ShortPromptTokens, WarmupOutputTokens: WarmupOutputTokens,
-		OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
+		OutputIDs: dtype.ConvertSlice[int32](generation.Tokens), NLL: nll, Measure: generation.Measure,
 	}, nil
 }
 
@@ -139,7 +139,7 @@ func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.To
 		if err != nil {
 			return climbed, "", fmt.Errorf("rung %d allocation accounting: %w", length, err)
 		}
-		climbed = append(climbed, Rung{Measure: generation.Measure, OutputIDs: tokenIDs(generation.Tokens)})
+		climbed = append(climbed, Rung{Measure: generation.Measure, OutputIDs: dtype.ConvertSlice[int32](generation.Tokens)})
 		// The caller reads each rung as it lands and may end the ladder
 		// with a reason of its own, the device's memory for one.
 		if progress != nil {
@@ -177,10 +177,6 @@ func executionCost(before, afterPrompt, after driver.ExecutionStats, outputToken
 	cost.GraphLaunchesPerToken = float64(after.GraphLaunches-afterPrompt.GraphLaunches) / tokens
 	return cost
 }
-
-// The evidence records token ids as int32 and the runner speaks
-// tokenizer ids; one typed conversion serves both directions.
-func tokenIDs(tokens []tokenizer.TokenID) []int32 { return dtype.ConvertSlice[int32](tokens) }
 
 // Generation is one greedy run: the tokens it produced, their text, and
 // the measure over them.
@@ -276,7 +272,7 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 		measure.DecodeTokensPerSecond = float64(len(tokens)-1) / decode.Seconds()
 	}
 	measure.Execution = executionCost(before, afterPrompt, after, len(tokens))
-	ids := tokenIDs(tokens)
+	ids := dtype.ConvertSlice[int32](tokens)
 	measure.DistinctFourGramRatio = DistinctNGramRatio(ids, 4)
 	measure.LongestRepeatedSpan = LongestRepeatedSpan(ids)
 	// The text is rendered from the generated tokens alone: the

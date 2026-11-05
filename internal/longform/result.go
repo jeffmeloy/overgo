@@ -179,12 +179,12 @@ func LatestByLocation(ctx context.Context, store *overgodb.Store, limit int) map
 			// models up by their weights file.
 			keys := []string{}
 			if result.ModelPath != "" {
-				keys = append(keys, locationKey(result.ModelPath))
+				keys = append(keys, Key(result.ModelPath))
 			}
 			if locations, err := store.Locations(ctx, record.Model); err == nil {
 				for _, location := range locations {
 					if location.Kind == artifact.LocationFile {
-						keys = append(keys, locationKey(location.Value))
+						keys = append(keys, Key(location.Value))
 					}
 				}
 			}
@@ -206,5 +206,3 @@ func LatestByLocation(ctx context.Context, store *overgodb.Store, limit int) map
 func Key(path string) string {
 	return strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
 }
-
-func locationKey(path string) string { return Key(path) }

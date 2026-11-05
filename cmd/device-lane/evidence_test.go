@@ -15,7 +15,7 @@ func inferenceDeviceStep(t *testing.T, plan devicescope.VerificationPlan) []stri
 		if !slices.Contains(step, "./internal/inference") {
 			continue
 		}
-		pattern := stepRunPattern(step)
+		pattern := stepTestPattern(step, "-run")
 		if pattern == nil || !pattern.MatchString("TestRecurrentCheckpoint") || !pattern.MatchString("TestNextNMTPDeviceSpeculationLossless") {
 			t.Fatalf("inference step omits required contracts: %v", step)
 		}

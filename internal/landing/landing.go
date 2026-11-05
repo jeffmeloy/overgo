@@ -1010,7 +1010,7 @@ func (l *landing) runIn(ctx context.Context, directory string, environment []str
 		Path: name, Args: arguments, Dir: directory, Env: environment, Stdout: &output, Stderr: &diagnostics,
 	})
 	if err == nil && receipt.ExitCode != 0 {
-		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(output.String()+diagnostics.String()))
+		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, clioptions.Tail(output.String()+diagnostics.String(), clioptions.DiagnosticTailBytes))
 	}
 	return output.String(), err
 }

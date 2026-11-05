@@ -122,7 +122,7 @@ func (h *Handler) conversations(response http.ResponseWriter, request *http.Requ
 				}
 				root := chain[len(chain)-1]
 				summary := conversationSummary{Root: root.Response, Latest: interaction.Response, Turns: len(chain), Model: interaction.Model, Recipe: interaction.Recipe}
-				label, found, err := resolveConversationLabel(request.Context(), h.repository, root.Response)
+				label, found, err := conversationLabelCodec.Resolve(request.Context(), h.repository, conversationLabelAliasRoot+root.Response)
 				if err != nil {
 					return err
 				}
@@ -558,7 +558,7 @@ func publishConversationLabel(ctx context.Context, repository artifact.Repositor
 	if err != nil {
 		return conversationLabelRecord{}, err
 	}
-	current, found, err := resolveConversationLabel(ctx, repository, value.Root)
+	current, found, err := conversationLabelCodec.Resolve(ctx, repository, conversationLabelAliasRoot+value.Root)
 	if err != nil {
 		return conversationLabelRecord{}, err
 	}
@@ -577,12 +577,6 @@ func publishConversationLabel(ctx context.Context, repository artifact.Repositor
 		return conversationLabelRecord{}, err
 	}
 	return value, nil
-}
-
-// resolveConversationLabel reads the current label of the conversation
-// rooted at the named response.
-func resolveConversationLabel(ctx context.Context, reader artifact.Reader, root string) (conversationLabelRecord, bool, error) {
-	return conversationLabelCodec.Resolve(ctx, reader, conversationLabelAliasRoot+root)
 }
 
 // Parent membership is global, not relative to the current list page.

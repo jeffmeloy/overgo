@@ -1,7 +1,6 @@
 package speechrecognition
 
 import (
-	"context"
 	"errors"
 
 	"overgo/internal/artifact"
@@ -77,11 +76,6 @@ var speakerProfileCodec = artifact.JSONDocumentCodec("speaker activity profile",
 // NewSpeakerProfile identifies one immutable speaker execution declaration.
 func NewSpeakerProfile(profile SpeakerProfile) (SpeakerProfile, error) {
 	return speakerProfileCodec.NewInitial(profile)
-}
-
-// RequireSpeakerProfile loads one exact declaration and its dependency lineage.
-func RequireSpeakerProfile(ctx context.Context, reader artifact.Reader, id artifact.ID) (SpeakerProfile, error) {
-	return speakerProfileCodec.RequireExactLineage(ctx, reader, id, SpeakerProfile.Lineage)
 }
 
 // Lineage binds this profile to the exact model, inventory and license evidence.

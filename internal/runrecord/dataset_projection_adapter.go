@@ -34,7 +34,7 @@ func BuildCapabilityEpisodeProjection(
 	}
 	inputs := make([]dataset.CapabilityEpisodeInput, len(sources))
 	for index, source := range sources {
-		attempt, err := RequireAttemptRecord(ctx, reader, source.Attempt)
+		attempt, err := attemptCodec.Require(ctx, reader, source.Attempt)
 		if err != nil {
 			return dataset.CapabilityEpisodeProjection{}, err
 		}

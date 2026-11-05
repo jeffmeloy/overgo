@@ -18,16 +18,8 @@ type DeviceGenerationLayerGraph struct {
 	Tokens, PrefixTokens   int
 }
 
-// BuildDeviceGenerationLayer emits neutral MoT generation math. Family policy
-// enters only through derived config, rope, prefix extent, and image geometry.
-func BuildDeviceGenerationLayer(
-	cfg Config,
-	rope RopePlan,
-	prefixTokens, tokenHeight, tokenWidth, imageTime int,
-) (*DeviceGenerationLayerGraph, error) {
-	return buildDeviceGenerationLayer(cfg, rope, prefixTokens, tokenHeight, tokenWidth, imageTime, dtype.BF16)
-}
-
+// buildDeviceGenerationLayer emits neutral MoT generation math. Family policy enters only through derived config, rope,
+// prefix extent, image geometry and the activation type.
 func buildDeviceGenerationLayer(
 	cfg Config,
 	rope RopePlan,

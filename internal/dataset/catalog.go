@@ -290,7 +290,7 @@ func validateCompiledCatalog(bundle CompiledCatalog) error {
 	}
 	inventories := make(map[artifact.ID]struct{}, len(bundle.Inventories))
 	for _, inventory := range bundle.Inventories {
-		if _, err := inventoryContent(inventory); err != nil {
+		if _, err := inventoryCodec.Content(inventory); err != nil {
 			return err
 		}
 		inventories[inventory.ID] = struct{}{}
@@ -459,7 +459,7 @@ func pendingLocations(ctx context.Context, reader artifact.Reader, locations []a
 func catalogBatch(ctx context.Context, repository artifact.Repository, bundle CompiledCatalog, pending []artifact.Location) (artifact.Batch, error) {
 	batch := artifact.Batch{}
 	for _, inventory := range bundle.Inventories {
-		content, err := inventoryContent(inventory)
+		content, err := inventoryCodec.Content(inventory)
 		if err != nil {
 			return artifact.Batch{}, err
 		}

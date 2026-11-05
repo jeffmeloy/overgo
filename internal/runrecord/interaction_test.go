@@ -72,7 +72,7 @@ func TestInteractionIdentity(t *testing.T) {
 	if err != nil || first.ID != second.ID {
 		t.Fatalf("transcript identity = (%s, %s, %v)", first.ID, second.ID, err)
 	}
-	interaction, err := newInteraction(Interaction{
+	interaction, err := interactionCodec.NewInitial(Interaction{
 		Response: "resp_fixture", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Message: first.ID,
 		Trace: testutil.ArtifactID(t, artifact.KindEvidence, "interaction trace"),
 	})

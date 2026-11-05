@@ -82,13 +82,9 @@ type moeExpertNames struct {
 	gate, up, down string
 }
 
-// routeTopK computes activated router scores and the fixed top-k selection.
-// The selection is piecewise-constant in the scores, so backward treats it
-// as fixed and gradient flows only to the selected magnitudes.
-func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterPolicy) (moeRoute, []float32, error) {
-	return routeTopKSelectionBias(x, router, rows, hidden, experts, policy, nil)
-}
-
+// routeTopKSelectionBias computes activated router scores and the fixed top-k selection, selectionBias, when given,
+// shifting what the selection reads. The selection is piecewise-constant in the scores, so backward treats it as fixed
+// and gradient flows only to the selected magnitudes.
 func routeTopKSelectionBias(x, router []float32, rows, hidden, experts int, policy MoERouterPolicy, selectionBias []float32) (moeRoute, []float32, error) {
 	if policy.TopK <= 0 || policy.TopK > experts {
 		return moeRoute{}, nil, fmt.Errorf("densecausal: moe top_k=%d out of range [1,%d]", policy.TopK, experts)
@@ -176,7 +172,7 @@ func expertForward(x []float32, expert moeExpert, rows, hidden, inter int) []flo
 // moeForward returns the routed mixture output, exact route, and activated
 // scores already computed for that route.
 func moeForward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy) ([]float32, moeRoute, []float32, error) {
-	route, scores, err := routeTopK(x, w.router, rows, hidden, len(w.experts), policy)
+	route, scores, err := routeTopKSelectionBias(x, w.router, rows, hidden, len(w.experts), policy, nil)
 	if err != nil {
 		return nil, moeRoute{}, nil, err
 	}

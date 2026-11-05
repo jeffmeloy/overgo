@@ -60,7 +60,7 @@ func TestQwen35RecurrentMetadataIncludesPredictionLayers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			metadata, trunk, err := qwen35Metadata(repository)
+			metadata, trunk, err := qwen35MetadataForOutput(repository, LanguageTokens)
 			if err != nil {
 				t.Fatal(err)
 			}

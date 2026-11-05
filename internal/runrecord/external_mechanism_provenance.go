@@ -100,7 +100,7 @@ func (value externalMechanismProvenance) Lineage() []artifact.Lineage {
 func canonicalizeExternalMechanismProvenance(value *externalMechanismProvenance) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Census.Kind() != artifact.KindRecipe ||
 		value.License.Kind() != artifact.KindEvidence || value.Transfer != externalMechanismTransfer ||
-		!validExternalSourceText(value.Repository) || !validExternalCommit(value.Commit) || len(value.Sources) == 0 {
+		!validText(value.Repository) || !validExternalCommit(value.Commit) || len(value.Sources) == 0 {
 		return errors.New("run record: invalid external mechanism provenance")
 	}
 	value.Sources = slices.Clone(value.Sources)
@@ -132,10 +132,6 @@ func validExternalCommit(value string) bool {
 	return err == nil && (len(decoded) == sha1.Size || len(decoded) == sha256.Size)
 }
 
-func validExternalSourceText(value string) bool {
-	return validText(value)
-}
-
 func validExternalPath(value string) bool {
-	return validExternalSourceText(value) && !strings.Contains(value, "\\") && path.Clean(value) == value && !path.IsAbs(value) && value != "." && value != ".." && !strings.HasPrefix(value, "../")
+	return validText(value) && !strings.Contains(value, "\\") && path.Clean(value) == value && !path.IsAbs(value) && value != "." && value != ".." && !strings.HasPrefix(value, "../")
 }

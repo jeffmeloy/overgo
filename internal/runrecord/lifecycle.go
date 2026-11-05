@@ -1,7 +1,7 @@
 package runrecord
 
 import (
-	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -55,15 +55,6 @@ type gateLifecycle struct {
 	ID          artifact.ID        `json:"-"`
 }
 
-func parseGateLifecycle(content []byte) (gateLifecycle, error) {
-	return gateLifecycleCodec.Parse(content)
-}
-
-// requireGateLifecycle loads one exact typed gate lifecycle document.
-func requireGateLifecycle(ctx context.Context, reader artifact.Reader, id artifact.ID) (gateLifecycle, error) {
-	return gateLifecycleCodec.Require(ctx, reader, id)
-}
-
 func (l gateLifecycle) Content() (artifact.Content, error) {
 	return gateLifecycleCodec.Content(l)
 }
@@ -80,7 +71,7 @@ func (l gateLifecycle) Lineage() []artifact.Lineage {
 
 func canonicalizeGateLifecycle(lifecycle *gateLifecycle) error {
 	if lifecycle == nil || lifecycle.Version != artifact.InitialDocumentVersion ||
-		!validTreeKey(lifecycle.TreeKey) ||
+		!validLowerHexDigest(lifecycle.TreeKey, sha256.Size) ||
 		lifecycle.Environment.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid gate lifecycle")
 	}

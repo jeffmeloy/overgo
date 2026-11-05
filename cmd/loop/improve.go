@@ -183,7 +183,7 @@ func improvementFor(store string) improvement {
 		},
 		fill: func(checkout string) error {
 			return landing.HoldLaneTurn(func() error {
-				return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
+				return validateTo(os.Stdout, checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
 			})
 		},
 	}
@@ -485,7 +485,7 @@ func measureScorecard(checkout, store string, published func() error, run *runRe
 	}
 	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
 	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, published, run, func(environment []string, arguments ...string) error {
-		return validateIn(checkout, store, environment, arguments...)
+		return validateTo(os.Stdout, checkout, store, environment, arguments...)
 	})
 }
 
@@ -556,15 +556,9 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 	return errors.Join(failed...)
 }
 
-// validateIn runs cmd/validate with arguments from checkout into store,
-// with environment added. The checkout holds none of the main checkout's
-// ignored files, so the data roots the main checkout resolves are bound for
-// it explicitly.
-func validateIn(checkout, store string, environment []string, arguments ...string) error {
-	return validateTo(os.Stdout, checkout, store, environment, arguments...)
-}
-
-// validateTo is validateIn with the command's output sent to output.
+// validateTo runs cmd/validate with arguments from checkout into store, with environment added and the command's
+// output sent to output. The checkout holds none of the main checkout's ignored files, so the data roots the main
+// checkout resolves are bound for it explicitly.
 func validateTo(output io.Writer, checkout, store string, environment []string, arguments ...string) error {
 	store, err := filepath.Abs(store)
 	if err != nil {

@@ -240,7 +240,7 @@ func registerBatch(
 	version, catalog Document,
 ) (artifact.Batch, bool, error) {
 	batch := artifact.Batch{}
-	inventoryContent, err := inventoryContent(inventory)
+	inventoryContent, err := inventoryCodec.Content(inventory)
 	if err != nil {
 		return artifact.Batch{}, false, err
 	}

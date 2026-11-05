@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -61,11 +60,6 @@ func NewAdmissionBinding(value AdmissionBinding) (AdmissionBinding, error) {
 
 func ParseAdmissionBinding(content []byte) (AdmissionBinding, error) {
 	return admissionBindingCodec.Parse(content)
-}
-
-// requireAdmissionBinding loads one exact independent authority binding.
-func requireAdmissionBinding(ctx context.Context, reader artifact.Reader, id artifact.ID) (AdmissionBinding, error) {
-	return admissionBindingCodec.Require(ctx, reader, id)
 }
 
 func (b AdmissionBinding) Content() (artifact.Content, error) {

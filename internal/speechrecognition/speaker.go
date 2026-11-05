@@ -31,7 +31,7 @@ type speakerModel struct {
 
 func loadSpeaker(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memory uint64) (*speakerModel, error) {
 	id, _ := definition.PrimaryDependency(recipe.DependencyProcessorProfile)
-	profile, err := RequireSpeakerProfile(ctx, repository, id)
+	profile, err := speakerProfileCodec.RequireExactLineage(ctx, repository, id, SpeakerProfile.Lineage)
 	if err != nil {
 		return nil, err
 	}

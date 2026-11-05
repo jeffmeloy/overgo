@@ -206,14 +206,14 @@ func validateTerminalAttemptReceiptDirectReferences(
 	if !receipt.FailureObservation.Valid() {
 		return nil
 	}
-	observation, err := RequireFailureObservation(ctx, reader, receipt.FailureObservation)
+	observation, err := failureObservationCodec.Require(ctx, reader, receipt.FailureObservation)
 	if err != nil {
 		return errors.Join(errors.New("run record: terminal failure observation cannot be resolved exactly"), err)
 	}
 	if observation.Run.Valid() {
 		return errors.New("run record: terminal failure observation is bound to a run instead of the receipt operation")
 	}
-	normalization, err := RequireFailureNormalization(ctx, reader, receipt.FailureNormalization)
+	normalization, err := failureNormalizationCodec.Require(ctx, reader, receipt.FailureNormalization)
 	if err != nil {
 		return errors.Join(errors.New("run record: terminal failure normalization cannot be resolved exactly"), err)
 	}

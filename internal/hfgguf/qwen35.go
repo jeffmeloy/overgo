@@ -99,7 +99,7 @@ func qwen35Parts(repository *hfrepo.Repository) ([]gguf.Metadata, []tensorMappin
 	if repository == nil || repository.Tensors == nil {
 		return nil, nil, errors.New("HF/GGUF adapter: nil repository")
 	}
-	metadata, blockCount, err := qwen35Metadata(repository)
+	metadata, blockCount, err := qwen35MetadataForOutput(repository, LanguageTokens)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -108,10 +108,6 @@ func qwen35Parts(repository *hfrepo.Repository) ([]gguf.Metadata, []tensorMappin
 		return nil, nil, err
 	}
 	return metadata, mappings, nil
-}
-
-func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, error) {
-	return qwen35MetadataForOutput(repository, LanguageTokens)
 }
 
 func qwen35MetadataForOutput(repository *hfrepo.Repository, output LanguageOutput) ([]gguf.Metadata, uint32, error) {

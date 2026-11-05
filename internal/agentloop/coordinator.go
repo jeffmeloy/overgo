@@ -462,7 +462,7 @@ func (c *Coordinator) approve(
 	}
 	request, err := operatoraction.NewApprovalRequest(operation, c.identity.Recipe, operatoraction.Action{
 		Code: manual.Name, Summary: "agent mutation " + manual.Name,
-		Argv: decisionArguments(manual, stimulus),
+		Argv: invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID),
 	}, prior)
 	if err != nil {
 		return artifact.ID{}, err
@@ -475,12 +475,6 @@ func (c *Coordinator) approve(
 		return artifact.ID{}, err
 	}
 	return decision.ID, nil
-}
-
-// decisionArguments is the exact fact set a mutation decision binds: the
-// immutable subject, canonical arguments, resolved effect, and preflight.
-func decisionArguments(manual agenttool.Manual, stimulus runrecord.AttemptStimulusBoundary) []string {
-	return invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID)
 }
 
 // requireMutationDecision requires one action-bound preflight and the committed
@@ -523,7 +517,7 @@ func (c *Coordinator) requireMutationDecision(
 	if decision.Answer != operatoraction.AnswerGrant {
 		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q approval decision is %q", manual.Name, decision.Answer)
 	}
-	if decision.Tool != manual.Name || !slices.Equal(decision.Arguments, decisionArguments(manual, stimulus)) {
+	if decision.Tool != manual.Name || !slices.Equal(decision.Arguments, invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID)) {
 		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: committed decision binds a different tool or arguments for %q", manual.Name)
 	}
 	spent, err := c.grantSpent(ctx, operation, stimulus.ID)
@@ -613,7 +607,7 @@ func (c *Coordinator) PreviewMutationDecision(
 		return DecisionPreview{}, err
 	}
 	if preflightFound && stimulus.Manual == manual.ID && stimulus.Arguments == effect.Arguments && stimulus.Effect == effect.ID {
-		preview.Arguments = decisionArguments(manual, stimulus)
+		preview.Arguments = invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID)
 	}
 	decision, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 
 func TestMoERouterObservationIdentityCoverageAndValidation(t *testing.T) {
 	policy := MoERouterPolicy{TopK: 2, Scoring: MoEScoringSoftmax, NormalizeTopKProb: true, RoutedScaling: 1, ExpertInter: 1}
-	route, scores, err := routeTopK([]float32{1, 2}, []float32{1, 0, 0, 1, -1, 0}, 1, 2, 3, policy)
+	route, scores, err := routeTopKSelectionBias([]float32{1, 2}, []float32{1, 0, 0, 1, -1, 0}, 1, 2, 3, policy, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

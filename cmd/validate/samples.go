@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -66,7 +67,7 @@ func exportMediaSamples(root, repository string, scope mediaReportScope) error {
 	written := 0
 	for _, entry := range entries {
 		for _, capability := range entry.Capabilities {
-			if !mediaTask(capability.Task) || capability.Stale != "" {
+			if !slices.Contains(mediaTasks, capability.Task) || capability.Stale != "" {
 				continue
 			}
 			activation, active, err := modelrecipe.ActiveRecord(ctx, store, entry.Model, capability.Task)

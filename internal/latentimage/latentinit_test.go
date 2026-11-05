@@ -1,6 +1,7 @@
 package latentimage
 
 import (
+	"overgo/internal/media"
 	"testing"
 
 	"overgo/internal/tensor/dtype"
@@ -67,7 +68,7 @@ func TestMixNoiseGeneralFormula(t *testing.T) {
 		n := dtype.RoundBF16(noise[i] * m.NoiseScale)
 		want[i] = dtype.RoundBF16(m.SignalWeight*dst[i] + m.NoiseWeight*n)
 	}
-	mixNoiseInto(dst, noise, m)
+	media.MixNoiseBF16Into(dst, noise, m)
 	requireExactF32(t, dst, want)
 }
 
@@ -77,11 +78,11 @@ func TestMixNoiseGeneralFormula(t *testing.T) {
 func TestMixAliasedEqualsNonAliased(t *testing.T) {
 	m := NoiseMix{SignalWeight: 0.6, NoiseWeight: 0.4, NoiseScale: 1.0}
 	aliased := copyF32(torchRandnSeed31First)
-	mixNoiseInto(aliased, aliased, m)
+	media.MixNoiseBF16Into(aliased, aliased, m)
 
 	noise := copyF32(torchRandnSeed31First)
 	dst := copyF32(torchRandnSeed31First) // dst == noise initially, distinct backing
-	mixNoiseInto(dst, noise, m)
+	media.MixNoiseBF16Into(dst, noise, m)
 
 	requireExactF32(t, aliased, dst)
 }

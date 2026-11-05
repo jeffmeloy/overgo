@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"errors"
 	"strings"
 
@@ -162,11 +161,6 @@ func NewAttemptRecord(record AttemptRecord) (AttemptRecord, error) {
 // strategy ID attached after the gate identified the record.
 func (a AttemptRecord) ValidateIdentity() error {
 	return attemptCodec.ValidateIdentity(a)
-}
-
-// RequireAttemptRecord loads one canonical gate-attempt document.
-func RequireAttemptRecord(ctx context.Context, reader artifact.Reader, id artifact.ID) (AttemptRecord, error) {
-	return attemptCodec.Require(ctx, reader, id)
 }
 
 // Content encodes the attempt for its store batch.

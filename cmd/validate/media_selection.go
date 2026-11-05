@@ -98,7 +98,7 @@ func measuredSampleSelection(ctx context.Context, store *overgodb.Store) (*media
 	selection := &mediaSampleSelection{runs: map[artifact.ID]bool{}}
 	for _, row := range rows {
 		source := row.Cells[metric.FirstOutput].Source
-		if !mediaTask(row.Task) || !source.Valid() {
+		if !slices.Contains(mediaTasks, row.Task) || !source.Valid() {
 			continue
 		}
 		observation, err := runrecord.RequireServingObservation(ctx, store, source)

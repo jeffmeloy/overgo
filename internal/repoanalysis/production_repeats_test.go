@@ -87,9 +87,8 @@ type bodySite struct {
 	values []string
 }
 
-// productionBodies reads the function and closure bodies of repeatLeast nodes or more of the module's linked packages,
-// outside generated files and outside inside, by skeleton.
-func productionBodies(t *testing.T, root string, inside func(directory string) bool) map[string][]bodySite {
+// linkedPackages loads the module at root and the import paths of the packages its commands link.
+func linkedPackages(t *testing.T, root string) (*moduleLoad, map[string]bool) {
 	t.Helper()
 	load, err := loadModule(t.Context(), root)
 	if err != nil {
@@ -103,6 +102,14 @@ func productionBodies(t *testing.T, root string, inside func(directory string) b
 			}
 		}
 	}
+	return load, linked
+}
+
+// productionBodies reads the function and closure bodies of repeatLeast nodes or more of the module's linked packages,
+// outside generated files and outside inside, by skeleton.
+func productionBodies(t *testing.T, root string, inside func(directory string) bool) map[string][]bodySite {
+	t.Helper()
+	load, linked := linkedPackages(t, root)
 	skeletons := map[string][]bodySite{}
 	for importPath, checked := range load.module {
 		directory, _ := filepath.Rel(load.root, checked.listed.Dir)

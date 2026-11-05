@@ -504,10 +504,6 @@ func stepPeakDeviceBytes(evidence string) (uint64, bool) {
 	return 0, false
 }
 
-func mediaTask(task recipe.Task) bool {
-	return slices.Contains(mediaTasks, task)
-}
-
 func staleCell(stale string) string {
 	if stale == "" {
 		return "-"

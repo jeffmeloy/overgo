@@ -119,6 +119,3 @@ func RetiredGateAliasesAtRest(name string, _ artifact.ID) error {
 	}
 	return fmt.Errorf("run record: unknown store-local authority %q", name)
 }
-
-// ValidateIdentity verifies lifecycle content identity.
-func (l gateLifecycle) ValidateIdentity() error { return gateLifecycleCodec.ValidateIdentity(l) }

@@ -109,8 +109,6 @@ func (p ImprovementProposal) DevelopmentSplit() artifact.ID { return p.developme
 func (p ImprovementProposal) Recipe() artifact.ID           { return p.recipe }
 func (p ImprovementProposal) Code() artifact.ID             { return p.code }
 func (p ImprovementProposal) Proposer() artifact.ID         { return p.proposer }
-func (p ImprovementProposal) Components() []artifact.ID     { return slices.Clone(p.components) }
-
 func (p ImprovementProposal) Content() (artifact.Content, error) {
 	return improvementProposalContract.ContentJSON(p.id, p.body())
 }

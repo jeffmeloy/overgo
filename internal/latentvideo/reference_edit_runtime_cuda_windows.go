@@ -349,10 +349,3 @@ func (r *referenceEditRuntime) Close() error {
 	}
 	return errors.Join(errs...)
 }
-
-func (r *referenceEditRuntime) Plan() editPlan {
-	if r == nil {
-		return editPlan{}
-	}
-	return r.editPlan
-}

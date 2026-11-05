@@ -86,9 +86,6 @@ func (value MechanismCandidate) Provenance() artifact.ID { return value.provenan
 // Mechanism returns the exact research mechanism subject.
 func (value MechanismCandidate) Mechanism() artifact.ID { return value.mechanism }
 
-// Owner returns the existing implementation owner named by the census.
-func (value MechanismCandidate) Owner() artifact.ID { return value.owner }
-
 // Gap returns typed evidence for the open capability gap.
 func (value MechanismCandidate) Gap() artifact.ID { return value.gap }
 

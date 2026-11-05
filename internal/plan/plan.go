@@ -3,8 +3,6 @@ package plan
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -553,16 +551,6 @@ func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
 	}
 	return Plan{}, fmt.Errorf("item %q not found", itemID)
-}
-
-// Digest returns the existing canonical plan identity; unencodable state returns empty.
-func (document Plan) Digest() string {
-	encoded, err := json.Marshal(document)
-	if err != nil {
-		return ""
-	}
-	digest := sha256.Sum256(encoded)
-	return hex.EncodeToString(digest[:])
 }
 
 func exactPlanItem(document Plan, itemID string) (Item, bool) {

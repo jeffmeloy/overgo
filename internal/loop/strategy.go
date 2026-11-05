@@ -80,9 +80,6 @@ func RequireStrategy(ctx context.Context, reader artifact.Reader, id artifact.ID
 	return strategyCodec.Require(ctx, reader, id)
 }
 
-// ValidateIdentity checks the strategy's canonical form and content-addressed identity.
-func (v Strategy) ValidateIdentity() error { return strategyCodec.ValidateIdentity(v) }
-
 // Lineage links the strategy to its worker, prompt, model recipe, catalog, and policies.
 func (v Strategy) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(v.ID, append([]artifact.ID{v.Worker, v.Prompt, v.ModelRecipe, v.Catalog}, v.Policies...)...)

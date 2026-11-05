@@ -109,10 +109,6 @@ func RequireGateResult(ctx context.Context, reader artifact.Reader, id artifact.
 	return gateCodec.Require(ctx, reader, id)
 }
 
-func (g GateResult) ValidateIdentity() error {
-	return gateCodec.ValidateIdentity(g)
-}
-
 func (g GateResult) Content() (artifact.Content, error) {
 	return gateCodec.Content(g)
 }

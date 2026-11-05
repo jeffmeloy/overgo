@@ -514,7 +514,7 @@
      "contains": "func LoadArtifact(",
      "path": "internal/adaptertrain/model.go",
      "role": "source",
-     "identity": "file:sha256:2ceddb9e75e6f1da8198c7eb238f2f2d5d93daff0f4fbd26eb2678a16159a02d"
+     "identity": "file:sha256:eb703de5811b6d19e107a7f3b82e0bcc5ffd24186af48853fbf9c8c0c49e5a58"
     },
     {
      "contains": "func TestGemmaE4BRealTraining(",

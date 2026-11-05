@@ -77,14 +77,6 @@ func NewToolExecutor(
 	return executor, nil
 }
 
-// RecipeID returns the admitted recipe identity.
-func (executor *ToolExecutor) RecipeID() artifact.ID {
-	if executor == nil {
-		return artifact.ID{}
-	}
-	return executor.admission.Recipe
-}
-
 // ExecuteTool runs one call and returns its typed result.
 func (executor *ToolExecutor) ExecuteTool(ctx context.Context, call recipe.ToolCall) (recipe.ToolResult, error) {
 	execution, err := executor.ExecuteToolOperation(ctx, call)

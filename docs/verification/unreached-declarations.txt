@@ -40,7 +40,9 @@ The walk reads names and never types, so both lists are lower bounds.
 
 Read by types.
 compact-production/typed-walk replaced the census's walk of names with one of types (TestTheReachWalkReadsTypes), which selects a method as the type checker resolves it, so a name two types share no longer keeps both.
-It found 218 declarations more, each sorted by whether a test reaches it, directly or through another declaration only tests reach: 62 that nothing reaches are dead and 138 that tests reach are test-held, in four groups by class and side, and 18 join the group that held their file.
+It found the declarations the name walk had kept through a shared name, each sorted by whether a test reaches it, behind any build tag the tests build behind: what nothing reaches is dead and what tests reach is test-held, in groups by class and side, and a few joined the group that held their file.
+A type owes an interface it implements the methods its method set gives, its own or an embedded type's, so a pass embedded in a trainer is reached through the trainer.
+compact-production/dead-declarations deleted the dead outside the inference surface, and TestNoDeclarationIsReachedByNothing holds the dead class to what no command and no test reaches; the dead inside wait for surface-folds.
 It takes the rules the shadowed groups named: a function that takes a testing.TB is test support, and a lane reaches what the tests it runs name in its own package, so testskip-helpers and webui-lane-harness left the record.
 The schema list keeps its reading of names.
 
@@ -432,15 +434,14 @@ reason: Each stays where it is, because SelectStructuredImageCrops is called by 
 group typed-dead-inside
 class: dead
 surface: inside
-declarations: 26
-lines: 138
+declarations: 25
+lines: 123
 members: internal/composition/authority.go BridgeDefinition.Batch
 members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAEvidence.Batch
 members: internal/composition/composite_generation_promotion.go CompositeGenerationPromotion.ValidateIdentity CompositeGenerationPromotionAuthority.Load CompositeGenerationPromotionAuthority.Parse
 members: internal/composition/offline_generation.go OfflineArtifactGenerationEvidence.Batch
 members: internal/composition/offline_materialization.go OfflineArtifactObservation.ValidateIdentity
 members: internal/composition/representation_bridge_promotion.go RepresentationBridgePromotion.Batch RepresentationBridgePromotionPolicy.Identity
-members: internal/hostmath/hybrid_stack.go HybridStackBackward
 members: internal/inference/rank.go Runner.Rank
 members: internal/modelartifact/tensor_measurement.go TensorMeasurementDocument.ValidateIdentity
 members: internal/modelrecipe/audio_contract.go AudioContractDocument.ValidateIdentity
@@ -457,42 +458,7 @@ members: internal/recipe/decision.go Decision.ValidateIdentity
 members: internal/representation/contract.go Contract.Batch
 members: internal/tokenizer/vocabulary_artifact.go VocabularyArtifact.Batch VocabularyArtifact.ValidateIdentity
 reason: The name walk kept each through another declaration of its name, a Batch, a ValidateIdentity, a Spec or a Forward that a reached type has, and read by types no command and no test reaches it (TestTheReachWalkReadsTypes).
-reason: Nothing calls it, so it goes with dead-declarations, with the interface method that lists it where one does.
-
-group typed-dead-outside
-class: dead
-surface: outside
-declarations: 36
-lines: 226
-members: internal/adaptertrain/model.go Model.Layer
-members: internal/agenttool/manual.go TransportKind.Valid
-members: internal/dataset/transform.go DatasetTransform.ValidateIdentity
-members: internal/e4btrain/model.go Model.SaveWeights Model.TrainedTensor
-members: internal/evaluation/retrieval_quality.go retrievalEvaluation.ValidateIdentity
-members: internal/evaluation/text_target.go textTargetPlan.Content textTargetReport.Content
-members: internal/finding/document.go Document.ValidateIdentity
-members: internal/hybridtrain/stack.go hostBackwardPass.Backward hostForwardPass.Forward
-members: internal/latentvideo/denoiser.go DenoiserProgram.Denoise DenoiserProgram.Forward DenoiserProgram.ProjectContext DenoiserProgram.weightFeeds DenoiserWeights.decoded graphRunnerBackend.ForwardHead graphRunnerBackend.ProjectBranchContexts
-members: internal/latentvideo/denoiser_session.go DenoiserCUDASession.Denoise
-members: internal/latentvideo/reference_edit_runtime_cuda_windows.go referenceEditRuntime.Plan
-members: internal/latentvideo/vae_session.go vaeDecoderCUDASession.Profile
-members: internal/loop/strategy.go Strategy.ValidateIdentity
-members: internal/plan/plan.go Plan.Digest
-members: internal/runrecord/advisory.go Advisory.ValidateIdentity
-members: internal/runrecord/gate.go GateResult.ValidateIdentity
-members: internal/runrecord/improvement.go improvementDecision.ValidateIdentity
-members: internal/runrecord/interaction_efficiency.go EfficiencyTrace.Batch
-members: internal/runrecord/lifecycle.go gateLifecycle.ValidateIdentity
-members: internal/runrecord/moe_router_coverage.go moERouterObservationCoverage.ValidateIdentity
-members: internal/runrecord/observation_chunk.go ObservationChunk.ValidateIdentity
-members: internal/speechrecognition/profile.go ExecutionProfile.ValidateIdentity
-members: internal/trainingprogram/authority.go ScratchConstruction.RNGStreams
-members: internal/trainingprogram/improvement.go ImprovementProposal.Components
-members: internal/trainingprogram/mechanism_candidate.go MechanismCandidate.Owner
-members: internal/trainingprogram/session_plan.go TrainingSessionPlan.ObjectiveScale
-members: internal/workflowruntime/tool.go ToolExecutor.RecipeID
-reason: The name walk kept each through another declaration of its name, a Batch, a ValidateIdentity, a Spec or a Forward that a reached type has, and read by types no command and no test reaches it (TestTheReachWalkReadsTypes).
-reason: Nothing calls it, so it goes with dead-declarations, with the interface method that lists it where one does.
+reason: Nothing calls it, so it goes with surface-folds, which moves the inference surface's keys once, with the interface method that lists it where one does.
 
 group typed-test-held-inside
 class: test-held
@@ -542,8 +508,8 @@ reason: It is unwired under the operator's rule, and test-held-deletions reads i
 group typed-test-held-outside
 class: test-held
 surface: outside
-declarations: 87
-lines: 1227
+declarations: 97
+lines: 1344
 members: internal/agenttool/stream.go StreamEvent.ArtifactContent StreamTerminal.ArtifactContent
 members: internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch BenchmarkComparisonRecord.ValidateIdentity
 members: internal/controllertrain/corpus.go Corpus.PublicationBatch Corpus.Split
@@ -556,12 +522,16 @@ members: internal/diffusionimage/resident_forward.go ResidentForward.Execute Res
 members: internal/evaluation/heldout_verdict.go heldoutVerdict.Content
 members: internal/evaluation/knowledge_promotion.go knowledgePromotionEvidence.ValidateIdentity
 members: internal/evaluation/suite.go CompiledSuite.Plan
+members: internal/evaluation/text_target.go textTargetPlan.Content textTargetReport.Content
 members: internal/hostoptimizer/optimizer.go Optimizer.Momentum
-members: internal/hybridtrain/stack.go Model.packGradients builder.mat builder.randn
+members: internal/hybridtrain/stack.go builder.mat builder.randn
 members: internal/latentimage/denoiser.go Denoiser.Forward Denoiser.attention Denoiser.fusionBlock Denoiser.headRMSAndRope Denoiser.ropeTable Denoiser.swiGLU Denoiser.textConditioning Denoiser.timestepConditioning Denoiser.w dense geluTanh rmsNormZeroCentered sigmoidF64 siluF64
 members: internal/latentimage/denoiser_program.go DenoiserProgram.Forward DenoiserProgram.hostFeeds
 members: internal/latentimage/resident_pipeline_cuda_windows.go ResidentImagePipeline.Latent ResidentImagePipeline.ResidentBytes
+members: internal/latentvideo/denoiser.go DenoiserProgram.Denoise DenoiserProgram.Forward DenoiserProgram.ProjectContext DenoiserProgram.weightFeeds DenoiserWeights.decoded graphRunnerBackend.ForwardHead graphRunnerBackend.ProjectBranchContexts
+members: internal/latentvideo/denoiser_session.go DenoiserCUDASession.Denoise
 members: internal/latentvideo/reference_edit_denoiser_session_windows.go referenceEditDenoiserCUDASession.ExecutionStats
+members: internal/latentvideo/vae_session.go vaeDecoderCUDASession.Profile
 members: internal/modelswap/catalog.go CatalogResolver.Progress
 members: internal/overgodb/blobs.go blobStore.has
 members: internal/peft/peft.go Adapter.Delta

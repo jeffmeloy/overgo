@@ -89,8 +89,6 @@ func New(
 func Parse(data []byte) (Document, error)             { return codec.Parse(data) }
 func Normalize(data []byte) (Document, []byte, error) { return codec.Normalize(data) }
 func (d Document) Content() (artifact.Content, error) { return codec.Content(d) }
-func (d Document) ValidateIdentity() error            { return codec.ValidateIdentity(d) }
-
 func (d Document) Lineage() []artifact.Lineage {
 	parents := append(slices.Clone(d.OwnerSurfaces), d.Evidence...)
 	edges := make([]artifact.Lineage, len(parents))

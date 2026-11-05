@@ -148,10 +148,6 @@ func (a Advisory) Surprise() float64 {
 	return a.SurpriseNumerator / a.MAD
 }
 
-func (a Advisory) ValidateIdentity() error {
-	return advisoryCodec.ValidateIdentity(a)
-}
-
 func (a Advisory) Content() (artifact.Content, error) {
 	return advisoryCodec.Content(a)
 }

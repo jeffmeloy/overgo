@@ -98,7 +98,6 @@ func (c ScratchConstruction) InitializedModel() artifact.ID  { return c.initiali
 func (c ScratchConstruction) Dataset() artifact.ID           { return c.dataset }
 func (c ScratchConstruction) Split() artifact.ID             { return c.split }
 func (c ScratchConstruction) DerivationProfile() artifact.ID { return c.derivationProfile }
-func (c ScratchConstruction) RNGStreams() []RNGStreamSpec    { return slices.Clone(c.rngStreams) }
 
 type OperatorPhase string
 

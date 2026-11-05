@@ -205,11 +205,6 @@ func requireRetrievalEvaluation(ctx context.Context, reader artifact.Reader, id 
 	return value, nil
 }
 
-// ValidateIdentity proves aggregate evidence and ordered-result identity did not change.
-func (value retrievalEvaluation) ValidateIdentity() error {
-	return retrievalEvaluationCodec.ValidateIdentity(value)
-}
-
 // Lineage binds the evaluation to the case and consumed receipt. The Results
 // field is a value digest, not a synthetic catalog parent.
 func (value retrievalEvaluation) Lineage() []artifact.Lineage {

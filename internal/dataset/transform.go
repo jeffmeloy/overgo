@@ -108,11 +108,6 @@ func (value DatasetTransform) Content() (artifact.Content, error) {
 // Lineage binds the transform to registered code, recipes, inputs, outputs, and replay evidence.
 func (value DatasetTransform) Lineage() []artifact.Lineage { return transformLineage(value.document) }
 
-// ValidateIdentity proves the transform document did not change.
-func (value DatasetTransform) ValidateIdentity() error {
-	return transformCodec.ValidateIdentity(value.document)
-}
-
 func canonicalizeTransform(value *transform) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.IdentityMode != transformContentAddressed ||
 		value.Registration.Kind() != artifact.KindProfile || value.Operation.Kind() != artifact.KindRecipe ||

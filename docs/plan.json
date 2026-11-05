@@ -74,20 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "the row's target, 0.90 percent of production, 20,685 nodes, stays in its steps' reasoning; a count below zero refuses every landing that deletes less than all of it at once, as typed-walk, which changes test code alone, is refused. Each deletion step sets the count it measures before it lands."
+        "nodes": 488,
+        "reason": "dead-declarations measured at -488 nodes: the 21 declarations no command and no test reaches outside the inference surface, and the two imports only Plan.Digest used."
       },
       "steps": [
-        {
-          "id": "dead-declarations",
-          "title": "Delete what no command and no test reaches",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoDeclarationIsReachedByNothing$'",
-          "rationale": "52 declarations, 1,340 nodes, no command and no test reaches them: 20 ValidateIdentity, 9 Batch, 7 Spec, 2 Clone, Runner.Rank, Plan.Digest and others. A sample was read and the false positives removed. An interface that lists a method nothing calls will refuse at compile. The part inside the inference surface goes with surface-folds.\nServes: less code to keep right.\nDisappears: 52 declarations.\nEvidence: gate production nodes, and compile across tag sets.\nBatch: host lane.",
-          "depends_on": [
-            "compact-production/typed-walk"
-          ]
-        },
         {
           "id": "retire-reward-pilot",
           "title": "Remove the reward pilot, keeping its record",

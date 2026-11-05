@@ -200,12 +200,6 @@ func (value ObservationChunk) Content() (artifact.Content, error) {
 	return content, nil
 }
 
-// ValidateIdentity verifies the raw chunk's canonical content identity.
-func (value ObservationChunk) ValidateIdentity() error {
-	_, err := value.Content()
-	return err
-}
-
 // SummarizeObservationChunk derives the bounded typed projection without
 // publishing it. All arithmetic is checked; overflow is never saturated.
 func SummarizeObservationChunk(value ObservationChunk) (ObservationChunkSummary, error) {

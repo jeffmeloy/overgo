@@ -118,12 +118,6 @@ const (
 	TransportHTTPJSONStream TransportKind = "http-json-stream"
 )
 
-// Valid reports whether the transport kind is a declared path.
-func (kind TransportKind) Valid() bool {
-	return kind == TransportBuiltin || kind == TransportHTTP || kind == TransportArgv ||
-		kind == TransportMCPHTTP || kind == TransportHTTPJSONStream
-}
-
 // Transport binds a manual to its native invocation path.
 type Transport struct {
 	Kind TransportKind `json:"kind"`

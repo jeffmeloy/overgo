@@ -156,9 +156,6 @@ func (plan TrainingSessionPlan) MaximumSequence() int { return plan.maximumSeque
 // Objective returns the loss kind the run steps.
 func (plan TrainingSessionPlan) Objective() ObjectiveKind { return plan.objective }
 
-// ObjectiveScale returns compiled objective scaling.
-func (plan TrainingSessionPlan) ObjectiveScale() float64 { return plan.objectiveScale }
-
 // MaxProjectedWall returns admitted wall bound.
 func (plan TrainingSessionPlan) MaxProjectedWall() time.Duration { return plan.maxProjectedWall }
 

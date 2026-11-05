@@ -316,7 +316,7 @@ func reachFromCommands(snapshot gosyntax.Snapshot, outside map[string]bool) (com
 // unreachedDeclarations lists the functions and methods of the module at root that no command reaches, and counts the ones it read.
 //   - universe = the functions and methods reachTypes reads, of the host's build
 func unreachedDeclarations(ctx context.Context, root string, outside map[string]bool) ([]unreached, int, error) {
-	reach, err := reachTypes(ctx, root, outside)
+	reach, err := reachTypes(ctx, root, outside, false)
 	if err != nil {
 		return nil, 0, err
 	}

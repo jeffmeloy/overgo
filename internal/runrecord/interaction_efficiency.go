@@ -133,8 +133,3 @@ func (value EfficiencyTrace) Content() (artifact.Content, error) {
 func (value EfficiencyTrace) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Result, value.Evidence)
 }
-
-// Batch wraps the trace as one committable store batch.
-func (value EfficiencyTrace) Batch(key string) (artifact.Batch, error) {
-	return efficiencyTraceCodec.Batch(key, value, value.Lineage(), nil)
-}

@@ -2,11 +2,13 @@ package repoanalysis
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/importer"
 	"go/parser"
 	"go/token"
@@ -38,10 +40,13 @@ type listedPackage struct {
 // listFields are the fields of listedPackage go list fills.
 const listFields = "-json=ImportPath,Name,Dir,Export,GoFiles,CgoFiles,TestGoFiles,XTestGoFiles,Imports,TestImports,XTestImports,ImportMap,Module,Error"
 
-// goList runs go list -deps -export in root over patterns and returns the packages it lists, in its order.
-func goList(ctx context.Context, root string, patterns ...string) ([]listedPackage, error) {
+// exportFlags list a package with every package it links, and the export data of each.
+var exportFlags = []string{"-deps", "-export"}
+
+// goList runs go list with flags in root over patterns and returns the packages it lists, in its order.
+func goList(ctx context.Context, root string, flags []string, patterns ...string) ([]listedPackage, error) {
 	var listed, failure bytes.Buffer
-	arguments := append([]string{"list", "-deps", "-export", listFields}, patterns...)
+	arguments := slices.Concat([]string{"list", listFields}, flags, patterns)
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: arguments, Dir: root, Stdout: &listed, Stderr: &failure})
 	if err == nil && receipt.ExitCode != 0 {
 		err = fmt.Errorf("exit %d: %s", receipt.ExitCode, strings.TrimSpace(failure.String()))
@@ -98,12 +103,31 @@ type typedReach struct {
 
 // typedWalk is the state of one walk of types from the commands.
 //   - declared maps each declared object of the module to the declarations that state it
-//   - interfaces holds, by method name, the interfaces a reached declaration calls through or states
+//   - named = the named types the walk reached, in the order it reached them, and stated = the interfaces a reached declaration calls through or states, each once
+//   - settled holds each named type and interface whose methods the walk has reached, and listed counts the named types whose methods an outside interface names it has reached
 type typedWalk struct {
-	declared   map[types.Object][]typedDeclaration
-	reached    map[types.Object]bool
-	interfaces map[string][]*types.Interface
-	queue      []types.Object
+	declared map[types.Object][]typedDeclaration
+	reached  map[types.Object]bool
+	queue    []types.Object
+	named    []*types.Named
+	stated   []*types.Interface
+	met      map[*types.Interface]bool
+	settled  map[typePair]bool
+	listed   int
+}
+
+// typePair is a named type and an interface the walk settled.
+type typePair struct {
+	named  *types.Named
+	stated *types.Interface
+}
+
+// state keeps an interface the walk met, once.
+func (w *typedWalk) state(stated *types.Interface) {
+	if !w.met[stated] {
+		w.met[stated] = true
+		w.stated = append(w.stated, stated)
+	}
 }
 
 // typedDeclaration is one declaration of the module with the type information of its package.
@@ -120,6 +144,9 @@ func (w *typedWalk) reach(object types.Object) {
 	if _, known := w.declared[object]; known && !w.reached[object] {
 		w.reached[object] = true
 		w.queue = append(w.queue, object)
+		if named, isNamed := object.Type().(*types.Named); isNamed && object == named.Obj() {
+			w.named = append(w.named, named)
+		}
 	}
 }
 
@@ -141,15 +168,13 @@ func (w *typedWalk) drain() {
 				case *ast.SelectorExpr:
 					if selection := declaration.info.Selections[typed]; selection != nil {
 						if stated, isInterface := selection.Recv().Underlying().(*types.Interface); isInterface {
-							w.interfaces[selection.Obj().Name()] = append(w.interfaces[selection.Obj().Name()], stated)
+							w.state(stated)
 						}
 						w.reach(selection.Obj())
 					}
 				case *ast.InterfaceType:
 					if stated, isInterface := declaration.info.TypeOf(typed).(*types.Interface); isInterface {
-						for method := range stated.Methods() {
-							w.interfaces[method.Name()] = append(w.interfaces[method.Name()], stated)
-						}
+						w.state(stated)
 					}
 				}
 				return true
@@ -158,22 +183,47 @@ func (w *typedWalk) drain() {
 	}
 }
 
-// implemented reports whether a method of a reached type is needed by an interface the walk met or by one outside the module.
-func (w *typedWalk) implemented(method *types.Func, outside map[string]bool) bool {
-	receiver := method.Signature().Recv().Type()
-	if pointer, isPointer := receiver.(*types.Pointer); isPointer {
-		receiver = pointer.Elem()
+// owed returns the methods the reached named types owe: for a type or its pointer that implements an interface the walk
+// met, each method of the interface as the type's method set gives it, its own or one an embedded type lends it; and
+// each method of its pointer's method set that an interface outside the module names.
+func (w *typedWalk) owed(outside map[string]bool) []types.Object {
+	var owed []types.Object
+	for ; w.listed < len(w.named); w.listed++ {
+		for selection := range types.NewMethodSet(types.NewPointer(w.named[w.listed])).Methods() {
+			if outside[selection.Obj().Name()] {
+				owed = append(owed, selection.Obj())
+			}
+		}
 	}
-	named, isNamed := receiver.(*types.Named)
-	if !isNamed || !w.reached[named.Origin().Obj()] {
-		return false
+	for _, named := range w.named {
+		for _, stated := range w.stated {
+			if pair := (typePair{named, stated}); !w.settled[pair] {
+				w.settled[pair] = true
+				owed = append(owed, implementation(named, stated)...)
+			}
+		}
 	}
-	if outside[method.Name()] {
-		return true
+	return owed
+}
+
+// implementation returns the methods by which a named type, or its pointer, implements an interface, and none when neither does.
+func implementation(named *types.Named, stated *types.Interface) []types.Object {
+	if stated.NumMethods() == 0 {
+		return nil
 	}
-	return slices.ContainsFunc(w.interfaces[method.Name()], func(stated *types.Interface) bool {
-		return types.Implements(named, stated) || types.Implements(types.NewPointer(named), stated)
-	})
+	first := stated.Method(0)
+	for _, receiver := range []types.Type{named, types.NewPointer(named)} {
+		methods := types.NewMethodSet(receiver)
+		if methods.Lookup(first.Pkg(), first.Name()) == nil || !types.Implements(receiver, stated) {
+			continue
+		}
+		var held []types.Object
+		for method := range stated.Methods() {
+			held = append(held, methods.Lookup(method.Pkg(), method.Name()).Obj())
+		}
+		return held
+	}
+	return nil
 }
 
 // testSupportFunction reports whether a function takes a testing.TB, a *testing.T, a *testing.B or a *testing.F, which makes it test support in whatever package declares it.
@@ -203,15 +253,16 @@ func declarationName(function *ast.FuncDecl) string {
 //   - linked = the packages some command links, through the imports of their production files
 //   - roots = main of every command + init, variables and constants of every linked package
 //   - a lane = a command that lists packages of the module in a string slice, whose tests it runs; a declaration of a package it both links and lists that such a test names is a root, because the lane reaches it
-//   - a method is reached <=> its receiver type is reached and (it is selected, or an interface the walk met or one outside the module needs it)
+//   - a method is reached <=> it is selected, or a reached type owes it to an interface the walk met or one outside the module names, through its method set, where an embedded type lends it
 //   - outside = the method names of interfaces declared outside the module, whose callers the walk cannot read
 //   - functions = the functions and methods of linked packages outside generated files, less test support
-func reachTypes(ctx context.Context, root string, outside map[string]bool) (typedReach, error) {
+//   - everyTest = every test of the module is a root too, as every lane were: the walk then says what no command and no test reaches
+func reachTypes(ctx context.Context, root string, outside map[string]bool, everyTest bool) (typedReach, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return typedReach{}, err
 	}
-	listed, err := goList(ctx, root, "./cmd/...", "./internal/...")
+	listed, err := goList(ctx, root, exportFlags, "./cmd/...", "./internal/...")
 	if err != nil {
 		return typedReach{}, err
 	}
@@ -256,9 +307,27 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 		}
 		return files, nil
 	}
-	check := func(pkg *listedPackage, importPath string, files []*ast.File) (*types.Package, *types.Info, error) {
+	// check type-checks files as importPath. A test binary's files are read through their type errors: their external
+	// tests import the package as its test binary builds it (tested), and what else they import links the package as
+	// production builds it, which go test reconciles by building those again and the walk does not, so a check of tests
+	// records what they name and reports no error.
+	check := func(pkg *listedPackage, importPath string, files []*ast.File, tested *types.Package) (*types.Package, *types.Info, error) {
 		info := &types.Info{Uses: map[*ast.Ident]types.Object{}, Defs: map[*ast.Ident]types.Object{}, Selections: map[*ast.SelectorExpr]*types.Selection{}, Types: map[ast.Expr]types.TypeAndValue{}}
-		config := types.Config{Importer: importFor(pkg), FakeImportC: true}
+		imports := importFor(pkg)
+		if tested != nil {
+			imports = importerFunc(func(imported string) (*types.Package, error) {
+				if imported == tested.Path() {
+					return tested, nil
+				}
+				return importFor(pkg).Import(imported)
+			})
+		}
+		config := types.Config{Importer: imports, FakeImportC: true}
+		if strings.HasSuffix(fset.Position(files[len(files)-1].Pos()).Filename, "_test.go") {
+			config.Error = func(error) {}
+			checked, _ := config.Check(importPath, fset, files, info)
+			return checked, info, nil
+		}
 		checked, err := config.Check(importPath, fset, files, info)
 		return checked, info, err
 	}
@@ -267,7 +336,7 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 		group.Go(func() {
 			defer close(checked.done)
 			if checked.files, checked.err = parse(checked.listed, slices.Concat(checked.listed.GoFiles, checked.listed.CgoFiles)); checked.err == nil {
-				checked.pkg, checked.info, checked.err = check(checked.listed, importPath, checked.files)
+				checked.pkg, checked.info, checked.err = check(checked.listed, importPath, checked.files, nil)
 			}
 		})
 	}
@@ -319,19 +388,48 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 			})
 		}
 	}
-	// What a lane's tests import beyond the commands' builds, with the export data of each.
-	var testImports []string
-	for _, ran := range lanes {
+	// tested maps each package whose tests are roots to the packages whose declarations they reach: a lane's own, or,
+	// for every test, any of the module.
+	tested := map[string]func(string) bool{}
+	for command, ran := range lanes {
+		// The lane's own packages are those it both links and runs, as cmd/webui-lane links internal/webuilane, whose
+		// legs and waits the browser tests it runs call.
+		linkedByLane := closure(command)
 		for _, importPath := range ran {
-			for _, imported := range slices.Concat(module[importPath].listed.TestImports, module[importPath].listed.XTestImports) {
-				if _, known := exports[imported]; !known && module[imported] == nil && !slices.Contains(testImports, imported) {
-					testImports = append(testImports, imported)
-				}
+			tested[importPath] = func(declared string) bool { return linkedByLane[declared] && slices.Contains(ran, declared) }
+		}
+	}
+	if everyTest {
+		// A test behind a build tag, as a real model's or the cycle's are, is a test too.
+		tags, err := testTags(ctx, root, module)
+		if err != nil {
+			return typedReach{}, err
+		}
+		tagged, err := goList(ctx, root, []string{"-tags", tags}, "./cmd/...", "./internal/...")
+		if err != nil {
+			return typedReach{}, err
+		}
+		for _, pkg := range tagged {
+			if checked := module[pkg.ImportPath]; checked != nil {
+				checked.listed.TestGoFiles, checked.listed.XTestGoFiles = pkg.TestGoFiles, pkg.XTestGoFiles
+				checked.listed.TestImports, checked.listed.XTestImports = pkg.TestImports, pkg.XTestImports
+			}
+		}
+		for importPath := range module {
+			tested[importPath] = func(declared string) bool { return module[declared] != nil }
+		}
+	}
+	// What the tests import beyond the commands' builds, with the export data of each.
+	var testImports []string
+	for importPath := range tested {
+		for _, imported := range slices.Concat(module[importPath].listed.TestImports, module[importPath].listed.XTestImports) {
+			if _, known := exports[imported]; !known && module[imported] == nil && !slices.Contains(testImports, imported) {
+				testImports = append(testImports, imported)
 			}
 		}
 	}
 	if len(testImports) > 0 {
-		more, err := goList(ctx, root, testImports...)
+		more, err := goList(ctx, root, exportFlags, testImports...)
 		if err != nil {
 			return typedReach{}, err
 		}
@@ -342,7 +440,7 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 		}
 	}
 
-	walk := typedWalk{declared: map[types.Object][]typedDeclaration{}, reached: map[types.Object]bool{}, interfaces: map[string][]*types.Interface{}}
+	walk := typedWalk{declared: map[types.Object][]typedDeclaration{}, reached: map[types.Object]bool{}, met: map[*types.Interface]bool{}, settled: map[typePair]bool{}}
 	at := func(position token.Pos, name string) string {
 		place := fset.Position(position)
 		relative, _ := filepath.Rel(root, place.Filename)
@@ -350,16 +448,14 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 	}
 	byAt := map[string]types.Object{}
 	var reach typedReach
-	var methods []*types.Func
 	var roots []types.Object
+	// Every package of the module is walked, since a test reaches a linked package through test support too; only a
+	// linked package's declarations are roots and are read.
 	for importPath, checked := range module {
-		if !linked[importPath] {
-			continue
-		}
 		for _, file := range checked.files {
 			relative, _ := filepath.Rel(root, fset.Position(file.Pos()).Filename)
 			relative = filepath.ToSlash(relative)
-			listedFunction := !ast.IsGenerated(file)
+			listedFunction := linked[importPath] && !ast.IsGenerated(file)
 			for _, declaration := range file.Decls {
 				switch typed := declaration.(type) {
 				case *ast.FuncDecl:
@@ -369,9 +465,7 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 					}
 					walk.declared[function] = append(walk.declared[function], typedDeclaration{typed, checked.info})
 					byAt[at(typed.Name.Pos(), typed.Name.Name)] = function
-					if typed.Recv != nil {
-						methods = append(methods, function)
-					} else if typed.Name.Name == "init" || checked.listed.Name == "main" && typed.Name.Name == "main" {
+					if typed.Recv == nil && linked[importPath] && (typed.Name.Name == "init" || checked.listed.Name == "main" && typed.Name.Name == "main") {
 						roots = append(roots, function)
 					}
 					if listedFunction && !testSupportFunction(function) {
@@ -397,7 +491,9 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 								if object := checked.info.Defs[name]; object != nil {
 									walk.declared[object] = append(walk.declared[object], typedDeclaration{spec, checked.info})
 									byAt[at(name.Pos(), name.Name)] = object
-									roots = append(roots, object)
+									if linked[importPath] {
+										roots = append(roots, object)
+									}
 								}
 							}
 						}
@@ -406,44 +502,51 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 			}
 		}
 	}
-	// A lane's tests: each package a lane runs, with its tests, type-checked again as its test binary builds it.
-	for command, ran := range lanes {
-		// The lane's own packages are those it both links and runs, as cmd/webui-lane links internal/webuilane, whose
-		// legs and waits the browser tests it runs call.
-		linkedByLane, own := closure(command), map[string]bool{}
-		for _, importPath := range ran {
-			own[importPath] = linkedByLane[importPath]
-		}
-		for _, importPath := range ran {
+	// The tests that are roots: each package's, type-checked again as its test binary builds it, beside the commands.
+	var testGuard sync.Mutex
+	var testFailure error
+	for importPath, reaches := range tested {
+		group.Go(func() {
 			checked := module[importPath]
 			testFiles, err := parse(checked.listed, checked.listed.TestGoFiles)
-			if err != nil {
-				return typedReach{}, err
-			}
-			external, err := parse(checked.listed, checked.listed.XTestGoFiles)
-			if err != nil {
-				return typedReach{}, err
-			}
+			external, externalErr := parse(checked.listed, checked.listed.XTestGoFiles)
+			var found []types.Object
+			testBinary := checked.pkg
 			for _, binary := range []struct {
 				importPath string
 				files      []*ast.File
 			}{{importPath, append(slices.Clone(checked.files), testFiles...)}, {importPath + "_test", external}} {
-				if len(binary.files) == len(checked.files) && binary.importPath == importPath || len(binary.files) == 0 {
+				if err != nil || externalErr != nil || len(binary.files) == len(checked.files) && binary.importPath == importPath || len(binary.files) == 0 {
 					continue
 				}
-				if _, info, err := check(checked.listed, binary.importPath, binary.files); err != nil {
-					return typedReach{}, fmt.Errorf("type-check the tests of %s: %w", importPath, err)
-				} else {
-					for _, used := range info.Uses {
-						if used.Pkg() != nil && own[used.Pkg().Path()] {
-							if object := byAt[at(used.Pos(), used.Name())]; object != nil {
-								roots = append(roots, object)
-							}
+				var tested *types.Package
+				if binary.importPath != importPath {
+					tested = testBinary
+				}
+				built, info, checkErr := check(checked.listed, binary.importPath, binary.files, tested)
+				if binary.importPath == importPath {
+					testBinary = built
+				}
+				if checkErr != nil {
+					err = fmt.Errorf("type-check the tests of %s: %w", importPath, checkErr)
+					break
+				}
+				for _, used := range info.Uses {
+					if used.Pkg() != nil && reaches(used.Pkg().Path()) {
+						if object := byAt[at(used.Pos(), used.Name())]; object != nil {
+							found = append(found, object)
 						}
 					}
 				}
 			}
-		}
+			testGuard.Lock()
+			defer testGuard.Unlock()
+			roots, testFailure = append(roots, found...), cmp.Or(testFailure, err, externalErr)
+		})
+	}
+	group.Wait()
+	if testFailure != nil {
+		return typedReach{}, testFailure
 	}
 	for _, root := range roots {
 		walk.reach(root)
@@ -451,10 +554,10 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 	for grew := true; grew; {
 		walk.drain()
 		grew = false
-		for _, method := range methods {
-			if !walk.reached[method] && walk.implemented(method, outside) {
+		for _, method := range walk.owed(outside) {
+			if function, isFunction := method.(*types.Func); isFunction && !walk.reached[function.Origin()] {
 				walk.reach(method)
-				grew = true
+				grew = grew || walk.reached[function.Origin()]
 			}
 		}
 	}
@@ -467,6 +570,74 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool) (type
 		}
 	}
 	return reach, nil
+}
+
+// fixtureModule writes a module named overgo of the files given, in a directory of the test's, and returns it.
+func fixtureModule(t *testing.T, files map[string]string) string {
+	t.Helper()
+	repo := t.TempDir()
+	files = maps.Clone(files)
+	files["go.mod"] = "module overgo\n\ngo 1.26\n"
+	for name, content := range files {
+		target := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return repo
+}
+
+// testTags returns, joined by commas, the build tags the module's test files build behind: each tag their build
+// constraints name, less the systems and architectures the toolchain knows, ignoreTag and the toolchain's own.
+func testTags(ctx context.Context, root string, module map[string]*checkedPackage) (string, error) {
+	var known, failure bytes.Buffer
+	receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: []string{"tool", "dist", "list"}, Dir: root, Stdout: &known, Stderr: &failure})
+	if err == nil && receipt.ExitCode != 0 {
+		err = fmt.Errorf("exit %d: %s", receipt.ExitCode, strings.TrimSpace(failure.String()))
+	}
+	if err != nil {
+		return "", fmt.Errorf("go tool dist list: %w", err)
+	}
+	platform := map[string]bool{ignoreTag: true, "cgo": true, "gc": true, "gccgo": true, "unix": true}
+	for pair := range strings.FieldsSeq(known.String()) {
+		system, architecture, _ := strings.Cut(pair, "/")
+		platform[system], platform[architecture] = true, true
+	}
+	var tags []string
+	for _, checked := range module {
+		entries, err := os.ReadDir(checked.listed.Dir)
+		if err != nil {
+			return "", err
+		}
+		for _, entry := range entries {
+			if !strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(checked.listed.Dir, entry.Name()), nil, parser.PackageClauseOnly|parser.ParseComments)
+			if err != nil {
+				return "", err
+			}
+			for _, group := range file.Comments {
+				for _, comment := range group.List {
+					expression, err := constraint.Parse(comment.Text)
+					if comment.Pos() > file.Package || !constraint.IsGoBuild(comment.Text) || err != nil {
+						continue
+					}
+					expression.Eval(func(tag string) bool {
+						if !platform[tag] && !strings.HasPrefix(tag, "go1.") && !slices.Contains(tags, tag) {
+							tags = append(tags, tag)
+						}
+						return false
+					})
+				}
+			}
+		}
+	}
+	slices.Sort(tags)
+	return strings.Join(tags, ","), nil
 }
 
 // hostTwin is the file suffix of the build-tag twin the host builds in the fixture rows.
@@ -506,6 +677,10 @@ func TestTheReachWalkReadsTypes(t *testing.T) {
 				"type shape interface{ Area() int }\n\ntype disc struct{}\n\nfunc (disc) Area() int { return 1 }\n\ntype square struct{}\n\nfunc (square) Area() int { return 2 }\n\n" +
 				"func Use() (node, int) { var s shape = disc{}; return leaf{}, s.Area() }\n",
 		}, []string{"internal/lib/lib.go leaf.spare", "internal/lib/lib.go square.Area"}},
+		{"a type that implements an interface through an embedded type owes the method the embedded type lends", map[string]string{
+			"internal/lib/lib.go": "package lib\n\ntype backend interface {\n\tForward() int\n\tBackward() int\n}\n\ntype forward struct{}\n\nfunc (forward) Forward() int { return 1 }\n\nfunc (forward) spare() {}\n\n" +
+				"type training struct{ forward }\n\nfunc (training) Backward() int { return 2 }\n\nfunc Use() int { var b backend = training{}; return b.Forward() + b.Backward() }\n",
+		}, []string{"internal/lib/lib.go forward.spare"}},
 		{"a function only a test calls is listed, and one that takes a testing.TB is test support", map[string]string{
 			"internal/lib/lib.go":      "package lib\n\nimport \"testing\"\n\nfunc Use() {}\n\nfunc OnlyTested() {}\n\nfunc Skip(t testing.TB) { t.Helper() }\n",
 			"internal/lib/lib_test.go": "package lib\n\nimport \"testing\"\n\nfunc TestOnly(t *testing.T) { OnlyTested(); Skip(t) }\n",
@@ -534,19 +709,9 @@ func TestTheReachWalkReadsTypes(t *testing.T) {
 	} {
 		t.Run(row.rule, func(t *testing.T) {
 			t.Parallel()
-			repo := t.TempDir()
-			files := map[string]string{"go.mod": "module overgo\n\ngo 1.26\n", "cmd/tool/main.go": command}
+			files := map[string]string{"cmd/tool/main.go": command}
 			maps.Copy(files, row.files)
-			for name, content := range files {
-				target := filepath.Join(repo, filepath.FromSlash(name))
-				if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			found, _, err := unreachedDeclarations(t.Context(), repo, map[string]bool{"String": true})
+			found, _, err := unreachedDeclarations(t.Context(), fixtureModule(t, files), map[string]bool{"String": true})
 			var keys []string
 			for _, declaration := range found {
 				keys = append(keys, declaration.key)

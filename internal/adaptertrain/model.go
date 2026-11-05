@@ -302,7 +302,6 @@ func (m *Model) BuildExample(ctx context.Context, path string, input []float32, 
 
 func (m *Model) Program() trainingprogram.TrainingProgram { return m.program }
 func (m *Model) ParameterCount() int                      { return len(m.weights) }
-func (m *Model) Layer() uint32                            { return m.layer }
 
 // Output evaluates one typed example without changing trainer state.
 func (m *Model) Output(example Example) ([]float32, error) {

@@ -232,11 +232,6 @@ func (value moERouterObservationCoverage) Content() (artifact.Content, error) {
 	return moeRouterObservationCoverageCodec.Content(value)
 }
 
-// ValidateIdentity verifies the compact coverage identity.
-func (value moERouterObservationCoverage) ValidateIdentity() error {
-	return moeRouterObservationCoverageCodec.ValidateIdentity(value)
-}
-
 // Lineage binds one summary to its indexed scope authorities and raw chunk.
 func (value moERouterObservationCoverage) Lineage() []artifact.Lineage {
 	return []artifact.Lineage{

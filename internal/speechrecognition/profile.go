@@ -48,11 +48,6 @@ func RequireExecutionProfile(ctx context.Context, reader artifact.Reader, id art
 	return executionProfileCodec.Require(ctx, reader, id)
 }
 
-// ValidateIdentity verifies the profile's content-derived identity.
-func (profile ExecutionProfile) ValidateIdentity() error {
-	return executionProfileCodec.ValidateIdentity(profile)
-}
-
 // Content returns the canonical profile artifact.
 func (profile ExecutionProfile) Content() (artifact.Content, error) {
 	return executionProfileCodec.Content(profile)

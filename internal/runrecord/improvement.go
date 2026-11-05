@@ -119,10 +119,6 @@ func (value improvementAdmission) ValidateIdentity() error {
 	return improvementAdmissionCodec.ValidateIdentity(value)
 }
 
-func (value improvementDecision) ValidateIdentity() error {
-	return improvementDecisionCodec.ValidateIdentity(value)
-}
-
 func (value improvementAdmission) Content() (artifact.Content, error) {
 	return improvementAdmissionCodec.Content(value)
 }

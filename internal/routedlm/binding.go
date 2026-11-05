@@ -69,6 +69,15 @@ func (b BranchBinding) LayerTensorName(layer, branch int, suffix string) string 
 	return branchedTensorName(prefix, suffix, b.Suffix)
 }
 
+// LayerTensorNames names a layer branch's tensor for each suffix, in order (LayerTensorName).
+func (b BranchBinding) LayerTensorNames(layer, branch int, suffixes []string) []string {
+	names := make([]string, len(suffixes))
+	for index, suffix := range suffixes {
+		names[index] = b.LayerTensorName(layer, branch, suffix)
+	}
+	return names
+}
+
 // RxBrainBinding: Hy-Embodied-RxBrain's `_v` fork — single shared QK-norm
 // section and shared final norm (the degenerate case), flat config.json.
 func RxBrainBinding() BranchBinding {

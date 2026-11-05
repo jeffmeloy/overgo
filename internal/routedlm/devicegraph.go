@@ -60,6 +60,38 @@ type DeviceDecodeGraph struct {
 	RopeBase  float32
 }
 
+// StepAttributes is where a decode step's attributes are set, as the CUDA executor's runtime attributes take them.
+type StepAttributes interface {
+	Set(node *tensor.Tensor, attributes tensor.Attributes) error
+}
+
+// SetStep points the graph's per-token attributes at tokenPos: each layer's rotary positions, its attention's query
+// start and key count, and its cache appends' offset.
+func (g *DeviceDecodeGraph) SetStep(attrs StepAttributes, tokenPos int) error {
+	pos := []uint32{uint32(tokenPos)}
+	for _, n := range g.Nodes {
+		ra := n.QRope.Attrs.(tensor.RoPEAttributes)
+		ra.Positions = pos
+		rk := n.KRope.Attrs.(tensor.RoPEAttributes)
+		rk.Positions = pos
+		aa := n.Attention.Attrs.(tensor.AttentionAttributes)
+		aa.QueryStart, aa.KeyValueTokens = uint32(tokenPos), uint32(tokenPos+1)
+		ck := n.KeyAppend.Attrs.(tensor.CacheAppendAttributes)
+		ck.Offset = uint32(tokenPos)
+		cv := n.ValueAppend.Attrs.(tensor.CacheAppendAttributes)
+		cv.Offset = uint32(tokenPos)
+		for _, set := range []struct {
+			node       *tensor.Tensor
+			attributes tensor.Attributes
+		}{{n.QRope, ra}, {n.KRope, rk}, {n.Attention, aa}, {n.KeyAppend, ck}, {n.ValueAppend, cv}} {
+			if err := attrs.Set(set.node, set.attributes); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // BuildDeviceDecodeGraph: text-branch decode stack + terminal at fixed KV
 // capacity. Rope positions / attention window / append offset start at token 0
 // and are overridden per step through the executor's runtime attributes.

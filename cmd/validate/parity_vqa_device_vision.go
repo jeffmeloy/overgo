@@ -200,10 +200,8 @@ func runDeviceVision(l *campaignContext) error {
 	statsBefore, _ := worker.ExecutionStats(ctx)
 	budget := measurement(measureVision)
 	perCall, err := measure(budget, func() error {
-		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
-			return err
-		}
-		return nil
+		_, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
+		return err
 	})
 	if err != nil {
 		return err

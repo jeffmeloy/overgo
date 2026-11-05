@@ -36,24 +36,22 @@ func swiGLUExpert(x, w12, w3 []float32, rows, d, dff int) []float32 {
 	// Both expert projections are independent per output unit, so each splits by
 	// row over the flat (row, unit) output space.
 	fused := make([]float32, rows*2*dff)
-	wide := 2 * dff
-	hostmath.ParallelRangeF64(rows*wide, d, func(lo, hi int) {
-		for i := lo; i < hi; i++ {
-			t, o := i/wide, i%wide
-			fused[i] = float32(dot(w12[o*d:(o+1)*d], x[t*d:(t+1)*d]))
-		}
-	})
-
+	project(fused, w12, x, 2*dff, d)
 	hidden := swiGLUClamped(fused, rows, dff)
 	out := make([]float32, rows*d)
-	hostmath.ParallelRangeF64(rows*d, dff, func(lo, hi int) {
+	project(out, w3, hidden, d, dff)
+	return out
+}
+
+// project writes, for each row t of x and each output o, out[t*outputs+o] as the dot of weights' row o with x's row
+// t, both width values, the outputs split across the host's workers.
+func project(out, weights, x []float32, outputs, width int) {
+	hostmath.ParallelRangeF64(len(out), width, func(lo, hi int) {
 		for i := lo; i < hi; i++ {
-			t, o := i/d, i%d
-			out[i] = float32(dot(w3[o*dff:(o+1)*dff], hidden[t*dff:(t+1)*dff]))
+			t, o := i/outputs, i%outputs
+			out[i] = float32(dot(weights[o*width:(o+1)*width], x[t*width:(t+1)*width]))
 		}
 	})
-
-	return out
 }
 
 // SharedRoutedMoEForward returns the layer output and its load-balance auxiliary.

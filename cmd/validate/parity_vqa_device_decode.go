@@ -266,53 +266,11 @@ func runDeviceDecode(l *campaignContext) error {
 			return fmt.Errorf("device decode kv value target layer %d: %w", layer, e)
 		}
 	}
-	defer func() {
-		for _, kv := range caches {
-			if kv.Key != nil {
-				_ = kv.Key.Release(ctx)
-			}
-			if kv.Value != nil {
-				_ = kv.Value.Release(ctx)
-			}
-		}
-	}()
+	defer vqaserve.ReleaseDeviceKV(ctx, caches)
 	l.Log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
 
 	// ---- per-step runtime attribute updater --------------------------------
 	attrs := compiled.NewRuntimeAttributes()
-	setStep := func(tokenPos int) error {
-		pos := []uint32{uint32(tokenPos)}
-		for layer := range g.Nodes {
-			n := g.Nodes[layer]
-			ra := n.QRope.Attrs.(tensor.RoPEAttributes)
-			ra.Positions = pos
-			if e := attrs.Set(n.QRope, ra); e != nil {
-				return e
-			}
-			rk := n.KRope.Attrs.(tensor.RoPEAttributes)
-			rk.Positions = pos
-			if e := attrs.Set(n.KRope, rk); e != nil {
-				return e
-			}
-			aa := n.Attention.Attrs.(tensor.AttentionAttributes)
-			aa.QueryStart = uint32(tokenPos)
-			aa.KeyValueTokens = uint32(tokenPos + 1)
-			if e := attrs.Set(n.Attention, aa); e != nil {
-				return e
-			}
-			ck := n.KeyAppend.Attrs.(tensor.CacheAppendAttributes)
-			ck.Offset = uint32(tokenPos)
-			if e := attrs.Set(n.KeyAppend, ck); e != nil {
-				return e
-			}
-			cv := n.ValueAppend.Attrs.(tensor.CacheAppendAttributes)
-			cv.Offset = uint32(tokenPos)
-			if e := attrs.Set(n.ValueAppend, cv); e != nil {
-				return e
-			}
-		}
-		return nil
-	}
 
 	statsBefore, _ := worker.ExecutionStats(ctx)
 
@@ -344,7 +302,7 @@ func runDeviceDecode(l *campaignContext) error {
 		}
 
 		// device step.
-		if err := setStep(tokenPos); err != nil {
+		if err := g.SetStep(attrs, tokenPos); err != nil {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
@@ -394,7 +352,7 @@ func runDeviceDecode(l *campaignContext) error {
 
 	// ---- measurement: replay the final-position step ------------------------
 	finalPos := h.promptLen + steps - 1
-	if err := setStep(finalPos); err != nil {
+	if err := g.SetStep(attrs, finalPos); err != nil {
 		return err
 	}
 	lastEmbed, err := routedlm.EmbeddingRows(h.src, cfg, vqaserve.Binding, []int{h.dg.DecodeSteps[steps-1].TokenIn})

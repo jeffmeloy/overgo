@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -304,20 +303,7 @@ func RequireExactRun(ctx context.Context, reader artifact.Reader, id artifact.ID
 }
 
 func sameRunLineage(left, right []artifact.Lineage) bool {
-	left = slices.Clone(left)
-	right = slices.Clone(right)
-	compare := func(left, right artifact.Lineage) int {
-		if order := artifact.CompareID(left.Child, right.Child); order != 0 {
-			return order
-		}
-		if order := artifact.CompareID(left.Parent, right.Parent); order != 0 {
-			return order
-		}
-		return cmp.Compare(left.Relation, right.Relation)
-	}
-	slices.SortFunc(left, compare)
-	slices.SortFunc(right, compare)
-	return slices.Equal(left, right)
+	return slices.Equal(canonicalLineage(left), canonicalLineage(right))
 }
 
 func (r Run) ValidateIdentity() error {

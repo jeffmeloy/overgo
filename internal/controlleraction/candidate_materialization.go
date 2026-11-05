@@ -732,16 +732,18 @@ func requireMaterializationProducers(
 func sameMaterializationLineage(left, right []artifact.Lineage) bool {
 	left = slices.Clone(left)
 	right = slices.Clone(right)
-	compare := func(left, right artifact.Lineage) int {
-		return cmp.Or(
-			artifact.CompareID(left.Child, right.Child),
-			artifact.CompareID(left.Parent, right.Parent),
-			cmp.Compare(left.Relation, right.Relation),
-		)
-	}
-	slices.SortFunc(left, compare)
-	slices.SortFunc(right, compare)
+	slices.SortFunc(left, compareLineage)
+	slices.SortFunc(right, compareLineage)
 	return slices.Equal(left, right)
+}
+
+// compareLineage orders lineage by child, then parent, then relation.
+func compareLineage(left, right artifact.Lineage) int {
+	return cmp.Or(
+		artifact.CompareID(left.Child, right.Child),
+		artifact.CompareID(left.Parent, right.Parent),
+		cmp.Compare(left.Relation, right.Relation),
+	)
 }
 
 func executeMaterializationPlan(
@@ -1077,12 +1079,7 @@ func (accumulator *materializationBatchAccumulator) batch(
 	slices.SortFunc(batch.Manifests, func(left, right artifact.Manifest) int {
 		return artifact.CompareID(left.ID, right.ID)
 	})
-	slices.SortFunc(batch.Lineage, func(left, right artifact.Lineage) int {
-		return cmp.Or(
-			artifact.CompareID(left.Child, right.Child), artifact.CompareID(left.Parent, right.Parent),
-			cmp.Compare(left.Relation, right.Relation),
-		)
-	})
+	slices.SortFunc(batch.Lineage, compareLineage)
 	slices.SortFunc(batch.Causality, func(left, right artifact.CausalLink) int {
 		return artifact.CompareID(left.Execution, right.Execution)
 	})

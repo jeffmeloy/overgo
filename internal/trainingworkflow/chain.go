@@ -178,12 +178,6 @@ func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program,
 	node := func(id recipe.NodeID, module recipe.ModuleID, slot uint32) recipe.Node {
 		return recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost, ModelSlot: slot}
 	}
-	edge := func(from recipe.NodeID, fromPort recipe.PortName, to recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{
-			From: recipe.Endpoint{Node: from, Port: fromPort},
-			To:   recipe.Endpoint{Node: to, Port: toPort},
-		}
-	}
 	chainDefinition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskGeneration,
 		[]recipe.Dependency{
@@ -197,9 +191,9 @@ func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program,
 			node("score-tokenize", workflowrecipe.ModuleTokenize, 0),
 		},
 		[]recipe.Edge{
-			edge("draft-tokenize", "tokens", "draft-generate", "tokens"),
-			edge("draft-generate", "tokens", "draft-detokenize", "tokens"),
-			edge("draft-detokenize", "text", "score-tokenize", "text"),
+			connect("draft-tokenize", "tokens", "draft-generate", "tokens"),
+			connect("draft-generate", "tokens", "draft-detokenize", "tokens"),
+			connect("draft-detokenize", "text", "score-tokenize", "text"),
 		},
 		[]recipe.Input{{
 			Name: "prompt", Data: recipe.DataText,
@@ -220,7 +214,7 @@ func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program,
 			node("self-tokenize", workflowrecipe.ModuleTokenize, 0),
 			node("self-generate", workflowrecipe.ModuleGenerate, 0),
 		},
-		[]recipe.Edge{edge("self-tokenize", "tokens", "self-generate", "tokens")},
+		[]recipe.Edge{connect("self-tokenize", "tokens", "self-generate", "tokens")},
 		[]recipe.Input{{
 			Name: "prompt", Data: recipe.DataText,
 			Target: recipe.Endpoint{Node: "self-tokenize", Port: "text"},

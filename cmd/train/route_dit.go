@@ -500,23 +500,11 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 		batches = append(batches, batch)
 	}
 
-	// meanLoss reports the mean flow-matching MSE across every batch, so
-	// descent is judged on the whole conditioning set, not one clip.
-	meanLoss := func() (float64, error) {
-		var sum float64
-		for _, batch := range batches {
-			loss, err := trainer.Loss(batch)
-			if err != nil {
-				return 0, err
-			}
-			sum += loss
-		}
-		return sum / float64(len(batches)), nil
-	}
 	fmt.Printf("objective: flow-matching MSE over %d latent elements, %d batches\n", noiseElements, len(batches))
 	run := boundedRun{name: name, plan: plan, session: session,
 		step: func(step int) (optimizer.ObservedStepResult, error) { return trainer.Step(batches[step%len(batches)]) },
-		loss: meanLoss,
+		// The mean flow-matching MSE across every batch, so descent is judged on the whole conditioning set, not one clip.
+		loss: meanLoss(batches, trainer.Loss),
 	}
 	if *out != "" {
 		// Every update trains on one batch of the conditioning the stimulus
@@ -538,4 +526,19 @@ func objectiveSession(ctx context.Context, store *overgodb.Store, weights, alias
 		return routeSession{}, err
 	}
 	return session.admitted(ctx)
+}
+
+// meanLoss is a run's loss as the mean of loss over every item, so descent is judged on the whole set.
+func meanLoss[T any](items []T, loss func(T) (float64, error)) func() (float64, error) {
+	return func() (float64, error) {
+		var total float64
+		for _, item := range items {
+			value, err := loss(item)
+			if err != nil {
+				return 0, err
+			}
+			total += value
+		}
+		return total / float64(len(items)), nil
+	}
 }

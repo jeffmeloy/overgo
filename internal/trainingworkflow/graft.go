@@ -336,18 +336,20 @@ func bridgeRecipe(target, donor, dataset artifact.ID) (recipe.Definition, error)
 			Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache},
 		{ID: "evaluate", Module: workflowrecipe.ModuleEvaluateBridge, Placement: recipe.PlacementHost},
 	}
-	edge := func(from recipe.NodeID, fromPort recipe.PortName, to recipe.NodeID, toPort recipe.PortName) recipe.Edge {
-		return recipe.Edge{From: recipe.Endpoint{Node: from, Port: fromPort}, To: recipe.Endpoint{Node: to, Port: toPort}}
-	}
 	return recipe.NewDefinitionWithDependencies(recipe.TaskTraining, []recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: target},
 		{Role: recipe.DependencyModel, Slot: 1, Artifact: donor},
 		{Role: recipe.DependencyDataset, Artifact: dataset},
 	}, nodes, []recipe.Edge{
-		edge("select", "component", "train", "component"),
-		edge("train", "bridge", "evaluate", "bridge"),
+		connect("select", "component", "train", "component"),
+		connect("train", "bridge", "evaluate", "bridge"),
 	}, nil, []recipe.Output{{Name: "metrics", Data: recipe.DataMetrics,
 		Source: recipe.Endpoint{Node: "evaluate", Port: "metrics"}}})
+}
+
+// connect is the edge of a recipe from one node's port to another's.
+func connect(from recipe.NodeID, fromPort recipe.PortName, to recipe.NodeID, toPort recipe.PortName) recipe.Edge {
+	return recipe.Edge{From: recipe.Endpoint{Node: from, Port: fromPort}, To: recipe.Endpoint{Node: to, Port: toPort}}
 }
 
 // SynthesisOutcome is a bridge synthesis's terminal decision and evidence.

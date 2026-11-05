@@ -249,22 +249,29 @@ func declarationName(function *ast.FuncDecl) string {
 	return receiverType(function) + "." + function.Name.Name
 }
 
-// reachTypes walks the module at root by types, for the host's build, from its commands.
-//   - linked = the packages some command links, through the imports of their production files
-//   - roots = main of every command + init, variables and constants of every linked package
-//   - a lane = a command that lists packages of the module in a string slice, whose tests it runs; a declaration of a package it both links and lists that such a test names is a root, because the lane reaches it
-//   - a method is reached <=> it is selected, or a reached type owes it to an interface the walk met or one outside the module names, through its method set, where an embedded type lends it
-//   - outside = the method names of interfaces declared outside the module, whose callers the walk cannot read
-//   - functions = the functions and methods of linked packages outside generated files, less test support
-//   - everyTest = every test of the module is a root too, as every lane were: the walk then says what no command and no test reaches
-func reachTypes(ctx context.Context, root string, outside map[string]bool, everyTest bool) (typedReach, error) {
+// moduleLoad is the module at root as the typed reads take it: listed with the export data of what it links, each
+// package of it parsed and type-checked from its source, with the parse, the check and the import closure the reads
+// apply again to tests and commands.
+type moduleLoad struct {
+	root    string
+	fset    *token.FileSet
+	exports map[string]string
+	module  map[string]*checkedPackage
+	parse   func(pkg *listedPackage, names []string) ([]*ast.File, error)
+	check   func(pkg *listedPackage, importPath string, files []*ast.File, tested *types.Package) (*types.Package, *types.Info, error)
+	closure func(start string) map[string]bool
+}
+
+// loadModule lists the module at root and type-checks its packages, each from its source, against the export data of
+// what lies outside it.
+func loadModule(ctx context.Context, root string) (*moduleLoad, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
-		return typedReach{}, err
+		return nil, err
 	}
 	listed, err := goList(ctx, root, exportFlags, "./cmd/...", "./internal/...")
 	if err != nil {
-		return typedReach{}, err
+		return nil, err
 	}
 	exports, module := map[string]string{}, map[string]*checkedPackage{}
 	for index := range listed {
@@ -343,7 +350,7 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool, every
 	group.Wait()
 	for importPath, checked := range module {
 		if checked.err != nil {
-			return typedReach{}, fmt.Errorf("type-check %s: %w", importPath, checked.err)
+			return nil, fmt.Errorf("type-check %s: %w", importPath, checked.err)
 		}
 	}
 
@@ -361,6 +368,24 @@ func reachTypes(ctx context.Context, root string, outside map[string]bool, every
 		}
 		return seen
 	}
+	return &moduleLoad{root: root, fset: fset, exports: exports, module: module, parse: parse, check: check, closure: closure}, nil
+}
+
+// reachTypes walks the module at root by types, for the host's build, from its commands.
+//   - linked = the packages some command links, through the imports of their production files
+//   - roots = main of every command + init, variables and constants of every linked package
+//   - a lane = a command that lists packages of the module in a string slice, whose tests it runs; a declaration of a package it both links and lists that such a test names is a root, because the lane reaches it
+//   - a method is reached <=> it is selected, or a reached type owes it to an interface the walk met or one outside the module names, through its method set, where an embedded type lends it
+//   - outside = the method names of interfaces declared outside the module, whose callers the walk cannot read
+//   - functions = the functions and methods of linked packages outside generated files, less test support
+//   - everyTest = every test of the module is a root too, as every lane were: the walk then says what no command and no test reaches
+func reachTypes(ctx context.Context, root string, outside map[string]bool, everyTest bool) (typedReach, error) {
+	load, err := loadModule(ctx, root)
+	if err != nil {
+		return typedReach{}, err
+	}
+	root, fset, exports, module, parse, check, closure := load.root, load.fset, load.exports, load.module, load.parse, load.check, load.closure
+	var group sync.WaitGroup
 	linked, lanes := map[string]bool{}, map[string][]string{}
 	for importPath, checked := range module {
 		if checked.listed.Name != "main" {

@@ -52,6 +52,18 @@ type DeviceKV struct {
 	KeyV, ValueV executor.DeviceValue
 }
 
+// ReleaseDeviceKV gives back the device buffers of each layer's cache, those allocated, once a decode is done with them.
+func ReleaseDeviceKV(ctx context.Context, caches []DeviceKV) {
+	for _, kv := range caches {
+		if kv.Key != nil {
+			_ = kv.Key.Release(ctx)
+		}
+		if kv.Value != nil {
+			_ = kv.Value.Release(ctx)
+		}
+	}
+}
+
 // FirstError returns the first non-nil error of a bind sequence.
 func FirstError(errs ...error) error {
 	for _, e := range errs {
@@ -245,16 +257,7 @@ func RunPipeline(
 	kvBytes, _ := kvShape.Bytes(dtype.F32)
 	caches := make([]DeviceKV, cfg.NumHiddenLayers)
 	targets := dCompiled.NewRetainedTargets()
-	defer func() {
-		for _, kv := range caches {
-			if kv.Key != nil {
-				_ = kv.Key.Release(ctx)
-			}
-			if kv.Value != nil {
-				_ = kv.Value.Release(ctx)
-			}
-		}
-	}()
+	defer ReleaseDeviceKV(ctx, caches)
 	for layer := range cfg.NumHiddenLayers {
 		kb, e := exe.AllocateDeviceBuffer(ctx, kvBytes)
 		if e != nil {
@@ -288,39 +291,6 @@ func RunPipeline(
 		}
 	}
 	attrs := dCompiled.NewRuntimeAttributes()
-	setStep := func(tokenPos int) error {
-		pos := []uint32{uint32(tokenPos)}
-		for layer := range dgraph.Nodes {
-			n := dgraph.Nodes[layer]
-			ra := n.QRope.Attrs.(tensor.RoPEAttributes)
-			ra.Positions = pos
-			if e := attrs.Set(n.QRope, ra); e != nil {
-				return e
-			}
-			rk := n.KRope.Attrs.(tensor.RoPEAttributes)
-			rk.Positions = pos
-			if e := attrs.Set(n.KRope, rk); e != nil {
-				return e
-			}
-			aa := n.Attention.Attrs.(tensor.AttentionAttributes)
-			aa.QueryStart = uint32(tokenPos)
-			aa.KeyValueTokens = uint32(tokenPos + 1)
-			if e := attrs.Set(n.Attention, aa); e != nil {
-				return e
-			}
-			ck := n.KeyAppend.Attrs.(tensor.CacheAppendAttributes)
-			ck.Offset = uint32(tokenPos)
-			if e := attrs.Set(n.KeyAppend, ck); e != nil {
-				return e
-			}
-			cv := n.ValueAppend.Attrs.(tensor.CacheAppendAttributes)
-			cv.Offset = uint32(tokenPos)
-			if e := attrs.Set(n.ValueAppend, cv); e != nil {
-				return e
-			}
-		}
-		return nil
-	}
 	statsBefore, _ := worker.ExecutionStats(ctx)
 
 	eos := map[int]bool{}
@@ -336,7 +306,7 @@ func RunPipeline(
 		if err != nil {
 			return res, err
 		}
-		if err := setStep(tokenPos); err != nil {
+		if err := dgraph.SetStep(attrs, tokenPos); err != nil {
 			return res, err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{

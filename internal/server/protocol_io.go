@@ -51,13 +51,7 @@ func newSSEEmitter(ctx context.Context, writer io.Writer, flusher http.Flusher) 
 	return sseEmitter{ctx: ctx, writer: writer, flusher: flusher}
 }
 
-func (stream sseEmitter) write(value any) error {
-	if err := writeSSE(stream.writer, value); err != nil {
-		return err
-	}
-	stream.flusher.Flush()
-	return stream.ctx.Err()
-}
+func (stream sseEmitter) write(value any) error { return stream.named("", value) }
 
 func (stream sseEmitter) named(name string, value any) error {
 	if err := writeSSEEvent(stream.writer, name, value); err != nil {

@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"overgo/internal/checked"
-	"overgo/internal/hostmath"
 )
 
 // Full ThoughtBankLM forward: embed, run the hyper-connection block stack while
@@ -115,13 +114,7 @@ func fastWeightBankLMForward(ids []int32, initMem []float32, slots int, w *FastW
 		head = w.Embed // weight tying
 	}
 	logits := make([]float32, seq*w.VocabSize)
-	vocab := w.VocabSize
-	hostmath.ParallelRangeF64(seq*vocab, d, func(lo, hi int) {
-		for i := lo; i < hi; i++ {
-			t, v := i/vocab, i%vocab
-			logits[i] = float32(dot(head[v*d:(v+1)*d], hText[t*d:(t+1)*d]))
-		}
-	})
+	project(logits, head, hText, w.VocabSize, d)
 
 	return &fastWeightBankLMOutput{
 		Logits: logits, MemBank: newBank, Slots: newSlots,

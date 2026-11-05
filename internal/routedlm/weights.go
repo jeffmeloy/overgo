@@ -286,14 +286,9 @@ func LoadBranchLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding
 		}
 	}
 	sections := func(dst *[]float32, suffixes []string) {
-		if err != nil {
-			return
+		if err == nil {
+			*dst, err = materializeNormSectionsF32(src, b.LayerTensorNames(layer, branch, suffixes), cfg.HeadDim)
 		}
-		names := make([]string, len(suffixes))
-		for index, suffix := range suffixes {
-			names[index] = b.LayerTensorName(layer, branch, suffix)
-		}
-		*dst, err = materializeNormSectionsF32(src, names, cfg.HeadDim)
 	}
 	vec(&w.InputNorm, suffixInputNorm, h)
 	mat(&w.Q, suffixQProj, h, qOut)
@@ -424,14 +419,9 @@ func LoadLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding, laye
 		*dst, err = materializeVectorF32(src, b.LayerTensorName(layer, branch, suffix), dim)
 	}
 	sections := func(dst *[]float32, branch int, suffixes []string) {
-		if err != nil {
-			return
+		if err == nil {
+			*dst, err = materializeNormSectionsF32(src, b.LayerTensorNames(layer, branch, suffixes), cfg.HeadDim)
 		}
-		names := make([]string, len(suffixes))
-		for i, suffix := range suffixes {
-			names[i] = b.LayerTensorName(layer, branch, suffix)
-		}
-		*dst, err = materializeNormSectionsF32(src, names, cfg.HeadDim)
 	}
 	vec(&w.InputNorm.Text, 0, suffixInputNorm, h)
 	vec(&w.InputNorm.Vision, 1, suffixInputNorm, h)

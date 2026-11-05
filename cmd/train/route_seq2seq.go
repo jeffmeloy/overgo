@@ -122,17 +122,7 @@ func trainSeq2Seq(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 				Loss: loss, Step: step + 1, LearningRate: config.LearningRate(step + 1), GradientL2: trainer.GradientL2(),
 			}, err
 		},
-		loss: func() (float64, error) {
-			var total float64
-			for _, pair := range pairs {
-				loss, err := trainedModel.Loss(pair)
-				if err != nil {
-					return 0, err
-				}
-				total += loss
-			}
-			return total / float64(len(pairs)), nil
-		},
+		loss: meanLoss(pairs, trainedModel.Loss),
 		// Every update consumed one record of the dataset.
 		publish: func(ctx context.Context) error {
 			stream, err := trainingworkflow.TextStream(raw, uint64(runPlan.Updates()))

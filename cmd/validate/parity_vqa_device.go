@@ -186,10 +186,8 @@ func vqaDevice(l *campaignContext) error {
 	// ---- measurement -------------------------------------------------------
 	budget := measurement(measureTerminal)
 	perCall, err := measure(budget, func() error {
-		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs); err != nil {
-			return err
-		}
-		return nil
+		_, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs)
+		return err
 	})
 	if err != nil {
 		return err

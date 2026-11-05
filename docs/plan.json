@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 6414,
-        "reason": "retire-reward-pilot measured at -5926 production nodes, against the -10,865 estimated: the pilot's commands, workflow and checkpoint removal go, and the instruction acceptance builders and the power bounds stay test-held for the exposure, naming and record tests."
+        "nodes": 7025,
+        "reason": "exact-folds-outside measured at -611 production nodes, against about -905 estimated: the folds a helper shortens, with the repeats over different types left under the ceiling."
       },
       "steps": [
-        {
-          "id": "exact-folds-outside",
-          "title": "Fold exact production repeats outside the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRepeatedProductionBodiesStayUnderTheirCeiling$'",
-          "rationale": "26 folds, 2,624 nodes gross and about 905 net, for example cmd/validate/parity_vqa_device_decode.go:284 with internal/vqaserve/pipeline.go:292 (203 nodes), and cmd/train/route_seq2seq.go:48 with three more. Same text, so little can break. The test holds a ceiling, so copies do not return.\nSQA-217 and SQA-224 join this step: compiledSerials (internal/cuda/executor/graph_exec_cache.go:21-27) and sseEmitter.write, which repeats named (internal/server/protocol_io.go:54-68).\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes.\nBatch: host lane."
-        },
         {
           "id": "param-folds-outside",
           "title": "Fold repeats of at most three parameters outside the surface",

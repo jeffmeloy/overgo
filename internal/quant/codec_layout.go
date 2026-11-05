@@ -90,17 +90,8 @@ func (l affineKCodecLayout) groupCount() int {
 	return l.block.elements / l.group.width
 }
 
-func (l affineKCodecLayout) groupInput(values []float32, group int) []float32 {
-	start := group * l.group.width
-	return values[start : start+l.group.width]
-}
-
-func (l affineKCodecLayout) groupLevels(values []byte, group int) []byte {
-	start := group * l.group.width
-	return values[start : start+l.group.width]
-}
-
-func (l affineKCodecLayout) groupLevels8(values []int8, group int) []int8 {
+// layoutGroup is the group's span of values, inputs or levels, under l.
+func layoutGroup[T any](l affineKCodecLayout, values []T, group int) []T {
 	start := group * l.group.width
 	return values[start : start+l.group.width]
 }

@@ -174,12 +174,7 @@ func (r *Runner) newAttentionCells(ctx context.Context, capacity uint32) (*atten
 	if err != nil {
 		return nil, errors.Join(err, cells.release(context.WithoutCancel(ctx)))
 	}
-	offset := uint64(0)
-	next := func(bytes uint64, shape tensor.Shape) executor.DeviceValue {
-		value := executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), Shape: shape, CapacityBytes: bytes}
-		offset += alignQSARegion(bytes)
-		return value
-	}
+	next := qsaRegions(whole)
 	for layer, holds := range r.cellLayers {
 		if !holds {
 			continue
@@ -191,16 +186,16 @@ func (r *Runner) newAttentionCells(ctx context.Context, capacity uint32) (*atten
 		codeShape := tensor.MustShape(width, kvHeads*pooled)
 		scaleShape := tensor.MustShape(width/tensor.QSAScaleGroup, kvHeads*pooled)
 		cells.layers[layer] = attentionLayerCells{
-			keyCodes: next(pooled*codes, codeShape), valueCodes: next(pooled*codes, codeShape),
-			keyScales: next(pooled*scales, scaleShape), valueScales: next(pooled*scales, scaleShape), ring: ring,
+			keyCodes: next(codeShape, pooled*codes), valueCodes: next(codeShape, pooled*codes),
+			keyScales: next(scaleShape, pooled*scales), valueScales: next(scaleShape, pooled*scales), ring: ring,
 		}
 		if ring {
 			cells.window, cells.ringPages = r.cellRingWindow()
 		}
 	}
 	pages := uint64(capacity) / tensor.CellPageCells
-	cells.pageTable = next(pages*i32Bytes, tensor.MustShape(pages))
-	cells.ringTable = next(pages*i32Bytes, tensor.MustShape(pages))
+	cells.pageTable = next(tensor.MustShape(pages), pages*i32Bytes)
+	cells.ringTable = next(tensor.MustShape(pages), pages*i32Bytes)
 	identity, ring := make([]int32, pages), make([]int32, pages)
 	for page := range identity {
 		identity[page], ring[page] = int32(page), int32(page)

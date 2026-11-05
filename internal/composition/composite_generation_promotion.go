@@ -66,25 +66,6 @@ func (CompositeGenerationPromotionAuthority) Promote(
 	})
 }
 
-// Parse admits canonical serialized surface-promotion evidence.
-func (CompositeGenerationPromotionAuthority) Parse(data []byte) (CompositeGenerationPromotion, error) {
-	return compositeGenerationPromotionCodec.Parse(data)
-}
-
-// Load requires exact surface-promotion content from OvergoDB.
-func (CompositeGenerationPromotionAuthority) Load(
-	ctx context.Context,
-	reader artifact.Reader,
-	id artifact.ID,
-) (CompositeGenerationPromotion, error) {
-	return compositeGenerationPromotionCodec.Require(ctx, reader, id)
-}
-
-// ValidateIdentity verifies the promotion envelope and content identity.
-func (value CompositeGenerationPromotion) ValidateIdentity() error {
-	return compositeGenerationPromotionCodec.ValidateIdentity(value)
-}
-
 // Content returns exact surface-promotion content.
 func (value CompositeGenerationPromotion) Content() (artifact.Content, error) {
 	return compositeGenerationPromotionCodec.Content(value)

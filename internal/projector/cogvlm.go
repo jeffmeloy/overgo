@@ -29,13 +29,6 @@ type cogVLMVisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func (r *cogVLMVisionRunner) Spec() cogVLMVisionSpec {
-	if r == nil {
-		return cogVLMVisionSpec{}
-	}
-	return r.spec
-}
-
 func readCogVLMVisionSpec(file *gguf.File) (cogVLMVisionSpec, error) {
 	spec := cogVLMVisionSpec{}
 	if err := readVisionBackbone(file, cogVLMProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {

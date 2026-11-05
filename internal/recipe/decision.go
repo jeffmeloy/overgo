@@ -125,10 +125,6 @@ func RequireDecision(ctx context.Context, reader artifact.Reader, id artifact.ID
 	return decisionCodec.Require(ctx, reader, id)
 }
 
-func (d Decision) ValidateIdentity() error {
-	return decisionCodec.ValidateIdentity(d)
-}
-
 func (d Decision) Content() (artifact.Content, error) {
 	return decisionCodec.Content(d)
 }

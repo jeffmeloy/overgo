@@ -102,17 +102,6 @@ func assembleRankPairTokens(
 	return result, nil
 }
 
-func (r *Runner) Rank(ctx context.Context, text string) (RankResult, error) {
-	if r == nil || r.vocab == nil {
-		return RankResult{}, errRunnerNil
-	}
-	ids, err := r.vocab.Encode(text, tokenizer.EncodeOptions{AddSpecial: true})
-	if err != nil {
-		return RankResult{}, err
-	}
-	return r.RankTokens(ctx, ids)
-}
-
 func (r *Runner) RankTokens(
 	ctx context.Context,
 	input []tokenizer.TokenID,

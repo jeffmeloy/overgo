@@ -77,10 +77,6 @@ func catalogProfileDerivation(profile model.ArchitectureProfile, facts []Profile
 	return catalogProfileDerivationCodec.New(document)
 }
 
-func (d CatalogProfileDerivation) ValidateIdentity() error {
-	return catalogProfileDerivationCodec.ValidateIdentity(d)
-}
-
 func (d CatalogProfileDerivation) Content() (artifact.Content, error) {
 	return catalogProfileDerivationCodec.Content(d)
 }

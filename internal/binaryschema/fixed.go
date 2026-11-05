@@ -2,6 +2,7 @@ package binaryschema
 
 import (
 	"encoding/binary"
+	"hash"
 	"math"
 )
 
@@ -70,6 +71,13 @@ func (s Fixed) PutUint32(data []byte, value uint32) {
 
 func (s Fixed) PutUint64(data []byte, value uint64) {
 	s.Order.PutUint64(data, value)
+}
+
+// HashUint64 adds value to digest as its Uint64Bytes little-endian bytes.
+func HashUint64(digest hash.Hash, value uint64) {
+	var encoded [Uint64Bytes]byte
+	binary.LittleEndian.PutUint64(encoded[:], value)
+	_, _ = digest.Write(encoded[:])
 }
 
 func (s Fixed) Float32s(values []float32) []byte {

@@ -276,7 +276,12 @@ func LinearInputProjection(dst, projected, x, projection, weight, bias []float32
 		Linear(projected, x, projection, rows, inDim, inDim)
 		x = projected
 	}
-	Linear(dst, x, weight, rows, inDim, outDim)
+	LinearBias(dst, x, weight, bias, rows, inDim, outDim)
+}
+
+// LinearBias is Linear with bias added to every output row; an empty bias adds nothing.
+func LinearBias(dst, x, w, bias []float32, rows, inDim, outDim int) {
+	Linear(dst, x, w, rows, inDim, outDim)
 	if len(bias) != 0 {
 		for row := range rows {
 			AddBias(dst[row*outDim:(row+1)*outDim], bias)

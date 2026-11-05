@@ -305,11 +305,6 @@ func (c Contract) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(c.ID, parents...)
 }
 
-// Batch returns an atomic publication containing the contract and its lineage.
-func (c Contract) Batch(key string) (artifact.Batch, error) {
-	return contractCodec.Batch(key, c, c.Lineage(), nil)
-}
-
 func canonicalizeContract(value *Contract) error {
 	if value == nil || value.Version != ContractVersion {
 		return errors.New("representation: invalid contract version")

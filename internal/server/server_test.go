@@ -849,12 +849,11 @@ func (f *fakeGenerator) CompileGBNF(
 	if err != nil {
 		return nil, err
 	}
-	return sampling.NewGBNFGrammar(
-		source,
-		root,
-		[][]byte{[]byte("a"), nil},
-		[]int{1},
-	)
+	vocabulary, err := sampling.NewGBNFVocabulary([][]byte{[]byte("a"), nil}, []int{1}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return vocabulary.Compile(source, root, sampling.GBNFLazyOptions{})
 }
 
 func (f *fakeGenerator) CompileLazyGBNF(

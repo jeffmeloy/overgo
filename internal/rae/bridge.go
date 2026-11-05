@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/hostmath"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
@@ -51,7 +52,7 @@ func (bridge EncoderBridge) Apply(tokens []float32) ([]float32, error) {
 	}
 	rows := len(tokens) / source
 	mapped := make([]float32, rows*target)
-	linear(mapped, tokens, bridge.Weight, bridge.Bias, rows, source, target)
+	hostmath.LinearBias(mapped, tokens, bridge.Weight, bridge.Bias, rows, source, target)
 	return mapped, nil
 }
 

@@ -221,11 +221,10 @@ func (r *Runner) newQSALive(ctx context.Context, past *deviceKVCache) (*qsaLive,
 	if err != nil {
 		return nil, errors.Join(err, live.release(context.WithoutCancel(ctx)))
 	}
-	var offset uint64
+	place := qsaRegions(whole)
 	for _, region := range regions {
 		bytes, _ := region.shape.Bytes(dtype.F32)
-		*region.into = executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), Shape: region.shape, CapacityBytes: bytes}
-		offset += alignQSARegion(bytes)
+		*region.into = place(region.shape, bytes)
 	}
 	for layer, states := range past.States {
 		if len(states) == 0 {
@@ -285,12 +284,7 @@ func (r *Runner) qsaWindowControl(ctx context.Context) (*qsaWindowScratch, error
 	if err != nil {
 		return nil, errors.Join(err, scratch.release(context.WithoutCancel(ctx)))
 	}
-	offset := uint64(0)
-	place := func(shape tensor.Shape, bytes uint64) executor.DeviceValue {
-		value := executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), Shape: shape, CapacityBytes: bytes}
-		offset += alignQSARegion(bytes)
-		return value
-	}
+	place := qsaRegions(whole)
 	scratch.one = place(tensor.MustShape(tensor.SingletonExtent), i32Bytes)
 	for layer, holds := range r.qsaLayers {
 		if holds {
@@ -387,14 +381,12 @@ func (r *Runner) ensureWindowRows(ctx context.Context, graph deviceBatchGraph) e
 		return errors.Join(err, buffer.Release(context.WithoutCancel(ctx)))
 	}
 	scratch.rows, scratch.parts = buffer, make([][qsaWindowParts]executor.DeviceValue, len(graph.window))
-	offset := uint64(0)
+	place := qsaRegions(whole)
 	for layer := range sizes {
 		for part, bytes := range sizes[layer] {
-			if bytes == 0 {
-				continue
+			if bytes != 0 {
+				scratch.parts[layer][part] = place(tensor.Shape{}, bytes)
 			}
-			scratch.parts[layer][part] = executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), CapacityBytes: bytes}
-			offset += alignQSARegion(bytes)
 		}
 	}
 	return nil

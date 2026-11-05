@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/sampling"
@@ -333,19 +334,19 @@ func validateDiffusion(
 	if options.Schedule > DiffusionBlock {
 		return errors.New("inference: diffusion schedule is invalid")
 	}
-	if options.Temperature < 0 || !finiteDiffusion(options.Temperature) ||
-		options.AlgorithmTemperature < 0 || !finiteDiffusion(options.AlgorithmTemperature) ||
-		options.CFGScale < 0 || !finiteDiffusion(options.CFGScale) {
+	if options.Temperature < 0 || !checked.Finite32(options.Temperature) ||
+		options.AlgorithmTemperature < 0 || !checked.Finite32(options.AlgorithmTemperature) ||
+		options.CFGScale < 0 || !checked.Finite32(options.CFGScale) {
 		return errors.New("inference: diffusion temperatures and CFG scale must be finite and non-negative")
 	}
 	if options.TopK < 0 {
 		return errors.New("inference: diffusion top-k is negative")
 	}
-	if options.TopP < 0 || options.TopP > 1 || !finiteDiffusion(options.TopP) {
+	if options.TopP < 0 || options.TopP > 1 || !checked.Finite32(options.TopP) {
 		return errors.New("inference: diffusion top-p must be in [0,1]")
 	}
 	if options.Schedule == DiffusionTimestep {
-		if options.Epsilon <= 0 || options.Epsilon > 1 || !finiteDiffusion(options.Epsilon) {
+		if options.Epsilon <= 0 || options.Epsilon > 1 || !checked.Finite32(options.Epsilon) {
 			return errors.New("inference: timestep diffusion epsilon must be in (0,1]")
 		}
 		if options.BlockLength != 0 {
@@ -595,8 +596,4 @@ func selectDiffusionCandidates(
 		remaining = append(remaining[:chosen], remaining[chosen+1:]...)
 	}
 	return selected
-}
-
-func finiteDiffusion(value float32) bool {
-	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }

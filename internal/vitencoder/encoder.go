@@ -266,7 +266,7 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	// sit between them and take none.
 	hidden := make([]float32, e.tokens*g.Hidden)
 	patched := hidden[(1+g.Registers)*g.Hidden:]
-	linear(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
+	hostmath.LinearBias(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
 	for index, value := range e.position[g.Hidden:] {
 		patched[index] += value
 	}
@@ -279,20 +279,20 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	projected := make([]float32, len(hidden))
 	for _, l := range e.layers {
 		hostmath.LayerNormInto(normed, hidden, l.norm1Weight, l.norm1Bias, e.tokens, g.Hidden, g.Epsilon)
-		linear(q, normed, l.query, l.queryBias, e.tokens, g.Hidden, g.Hidden)
-		linear(k, normed, l.key, l.keyBias, e.tokens, g.Hidden, g.Hidden)
-		linear(v, normed, l.value, l.valueBias, e.tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(q, normed, l.query, l.queryBias, e.tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(k, normed, l.key, l.keyBias, e.tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(v, normed, l.value, l.valueBias, e.tokens, g.Hidden, g.Hidden)
 		attended := hostmath.BatchedAttentionF32(q, k, v, len(q)/(e.tokens*g.Hidden), e.tokens, e.tokens, g.Hidden, g.Heads)
-		linear(projected, attended, l.output, l.outputBias, e.tokens, g.Hidden, g.Hidden)
+		hostmath.LinearBias(projected, attended, l.output, l.outputBias, e.tokens, g.Hidden, g.Hidden)
 		addScaled(hidden, projected, l.scale1, g.Hidden)
 		hostmath.LayerNormInto(normed, hidden, l.norm2Weight, l.norm2Bias, e.tokens, g.Hidden, g.Epsilon)
 		inner := make([]float32, e.tokens*l.intermediate)
 		if l.up != nil {
-			linear(inner, normed, l.up, l.upBias, e.tokens, g.Hidden, l.intermediate)
+			hostmath.LinearBias(inner, normed, l.up, l.upBias, e.tokens, g.Hidden, l.intermediate)
 			hostmath.GELUErfInPlace(inner)
 		} else {
 			gated := make([]float32, e.tokens*2*l.intermediate)
-			linear(gated, normed, l.gateUp, l.gateUpBias, e.tokens, g.Hidden, 2*l.intermediate)
+			hostmath.LinearBias(gated, normed, l.gateUp, l.gateUpBias, e.tokens, g.Hidden, 2*l.intermediate)
 			for token := range e.tokens {
 				row := gated[token*2*l.intermediate:]
 				for index := range l.intermediate {
@@ -300,7 +300,7 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 				}
 			}
 		}
-		linear(projected, inner, l.down, l.downBias, e.tokens, l.intermediate, g.Hidden)
+		hostmath.LinearBias(projected, inner, l.down, l.downBias, e.tokens, l.intermediate, g.Hidden)
 		addScaled(hidden, projected, l.scale2, g.Hidden)
 	}
 	finalWeight, finalBias := e.finalWeight, e.finalBias
@@ -314,16 +314,6 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 		}
 	}
 	return hidden, nil
-}
-
-// linear is dst = x * w^T + bias over rows.
-func linear(dst, x, w, bias []float32, rows, in, out int) {
-	hostmath.Linear(dst[:rows*out], x[:rows*in], w, rows, in, out)
-	for row := range rows {
-		for column, value := range bias {
-			dst[row*out+column] += value
-		}
-	}
 }
 
 // addScaled adds a branch to the residual stream, per channel scaled when the

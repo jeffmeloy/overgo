@@ -597,7 +597,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1fb931bf3d8c8ea8bba3d28559bdd851d76ec06aa91f34b39b8d2683864411db"
+     "identity": "evidence:sha256:2e74232b7988e4a58426b0a89c5f366524fa32f826aa9108195a696fecbcd199"
     }
    ],
    "id": "bounded-server-media",
@@ -779,7 +779,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:6c2fe9972a565d5de57df9e081a71e9746bd42f45ccf143db17577ea4a36b537"
+     "identity": "file:sha256:92f9d7ba82057e73e804b7007f7b7a4205d7e0439213ddac18f02240dc79b45c"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -886,7 +886,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:62d6b5b31b4e3385963139026996ea11dbe02e96213292b83409702ffb5b6bf8"
+     "identity": "file:sha256:3ad35cd03f18bc98c8c57b8f582d40f6e2eb01e68803bfaf61461862f51ffeb8"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -904,16 +904,16 @@
   {
    "evidence": [
     {
-     "contains": "func NewGBNFGrammar(",
+     "contains": "func (v *GBNFVocabulary) Compile(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:8b5c75e396f229dc3cf2e0bbb4fc6e3969b2887cb6b22907f9a7d49f8a9eaa23"
+     "identity": "file:sha256:b267ddf4c5e116f8d5545500db7798e91b3a920cc8c850f54ba367e909d40519"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
      "path": "internal/sampling/json_schema_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ce8fdc8d04dc4836d17bf5bdc21f58a7d12d9a3bfdde2e958e013955dd24402c"
+     "identity": "evidence:sha256:bc55c356ef04457f201f876aa11eaf0630ab96fb4ee87db1098053a02ef959a6"
     }
    ],
    "id": "constrained-generation",

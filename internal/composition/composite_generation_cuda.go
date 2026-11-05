@@ -99,11 +99,6 @@ func (value CompositeGenerationCUDAEvidence) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueIDs(parents)...)
 }
 
-// Batch prepares atomic publication of CUDA evidence and its dependency graph.
-func (value CompositeGenerationCUDAEvidence) Batch(key string) (artifact.Batch, error) {
-	return compositeGenerationCUDAEvidenceCodec.Batch(key, value, value.Lineage(), nil)
-}
-
 func canonicalizeCompositeGenerationCUDAEvidence(value *CompositeGenerationCUDAEvidence) error {
 	if value == nil || value.Version != CompositeGenerationCUDAEvidenceVersion ||
 		value.SourceModel.Kind() != artifact.KindModel || value.TargetModel.Kind() != artifact.KindModel ||

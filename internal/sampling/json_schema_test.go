@@ -55,7 +55,7 @@ func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(t *testing.T) {
 					normalizePinnedGrammar(got),
 				)
 			}
-			if _, err := NewGBNFGrammar(
+			if _, err := newGBNFGrammar(
 				got,
 				"root",
 				[][]byte{[]byte("x"), nil},
@@ -334,7 +334,7 @@ func TestJSONSchemaPatternEdgeCases(t *testing.T) {
 		if !strings.Contains(grammar, test.contains) {
 			t.Fatalf("%s grammar lacks %q:\n%s", test.pattern, test.contains, grammar)
 		}
-		if _, err := NewGBNFGrammar(
+		if _, err := newGBNFGrammar(
 			grammar,
 			"root",
 			[][]byte{[]byte("a"), nil},

@@ -46,7 +46,7 @@ func (d *vitDecoder) decodeTraced(rows []float32) ([]float32, decoderTrace, erro
 	trace := decoderTrace{rows: rows}
 	hidden := make([]float32, sequence*d.hidden)
 	copy(hidden, d.class)
-	linear(hidden[d.hidden:], rows, d.embedWeight, d.embedBias, tokens, d.latent, d.hidden)
+	hostmath.LinearBias(hidden[d.hidden:], rows, d.embedWeight, d.embedBias, tokens, d.latent, d.hidden)
 	for index, value := range d.position {
 		hidden[index] += value
 	}
@@ -55,21 +55,21 @@ func (d *vitDecoder) decodeTraced(rows []float32) ([]float32, decoderTrace, erro
 		step.normed1 = make([]float32, len(hidden))
 		hostmath.LayerNormInto(step.normed1, hidden, l.norm1Weight, l.norm1Bias, sequence, d.hidden, d.epsilon)
 		step.q, step.k, step.v = make([]float32, len(hidden)), make([]float32, len(hidden)), make([]float32, len(hidden))
-		linear(step.q, step.normed1, l.query, l.queryBias, sequence, d.hidden, d.hidden)
-		linear(step.k, step.normed1, l.key, l.keyBias, sequence, d.hidden, d.hidden)
-		linear(step.v, step.normed1, l.value, l.valueBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(step.q, step.normed1, l.query, l.queryBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(step.k, step.normed1, l.key, l.keyBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(step.v, step.normed1, l.value, l.valueBias, sequence, d.hidden, d.hidden)
 		step.attended = hostmath.BatchedAttentionF32(step.q, step.k, step.v, 1, sequence, sequence, d.hidden, d.heads)
 		projected := make([]float32, len(hidden))
-		linear(projected, step.attended, l.output, l.outputBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(projected, step.attended, l.output, l.outputBias, sequence, d.hidden, d.hidden)
 		add(hidden, projected)
 		step.middle = append([]float32(nil), hidden...)
 		step.normed2 = make([]float32, len(hidden))
 		hostmath.LayerNormInto(step.normed2, hidden, l.norm2Weight, l.norm2Bias, sequence, d.hidden, d.epsilon)
 		step.inner = make([]float32, sequence*d.intermediate)
-		linear(step.inner, step.normed2, l.up, l.upBias, sequence, d.hidden, d.intermediate)
+		hostmath.LinearBias(step.inner, step.normed2, l.up, l.upBias, sequence, d.hidden, d.intermediate)
 		step.activated = append([]float32(nil), step.inner...)
 		hostmath.GELUErfInPlace(step.activated)
-		linear(projected, step.activated, l.down, l.downBias, sequence, d.intermediate, d.hidden)
+		hostmath.LinearBias(projected, step.activated, l.down, l.downBias, sequence, d.intermediate, d.hidden)
 		add(hidden, projected)
 		trace.layers = append(trace.layers, step)
 	}
@@ -79,7 +79,7 @@ func (d *vitDecoder) decodeTraced(rows []float32) ([]float32, decoderTrace, erro
 	channels := len(d.pixelMean)
 	width := d.patch * channels
 	predicted := make([]float32, tokens*d.patch*width)
-	linear(predicted, trace.normed[d.hidden:], d.predWeight, d.predBias, tokens, d.hidden, d.patch*width)
+	hostmath.LinearBias(predicted, trace.normed[d.hidden:], d.predWeight, d.predBias, tokens, d.hidden, d.patch*width)
 	side := d.grid * d.patch
 	pixels := make([]float32, channels*side*side)
 	for row := range d.grid {

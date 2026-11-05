@@ -6,9 +6,19 @@ import (
 	"testing"
 )
 
+// newGBNFGrammar binds source to token pieces as commands do, through a vocabulary of the pieces and EOS tokens that
+// compiles it; an EOS token is permitted only where the grammar accepts.
+func newGBNFGrammar(source, root string, tokenPieces [][]byte, eosTokens []int) (*GBNFGrammar, error) {
+	vocabulary, err := NewGBNFVocabulary(tokenPieces, eosTokens, nil)
+	if err != nil {
+		return nil, err
+	}
+	return vocabulary.Compile(source, root, GBNFLazyOptions{})
+}
+
 func TestGBNFLiteralsClassesGroupsAndRepetition(t *testing.T) {
 	pieces := bytePieces("a", "b", "c", "1", "2", "3", "x", "", "a1", "12")
-	grammar, err := NewGBNFGrammar(`
+	grammar, err := newGBNFGrammar(`
 root ::= ("a" | [b-c]) [0-9]{2,3}
 `, "root", pieces, []int{7})
 	if err != nil {
@@ -37,7 +47,7 @@ root ::= ("a" | [b-c]) [0-9]{2,3}
 }
 
 func TestGBNFRightRecursiveBalancedInput(t *testing.T) {
-	grammar, err := NewGBNFGrammar(`
+	grammar, err := newGBNFGrammar(`
 root ::= "(" root? ")"
 `, "root", bytePieces("(", ")", "", "x", "()"), []int{2})
 	if err != nil {
@@ -64,7 +74,7 @@ root ::= "(" root? ")"
 }
 
 func TestGBNFUnicodeCanSpanByteTokens(t *testing.T) {
-	grammar, err := NewGBNFGrammar(
+	grammar, err := newGBNFGrammar(
 		`root ::= "€"`,
 		"root",
 		[][]byte{{0xE2}, {0x82}, {0xAC}, nil, {'x'}},
@@ -101,7 +111,7 @@ func TestGBNFUnicodeCanSpanByteTokens(t *testing.T) {
 }
 
 func TestGBNFNegatedClassWildcardAndEscapes(t *testing.T) {
-	grammar, err := NewGBNFGrammar(
+	grammar, err := newGBNFGrammar(
 		`root ::= [^a-c] . "\n" "\u20AC"`,
 		"root",
 		bytePieces("x", "a", "Z", "\n", "€", "", "xy"),
@@ -131,7 +141,7 @@ func TestGBNFRejectsUndefinedLeftRecursiveAndMalformedRules(t *testing.T) {
 		{`other ::= "a"`, "root rule"},
 	}
 	for _, item := range cases {
-		_, err := NewGBNFGrammar(item.source, "root", bytePieces("a", ""), []int{1})
+		_, err := newGBNFGrammar(item.source, "root", bytePieces("a", ""), []int{1})
 		if err == nil || !strings.Contains(err.Error(), item.want) {
 			t.Fatalf("grammar %q error = %v, want %q", item.source, err, item.want)
 		}
@@ -144,7 +154,7 @@ func TestGBNFTokenTerminalsMatchPinnedUpstreamSemantics(t *testing.T) {
 		pieces[index] = []byte("x")
 	}
 	pieces[31] = nil
-	grammar, err := NewGBNFGrammar(`
+	grammar, err := newGBNFGrammar(`
 root ::= <[10]> content <[11]>
 content ::= (!<[11]>)*
 `, "root", pieces, []int{31})
@@ -473,7 +483,7 @@ func TestLazyGBNFRequiresValidTriggers(t *testing.T) {
 }
 
 func TestGBNFCommentsMultilineGroupsAndNamedRoot(t *testing.T) {
-	grammar, err := NewGBNFGrammar(`
+	grammar, err := newGBNFGrammar(`
 # leading comment
 value ::= (
   "yes" # first choice
@@ -567,7 +577,7 @@ func assertGBNFCorpus(
 	}
 	eos := len(pieces)
 	pieces = append(pieces, nil)
-	grammar, err := NewGBNFGrammar(source, "root", pieces, []int{eos})
+	grammar, err := newGBNFGrammar(source, "root", pieces, []int{eos})
 	if err != nil {
 		t.Fatal(err)
 	}

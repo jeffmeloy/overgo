@@ -1,7 +1,6 @@
 package sampling
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -145,131 +144,121 @@ func (s *Sampler) LoadState(data []byte) error {
 
 func configSignature(config Config) uint64 {
 	hash := fnv.New64a()
-	var buffer [8]byte
-	writeUint64 := func(value uint64) {
-		binary.LittleEndian.PutUint64(buffer[:], value)
-		_, _ = hash.Write(buffer[:])
-	}
-	writeUint64(uint64(math.Float32bits(config.Temperature)))
-	writeUint64(uint64(config.TopK))
-	writeUint64(uint64(math.Float32bits(config.TopP)))
-	writeUint64(uint64(math.Float32bits(config.MinP)))
-	writeUint64(uint64(math.Float32bits(config.TypicalP)))
-	writeUint64(uint64(config.RepeatLastN))
-	writeUint64(uint64(math.Float32bits(config.RepeatPenalty)))
-	writeUint64(uint64(math.Float32bits(config.PresencePenalty)))
-	writeUint64(uint64(math.Float32bits(config.FrequencyPenalty)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.Temperature)))
+	binaryschema.HashUint64(hash, uint64(config.TopK))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.TopP)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.MinP)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.TypicalP)))
+	binaryschema.HashUint64(hash, uint64(config.RepeatLastN))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.RepeatPenalty)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.PresencePenalty)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.FrequencyPenalty)))
 	if config.NoRepeatNgramSize > 0 {
-		writeUint64(^uint64(7))
-		writeUint64(uint64(config.NoRepeatNgramSize))
-		writeUint64(uint64(config.NgramWindow))
+		binaryschema.HashUint64(hash, ^uint64(7))
+		binaryschema.HashUint64(hash, uint64(config.NoRepeatNgramSize))
+		binaryschema.HashUint64(hash, uint64(config.NgramWindow))
 	}
-	writeUint64(uint64(math.Float32bits(config.DryMultiplier)))
-	writeUint64(uint64(math.Float32bits(config.DryBase)))
-	writeUint64(uint64(config.DryAllowedLength))
-	writeUint64(uint64(config.DryPenaltyLastN))
-	writeUint64(uint64(len(config.DryBreakers)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.DryMultiplier)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.DryBase)))
+	binaryschema.HashUint64(hash, uint64(config.DryAllowedLength))
+	binaryschema.HashUint64(hash, uint64(config.DryPenaltyLastN))
+	binaryschema.HashUint64(hash, uint64(len(config.DryBreakers)))
 	for _, breaker := range config.DryBreakers {
-		writeUint64(uint64(len(breaker)))
+		binaryschema.HashUint64(hash, uint64(len(breaker)))
 		for _, token := range breaker {
-			writeUint64(uint64(token))
+			binaryschema.HashUint64(hash, uint64(token))
 		}
 	}
-	writeUint64(uint64(config.Mirostat))
-	writeUint64(uint64(math.Float32bits(config.MirostatTau)))
-	writeUint64(uint64(math.Float32bits(config.MirostatEta)))
-	writeUint64(uint64(config.Seed))
+	binaryschema.HashUint64(hash, uint64(config.Mirostat))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.MirostatTau)))
+	binaryschema.HashUint64(hash, uint64(math.Float32bits(config.MirostatEta)))
+	binaryschema.HashUint64(hash, uint64(config.Seed))
 	if config.Grammar == nil {
-		writeUint64(0)
+		binaryschema.HashUint64(hash, 0)
 	} else {
-		writeUint64(uint64(config.Grammar.Start + 1))
-		writeUint64(uint64(config.Grammar.VocabularySize))
-		writeUint64(uint64(len(config.Grammar.Transitions)))
+		binaryschema.HashUint64(hash, uint64(config.Grammar.Start+1))
+		binaryschema.HashUint64(hash, uint64(config.Grammar.VocabularySize))
+		binaryschema.HashUint64(hash, uint64(len(config.Grammar.Transitions)))
 		for state, transitions := range config.Grammar.Transitions {
 			if config.Grammar.Accepting[state] {
-				writeUint64(1)
+				binaryschema.HashUint64(hash, 1)
 			} else {
-				writeUint64(0)
+				binaryschema.HashUint64(hash, 0)
 			}
 			tokens := make([]int, 0, len(transitions))
 			for token := range transitions {
 				tokens = append(tokens, token)
 			}
 			slices.Sort(tokens)
-			writeUint64(uint64(len(tokens)))
+			binaryschema.HashUint64(hash, uint64(len(tokens)))
 			for _, token := range tokens {
-				writeUint64(uint64(token))
-				writeUint64(uint64(transitions[token] + 1))
+				binaryschema.HashUint64(hash, uint64(token))
+				binaryschema.HashUint64(hash, uint64(transitions[token]+1))
 			}
 		}
 	}
 	// Preserve v2 signature byte-for-byte when no GBNF is configured so
 	// existing sampler/session states remain loadable
 	if config.GBNF != nil {
-		writeUint64(^uint64(0))
-		writeUint64(config.GBNF.signature)
+		binaryschema.HashUint64(hash, ^uint64(0))
+		binaryschema.HashUint64(hash, config.GBNF.signature)
 	}
 	if config.TopNSigma > 0 || config.XTCProbability > 0 || config.MinKeep > 0 {
-		writeUint64(^uint64(2))
-		writeUint64(uint64(math.Float32bits(config.TopNSigma)))
-		writeUint64(uint64(math.Float32bits(config.XTCProbability)))
-		writeUint64(uint64(math.Float32bits(config.XTCThreshold)))
-		writeUint64(uint64(config.MinKeep))
+		binaryschema.HashUint64(hash, ^uint64(2))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.TopNSigma)))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.XTCProbability)))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.XTCThreshold)))
+		binaryschema.HashUint64(hash, uint64(config.MinKeep))
 	}
 	if config.DynatempRange > 0 {
-		writeUint64(^uint64(3))
-		writeUint64(uint64(math.Float32bits(config.DynatempRange)))
-		writeUint64(uint64(math.Float32bits(config.DynatempExponent)))
+		binaryschema.HashUint64(hash, ^uint64(3))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.DynatempRange)))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.DynatempExponent)))
 	}
 	if slices.Contains(config.Samplers, SamplerAdaptiveP) {
-		writeUint64(^uint64(4))
-		writeUint64(uint64(math.Float32bits(config.AdaptiveTarget)))
-		writeUint64(uint64(math.Float32bits(config.AdaptiveDecay)))
+		binaryschema.HashUint64(hash, ^uint64(4))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.AdaptiveTarget)))
+		binaryschema.HashUint64(hash, uint64(math.Float32bits(config.AdaptiveDecay)))
 	}
 	if len(config.LogitBiases) > 0 {
-		writeUint64(^uint64(5))
-		writeUint64(uint64(len(config.LogitBiases)))
+		binaryschema.HashUint64(hash, ^uint64(5))
+		binaryschema.HashUint64(hash, uint64(len(config.LogitBiases)))
 		for _, bias := range config.LogitBiases {
-			writeUint64(uint64(bias.Token))
-			writeUint64(uint64(math.Float32bits(bias.Bias)))
+			binaryschema.HashUint64(hash, uint64(bias.Token))
+			binaryschema.HashUint64(hash, uint64(math.Float32bits(bias.Bias)))
 		}
 	}
 	if config.Infill != nil {
-		writeUint64(^uint64(6))
-		writeUint64(config.Infill.signature)
+		binaryschema.HashUint64(hash, ^uint64(6))
+		binaryschema.HashUint64(hash, config.Infill.signature)
 	}
 	if !slices.Equal(config.Samplers, defaultSamplerOrder) {
-		writeUint64(^uint64(1))
-		writeUint64(uint64(len(config.Samplers)))
+		binaryschema.HashUint64(hash, ^uint64(1))
+		binaryschema.HashUint64(hash, uint64(len(config.Samplers)))
 		for _, stage := range config.Samplers {
-			writeUint64(uint64(len(stage)))
+			binaryschema.HashUint64(hash, uint64(len(stage)))
 			_, _ = hash.Write([]byte(stage))
 		}
 	}
 	if config.Samplers != nil && len(config.Samplers) == 0 {
-		writeUint64(emptyChainSignature)
+		binaryschema.HashUint64(hash, emptyChainSignature)
 	}
 	return hash.Sum64()
 }
 
 func infillVocabularySignature(vocabulary *InfillVocabulary) uint64 {
 	hash := fnv.New64a()
-	var buffer [8]byte
-	writeUint64 := func(value uint64) {
-		binary.LittleEndian.PutUint64(buffer[:], value)
-		_, _ = hash.Write(buffer[:])
-	}
-	writeUint64(uint64(len(vocabulary.Pieces)))
+	binaryschema.HashUint64(hash, uint64(len(vocabulary.Pieces)))
 	for index, piece := range vocabulary.Pieces {
-		writeUint64(uint64(len(piece)))
+		binaryschema.HashUint64(hash, uint64(len(piece)))
 		_, _ = hash.Write([]byte(piece))
 		if vocabulary.EOG[index] {
-			writeUint64(1)
+			binaryschema.HashUint64(hash, 1)
 		} else {
-			writeUint64(0)
+			binaryschema.HashUint64(hash, 0)
 		}
 	}
-	writeUint64(uint64(vocabulary.EOT + 1))
-	writeUint64(uint64(vocabulary.EOS + 1))
+	binaryschema.HashUint64(hash, uint64(vocabulary.EOT+1))
+	binaryschema.HashUint64(hash, uint64(vocabulary.EOS+1))
 	return hash.Sum64()
 }

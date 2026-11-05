@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/extent"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
@@ -119,13 +120,13 @@ func loadGGUFImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		width := len(sums) / len(counts)
 		normalized := make([]float32, len(sums))
 		for group, rawCount := range counts {
-			if !finiteFloat32GGUF(rawCount) || rawCount < extent.FirstOffset {
+			if !checked.Finite32(rawCount) || rawCount < extent.FirstOffset {
 				return nil, fmt.Errorf("importance entry %q count %d is invalid", name, group)
 			}
 			count := float32(math.Round(float64(rawCount)))
 			for column := range width {
 				index := group*width + column
-				if !finiteFloat32GGUF(sums[index]) || sums[index] < extent.FirstOffset {
+				if !checked.Finite32(sums[index]) || sums[index] < extent.FirstOffset {
 					return nil, fmt.Errorf("importance entry %q value %d is invalid", name, index)
 				}
 				if count > extent.FirstOffset {
@@ -205,7 +206,7 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 			return nil, fmt.Errorf("read legacy importance entry %q: %w", name, err)
 		}
 		for index, value := range values {
-			if !finiteFloat32GGUF(value) || value < 0 {
+			if !checked.Finite32(value) || value < 0 {
 				return nil, fmt.Errorf("legacy importance entry %q value %d is invalid", name, index)
 			}
 			if calls > 0 {
@@ -228,8 +229,4 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		}
 	}
 	return result, nil
-}
-
-func finiteFloat32GGUF(value float32) bool {
-	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }

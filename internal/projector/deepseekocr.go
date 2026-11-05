@@ -82,13 +82,6 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 	return runner, nil
 }
 
-func (r *DeepSeekOCRRunner) Spec() deepSeekOCRSpec {
-	if r == nil {
-		return deepSeekOCRSpec{}
-	}
-	return r.spec
-}
-
 func ReadDeepSeekOCRSpec(file *gguf.File) (deepSeekOCRSpec, error) {
 	spec, err := readDeepSeekOCRBaseSpec(file, deepSeekOCRProjectorType)
 	if err != nil {
@@ -576,11 +569,7 @@ func (r *DeepSeekOCRRunner) validateGraph() error {
 	size := r.spec.ImageSize
 	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(size), uint64(size)))
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
-	weight := func(name string) *tensor.Tensor {
-		info, _ := r.file.Tensor(name)
-		return builder.Input(name, dtype.F32, tensor.MustShape(info.Extents()...))
-	}
-	_ = r.buildGraph(builder, input, size, weight, hostFeeds)
+	_ = r.buildGraph(builder, input, size, r.graphWeight(builder), hostFeeds)
 	if err := builder.Err(); err != nil {
 		return fmt.Errorf("projector: validate DeepSeek-OCR graph: %w", err)
 	}

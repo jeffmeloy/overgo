@@ -173,10 +173,6 @@ func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
 	return modelDefinitionCodec.Content(d)
 }
 
-func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
-	return modelDefinitionCodec.Batch(key, d, d.Lineage(), nil)
-}
-
 // Lineage binds a model definition to its exact manifest, profile, and tensor
 // inventory authorities.
 func (d ModelDefinitionDocument) Lineage() []artifact.Lineage {

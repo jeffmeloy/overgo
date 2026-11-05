@@ -68,10 +68,7 @@ func (t Traits) BlockCount(elements uint64) (uint64, bool) {
 
 // BlockCount reports complete blocks for an explicit block size.
 func BlockCount(elements, blockSize uint64) (uint64, bool) {
-	if blockSize == 0 || elements%blockSize != 0 {
-		return 0, false
-	}
-	return elements / blockSize, true
+	return checked.DivExact64(elements, blockSize)
 }
 
 var traits = [Count]Traits{

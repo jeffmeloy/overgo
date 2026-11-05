@@ -74,16 +74,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 8793,
-        "reason": "inline-forwarders measured at -873 production nodes: 39 one-call functions said in place; 46 stay under the forwarder ceiling, names that read better than their call, entries tests call many times, and speech recognition's profile readers, whose callers' file a claim binds."
+        "nodes": 9650,
+        "reason": "surface-folds measured at -857 production nodes: the folds inside the surface off the per-token paths and outside the CUDA executor and driver, the biased linear given a home in hostmath, the dead inside group, the old grammar entry and SQA-265's switch; the executor's and driver's folds wait for consolidate/cell-step-reads, and the rest stays under the surface ceilings."
       },
       "steps": [
         {
-          "id": "surface-folds",
-          "title": "Fold repeats that touch the inference surface, before one measurement run",
+          "id": "adaptiveparity-lane",
+          "title": "Make the device and acceptance tests that open a fresh store, and the composed artifact's, pass in their lane",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSurfaceRepeatsStayUnderTheirCeiling$'",
-          "rationale": "87 folds and 8 near clusters, about 3,703 net, in internal/projector, internal/hostmath, internal/tokenizer, internal/cuda/cublas and internal/tensor/reference, for example internal/tokenizer/bpe.go:546,617,706 and internal/projector/hunyuanvl_cuda.go:76 with two more. Any file here moves the surface and expires evidence, so all go in one commit with the surface part of dead-declarations and the kernel steps of consolidate. No fold on a per-token path without a benchmark, since a helper that does not inline moves a rate.\nSQA-265 joins this step: editLayerStates has its own switch (internal/inference/cache_state.go:478-491).\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes; the next run's cells unchanged.\nBatch: one commit before a measurement run."
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_STORE_ACCEPTANCE=1 go test ./internal/adaptiveparity ./internal/audioparity -count=1 -run '^(TestMultimodalTrainingMatrix|TestComposedArtifactExecutesAndResolvesLineage|TestAudioCancellationAcceptance|TestValidatedTranscriptionConsumers)$'",
+          "rationale": "Findings evidence:sha256:fec0038932c6d24f90a92aaf4d175186c6249916842bfc60a62f10f1160f4416 and evidence:sha256:51208092900020b8527cde191ea77f693ff2ad218feb5846aa74bbfd0e96ac79 (high): device and store-acceptance tests open a store at a path that does not exist, which overgodb.Open refuses since c4af5a1b6, and skip without their variables, so the default run does not see it. TestMultimodalTrainingMatrix, the verify of claim repodb-multimodal-training-objective-matrix, does so after its training ran (internal/adaptiveparity/multimodal_training_cuda_windows_test.go:179), and TestAudioCancellationAcceptance and TestValidatedTranscriptionConsumers, the verifies of claims audio-cpu-cancellation-lifecycle and audio-cpu-segmented-transcription, through newAdapterLifecycle (internal/audioparity/adapter_lifecycle_test.go:67), with the same call at five more audioparity sites. TestComposedArtifactExecutesAndResolvesLineage stops where hfbpe refuses its model pair's tokenizer, the added-token rule of 3eac92e48 and 78065057c (internal/adaptiveparity/composed_artifact_windows_test.go:138).\nWhile they fail, a device lane that runs internal/adaptiveparity refuses the change, and any change under internal/cuda/driver or internal/cuda/executor runs the lane in full; held-claims needs repodb-multimodal-training-objective-matrix verified again, and consolidate/cell-step-reads opens the executor.\nChange: each test that starts a store calls overgodb.Create, and one that reopens it keeps Open; the composed artifact test is given a pair whose tokenizer the rule admits, or holds the refusal, read first whether the rule refuses what it should; the claims these tests verify are verified again.\nServes: failure-rate of the gate; the claims' truth.\nDisappears: four failing device and acceptance tests.\nEvidence: the four tests pass, and the claims verify again.\nBatch: device lane."
         },
         {
           "id": "held-claims",
@@ -191,7 +191,7 @@
           "title": "Take the cell step records' window from Reads",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run 'CellAttention'",
-          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads."
+          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads.\n\nSQA-217 and the CUDA folds compact-production/surface-folds held back join this step, since any change under internal/cuda/driver or internal/cuda/executor runs the device lane in full, which waits on compact-production/adaptiveparity-lane: the graph cache matches the retained compiled graph and the exact frame, compiledSerials and both serial fields going with the graph-drop test's second-compile tail; the two strata recorders' side-stream switch is one onStream over their device state; and the driver's version and device count read through one int32Out. TestSurfaceRepeatsStayUnderTheirCeiling's ceilings fall by what the folds remove."
         }
       ]
     },

@@ -43,13 +43,6 @@ type miMoVLRunner struct {
 	spec miMoVLSpec
 }
 
-func (r *miMoVLRunner) Spec() miMoVLSpec {
-	if r == nil {
-		return miMoVLSpec{}
-	}
-	return r.spec
-}
-
 func readMiMoVLSpec(file *gguf.File) (miMoVLSpec, error) {
 	useSiLU, err := metadataBool(file, visionUseSiLUKey)
 	if err != nil {

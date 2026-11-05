@@ -59,13 +59,6 @@ type granite4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func (r *granite4VisionRunner) Spec() granite4VisionSpec {
-	if r == nil {
-		return granite4VisionSpec{}
-	}
-	return r.spec
-}
-
 func readGranite4VisionSpec(file *gguf.File) (granite4VisionSpec, error) {
 	spec := granite4VisionSpec{}
 	if err := readVisionBackbone(file, granite4VisionProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {

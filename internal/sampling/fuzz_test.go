@@ -10,7 +10,7 @@ func FuzzGBNFCompileNeverPanics(f *testing.F) {
 		if len(source) > maxGBNFSourceBytes+1 {
 			t.Skip()
 		}
-		_, _ = NewGBNFGrammar(source, "root", [][]byte{[]byte("a"), []byte("b"), nil}, []int{2})
+		_, _ = newGBNFGrammar(source, "root", [][]byte{[]byte("a"), []byte("b"), nil}, []int{2})
 	})
 }
 
@@ -26,7 +26,7 @@ func FuzzJSONSchemaToGrammarNeverPanics(f *testing.F) {
 		if err != nil {
 			return
 		}
-		_, _ = NewGBNFGrammar(
+		_, _ = newGBNFGrammar(
 			grammar,
 			"root",
 			[][]byte{[]byte("a"), nil},

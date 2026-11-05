@@ -113,11 +113,6 @@ func (value OfflineArtifactGenerationEvidence) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueIDs(parents)...)
 }
 
-// Batch prepares atomic publication of generation evidence and lineage.
-func (value OfflineArtifactGenerationEvidence) Batch(key string) (artifact.Batch, error) {
-	return offlineArtifactGenerationEvidenceCodec.Batch(key, value, value.Lineage(), nil)
-}
-
 func canonicalizeOfflineArtifactGenerationEvidence(value *OfflineArtifactGenerationEvidence) error {
 	if value == nil || value.Version != OfflineArtifactGenerationEvidenceVersion ||
 		value.ExecutionPlan.Kind() != artifact.KindProfile || value.ProducedModel.Kind() != artifact.KindModel ||

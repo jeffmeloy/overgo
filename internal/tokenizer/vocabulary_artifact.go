@@ -124,11 +124,6 @@ func (v *Vocab) Artifact(tokenizerID artifact.ID) (VocabularyArtifact, error) {
 	}, tokens)
 }
 
-// ValidateIdentity verifies the complete semantic vocabulary identity.
-func (value VocabularyArtifact) ValidateIdentity() error {
-	return vocabularyArtifactCodec.ValidateIdentity(value)
-}
-
 // Content returns the immutable vocabulary document.
 func (value VocabularyArtifact) Content() (artifact.Content, error) {
 	return vocabularyArtifactCodec.Content(value)
@@ -137,11 +132,6 @@ func (value VocabularyArtifact) Content() (artifact.Content, error) {
 // Lineage binds semantic vocabulary facts to the tokenizer artifact.
 func (value VocabularyArtifact) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Tokenizer)
-}
-
-// Batch prepares atomic publication of semantic vocabulary facts.
-func (value VocabularyArtifact) Batch(key string) (artifact.Batch, error) {
-	return vocabularyArtifactCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 func (v *Vocab) roles(id TokenID) []VocabularyRole {

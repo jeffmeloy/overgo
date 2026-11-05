@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+
 	// A picture arrives as a PNG or a JPEG.
 	_ "image/jpeg"
 	_ "image/png"

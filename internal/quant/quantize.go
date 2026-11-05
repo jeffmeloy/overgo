@@ -1061,7 +1061,7 @@ func quantizeQ4Or5K(
 		var maxScale, maxMinimum float32
 		for group := 0; group < layout.groupCount(); group++ {
 			clear(auxiliary)
-			groupInput := layout.groupInput(input, group)
+			groupInput := layoutGroup(layout, input, group)
 			sumSquares := float32(0)
 			for _, value := range groupInput {
 				if !finiteFloat32(value) {
@@ -1086,7 +1086,7 @@ func quantizeQ4Or5K(
 				groupInput,
 				layout.group.levelMax,
 				weights,
-				layout.groupLevels(levels, group),
+				layoutGroup(layout, levels, group),
 				auxiliary,
 				rangeMinimum,
 				0.1,
@@ -1136,8 +1136,8 @@ func quantizeQ4Or5K(
 				continue
 			}
 			minimum := blockMinimum * float32(quantizedMinimum)
-			groupLevels := layout.groupLevels(levels, group)
-			groupInput := layout.groupInput(input, group)
+			groupLevels := layoutGroup(layout, levels, group)
+			groupInput := layoutGroup(layout, input, group)
 			for index := range groupLevels {
 				level := nearestIntGGML(
 					(groupInput[index] + minimum) / scale,
@@ -1202,7 +1202,7 @@ func quantizeQ2K(values []float32, output []byte) error {
 		var maxScale, maxMinimum float32
 		for group := 0; group < layout.groupCount(); group++ {
 			clear(auxiliary)
-			groupInput := layout.groupInput(input, group)
+			groupInput := layoutGroup(layout, input, group)
 			for index, value := range groupInput {
 				weights[index] = absoluteFloat32(value)
 			}
@@ -1210,7 +1210,7 @@ func quantizeQ2K(values []float32, output []byte) error {
 				groupInput,
 				layout.group.levelMax,
 				weights,
-				layout.groupLevels(levels, group),
+				layoutGroup(layout, levels, group),
 				auxiliary,
 				-0.5,
 				0.1,
@@ -1252,8 +1252,8 @@ func quantizeQ2K(values []float32, output []byte) error {
 				continue
 			}
 			minimum := blockMinimum * float32(scaleMin[group]>>layout.group.scaleBits)
-			groupInput := layout.groupInput(input, group)
-			groupLevels := layout.groupLevels(levels, group)
+			groupInput := layoutGroup(layout, input, group)
+			groupLevels := layoutGroup(layout, levels, group)
 			for index := range groupLevels {
 				level := nearestIntGGML(
 					(groupInput[index] + minimum) / scale,
@@ -1390,8 +1390,8 @@ func quantizeQ3K(values []float32, output []byte) error {
 		var maxScale, maxAbsoluteScale float32
 		for group := 0; group < layout.groupCount(); group++ {
 			scale, err := makeQ3Quants(
-				layout.groupInput(input, group),
-				layout.groupLevels8(levels, group),
+				layoutGroup(layout, input, group),
+				layoutGroup(layout, levels, group),
 			)
 			if err != nil {
 				return fmt.Errorf("Q3_K: %w", err)
@@ -1422,8 +1422,8 @@ func quantizeQ3K(values []float32, output []byte) error {
 			if groupScale == 0 {
 				continue
 			}
-			groupInput := layout.groupInput(input, group)
-			groupLevels := layout.groupLevels8(levels, group)
+			groupInput := layoutGroup(layout, input, group)
+			groupLevels := layoutGroup(layout, levels, group)
 			minimumLevel, maximumLevel := layout.group.centeredLevelBounds()
 			for index := range groupLevels {
 				level := nearestIntGGML(
@@ -1544,9 +1544,9 @@ func quantizeQ6K(values []float32, output []byte) error {
 		var maxScale, maxAbsoluteScale float32
 		for group := 0; group < layout.groupCount(); group++ {
 			scale, err := makeQXQuants(
-				layout.groupInput(input, group),
+				layoutGroup(layout, input, group),
 				layout.group.levelZero,
-				layout.groupLevels8(levels, group),
+				layoutGroup(layout, levels, group),
 			)
 			if err != nil {
 				return fmt.Errorf("Q6_K: %w", err)
@@ -1575,8 +1575,8 @@ func quantizeQ6K(values []float32, output []byte) error {
 			if groupScale == 0 {
 				continue
 			}
-			groupInput := layout.groupInput(input, group)
-			groupLevels := layout.groupLevels8(levels, group)
+			groupInput := layoutGroup(layout, input, group)
+			groupLevels := layoutGroup(layout, levels, group)
 			minimumLevel, maximumLevel := layout.group.centeredLevelBounds()
 			for index := range groupLevels {
 				level := nearestIntGGML(

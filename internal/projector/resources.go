@@ -10,6 +10,8 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
@@ -26,6 +28,14 @@ type projectorResources struct {
 func (r *projectorResources) setPrompt(dispatch promptDispatch) { r.prompt = dispatch }
 
 func (r *projectorResources) compiledPrompt() promptDispatch { return r.prompt }
+
+// graphWeight declares in builder each weight a graph names, as an F32 input of its extents in the file.
+func (r *projectorResources) graphWeight(builder *tensor.Builder) func(name string) *tensor.Tensor {
+	return func(name string) *tensor.Tensor {
+		info, _ := r.file.Tensor(name)
+		return builder.Input(name, dtype.F32, tensor.MustShape(info.Extents()...))
+	}
+}
 
 func (r *projectorResources) deviceMemoryStats(ctx context.Context, resetPeak bool) (driver.MemoryStats, error) {
 	if r == nil || r.cuda == nil || r.cuda.worker == nil {

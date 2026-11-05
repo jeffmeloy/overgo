@@ -389,7 +389,7 @@ func TestSamplerGrammarStateResumesExactly(t *testing.T) {
 }
 
 func TestSamplerGBNFStateResumesExactly(t *testing.T) {
-	grammar, err := NewGBNFGrammar(
+	grammar, err := newGBNFGrammar(
 		`root ::= "a" ("b" | "c")`,
 		"root",
 		bytePieces("a", "b", "c", "", "x"),

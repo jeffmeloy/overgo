@@ -400,15 +400,6 @@ schemas: internal/trainingworkflow/health_classifier.go overgo/training-health-c
 reason: A function value that a package variable holds takes each schema's type (internal/evaluation/effective_speedup.go:55, internal/trainingworkflow/health_operator.go:62), and tests alone call it and make the documents it reads.
 reason: The walk enters every package variable, so it counts both readers and the records they write (overgo/effective-speedup/v1, overgo/training-health-operator-decision/v1) as reached, and each schema is deleted with its reader and that record once a group holds them.
 
-group text-old-entry-points
-class: test-held
-surface: inside
-declarations: 1
-lines: 13
-members: internal/sampling/gbnf.go NewGBNFGrammar
-reason: Commands compile a grammar through NewGBNFVocabulary and GBNFVocabulary.Compile (internal/sampling/gbnf.go:187), and NewGBNFGrammar is the entry over those two that tests of grammar behaviour still take.
-reason: It stays while the claim constrained-generation of compatibility.json names NewGBNFGrammar as its source, and it is deleted in a commit that binds that claim to Compile and verifies it again.
-
 group thoughtbank-sinkhorn-backward
 class: prototype
 surface: inside
@@ -437,35 +428,6 @@ lines: 118
 members: internal/trainingdata/image.go
 reason: SelectStructuredImageCrops builds the corpus of one real-checkpoint test of the live diffusion trainer, and Image decodes the examples of the live image processor for the multimodal training matrix test.
 reason: Each stays where it is, because SelectStructuredImageCrops is called by a test of internal/diffusionimage and reads the unexported normalizedCHW, and Image is called by internal/adaptiveparity/multimodal_training_cuda_windows_test.go, which the claim repodb-multimodal-training-objective-matrix of compatibility.json binds whole to a device test.
-
-group typed-dead-inside
-class: dead
-surface: inside
-declarations: 25
-lines: 123
-members: internal/composition/authority.go BridgeDefinition.Batch
-members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAEvidence.Batch
-members: internal/composition/composite_generation_promotion.go CompositeGenerationPromotion.ValidateIdentity CompositeGenerationPromotionAuthority.Load CompositeGenerationPromotionAuthority.Parse
-members: internal/composition/offline_generation.go OfflineArtifactGenerationEvidence.Batch
-members: internal/composition/offline_materialization.go OfflineArtifactObservation.ValidateIdentity
-members: internal/composition/representation_bridge_promotion.go RepresentationBridgePromotion.Batch RepresentationBridgePromotionPolicy.Identity
-members: internal/inference/rank.go Runner.Rank
-members: internal/modelartifact/tensor_measurement.go TensorMeasurementDocument.ValidateIdentity
-members: internal/modelrecipe/audio_contract.go AudioContractDocument.ValidateIdentity
-members: internal/modelrecipe/model_definition.go ModelDefinitionDocument.Batch
-members: internal/modelrecipe/profile_derivation.go CatalogProfileDerivation.ValidateIdentity
-members: internal/projector/cogvlm.go cogVLMVisionRunner.Spec
-members: internal/projector/deepseekocr.go DeepSeekOCRRunner.Spec
-members: internal/projector/deepseekocr2.go deepSeekOCR2Runner.Spec
-members: internal/projector/gemma3nvision.go gemma3nVisionRunner.Spec
-members: internal/projector/granite4vision.go granite4VisionRunner.Spec
-members: internal/projector/llama4vision.go llama4VisionRunner.Spec
-members: internal/projector/mimovl.go miMoVLRunner.Spec
-members: internal/recipe/decision.go Decision.ValidateIdentity
-members: internal/representation/contract.go Contract.Batch
-members: internal/tokenizer/vocabulary_artifact.go VocabularyArtifact.Batch VocabularyArtifact.ValidateIdentity
-reason: The name walk kept each through another declaration of its name, a Batch, a ValidateIdentity, a Spec or a Forward that a reached type has, and read by types no command and no test reaches it (TestTheReachWalkReadsTypes).
-reason: Nothing calls it, so it goes with surface-folds, which moves the inference surface's keys once, with the interface method that lists it where one does.
 
 group typed-test-held-inside
 class: test-held

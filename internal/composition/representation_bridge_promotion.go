@@ -129,14 +129,6 @@ func LoadRepresentationBridgePromotionPolicy(
 	return representationBridgePromotionPolicyCodec.Require(ctx, reader, id)
 }
 
-// Identity returns the exact recipe-owned promotion-policy identity.
-func (policy RepresentationBridgePromotionPolicy) Identity() (artifact.ID, error) {
-	if err := policy.ValidateIdentity(); err != nil {
-		return artifact.ID{}, err
-	}
-	return policy.ID, nil
-}
-
 // Evaluate returns promotion evidence only when every seed clears every
 // declared threshold. A partial or average-only win is refused.
 func (RepresentationBridgePromoter) Evaluate(
@@ -191,11 +183,6 @@ func (value RepresentationBridgePromotion) Lineage() []artifact.Lineage {
 		value.Evaluator,
 		value.PolicyID,
 	)
-}
-
-// Batch publishes the evidence and all exact dependency edges atomically.
-func (value RepresentationBridgePromotion) Batch(key string) (artifact.Batch, error) {
-	return representationBridgePromotionCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 func canonicalizeRepresentationBridgePromotion(value *RepresentationBridgePromotion) error {

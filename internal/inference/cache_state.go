@@ -484,18 +484,11 @@ func editLayerStates(
 	}
 	result := make(LayerStates, len(states))
 	for name, state := range states {
-		switch state.Mode {
-		case CacheStateFixed:
-			state.Value = state.Value.Clone()
-		case CacheStateToken:
-			value, err := state.Value.RemoveTrailingRange(uint64(start), uint64(discard))
-			if err != nil {
-				return nil, fmt.Errorf("state %q: %w", name, err)
-			}
-			state.Value = value
-		default:
-			return nil, fmt.Errorf("state %q has invalid mode %d", name, state.Mode)
+		value, err := editPrimaryCacheValue(state.Value, state.Mode, start, discard)
+		if err != nil {
+			return nil, fmt.Errorf("state %q: %w", name, err)
 		}
+		state.Value = value
 		result[name] = state
 	}
 	return result, nil

@@ -76,6 +76,16 @@ func alignQSARegion(bytes uint64) uint64 {
 	return (bytes + qsaRegionAlignment - 1) / qsaRegionAlignment * qsaRegionAlignment
 }
 
+// qsaRegions places regions one after another in whole, each at the aligned offset past the one before.
+func qsaRegions(whole executor.DeviceValue) func(shape tensor.Shape, bytes uint64) executor.DeviceValue {
+	var offset uint64
+	return func(shape tensor.Shape, bytes uint64) executor.DeviceValue {
+		value := executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), Shape: shape, CapacityBytes: bytes}
+		offset += alignQSARegion(bytes)
+		return value
+	}
+}
+
 // qsaCellLayout is the cells' regions at a capacity: on the card, a layer's codes and scales (its pages, or its slots
 // when it streams), pooled rows, block position, and a streamed layer's page table and map, then the shared page
 // table and image position table; in the host copy, a streamed layer's codes and scales of every page.

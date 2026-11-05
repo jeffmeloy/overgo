@@ -196,11 +196,6 @@ func (value OfflineArtifactOutput) Lineage() []artifact.Lineage {
 	)
 }
 
-// ValidateIdentity verifies the exact observation content identity.
-func (value OfflineArtifactObservation) ValidateIdentity() error {
-	return offlineArtifactObservationCodec.ValidateIdentity(value)
-}
-
 // Content returns the exact observation document.
 func (value OfflineArtifactObservation) Content() (artifact.Content, error) {
 	return offlineArtifactObservationCodec.Content(value)

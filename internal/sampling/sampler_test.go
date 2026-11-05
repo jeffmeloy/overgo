@@ -1034,7 +1034,7 @@ func TestChoiceGrammarResetAndConfigurationIsolation(t *testing.T) {
 }
 
 func TestGBNFGrammarConstrainsTokensAndEOS(t *testing.T) {
-	grammar, err := NewGBNFGrammar(
+	grammar, err := newGBNFGrammar(
 		`root ::= "a" ("b" | "c")`,
 		"root",
 		bytePieces("a", "b", "c", "", "x", "ab"),
@@ -1086,7 +1086,7 @@ func TestTokenGrammarAndGBNFAreMutuallyExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gbnf, err := NewGBNFGrammar(`root ::= "a"`, "root", bytePieces("a", ""), []int{1})
+	gbnf, err := newGBNFGrammar(`root ::= "a"`, "root", bytePieces("a", ""), []int{1})
 	if err != nil {
 		t.Fatal(err)
 	}

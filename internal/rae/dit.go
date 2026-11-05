@@ -194,7 +194,7 @@ func (m *diffusionTransformer) velocity(latent []float32, t float32, label int) 
 		condition[index] = silu(time[index] + m.labels[label*m.encoderWidth+index])
 	}
 	s := make([]float32, tokens*m.encoderWidth)
-	linear(s, rows, m.sWeight, m.sBias, tokens, m.latent, m.encoderWidth)
+	hostmath.LinearBias(s, rows, m.sWeight, m.sBias, tokens, m.latent, m.encoderWidth)
 	add(s, m.position)
 	for _, b := range m.encoder {
 		b.forward(s, condition, tokens, m.encoderCos, m.encoderSin)
@@ -205,10 +205,10 @@ func (m *diffusionTransformer) velocity(latent []float32, t float32, label int) 
 		}
 	}
 	projected := make([]float32, tokens*m.headWidth)
-	linear(projected, s, m.projector, m.projectorBias, tokens, m.encoderWidth, m.headWidth)
+	hostmath.LinearBias(projected, s, m.projector, m.projectorBias, tokens, m.encoderWidth, m.headWidth)
 	s = projected
 	x := make([]float32, tokens*m.headWidth)
-	linear(x, rows, m.xWeight, m.xBias, tokens, m.latent, m.headWidth)
+	hostmath.LinearBias(x, rows, m.xWeight, m.xBias, tokens, m.latent, m.headWidth)
 	for _, b := range m.head {
 		b.forward(x, s, tokens, m.headCos, m.headSin)
 	}
@@ -219,7 +219,7 @@ func (m *diffusionTransformer) velocity(latent []float32, t float32, label int) 
 		normed[index] = normed[index]*(1+scale[index]) + shift[index]
 	}
 	predicted := make([]float32, tokens*m.latent)
-	linear(predicted, normed, m.finalWeight, m.finalBias, tokens, m.headWidth, m.latent)
+	hostmath.LinearBias(predicted, normed, m.finalWeight, m.finalBias, tokens, m.headWidth, m.latent)
 	out := make([]float32, len(predicted))
 	for token := range tokens {
 		for channel := range m.latent {
@@ -243,12 +243,12 @@ func (m *diffusionTransformer) timeEmbedding(t float32) []float32 {
 		features[len(m.fourier)+index] = float32(math.Cos(angle))
 	}
 	hidden := make([]float32, m.encoderWidth)
-	linear(hidden, features, m.time1, m.time1Bias, 1, len(features), m.encoderWidth)
+	hostmath.LinearBias(hidden, features, m.time1, m.time1Bias, 1, len(features), m.encoderWidth)
 	for index, value := range hidden {
 		hidden[index] = silu(value)
 	}
 	out := make([]float32, m.encoderWidth)
-	linear(out, hidden, m.time2, m.time2Bias, 1, m.encoderWidth, m.encoderWidth)
+	hostmath.LinearBias(out, hidden, m.time2, m.time2Bias, 1, m.encoderWidth, m.encoderWidth)
 	return out
 }
 
@@ -272,7 +272,7 @@ func (b *block) forward(x, condition []float32, tokens int, cos, sin []float32) 
 		}
 	}
 	qkv := make([]float32, tokens*attentionParts*b.width)
-	linear(qkv, normed, b.qkv, b.qkvBias, tokens, b.width, attentionParts*b.width)
+	hostmath.LinearBias(qkv, normed, b.qkv, b.qkvBias, tokens, b.width, attentionParts*b.width)
 	q, k, v := make([]float32, tokens*b.width), make([]float32, tokens*b.width), make([]float32, tokens*b.width)
 	for token := range tokens {
 		row := qkv[token*attentionParts*b.width:]
@@ -284,7 +284,7 @@ func (b *block) forward(x, condition []float32, tokens int, cos, sin []float32) 
 	rotate(k, cos, sin, tokens, b.width, b.heads)
 	attended := hostmath.BatchedAttentionF32(q, k, v, 1, tokens, tokens, b.width, b.heads)
 	projected := make([]float32, tokens*b.width)
-	linear(projected, attended, b.proj, b.bias, tokens, b.width, b.width)
+	hostmath.LinearBias(projected, attended, b.proj, b.bias, tokens, b.width, b.width)
 	for token := range tokens {
 		for index := range b.width {
 			x[token*b.width+index] += at(gateAttention, token, index) * projected[token*b.width+index]
@@ -297,7 +297,7 @@ func (b *block) forward(x, condition []float32, tokens int, cos, sin []float32) 
 		}
 	}
 	up := make([]float32, tokens*gatedParts*b.gated)
-	linear(up, normed, b.up, b.upBias, tokens, b.width, gatedParts*b.gated)
+	hostmath.LinearBias(up, normed, b.up, b.upBias, tokens, b.width, gatedParts*b.gated)
 	inner := make([]float32, tokens*b.gated)
 	for token := range tokens {
 		row := up[token*gatedParts*b.gated:]
@@ -305,7 +305,7 @@ func (b *block) forward(x, condition []float32, tokens int, cos, sin []float32) 
 			inner[token*b.gated+index] = silu(row[index]) * row[b.gated+index]
 		}
 	}
-	linear(projected, inner, b.down, b.downBias, tokens, b.gated, b.width)
+	hostmath.LinearBias(projected, inner, b.down, b.downBias, tokens, b.gated, b.width)
 	for token := range tokens {
 		for index := range b.width {
 			x[token*b.width+index] += at(gateMLP, token, index) * projected[token*b.width+index]
@@ -321,7 +321,7 @@ func modulate(condition, weight, bias []float32, rows, width, parts int) [][]flo
 		activated[index] = silu(value)
 	}
 	out := make([]float32, rows*parts*width)
-	linear(out, activated, weight, bias, rows, width, parts*width)
+	hostmath.LinearBias(out, activated, weight, bias, rows, width, parts*width)
 	split := make([][]float32, parts)
 	for part := range parts {
 		split[part] = make([]float32, rows*width)

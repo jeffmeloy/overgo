@@ -138,11 +138,6 @@ func (value BridgeDefinition) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueIDs(parents)...)
 }
 
-// Batch prepares one bridge-definition publication.
-func (value BridgeDefinition) Batch(key string) (artifact.Batch, error) {
-	return bridgeDefinitionCodec.Batch(key, value, value.Lineage(), nil)
-}
-
 // NewCompositionRecipe validates and identifies one immutable activation subject.
 func NewCompositionRecipe(value CompositionRecipe) (CompositionRecipe, error) {
 	value.Version, value.ID = CompositionRecipeVersion, artifact.ID{}

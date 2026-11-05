@@ -240,7 +240,7 @@ func (d *vitDecoder) decodeTokens(rows []float32) ([]float32, error) {
 	sequence := tokens + 1
 	hidden := make([]float32, sequence*d.hidden)
 	copy(hidden, d.class)
-	linear(hidden[d.hidden:], rows, d.embedWeight, d.embedBias, tokens, d.latent, d.hidden)
+	hostmath.LinearBias(hidden[d.hidden:], rows, d.embedWeight, d.embedBias, tokens, d.latent, d.hidden)
 	for index, value := range d.position {
 		hidden[index] += value
 	}
@@ -250,23 +250,23 @@ func (d *vitDecoder) decodeTokens(rows []float32) ([]float32, error) {
 	inner := make([]float32, sequence*d.intermediate)
 	for _, l := range d.layers {
 		hostmath.LayerNormInto(normed, hidden, l.norm1Weight, l.norm1Bias, sequence, d.hidden, d.epsilon)
-		linear(q, normed, l.query, l.queryBias, sequence, d.hidden, d.hidden)
-		linear(k, normed, l.key, l.keyBias, sequence, d.hidden, d.hidden)
-		linear(v, normed, l.value, l.valueBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(q, normed, l.query, l.queryBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(k, normed, l.key, l.keyBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(v, normed, l.value, l.valueBias, sequence, d.hidden, d.hidden)
 		attended := hostmath.BatchedAttentionF32(q, k, v, 1, sequence, sequence, d.hidden, d.heads)
-		linear(projected, attended, l.output, l.outputBias, sequence, d.hidden, d.hidden)
+		hostmath.LinearBias(projected, attended, l.output, l.outputBias, sequence, d.hidden, d.hidden)
 		add(hidden, projected)
 		hostmath.LayerNormInto(normed, hidden, l.norm2Weight, l.norm2Bias, sequence, d.hidden, d.epsilon)
-		linear(inner, normed, l.up, l.upBias, sequence, d.hidden, d.intermediate)
+		hostmath.LinearBias(inner, normed, l.up, l.upBias, sequence, d.hidden, d.intermediate)
 		hostmath.GELUErfInPlace(inner)
-		linear(projected, inner, l.down, l.downBias, sequence, d.intermediate, d.hidden)
+		hostmath.LinearBias(projected, inner, l.down, l.downBias, sequence, d.intermediate, d.hidden)
 		add(hidden, projected)
 	}
 	hostmath.LayerNormInto(hidden, hidden, d.normWeight, d.normBias, sequence, d.hidden, d.epsilon)
 	channels := len(d.pixelMean)
 	width := d.patch * channels
 	predicted := make([]float32, tokens*d.patch*width)
-	linear(predicted, hidden[d.hidden:], d.predWeight, d.predBias, tokens, d.hidden, d.patch*width)
+	hostmath.LinearBias(predicted, hidden[d.hidden:], d.predWeight, d.predBias, tokens, d.hidden, d.patch*width)
 	side := d.grid * d.patch
 	pixels := make([]float32, channels*side*side)
 	for row := range d.grid {
@@ -320,16 +320,6 @@ func readTensors(checkpoint string, catalog pytorchzip.Catalog, names []string) 
 	}
 	values, err := reader.ReadBindingValues(bindings)
 	return values, errors.Join(err, reader.Close())
-}
-
-// linear is dst = x * w^T + bias over rows.
-func linear(dst, x, w, bias []float32, rows, in, out int) {
-	hostmath.Linear(dst[:rows*out], x[:rows*in], w, rows, in, out)
-	for row := range rows {
-		for column, value := range bias {
-			dst[row*out+column] += value
-		}
-	}
 }
 
 // add adds a branch to the residual stream.

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash"
@@ -420,39 +419,39 @@ func (r *Runner) storePromptCache(
 
 func projectedInputsSignature(inputs ProjectedInputs) [32]byte {
 	digest := sha256.New()
-	hashUint64(digest, uint64(len(inputs.EmbeddingOverrides)))
+	binaryschema.HashUint64(digest, uint64(len(inputs.EmbeddingOverrides)))
 	for _, override := range inputs.EmbeddingOverrides {
-		hashUint64(digest, uint64(override.TokenIndex))
+		binaryschema.HashUint64(digest, uint64(override.TokenIndex))
 		hashFloat32s(digest, override.Embedding)
 	}
 	if inputs.MultiAxisPositions == nil {
-		hashUint64(digest, 0)
+		binaryschema.HashUint64(digest, 0)
 	} else {
-		hashUint64(digest, 1)
+		binaryschema.HashUint64(digest, 1)
 		for _, axis := range *inputs.MultiAxisPositions {
-			hashUint64(digest, uint64(len(axis)))
+			binaryschema.HashUint64(digest, uint64(len(axis)))
 			for _, value := range axis {
-				hashUint64(digest, uint64(value))
+				binaryschema.HashUint64(digest, uint64(value))
 			}
 		}
 	}
-	hashUint64(digest, uint64(len(inputs.DeepstackEmbeddings)))
+	binaryschema.HashUint64(digest, uint64(len(inputs.DeepstackEmbeddings)))
 	for _, value := range inputs.DeepstackEmbeddings {
-		hashUint64(digest, uint64(value.Shape.Rank))
+		binaryschema.HashUint64(digest, uint64(value.Shape.Rank))
 		for dimension := range value.Shape.Rank {
-			hashUint64(digest, value.Shape.Dims[dimension])
+			binaryschema.HashUint64(digest, value.Shape.Dims[dimension])
 		}
 		hashFloat32s(digest, value.Data)
 	}
-	hashUint64(digest, uint64(len(inputs.BidirectionalAttentionBlocks)))
+	binaryschema.HashUint64(digest, uint64(len(inputs.BidirectionalAttentionBlocks)))
 	for _, block := range inputs.BidirectionalAttentionBlocks {
-		hashUint64(digest, uint64(block.Start))
-		hashUint64(digest, uint64(block.End))
+		binaryschema.HashUint64(digest, uint64(block.Start))
+		binaryschema.HashUint64(digest, uint64(block.End))
 	}
-	hashUint64(digest, uint64(len(inputs.VisualExpertBlocks)))
+	binaryschema.HashUint64(digest, uint64(len(inputs.VisualExpertBlocks)))
 	for _, block := range inputs.VisualExpertBlocks {
-		hashUint64(digest, uint64(block.Start))
-		hashUint64(digest, uint64(block.End))
+		binaryschema.HashUint64(digest, uint64(block.Start))
+		binaryschema.HashUint64(digest, uint64(block.End))
 	}
 	var result [32]byte
 	copy(result[:], digest.Sum(nil))
@@ -460,16 +459,10 @@ func projectedInputsSignature(inputs ProjectedInputs) [32]byte {
 }
 
 func hashFloat32s(digest hash.Hash, values []float32) {
-	hashUint64(digest, uint64(len(values)))
+	binaryschema.HashUint64(digest, uint64(len(values)))
 	for _, value := range values {
-		hashUint64(digest, uint64(math.Float32bits(value)))
+		binaryschema.HashUint64(digest, uint64(math.Float32bits(value)))
 	}
-}
-
-func hashUint64(digest hash.Hash, value uint64) {
-	var encoded [8]byte
-	binary.LittleEndian.PutUint64(encoded[:], value)
-	_, _ = digest.Write(encoded[:])
 }
 
 func (r *Runner) trimHostPromptCache(

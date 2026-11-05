@@ -51,13 +51,6 @@ type llama4VisionRunner struct {
 	attention visionAttentionPlan
 }
 
-func (r *llama4VisionRunner) Spec() llama4VisionSpec {
-	if r == nil {
-		return llama4VisionSpec{}
-	}
-	return r.spec
-}
-
 func readLlama4VisionSpec(file *gguf.File) (llama4VisionSpec, error) {
 	spec := llama4VisionSpec{}
 	if err := readRotaryVisionBackbone(file, llama4ProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {

@@ -17,9 +17,9 @@ import (
 const repeatLeast = 20
 
 // repeatCeiling is the most syntax nodes the production bodies outside the inference surface may repeat beyond one
-// copy of each: what compact-production/exact-folds-outside left, repeats of types a helper would not unite or that
-// wait for a shared home inside the surface.
-const repeatCeiling = 334
+// copy of each: what compact-production/exact-folds-outside left, less the biased linear surface-folds gave a home in
+// hostmath, repeats of types a helper would not unite.
+const repeatCeiling = 296
 
 // parameterLeast is the most values two bodies of one skeleton may differ in and still be one repeat with those values
 // as its parameters.
@@ -30,6 +30,17 @@ const parameterLeast = 3
 // compact-production/param-folds-outside left, repeats over different types or report fields, which a helper would
 // not shorten.
 const parameterCeiling = 1945
+
+// surfaceRepeatCeiling and surfaceParameterCeiling are the most syntax nodes the production bodies inside the inference
+// surface may repeat beyond one copy of each, alike and differing in at most parameterLeast values: what
+// compact-production/surface-folds left, repeats on a per-token path, which no fold takes without a benchmark, the
+// device cache's releases, which consolidate/release-storages folds once their callers' lifetimes are read, the CUDA
+// executor's and driver's, which consolidate/cell-step-reads folds once their full device lane can pass, and typed
+// accessors and constructors over different types, which a helper would not shorten.
+const (
+	surfaceRepeatCeiling    = 204
+	surfaceParameterCeiling = 1493
+)
 
 // bodyShape reads a body as the checker resolves it: its skeleton, each node's kind and each operator, with each local
 // variable named by the order it first appears and each literal and each other name a hole; and the values that fill
@@ -156,12 +167,14 @@ func differing(left, right []string) int {
 
 // bodyRepeats groups the bodies of each skeleton into repeats: with most = 0 those of one list of values, and with most
 // above it those whose values differ from the first of their group's in a value or more and at most most, a group
-// whose values are all one counted with no parameter. It returns each repeat with where its bodies stand, and the nodes
-// repeated beyond one copy of each.
+// whose values are all one counted with no parameter. Each skeleton's bodies are read in the order of where they
+// stand, since the distance is not transitive and the first of a group decides who joins it. It returns each repeat
+// with where its bodies stand, and the nodes repeated beyond one copy of each.
 func bodyRepeats(skeletons map[string][]bodySite, most int) ([][]string, int) {
 	var groups [][]string
 	repeated := 0
 	for _, sites := range skeletons {
+		sites = slices.SortedFunc(slices.Values(sites), func(a, b bodySite) int { return strings.Compare(a.at, b.at) })
 		var open [][]bodySite
 		for _, site := range sites {
 			at := slices.IndexFunc(open, func(group []bodySite) bool { return differing(group[0].values, site.values) <= most })
@@ -189,17 +202,18 @@ func bodyRepeats(skeletons map[string][]bodySite, most int) ([][]string, int) {
 	return groups, repeated
 }
 
-// holdCeiling refuses repeated nodes over ceiling, and under it, since a ceiling only falls, logging each repeat.
-func holdCeiling(t *testing.T, kind string, groups [][]string, repeated, ceiling int) {
+// holdCeiling refuses repeated nodes of the production code where names over ceiling, and under it, since a ceiling
+// only falls, logging each repeat.
+func holdCeiling(t *testing.T, where, kind string, groups [][]string, repeated, ceiling int) {
 	t.Helper()
 	for _, group := range groups {
 		t.Logf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
 	}
 	if repeated > ceiling {
-		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each %s, over the ceiling of %d, so fold the copy into the body it repeats", repeated, kind, ceiling)
+		t.Errorf("production %s repeats %d nodes beyond one copy of each %s, over the ceiling of %d, so fold the copy into the body it repeats", where, repeated, kind, ceiling)
 	}
 	if repeated < ceiling {
-		t.Errorf("production outside the inference surface repeats %d nodes beyond one copy of each %s, under the ceiling of %d, so lower the ceiling to %d, since it only falls", repeated, kind, ceiling, repeated)
+		t.Errorf("production %s repeats %d nodes beyond one copy of each %s, under the ceiling of %d, so lower the ceiling to %d, since it only falls", where, repeated, kind, ceiling, repeated)
 	}
 }
 
@@ -232,7 +246,7 @@ func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
 	}
 	inside := surfaceDirectories(t)
 	groups, repeated = bodyRepeats(productionBodies(t, checkoutRoot, func(directory string) bool { return inside[directory] }), 0)
-	holdCeiling(t, "body", groups, repeated, repeatCeiling)
+	holdCeiling(t, "outside the inference surface", "body", groups, repeated, repeatCeiling)
 }
 
 // TestParameterRepeatsStayUnderTheirCeiling holds the repeats of production code outside the inference surface that
@@ -242,11 +256,31 @@ func TestRepeatedProductionBodiesStayUnderTheirCeiling(t *testing.T) {
 // that differs in four is none.
 func TestParameterRepeatsStayUnderTheirCeiling(t *testing.T) {
 	t.Parallel()
-	groups, repeated := bodyRepeats(productionBodies(t, repeatFixture(t), func(string) bool { return false }), parameterLeast)
+	skeletons := productionBodies(t, repeatFixture(t), func(string) bool { return false })
+	groups, repeated := bodyRepeats(skeletons, parameterLeast)
 	if len(groups) != 1 || !slices.Equal(groups[0][1:], []string{"internal/lib/lib.go:13", "internal/lib/lib.go:23", "internal/lib/lib.go:3"}) || repeated == 0 {
 		t.Fatalf("the fixture's parameter repeats are %q (%d nodes beyond one copy), want A, B and C, which differ in at most one value, and not D, which differs in four", groups, repeated)
 	}
+	for _, sites := range skeletons {
+		slices.Reverse(sites)
+	}
+	if reversed, again := bodyRepeats(skeletons, parameterLeast); !reflect.DeepEqual(reversed, groups) || again != repeated {
+		t.Fatalf("the fixture's parameter repeats read in reverse are %q (%d nodes), want %q (%d nodes), since C, read first, would take D", reversed, again, groups, repeated)
+	}
 	inside := surfaceDirectories(t)
 	groups, repeated = bodyRepeats(productionBodies(t, checkoutRoot, func(directory string) bool { return inside[directory] }), parameterLeast)
-	holdCeiling(t, "parameterised body", groups, repeated, parameterCeiling)
+	holdCeiling(t, "outside the inference surface", "parameterised body", groups, repeated, parameterCeiling)
+}
+
+// TestSurfaceRepeatsStayUnderTheirCeiling holds the repeats of production code inside the inference surface, read as
+// the two ceilings outside it read theirs, to surfaceRepeatCeiling for bodies alike once their locals' names are set
+// aside and to surfaceParameterCeiling for bodies that differ in a value or more and at most parameterLeast.
+func TestSurfaceRepeatsStayUnderTheirCeiling(t *testing.T) {
+	t.Parallel()
+	inside := surfaceDirectories(t)
+	skeletons := productionBodies(t, checkoutRoot, func(directory string) bool { return !inside[directory] })
+	groups, repeated := bodyRepeats(skeletons, 0)
+	holdCeiling(t, "inside the inference surface", "body", groups, repeated, surfaceRepeatCeiling)
+	groups, repeated = bodyRepeats(skeletons, parameterLeast)
+	holdCeiling(t, "inside the inference surface", "parameterised body", groups, repeated, surfaceParameterCeiling)
 }

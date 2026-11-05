@@ -65,11 +65,6 @@ func RequireAudioContract(ctx context.Context, reader artifact.Reader, id artifa
 	return audioContractCodec.RequireExactLineage(ctx, reader, id, AudioContractDocument.Lineage)
 }
 
-// ValidateIdentity verifies the contract's content-derived profile identity.
-func (document AudioContractDocument) ValidateIdentity() error {
-	return audioContractCodec.ValidateIdentity(document)
-}
-
 // Content returns the canonical contract artifact.
 func (document AudioContractDocument) Content() (artifact.Content, error) {
 	return audioContractCodec.Content(document)

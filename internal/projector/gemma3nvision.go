@@ -72,13 +72,6 @@ func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions
 	return runner, nil
 }
 
-func (r *gemma3nVisionRunner) Spec() gemma3nVisionSpec {
-	if r == nil {
-		return gemma3nVisionSpec{}
-	}
-	return r.spec
-}
-
 func readGemma3nVisionSpec(file *gguf.File) (gemma3nVisionSpec, error) {
 	if err := validateVisionProjector(file, visionProjectorTypeKey, gemma3nVisionProjectorType); err != nil {
 		return gemma3nVisionSpec{}, err

@@ -86,10 +86,6 @@ func ParseTensorMeasurementDocument(content []byte) (TensorMeasurementDocument, 
 	return tensorMeasurementCodec.Parse(content)
 }
 
-func (d TensorMeasurementDocument) ValidateIdentity() error {
-	return tensorMeasurementCodec.ValidateIdentity(d)
-}
-
 func (d TensorMeasurementDocument) Content() (artifact.Content, error) {
 	return tensorMeasurementCodec.Content(d)
 }

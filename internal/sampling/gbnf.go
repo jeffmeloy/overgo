@@ -169,20 +169,6 @@ type gbnfParser struct {
 	vocabulary int
 }
 
-// NewGBNFGrammar: parses source and binds it to decoded token pieces; EOS token
-// IDs: permitted only when grammar is in accepting state
-func NewGBNFGrammar(
-	source, root string,
-	tokenPieces [][]byte,
-	eosTokens []int,
-) (*GBNFGrammar, error) {
-	vocabulary, err := NewGBNFVocabulary(tokenPieces, eosTokens, nil)
-	if err != nil {
-		return nil, err
-	}
-	return vocabulary.Compile(source, root, GBNFLazyOptions{})
-}
-
 // Compile binds a grammar to this vocabulary without copying vocabulary data.
 func (v *GBNFVocabulary) Compile(source, root string, lazy GBNFLazyOptions) (*GBNFGrammar, error) {
 	if source == "" {

@@ -41,6 +41,13 @@ const rewardDraws = 2
 // written. Under any other name it is asked as a user's turn of a chat.
 const rewardPlain = "none"
 
+// rewardThinking and rewardStop are the one way a reward session asks and ends an answer: no thinking is asked for,
+// and an answer ends where the vocabulary ends a generation.
+const (
+	rewardThinking = "off"
+	rewardStop     = "end of generation"
+)
+
 // RewardSampling is what a reward session that samples its own answers is
 // fixed by: the protocol its answers are made and scored under, which is its
 // instruction acceptance's; the training specification it runs under; the
@@ -75,10 +82,10 @@ type RewardSampling struct {
 // as tokens.
 func (rewards RewardSampling) tokenizer(input string, observations artifact.Repository, least int) (trainableTokenizer, error) {
 	tokens, err := loadTrainableTokenizerFor(input, rewards.Render != nil || rewards.Protocol.Template != rewardPlain)
-	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || protocol.Thinking != pilotThinking || protocol.Stop != pilotStop ||
+	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || protocol.Thinking != rewardThinking || protocol.Stop != rewardStop ||
 		rewards.Draws < least || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
 		err = fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution with thinking %s, to the %s, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q, thinking %q, stop %q and scorer %q",
-			rewardSampling, pilotThinking, pilotStop, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Thinking, protocol.Stop, protocol.Scorer)
+			rewardSampling, rewardThinking, rewardStop, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Thinking, protocol.Stop, protocol.Scorer)
 	}
 	return tokens, err
 }
@@ -95,33 +102,6 @@ func (rewards RewardSampling) sampledAs() (artifact.ID, error) {
 		Rendered bool                           `json:"rendered"`
 		Control  bool                           `json:"control"`
 	}{rewards.Protocol, rewards.Training, rewards.Seed, rewards.Draws, rewards.Code, rewards.Render != nil, rewards.Control})
-}
-
-// published says whether a checkpoint found where a session of this sampling
-// would publish is that session's: trained from base, sampled as this
-// sampling samples, continuing the checkpoint before it where there is one
-// and none where there is not, and standing after so many groups. A
-// checkpoint that fails any of them was made by another run, and what it is
-// not is the error.
-func (rewards RewardSampling) published(found trainingprogram.Checkpoint, base artifact.ID, before trainingprogram.Checkpoint, groups int) error {
-	sampling, err := rewards.sampledAs()
-	if err != nil {
-		return err
-	}
-	continued := slices.IndexFunc(found.Lineage, func(parent trainingprogram.LineageParent) bool {
-		return parent.Relation == artifact.RelationDerivedFrom
-	})
-	switch {
-	case found.Model != base:
-		return fmt.Errorf("it was trained from model %s, and the base is %s", found.Model, base)
-	case !slices.Contains(found.Lineage, trainingprogram.LineageParent{Artifact: sampling, Relation: artifact.RelationDependsOn}):
-		return errors.New("it was not sampled by this protocol, training specification, seed, draws, code and control")
-	case before.ID().Valid() != (continued >= 0) || continued >= 0 && found.Lineage[continued].Artifact != before.ID():
-		return errors.New("it does not continue the checkpoint before it")
-	case found.Stream.Position != uint64(groups):
-		return fmt.Errorf("it stands after %d groups", found.Stream.Position)
-	}
-	return nil
 }
 
 // rewardSamplingKey opens the key a session's sampling identity is published under.

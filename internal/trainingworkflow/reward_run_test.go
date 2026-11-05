@@ -68,7 +68,7 @@ func rewardFixture(t *testing.T) (string, Request) {
 	return root, Request{
 		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts, Device: hostWeightedStep,
 		Rewards: &RewardSampling{
-			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: "none", Thinking: pilotThinking, Sampling: rewardSampling, Stop: pilotStop, Window: 16, MaxTokens: 4},
+			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: "none", Thinking: rewardThinking, Sampling: rewardSampling, Stop: rewardStop, Window: 16, MaxTokens: 4},
 			Training: testutil.ArtifactID(t, artifact.KindProfile, "reward fixture training"), Seed: 6, Draws: 4, Code: "reward fixture code",
 		},
 	}

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
+	"strconv"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -11,6 +14,21 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
+
+// poolWeights reads the weights that divide a pool's units among the four parts, each of which must have one.
+func poolWeights(text string) (weights [len(evaluation.PoolParts)]uint64, err error) {
+	for field := range strings.SplitSeq(text, ",") {
+		name, value, _ := strings.Cut(strings.TrimSpace(field), "=")
+		weight, err := strconv.Atoi(value)
+		if at := slices.Index(evaluation.PoolParts[:], name); err == nil && at >= 0 && weight > 0 {
+			weights[at] = uint64(weight)
+		}
+	}
+	if slices.Contains(weights[:], 0) {
+		return weights, fmt.Errorf("training-objective: -pool-weights %q: want a positive weight for each of %s", text, strings.Join(evaluation.PoolParts[:], ", "))
+	}
+	return weights, nil
+}
 
 // buildPool publishes the held-out pool of a registered objective: its
 // held-out documents divided into development, selection, promotion and

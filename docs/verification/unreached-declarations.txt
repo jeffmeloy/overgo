@@ -324,6 +324,25 @@ schemas: internal/runrecord/stage_receipt.go overgo/stage-receipt/v1
 reason: A reached declaration reads the documents of each that the store holds (cmd/benchmark-report/main.go:145, internal/runrecord/dataset_projection_adapter.go:37, internal/runrecord/attempt_verification.go:21, internal/runrecord/stage_receipt.go:104), and the writers were the old gate, the replay that 8b7defa1c deleted and an earlier version of the receipt.
 reason: The reading lacks the rule that a reached reader of stored documents keeps a schema whose writer is retired, and each leaves the list when its reader does.
 
+group reward-pilot-acceptance
+class: test-held
+surface: outside
+declarations: 5
+lines: 240
+members: internal/evaluation/instruction_acceptance.go BuildInstructionAcceptance ConfirmInstruction InstructionGroups divideInstructionGroups instructionPower
+schemas: internal/evaluation/instruction_acceptance.go overgo/instruction-acceptance/v1
+reason: The reward pilot is retired and its records kept (compact-production/retire-reward-pilot): TestInstructionPilotRecordIsTheAcceptanceItNames reads the record's acceptance through its codec and instructionPower, and TestEvaluationProtocolCapturesAllPolicyInputs and TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain build instruction acceptances as fixtures of the live exposure and naming of held-out parts.
+reason: They stay while those tests hold live behaviour through them, and go when those fixtures take the pool acceptance's path and the record test reads its document as data.
+
+group reward-pilot-power
+class: test-held
+surface: inside
+declarations: 2
+lines: 37
+members: internal/tensorstats/paired_binary.go ExactShareBounds firstChance
+reason: TestInstructionPilotRecordIsTheAcceptanceItNames reads the retired reward pilot's power through ExactShareBounds, as instructionPower did when its acceptance was fixed, and no command reaches them since the pilot is retired.
+reason: They go with the group reward-pilot-acceptance, in the commit that moves the inference surface.
+
 group routedlm-block-causal
 class: prototype
 surface: outside

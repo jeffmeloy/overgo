@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -46,7 +47,7 @@ func rewardGGUFFixture(t *testing.T) Request {
 	return Request{
 		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts,
 		Rewards: &RewardSampling{
-			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: "none", Thinking: pilotThinking, Sampling: rewardSampling, Stop: pilotStop, Window: 16, MaxTokens: 4},
+			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: "none", Thinking: rewardThinking, Sampling: rewardSampling, Stop: rewardStop, Window: 16, MaxTokens: 4},
 			Training: testutil.ArtifactID(t, artifact.KindProfile, "reward fixture training"), Seed: 5, Draws: 4, Code: "reward fixture code",
 		},
 	}
@@ -242,7 +243,7 @@ func bootstrappedRewardSession(t *testing.T, model string) Request {
 	return Request{
 		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts, OutputDirectory: filepath.Join(root, "out"), Steps: bootstrappedRewardGroups,
 		Rewards: &RewardSampling{
-			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: rewardPlain, Thinking: pilotThinking, Sampling: rewardSampling, Stop: pilotStop, Window: 16, MaxTokens: 4},
+			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: rewardPlain, Thinking: rewardThinking, Sampling: rewardSampling, Stop: rewardStop, Window: 16, MaxTokens: 4},
 			Training: testutil.ArtifactID(t, artifact.KindProfile, "bootstrapped reward training"), Seed: 5, Draws: 4, Code: "bootstrapped reward code",
 		},
 	}
@@ -284,4 +285,31 @@ func TestBootstrappedRewardRecipeRunsARewardSession(t *testing.T) {
 	request := bootstrappedRewardSession(t, weights)
 	request.ModelDirectory, request.Device = fixture.ModelDirectory, hostWeightedStep
 	heldToARewardSession(t, request)
+}
+
+// bootstrapRewardRecipe publishes, as BootstrapRecipe does, the training
+// recipe for a reward session over the model weights at modelPath and a suite
+// of instruction prompts, the bytes the session reads, for the reward tests: its
+// objective is the reward objective over those prompts, read by the processor a
+// reward session reads them with, and its recipe scores a policy's answers by the
+// prompts' scorer, which it names as its evaluator.
+func bootstrapRewardRecipe(ctx context.Context, store *overgodb.Store, modelPath string, prompts []byte) (artifact.ID, error) {
+	suite, err := evaluation.ParseInstructionPrompts(prompts)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	evaluator, err := suite.Evaluator()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	modelID, err := identifyAndRecordWeights(ctx, store, modelPath)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	authority, _, err := datasetAuthority(prompts, rewardProcessor)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	return bootstrapObjective(ctx, store, modelID, authority.Dataset, authority.Split, authority.Processor,
+		RecipeContract{Kind: trainingprogram.ObjectiveGRPO, Signature: textSignature, Metric: trainingprogram.MetricTokenAccuracy}, evaluator)
 }

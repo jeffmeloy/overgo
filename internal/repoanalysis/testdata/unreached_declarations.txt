@@ -263,6 +263,11 @@ test-held internal/devicemath/cuda_scope_windows.go cudaScope.functions
 test-held internal/diffusionimage/resident_forward.go ResidentForward.Execute
 test-held internal/diffusionimage/resident_forward.go ResidentForward.Stats
 test-held internal/evaluation/heldout_verdict.go heldoutVerdict.Content
+test-held internal/evaluation/instruction_acceptance.go BuildInstructionAcceptance
+test-held internal/evaluation/instruction_acceptance.go ConfirmInstruction
+test-held internal/evaluation/instruction_acceptance.go InstructionGroups
+test-held internal/evaluation/instruction_acceptance.go divideInstructionGroups
+test-held internal/evaluation/instruction_acceptance.go instructionPower
 test-held internal/evaluation/knowledge_promotion.go knowledgePromotionEvidence.ValidateIdentity
 test-held internal/evaluation/suite.go CompiledSuite.Plan
 test-held internal/evaluation/text_target.go textTargetPlan.Content
@@ -390,6 +395,8 @@ test-held internal/strataspec/draft_policy.go DraftPolicy.ChainRate
 test-held internal/tabularicl/train.go Trainer.ParameterCount
 test-held internal/tensor/reference/program.go Inputs.Bind
 test-held internal/tensor/tensor.go Builder.Nodes
+test-held internal/tensorstats/paired_binary.go ExactShareBounds
+test-held internal/tensorstats/paired_binary.go firstChance
 test-held internal/tensorstats/tensorstats.go ValueAccumulator.Finite
 test-held internal/tensorstats/tensorstats.go ValueAccumulator.Total
 test-held internal/thoughtbank/decode.go FastWeightBankLMDecodeState.MemBank

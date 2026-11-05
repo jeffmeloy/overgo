@@ -10,14 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
-	"overgo/internal/processlock"
 	"overgo/internal/quietmachine"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
@@ -102,24 +99,17 @@ func run() error {
 	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
 	acceptance := flag.String("acceptance", "", "with -objective: held-out pool acceptance artifact ID, as training-objective -pool wrote it: the trained model answers once on the pool's promotion part, charged to its budget, in place of a verdict")
 	measure := flag.Bool("measure", true, "measure the trained model once when training ends (validate -trained); false leaves that to the next run of validate")
-	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
-	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
 	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
-	if *measure && *output != "" && !*proof && *pilot == "" {
+	if *measure && *output != "" && !*proof {
 		measuredStore = *storePath
-	}
-	given := false
-	flag.Visit(func(set *flag.Flag) { given = given || set.Name == keepFlag })
-	if err := keepReason(given, *pilot, *keep); err != nil {
-		return err
 	}
 	// A proof is a training run under -objective or the dense workflow's
 	// -recipe; each of these does something else, or trains an audio adapter,
 	// whose run takes no proof.
-	for _, other := range []*string{pilot, previewDataset, bootstrapRecipe, audioManifest} {
+	for _, other := range []*string{previewDataset, bootstrapRecipe, audioManifest} {
 		if *proof && *other != "" {
 			return fmt.Errorf("train: -proof re-verifies a recipe by a training run alone, under -objective or the dense workflow's -recipe; it goes with no other mode and no audio manifest")
 		}
@@ -143,9 +133,6 @@ func run() error {
 	if *acceptance != "" && *objective == "" {
 		return fmt.Errorf("train: a pool confirms an -objective run; -acceptance needs -objective")
 	}
-	if *pilot != "" && *host {
-		return fmt.Errorf("train: -pilot trains its arms through the weighted step, which the device takes; the host has no reward trainer, so -pilot takes no -host")
-	}
 	// A command a server starts opens the store the server writes to, so it
 	// waits its turn for the writer lock where a plain open would fail at once.
 	store, err := overgodb.OpenContext(ctx, *storePath)
@@ -153,16 +140,6 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	if *output != "" && *pilot != "" {
-		held, err := holdOutput(*output)
-		if err != nil {
-			return err
-		}
-		defer held.Close()
-	}
-	if *pilot != "" {
-		return runPilot(ctx, store, *pilot, *model, *output, *keep, os.Stdout)
-	}
 	if *objective != "" {
 		set := map[string]bool{}
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
@@ -243,36 +220,6 @@ func run() error {
 		fmt.Printf("candidate=%s (not activated)\n", result.Candidate)
 	}
 	return judgePreference(ctx, store, request, result, os.Stdout)
-}
-
-// keepFlag names the flag that gives the reason a pilot's checkpoints are kept.
-const keepFlag = "keep-checkpoints"
-
-// keepReason refuses the keep flag where it would be misread: without
-// -pilot, the one run that removes its checkpoints, and with a blank reason,
-// because a flag given with nothing after it must never read as no flag and
-// let the checkpoints go.
-func keepReason(given bool, pilot, reason string) error {
-	if given && (pilot == "" || strings.TrimSpace(reason) == "") {
-		return fmt.Errorf("train: -%s gives the reason the pilot's checkpoints are kept, which its record states; it needs -pilot and a reason that is not blank", keepFlag)
-	}
-	return nil
-}
-
-// holdOutput makes the output directory of a pilot, the run that writes many
-// things under it, and locks processlock.OutputLock there until the lock it
-// returns is closed. A second run into the directory is refused while the
-// first goes. The lock is also for a command removing what a finished run
-// left to tell a live run by.
-func holdOutput(out string) (*processlock.Lock, error) {
-	if err := os.MkdirAll(out, clioptions.OutputDirectoryMode); err != nil {
-		return nil, err
-	}
-	lock, err := processlock.Acquire(filepath.Join(out, processlock.OutputLock), clioptions.PrivateFileMode)
-	if err != nil {
-		return nil, fmt.Errorf("train: %s is held by a run that is still going, or its lock cannot be taken: %w", out, err)
-	}
-	return lock, nil
 }
 
 // judgePreference publishes the held-out verdict of a preference run from a

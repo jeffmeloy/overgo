@@ -297,42 +297,6 @@ func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 	return acceptance, batch, nil
 }
 
-// RequireInstructionAcceptance reads a published instruction acceptance and
-// the prompts that stand for the groups of each part of its split, in order,
-// for a caller whose instruction cases are the records of the dataset cases.
-// An acceptance whose split divides another dataset is refused: its groups
-// are named by record, and under the same names another dataset's prompts and
-// rules may be other ones.
-func RequireInstructionAcceptance(ctx context.Context, reader artifact.Reader, id, cases artifact.ID) (InstructionAcceptance, [poolPartCount][]string, error) {
-	var parts [poolPartCount][]string
-	acceptance, err := instructionAcceptanceCodec.Require(ctx, reader, id)
-	if err != nil {
-		return InstructionAcceptance{}, parts, err
-	}
-	content, found, err := artifact.ReadContent(ctx, reader, acceptance.Split)
-	if err != nil || !found {
-		return InstructionAcceptance{}, parts, errors.Join(fmt.Errorf("evaluation: the partition of acceptance %s is not committed", acceptance.ID), err)
-	}
-	partition, err := runrecord.ParseSplitPartition(content.Data)
-	if err != nil {
-		return InstructionAcceptance{}, parts, err
-	}
-	if partition.Dataset != cases {
-		return InstructionAcceptance{}, parts, fmt.Errorf("evaluation: acceptance %s divides the instruction cases of dataset %s, and the cases at hand are of dataset %s; an acceptance is run on the prompts and rules it was fixed over", acceptance.ID, partition.Dataset, cases)
-	}
-	for index, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
-		if parts[index], err = partDocuments(ctx, reader, shard); err != nil {
-			return InstructionAcceptance{}, parts, err
-		}
-		slices.Sort(parts[index])
-	}
-	return acceptance, parts, nil
-}
-
-// Gained says whether a confirmation's verdict is a gain: the one verdict a
-// comparison is adopted on. A loss and not enough evidence are both no gain.
-func (confirmation PoolConfirmation) Gained() bool { return confirmation.Verdict == poolGain }
-
 // ConfirmInstruction has the promotion part of an instruction acceptance
 // answer one comparison of its family. The comparison is one the acceptance
 // named, the protocol the answers were made under is the acceptance's and the

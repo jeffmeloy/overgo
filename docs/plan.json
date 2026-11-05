@@ -31,7 +31,7 @@
     },
     {
       "governs": "standing",
-      "text": "The repository tracks no Python, and its runtime is Go (check: internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace, internal/repoanalysis TestRSIRuntimeIsGoOnly). A row's acceptance is fixed before its code, every open step having a check and a change judged by the check its row held before it (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestChangeIsJudgedByTheTermsItStartedWith). A reader of a record form the store holds stays while the store holds it (check: internal/runrecord TestStageReceiptOfTheEarlierFormIsRead, internal/runrecord TestRetiredGateAliasesAtRest). A pilot not accepted leaves the served path, and its record is kept (check: cmd/train TestPilotKeepsItsRecordBeforeItRemovesItsCheckpoints, internal/trainingworkflow TestRewardAdoptionRequiresDeclaredComparisons, cmd/train TestProposalRetirementPreservesTrainingAndEvidence)."
+      "text": "The repository tracks no Python, and its runtime is Go (check: internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace, internal/repoanalysis TestRSIRuntimeIsGoOnly). A row's acceptance is fixed before its code, every open step having a check and a change judged by the check its row held before it (check: internal/plan TestOpenStepRequiresVerifier, internal/landing TestChangeIsJudgedByTheTermsItStartedWith). A reader of a record form the store holds stays while the store holds it (check: internal/runrecord TestStageReceiptOfTheEarlierFormIsRead, internal/runrecord TestRetiredGateAliasesAtRest). A pilot not accepted leaves the served path, and its record is kept and read (check: cmd/train TestTheRewardPilotIsRetired, cmd/training-objective TestTheRewardPilotIsRetired, internal/evaluation TestInstructionPilotRecordIsTheAcceptanceItNames, cmd/train TestProposalRetirementPreservesTrainingAndEvidence)."
     },
     {
       "governs": "standing",
@@ -43,7 +43,7 @@
     },
     {
       "governs": "standing",
-      "text": "An experiment's acceptance is frozen before it trains, from the store's cases and never from its arms (check: internal/evaluation TestInstructionAcceptanceBindsProtocolGroupsAndComparisons, internal/evaluation TestHeldOutPoolIsSizedForItsDeclaredGain, internal/trainingworkflow TestPilotAcceptanceIsFixedFromTheStoresCases). A complete negative or inconclusive record closes an experiment and activates nothing (check: internal/trainingworkflow TestRewardAdoptionRequiresDeclaredComparisons, internal/trainingworkflow TestFirstRewardRunsRecordIsComplete, cmd/train TestPilotKeepsItsRecordBeforeItRemovesItsCheckpoints)."
+      "text": "An experiment's acceptance is frozen before it trains, from the store's cases and never from its arms (check: internal/evaluation TestInstructionAcceptanceBindsProtocolGroupsAndComparisons, internal/evaluation TestHeldOutPoolIsSizedForItsDeclaredGain)."
     }
   ],
   "lane": "master-lead",
@@ -74,20 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 488,
-        "reason": "dead-declarations measured at -488 nodes: the 21 declarations no command and no test reaches outside the inference surface, and the two imports only Plan.Digest used."
+        "nodes": 6414,
+        "reason": "retire-reward-pilot measured at -5926 production nodes, against the -10,865 estimated: the pilot's commands, workflow and checkpoint removal go, and the instruction acceptance builders and the power bounds stay test-held for the exposure, naming and record tests."
       },
       "steps": [
-        {
-          "id": "retire-reward-pilot",
-          "title": "Remove the reward pilot, keeping its record",
-          "status": "open",
-          "verify": "go test ./cmd/train ./cmd/training-objective -count=1 -run '^TestTheRewardPilotIsRetired$'",
-          "rationale": "docs/verification/instruction-pilot-run-qwen25-05b.txt:7 records no gain or loss and no adoption, and 17e04d771 filed no follow-up, yet train -pilot remains (cmd/train/main.go:79) with training-objective -pilot, the acceptance and the sampler. Doctrine removes a null result's path and keeps one record. A what-if removal leaves 12,693 production nodes no command reaches; 1,828 stay for charge-objective (heldout_confirmation.go, tensorstats/paired_binary.go), so -10,865 net.\nThis reading is a judgement: the arm neither gained nor lost on one small model. The workbench's reward run through -trainer is separate and stays; read internal/trainingworkflow/throwaway_test.go and reasoning_choice_test.go before deleting, since they may hold shared behaviour. If the lead wants the pilot kept as a capability, retire this step and lower the row's count.\nServes: doctrine, a null result's path goes.\nDisappears: -pilot on two commands and what only they reach.\nEvidence: gate nodes; TestInstructionPilotRecordIsTheAcceptanceItNames keeps reading the record.\nBatch: training lane.",
-          "depends_on": [
-            "heldout-verdict/charge-objective"
-          ]
-        },
         {
           "id": "exact-folds-outside",
           "title": "Fold exact production repeats outside the inference surface",

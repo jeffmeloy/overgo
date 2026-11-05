@@ -473,9 +473,7 @@ func TestTrainingCommandRunsAWorkbenchRewardRun(t *testing.T) {
 //
 // A run under a reward recipe with -host ends with the workflow's refusal,
 // which names the weighted step, publishes nothing at -out, and leaves the
-// session it was admitted as recorded as failed. And -pilot with -host is
-// refused for the two flags together, before the pilot reads its acceptance:
-// a pilot's arms are reward sessions.
+// session it was admitted as recorded as failed.
 func TestTrainingCommandRefusesRewardTrainingHeldToTheHost(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRewardCommandFixture(t)
@@ -505,8 +503,5 @@ func TestTrainingCommandRefusesRewardTrainingHeldToTheHost(t *testing.T) {
 	}
 	if sessions := fixture.sessions(t); len(sessions) != 1 || sessions[0].Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("after the refused run the store holds the training sessions %+v; want the one session the command admitted, recorded as failed", sessions)
-	}
-	if status, refusal := refused("-store", fixture.storePath, "-pilot", fixture.recipe.String(), "-host"); status != 1 || !strings.Contains(refusal, "-pilot takes no -host") {
-		t.Fatalf("-pilot with -host ended with status %d and %q; want the two flags refused together, with the reason", status, refusal)
 	}
 }

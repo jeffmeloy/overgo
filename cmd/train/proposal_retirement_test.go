@@ -24,7 +24,7 @@ import (
 // The proposer's files, and the block resampling nothing else called, are not
 // in the tree. The command refuses -propose as a flag it does not define, and
 // its usage lists none of the proposal, evidence and corpus flags while it
-// lists the flags of an objective run, of resuming and of the pilot.
+// lists the flags of an objective run and of resuming.
 //
 // A run through the command's own flags trains one step from the base model,
 // and a second run resumes that run's checkpoint and ends one step further.
@@ -95,7 +95,7 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 				t.Errorf("the training command's usage lists -%s, a flag of the change proposer or of its corpus", name)
 			}
 		}
-		for _, name := range []string{"objective", "resume", "resume-run", "save-every", "order-seed", "pilot"} {
+		for _, name := range []string{"objective", "resume", "resume-run", "save-every", "order-seed"} {
 			if !listed[name] {
 				t.Errorf("the training command's usage does not list -%s, which training still takes", name)
 			}

@@ -27,6 +27,8 @@ import (
 // bound of the share of those groups the base differs on read twice, and the
 // gain more; and its power is the exact chance of the gain's being shown over
 // its promotion groups at that share, which is not less than was wanted.
+// The record of the pilot's one run, kept since the pilot is retired, is of
+// that acceptance and says the reward arm was not adopted.
 func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-qwen25-05b.txt"))
@@ -67,6 +69,19 @@ func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 	power := instructionPower(acceptance.Groups, acceptance.Discordance, acceptance.Gain, falseGain/float64(len(acceptance.Comparisons)))
 	if uint64(len(acceptance.Basis)) != groups || acceptance.Discordance != repeated+acceptance.Gain || acceptance.Power != power || power < 1-missedGain {
 		t.Fatalf("the acceptance has a basis of %d draws, arms differing on %v and power %v; the record's %d development groups, %d of them differing, give %v and %v", len(acceptance.Basis), acceptance.Discordance, acceptance.Power, groups, differing, repeated+acceptance.Gain, power)
+	}
+	ran, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-run-qwen25-05b.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := map[string]string{}
+	for line := range strings.Lines(string(ran)) {
+		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {
+			run[key] = value
+		}
+	}
+	if !strings.Contains(run["flags"], "-pilot "+named.String()+" ") || !strings.HasPrefix(run["outcome"], "the reward arm is not adopted") {
+		t.Fatalf("the run record ran %q and found %q; want a run of acceptance %s that did not adopt the reward arm", run["flags"], run["outcome"], named)
 	}
 	t.Logf("acceptance %s: %d promotion groups show a gain of %.2f with chance %.3f, arms differing on at most %.3f", named, acceptance.Groups, acceptance.Gain, acceptance.Power, acceptance.Discordance)
 }

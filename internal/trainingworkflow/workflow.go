@@ -62,12 +62,6 @@ type Request struct {
 	// the checkpoint's identity and nothing else of it, so the session gives
 	// the store the checkpoint's document and keeps no file at its output.
 	Proof bool
-	// throwaway marks the session's checkpoint as an intermediate product of
-	// a larger run, which removes it once its own record is kept: the store
-	// is given the checkpoint's document and nothing that says where its
-	// files are (RecordCheckpointDocument). The files stay until then, for
-	// the larger run to read back; it is not a proof, which keeps none.
-	throwaway bool
 
 	ObserveDPO       func(trainingprogram.DPOObservation)
 	ObserveGRPO      func(trainingprogram.GRPOObservation)
@@ -314,11 +308,11 @@ func (session denseSession) run() (Result, error) {
 	result.authority = authority
 	// The checkpoint records where the run's evidence goes, and a trained
 	// GGUF registers there as the candidate the server, validate and the
-	// scorecard open. A throw-away checkpoint records its document alone,
-	// and so does a proof's, which kept no file.
+	// scorecard open. A proof's checkpoint records its document alone, since
+	// it kept no file.
 	switch {
 	case err != nil || session.request.Observations == nil:
-	case session.request.throwaway || session.request.Proof:
+	case session.request.Proof:
 		err = RecordCheckpointDocument(session.ctx, session.request.Observations, result.Checkpoint)
 	default:
 		var candidate modelintake.Candidate

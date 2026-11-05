@@ -73,24 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 162,
-        "reason": "moss-situ measured at 764 nodes against its estimate of 150, the chain walker most of it; moss-rotary, a fold of the same kind, is sized at 700 by it; trained-precision and krea-prompt-cache keep their 250."
+        "nodes": 179,
+        "reason": "trained-precision measured at 621 nodes: the typed safetensors save, the served types read from the base, the F32 weights kept for a resume and their restore; krea-prompt-cache keeps about 180, the share the row's estimate gave it."
       },
       "steps": [
-        {
-          "id": "moss-conversions",
-          "title": "MOSS's products read and write BF16 without separate conversions",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestARoundedProductOperandIsStoredAsBF16$'",
-          "rationale": "Measured after moss-rotary (docs/verification/moss-denoiser-wall.json): a MOSS step takes 1.176 s against upstream's 1.036 s, its kernels holding it. Around its BF16 products the step converts 118 ms a step: f32_to_bf16 of the products' F32 operands (about 580 launches a step at the hidden size, 42 ms, and about 83 at the fused projection's, 18 ms) and bf16_to_f32 of BF16 results back to F32 (about 83 at the feed-forward's width, 32 ms, and about 415 at the hidden size, 25 ms). Each operand the denoiser converts was rounded to BF16 by the operation that wrote it, so its conversion only narrows values BF16 already holds.\nChange: find which writer's output each conversion reads and which reader each widening feeds, then let the rounded writer store the BF16 the product reads, or the product's epilogue store the F32 its reader reads, where the bits stay the parity record's. Measure first; if what can move is under a tenth of the remaining gap, retire the step with the reading.\nServes: throughput for image generation.\nDisappears: the conversions a product's neighbours can write in place.\nEvidence: TestMOSSDenoiserWallIsAccountedFor's record re-read after the change; the parity picture unchanged.\nBatch: device."
-        },
-        {
-          "id": "trained-precision",
-          "title": "A trained model serves at its base's precision",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestATrainedCheckpointServesAtItsBasesPrecision$'",
-          "rationale": "A safetensors checkpoint saves 32-bit weights where its base holds 16-bit: 1.98 GB against 0.99 GB. The two trained models read 321 and 318 tok/s against the base's 505.7, a first token at 4096 tokens of 142 ms against 79 ms, and a load of 3.15 s against 1.6 s, with nothing in the training to explain any of it.\nSave what serves at the base's precision, and keep what resumes as it is. Measure first: a 16-bit float may round away small updates, so the check is the verdict re-read on the rounded weights, and if the gain goes the row is retired with the reading.\nServes: throughput, load-time and peak-device-memory of every trained model.\nDisappears: a trained model twice the size of its base.\nEvidence: a test of the saved precision, then the rows of one trained model.\nBatch: one device run."
-        },
         {
           "id": "krea-prompt-cache",
           "title": "Keep a Krea prompt's text conditioning for a prompt met again",

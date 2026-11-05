@@ -40,7 +40,8 @@ func trainedInput(input string) (string, error) {
 }
 
 // loadTrainableModel materializes the trainable F32 inventory from either
-// model representation through its own loader.
+// model representation through its own loader: a checkpoint that serves below
+// F32 trains on from the F32 weights it keeps for that (resumeWeights).
 func loadTrainableModel(input string) (*densecausal.Model, error) {
 	input, err := trainedInput(input)
 	if err != nil {
@@ -49,7 +50,11 @@ func loadTrainableModel(input string) (*densecausal.Model, error) {
 	if isGGUFModelInput(input) {
 		return densecausal.LoadGGUF(input)
 	}
-	return densecausal.Load(input)
+	model, err := densecausal.Load(input)
+	if err != nil {
+		return nil, err
+	}
+	return model, restoreResumeWeights(input, model)
 }
 
 // loadFrozenModel materializes the trainable model from a GGUF base holding the

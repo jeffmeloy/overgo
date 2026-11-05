@@ -24,7 +24,6 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/safetensors"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -572,7 +571,7 @@ func publishCheckpoint(ctx context.Context, store artifact.Reader, source, targe
 			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), trainedGGUFTensors(model))
 		}
 		metadata := map[string]string{"format": "pt", "trainer": "overgo"}
-		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {
+		if err := saveServedWeights(stage, source, model.Weights, model.Shapes, metadata); err != nil {
 			return err
 		}
 		return CopyModelFiles(source, stage)

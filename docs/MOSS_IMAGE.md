@@ -34,7 +34,7 @@ A control outside this list is refused, never ignored.
 
 Native takes about 1.9 times upstream's time and about 0.47 times its peak device memory. Nothing here is a claim about a smaller card.
 
-Since then, each BF16 rounding of an elementwise result folds into the kernel that computes it, and the SITU activation and the rotary embedding each run as one kernel: the first picture's denoising takes 63.4 s against 94.2 s, the same picture bit for bit. A step takes 1.176 s against upstream's 1.036 s, and its kernels account for its time: the BF16 products, the attention, the elementwise results stored as rounded F32 values where upstream stores BF16, and the conversions and copies around the products ([`moss-denoiser-wall.json`](verification/moss-denoiser-wall.json)). The rest of the gap is tracked as `time-and-memory/moss-conversions`.
+Since then, each BF16 rounding of an elementwise result folds into the kernel that computes it, and the SITU activation and the rotary embedding each run as one kernel: the first picture's denoising takes 63.4 s against 94.2 s, the same picture bit for bit. A step takes 1.176 s against upstream's 1.036 s, and its kernels account for its time: the BF16 products, the attention, the elementwise results stored as rounded F32 values where upstream stores BF16, and the conversions and copies around the products ([`moss-denoiser-wall.json`](verification/moss-denoiser-wall.json)). What is left beyond upstream is mostly that upstream keeps its activations at BF16's two bytes where native keeps them as rounded F32 values at four, and the conversions around the products that follow from it; no step is planned for it.
 
 ## Training adapters
 

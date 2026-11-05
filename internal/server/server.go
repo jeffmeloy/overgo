@@ -531,11 +531,12 @@ type workbenchWorkspace struct {
 	// tensorInventories holds each model file's inventory by the file's
 	// identity on disk, so a request never hashes an unchanged model again.
 	tensorInventories sync.Map
-	// tensorLifetime ends when the handler closes: a background measurement
-	// then commits nothing, and Close waits out any commit already running.
-	tensorLifetime     context.Context
-	stopTensorLifetime context.CancelCauseFunc
-	tensorPublishes    sync.RWMutex
+	// background ends when the handler closes: a background measurement or
+	// memo publication then commits nothing, and Close waits out any commit
+	// already running.
+	background      context.Context
+	stopBackground  context.CancelCauseFunc
+	tensorPublishes sync.RWMutex
 }
 
 // modelVerificationHeader carries the served model's verification state on every routed answer.
@@ -751,7 +752,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		},
 	}
 	handler.templateReasoning = sync.OnceValue(handler.probeTemplateReasoning)
-	handler.tensorLifetime, handler.stopTensorLifetime = context.WithCancelCause(context.Background())
+	handler.background, handler.stopBackground = context.WithCancelCause(context.Background())
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
@@ -792,11 +793,13 @@ func (h *Handler) Close() error {
 		return nil
 	}
 	h.inflight.shutdown()
-	h.memoWrites.Wait()
-	// A background tensor measurement commits nothing once the handler closes.
-	if h.stopTensorLifetime != nil {
-		h.stopTensorLifetime(errHandlerClosed)
+	// A background measurement or memo publication commits nothing once the
+	// handler closes, and a memo publication unwinds before the store and the
+	// sessions go.
+	if h.stopBackground != nil {
+		h.stopBackground(errHandlerClosed)
 	}
+	h.memoWrites.Wait()
 	// A commit already past the lifetime check finishes before the store closes.
 	h.tensorPublishes.Lock()
 	defer h.tensorPublishes.Unlock()
@@ -832,7 +835,7 @@ func (h *Handler) keepMemo() {
 	}
 	h.memoWrites.Go(func() {
 		defer h.memoWriting.Store(false)
-		if err := h.publishMemo(context.Background()); err != nil && !errors.Is(err, overgodb.ErrReadOnly) {
+		if err := h.publishMemo(h.background); err != nil && !errors.Is(err, overgodb.ErrReadOnly) && h.background.Err() == nil {
 			log.Printf("catalog: persist identity memo: %v", err)
 		}
 	})

@@ -422,17 +422,17 @@ func (h *Handler) completeTensorPass(pass *tensorPass, path string, inventory mo
 // leaves the measurement answering and is tried again on the next request;
 // once the handler closes nothing is committed.
 func (h *Handler) publishTensorPass(pass *tensorPass, inventory modelartifact.TensorInventoryDocument) {
-	if h.repository == nil || h.tensorLifetime == nil {
+	if h.repository == nil || h.background == nil {
 		return
 	}
 	pass.publishing.Lock()
 	defer pass.publishing.Unlock()
 	h.tensorPublishes.RLock()
 	defer h.tensorPublishes.RUnlock()
-	if pass.published || h.tensorLifetime.Err() != nil {
+	if pass.published || h.background.Err() != nil {
 		return
 	}
-	pass.published = publishTensorMeasurement(h.tensorLifetime, h.repository, inventory, pass.full) == nil
+	pass.published = publishTensorMeasurement(h.background, h.repository, inventory, pass.full) == nil
 }
 
 // visitTensorMeasurements visits every committed tensor measurement in order.
@@ -448,7 +448,7 @@ func visitTensorMeasurements(ctx context.Context, store *overgodb.Store, order o
 	return err
 }
 
-// errHandlerClosed ends the handler's background measurement lifetime.
+// errHandlerClosed ends the handler's background lifetime.
 var errHandlerClosed = errors.New("server: handler closed")
 
 // errMeasurementFound ends a measurement visit at its match.

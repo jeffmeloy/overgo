@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "memo-close",
-      "title": "Cancel a pending memo publication before the server waits for it to close",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 80,
-        "reason": "SQA-286: an existing lifetime reused and its order changed in Handler.Close, and one case in the existing fixture."
-      },
-      "steps": [
-        {
-          "id": "cancel",
-          "title": "A server's close cancels the memo publication it waits for",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestACloseCancelsAPendingMemoPublication$'",
-          "rationale": "SQA-286 (P2): keepMemo publishes the catalog and scorecard memos with context.Background(), and Handler.Close waits on memoWrites before it cancels the handler's background lifetime (internal/server/server.go). A dirty memo whose publication waits on the store's writer lock, held by another process, keeps a closing server waiting on that writer, with the resources released after it.\nChange: memo publication takes the handler's existing background lifetime, as tensor publication does, and Close ends that lifetime before it waits for memo writes; the wait still lets a publication unwind before the store and sessions go.\nServes: failure-rate.\nDisappears: the unbounded background context of memo publication.\nEvidence: the existing fixture with another holder of the writer lock: close returns once the memo publication sees its cancellation.\nBatch: alone."
-        }
-      ]
-    },
-    {
       "id": "tool-tail",
       "title": "Bound a single large tool-output event to the output tail",
       "owner": "master-lead",

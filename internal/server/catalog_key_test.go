@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -63,5 +64,39 @@ func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 	handler.memoWrites.Wait()
 	if published.Load() == 0 {
 		t.Fatal("what the reads hashed was never published")
+	}
+}
+
+// TestACloseCancelsAPendingMemoPublication: a memo publication waits on the store, here on nothing but its context, as
+// one waits on a writer lock another process holds; the handler's close ends the publication's lifetime before it waits
+// for it, so close returns once the publication sees its cancellation.
+func TestACloseCancelsAPendingMemoPublication(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting := make(chan struct{})
+	var seen error
+	handler.publishMemo = func(ctx context.Context) error {
+		close(waiting)
+		<-ctx.Done()
+		seen = context.Cause(ctx)
+		return ctx.Err()
+	}
+	request := httptest.NewRequest(http.MethodGet, "/catalog/models", nil)
+	request.Header.Set("Authorization", testBearerToken)
+	handler.ServeHTTP(httptest.NewRecorder(), request)
+	<-waiting
+	if err := handler.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(seen, errHandlerClosed) {
+		t.Fatalf("the memo publication ended by %v, want the handler's close", seen)
 	}
 }

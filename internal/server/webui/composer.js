@@ -312,12 +312,20 @@
             bodyNode.append(streamed);
             bodyNode.hidden = false; header.setAttribute("aria-expanded", "true"); arrow.classList.add("open");
           }
+          const trim = () => { if (!trimmed) { trimmed = el("div", { class: "note", text: "Showing the end of this tool's output." }); streamed.before(trimmed); } };
+          // A piece longer than the tail keeps the tail's end of it, from a whole code point.
+          if (text.length > toolOutputTail) {
+            let from = text.length - toolOutputTail;
+            if (text.codePointAt(from - 1) > 0xffff) from++;
+            text = text.slice(from);
+            trim();
+          }
           streamed.append(text);
           streamedSize += text.length;
           while (streamedSize > toolOutputTail && streamed.childNodes.length > 1) {
             streamedSize -= streamed.firstChild.length;
             streamed.firstChild.remove();
-            if (!trimmed) { trimmed = el("div", { class: "note", text: "Showing the end of this tool's output." }); streamed.before(trimmed); }
+            trim();
           }
           scrollSoon();
         },

@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "tool-tail",
-      "title": "Bound a single large tool-output event to the output tail",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "SQA-284: a renderer correction in composer.js and a few assertions in the existing browser fixture; no Go production change."
-      },
-      "steps": [
-        {
-          "id": "single-event",
-          "title": "A tool output piece longer than the tail keeps only its tail",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestWebUIBrowserLongSessionStaysBounded$'",
-          "rationale": "SQA-284 (P2): the tool card keeps toolOutputTail code units of output, but trims only while it holds more than one text node (internal/server/webui/composer.js), so one streamed event longer than the tail, which the JSON stream transport admits up to 64 MiB, stays whole and shows no truncation notice.\nChange: an incoming piece keeps at most the tail's suffix, as the first or sole node too, and any discarded prefix shows the existing notice; trimmed boundaries keep whole code points.\nServes: failure-rate in the web UI's long sessions.\nDisappears: the sole-node exception.\nEvidence: TestWebUIBrowserLongSessionStaysBounded in its existing browser, one oversized piece then a small one: the exact suffix and the notice, cleaned up at the end.\nBatch: alone."
-        }
-      ]
-    },
-    {
       "id": "check-speed",
       "title": "Cut the repeated work in each commit's checks",
       "owner": "master-lead",

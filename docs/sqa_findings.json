@@ -529,7 +529,7 @@
       "likely_effort": "Small local renderer correction and a few assertions in the existing native Go browser fixture.",
       "plan_coverage": "Committed plan at 32424da71 explicitly assigns tool-tail/single-event to master-lead. Rechecked the sole-node exception and current 4096-character browser stimulus; the admitted large-event gap remains open. The plan adopts this existing finding, not a new duplicate.",
       "plan_references": [
-        "tool-tail/single-event"
+        "tool-tail/one-piece"
       ],
       "recommended_change": "Keep the existing toolCard output owner and frame-coalesced scroll. Bound the suffix retained from an incoming piece, including when it is the first or sole node, using the existing tail limit; show the same truncation notice whenever a prefix is discarded. Remove or replace the child-count exception that permits an oversized sole node. Preserve text order and complete Unicode code points at a trimmed boundary, and keep full authoritative tool results/transport limits unchanged. Extend TestWebUIBrowserLongSessionStaysBounded in its existing browser with one oversized piece and a following small piece, checking exact retained suffix/notice and normal end cleanup; no new browser leg or timer threshold.",
       "severity": "P2",
@@ -7520,6 +7520,17 @@
         "plan_steps": [
           "memo-close/cancel"
         ]
+      },
+      {
+        "comment": "Landed with tool-tail/one-piece. An incoming piece longer than toolOutputTail keeps text.slice(from) with from = length - tail, moved one unit on where the unit before it opens a surrogate pair, so the kept text starts at a whole code point; the existing notice is shown on that discard as on a removed older node. The sole-node exception is gone in effect: no single node exceeds the tail. The browser case: 'a' + U+1F600 + (tail - 1) 'z', then '!': the card holds the tail 'z's then '!', exactly tail units, with the notice; end removes both. Under the old renderer the case keeps only '!' (the oversized node dropped whole); with the code point step removed it keeps a lone low surrogate; both fail. The case is its own browser test, not an extension of TestWebUIBrowserLongSessionStaysBounded: a browser test skips outside cmd/webui-lane, so the filed go test check could never pass, and an added step's check must fail on the commit it builds on, which the extended long-session test would not; it costs under half a second of the lane.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserToolOutputKeepsAPiecesTail"
+        ],
+        "finding_id": "SQA-284",
+        "plan_steps": [
+          "tool-tail/one-piece"
+        ]
       }
     ],
     "experiments": {
@@ -7560,7 +7571,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-05",
-    "head": "e1ce08a51094d1976545a287ff4820ec008ec003",
+    "head": "83363b024aaec8175ff72466399c150a751e6c9d",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8280,11 +8291,11 @@
         "note": "Landed. keepMemo publishes under the handler's background lifetime, the one tensor measurement publishes under (renamed background from tensorLifetime), and Handler.Close ends that lifetime before it waits for memo writes; TestACloseCancelsAPendingMemoPublication holds a publication on its context and finds Close return once it sees errHandlerClosed. Awaits the reviewer's closure."
       },
       "SQA-284": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
-          "tool-tail/single-event"
+          "tool-tail/one-piece"
         ],
-        "note": "Scheduled as its own row: an incoming piece keeps at most the tail's suffix, as a sole node too, with the existing notice."
+        "note": "Landed. toolCard.output keeps at most toolOutputTail code units of an incoming piece, starting after a surrogate pair the cut would split, and shows the existing notice whenever it discards a prefix, the first or sole node included; the node-by-node trim of older pieces is as it was. TestWebUIBrowserToolOutputKeepsAPiecesTail, a browser case of its own, streams one piece of the tail plus three units with an astral character at the cut and then one unit, and finds the exact suffix and the notice, both removed by end. Awaits the reviewer's closure."
       }
     }
   },

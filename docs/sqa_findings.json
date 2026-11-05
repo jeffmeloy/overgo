@@ -3013,7 +3013,7 @@
       },
       "likely_effort": "Small table/fixture merge during ordinary landing test work.",
       "plan_references": [
-        "compact-tests/exact-folds"
+        "check-speed/browser-split"
       ],
       "plan_coverage": "Related existing test-consolidation owner, advisory only; no committed step explicitly adopts this pair. Preserve the standing retained test identity. No plan/skill edit requested.",
       "closure_criteria": [
@@ -7531,6 +7531,17 @@
         "plan_steps": [
           "tool-tail/one-piece"
         ]
+      },
+      {
+        "comment": "Landed with check-speed/browser-split. The diagnostic cases moved into TestLaneReachSkipsOtherPackagesTests: own file, own test file, transitive b and c through a, foreign test file, unrelated d, prefix path, nested data under a closure package and under d, go.mod, and the first reaching path of several, each with its exact reason. One writeModule and one discover replace two; no helper or new test was added for it. The browser-split test TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt keeps a fixture of its own: it holds the narrowed reach, a different graph with a tests package.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestLaneReachSkipsOtherPackagesTests"
+        ],
+        "finding_id": "SQA-308",
+        "plan_steps": [
+          "check-speed/browser-split"
+        ]
       }
     ],
     "experiments": {
@@ -7571,7 +7582,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-05",
-    "head": "83363b024aaec8175ff72466399c150a751e6c9d",
+    "head": "3f8f7d16925fd53ccc63d94b33158b8624124657",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8296,6 +8307,13 @@
           "tool-tail/one-piece"
         ],
         "note": "Landed. toolCard.output keeps at most toolOutputTail code units of an incoming piece, starting after a surrogate pair the cut would split, and shows the existing notice whenever it discards a prefix, the first or sole node included; the node-by-node trim of older pieces is as it was. TestWebUIBrowserToolOutputKeepsAPiecesTail, a browser case of its own, streams one piece of the tail plus three units with an astral character at the cut and then one unit, and finds the exact suffix and the notice, both removed by end. Awaits the reviewer's closure."
+      },
+      "SQA-308": {
+        "action": "implemented",
+        "rows": [
+          "check-speed/browser-split"
+        ],
+        "note": "Landed with check-speed/browser-split, which touches lanes.go and lanes_test.go. TestLaneReachSkipsOtherPackagesTests holds all eleven reach cases on one a->b->c module with unrelated d, a/a_test.go and b/b_test.go, as one table of changed paths and expected reasons; TestLaneReachNamesTheChangedPackageThatPulledEachLane and its fixture are deleted. Awaits the reviewer's closure."
       }
     }
   },

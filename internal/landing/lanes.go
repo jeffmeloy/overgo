@@ -6,12 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +44,20 @@ type lane struct {
 	// hostOnly says the lane needs no device, a browser against a server on the
 	// host: it runs beside the lanes that share the device, not after them.
 	hostOnly bool
+	// tests is the lane's own package that holds its tests, and testPrefix
+	// what their names begin with: a path that enters the lane only through
+	// what that package imports reaches just the tests whose files' own
+	// imports take it in, and the lane runs those alone.
+	tests, testPrefix string
+}
+
+// reach is what a change reaches a lane by: the first changed path that
+// reached it, with the lane's own package whose closure that path entered,
+// empty when none did, and the lane's tests it runs alone, none when it runs
+// whole.
+type reach struct {
+	by    string
+	tests []string
 }
 
 // splitLanes divides the lanes a change reached into those that need no device,
@@ -71,6 +89,11 @@ var lanes = []lane{
 			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json"},
 		command:  func(string) []string { return []string{"run", "./cmd/webui-lane"} },
 		hostOnly: true,
+		// The server imports every model runtime, and of its browser tests only
+		// those whose files take one in call it: a media change runs those
+		// alone. The prefix is webuilane.BrowserTestPrefix, which a test holds;
+		// the landing does not import the browser's driver.
+		tests: "internal/server", testPrefix: "TestWebUIBrowser",
 	},
 	{
 		// The CUDA suites outside the device lane's scopes that build their
@@ -360,10 +383,13 @@ func (l *landing) lanes(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	pulled := map[string]string{}
+	pulled, named := map[string]string{}, map[string][]string{}
 	for _, candidate := range lanes {
-		if by := reaches(candidate, l.paths); by != "" {
-			reached, pulled[candidate.name] = append(reached, candidate), by
+		if got := reaches(candidate, l.paths); got.by != "" {
+			reached, pulled[candidate.name], named[candidate.name] = append(reached, candidate), got.by, got.tests
+			if len(got.tests) > 0 {
+				pulled[candidate.name] += fmt.Sprintf(", %d of its tests", len(got.tests))
+			}
 		} else {
 			skipped = append(skipped, candidate.name)
 		}
@@ -392,7 +418,11 @@ func (l *landing) lanes(ctx context.Context) error {
 				environment = append(os.Environ(), candidate.environment...)
 			}
 			began := time.Now()
-			output, err := l.runIn(ctx, l.stageRoot(), environment, "go", candidate.arguments(changed.Name())...)
+			arguments := candidate.arguments(changed.Name())
+			if tests := named[candidate.name]; len(tests) > 0 {
+				arguments = append(arguments, "-run", "^("+strings.Join(tests, "|")+")$")
+			}
+			output, err := l.runIn(ctx, l.stageRoot(), environment, "go", arguments...)
 			wall := time.Since(began).Round(time.Millisecond)
 			mu.Lock()
 			defer mu.Unlock()
@@ -501,10 +531,10 @@ func describeLanes(discovery, turnWait time.Duration, passed, skipped []string) 
 // imports without tests; a test file behind tags the lane does not build,
 // such as CycleTags, reaches no lane that leaves it out. A package or
 // dependency a listing cannot load refuses the landing. What it returns for a
-// lane is the first changed path that reached it, with the lane's own package
-// whose closure that path entered, and nothing when no path reached it: a lane
-// that runs for a change names what pulled it in.
-func discover(repo string, candidates ...lane) (func(lane, []string) string, error) {
+// lane is its reach: a lane that runs for a change names what pulled it in, and
+// one whose tests are named runs alone those a path reaching it only through
+// their package's imports calls.
+func discover(repo string, candidates ...lane) (func(lane, []string) reach, error) {
 	patterns := map[string][]string{}
 	for _, candidate := range candidates {
 		for _, pattern := range candidate.packages {
@@ -524,11 +554,25 @@ func discover(repo string, candidates ...lane) (func(lane, []string) string, err
 		}
 		selections[tags] = selection
 	}
-	return func(candidate lane, paths []string) string {
-		selection, directories, closure := selections[candidate.tags], map[string]string{}, map[string]string{}
+	directories := map[string]map[string]string{}
+	for tags, selection := range selections {
+		directories[tags] = map[string]string{}
 		for file, importPath := range selection.Packages {
-			directories[importPath] = path.Dir(file)
+			directories[tags][importPath] = path.Dir(file)
 		}
+	}
+	calls := map[string]map[string][]string{}
+	for _, candidate := range candidates {
+		if candidate.tests != "" {
+			called, err := calledTests(repo, candidate, selections[candidate.tags], directories[candidate.tags])
+			if err != nil {
+				return nil, err
+			}
+			calls[candidate.name] = called
+		}
+	}
+	return func(candidate lane, paths []string) reach {
+		selection, directories, closure := selections[candidate.tags], directories[candidate.tags], map[string]string{}
 		// The listing holds every lane of the build context, so the lane's
 		// closure is taken from its own packages: each one, what it imports,
 		// and what its test binary imports, each directory kept with the
@@ -547,9 +591,12 @@ func discover(repo string, candidates ...lane) (func(lane, []string) string, err
 				}
 			}
 		}
-		for _, name := range paths {
+		// enters is what a changed path reaches the lane by, with the closure
+		// directory it entered and the lane's package that took that one in;
+		// by is empty when the path reaches nothing.
+		enters := func(name string) (by, entered, owner string) {
 			if name == "go.mod" || name == "go.sum" || slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) }) {
-				return name
+				return name, "", ""
 			}
 			// A test file compiles only into its own package's test binary,
 			// so it reaches the lane only when that package is the lane's and
@@ -558,9 +605,9 @@ func discover(repo string, candidates ...lane) (func(lane, []string) string, err
 			if strings.HasSuffix(name, "_test.go") {
 				_, absent := os.Stat(filepath.Join(repo, filepath.FromSlash(name)))
 				if candidate.owns(path.Dir(name)) && (selection.Files[name] || errors.Is(absent, fs.ErrNotExist)) {
-					return name
+					return name, "", ""
 				}
-				continue
+				return "", "", ""
 			}
 			// A data file nested under a closure package, testdata or an
 			// embedded recipe, is that package's input; a Go file belongs to
@@ -568,17 +615,63 @@ func discover(repo string, candidates ...lane) (func(lane, []string) string, err
 			for parent := path.Dir(name); ; parent = path.Dir(parent) {
 				if owner, held := closure[parent]; held {
 					if owner == parent {
-						return name
+						return name, parent, owner
 					}
-					return name + " through " + owner
+					return name + " through " + owner, parent, owner
 				}
 				if strings.HasSuffix(name, ".go") || parent == "." {
-					break
+					return "", "", ""
 				}
 			}
 		}
-		return ""
+		called, narrowed := calls[candidate.name], reach{}
+		for _, name := range paths {
+			by, entered, owner := enters(name)
+			switch {
+			case by == "":
+			case called == nil || owner != candidate.tests || entered == owner:
+				return reach{by: by}
+			case len(called[entered]) > 0:
+				narrowed.by = cmp.Or(narrowed.by, by)
+				narrowed.tests = append(narrowed.tests, called[entered]...)
+			}
+		}
+		slices.Sort(narrowed.tests)
+		narrowed.tests = slices.Compact(narrowed.tests)
+		return narrowed
 	}, nil
+}
+
+// calledTests lists, for each directory a test file of the lane's tests
+// package takes in through its own imports, the lane's tests that file holds.
+func calledTests(repo string, candidate lane, selection gosource.BuildSelection, directories map[string]string) (map[string][]string, error) {
+	called := map[string][]string{}
+	for _, file := range slices.Sorted(maps.Keys(selection.Files)) {
+		if path.Dir(file) != candidate.tests || !strings.HasSuffix(file, "_test.go") || !selection.Files[file] {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repo, filepath.FromSlash(file)), nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, err
+		}
+		var tests []string
+		for _, declaration := range parsed.Decls {
+			if function, ok := declaration.(*ast.FuncDecl); ok && function.Recv == nil && strings.HasPrefix(function.Name.Name, candidate.testPrefix) {
+				tests = append(tests, function.Name.Name)
+			}
+		}
+		taken := map[string]bool{}
+		for _, spec := range parsed.Imports {
+			imported, _ := strconv.Unquote(spec.Path.Value)
+			for _, dependency := range append([]string{imported}, selection.Dependencies[imported]...) {
+				if directory, held := directories[dependency]; held && len(tests) > 0 && !taken[directory] {
+					taken[directory] = true
+					called[directory] = append(called[directory], tests...)
+				}
+			}
+		}
+	}
+	return called, nil
 }
 
 // owns reports whether one of the lane's package patterns, ./directory or

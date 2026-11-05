@@ -55,7 +55,7 @@ func (l *landing) scorecard(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(sliceDocument))); reaches(slice, l.paths) == "" || err != nil {
+	if _, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(sliceDocument))); reaches(slice, l.paths).by == "" || err != nil {
 		l.details["scorecard"] = "not reached"
 		return nil
 	}

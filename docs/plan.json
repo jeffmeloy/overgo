@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "check-speed",
-      "title": "Cut the repeated work in each commit's checks",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "browser-reach adds 72: the reach names the path and the package it entered through, and the lanes stage writes it; browser-split keeps 60, an estimate for a narrower reach of the browser lane"
-      },
-      "steps": [
-        {
-          "id": "browser-split",
-          "title": "Reach the browser lane through the code its tests run",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt$'",
-          "rationale": "Measured by browser-reach: a change to internal/latentvideo, latentimage, diffusionimage, mediacapability, inference or modelswap reaches the browser lane through internal/server, whose package imports every model runtime. Of the last 142 gate lines, 93 ran the lane; in 77 it ran beside the device lanes and cost no wall; in 16 it ran alone, about 2m50s each, 45 minutes in all.\nTwo of its 110 browser test files call media runtimes (webui_browser_moss_generation_windows_test.go, webui_browser_remembered_test.go), so a media change must still reach those. Read the next gate lines, which now name what pulled each lane in, for the commits that ran the lane alone through a runtime package. If they are most of the 16, reach the lane through the code its tests run: the server's own files and the page reach every browser test, and a runtime package reaches only the tests that call it, through a -run of their own or a package of their own.\nServes: development velocity.\nDisappears: a browser run for a change no browser test runs, at most 45 minutes in 200 commits.\nEvidence: the next gate lines' lane reach, and the lanes stage's wall of a media commit.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "run-once",
       "title": "Do each piece of a full measurement run's setup once",
       "owner": "master-lead",

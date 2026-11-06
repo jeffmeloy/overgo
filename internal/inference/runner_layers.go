@@ -380,8 +380,6 @@ func (r *Runner) runLFM2LayerNonCausal(
 		)
 		hostFeeds[state], hostFeeds[reserved] = stateValue, reservedValue
 	}
-	spec := r.spec
-	spec.NonCausalAttention = true
 	program, err := r.program.Model.LayerProgram(uint32(layerIndex))
 	if err != nil {
 		return reference.Value{}, err

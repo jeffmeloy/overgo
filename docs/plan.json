@@ -55,17 +55,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 47,
         "reason": "Measured: package-digests removes 66 production nodes, the two go list decoders the surface and the trigger held, against the 300 estimated unmeasured; one-layer-walk and one-lock-each set their own when measured."
       },
       "steps": [
-        {
-          "id": "one-layer-walk",
-          "title": "Walk a model's layers in one loop",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestOneLayerWalkServesEveryForward$'",
-          "rationale": "The walk over layers is written at least eight times (internal/inference/runner_layers.go:14,176,220,350,405, sequence_forward.go:249,278, device_cache.go:1740) and the decode loop at least five (runner_generation.go:484, host_generation.go:16, nextn_device_speculation.go:286, strata_round_generate.go:171, continuous_generation.go:173) (all unverified). Sharing weights across a batch works only for gated-delta models (internal/model/forward_program.go:83, unverified), which shows a gain in one copy not reaching the others.\nFold the layer walks first, outputs bit-identical, one model family at a time, each with its bench; the decode loops follow as their own step once this one shows what it cost.\nServes: inference; every later speed change reaches every model.\nDisappears: seven copies of the layer walk.\nEvidence: decoded texts and benches equal per family.\nBatch: one commit with the other surface moves, before one measurement run."
-        },
         {
           "id": "one-lock-each",
           "title": "Hold each resource by one lock",

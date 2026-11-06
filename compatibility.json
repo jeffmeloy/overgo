@@ -652,7 +652,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:521db6bf92890f33db1382dbb09e87db3ab90dcc538ee02b691beb2b81a9ab2c"
+     "identity": "file:sha256:b8a7d23b5a72b654fa1f1a012b100e28f60774421a65373b59b6d4a16fdb0901"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",

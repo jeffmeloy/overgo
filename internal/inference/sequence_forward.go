@@ -71,24 +71,16 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if r.forwardProgram().NonCausalRecurrent() {
-		for layerIndex, layerInfo := range r.weights.Layers {
-			activation, err = r.runLFM2LayerNonCausal(
-				ctx, activation, layerInfo, layerIndex, positions,
-			)
-			if err != nil {
-				return reference.Value{}, fmt.Errorf("inference layer %d: %w", layerIndex, err)
-			}
-		}
-		return r.runOutputNorm(ctx, activation)
-	}
-	if r.hasPreloadedWeights() {
+	// A recurrent layer runs as LFM2's short convolution; a dense one's preloaded weights take the one-graph walk.
+	step := r.runDenseLayerNoCache
+	switch {
+	case r.forwardProgram().NonCausalRecurrent():
+		step = r.runLFM2LayerNonCausal
+	case r.hasPreloadedWeights():
 		return r.forwardDenseLayersNoCachePreloaded(ctx, activation, positions)
 	}
 	for layerIndex, layerInfo := range r.weights.Layers {
-		activation, err = r.runDenseLayerNoCache(
-			ctx, activation, layerInfo, layerIndex, positions,
-		)
+		activation, err = step(ctx, activation, layerInfo, layerIndex, positions)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference layer %d: %w", layerIndex, err)
 		}

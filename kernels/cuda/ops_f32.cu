@@ -5373,7 +5373,7 @@ extern "C" __global__ void get_rows_f32(
     if (index < count) {
         const unsigned int column = index % width;
         const unsigned int output_row = index / width;
-        output[index] = table[rows[output_row] * width + column];
+        output[index] = table[(size_t) rows[output_row] * width + column];
     }
 }
 
@@ -5387,7 +5387,7 @@ extern "C" __global__ void get_rows_bf16_f32(
     if (index < count) {
         const unsigned int column = index % width;
         const unsigned int output_row = index / width;
-        output[index] = __bfloat162float(table[rows[output_row] * width + column]);
+        output[index] = __bfloat162float(table[(size_t) rows[output_row] * width + column]);
     }
 }
 
@@ -7980,7 +7980,7 @@ extern "C" __global__ void get_rows_q8_0_f32(
     const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
     const unsigned int block_index =
         rows[output_row] * blocks_per_row + column / Q8_0_BLOCK_WIDTH;
-    const unsigned char * block = table + block_index * Q8_0_BLOCK_BYTES;
+    const unsigned char * block = table + (size_t) block_index * Q8_0_BLOCK_BYTES;
     const float scale = __half2float(*reinterpret_cast<const __half *>(block));
     const signed char quantized =
         *(reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES) +
@@ -8785,7 +8785,7 @@ extern "C" __global__ void get_rows_##TAG##_f32( \
     const unsigned int block_index = \
         rows[output_row] * blocks_per_row + column / 32; \
     output[index] = DEQUANT( \
-        table + block_index * BLOCK_BYTES, \
+        table + (size_t) block_index * BLOCK_BYTES, \
         column % 32); \
 } \
 extern "C" __global__ void mul_mat_##TAG##_f32( \
@@ -9152,7 +9152,7 @@ extern "C" __global__ void get_rows_##TAG##_f32( \
     const unsigned int block_index = \
         rows[output_row] * blocks_per_row + column / BLOCK_WIDTH; \
     output[index] = DEQUANT( \
-        table + block_index * BLOCK_BYTES, \
+        table + (size_t) block_index * BLOCK_BYTES, \
         column % BLOCK_WIDTH); \
 }
 

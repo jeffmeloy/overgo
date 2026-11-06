@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "f990d3d33dca7c03a7209f212ac28fda512d85919fca58f03df2d4c3430afdb9",
+      "sourceSha256": "488f8d38264e86f47bc903e203efd9e38fa6897f49958018b79bd37e7300083e",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -84,7 +84,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "d2f8b785bdf330e65b8d74652582d052617066e754cbc13ee55ce8d0ca60b1de",
+      "assetSha256": "9fa14551a33a8a56a6acb730d1953da6d7f451234d3e90a67052c4fc2851e4c2",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",

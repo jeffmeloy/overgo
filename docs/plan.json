@@ -79,11 +79,11 @@
       },
       "steps": [
         {
-          "id": "get-rows-offsets",
-          "title": "Every get_rows kernel addresses a whole table",
+          "id": "near-copies",
+          "title": "Fold the kernels' remaining near copies",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestGetRowsAddressAWholeTable$'",
-          "rationale": "consolidate/quant-kernels found that the get_rows kernels address a table's block in 32 bits, block_index * BLOCK_BYTES in unsigned int (the small-quant macros, the legacy-quant macro and get_rows_q8_0_f32), while mul_mat widens to size_t before it multiplies: a token table past 4 GiB, as a large vocabulary's embedding in F32 reaches, wraps the offset and reads another row's bytes.\nChange: every get_rows kernel widens its block index to size_t before it multiplies, as mul_mat does, which moves the compiled code on purpose, in a landing of its own, so the parity a device test holds shows the fix alone. TestGetRowsAddressAWholeTable holds each get_rows kernel of the kernel sources to an offset taken in size_t.\nServes: failure-rate: a large table's rows read as themselves.\nDisappears: a 32-bit wrap in row reads.\nEvidence: the test, and the device lane's parity tests on the rebuilt kernels.\nBatch: device lane in full."
+          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestKernelNearCopiesHaveOneBody$'",
+          "rationale": "consolidate/quant-kernels folded the six get_rows and mul_mat pairs that were the small-quant macro's exact expansion, which compiled to the same PTX, and left what its text measured beyond them: the relative-bias code written three times in kernels/cuda/ops_f32.cu, load_u32_le beside read_u32_le, which reads the same little-endian word, the dequant_rows clusters, about 44 lines of one shape, and up to 1,016 lines of near copies that differ in more than names.\nChange: each fold that keeps its kernels' PTX byte-identical lands as such; a fold whose PTX moves keeps every kernel it touches at its parity tests on the device, and names the move. TestKernelNearCopiesHaveOneBody holds the relative-bias code and the little-endian word reader to one body each in the kernel sources.\nServes: less kernel code to keep right.\nDisappears: the relative-bias copies, the second word reader and the dequant_rows copies.\nEvidence: the test, the PTX hashes and the device lane's parity tests.\nBatch: device lane in full."
         },
         {
           "id": "split-ops",

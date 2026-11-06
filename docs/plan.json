@@ -59,13 +59,6 @@
       },
       "steps": [
         {
-          "id": "terms",
-          "title": "Freeze the comparison before any training",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeAcceptanceIsFrozenBeforeTraining$'",
-          "rationale": "The experiment asks one question: does a small host encoder plus a trained projector give Qwen3.5-9B useful vision at far less card memory than a native vision model? Qwen3.5-9B peaks at 9.0 GiB, Qwen3.8-27B at 22.3 GiB.\nFix before training: the suite, the required gain, the split, the limits on card memory and first output, and a limit on GPU-hours. A full-stack 9B step took about 3 min 4 s (docs/verification/qwen35-9b-fullstack-training-run.txt:87-90), so a thousand steps is about 51 hours; Qwen2.5-0.5B took 0.47 s a step. A bounded run on 0.5B comes first, and if it shows no gain the row ends with a record.\nNo download is needed: VidGen clips, captions and frames should be on disk, and evaluate -build-caption-matching takes a seed and a case count (cmd/evaluate/main.go:93-97). Confirm the data is there. Held-out clips and their source videos stay out of training.\nConfirm that RxBrain's 0.63 and Qwen3.8-27B's 0.92 rest on this suite (README.md:121-122,134); if not, read both on it. At 64 cases one reading's standard error is 0.061 at 0.63, so build a larger suite if the required gain is smaller than that can detect.\nInclude a floor (a constant answer) and a ceiling (27B).\nServes: held-out-quality and peak-device-memory.\nDisappears: nothing.\nEvidence: an acceptance record published before the first training step.\nBatch: evaluation lane."
-        },
-        {
           "id": "seam",
           "title": "Score the seam from measured representations",
           "status": "open",

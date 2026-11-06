@@ -79,13 +79,6 @@
       },
       "steps": [
         {
-          "id": "unused-kernels",
-          "title": "Remove kernels nothing launches",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-bindings -count=1 -run '^TestEveryKernelHasALaunch$'",
-          "rationale": "conv_2d_{input,weight,bias}_backward_f32 and the two group_norm backward kernels have no launch by constant or string (grep; no such name is built dynamically): 171 body lines at ops_f32.cu:1814-2039 and 43,512 PTX bytes, 0.66 percent of the module, so load time will not move measurably. The host path is internal/diffusionimage/backward.go.\nNine more are launched only from code tests reach (gated_delta_net_backward_f32, short_conv_backward_f32, l2_norm_backward_f32, causal_softmax_f32 and five strata kernels, 162,637 PTX bytes); they go with their callers in compact-production/typed-walk's sort.\nThe seven shadowed declarations first listed here are live (webui-lane-harness and testskip-helpers, 105 and 154 declarations) and stay.\nServes: smaller compiled kernels.\nDisappears: five kernels.\nEvidence: compiled size before and after.\nBatch: one commit with the other surface moves, before one measurement run."
-        },
-        {
           "id": "cell-step-reads",
           "title": "Take the cell step records' window from Reads",
           "status": "open",

@@ -36,8 +36,7 @@ func TestStoredDocumentsDecodeUnderCurrentSchema(t *testing.T) {
 	}
 	document, err := NewProfileDocument(registered)
 	testcheck.NoError(t, err)
-	content, err := profileContent(document)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(profileContent(document))(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:      "test/published-chain",
 		Contents: []artifact.Content{content},

@@ -141,8 +141,7 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
-	document, err := io.ReadAll(content)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(io.ReadAll(content))(t)
 	const tolerance = 1e-3
 	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != trainingprogram.MetricImagePSNRUnit ||
 		math.Abs(verdict.BaselineValue-20) > tolerance || math.Abs(verdict.CandidateValue-40) > tolerance {

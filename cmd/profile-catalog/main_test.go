@@ -16,8 +16,7 @@ func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
 	var output bytes.Buffer
 	testcheck.NoError(t, run([]string{"-repo", repository}, &output))
 	store := overgodbtest.OpenReadOnly(t, repository)
-	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(t.Context(), store)
-	testcheck.NoError(t, err)
+	coverage := testcheck.Must(modelrecipe.InspectArchitectureProfileCatalog(t.Context(), store))(t)
 	if !coverage.Complete || coverage.Registered == 0 || coverage.Published != coverage.Registered {
 		t.Fatalf("coverage = %+v", coverage)
 	}

@@ -25,15 +25,13 @@ const noChangeTests = 10
 // the statement out is held to being found, so the walk is not vacuous.
 func TestIdempotentCommitHasOneOwner(t *testing.T) {
 	t.Parallel()
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd"))(t)
 	survey := func(snapshot gosyntax.Snapshot) (written []string, tests int) {
 		for _, file := range snapshot.Files {
 			if file.Test || path.Dir(file.Path) == "internal/artifact" {
 				continue
 			}
-			syntax, err := file.Syntax()
-			testcheck.NoError(t, err)
+			syntax := testcheck.Must(file.Syntax())(t)
 			ast.Inspect(syntax, func(node ast.Node) bool {
 				switch typed := node.(type) {
 				case *ast.SelectorExpr:
@@ -74,8 +72,7 @@ func publish(ctx context.Context, repository artifact.Repository, batch artifact
 	return nil
 }
 `
-	overlaid, err := snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)})
-	testcheck.NoError(t, err)
+	overlaid := testcheck.Must(snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)}))(t)
 	if written, tests := survey(overlaid); len(written) != 1 || tests != noChangeTests+1 {
 		t.Fatalf("the walk found %v and %d tests in a package that writes the statement out once", written, tests)
 	}

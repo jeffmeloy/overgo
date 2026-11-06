@@ -21,10 +21,9 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	stored := []byte("eight by two values of the directory's weights, read in place....")
-	file, err := gguf.View([]gguf.Metadata{gguf.StringMetadata("general.architecture", "fixture")},
+	file := testcheck.Must(gguf.View([]gguf.Metadata{gguf.StringMetadata("general.architecture", "fixture")},
 		[]gguf.ViewTensor{{Name: "weights", Shape: []uint64{uint64(len(stored))}, Type: gguf.DTypeI8, Payload: bytes.NewReader(stored)}},
-		gguf.WriteOptions{}, directory)
-	testcheck.NoError(t, err)
+		gguf.WriteOptions{}, directory))(t)
 	defer file.Close()
 	shard := file.Shards()[0]
 	image := make([]byte, shard.Size)

@@ -148,8 +148,7 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 			err = os.Rename(old, filepath.Join(root, "internal/model", change.next))
 		}
 		testcheck.NoError(t, err)
-		closure, err = surfaceClosure(t.Context(), root)
-		testcheck.NoError(t, err)
+		closure = testcheck.Must(surfaceClosure(t.Context(), root))(t)
 		if !touchesSurface(root, "internal/model/"+change.old, closure) {
 			t.Errorf("%s of an embedded directory child was excluded", change.name)
 		}

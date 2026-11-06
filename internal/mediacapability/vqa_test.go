@@ -43,10 +43,8 @@ func TestVQAControlsDeclareImageQuestionAndBudget(t *testing.T) {
 func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-executor")
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	execution := modelrecipe.CapabilityEvidenceSelection{Program: program}
 	capability := Catalog[recipe.TaskVQA]
 	if _, err := capability.Execute(t.Context(), store, t.TempDir(), execution, `{"question":"what?"}`); err == nil || !strings.Contains(err.Error(), "image") {
@@ -60,8 +58,7 @@ func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 	// configuration fails on the host. Its published run must survive the
 	// capability's error handoff, with the original image and question.
 	testutil.PublishArtifact(t, store, modelID)
-	image, err := vqaserve.ImageContract.ContentBytes([]byte("fixture image"))
-	testcheck.NoError(t, err)
+	image := testcheck.Must(vqaserve.ImageContract.ContentBytes([]byte("fixture image")))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "vqa/terminal-image", Contents: []artifact.Content{image}}); err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +80,7 @@ func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 // TestTextOutputPublishesPlainText pins the text answer's published form:
 // a string output becomes a plain-text output artifact.
 func TestTextOutputPublishesPlainText(t *testing.T) {
-	content, err := OutputContent("there")
-	testcheck.NoError(t, err)
+	content := testcheck.Must(OutputContent("there"))(t)
 	if content.Descriptor.ID.Kind() != artifact.KindOutput || content.Descriptor.MediaType != modelrecipe.TextAnswerMediaType || string(content.Data) != "there" {
 		t.Fatalf("text output = %+v %q", content.Descriptor, content.Data)
 	}

@@ -14,16 +14,13 @@ func TestManifestIdentityUsesCanonicalComponents(t *testing.T) {
 		{Role: ComponentWeights, Name: "weights", Artifact: weights},
 		{Role: ComponentConfig, Name: "config", Artifact: config},
 	}
-	first, err := NewManifest(KindModel, components)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewManifest(KindModel, components))(t)
 	slices.Reverse(components)
-	second, err := NewManifest(KindModel, components)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewManifest(KindModel, components))(t)
 	if first.ID != second.ID || !slices.Equal(first.Components, second.Components) {
 		t.Fatalf("canonical manifests differ: %s != %s", first.ID, second.ID)
 	}
-	descriptor, err := first.Descriptor()
-	testcheck.NoError(t, err)
+	descriptor := testcheck.Must(first.Descriptor())(t)
 	if descriptor.ID != first.ID || descriptor.MediaType != ManifestMediaType || descriptor.Schema != ManifestSchema {
 		t.Fatalf("descriptor = %+v", descriptor)
 	}
@@ -57,10 +54,9 @@ func TestManifestIdentityChangesWithComponentContent(t *testing.T) {
 	first, _ := IdentifyBytes(KindTensorSet, []byte("first"))
 	second, _ := IdentifyBytes(KindTensorSet, []byte("second"))
 	makeManifest := func(id ID) Manifest {
-		manifest, err := NewManifest(KindModel, []Component{{
+		manifest := testcheck.Must(NewManifest(KindModel, []Component{{
 			Role: ComponentWeights, Name: "weights", Artifact: id,
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		return manifest
 	}
 	if makeManifest(first).ID == makeManifest(second).ID {

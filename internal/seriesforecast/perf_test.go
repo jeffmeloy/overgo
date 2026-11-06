@@ -22,8 +22,7 @@ func TestForecastWallDecomposition(t *testing.T) {
 	dir := artifactDir(t)
 
 	loadStart := time.Now()
-	model, err := Load(dir)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(Load(dir))(t)
 	loadWall := time.Since(loadStart)
 
 	const repeats = 9

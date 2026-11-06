@@ -24,8 +24,7 @@ func drillSurfaceDigest(t *testing.T, store *Store) string {
 	ctx := t.Context()
 	var out strings.Builder
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
-		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal)))(t)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)
@@ -95,8 +94,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	sourceHash := drillTreeHash(t, sourceRoot)
 	ctx := t.Context()
 
-	source, err := OpenReadOnly(sourceRoot)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(OpenReadOnly(sourceRoot))(t)
 	defer source.Close()
 	digest := drillSurfaceDigest(t, source)
 	head, sequence := source.Head()
@@ -107,13 +105,11 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// Migration: rebuild into a fresh segmented layout and read it back
 	// read-only.
 	rebuiltRoot := filepath.Join(base, "rebuilt")
-	report, err := Rebuild(ctx, source, rebuiltRoot, nil, nil, false)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(Rebuild(ctx, source, rebuiltRoot, nil, nil, false))(t)
 	if report.Batches == 0 {
 		t.Fatalf("rebuild moved nothing: %+v", report)
 	}
-	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(OpenReadOnly(rebuiltRoot))(t)
 	defer rebuilt.Close()
 	if drillSurfaceDigest(t, rebuilt) != digest {
 		t.Fatal("rebuilt store answers a different query surface")
@@ -128,8 +124,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	if backupHead != head {
 		t.Fatalf("backup head %s differs from source head %s", backupHead, head)
 	}
-	restored, err := OpenReadOnly(backupRoot)
-	testcheck.NoError(t, err)
+	restored := testcheck.Must(OpenReadOnly(backupRoot))(t)
 	defer restored.Close()
 	if drillSurfaceDigest(t, restored) != digest {
 		t.Fatal("restored backup answers a different query surface")
@@ -139,8 +134,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// live surface, and the source is still never written.
 	releaseRoot := filepath.Join(base, "released")
 	drillCopyStore(t, rebuiltRoot, releaseRoot)
-	released, err := Create(releaseRoot)
-	testcheck.NoError(t, err)
+	released := testcheck.Must(Create(releaseRoot))(t)
 	defer released.Close()
 	if _, err := Release(ctx, released, nil, RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
@@ -204,8 +198,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		tornRoot := filepath.Join(base, "torn-sealed")
 		drillCopyStore(t, rebuiltRoot, tornRoot)
 		sealed := filepath.Join(tornRoot, segmentDirectory, segments[0].Name())
-		info, err := os.Stat(sealed)
-		testcheck.NoError(t, err)
+		info := testcheck.Must(os.Stat(sealed))(t)
 		testcheck.NoError(t, os.Truncate(sealed, info.Size()-1))
 		if torn, err := OpenReadOnly(tornRoot); err == nil {
 			_ = torn.Close()

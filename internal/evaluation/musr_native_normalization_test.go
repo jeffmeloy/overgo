@@ -43,18 +43,15 @@ func TestMuSRNativeNormalization(t *testing.T) {
 				scores[i] = sequencescore.Score{LogProbability: fixture.LogProbabilities[i], Tokens: fixture.TokenCounts[i]}
 			}
 			source := GroupedChoiceSuite{Kind: GroupedChoiceKind, Schema: "native-musr-normalization/v1", Source: "fixture", Normalization: sequencescore.NormalizationCharacters, TieBreak: TieBreakFirst, Cases: []DemonstratedChoice{{Name: fixture.Name, Group: "native", Prompt: "Question\nAnswer:", Candidates: candidates, CandidateCharacters: slices.Clone(fixture.CharacterCounts), Answer: fixture.Selected}}}
-			compiled, err := CompileGroupedChoice(source)
-			testcheck.NoError(t, err)
+			compiled := testcheck.Must(CompileGroupedChoice(source))(t)
 			source.Cases[0].CandidateCharacters[0]++
 			if !slices.Equal(compiled.choice.suite.Cases[0].CandidateCharacters, fixture.CharacterCounts) {
 				t.Fatal("compiled character counts alias the caller")
 			}
-			plan, err := BindGroupedChoice(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(BindGroupedChoice(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}))(t)
 			store := overgodbtest.Open(t, t.TempDir())
 			publishPlanFixtureAuthorities(t, store, plan)
-			report, err := EvaluateGroupedChoice(t.Context(), store, fixedContinuationScorer{scores: scores}, compiled, plan)
-			testcheck.NoError(t, err)
+			report := testcheck.Must(EvaluateGroupedChoice(t.Context(), store, fixedContinuationScorer{scores: scores}, compiled, plan))(t)
 			o := report.Observations[0]
 			if o.Selected != fixture.Selected || o.Tied != fixture.Tied || !slices.Equal(o.Values, fixture.Values) || report.Accuracy != 1 || len(report.Groups) != 1 || report.Groups[0].Correct != 1 {
 				t.Fatalf("native scoring differs: %+v", report)
@@ -115,23 +112,17 @@ func TestMuSRNativeNormalization(t *testing.T) {
 	})
 	t.Run("distinct scoring authority", func(t *testing.T) {
 		suite := GroupedChoiceSuite{Kind: GroupedChoiceKind, Schema: "fixture/v1", Source: "same-acquisition", Normalization: sequencescore.NormalizationMean, Cases: []DemonstratedChoice{{Name: "same-case", Group: "same-group", Prompt: "Q", Candidates: []string{" a", " bbbbbbbbbb"}, Answer: 1}}}
-		legacy, err := CompileGroupedChoice(suite)
-		testcheck.NoError(t, err)
+		legacy := testcheck.Must(CompileGroupedChoice(suite))(t)
 		suite.Normalization = sequencescore.NormalizationCharacters
 		suite.TieBreak = TieBreakFirst
 		suite.Cases[0].CandidateCharacters = []uint64{1, 10}
-		native, err := CompileGroupedChoice(suite)
-		testcheck.NoError(t, err)
+		native := testcheck.Must(CompileGroupedChoice(suite))(t)
 		authorities := ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}
-		oldPlan, err := BindGroupedChoice(legacy, authorities)
-		testcheck.NoError(t, err)
-		newPlan, err := BindGroupedChoice(native, authorities)
-		testcheck.NoError(t, err)
+		oldPlan := testcheck.Must(BindGroupedChoice(legacy, authorities))(t)
+		newPlan := testcheck.Must(BindGroupedChoice(native, authorities))(t)
 		suite.TieBreak = ""
-		noTie, err := CompileGroupedChoice(suite)
-		testcheck.NoError(t, err)
-		noTiePlan, err := BindGroupedChoice(noTie, authorities)
-		testcheck.NoError(t, err)
+		noTie := testcheck.Must(CompileGroupedChoice(suite))(t)
+		noTiePlan := testcheck.Must(BindGroupedChoice(noTie, authorities))(t)
 		if newPlan.body.Scorer == noTiePlan.body.Scorer || newPlan.identity == noTiePlan.identity {
 			t.Fatal("tie policy did not change scorer authority")
 		}

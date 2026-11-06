@@ -28,13 +28,10 @@ func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
 	if _, err := os.Stat(filepath.Join(dir, configFileName)); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; real training step NOT verified", dir)
 	}
-	m, err := Load(dir)
-	testcheck.NoError(t, err)
-	tokenizer, err := LoadTokenizer(filepath.Join(dir, "tokenizer.model"))
-	testcheck.NoError(t, err)
+	m := testcheck.Must(Load(dir))(t)
+	tokenizer := testcheck.Must(LoadTokenizer(filepath.Join(dir, "tokenizer.model")))(t)
 	golden := loadFixture[g7Golden](t, "g7_generation.json")
-	ids, err := tokenizer.Encode(golden.Text)
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(tokenizer.Encode(golden.Text))(t)
 	frames := len(golden.QuantizerCalls)
 	latents := make([]float32, 0, frames*m.Dims.LatentDim)
 	for _, call := range golden.QuantizerCalls {
@@ -43,22 +40,19 @@ func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
 	if frames == 0 || frames > golden.NQuantizerCalls || len(latents) != frames*m.Dims.LatentDim {
 		t.Fatalf("native latent geometry traced=%d generated=%d values=%d want=%d", frames, golden.NQuantizerCalls, len(latents), frames*m.Dims.LatentDim)
 	}
-	before, err := m.LossAndGrads(ids, latents, frames, golden.Seed, nil)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(m.LossAndGrads(ids, latents, frames, golden.Seed, nil))(t)
 	const baseLR = 1e-4
 	lrJoint, nFlow, nJoint := m.DerivedJointLR(baseLR)
 	tensors, _ := m.TrainedTensors(true)
 	probe := tensors["flow_lm.flow_net.final_layer.linear.weight"]
 	probeBefore := append([]float32(nil), probe...)
-	trainer, err := NewJointTrainer(m, optimizer.Config{Steps: 1, BaseLearningRate: baseLR, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}, host)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewJointTrainer(m, optimizer.Config{Steps: 1, BaseLearningRate: baseLR, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}, host))(t)
 	defer trainer.Close()
 	started := time.Now()
 	stepLoss, err := trainer.Step(TrainingExample{TextIDs: ids, Latents: latents, Frames: frames, Seed: golden.Seed})
 	stepWall := time.Since(started)
 	testcheck.NoError(t, err)
-	after, err := m.LossAndGrads(ids, latents, frames, golden.Seed, nil)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(m.LossAndGrads(ids, latents, frames, golden.Seed, nil))(t)
 	changed := 0
 	for index, value := range probe {
 		if value != probeBefore[index] {

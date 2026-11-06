@@ -82,8 +82,7 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 	directory := t.TempDir()
 	fixture := `{"model":{"type":"BPE","vocab":{"a":0,"▁":1,"b":2},"merges":[]},"normalizer":{"type":"Replace","pattern":{"String":" "},"content":"▁"}}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(fixture), 0600))
-	marker, err := Load(directory)
-	testcheck.NoError(t, err)
+	marker := testcheck.Must(Load(directory))(t)
 	if got, err := marker.Encode("a b"); err != nil || !slices.Equal(got, []int{0, 1, 2}) {
 		t.Fatalf("legacy marker encoding changed: %v %v", got, err)
 	}
@@ -105,13 +104,11 @@ func TestRxBrainEmptyNormalizerSequence(t *testing.T) {
 func TestKreaDeclaredNFCParity(t *testing.T) {
 	dir := modeltest.Directory(t, "Krea-2-Turbo")
 	tokenizerPath := filepath.Join(dir, "tokenizer", "tokenizer.json")
-	data, err := os.ReadFile(tokenizerPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(tokenizerPath))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506" {
 		t.Fatalf("Krea tokenizer drifted: %s", got)
 	}
-	tokenizer, err := Load(filepath.Dir(tokenizerPath))
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(Load(filepath.Dir(tokenizerPath)))(t)
 	for _, tc := range []struct {
 		input string
 		ids   []int
@@ -147,11 +144,9 @@ func loadTokenizerFixture(t *testing.T, normalizer, pre any, added []map[string]
 		"model":      map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []string{}},
 		"normalizer": normalizer, "pre_tokenizer": pre, "added_tokens": added,
 	}
-	data, err := json.Marshal(fixture)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(fixture))(t)
 	directory := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600))
-	tokenizer, err := Load(directory)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(Load(directory))(t)
 	return tokenizer
 }

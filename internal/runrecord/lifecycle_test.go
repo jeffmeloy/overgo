@@ -10,16 +10,13 @@ import (
 )
 
 func TestGateLifecycleConstruction(t *testing.T) {
-	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-environment"))
-	testcheck.NoError(t, err)
-	result, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-result"))
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-environment")))(t)
+	result := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-result")))(t)
 	prepared, err := newGatePreparation(string(make([]byte, 64)), environment, time.Unix(100, 0))
 	if err == nil {
 		t.Fatal("accepted a non-hex tree key")
 	}
-	prepared, err = newGatePreparation("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", environment, time.Unix(100, 0))
-	testcheck.NoError(t, err)
+	prepared = testcheck.Must(newGatePreparation("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", environment, time.Unix(100, 0)))(t)
 	if _, err := newGateFinalization(prepared, "0123456789abcdef0123456789abcdef01234567", result, OutcomeSucceeded); err != nil {
 		t.Fatal(err)
 	}

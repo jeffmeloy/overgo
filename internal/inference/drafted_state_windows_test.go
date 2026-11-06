@@ -21,15 +21,13 @@ import (
 func TestDraftedWindowStateBytesAreReported(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{}, recipe.ResidencyDeviceF32)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{}, recipe.ResidencyDeviceF32))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
 		}
 	})
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	if _, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: 12, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true,
 		PromptTokenIDs: []tokenizer.TokenID{1, 4, 5}, ContinueAfterEOG: true,

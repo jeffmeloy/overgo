@@ -25,8 +25,7 @@ func TestRootDocumentsNameOnlyWhatTheTreeHolds(t *testing.T) {
 	const figure = "docs/assets/overgo_graphic.json"
 	texts := map[string]string{}
 	for _, document := range []string{"skill.md", "README.md", figure} {
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(document))))(t)
 		texts[document] = string(data)
 	}
 	if !json.Valid([]byte(texts[figure])) {

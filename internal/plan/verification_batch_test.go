@@ -29,8 +29,7 @@ func batchPlanFixture() Plan {
 func TestVerificationBatchDeclaration(t *testing.T) {
 	t.Parallel()
 	document := batchPlanFixture()
-	data, err := json.Marshal(document)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(document))(t)
 	parsed, err := Parse(data)
 	if err != nil || !reflect.DeepEqual(parsed, document) {
 		t.Fatalf("declaration round trip = %+v, %v", parsed, err)

@@ -40,10 +40,8 @@ func pipelineWrite(t *testing.T, root, name, body string) {
 
 func TestPipelineInventoryDeterministic(t *testing.T) {
 	firstRoot, secondRoot := pipelineFixture(t), pipelineFixture(t)
-	first, err := FromHFPath(firstRoot)
-	testcheck.NoError(t, err)
-	second, err := FromHFPath(secondRoot)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(FromHFPath(firstRoot))(t)
+	second := testcheck.Must(FromHFPath(secondRoot))(t)
 	if first.Manifest.ID != second.Manifest.ID || first.TensorInventory.ID != second.TensorInventory.ID {
 		t.Fatal("relocation or creation order changes inventory identity")
 	}
@@ -76,8 +74,7 @@ func TestPipelineInventoryDeterministic(t *testing.T) {
 		}
 	}
 	pipelineWrite(t, secondRoot, "scheduler/scheduler_config.json", `{"_class_name":"MOSSImageScheduler","shift":1}`)
-	changed, err := FromHFPath(secondRoot)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(FromHFPath(secondRoot))(t)
 	if changed.Manifest.ID == first.Manifest.ID {
 		t.Fatal("scheduler change retained source identity")
 	}
@@ -127,8 +124,7 @@ func TestPipelineInventoryRefusesIncompleteOrEscapingComponents(t *testing.T) {
 
 func TestPipelineInventoryRetainsPolicyParameters(t *testing.T) {
 	root := pipelineFixture(t)
-	raw, err := os.ReadFile(filepath.Join(root, "model_index.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "model_index.json")))(t)
 	var index map[string]any
 	testcheck.NoError(t, json.Unmarshal(raw, &index))
 	index["_class_name"] = "Krea2Pipeline"
@@ -138,20 +134,16 @@ func TestPipelineInventoryRetainsPolicyParameters(t *testing.T) {
 	index["text_encoder_select_layers"] = []int{2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35}
 	index["is_distilled"] = true
 	index["patch_size"] = 2
-	encoded, err := json.Marshal(index)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(index))(t)
 	pipelineWrite(t, root, "model_index.json", string(encoded))
-	inventory, err := FromHFPath(root)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromHFPath(root))(t)
 	if len(inventory.TensorInventory.Tensors) != 2 {
 		t.Fatal("policy metadata changed component enumeration")
 	}
 	index["text_encoder_select_layers"] = []int{2, 5}
-	encoded, err = json.Marshal(index)
-	testcheck.NoError(t, err)
+	encoded = testcheck.Must(json.Marshal(index))(t)
 	pipelineWrite(t, root, "model_index.json", string(encoded))
-	changed, err := FromHFPath(root)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(FromHFPath(root))(t)
 	if changed.Manifest.ID == inventory.Manifest.ID {
 		t.Fatal("layer selection was excluded from model identity")
 	}

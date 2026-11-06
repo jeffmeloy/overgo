@@ -97,14 +97,12 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	var bundle mediaConditionedBundle
 	path := filepath.Join(root, "docs/image_video_conditioned_videos.json")
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoConditionedSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Scope == "" || len(bundle.Cases) != 4 || len(bundle.Numerical) != 3 || len(bundle.Inspection) == 0 {
 		t.Fatal("incomplete conditioned video bundle")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := evidenceReader(t, store, "conditioned video evidence")
 	decode := func(id artifact.ID, value any) {
@@ -125,8 +123,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	}
 	checkTest := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty passing evidence")
@@ -172,8 +169,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	if err != nil || len(failed.Failed) == 0 {
 		t.Fatal("lost failed reference-reading attempt", err)
 	}
-	raw, err = os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	testcheck.NoError(t, err)
+	raw = testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json")))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(raw))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, json.Unmarshal(raw, &protocol))
@@ -189,8 +185,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		}
 		seen[c.ID] = true
 		entry := bundle.Cases[index]
-		run, err := runrecord.RequireExactRun(t.Context(), store, entry.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireExactRun(t.Context(), store, entry.Run))(t)
 		if run.CodeCommit != bundle.Source || run.Recipe != c.Recipe || !slices.Equal(run.Inputs, c.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{entry.Output}) || run.Outcome != runrecord.OutcomeSucceeded || run.MeasuredNS == 0 || len(run.Phases) == 0 {
 			t.Fatal("conditioned run identity differs")
 		}

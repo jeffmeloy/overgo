@@ -16,13 +16,11 @@ import (
 )
 
 func TestMeanPoolNormalized(t *testing.T) {
-	hidden, err := reference.NewValue(
+	hidden := testcheck.Must(reference.NewValue(
 		tensor.MustShape(3, 2),
 		[]float32{1, 2, 3, 3, 2, 1},
-	)
-	testcheck.NoError(t, err)
-	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
-	testcheck.NoError(t, err)
+	))(t)
+	vectors := testcheck.Must(poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2}))(t)
 	embedding := vectors[0]
 	want := float32(1 / math.Sqrt(3))
 	for index, value := range embedding {
@@ -48,8 +46,7 @@ func TestEmbedTokensRejectsEmptyAndOutOfRangeInput(t *testing.T) {
 
 func TestMeanPoolNormalizedPreservesUpstreamZero(t *testing.T) {
 	hidden, _ := reference.NewValue(tensor.MustShape(2, 1), []float32{0, 0})
-	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
-	testcheck.NoError(t, err)
+	vectors := testcheck.Must(poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2}))(t)
 	got := vectors[0]
 	if len(got) != 2 || got[0] != 0 || got[1] != 0 {
 		t.Fatalf("zero embedding = %v", got)
@@ -61,11 +58,10 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 		tensor.MustShape(2, 2),
 		[]float32{3, 4, -6, 8},
 	)
-	none, err := poolEmbeddings(hidden, EmbeddingOptions{
+	none := testcheck.Must(poolEmbeddings(hidden, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingNone,
 		Normalize: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(none) != 2 ||
 		none[0][0] != 3 ||
 		none[0][1] != 4 ||
@@ -73,11 +69,10 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 		none[1][1] != 8 {
 		t.Fatalf("none pooling = %v", none)
 	}
-	last, err := poolEmbeddings(hidden, EmbeddingOptions{
+	last := testcheck.Must(poolEmbeddings(hidden, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingLast,
 		Normalize: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if math.Abs(float64(last[0][0]-(-0.6))) > 1e-6 ||
 		math.Abs(float64(last[0][1]-0.8)) > 1e-6 {
 		t.Fatalf("last L2 = %v", last)
@@ -117,8 +112,7 @@ func TestProjectEmbeddingVectorsHostAppliesDenseChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader := bytes.NewReader(encoded.Bytes())
-	file, err := gguf.Parse(reader, uint64(encoded.Len()), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(reader, uint64(encoded.Len()), gguf.DefaultOptions()))(t)
 	dense2Info, ok := file.Tensor("dense_2.weight")
 	if !ok {
 		t.Fatal("dense-2 projection tensor is missing")
@@ -128,8 +122,7 @@ func TestProjectEmbeddingVectorsHostAppliesDenseChain(t *testing.T) {
 		t.Fatal("dense-3 projection tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{Dense2Output: &dense2Info, Dense3Output: &dense3Info}}}
-	got, err := runner.projectEmbeddingVectors(t.Context(), [][]float32{{2, 3}, {-1, 4}})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(runner.projectEmbeddingVectors(t.Context(), [][]float32{{2, 3}, {-1, 4}}))(t)
 	want := [][]float32{{5, 5}, {3, 3}}
 	for vector := range want {
 		for index := range want[vector] {

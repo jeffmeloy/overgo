@@ -16,8 +16,7 @@ func TestBuilderAndTopological(t *testing.T) {
 	right := builder.Input("right", dtype.F32, shape)
 	output := builder.SiLU(builder.Scale(builder.Add(left, right), 0.5))
 	testcheck.NoError(t, builder.Err())
-	nodes, err := Topological(output)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(Topological(output))(t)
 	if len(nodes) != 5 || nodes[len(nodes)-1] != output {
 		t.Fatalf("unexpected topological order: %#v", nodes)
 	}

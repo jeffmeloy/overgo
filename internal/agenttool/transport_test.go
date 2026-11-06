@@ -17,7 +17,7 @@ import (
 
 func inspectionManual(t *testing.T, name string, transport Transport) Manual {
 	t.Helper()
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name:        name,
 		Description: "Transport test tool.",
 		Effect:      EffectInspection,
@@ -28,8 +28,7 @@ func inspectionManual(t *testing.T, name string, transport Transport) Manual {
 			{Name: "scope", Kind: FieldObject},
 		},
 		Transport: transport,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return manual
 }
 
@@ -45,8 +44,7 @@ func TestTransportBuiltinRoundTripAndRefusals(t *testing.T) {
 	if err := executor.registerBuiltin("echo.args", nil); err == nil {
 		t.Fatal("nil duplicate registration accepted")
 	}
-	result, err := executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x","limit":3,"exact":true,"scope":{"dir":"internal"}}`))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x","limit":3,"exact":true,"scope":{"dir":"internal"}}`)))(t)
 	if !strings.Contains(string(result), `"pattern"`) {
 		t.Fatalf("result = %s", result)
 	}
@@ -153,10 +151,9 @@ func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
 	manual := inspectionManual(t, "weather.remote", Transport{
 		Kind: TransportMCPHTTP, URL: server.URL, Target: "weather.lookup", Protocol: "2025-06-18",
 	})
-	result, err := NewOperatorExecutor().Invoke(
+	result := testcheck.Must(NewOperatorExecutor().Invoke(
 		t.Context(), manual, json.RawMessage(`{"pattern":"Boston"}`),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if !slices.Equal(methods, []string{mcpInitializeMethod, mcpInitializedMethod, mcpToolsCallMethod}) ||
 		received.Name != "weather.lookup" || string(received.Arguments) != `{"pattern":"Boston"}` ||
 		string(result) != `{"content":[{"type":"text","text":"sunny"}]}` {
@@ -170,8 +167,7 @@ func TestTransportArgvReturnsStdoutAsJSONString(t *testing.T) {
 	manual := inspectionManual(t, "go.env", Transport{
 		Kind: TransportArgv, Program: "go", Args: []string{"env", "GOOS"},
 	})
-	result, err := executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x"}`))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(executor.Invoke(ctx, manual, json.RawMessage(`{"pattern":"x"}`)))(t)
 	var text string
 	if err := json.Unmarshal(result, &text); err != nil || text == "" {
 		t.Fatalf("result = %s, %v", result, err)

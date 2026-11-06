@@ -12,12 +12,11 @@ import (
 func TestBoundedTrainingEvidencePreservesFacts(t *testing.T) {
 	stubExecutableCodeCommit(t, strings.Repeat("ef", 20))
 	root, model, dataset, store, recipeID := moeWorkflowFixture(t)
-	result, err := Execute(t.Context(), Request{
+	result := testcheck.Must(Execute(t.Context(), Request{
 		Repository: store, Observations: store, Recipe: recipeID,
 		ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "bounded-evidence"), Steps: 2, Host: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(
 		t.Context(), store, result.RouterObservationCoverage,
 	)
@@ -55,8 +54,7 @@ func TestTrainingEvidenceJournalAmplificationBound(t *testing.T) {
 		t.Helper()
 		_, before := store.Head()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(root, output)
-		result, err := Execute(t.Context(), request)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(Execute(t.Context(), request))(t)
 		_, after := store.Head()
 		return result, after - before
 	}

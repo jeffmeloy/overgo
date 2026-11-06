@@ -40,8 +40,7 @@ func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 		t.Skipf("UNAVAILABLE: encoder checkpoint unreadable: %v", err)
 	}
 	metas := catalog.Tensors
-	plan, err := CompileEncoderPlan(metas, referenceEncoderPolicy)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileEncoderPlan(metas, referenceEncoderPolicy))(t)
 	if !plan.OK {
 		t.Fatalf("plan not ok: %+v", plan)
 	}

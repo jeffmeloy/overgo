@@ -165,15 +165,13 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	}
 	named := func() string {
 		t.Helper()
-		name, err := TextPipelineIdentity(t.Context(), nil, directory)
-		testcheck.NoError(t, err)
+		name := testcheck.Must(TextPipelineIdentity(t.Context(), nil, directory))(t)
 		return name
 	}
 	// kept reports whether the store holds the common prompt's rows under the name the files as they stand give.
 	kept := func() bool {
 		t.Helper()
-		encoder, err := promptEncoderFor(spec)
-		testcheck.NoError(t, err)
+		encoder := testcheck.Must(promptEncoderFor(spec))(t)
 		_, bound, err := artifact.ResolveAlias(ctx, store, encoder.commonRowsName(spec))
 		testcheck.NoError(t, err)
 		return bound
@@ -188,10 +186,8 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	// replaced puts other bytes in a file under the place, the size and the time it had.
 	replaced := func(path string, other func(was []byte) []byte) {
 		t.Helper()
-		before, err := os.Stat(path)
-		testcheck.NoError(t, err)
-		was, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		before := testcheck.Must(os.Stat(path))(t)
+		was := testcheck.Must(os.ReadFile(path))(t)
 		now := other(was)
 		if len(now) != len(was) || bytes.Equal(now, was) {
 			t.Fatalf("%s: %d other bytes for %d, the same bytes: %t; want other bytes of the same length", filepath.Base(path), len(now), len(was), bytes.Equal(now, was))
@@ -256,12 +252,10 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		{"raw storage changed under the same ZIP directory", spec.EncoderCheckpoint, func(was []byte) []byte {
 			was = bytes.Clone(was)
 			other := syntheticEncoder(t, 3)
-			archive, err := zip.NewReader(bytes.NewReader(was), int64(len(was)))
-			testcheck.NoError(t, err)
+			archive := testcheck.Must(zip.NewReader(bytes.NewReader(was), int64(len(was))))(t)
 			for _, entry := range archive.File {
 				if strings.HasPrefix(entry.Name, "archive/data/") {
-					offset, err := entry.DataOffset()
-					testcheck.NoError(t, err)
+					offset := testcheck.Must(entry.DataOffset())(t)
 					end := offset + int64(entry.UncompressedSize64)
 					copy(was[offset:end], other[offset:end])
 				}
@@ -349,8 +343,7 @@ func TestTextPipelineNamesItsCheckpointThroughTheStore(t *testing.T) {
 		return name
 	}
 	first := named(store)
-	before, err := os.Stat(spec.EncoderCheckpoint)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(os.Stat(spec.EncoderCheckpoint))(t)
 	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 2), 0o644))
 	testcheck.NoError(t, os.Chtimes(spec.EncoderCheckpoint, before.ModTime(), before.ModTime()))
 	read := named(nil)

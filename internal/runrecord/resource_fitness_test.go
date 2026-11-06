@@ -56,8 +56,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		},
 		Interactions: &work,
 	}
-	fitness, err := NewResourceFitness(fixture)
-	testcheck.NoError(t, err)
+	fitness := testcheck.Must(NewResourceFitness(fixture))(t)
 	testcheck.NoError(t, fitness.Validate())
 	if observed, known := fitness.Measure(ResourceCostUnits); !known || observed != 0 {
 		t.Fatalf("observed zero cost = (%d, %v)", observed, known)
@@ -72,8 +71,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	if fitness.Interactions.Retries != 9 {
 		t.Fatal("resource fitness aliases caller interaction work")
 	}
-	encoded, err := json.Marshal(fitness)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(fitness))(t)
 	var decoded ResourceFitness
 	if err := json.Unmarshal(encoded, &decoded); err != nil || decoded.Validate() != nil || !reflect.DeepEqual(decoded, fitness) {
 		t.Fatalf("canonical round trip differs: decoded=%+v err=%v", decoded, err)
@@ -83,16 +81,14 @@ func TestResourceFitnessContract(t *testing.T) {
 	withoutZero.Measures = slices.DeleteFunc(slices.Clone(fitness.Measures), func(measure ResourceMeasure) bool {
 		return measure.Metric == ResourceCostUnits
 	})
-	unknownID, err := artifact.JSONID(artifact.KindEvidence, withoutZero)
-	testcheck.NoError(t, err)
+	unknownID := testcheck.Must(artifact.JSONID(artifact.KindEvidence, withoutZero))(t)
 	zeroID, err := artifact.JSONID(artifact.KindEvidence, fitness)
 	if err != nil || zeroID == unknownID {
 		t.Fatalf("known zero collapsed with unknown: zero=%s unknown=%s err=%v", zeroID, unknownID, err)
 	}
 	unknownInteractions := cloneResourceFitness(fitness)
 	unknownInteractions.Interactions = nil
-	unknownInteractionID, err := artifact.JSONID(artifact.KindEvidence, unknownInteractions)
-	testcheck.NoError(t, err)
+	unknownInteractionID := testcheck.Must(artifact.JSONID(artifact.KindEvidence, unknownInteractions))(t)
 	observedZeroInteractions := cloneResourceFitness(unknownInteractions)
 	observedZeroInteractions.Interactions = &InteractionWork{}
 	observedInteractionID, err := artifact.JSONID(artifact.KindEvidence, observedZeroInteractions)
@@ -115,8 +111,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		t.Run("axis "+mutation.name, func(t *testing.T) {
 			candidate := cloneResourceFitness(fitness)
 			mutation.set(&candidate)
-			candidate, err = NewResourceFitness(candidate)
-			testcheck.NoError(t, err)
+			candidate = testcheck.Must(NewResourceFitness(candidate))(t)
 			candidateID, err := artifact.JSONID(artifact.KindEvidence, candidate)
 			if err != nil || candidateID == baseID {
 				t.Fatalf("axis collapsed: id=%s err=%v", candidateID, err)
@@ -141,14 +136,12 @@ func TestResourceFitnessContract(t *testing.T) {
 
 	servingFixture := servingObservationFixture(t)
 	servingFixture.Resources.PeakHostBytes = 0
-	serving, err := NewServingObservation(servingFixture)
-	testcheck.NoError(t, err)
-	servingFitness, err := serving.ResourceFitness(
+	serving := testcheck.Must(NewServingObservation(servingFixture))(t)
+	servingFitness := testcheck.Must(serving.ResourceFitness(
 		artifact.ID{}, nil,
 		ResourceWallNS, ResourceInputTokens, ResourceOutputTokens, ResourceInputBytes, ResourceOutputBytes,
 		ResourcePeakHostBytes, ResourcePeakDeviceBytes, ResourceHostToDeviceBytes, ResourceDeviceToHostBytes,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if servingFitness.Scope.Surface != SurfaceServing || servingFitness.Scope.Model != serving.Model ||
 		servingFitness.Scope.Hardware != serving.Environment || servingFitness.Scope.Workload != serving.Recipe ||
 		servingFitness.Scope.Attempt != serving.ID {

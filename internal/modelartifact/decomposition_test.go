@@ -21,8 +21,7 @@ func TestComponentDecompositionContract(t *testing.T) {
 		{Name: "blk.0.attn_q.weight", Shape: []uint64{896, 896}, Storage: "bf16"},
 		{Name: "blk.0.attn_norm.weight", Shape: []uint64{896}, Storage: "f32"},
 	}
-	document, err := NewComponentDecomposition(model, "qwen2", "text", tensors)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewComponentDecomposition(model, "qwen2", "text", tensors))(t)
 	replay, err := NewComponentDecomposition(model, "qwen2", "text", tensors)
 	if err != nil || replay.ID != document.ID {
 		t.Fatalf("replayed decomposition = (%v, %v), want identical identity %v", replay.ID, err, document.ID)

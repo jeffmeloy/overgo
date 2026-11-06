@@ -27,8 +27,7 @@ import (
 // ggufTensorValues decodes one tensor of a GGUF file.
 func ggufTensorValues(t *testing.T, path, name string) []float32 {
 	t.Helper()
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	index := slices.IndexFunc(file.Tensors, func(info gguf.TensorInfo) bool { return info.Name == name })
 	if index < 0 {
@@ -37,10 +36,8 @@ func ggufTensorValues(t *testing.T, path, name string) []float32 {
 	info := file.Tensors[index]
 	raw := make([]byte, info.Size)
 	testcheck.NoError(t, file.ReadTensorData(info, raw))
-	elements, err := info.ElementCount()
-	testcheck.NoError(t, err)
-	values, err := quant.Dequantize(info.Type, raw, elements)
-	testcheck.NoError(t, err)
+	elements := testcheck.Must(info.ElementCount())(t)
+	values := testcheck.Must(quant.Dequantize(info.Type, raw, elements))(t)
 	return values
 }
 
@@ -49,10 +46,8 @@ func ggufTensorValues(t *testing.T, path, name string) []float32 {
 func writeTunedGGUF(t *testing.T, base string, shift float32) string {
 	t.Helper()
 	tuned := filepath.Join(t.TempDir(), "tuned.gguf")
-	source, err := gguf.Open(base)
-	testcheck.NoError(t, err)
-	destination, err := os.Create(tuned)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(gguf.Open(base))(t)
+	destination := testcheck.Must(os.Create(tuned))(t)
 	if err := source.RewriteTo(destination, gguf.DTypeF32, func(_ gguf.TensorInfo, values []float32) error {
 		for index := range values {
 			values[index] += shift

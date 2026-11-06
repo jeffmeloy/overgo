@@ -39,8 +39,7 @@ func TestCensusClassifiesWithoutRegex(t *testing.T) {
 		"  :root { --ink: #111111; --bg0: #ffffff; }",
 		"}",
 	}, "\n")
-	document, err := ParseDesign(stylesheet)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(ParseDesign(stylesheet))(t)
 	if document.Schemes[0].Colours["ink"] != "#eeeeee" || document.Schemes[1].Colours["ink"] != "#111111" ||
 		document.Spacing["s1"] != "4px" || document.Type["t-h"] != "18px" || document.Radius["radius-s"] != "4px" {
 		t.Fatalf("design tokens misread: %+v", document)

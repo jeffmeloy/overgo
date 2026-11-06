@@ -16,8 +16,7 @@ import (
 // and from then on the child answers.
 func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	launcher := &upstreamLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	proxy := &Proxy{
 		Supervisor: supervisor,
@@ -32,8 +31,7 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	front := httptest.NewServer(proxy)
 	defer front.Close()
 
-	idle, err := http.Get(front.URL + "/app.html")
-	testcheck.NoError(t, err)
+	idle := testcheck.Must(http.Get(front.URL + "/app.html"))(t)
 	body, _ := io.ReadAll(idle.Body)
 	idle.Body.Close()
 	via, present := idle.Header["X-Overgo-Swap-Proxy"]
@@ -43,22 +41,19 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	if _, running := supervisor.Status(); running {
 		t.Fatal("the idle answer launched a child")
 	}
-	posted, err := http.Post(front.URL+"/library/register", "application/json", strings.NewReader(`{"kind":"provider","name":"p"}`))
-	testcheck.NoError(t, err)
+	posted := testcheck.Must(http.Post(front.URL+"/library/register", "application/json", strings.NewReader(`{"kind":"provider","name":"p"}`)))(t)
 	echoed, _ := io.ReadAll(posted.Body)
 	posted.Body.Close()
 	if string(echoed) != `idle{"kind":"provider","name":"p"}` {
 		t.Fatalf("idle handler received %q", echoed)
 	}
 
-	launched, err := http.Get(front.URL + "/health?swap=alpha")
-	testcheck.NoError(t, err)
+	launched := testcheck.Must(http.Get(front.URL + "/health?swap=alpha"))(t)
 	launched.Body.Close()
 	if launched.StatusCode != http.StatusOK || launched.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
 		t.Fatalf("named swap = %d %q", launched.StatusCode, launched.Header.Get("X-Overgo-Swap-Proxy"))
 	}
-	served, err := http.Get(front.URL + "/app.html")
-	testcheck.NoError(t, err)
+	served := testcheck.Must(http.Get(front.URL + "/app.html"))(t)
 	served.Body.Close()
 	if served.Header.Get("X-Idle") != "" || served.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
 		t.Fatalf("request after the launch = %q", served.Header)

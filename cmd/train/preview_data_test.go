@@ -23,23 +23,18 @@ func TestTrainSpeechDatasetPreview(t *testing.T) {
 	audio, _ := artifact.IdentifyBytes(artifact.KindFile, wave)
 	path := filepath.Join(t.TempDir(), "source.wav")
 	testcheck.NoError(t, os.WriteFile(path, wave, 0600))
-	metadata, err := json.Marshal(dataset.SpeechRecord{Audio: audio, Origin: dataset.AudioPayloadOrigin{Container: audio}, Target: "isolated training target"})
-	testcheck.NoError(t, err)
+	metadata := testcheck.Must(json.Marshal(dataset.SpeechRecord{Audio: audio, Origin: dataset.AudioPayloadOrigin{Container: audio}, Target: "isolated training target"}))(t)
 	metadataID, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, metadata)
-	version, err := dataset.NewVersion([]dataset.Asset{{Name: "speech", Artifact: metadataID, Records: 1}})
-	testcheck.NoError(t, err)
-	split, err := dataset.BuildGroupSplit(version.ID, []dataset.Record{{ID: fmt.Sprintf("%s/speech/0", version.ID), Group: "source"}}, 0, []dataset.SplitPartition{{Name: "selected", Weight: 1}, {Name: "reserved", Weight: 1}})
-	testcheck.NoError(t, err)
+	version := testcheck.Must(dataset.NewVersion([]dataset.Asset{{Name: "speech", Artifact: metadataID, Records: 1}}))(t)
+	split := testcheck.Must(dataset.BuildGroupSplit(version.ID, []dataset.Record{{ID: fmt.Sprintf("%s/speech/0", version.ID), Group: "source"}}, 0, []dataset.SplitPartition{{Name: "selected", Weight: 1}, {Name: "reserved", Weight: 1}}))(t)
 	var membership dataset.Membership
 	for _, candidate := range split.Memberships {
 		if len(candidate.Records) != 0 {
 			membership = candidate
 		}
 	}
-	batch, err := split.PublicationBatch("preview/fixture", nil)
-	testcheck.NoError(t, err)
-	content, err := version.Content()
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(split.PublicationBatch("preview/fixture", nil))(t)
+	content := testcheck.Must(version.Content())(t)
 	batch.Contents = append(batch.Contents, content, artifact.Content{Descriptor: artifact.Descriptor{ID: metadataID, Size: uint64(len(metadata))}, Data: metadata})
 	batch.Lineage = append(batch.Lineage, version.Lineage()...)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: audio, Size: uint64(len(wave))})
@@ -48,8 +43,7 @@ func TestTrainSpeechDatasetPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := trainingDataPreviewManifest{Dataset: version.ID, Split: membership.ID, MemoryBytes: uint64(len(metadata)), Policy: dataset.AudioInspectionPolicy{MaximumEncodedBytes: uint64(len(wave)), MaximumSamples: 2, ClipThreshold: 1, Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1, SilenceRMSThreshold: 1.0 / 32768, MaximumAbsoluteDCOffset: 1}}}
-	encoded, err := json.Marshal(request)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(request))(t)
 	manifest := filepath.Join(t.TempDir(), "preview.json")
 	testcheck.NoError(t, os.WriteFile(manifest, encoded, 0600))
 	var output bytes.Buffer

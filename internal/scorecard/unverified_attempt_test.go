@@ -30,18 +30,16 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(
 		model, profile, definitionID, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/attempted/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/attempted/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/attempted/evidence", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/attempted/evidence", definition.ID))(t)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/attempted/active", definition, verification, recipe.EvidenceVerified, "attempted fixture", nil, nil,
 	); err != nil {
@@ -49,21 +47,18 @@ func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	}
 	publish := func(name, state string, run artifact.ID) {
 		t.Helper()
-		observation, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+		observation := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 			Model: model, Recipe: definition.ID, Environment: environment, Task: recipe.TaskInference, Run: run,
 			Verification: state, Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1,
-		})
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("fixture/attempted/" + name)
-		testcheck.NoError(t, err)
+		}))(t)
+		batch := testcheck.Must(observation.Batch("fixture/attempted/" + name))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	failures := func() int {
 		t.Helper()
-		summaries, err := servingByRecipe(ctx, store)
-		testcheck.NoError(t, err)
+		summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 		summary := summaries[definition.ID]
 		if summary == nil {
 			return 0

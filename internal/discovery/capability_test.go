@@ -25,10 +25,9 @@ func activatedForecaster(t *testing.T, store *overgodb.Store) (artifact.Manifest
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	location := filepath.Join(t.TempDir(), "forecaster.bin")
 	testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/capability/facts",
 		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
@@ -39,8 +38,7 @@ func activatedForecaster(t *testing.T, store *overgodb.Store) (artifact.Manifest
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/capability/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +47,9 @@ func activatedForecaster(t *testing.T, store *overgodb.Store) (artifact.Manifest
 	); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(
+	verification := testcheck.Must(modelrecipetest.PublishVerification(
 		ctx, store, "fixture/discovery/capability/evidence", definition.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/capability/active", definition, verification,
 		recipe.EvidenceVerified, "capability catalog fixture activation", nil, nil,
@@ -81,8 +78,7 @@ func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
 	if err != nil || !bound {
 		t.Fatalf("the first listing published no identity evidence (%t, %v)", bound, err)
 	}
-	info, err := os.Stat(location)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(os.Stat(location))(t)
 	if _, hit := LoadMemo(ctx, store).lookup(location+"\x00"+artifact.KindTensorSet.String(), info); !hit {
 		t.Error("the memo a later pass loads does not answer the weights from their stat")
 	}
@@ -101,8 +97,7 @@ func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
 func TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	manifest, _, _ := activatedForecaster(t, store)
 	testcheck.NoError(t, store.Close())
 	reader := overgodbtest.OpenReadOnly(t, root)
@@ -124,8 +119,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
 	manifest, definition, location := activatedForecaster(t, store)
-	servable, err := Servable(ctx, store, 10)
-	testcheck.NoError(t, err)
+	servable := testcheck.Must(Servable(ctx, store, 10))(t)
 	if len(servable) != 0 {
 		t.Fatalf("servable = %+v, want the forecast-only model invisible to the inference slice", servable)
 	}
@@ -166,11 +160,10 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	inference, err := modelrecipe.InferenceWithModelDefinition(
+	inference := testcheck.Must(modelrecipe.InferenceWithModelDefinition(
 		manifest.ID, profile, definitionID, recipe.PlacementHost,
 		modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/capability/inference-candidate", inference); err != nil {
 		t.Fatal(err)
 	}
@@ -179,10 +172,9 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	inferenceVerification, err := modelrecipetest.PublishVerification(
+	inferenceVerification := testcheck.Must(modelrecipetest.PublishVerification(
 		ctx, store, "fixture/discovery/capability/inference-evidence", inference.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/capability/inference-active", inference, inferenceVerification,
 		recipe.EvidenceVerified, "capability catalog inference fixture activation", nil, nil,
@@ -287,10 +279,9 @@ func publishCatalogCapability(
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	location := filepath.Join(t.TempDir(), name+".bin")
 	testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/task-catalog/" + name + "/facts",
 		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
@@ -301,8 +292,7 @@ func publishCatalogCapability(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(task, manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(task, manifest.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/task-catalog/"+name+"/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -311,10 +301,9 @@ func publishCatalogCapability(
 	); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(
+	verification := testcheck.Must(modelrecipetest.PublishVerification(
 		ctx, store, "fixture/discovery/task-catalog/"+name+"/evidence", definition.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/task-catalog/"+name+"/active", definition, verification,
 		recipe.EvidenceVerified, "task-scoped capability catalog fixture", nil, nil,

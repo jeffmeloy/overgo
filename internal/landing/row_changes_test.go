@@ -33,8 +33,7 @@ func rowChangeFixture(t *testing.T) (*sliceFixture, func(named, extra string) er
 // editPlan rewrites the fixture's plan through edit.
 func editPlan(t *testing.T, fixture *sliceFixture, edit func(*plan.Plan)) {
 	t.Helper()
-	document, err := plan.Load(fixture.planPath())
-	testcheck.NoError(t, err)
+	document := testcheck.Must(plan.Load(fixture.planPath()))(t)
 	edit(&document)
 	testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 }

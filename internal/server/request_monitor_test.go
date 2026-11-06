@@ -121,8 +121,7 @@ func (generator slowTokenizer) TokenizeText(text string, addSpecial, parseSpecia
 func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 	t.Parallel()
 	generator := &fakeGenerator{pieces: []string{"A"}, started: make(chan struct{}), release: make(chan struct{})}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, MaxConcurrent: 1}, slowTokenizer{generator})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, MaxConcurrent: 1}, slowTokenizer{generator}))(t)
 	defer handler.Close()
 	var served sync.WaitGroup
 	send := func() {
@@ -164,8 +163,7 @@ func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 // with the status it was answered, since a refusal is part of an error rate.
 func TestRequestMonitorRecordsARefusedRequest(t *testing.T) {
 	t.Parallel()
-	handler, err := New(Config{ModelID: testModelID, APIKey: "secret", MaxTokens: testMaxTokens}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, APIKey: "secret", MaxTokens: testMaxTokens}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	if response := serveTestRequest(handler, http.MethodGet, "/props", ""); response.Code != http.StatusUnauthorized {
 		t.Fatalf("an unauthorized call answered %d", response.Code)
@@ -193,8 +191,7 @@ func TestRequestMonitorStreamsThroughTheRecorder(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	defer close(generator.release)
-	response, err := http.Post(server.URL+"/completion", "application/json", strings.NewReader(`{"prompt":"hi","n_predict":4,"stream":true}`))
-	testcheck.NoError(t, err)
+	response := testcheck.Must(http.Post(server.URL+"/completion", "application/json", strings.NewReader(`{"prompt":"hi","n_predict":4,"stream":true}`)))(t)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK || !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") {
 		t.Fatalf("stream answered %d as %q", response.StatusCode, response.Header.Get("Content-Type"))

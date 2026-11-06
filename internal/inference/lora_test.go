@@ -25,11 +25,10 @@ func TestLoRAGraphAppliesAlphaScaleAndGlobalDisable(t *testing.T) {
 	weight := builder.Input("projection", dtype.F32, tensor.MustShape(2, 2))
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
 	output := builder.MulMat(weight, input)
-	results, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		weight: {Shape: weight.Shape, Data: []float32{1, 0, 0, 1}},
 		input:  {Shape: input.Shape, Data: []float32{5, 7}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if got, want := results[output].Data, []float32{15, 28}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("adapted output = %v, want %v", got, want)
 	}
@@ -54,11 +53,10 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 			},
 		},
 	}, scale: 0.25}}}}
-	embedded, err := runner.applyLoRAEmbeddingSelection(
+	embedded := testcheck.Must(runner.applyLoRAEmbeddingSelection(
 		"token_embd.weight", []uint32{1},
 		reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{10, 20}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if got, want := embedded.Data, []float32{16, 30}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("embedding = %v, want %v", got, want)
 	}
@@ -95,11 +93,9 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}, runnerState: runnerState{loraAdapters: []loadedLoRA{{
 		adapter: adapter, scale: 1, signature: loRAStaticSignature(adapter),
 	}}}}
-	before, err := runner.sessionModelSignature()
-	testcheck.NoError(t, err)
+	before := testcheck.Must(runner.sessionModelSignature())(t)
 	testcheck.NoError(t, runner.SetLoRAScales(t.Context(), []LoRAScale{{ID: 0, Scale: 0.5}}))
-	after, err := runner.sessionModelSignature()
-	testcheck.NoError(t, err)
+	after := testcheck.Must(runner.sessionModelSignature())(t)
 	if before == after {
 		t.Fatal("LoRA scale did not change session signature")
 	}

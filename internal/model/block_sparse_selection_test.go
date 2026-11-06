@@ -21,8 +21,7 @@ func TestFlashNextSparseAttention(t *testing.T) {
 // RunFlashNextSparseAttention shares original-model inputs and assertions between host and CUDA tests.
 func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)) {
 	t.Helper()
-	data, err := os.ReadFile("testdata/flashnext_sparse.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/flashnext_sparse.json"))(t)
 	var fixture struct {
 		Tolerance     float64
 		Ratio, Budget uint32
@@ -97,8 +96,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 				options := blockDispatchOptions{Context: context, Spec: spec, Weights: weights, Plan: &plan}
 				operands := layerOperands{}
 				operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue] = context.PastKey, context.PastValue
-				result, err := executeAttentionOperator(options, plan, layerOperatorAttentionGatedProjection, operands, &layerExecution{current: context.Input})
-				testcheck.NoError(t, err)
+				result := testcheck.Must(executeAttentionOperator(options, plan, layerOperatorAttentionGatedProjection, operands, &layerExecution{current: context.Input}))(t)
 				outputs := result.States.AppendValues([]*tensor.Tensor{result.Output, result.Key, result.Value})
 				var selected *tensor.Tensor
 				for _, node := range builder.Nodes() {
@@ -107,8 +105,7 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 						outputs = append(outputs, node)
 					}
 				}
-				values, err := run(outputs, feeds)
-				testcheck.NoError(t, err)
+				values := testcheck.Must(run(outputs, feeds))(t)
 				for _, check := range []struct {
 					name string
 					node *tensor.Tensor
@@ -206,11 +203,10 @@ func RunBlockSelectionChunks(t *testing.T, run func([]*tensor.Tensor, map[*tenso
 			query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, tokens))
 			indices := selectBlocksByChunk(builder, keys, query, chunk, blockSelection{budget: budget, ratio: ratio, start: layout.start, stored: stored})
 			testcheck.NoError(t, builder.Err())
-			results, err := run([]*tensor.Tensor{indices}, map[*tensor.Tensor]reference.Value{
+			results := testcheck.Must(run([]*tensor.Tensor{indices}, map[*tensor.Tensor]reference.Value{
 				keys:  {Shape: keys.Shape, Data: keyData},
 				query: {Shape: query.Shape, Data: queryData},
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			return results[indices].Data
 		}
 		whole := selected(tokens)

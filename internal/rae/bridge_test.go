@@ -17,8 +17,7 @@ import (
 // source weights and an offset for each target channel.
 func TestABridgedPairNamesThePartsBesideIt(t *testing.T) {
 	t.Parallel()
-	sampler, err := servedSampler()
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(servedSampler())(t)
 	// A models directory with the shape of a collection, its encoder's image
 	// processor and another encoder: ResolveBridgedPair reads names, not weights.
 	models := t.TempDir()

@@ -25,18 +25,15 @@ func TestShortInitializesMeasuredShape(t *testing.T) {
 	}
 	var control ShortShape
 	for _, explicit := range []bool{true, false} {
-		program, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32)
-		testcheck.NoError(t, err)
-		runner, err := inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{})
-		testcheck.NoError(t, err)
+		program := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32))(t)
+		runner := testcheck.Must(inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{}))(t)
 		func() {
 			defer runner.Close()
 			testcheck.NoError(t, Warm(t.Context(), runner, corpus[:floors.PromptTokens], GuardContinuation))
 			if explicit {
 				testcheck.NoError(t, Warm(t.Context(), runner, corpus[:floors.ShortPromptTokens], GuardContinuation))
 			}
-			shape, err := Short(t.Context(), runner, corpus, floors, GuardContinuation)
-			testcheck.NoError(t, err)
+			shape := testcheck.Must(Short(t.Context(), runner, corpus, floors, GuardContinuation))(t)
 			work := shape.Measure.Execution
 			if shape.WarmupOutputTokens != WarmupOutputTokens || work.GraphLaunchesPerToken == 0 || work.GraphInstantiationsPerToken != 0 {
 				t.Fatalf("explicit=%t measured graph initialization: %+v", explicit, work)

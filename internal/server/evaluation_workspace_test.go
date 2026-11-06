@@ -83,34 +83,30 @@ func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
 	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "evaluation-api-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "evaluation-api-recipe")
-	data, err := json.Marshal(evaluation.ExactSuite{
+	data := testcheck.Must(json.Marshal(evaluation.ExactSuite{
 		Schema: "fixture/v1", Source: "fixture",
 		Cases: []evaluation.ExactCase{{
 			Name: "case", Prompt: "prompt", MaxTokens: 1,
 			Text: "A", PromptTokens: 2, GeneratedTokens: 1,
 		}},
-	})
-	testcheck.NoError(t, err)
-	compiled, err := evaluation.CompileSuite(data, evaluation.ExactAuthorities{
+	}))(t)
+	compiled := testcheck.Must(evaluation.CompileSuite(data, evaluation.ExactAuthorities{
 		ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "evaluation-api-definition"),
 		RuntimeRecipe:   recipeID, CodeCommit: evaluationTestCommit,
 		Environment: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation-api-environment"),
 		Execution:   evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	fixture := &evaluationWorkspaceFixture{
 		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "evaluation-api-run"),
 	}
-	handler, err := New(Config{Evaluation: fixture}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Evaluation: fixture}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	capabilities := serveTestRequest(handler, http.MethodGet, "/evaluations/capabilities", "")
 	if capabilities.Code != http.StatusOK || !strings.Contains(capabilities.Body.String(), compiled.Descriptor().Plan.String()) {
 		t.Fatalf("capabilities status=%d body=%s", capabilities.Code, capabilities.Body.String())
 	}
-	body, err := json.Marshal(evaluationRunRequest{Model: modelID, Plans: []artifact.ID{compiled.Descriptor().Plan}})
-	testcheck.NoError(t, err)
+	body := testcheck.Must(json.Marshal(evaluationRunRequest{Model: modelID, Plans: []artifact.ID{compiled.Descriptor().Plan}}))(t)
 	accepted := serveTestRequest(handler, http.MethodPost, "/evaluations/run", string(body))
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("run status=%d body=%s", accepted.Code, accepted.Body.String())
@@ -142,8 +138,7 @@ func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
 		},
 		run: testutil.ArtifactID(t, artifact.KindRun, "grounded-replay-api-run"),
 	}
-	handler, err := New(Config{Evaluation: fixture, MaxStoredResponses: 4}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Evaluation: fixture, MaxStoredResponses: 4}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	replay := groundedReplayAPIRequest(t, recipeID)
 	body := groundedReplayAPIBody(t, modelID, replay, false)
@@ -174,8 +169,7 @@ func TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay(t *testing.T
 		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: evaluation.SuiteDescriptor{Plan: planID}},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "grounded-replay-refusal-run"),
 	}
-	handler, err := New(Config{Evaluation: fixture, MaxStoredResponses: 2}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Evaluation: fixture, MaxStoredResponses: 2}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	replay := groundedReplayAPIRequest(t, recipeID)
 	for _, test := range []struct {
@@ -369,7 +363,6 @@ func groundedReplayAPIBody(
 	if mixed {
 		body["plans"] = []string{testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-refusal-plan").String()}
 	}
-	data, err := json.Marshal(body)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(body))(t)
 	return data
 }

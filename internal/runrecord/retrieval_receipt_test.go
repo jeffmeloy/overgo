@@ -38,8 +38,7 @@ func (provider receiptRerankProvider) Score(_ context.Context, query, text strin
 
 func TestRetrievalReceiptReplay(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(directory))(t)
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "receipt-dataset")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "receipt-model")
 	rerankID := testutil.ArtifactID(t, artifact.KindProfile, "receipt-rerank")
@@ -61,31 +60,28 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 	embedder := receiptEmbeddingProvider{model: modelID}
 	reranker := receiptRerankProvider{policy: rerankID}
 	builder := dataset.AgentRetrievalBuilder{Repository: store}
-	documents, err := dataset.PublishAgentRetrievalSource(
+	documents := testcheck.Must(dataset.PublishAgentRetrievalSource(
 		t.Context(), store, artifact.KindFile, []dataset.AgentRetrievalDocument{
 			{Text: "target evidence", Facet: dataset.AgentRetrievalFacetText,
 				Structure: []string{"chapter", "section"}, Parent: parent},
 			{Text: "background", Facet: dataset.AgentRetrievalFacetText,
 				Structure: []string{"chapter", "appendix"}, Parent: parent, StartRune: 15, StartByte: 15},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	source := documents[0].Source
-	projection, err := builder.Build(t.Context(), dataset.AgentRetrievalBuild{
+	projection := testcheck.Must(builder.Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Policy: policy, Embedder: embedder, RerankPolicy: rerankID,
 		Documents: documents,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	query := dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		AllowedDatasets: []artifact.ID{datasetID}, AllowedSources: []artifact.ID{source},
 		AllowedFacets:  []dataset.AgentRetrievalFacet{dataset.AgentRetrievalFacetText},
 		AllowedParents: []artifact.ID{parent}, Embedder: embedder, Reranker: reranker,
 	}
-	consumed, err := SearchAndPublishConsumedRetrieval(t.Context(), store, query, RetrievalConsumer{
+	consumed := testcheck.Must(SearchAndPublishConsumedRetrieval(t.Context(), store, query, RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	search, stored, receipt := consumed.Search, consumed.Receipt, consumed.Receipt
 	if len(search.Results) != 1 {
 		t.Fatalf("search = %+v", search)

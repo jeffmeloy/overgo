@@ -36,7 +36,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "separation-run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume the blocked work", Argv: []string{"overgo", "resume"}}
 	var attempts atomic.Int32
-	id, err := handler.operations.Submit(t.Context(), operation.Request{
+	id := testcheck.Must(handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if attempts.Add(1) == 1 {
@@ -45,8 +45,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 			})
 		}
 		return operation.Completion{Run: runID}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if blocked, err := handler.operations.Wait(t.Context(), id); err != nil || blocked.State != operation.StateBlocked {
 		t.Fatalf("blocked operation=(%+v, %v)", blocked, err)
 	}

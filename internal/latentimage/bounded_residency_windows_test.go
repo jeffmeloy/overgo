@@ -26,28 +26,23 @@ const finishedRequestBytes = 1 << 16
 func TestMOSSBoundedResidency(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)
-	profile, err := ResolveProfile(root)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(ResolveProfile(root))(t)
 	base := Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
 	load := func(request Request) *Generator {
 		t.Helper()
-		g, err := LoadGenerator(t.Context(), root, profile, request)
-		testcheck.NoError(t, err)
+		g := testcheck.Must(LoadGenerator(t.Context(), root, profile, request))(t)
 		t.Cleanup(testutil.Closer(t, context.Background(), g))
 		return g
 	}
 	stats := func(g *Generator) graphruntime.ResidentStats {
 		t.Helper()
-		s, err := g.rotary.runtime.Stats(t.Context())
-		testcheck.NoError(t, err)
+		s := testcheck.Must(g.rotary.runtime.Stats(t.Context()))(t)
 		return s
 	}
 	finish := func(g *Generator) []byte {
 		t.Helper()
-		session, err := g.integrate(t.Context(), g)
-		testcheck.NoError(t, err)
-		image, err := g.decode(t.Context(), session)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(g.integrate(t.Context(), g))(t)
+		image := testcheck.Must(g.decode(t.Context(), session))(t)
 		if s := stats(g); s.StaticBytes != 0 || s.Device.CurrentBytes > finishedRequestBytes {
 			t.Fatalf("a finished request left %d bytes of weights and %d bytes on the device", s.StaticBytes, s.Device.CurrentBytes)
 		}

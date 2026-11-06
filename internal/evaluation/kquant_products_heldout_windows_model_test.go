@@ -32,8 +32,7 @@ var kQuantModel = filepath.Join("Qwen3.8-27B-UD-Q6_K", "Qwen3.8-27B-UD-Q6_K.gguf
 func TestKQuantProductsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and the model is loaded alone.
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	// The model is read where the roots find it first, beside the store before the configured root.
 	var path string
 	for _, root := range roots.ModelRoots() {
@@ -46,8 +45,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 	if path == "" {
 		t.Skipf("Qwen3.8-27B's held-out check needs %s beneath one of %q", kQuantModel, roots.ModelRoots())
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	suites := map[string]CompiledSuite{}
 	for _, family := range []string{"mmlu-pro", "ifeval"} {
 		authorities := ExactAuthorities{
@@ -64,8 +62,7 @@ func TestKQuantProductsHoldHeldOut(t *testing.T) {
 	testcheck.NoError(t, store.Close())
 	right := map[bool]map[string]map[string]bool{}
 	for _, span := range []bool{false, true} {
-		runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{SpanKernels: span})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{SpanKernels: span}))(t)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)

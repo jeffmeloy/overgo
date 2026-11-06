@@ -65,15 +65,13 @@ type chatModeReference struct {
 // tokens are held to what the model's own template and tokenizer give.
 func TestChatModesReachAModelAsItsOwnTemplateGivesThem(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/chat_modes/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's own conversations are on file (%v); write them with %s", err, chatModesScript)
 	}
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference chatModeReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no conversation: %v", fixture, err)
@@ -83,8 +81,7 @@ func TestChatModesReachAModelAsItsOwnTemplateGivesThem(t *testing.T) {
 			if _, err := os.Stat(model); err != nil {
 				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
-			reader, err := inference.OpenPromptReader(model)
-			testcheck.NoError(t, err)
+			reader := testcheck.Must(inference.OpenPromptReader(model))(t)
 			t.Cleanup(func() { _ = reader.Close() })
 			known := knownChatModeFaults[reference.Model]
 			held, faulted := 0, 0

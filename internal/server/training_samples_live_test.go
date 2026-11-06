@@ -37,16 +37,14 @@ func TestTrainingSamplesReachTheEventHub(t *testing.T) {
 	if err != nil || len(capabilities) == 0 {
 		t.Fatalf("training capabilities = %+v, %v", capabilities, err)
 	}
-	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	events, unsubscribe, err := handler.events.subscribe(1024)
 	testcheck.NoError(t, err)
 	defer unsubscribe()
-	body, err := json.Marshal(map[string]any{"task": "training", "recipe": capabilities[0].Recipe, "input": map[string]any{
+	body := testcheck.Must(json.Marshal(map[string]any{"task": "training", "recipe": capabilities[0].Recipe, "input": map[string]any{
 		"dataset": fixture.conversations, "steps": 4, "sample_every": 2, "output": "live-samples",
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if started := serveTestRequest(handler, http.MethodPost, "/training/run", string(body)); started.Code != http.StatusAccepted {
 		t.Fatalf("training run status=%d body=%s", started.Code, started.Body.String())
 	}

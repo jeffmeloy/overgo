@@ -170,8 +170,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 			pieces = append(pieces, output[index:index+1])
 		}
 		g := &declaredReasoningGenerator{fakeGenerator: &fakeGenerator{pieces: pieces}, template: "<think></think>", prompt: "assistant"}
-		h, err := New(Config{ModelID: testModelID, MaxTokens: len(pieces) + 1, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy}, g)
-		testcheck.NoError(t, err)
+		h := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: len(pieces) + 1, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy}, g))(t)
 		message, _, _ := runDeclaredReasoningRequest(t, h, true, len(pieces)+1, "")
 		if message.ReasoningContent != "🙂" || message.Content != "π" || len(message.ToolCalls) != 0 {
 			t.Fatalf("message=%+v", message)

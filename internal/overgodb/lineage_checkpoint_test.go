@@ -33,8 +33,7 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 	for _, edge := range [][3]int{{0, 1, 1}, {0, 2, 2}, {3, 1, 1}, {4, 0, 2}, {4, 3, 1}, {2, 1, 2}, {0, 1, 2}} {
 		facet.add(relationKey{child: ids[edge[0]], parent: ids[edge[1]], relation: artifact.Relation(edge[2])})
 	}
-	payload, err := facet.checkpoint()
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(facet.checkpoint())(t)
 	var body lineageCheckpointBody
 	testcheck.NoError(t, json.Unmarshal(payload, &body))
 	if len(body.IDs) != 5 || len(body.Relations) != 2 || len(body.Edges) != lineageEdgeIndexes*facet.edges {
@@ -62,8 +61,7 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 	root := t.TempDir()
 	testcheck.NoError(t, writeProjectionCheckpoints(root, &state, 1, artifact.CommitID{}, storeHeaderBytes, hex.EncodeToString(make([]byte, sha256.Size))))
 	member := filepath.Join(root, checkpointDirectory, checkpointGeneration(1), "lineage"+checkpointExtension)
-	document, err := os.ReadFile(member)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(os.ReadFile(member))(t)
 	line, _, _ := bytes.Cut(document, []byte{'\n'})
 	var header checkpointHeader
 	testcheck.NoError(t, strictjson.DecodeBytes(line, &header))
@@ -73,12 +71,10 @@ func TestLineageRestoresFromItsCompactBody(t *testing.T) {
 			edges = append(edges, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
 		}
 	}
-	earlier, err := json.Marshal(edges)
-	testcheck.NoError(t, err)
+	earlier := testcheck.Must(json.Marshal(edges))(t)
 	digest := sha256.Sum256(earlier)
 	header.Version, header.PayloadDigest = initialProjectionVersion, hex.EncodeToString(digest[:])
-	line, err = json.Marshal(header)
-	testcheck.NoError(t, err)
+	line = testcheck.Must(json.Marshal(header))(t)
 	testcheck.NoError(t, os.WriteFile(member, append(append(line, '\n'), earlier...), storeFileMode))
 	loaded, _, ok, reason := loadProjectionCheckpoints(root)
 	if !ok {

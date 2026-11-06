@@ -28,8 +28,7 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{OptionalCatalogDraft: &SingleDraftWeights{}}, 0)
-	current, err := draft.BuildDraftInput(builder, input, hidden, norm, norm, projection)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(draft.BuildDraftInput(builder, input, hidden, norm, norm, projection))(t)
 	weights := LayerGraphWeights{
 		AttentionNorm:            norm,
 		AttentionQ:               builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
@@ -44,15 +43,13 @@ func TestBuildCohere2MTPPipeline(t *testing.T) {
 		FeedForwardSharedDown:    builder.Input("sd", dtype.F32, tensor.MustShape(6, 8)),
 	}
 	plan := draft.Layer()
-	block, err := draft.Build(CachedBlockContext{
+	block := testcheck.Must(draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
-	}, weights)
-	testcheck.NoError(t, err)
+	}, weights))(t)
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 32))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, norm, head)
 	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(logits)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(logits))(t)
 	var rope, half, scaled int
 	var window uint32
 	for _, node := range nodes {

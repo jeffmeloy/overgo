@@ -28,19 +28,15 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	for index, model := range []artifact.ID{targetModel, parents[3]} {
-		observation, err := NewMoERouterObservation(MoERouterObservation{
+		observation := testcheck.Must(NewMoERouterObservation(MoERouterObservation{
 			Run: parents[index], Model: model, Dataset: parents[4], Split: parents[5], Recipe: parents[6],
 			Code: parents[7], Checkpoint: parents[8], Policy: parents[9], Step: uint64(index),
 			Rows: 1, Experts: 2, TopK: 1, Selections: []uint32{1}, CombineWeights: []float32{1},
 			Accepted: []bool{true}, Margins: []MoERouterMargin{{Observed: true}},
-		})
-		testcheck.NoError(t, err)
-		chunk, err := NewMoERouterObservationChunk([]MoERouterObservation{observation}, artifact.ID{})
-		testcheck.NoError(t, err)
-		coverage, err := NewMoERouterObservationCoverage(chunk, observation.Step, 1, []uint32{0})
-		testcheck.NoError(t, err)
-		batch, err := coverage.Batch(t.Context(), store, chunk)
-		testcheck.NoError(t, err)
+		}))(t)
+		chunk := testcheck.Must(NewMoERouterObservationChunk([]MoERouterObservation{observation}, artifact.ID{}))(t)
+		coverage := testcheck.Must(NewMoERouterObservationCoverage(chunk, observation.Step, 1, []uint32{0}))(t)
+		batch := testcheck.Must(coverage.Batch(t.Context(), store, chunk))(t)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
@@ -50,10 +46,9 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 		t.Fatalf("target model children = %+v err=%v", children, err)
 	}
 
-	summaries, err := QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
+	summaries := testcheck.Must(QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
 		Model: targetModel, Dataset: parents[4], Limit: 1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if summaries.Plan.Index != "seed" || summaries.Plan.Inspected != 2 || summaries.Plan.Matched != 1 ||
 		summaries.Plan.Returned != 1 || summaries.Plan.Loaded != 1 ||
 		len(summaries.Summaries) != 1 || len(summaries.Chunks) != 0 ||
@@ -64,10 +59,9 @@ func TestTrainingEvidenceQueryPlanLoadsSummariesOnly(t *testing.T) {
 		t.Fatalf("summary-only router query = %+v", summaries)
 	}
 
-	raw, err := QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
+	raw := testcheck.Must(QueryMoERouterObservationCoverage(t.Context(), store, MoERouterObservationQuery{
 		Model: targetModel, IncludeSamples: true, Limit: 1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(raw.Chunks) != 1 || len(raw.Chunks[0].Observations) != 1 ||
 		raw.Work.RawChunksLoaded != 1 || raw.Work.RawBytesLoaded != raw.Summaries[0].ObservationBytes {
 		t.Fatalf("sample router query = %+v", raw)

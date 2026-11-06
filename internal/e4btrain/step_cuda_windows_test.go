@@ -28,25 +28,20 @@ const (
 // loss descends.
 func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(device.DefaultOrdinal())
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(device.DefaultOrdinal()))(t)
 	defer worker.Close()
 
 	host := tinyModel(t, 1)
-	hostLoss, err := host.differentiate(hostAttention)
-	testcheck.NoError(t, err)
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+	hostLoss := testcheck.Must(host.differentiate(hostAttention))(t)
+	plan := testcheck.Must(trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: 1, MaximumSequence: tinyTokens,
 		Parameters: host.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	config := plan.Optimizer()
 	model := tinyModel(t, 1)
-	trainer, err := NewTrainer(worker, model, config)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(worker, model, config))(t)
 	defer trainer.Close()
-	deviceLoss, err := model.differentiate(trainer.attention)
-	testcheck.NoError(t, err)
+	deviceLoss := testcheck.Must(model.differentiate(trainer.attention))(t)
 	if deviceLoss != hostLoss {
 		t.Fatalf("device pass loss %v, host kit %v: the forward is shared", deviceLoss, hostLoss)
 	}
@@ -61,13 +56,11 @@ func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 	t.Logf("gradients: %d tensors, %d parameters, worst relative difference %.3g", model.plan.GroupCount(), model.ParameterCount(), worst)
 
 	before := slices.Clone(model.weights)
-	result, err := trainer.Step()
-	testcheck.NoError(t, err)
+	result := testcheck.Must(trainer.Step())(t)
 	if result.Loss != hostLoss || result.Step != 1 || !(result.GradientL2 > 0) {
 		t.Fatalf("step result %+v, want the host kit's loss %v", result, hostLoss)
 	}
-	stepper, err := optimizer.New(host.weights, host.gradients, host.plan, config)
-	testcheck.NoError(t, err)
+	stepper := testcheck.Must(optimizer.New(host.weights, host.gradients, host.plan, config))(t)
 	stepper.Step()
 	worst = 0
 	for _, group := range model.plan.Groups() {
@@ -82,8 +75,7 @@ func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 			t.Errorf("%s: device update differs from the host kit's Muon update by %.3g of its largest magnitude", group.Name, ratio)
 		}
 	}
-	after, err := trainer.Loss()
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss())(t)
 	t.Logf("step: loss %.6f -> %.6f, gradient L2 %.4g, learning rate %.4g, worst update difference %.3g", result.Loss, after, result.GradientL2, result.LearningRate, worst)
 	if !(after < result.Loss) {
 		t.Errorf("the step did not descend: %.6f -> %.6f", result.Loss, after)

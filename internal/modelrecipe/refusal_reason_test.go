@@ -25,21 +25,18 @@ func TestARefusedRecipeSaysWhyItIsNotVerified(t *testing.T) {
 	}
 	decider := testutil.ArtifactID(t, artifact.KindEvidence, "reason derivation")
 	testutil.PublishArtifact(t, store, decider)
-	refusal, err := recipe.NewDecision(
+	refusal := testcheck.Must(recipe.NewDecision(
 		definition.ID, recipe.DecisionRefused, recipe.EvidenceVerified, "kernel parity failed",
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: decider},
 		[]artifact.ID{testutil.ArtifactID(t, artifact.KindRun, "reason run")},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	publishDecision(t, store, "fixture/reason/refusal", refusal)
 	if _, _, err := Transition(t.Context(), store, "fixture/reason/refused", definition, recipe.StatusRefused, []artifact.ID{refusal.ID}, nil); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 	defer loaded.Close()
-	state, err := loaded.State()
-	testcheck.NoError(t, err)
+	state := testcheck.Must(loaded.State())(t)
 	if state.Verification != StateNotVerified || !strings.Contains(state.Reason, refusal.Reason) {
 		t.Fatalf("state = %+v, want not verified with its recorded failure", state)
 	}

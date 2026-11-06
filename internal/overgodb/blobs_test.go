@@ -21,11 +21,9 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	t.Parallel()
 	blobs := newBlobStore(t.TempDir())
 	payload := []byte("blob-owner contract payload")
-	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, payload)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, payload))(t)
 
-	foreign, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("different payload"))
-	testcheck.NoError(t, err)
+	foreign := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, []byte("different payload")))(t)
 	if err := blobs.prepare(foreign, payload); err == nil {
 		t.Fatal("payload published under an identity it does not hash to")
 	}
@@ -41,8 +39,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 		t.Fatal("published blob is not visible")
 	}
 
-	reader, err := blobs.open(id, uint64(len(payload)))
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(blobs.open(id, uint64(len(payload))))(t)
 	data, err := io.ReadAll(reader)
 	if closeErr := reader.Close(); err != nil || closeErr != nil || string(data) != string(payload) {
 		t.Fatalf("open round trip = (%q, %v, %v)", data, err, closeErr)
@@ -52,33 +49,28 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	}
 	testcheck.NoError(t, blobs.verify(t.Context(), id))
 
-	path, err := blobs.path(id)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(blobs.path(id))(t)
 	staging := filepath.Join(filepath.Dir(path), ".staging-interrupted")
 	testcheck.NoError(t, os.WriteFile(staging, []byte("torn"), storeFileMode))
-	tornID, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("torn"))
-	testcheck.NoError(t, err)
+	tornID := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, []byte("torn")))(t)
 	if blobs.has(tornID) {
 		t.Fatal("staging file visible as a published blob")
 	}
 
-	corrupted, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	corrupted := testcheck.Must(os.ReadFile(path))(t)
 	corrupted[0] ^= 0xFF
 	testcheck.NoError(t, os.WriteFile(path, corrupted, storeFileMode))
 	if err := blobs.verify(t.Context(), id); err == nil || !strings.Contains(err.Error(), "do not hash") {
 		t.Fatalf("corrupted blob verified: %v", err)
 	}
 
-	fileID, err := artifact.IdentifyBytes(artifact.KindFile, payload)
-	testcheck.NoError(t, err)
+	fileID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, payload))(t)
 	for range 2 {
 		if err := blobs.prepare(fileID, payload); err != nil {
 			t.Fatalf("intact file publication or retry refused: %v", err)
 		}
 	}
-	filePath, err := blobs.path(fileID)
-	testcheck.NoError(t, err)
+	filePath := testcheck.Must(blobs.path(fileID))(t)
 	testcheck.NoError(t, os.WriteFile(filePath, corrupted, storeFileMode))
 	if err := blobs.prepare(fileID, payload); err == nil || !strings.Contains(err.Error(), "do not hash") {
 		t.Fatalf("retry accepted same-sized corrupt orphan: %v", err)

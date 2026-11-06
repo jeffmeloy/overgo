@@ -328,14 +328,12 @@ func TestJointLossAndGradsFiniteDifference(t *testing.T) {
 	z := normVec(rng, frames*m.Dims.LatentDim, 0, 1)
 
 	loss := func() float64 {
-		l, err := m.LossAndGrads(ids, z, frames, seed, nil)
-		testcheck.NoError(t, err)
+		l := testcheck.Must(m.LossAndGrads(ids, z, frames, seed, nil))(t)
 		return l
 	}
 
 	g := Grads{}
-	analytic, err := m.LossAndGrads(ids, z, frames, seed, g)
-	testcheck.NoError(t, err)
+	analytic := testcheck.Must(m.LossAndGrads(ids, z, frames, seed, g))(t)
 	if got := loss(); got != analytic {
 		t.Fatalf("loss-only path %.9g != grad path %.9g", got, analytic)
 	}

@@ -14,8 +14,7 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	input := func(name string, shape tensor.Shape, fill float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
-		elements, err := shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(shape.Elements())(t)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = fill + float32(index%7)*0.01
@@ -49,12 +48,10 @@ func TestBuildEagle3FeatureAndDecoder(t *testing.T) {
 	}
 	tokens := input("tokens", tensor.MustShape(4, 3), 0.1)
 	plan := fixtureLayerPlan(t, spec, Weights{}, 0)
-	result, err := buildFixtureLayerWithAuxiliary(
+	result := testcheck.Must(buildFixtureLayerWithAuxiliary(
 		builder, tokens, spec, weights, []uint32{0, 1, 2}, nil, nil, nil, fused, plan,
-	)
-	testcheck.NoError(t, err)
-	results, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-	testcheck.NoError(t, err)
+	))(t)
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds))(t)
 	if !results[result.Output].Shape.Equal(tensor.MustShape(4, 3)) ||
 		!results[result.Key].Shape.Equal(tensor.MustShape(2, 1, 3)) {
 		t.Fatalf("unexpected Eagle3 shapes: output=%v key=%v", results[result.Output].Shape.Slice(), results[result.Key].Shape.Slice())

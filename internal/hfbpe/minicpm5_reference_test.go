@@ -36,13 +36,11 @@ func TestMiniCPM5DeclaredPipelineReference(t *testing.T) {
 		t.Fatal("MiniCPM5 reference provenance or cardinality changed")
 	}
 	directory := modeltest.Directory(t, "MiniCPM5-1B")
-	full, err := os.ReadFile(filepath.Join(directory, "tokenizer.json"))
-	testcheck.NoError(t, err)
+	full := testcheck.Must(os.ReadFile(filepath.Join(directory, "tokenizer.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(full)); got != sourceSHA {
 		t.Fatalf("MiniCPM5 tokenizer source drifted: %s", got)
 	}
-	encoder, err := Load(directory)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(directory))(t)
 	for _, tc := range reference.Cases {
 		got, err := encoder.Encode(tc.Text)
 		if err != nil || !slices.Equal(got, tc.IDs) {

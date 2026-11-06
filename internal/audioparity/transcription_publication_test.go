@@ -22,12 +22,10 @@ func (p *audioPublication) publishTranscriptionBase(t *testing.T, fixture ctcTra
 	}
 	batch, err := inventory.Batch("adapter/base")
 	p.commit(t, batch, err)
-	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: fixture.frontend, Grouping: fixture.grouping, Encoder: fixture.declaration, BlankToken: fixture.blank, Language: "en"})
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: fixture.frontend, Grouping: fixture.grouping, Encoder: fixture.declaration, BlankToken: fixture.blank, Language: "en"}))(t)
 	batch, err = profile.Batch("adapter/profile")
 	p.commit(t, batch, err)
-	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(fixture.frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, fixture.frontend.Geometry, artifact.ID{}, artifact.ID{})
-	testcheck.NoError(t, err)
+	contract := testcheck.Must(modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(fixture.frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, fixture.frontend.Geometry, artifact.ID{}, artifact.ID{}))(t)
 	batch, err = contract.Batch("adapter/contract")
 	p.commit(t, batch, err)
 	var tokenizerID artifact.ID
@@ -36,8 +34,7 @@ func (p *audioPublication) publishTranscriptionBase(t *testing.T, fixture ctcTra
 			tokenizerID = component.Artifact
 		}
 	}
-	base, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), p.store, "adapter/base-recipe", base); err != nil {
 		t.Fatal(err)
 	}

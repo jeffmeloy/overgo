@@ -63,12 +63,9 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		corpus != carbonCorpusSHA || protocol != carbonProtocolSHA {
 		t.Fatal("Carbon artifact, config, corpus, or protocol fingerprint differs")
 	}
-	model, err := densecausal.Load(modelDir)
-	testcheck.NoError(t, err)
-	warmModel, err := densecausal.Load(modelDir)
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(densecausal.Load(modelDir))(t)
+	warmModel := testcheck.Must(densecausal.Load(modelDir))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	if _, err := TrainDeviceResidentWeighted(warmModel, worker, oneSequenceGroups(carbonAdaptiveCausalWindows[:1]), 1.33179e-5, 0.95, Options{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
@@ -85,8 +82,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	testcheck.NoError(t, err)
 	trajectory, measurement := result.Losses, result.Measurement
 	t.Logf("matched Carbon trajectory: %.9f", trajectory)
-	memory, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	const (
 		adaptiveWall = 6816 * time.Millisecond
 		adaptivePeak = uint64(12315818721)
@@ -111,8 +107,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 
 func fileSHA256(t *testing.T, path string) string {
 	t.Helper()
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	defer file.Close()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -145,10 +140,8 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	model, err := densecausal.Load(artifactDir(t, "Carbon-500M"))
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(densecausal.Load(artifactDir(t, "Carbon-500M")))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	tokens := make([]int, 64)
 	tokens[0] = 1
@@ -173,8 +166,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	wall := time.Since(started)
 	testcheck.NoError(t, err)
 	trajectory := result.Losses
-	memory, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	for index, loss := range trajectory {
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("loss[%d]=%g", index, loss)

@@ -32,8 +32,7 @@ func dnaTestVocab(t *testing.T, autoTags bool) *Vocab {
 		array(MetadataDNASpecialTokens, gguf.ValueTypeString, []string{"<dna>", "</dna>", "<oov>"}),
 		scalar(MetadataDNAAutoTags, gguf.ValueTypeBool, autoTags),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
 	return vocab
 }
 
@@ -82,16 +81,14 @@ func TestCarbonDNAEncoding(t *testing.T) {
 		}
 	}
 
-	ids, err := vocab.Encode("<dna>ACGT</dna>", EncodeOptions{})
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(vocab.Encode("<dna>ACGT</dna>", EncodeOptions{}))(t)
 	decoded, err := vocab.Decode(ids, true)
 	if err != nil || decoded != "<dna>ACGT</dna>" {
 		t.Fatalf("round trip = (%q, %v)", decoded, err)
 	}
 
 	auto := dnaTestVocab(t, true)
-	ids, err = auto.Encode("ACGT", EncodeOptions{})
-	testcheck.NoError(t, err)
+	ids = testcheck.Must(auto.Encode("ACGT", EncodeOptions{}))(t)
 	if want := append(append([]TokenID{begin}, acgt...), end); !reflect.DeepEqual(ids, want) {
 		t.Fatalf("auto-tag Encode = %v, want %v", ids, want)
 	}

@@ -47,10 +47,9 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 	sharedKey := input("shared_key", 2, 1, 2)
 	sharedValue := input("shared_value", 2, 1, 2)
 	plan := fixtureLayerPlan(t, spec, Weights{}, 0)
-	block, err := buildFixtureLayerWithPlan(
+	block := testcheck.Must(buildFixtureLayerWithPlan(
 		builder, current, spec, weights, []uint32{2}, sharedKey, sharedValue, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	current = block.Output
 	outputNorm := input("output_norm", 2)
 	output := input("output", 2, 4)
@@ -82,8 +81,7 @@ func TestBuildGemma4AssistantPipeline(t *testing.T) {
 		}
 		feeds[norm] = value
 	}
-	results, err := reference.Execute([]*tensor.Tensor{logits, nextHidden}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{logits, nextHidden}, feeds))(t)
 	if !results[logits].Shape.Equal(tensor.MustShape(4, 1)) ||
 		!results[nextHidden].Shape.Equal(tensor.MustShape(3, 1)) {
 		t.Fatalf("Gemma 4 assistant outputs = %v/%v", results[logits].Shape.Slice(), results[nextHidden].Shape.Slice())

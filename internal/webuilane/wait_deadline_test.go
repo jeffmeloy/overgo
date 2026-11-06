@@ -27,8 +27,7 @@ func TestWebUIBrowserWaitDeadline(t *testing.T) {
 	testcheck.NoError(t, err)
 	ctx := t.Context()
 	const shown = "a page that is alive and shows this"
-	browser, err := Open(ctx, path, `data:text/html,<body><div id="panels">`+shown+`</div></body>`)
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(Open(ctx, path, `data:text/html,<body><div id="panels">`+shown+`</div></body>`))(t)
 	defer browser.Close()
 	declared := browser.socket.budget
 	if declared <= 0 {

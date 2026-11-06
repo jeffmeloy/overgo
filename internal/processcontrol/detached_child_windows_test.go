@@ -21,15 +21,13 @@ func TestDetachedJobChildHelper(t *testing.T) {
 		return
 	}
 	if os.Getenv("OVERGO_DETACHED_CHILD_ROLE") == "parent" {
-		executable, err := os.Executable()
-		testcheck.NoError(t, err)
+		executable := testcheck.Must(os.Executable())(t)
 		child := exec.Command(executable, "-test.run=^TestDetachedJobChildHelper$")
 		child.Env = append(os.Environ(), "OVERGO_DETACHED_CHILD_ROLE=child")
 		if os.Getenv("OVERGO_DETACHED_CHILD_PIPE") == "1" {
 			child.Stdout = os.Stdout
 		}
-		ready, err := child.StderrPipe()
-		testcheck.NoError(t, err)
+		ready := testcheck.Must(child.StderrPipe())(t)
 		testcheck.NoError(t, child.Start())
 		if _, err := io.ReadFull(ready, make([]byte, len("ready"))); err != nil {
 			t.Fatal(err)
@@ -42,8 +40,7 @@ func TestDetachedJobChildHelper(t *testing.T) {
 		}
 		return
 	}
-	connection, err := net.Dial("tcp", address)
-	testcheck.NoError(t, err)
+	connection := testcheck.Must(net.Dial("tcp", address))(t)
 	defer connection.Close()
 	testcheck.NoError(t, binary.Write(connection, binary.LittleEndian, uint32(os.Getpid())))
 	// The test retains our process handle before allowing the parent to exit.
@@ -68,13 +65,11 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 		{"canceled", true, false}, {"canceled_inherited_pipe", true, true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
-			testcheck.NoError(t, err)
+			listener := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 			defer listener.Close()
 			stopAccept := context.AfterFunc(t.Context(), func() { _ = listener.Close() })
 			defer stopAccept()
-			executable, err := os.Executable()
-			testcheck.NoError(t, err)
+			executable := testcheck.Must(os.Executable())(t)
 			environment := append(os.Environ(), "OVERGO_DETACHED_CHILD_ADDRESS="+listener.Addr().String(), "OVERGO_DETACHED_CHILD_ROLE=parent")
 			if testCase.inherit {
 				environment = append(environment, "OVERGO_DETACHED_CHILD_PIPE=1")
@@ -82,21 +77,18 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 			if testCase.cancel {
 				environment = append(environment, "OVERGO_DETACHED_CHILD_BLOCK=1")
 			}
-			supervised, err := Start(t.Context(), Command{Path: executable, Args: []string{"-test.run=^TestDetachedJobChildHelper$"}, Env: environment})
-			testcheck.NoError(t, err)
+			supervised := testcheck.Must(Start(t.Context(), Command{Path: executable, Args: []string{"-test.run=^TestDetachedJobChildHelper$"}, Env: environment}))(t)
 			defer func() {
 				if !supervised.Exited() {
 					_ = supervised.Terminate()
 				}
 				_, _ = supervised.Wait(context.WithoutCancel(t.Context()))
 			}()
-			connection, err := listener.Accept()
-			testcheck.NoError(t, err)
+			connection := testcheck.Must(listener.Accept())(t)
 			defer connection.Close()
 			var pid uint32
 			testcheck.NoError(t, binary.Read(connection, binary.LittleEndian, &pid))
-			handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, pid)
-			testcheck.NoError(t, err)
+			handle := testcheck.Must(syscall.OpenProcess(syscall.SYNCHRONIZE, false, pid))(t)
 			defer syscall.CloseHandle(handle)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(nil)

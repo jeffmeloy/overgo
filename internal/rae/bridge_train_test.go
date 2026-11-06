@@ -33,10 +33,8 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	examples := make([]BridgeExample, 6)
 	for index := range examples {
 		source := random(tokens*sourceWidth, 1)
-		mapped, err := known.Apply(source)
-		testcheck.NoError(t, err)
-		picture, err := decoder.decodeTokens(mapped)
-		testcheck.NoError(t, err)
+		mapped := testcheck.Must(known.Apply(source))(t)
+		picture := testcheck.Must(decoder.decodeTokens(mapped))(t)
 		examples[index] = BridgeExample{SourceTokens: source, Picture: picture}
 	}
 	disturbed := EncoderBridge{Weight: append([]float32(nil), known.Weight...), Bias: append([]float32(nil), known.Bias...)}
@@ -76,15 +74,13 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	if measured := (losses[0] - losses[1]) / (2 * nudge); math.Abs(measured-predicted) > 2e-2*max(math.Abs(measured), math.Abs(predicted)) {
 		t.Fatalf("the loss changes by %.6g a unit along a direction and the trainer's gradient says %.6g", measured, predicted)
 	}
-	before, err := trainer.Loss(t.Context(), examples)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(trainer.Loss(t.Context(), examples))(t)
 	for range 40 {
 		if _, err := trainer.Step(t.Context(), examples); err != nil {
 			t.Fatal(err)
 		}
 	}
-	after, err := trainer.Loss(t.Context(), examples)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss(t.Context(), examples))(t)
 	t.Logf("loss %.6g before, %.6g after 40 steps; last gradient %.4g", before, after, trainer.GradientL2())
 	if !(after < before/2) || !(trainer.GradientL2() > 0) {
 		t.Fatalf("40 steps took the loss from %.6g to %.6g", before, after)
@@ -97,11 +93,9 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 	// What it saves is the bridge it trained.
 	path := filepath.Join(t.TempDir(), "bridge.safetensors")
 	testcheck.NoError(t, trainer.SaveWeights(path))
-	file, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer file.Close()
-	saved, err := safetensors.ReadF32(file.Tensors[bridgeWeightTensor])
-	testcheck.NoError(t, err)
+	saved := testcheck.Must(safetensors.ReadF32(file.Tensors[bridgeWeightTensor]))(t)
 	trained := trainer.Bridge()
 	if len(saved) != len(trained.Weight) || len(trained.Bias) != decoder.latent {
 		t.Fatalf("saved %d weights for a bridge of %d and %d offsets", len(saved), len(trained.Weight), len(trained.Bias))

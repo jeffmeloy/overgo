@@ -10,8 +10,7 @@ import (
 )
 
 func TestProcessGroupedComposition(t *testing.T) {
-	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	for _, tc := range []struct {
 		name                                           string
 		samples, stack, radius, frames, width, padding int
@@ -94,8 +93,7 @@ func TestGroupedFramesBounds(t *testing.T) {
 }
 
 func TestProcessGroupedRefusalAndBudget(t *testing.T) {
-	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	input := []float32{1, 2, 3, 4, 5, 6}
 	config := GroupedFeatureConfig{StackFrames: 2, DeltaRadius: 1, FinalFrameSamples: 1}
 	for _, invalid := range []GroupedFeatureConfig{{}, {StackFrames: 1, DeltaRadius: -1}, {StackFrames: 1, FinalFrameSamples: -1}, {StackFrames: math.MaxInt, FinalFrameSamples: 1}} {

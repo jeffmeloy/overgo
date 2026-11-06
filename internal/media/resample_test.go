@@ -10,8 +10,7 @@ import (
 
 func TestResamplePolyReusesScratchAndRejectsOverlap(t *testing.T) {
 	destination := make([]float32, 4)
-	got, err := ResamplePoly(t.Context(), destination, []float32{1, 2}, 2, 1, []float64{0, 1, 0})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(ResamplePoly(t.Context(), destination, []float32{1, 2}, 2, 1, []float64{0, 1, 0}))(t)
 	want := []float32{1, 0, 2, 0}
 	if &got[0] != &destination[0] {
 		t.Fatal("scratch not reused")

@@ -85,14 +85,12 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	var bundle mediaWanBundle
 	path := filepath.Join(root, "docs/image_video_wan.json")
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoWanSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Scope == "" || len(bundle.Numerical) != 5 || len(bundle.Frames) != 4 {
 		t.Fatal("incomplete Wan bundle")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := evidenceReader(t, store, "Wan content")
 	decode := func(id artifact.ID, value any) {
@@ -101,8 +99,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	}
 	checkTest := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty Wan check")
@@ -132,8 +129,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	if err != nil || len(failed.Failed) == 0 {
 		t.Fatal("failed instrumentation attempt was not retained", err)
 	}
-	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	testcheck.NoError(t, err)
+	quality := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json")))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, json.Unmarshal(quality, &protocol))
@@ -158,8 +154,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 		}
 		seen[c.ID] = true
 		entry := bundle.Cases[index]
-		run, err := runrecord.RequireExactRun(t.Context(), store, entry.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireExactRun(t.Context(), store, entry.Run))(t)
 		if run.Recipe != c.Recipe || !slices.Equal(run.Inputs, c.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{entry.Output}) || run.Outcome != runrecord.OutcomeSucceeded || run.MeasuredNS == 0 || len(run.Phases) == 0 {
 			t.Fatal("Wan run identity or measurement missing")
 		}

@@ -30,15 +30,11 @@ import (
 func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 	t.Parallel()
 	const seed = 17
-	briefs, err := drawnBriefs()
-	testcheck.NoError(t, err)
+	briefs := testcheck.Must(drawnBriefs())(t)
 	listed := len(briefs)
-	items, err := PickDrawnText(listed, seed)
-	testcheck.NoError(t, err)
-	again, err := PickDrawnText(listed, seed)
-	testcheck.NoError(t, err)
-	other, err := PickDrawnText(listed, seed+1)
-	testcheck.NoError(t, err)
+	items := testcheck.Must(PickDrawnText(listed, seed))(t)
+	again := testcheck.Must(PickDrawnText(listed, seed))(t)
+	other := testcheck.Must(PickDrawnText(listed, seed+1))(t)
 	same := func(left, right []TIFAItem) bool {
 		return slices.EqualFunc(left, right, func(a, b TIFAItem) bool {
 			return a.ID == b.ID && a.Caption == b.Caption && slices.EqualFunc(a.Questions, b.Questions, func(p, q TIFAQuestion) bool {
@@ -113,8 +109,7 @@ func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 
 	few := items[:2]
 	images := map[string]string{few[0].ID: "first.png", few[1].ID: "second.png"}
-	suite, err := BuildDrawnText(few, images, "a judge")
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildDrawnText(few, images, "a judge"))(t)
 	if len(suite.Cases) != len(few)*asked || suite.Source != drawnTextSource || suite.Judge != "a judge" {
 		t.Fatalf("the suite holds %d cases of %s judged by %q", len(suite.Cases), suite.Source, suite.Judge)
 	}
@@ -161,8 +156,7 @@ func TestDrawnTextSuiteAsksForTheTextItWasToldToDraw(t *testing.T) {
 func TestDrawnTextChoicesDoNotGiveTheAnswerAway(t *testing.T) {
 	t.Parallel()
 	const seeds = 40
-	briefs, err := drawnBriefs()
-	testcheck.NoError(t, err)
+	briefs := testcheck.Must(drawnBriefs())(t)
 	// apart counts the places two texts of one length differ at, or their words where the lengths differ.
 	apart := func(left, right string) int {
 		differ := 0
@@ -194,8 +188,7 @@ func TestDrawnTextChoicesDoNotGiveTheAnswerAway(t *testing.T) {
 	var questions, numbers, nearest, smallest, largest int
 	first, last := 0, 0
 	for seed := range uint64(seeds) {
-		items, err := PickDrawnText(len(briefs), seed)
-		testcheck.NoError(t, err)
+		items := testcheck.Must(PickDrawnText(len(briefs), seed))(t)
 		for _, item := range items {
 			for asked, question := range item.Questions {
 				questions++

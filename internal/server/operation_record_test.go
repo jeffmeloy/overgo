@@ -152,8 +152,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	builder, err := NewModelBuilderWorkspace(ctx, store)
-	testcheck.NoError(t, err)
+	builder := testcheck.Must(NewModelBuilderWorkspace(ctx, store))(t)
 	plainRuns, blockingRuns, builds := &countedWorkflow{WorkflowWorkspaceAPI: plain}, &countedWorkflow{WorkflowWorkspaceAPI: blocking}, &countedWorkflow{WorkflowWorkspaceAPI: builder}
 
 	// The evaluation workspace is the server's own, over a runtime that answers one exact case.
@@ -163,17 +162,14 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
-	suite, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "operation-record", Cases: []evaluation.ExactCase{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
+	suite := testcheck.Must(json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "operation-record", Cases: []evaluation.ExactCase{
 		{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	suitePath := filepath.Join(t.TempDir(), "suite.json")
 	testcheck.NoError(t, os.WriteFile(suitePath, suite, 0o600))
-	evaluations, err := NewEvaluationWorkspace(store, recordRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: evaluated},
-		environment, evaluationTestCommit, retention, []string{suitePath})
-	testcheck.NoError(t, err)
+	evaluations := testcheck.Must(NewEvaluationWorkspace(store, recordRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: evaluated},
+		environment, evaluationTestCommit, retention, []string{suitePath}))(t)
 
 	// The library intake's validation is a stub that completes with a run it committed.
 	var validations atomic.Int32
@@ -200,16 +196,13 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	}
 	module := recipe.ToolModule(toolModule, recipe.PlacementHost)
 	node := recipe.Node{ID: "execute", Module: module.ID, Placement: recipe.PlacementHost}
-	toolDefinition, err := recipe.NewDefinitionWithDependencies(
+	toolDefinition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: toolModel}}, []recipe.Node{node}, nil,
 		[]recipe.Input{{Name: recipe.ToolCallPort, Data: recipe.DataToolCall, Target: recipe.Endpoint{Node: node.ID, Port: recipe.ToolCallPort}}},
 		[]recipe.Output{{Name: recipe.ToolResultPort, Data: recipe.DataToolResult, Source: recipe.Endpoint{Node: node.ID, Port: recipe.ToolResultPort}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := recipe.NewCatalog(module)
-	testcheck.NoError(t, err)
-	toolProgram, err := recipe.CompileProgram(toolDefinition, catalog)
-	testcheck.NoError(t, err)
+	))(t)
+	catalog := testcheck.Must(recipe.NewCatalog(module))(t)
+	toolProgram := testcheck.Must(recipe.CompileProgram(toolDefinition, catalog))(t)
 	var toolCalls atomic.Int32
 	config := Config{
 		Repository: store, MaxStoredResponses: retention, Evaluation: evaluations, LibraryIntake: intake,
@@ -222,8 +215,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	}
 	serve := func() *Handler {
 		t.Helper()
-		handler, err := New(config, &fakeGenerator{})
-		testcheck.NoError(t, err)
+		handler := testcheck.Must(New(config, &fakeGenerator{}))(t)
 		t.Cleanup(func() { _ = handler.Close() })
 		return handler
 	}
@@ -241,8 +233,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	}
 	ended := func(handler *Handler, operationID artifact.ID) operation.State {
 		t.Helper()
-		status, err := handler.operations.Wait(ctx, operationID)
-		testcheck.NoError(t, err)
+		status := testcheck.Must(handler.operations.Wait(ctx, operationID))(t)
 		return status.State
 	}
 	// driven names the entry of every operation the test started.
@@ -284,8 +275,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	if err != nil || len(build) != 1 {
 		t.Fatalf("model builder lists %d capabilities (%v), want one", len(build), err)
 	}
-	buildInput, err := json.Marshal(modelBuildInput{Corpus: "abcd\nbcda\ncdab\ndabc", Seed: 1, Steps: 1})
-	testcheck.NoError(t, err)
+	buildInput := testcheck.Must(json.Marshal(modelBuildInput{Corpus: "abcd\nbcda\ncdab\ndabc", Seed: 1, Steps: 1}))(t)
 	if first, second := twice("model build", server, "/model-builder/run", workflowRequest{Task: build[0].Task, Recipe: build[0].Recipe, Input: buildInput}, operation.StateCompleted); first == second || builds.executions.Load() != 2 {
 		t.Errorf("model build: two submissions ran as %s and %s with %d executions, want two operations that each executed", first, second, builds.executions.Load())
 	}
@@ -315,8 +305,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	if state := ended(server, blocked); state != operation.StateBlocked {
 		t.Fatalf("granted recovery: the first attempt ended %s, want %s", state, operation.StateBlocked)
 	}
-	approval, err := operatoraction.NewApprovalRequest(blocked, blocking.capability.Recipe, blocking.resume, artifact.ID{})
-	testcheck.NoError(t, err)
+	approval := testcheck.Must(operatoraction.NewApprovalRequest(blocked, blocking.capability.Recipe, blocking.resume, artifact.ID{}))(t)
 	granted := serveTestRequest(server, http.MethodPost, "/operations/decision", marshalTestJSON(t, operationDecisionRequest{
 		Operation: blocked, Tool: blocking.resume.Code, Answer: operatoraction.AnswerGrant, Request: approval.ID,
 	}))
@@ -331,8 +320,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	driven[blocked] = "granted recovery"
 
 	// A tool call is submitted to the executor's own manager, and its operations are the ones its stage receipts name.
-	call, err := recipe.NewToolCall("call", toolModule, json.RawMessage(`{}`))
-	testcheck.NoError(t, err)
+	call := testcheck.Must(recipe.NewToolCall("call", toolModule, json.RawMessage(`{}`)))(t)
 	for range 2 {
 		if _, err := server.tools.ExecuteTool(ctx, call); err != nil {
 			t.Fatal(err)
@@ -397,8 +385,7 @@ func TestACompletionTheStoreDoesNotHoldFailsItsOperation(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
 	workflow := newRecordWorkflow(t, store, "unheld completion")
-	handler, err := New(Config{Repository: store, Workflows: workflow}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: workflow}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	run := func() operation.Status {
 		t.Helper()
@@ -407,8 +394,7 @@ func TestACompletionTheStoreDoesNotHoldFailsItsOperation(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &submission); response.Code != http.StatusAccepted || err != nil {
 			t.Fatalf("the run answered %d %s (%v), want an operation", response.Code, response.Body.String(), err)
 		}
-		status, err := handler.operations.Wait(t.Context(), submission.Operation)
-		testcheck.NoError(t, err)
+		status := testcheck.Must(handler.operations.Wait(t.Context(), submission.Operation))(t)
 		return status
 	}
 	workflow.unheld.Store(true)

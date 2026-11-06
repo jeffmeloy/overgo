@@ -63,19 +63,15 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 		Steps: 1, Host: true,
 	}
 	base.OutputDirectory = filepath.Join(root, "without-observation")
-	want, err := Execute(t.Context(), base)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(Execute(t.Context(), base))(t)
 	base.OutputDirectory = filepath.Join(root, "with-observation")
 	base.Observations = store
-	got, err := Execute(t.Context(), base)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(Execute(t.Context(), base))(t)
 	if !reflect.DeepEqual(got.Losses, want.Losses) || got.Checkpoint.ID() != want.Checkpoint.ID() {
 		t.Fatalf("instrumented numerics differ: losses=%v/%v checkpoints=%s/%s", got.Losses, want.Losses, got.Checkpoint.ID(), want.Checkpoint.ID())
 	}
-	wantModel, err := densecausal.Load(filepath.Join(root, "without-observation"))
-	testcheck.NoError(t, err)
-	gotModel, err := densecausal.Load(filepath.Join(root, "with-observation"))
-	testcheck.NoError(t, err)
+	wantModel := testcheck.Must(densecausal.Load(filepath.Join(root, "without-observation")))(t)
+	gotModel := testcheck.Must(densecausal.Load(filepath.Join(root, "with-observation")))(t)
 	if !reflect.DeepEqual(gotModel.Weights, wantModel.Weights) {
 		t.Fatal("instrumented checkpoint weights differ")
 	}
@@ -94,12 +90,9 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 	if router.ID.Kind() != artifact.KindEvidence {
 		t.Fatalf("router observation identity = %s", router.ID)
 	}
-	run, err := runrecord.RequireRun(t.Context(), store, router.Run)
-	testcheck.NoError(t, err)
-	code, err := runrecord.NewCodeRevision(executableCommit)
-	testcheck.NoError(t, err)
-	session, err := runrecord.RequireServingObservation(t.Context(), store, got.Observation)
-	testcheck.NoError(t, err)
+	run := testcheck.Must(runrecord.RequireRun(t.Context(), store, router.Run))(t)
+	code := testcheck.Must(runrecord.NewCodeRevision(executableCommit))(t)
+	session := testcheck.Must(runrecord.RequireServingObservation(t.Context(), store, got.Observation))(t)
 	if !slices.Contains(run.Inputs, router.Model) ||
 		router.Dataset != got.Checkpoint.Dataset || router.Split != got.Checkpoint.Split ||
 		router.Recipe != recipeID || router.Checkpoint != got.Checkpoint.ID() ||
@@ -111,8 +104,7 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 
 func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 	stubExecutableCodeCommit(t, strings.Repeat("cd", 20))
-	incomplete, err := newRouterObservationCollector(0, 1, []int{1, 3})
-	testcheck.NoError(t, err)
+	incomplete := testcheck.Must(newRouterObservationCollector(0, 1, []int{1, 3}))(t)
 	observation := densecausal.MoERouterObservation{
 		Layer: 1, Rows: 1, Experts: 2, TopK: 1,
 		Selections: []int{0}, CombineWeights: []float32{1}, Accepted: []bool{true},
@@ -125,8 +117,7 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 	if err := incomplete.observe(0, observation); err == nil {
 		t.Fatal("duplicate routed layer accepted")
 	}
-	bounded, err := newRouterObservationCollector(0, 1, []int{1})
-	testcheck.NoError(t, err)
+	bounded := testcheck.Must(newRouterObservationCollector(0, 1, []int{1}))(t)
 	bounded.encoded = artifact.MaxContentBytes
 	if err := bounded.observe(0, observation); err == nil {
 		t.Fatal("capture beyond the repository content bound accepted")
@@ -138,11 +129,9 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 		Steps: 1, Host: true, Observations: store,
 	}
 	request.OutputDirectory = filepath.Join(root, "first-retained")
-	first, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Execute(t.Context(), request))(t)
 	request.OutputDirectory = filepath.Join(root, "second-retained")
-	second, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(Execute(t.Context(), request))(t)
 	if !first.RouterObservationCoverage.Valid() || !second.RouterObservationCoverage.Valid() ||
 		first.RouterObservationCoverage == second.RouterObservationCoverage {
 		t.Fatalf("coverage heads = %s/%s", first.RouterObservationCoverage, second.RouterObservationCoverage)
@@ -222,10 +211,8 @@ func TestTrainingObjectiveAdmissionMatrix(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			definition, err := test.definition(test.dependencies)
-			testcheck.NoError(t, err)
-			program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(test.definition(test.dependencies))(t)
+			program := testcheck.Must(recipe.CompileProgram(definition, workflowrecipe.Catalog()))(t)
 			objective, err := ProgramObjective(program)
 			if err != nil || objective != test.want {
 				t.Fatalf("objective=(%s,%v), want %s", objective, err, test.want)
@@ -233,10 +220,8 @@ func TestTrainingObjectiveAdmissionMatrix(t *testing.T) {
 		})
 	}
 
-	unsupported, err := compositionTrainingDefinition(policyDependency)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(unsupported, workflowrecipe.Catalog())
-	testcheck.NoError(t, err)
+	unsupported := testcheck.Must(compositionTrainingDefinition(policyDependency))(t)
+	program := testcheck.Must(recipe.CompileProgram(unsupported, workflowrecipe.Catalog()))(t)
 	if objective, err := ProgramObjective(program); err == nil || objective != "" {
 		t.Fatalf("unsupported composition objective=(%q,%v), want refusal", objective, err)
 	}
@@ -256,12 +241,11 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(dataset, []byte(rows), 0o600))
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
 	var observed []trainingprogram.GRPOObservation
-	result, err := Execute(t.Context(), Request{
+	result := testcheck.Must(Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Device: hostWeightedStep,
 		ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if result.Objective != trainingprogram.ObjectiveGRPO || result.Backend != "cuda" ||
 		result.Checkpoint.ID().Kind() != artifact.KindCheckpoint || len(observed) != 1 ||
 		observed[0].Evaluator != evaluator || observed[0].GroupSize != 2 || observed[0].RewardDispersion == 0 {
@@ -312,8 +296,7 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 		Repository: store, Recipe: recipeID, Observations: store, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "proof"), Steps: 2, Host: true, Proof: true,
 	}
-	proof, err := Execute(ctx, request)
-	testcheck.NoError(t, err)
+	proof := testcheck.Must(Execute(ctx, request))(t)
 	if _, err := os.Stat(request.OutputDirectory); !os.IsNotExist(err) {
 		t.Errorf("the proof left its output at %s (%v), want nothing there", request.OutputDirectory, err)
 	}
@@ -322,8 +305,7 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 		t.Errorf("the store holds the document of the proof's checkpoint %s: %t, at %v, with candidate %s (%v, %v): want the document, no location and no candidate",
 			proof.Checkpoint.ID(), held, locations, proof.Candidate, err, heldErr)
 	}
-	modelID, err := identifyModel(model)
-	testcheck.NoError(t, err)
+	modelID := testcheck.Must(identifyModel(model))(t)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskTraining)
 	if err != nil || !found {
 		t.Fatalf("training activation = (found %t, %v), want the recipe active", found, err)
@@ -340,8 +322,7 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 	// The handoff file must be new for each run that writes one.
 	testcheck.NoError(t, os.Remove(resultPath))
 	request.Proof, request.OutputDirectory = false, filepath.Join(root, "full")
-	full, err := Execute(ctx, request)
-	testcheck.NoError(t, err)
+	full := testcheck.Must(Execute(ctx, request))(t)
 	if published, err := trainingprogram.LoadCheckpoint(request.OutputDirectory); err != nil || published.ID() != full.Checkpoint.ID() || full.Checkpoint.ID() != proof.Checkpoint.ID() {
 		t.Fatalf("the session that is no proof published checkpoint (%s, %v) at its output and returned %s, want the checkpoint %s the proof identified",
 			published.ID(), err, full.Checkpoint.ID(), proof.Checkpoint.ID())
@@ -350,15 +331,13 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 
 func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
-	observer, err := NewObserver(store, true)
-	testcheck.NoError(t, err)
+	observer := testcheck.Must(NewObserver(store, true))(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "observed model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "observed recipe")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, recipeID)
 	testcheck.NoError(t, observer.Admit(t.Context(), modelID, recipeID))
-	observationID, err := observer.Finish(t.Context(), modelID, recipeID, nil, 0)
-	testcheck.NoError(t, err)
+	observationID := testcheck.Must(observer.Finish(t.Context(), modelID, recipeID, nil, 0))(t)
 	if _, err := runrecord.RequireServingObservation(t.Context(), store, observationID); err != nil {
 		t.Fatal(err)
 	}
@@ -431,8 +410,7 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	}
 	both := request
 	both.Steps, both.OutputDirectory = 2, filepath.Join(root, "both")
-	result, err := Execute(t.Context(), both)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(Execute(t.Context(), both))(t)
 	if len(result.GRPO) != 1 || result.Skipped != 1 || result.StreamPosition != 2 || result.Checkpoint.Optimizer.Step != 1 {
 		t.Fatalf("a session of an ordered group and a tied one took %d updates to step %d, skipped %d and stands at %d in its stream; want one update, one skipped, and past both",
 			len(result.GRPO), result.Checkpoint.Optimizer.Step, result.Skipped, result.StreamPosition)
@@ -465,8 +443,7 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	}
 	resident := request
 	resident.Device, resident.Steps, resident.OutputDirectory = device, 2, filepath.Join(root, "device")
-	onDevice, err := Execute(t.Context(), resident)
-	testcheck.NoError(t, err)
+	onDevice := testcheck.Must(Execute(t.Context(), resident))(t)
 	signs := map[bool]int{}
 	for _, group := range handed {
 		for _, sequence := range group {
@@ -500,20 +477,17 @@ func verifyWorkflowResume(t *testing.T, root string, request Request, prepareRes
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
-	want, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(Execute(t.Context(), request))(t)
 	request.Steps = 1
 	request.OutputDirectory = filepath.Join(root, "first")
-	first, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Execute(t.Context(), request))(t)
 	for _, prepare := range prepareResume {
 		first.Checkpoint = prepare(t, request.OutputDirectory, first.Checkpoint)
 	}
 	request.ModelDirectory = ""
 	request.ResumeDirectory = request.OutputDirectory
 	request.OutputDirectory = filepath.Join(root, "resumed")
-	got, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(Execute(t.Context(), request))(t)
 	if request.Observations != nil {
 		for _, result := range []Result{want, first, got} {
 			if _, err := runrecord.RequireServingObservation(t.Context(), request.Observations, result.Observation); err != nil {
@@ -521,14 +495,10 @@ func verifyWorkflowResume(t *testing.T, root string, request Request, prepareRes
 			}
 		}
 	}
-	wantModel, err := loadTrainableModel(filepath.Join(root, "uninterrupted"))
-	testcheck.NoError(t, err)
-	gotModel, err := loadTrainableModel(filepath.Join(root, "resumed"))
-	testcheck.NoError(t, err)
-	wantCheckpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(root, "uninterrupted"))
-	testcheck.NoError(t, err)
-	gotCheckpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(root, "resumed"))
-	testcheck.NoError(t, err)
+	wantModel := testcheck.Must(loadTrainableModel(filepath.Join(root, "uninterrupted")))(t)
+	gotModel := testcheck.Must(loadTrainableModel(filepath.Join(root, "resumed")))(t)
+	wantCheckpoint := testcheck.Must(trainingprogram.LoadCheckpoint(filepath.Join(root, "uninterrupted")))(t)
+	gotCheckpoint := testcheck.Must(trainingprogram.LoadCheckpoint(filepath.Join(root, "resumed")))(t)
 	// A session trains where its request says: on the host, or off it by the device trainer it carries.
 	backend := "cuda"
 	if request.Host {
@@ -615,15 +585,12 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 			t.Error(err)
 		}
 	})
-	policy, err := identifyModel(policyDirectory)
-	testcheck.NoError(t, err)
+	policy := testcheck.Must(identifyModel(policyDirectory))(t)
 	var reference artifact.ID
 	if referenceDirectory != "" {
-		reference, err = identifyModel(referenceDirectory)
-		testcheck.NoError(t, err)
+		reference = testcheck.Must(identifyModel(referenceDirectory))(t)
 	}
-	raw, err := os.ReadFile(datasetPath)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(datasetPath))(t)
 	dataset, _ := artifact.IdentifyBytes(artifact.KindDataset, raw)
 	split, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), raw...))
 	processorName := "text-utf8"
@@ -657,7 +624,7 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	optimizerPolicy := trainingprogram.BuiltinOptimizerPolicy()
 	policies.Optimizer = optimizerPolicy.ID
 	loss, evidence := profile(prefix+"loss"), testutil.ArtifactID(t, artifact.KindEvidence, prefix+"evidence")
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: string(objectiveKind), Kind: objectiveKind,
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
@@ -666,13 +633,10 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 		Dataset: dataset, Split: split, Processors: []artifact.ID{processor}, Loss: loss,
 		Evaluation: evaluation, Metric: trainingprogram.MetricTokenAccuracy,
 		Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	policies.Objective = objective.ID
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
-	optimizerContent, err := optimizerPolicy.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(objective.Content())(t)
+	optimizerContent := testcheck.Must(optimizerPolicy.Content())(t)
 	ids := []artifact.ID{
 		policy, dataset, split, processor, loss, evidence, policies.Precision,
 		policies.Placement, policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
@@ -705,8 +669,7 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "training/workflow/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "training/workflow/verification", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "training/workflow/verification", definition.ID))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training workflow fixture"))
 	return store, definition.ID
 }

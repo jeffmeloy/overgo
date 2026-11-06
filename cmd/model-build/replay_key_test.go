@@ -40,14 +40,12 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 		dataset := filepath.Join(directory, "corpus.json")
 		testcheck.NoError(t, os.WriteFile(dataset, []byte(`["abcd","bcda","cdab","dabc"]`), 0o600))
 		repository := filepath.Join(directory, "store")
-		store, err := overgodb.Create(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Create(repository))(t)
 		if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
 			t.Fatal(err)
 		}
 		testcheck.NoError(t, store.Close())
-		executable, err := os.Executable()
-		testcheck.NoError(t, err)
+		executable := testcheck.Must(os.Executable())(t)
 		stages := len(workflowruntime.ModelBuildStages())
 		for process := 1; process <= 2; process++ {
 			command := exec.CommandContext(t.Context(), executable, "-repo", repository, "-dataset", dataset, "-steps", "1")
@@ -68,8 +66,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 //   - a stage answered from an earlier receipt publishes none
 func completedStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	defer store.Close()
 	receipts := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: runrecord.StageReceiptSchema}},

@@ -68,8 +68,7 @@ func requireParallel(t *testing.T, directory string, bound []string, markers ...
 		if slices.Contains(bound, filepath.Base(file)) {
 			continue
 		}
-		data, err := os.ReadFile(file)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(file))(t)
 		for _, function := range strings.Split(string(data), "\nfunc ")[1:] {
 			header, body, found := strings.Cut(function, "\n")
 			if !found || !strings.HasPrefix(header, "Test") || !strings.HasSuffix(header, "(t *testing.T) {") {

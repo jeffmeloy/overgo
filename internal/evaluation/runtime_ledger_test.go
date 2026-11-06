@@ -69,8 +69,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
-	database, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	database := testcheck.Must(overgodb.Create(root))(t)
 	store := &publicationFaultStore{Store: database, fail: failPublication}
 	t.Cleanup(func() { _ = store.Close() })
 	identity := modelrecipe.ProgramIdentity{
@@ -86,18 +85,14 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture",
 		Backend: "fixture", Driver: "fixture",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	runtime := &observedRuntime{}
-	campaign, err := newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
-	testcheck.NoError(t, err)
-	source, err := json.Marshal(exactFixture())
-	testcheck.NoError(t, err)
-	suite, err := CompileSuite(source, campaign.Authorities())
-	testcheck.NoError(t, err)
+	campaign := testcheck.Must(newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle))(t)
+	source := testcheck.Must(json.Marshal(exactFixture()))(t)
+	suite := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
 	result, err := campaign.Evaluate(ctx, suite)
 	if failPublication {
 		if !errors.Is(err, errPublicationFixture) || result.Report.Kind() != artifact.KindEvaluation ||
@@ -106,19 +101,16 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 		}
 		retained := result.Report
 		testcheck.NoError(t, store.Close())
-		database, err = overgodb.Create(root)
-		testcheck.NoError(t, err)
+		database = testcheck.Must(overgodb.Create(root))(t)
 		store = &publicationFaultStore{Store: database}
-		campaign, err = newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
-		testcheck.NoError(t, err)
+		campaign = testcheck.Must(newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle))(t)
 		result, err = campaign.Evaluate(ctx, suite)
 		if result.Report != retained || runtime.generateCalls != len(exactFixture().Cases) {
 			t.Fatalf("restart reacquired completed generation: report=%s, calls=%d", result.Report, runtime.generateCalls)
 		}
 	}
 	testcheck.NoError(t, err)
-	evidence, err := RequireEvaluationEvidence(ctx, store, result.Evidence)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(RequireEvaluationEvidence(ctx, store, result.Evidence))(t)
 	wall, wallObserved := result.Resources.Measure(runrecord.ResourceWallNS)
 	_, gpuObserved := result.Resources.Measure(runrecord.ResourceGPUNS)
 	if !wallObserved || wall == 0 || gpuObserved ||
@@ -134,8 +126,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 		if evidence.Resources != nil || evidence.ResourceObservation.Valid() {
 			t.Fatal("resident evaluation claimed isolated resources")
 		}
-		run, err := runrecord.RequireRun(ctx, store, result.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireRun(ctx, store, result.Run))(t)
 		observationID, found, err := artifact.ResolveAlias(ctx, store, runrecord.ObservationChunkAlias(run.ID))
 		if err != nil || !found {
 			t.Fatalf("resident observation absent: %v", err)
@@ -144,15 +135,13 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 		if err != nil || observation.Aggregate.Scope.Attempt != run.ID {
 			t.Fatalf("resident observation differs: %+v, %v", observation, err)
 		}
-		record, err := runrecord.NewEvaluation(identity.Recipe, run.ID, suite.plan.Dataset(), result.Metrics)
-		testcheck.NoError(t, err)
+		record := testcheck.Must(runrecord.NewEvaluation(identity.Recipe, run.ID, suite.plan.Dataset(), result.Metrics))(t)
 		if _, err := newEvaluationEvidence(ctx, store, suite.plan, suite.acceptance, suite.evaluator,
 			result.Report, run, record, &observation); err == nil {
 			t.Fatal("resident observation accepted as isolated proof")
 		}
 	}
-	history, err := campaign.History(ctx, []CompiledSuite{suite}, 1)
-	testcheck.NoError(t, err)
+	history := testcheck.Must(campaign.History(ctx, []CompiledSuite{suite}, 1))(t)
 	if runtime.generateCalls != len(exactFixture().Cases) || len(history) != 1 {
 		t.Fatalf("runtime calls/history = %d/%d", runtime.generateCalls, len(history))
 	}

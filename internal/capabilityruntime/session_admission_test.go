@@ -15,8 +15,7 @@ import (
 
 func TestBoundedSessionAdmission(t *testing.T) {
 	t.Run("queue bound and cancellation", func(t *testing.T) {
-		director, err := NewResidentModelSessionDirector("test", "host", 1, struct{}{})
-		testcheck.NoError(t, err)
+		director := testcheck.Must(NewResidentModelSessionDirector("test", "host", 1, struct{}{}))(t)
 		defer director.Close(t.Context())
 		held, ok := director.TryLease(-1)
 		if !ok {
@@ -40,8 +39,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 	})
 
 	t.Run("requested slot and shutdown", func(t *testing.T) {
-		director, err := NewResidentModelSessionDirector("test", "host", 2, struct{}{})
-		testcheck.NoError(t, err)
+		director := testcheck.Must(NewResidentModelSessionDirector("test", "host", 2, struct{}{}))(t)
 		held, ok := director.TryLease(1)
 		if !ok {
 			t.Fatal("requested slot lease was not admitted")
@@ -77,8 +75,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 	})
 
 	t.Run("shutdown wakes parked request", func(t *testing.T) {
-		director, err := NewResidentModelSessionDirector("test", "host", 1, struct{}{})
-		testcheck.NoError(t, err)
+		director := testcheck.Must(NewResidentModelSessionDirector("test", "host", 1, struct{}{}))(t)
 		held, ok := director.TryLease(-1)
 		if !ok {
 			t.Fatal("initial lease was not admitted")
@@ -105,8 +102,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 	// however often it is asked after, and admits no one.
 	t.Run("a cancelled shutdown is finished when asked again", func(t *testing.T) {
 		closes := 0
-		director, err := NewResidentModelSessionDirector("test", "host", 1, &lifecycleSessionModel{closes: &closes})
-		testcheck.NoError(t, err)
+		director := testcheck.Must(NewResidentModelSessionDirector("test", "host", 1, &lifecycleSessionModel{closes: &closes}))(t)
 		held, ok := director.TryLease(-1)
 		if !ok {
 			t.Fatal("initial lease was not admitted")
@@ -138,8 +134,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 	t.Run("a shutdown beside another ends as it does", func(t *testing.T) {
 		closes, refused := 0, errors.New("the model's close failed")
 		model := &gatedSessionModel{closes: &closes, entered: make(chan struct{}), gate: make(chan struct{}), err: refused}
-		director, err := NewResidentModelSessionDirector("test", "host", 1, model)
-		testcheck.NoError(t, err)
+		director := testcheck.Must(NewResidentModelSessionDirector("test", "host", 1, model))(t)
 		first, second := make(chan error, 1), make(chan error, 1)
 		go func() { first <- director.Close(t.Context()) }()
 		<-model.entered
@@ -177,8 +172,7 @@ func (m *gatedSessionModel) Close(context.Context) error {
 
 func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) {
 	closes := 0
-	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1)
-	testcheck.NoError(t, err)
+	director := testcheck.Must(NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1))(t)
 	component := func(name string) modelrecipe.ComponentSession {
 		return modelrecipe.ComponentSession{
 			Identity: testutil.ArtifactID(t, artifact.KindProfile, name+"-resources"),
@@ -187,10 +181,9 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 		}
 	}
 	first := component("first")
-	held, err := director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
+	held := testcheck.Must(director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
 		return &lifecycleSessionModel{closes: &closes}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 
 	cancelledContext, cancel := context.WithCancel(t.Context())
 	cancelled := make(chan error, 1)
@@ -234,10 +227,9 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 	testcheck.NoError(t, reused.Release())
 
 	second := component("second")
-	replacement, err := director.LeaseComponent(t.Context(), second, func(context.Context) (*lifecycleSessionModel, error) {
+	replacement := testcheck.Must(director.LeaseComponent(t.Context(), second, func(context.Context) (*lifecycleSessionModel, error) {
 		return &lifecycleSessionModel{closes: &closes}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	snapshot = director.Snapshot()
 	if snapshot.Active != 1 || snapshot.Available != 0 || snapshot.Entries != 1 ||
 		snapshot.Loads != 2 || snapshot.Reuses != 1 || snapshot.Evictions != 1 || closes != 1 {
@@ -256,8 +248,7 @@ func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) 
 
 func TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain(t *testing.T) {
 	closes := 0
-	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 2)
-	testcheck.NoError(t, err)
+	director := testcheck.Must(NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 2))(t)
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		return testutil.ArtifactID(t, kind, name)
 	}
@@ -300,8 +291,7 @@ func TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain(t *testing.T) {
 }
 
 func TestSessionAuthorityRebindsCompatibleExecution(t *testing.T) {
-	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1)
-	testcheck.NoError(t, err)
+	director := testcheck.Must(NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1))(t)
 	closes, loads := 0, 0
 	key := sessionKey{
 		model:     testutil.ArtifactID(t, artifact.KindModel, "rebind-model"),

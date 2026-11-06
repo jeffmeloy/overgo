@@ -63,8 +63,7 @@ func TestRequestLogitsMatchUpstream(t *testing.T) {
 		} `json:"cases"`
 	}
 	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	directory := filepath.Join(roots.Datasets, requestDirectory)
 	if _, err := os.Stat(directory); err != nil {
 		t.Skipf("UNAVAILABLE: held-out requests absent at %s; parity NOT verified", directory)
@@ -79,8 +78,7 @@ func TestRequestLogitsMatchUpstream(t *testing.T) {
 	var answered, rows, agreed, close int
 	var worst float64
 	for index, reference := range fixture.Cases {
-		document, err := os.ReadFile(filepath.Join(directory, reference.Name))
-		testcheck.NoError(t, err)
+		document := testcheck.Must(os.ReadFile(filepath.Join(directory, reference.Name)))(t)
 		if sum := sha256.Sum256(document); hex.EncodeToString(sum[:]) != reference.SHA256 {
 			t.Fatalf("%s is not the request the fixture's outputs are of; write the fixture again with %s", reference.Name, requestLogitsScript)
 		}

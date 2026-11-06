@@ -19,9 +19,8 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	dataset := id(artifact.KindDataset, "dpo-dataset")
 	split := id(artifact.KindDatasetShard, "dpo-split")
 	processor := id(artifact.KindProfile, "dpo-processor")
-	muonPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
-	program, err := CompileTrainingProgram(ProgramSpec{
+	muonPlan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}}))(t)
+	program := testcheck.Must(CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveDPO,
 		Operators: []OperatorSpec{
 			{ID: ObjectiveOperatorForward, Phase: PhaseForward},
@@ -30,8 +29,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		},
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  muonPlan, Preference: &PreferencePolicy{Reference: reference, Scale: 0.1},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
 	runSpec := RunSpec{
 		Recipe: id(artifact.KindRecipe, "dpo-recipe"), Initial: InitialStateSpec{Model: policy},
@@ -48,11 +46,9 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 			Promotion: profile("dpo-promotion"),
 		},
 	}
-	initial, err := CompileTrainingRunPlan(runSpec)
-	testcheck.NoError(t, err)
+	initial := testcheck.Must(CompileTrainingRunPlan(runSpec))(t)
 	config := hostoptimizer.Config{BaseLearningRate: 0.1, Momentum: 0.9, Steps: 1, Schedule: hostoptimizer.ScheduleConstant}
-	opt, err := hostoptimizer.New([]float32{1}, []float32{0}, muonPlan, config)
-	testcheck.NoError(t, err)
+	opt := testcheck.Must(hostoptimizer.New([]float32{1}, []float32{0}, muonPlan, config))(t)
 	stream := id(artifact.KindProfile, "dpo-stream")
 	algorithm := id(artifact.KindProfile, "counter-rng")
 	checkpoint, _ := publishTestCheckpoint(t, CheckpointSpec{
@@ -67,19 +63,16 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		Lineage:    []LineageParent{{Artifact: reference, Relation: artifact.RelationDependsOn}},
 	})
 	runSpec.Initial = InitialStateSpec{Checkpoint: checkpoint.ID()}
-	resumed, err := CompileTrainingRunPlan(runSpec)
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(CompileTrainingRunPlan(runSpec))(t)
 	authority := ResumeAuthority{Model: policy, Stream: checkpoint.Stream, OptimizerPlan: muonPlan.Identity()}
 	testcheck.NoError(t, ValidateResume(resumed, checkpoint, authority))
-	changedProgram, err := CompileTrainingProgram(ProgramSpec{
+	changedProgram := testcheck.Must(CompileTrainingProgram(ProgramSpec{
 		Objective: program.Objective(), Operators: program.Operators(), Parameters: program.Parameters(),
 		Optimizer: muonPlan, Preference: &PreferencePolicy{Reference: id(artifact.KindModel, "other-reference"), Scale: 0.1},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	changed := runSpec
 	changed.Program = changedProgram
-	changedPlan, err := CompileTrainingRunPlan(changed)
-	testcheck.NoError(t, err)
+	changedPlan := testcheck.Must(CompileTrainingRunPlan(changed))(t)
 	if err := ValidateResume(changedPlan, checkpoint, authority); err == nil {
 		t.Fatal("accepted checkpoint under changed DPO authority")
 	}

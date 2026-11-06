@@ -100,8 +100,7 @@ func TestSmallGateLandsAChange(t *testing.T) {
 
 	// A change to the plan alone runs only the row's verify.
 	git("checkout", "--", "internal/p")
-	edited, err := plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path)))
-	testcheck.NoError(t, err)
+	edited := testcheck.Must(plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path))))(t)
 	edited.Items[0].Title = "second, retitled"
 	testcheck.NoError(t, plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), edited))
 	if _, err := land("second/do", message); err != nil {

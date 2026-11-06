@@ -21,8 +21,7 @@ func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/policy-edit/model", Artifacts: []artifact.Descriptor{{ID: model, Size: 4096}}}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := inferenceFixture(model, recipe.PlacementHost, DecodeSessionRequest)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(model, recipe.PlacementHost, DecodeSessionRequest))(t)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/policy-edit/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -33,12 +32,10 @@ func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	if earlier, err = runtimePolicyCodec.New(earlier); err != nil {
 		t.Fatal(err)
 	}
-	content, err := runtimePolicyCodec.Content(earlier)
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("fixture/policy-edit/earlier", []artifact.Content{content}, nil, []artifact.AliasBinding{{
+	content := testcheck.Must(runtimePolicyCodec.Content(earlier))(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("fixture/policy-edit/earlier", []artifact.Content{content}, nil, []artifact.AliasBinding{{
 		Name: runtimePolicyAlias(definition.ID), Target: earlier.ID, Previous: &catalog.ID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +60,7 @@ func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	const reason = "the catalog's default rose"
 	testcheck.NoError(t, MoveRuntimePolicy(ctx, store, definition, reason))
 	held(catalog.ID)
-	move, err := runtimePolicyMoveCodec.NewInitial(runtimePolicyMove{Recipe: definition.ID, From: earlier.ID, To: catalog.ID, Reason: reason})
-	testcheck.NoError(t, err)
+	move := testcheck.Must(runtimePolicyMoveCodec.NewInitial(runtimePolicyMove{Recipe: definition.ID, From: earlier.ID, To: catalog.ID, Reason: reason}))(t)
 	if _, err := runtimePolicyMoveCodec.Require(ctx, store, move.ID); err != nil {
 		t.Fatalf("the store records no reason for the move: %v", err)
 	}

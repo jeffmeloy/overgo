@@ -147,12 +147,9 @@ func unclassifiedSkip(statement ast.Stmt) bool {
 // accepts never reach acceptance.
 func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 	t.Parallel()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	testcheck.NoError(t, err)
-	sites, err := skipReasonSites(snapshot)
-	testcheck.NoError(t, err)
+	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(repo, "internal", "cmd"))(t)
+	sites := testcheck.Must(skipReasonSites(snapshot))(t)
 	if len(sites) != 0 {
 		t.Fatalf("environment-gated skips cite no reason a complete run classifies:\n%s", strings.Join(sites, "\n"))
 	}
@@ -179,17 +176,13 @@ func TestSkippedFixtureClassification(t *testing.T) {
 		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		testcheck.NoError(t, os.WriteFile(path, []byte(source), 0o644))
 	}
-	fixture, err := gosyntax.DiscoverGo(root, "internal")
-	testcheck.NoError(t, err)
-	sites, err := skipReasonSites(fixture)
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(gosyntax.DiscoverGo(root, "internal"))(t)
+	sites := testcheck.Must(skipReasonSites(fixture))(t)
 	if !slices.Equal(sites, []string{"internal/unclassified/gate.go"}) {
 		t.Fatalf("support-package skips reported %v, want only the unclassified helper", sites)
 	}
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	live, err := gosyntax.DiscoverGo(repo, "internal/cuda/testutil")
-	testcheck.NoError(t, err)
+	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	live := testcheck.Must(gosyntax.DiscoverGo(repo, "internal/cuda/testutil"))(t)
 	if sites, err := skipReasonSites(live); err != nil || len(sites) != 0 {
 		t.Fatalf("the shared CUDA gate skips without a classified reason: %v %v", sites, err)
 	}

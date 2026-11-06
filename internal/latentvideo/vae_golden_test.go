@@ -63,11 +63,9 @@ func vaeG0LatentStats(t testing.TB) VAELatentStats {
 func compileRealVAEDecoderPlan(t testing.TB) (VAEDecoderPlan, string) {
 	t.Helper()
 	checkpoint := wanVAECheckpointPath(t)
-	catalog, err := pytorchzip.ReadCatalog(checkpoint)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(pytorchzip.ReadCatalog(checkpoint))(t)
 	metas := catalog.Tensors
-	plan, err := CompileVAEDecoderPlan(metas)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileVAEDecoderPlan(metas))(t)
 	return plan, checkpoint
 }
 
@@ -139,7 +137,7 @@ func runVAEDecodeGolden(t *testing.T, manifestName string) {
 		t.Fatalf("golden latent channels=%d plan z_dim=%d", golden.shape.Channels, plan.ZDim)
 	}
 	decoded := make([][]float32, 0, len(golden.frames))
-	stats, err := DecodeLatentVideo(checkpoint, plan, vaeG0LatentStats(t), golden.latent,
+	stats := testcheck.Must(DecodeLatentVideo(checkpoint, plan, vaeG0LatentStats(t), golden.latent,
 		golden.shape.LatentFrames, golden.shape.LatentHeight, golden.shape.LatentWidth,
 		func(index int, frame []float32, height, width int) error {
 			if index != len(decoded) {
@@ -147,8 +145,7 @@ func runVAEDecodeGolden(t *testing.T, manifestName string) {
 			}
 			decoded = append(decoded, append([]float32(nil), frame...))
 			return nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if len(decoded) != len(golden.frames) {
 		t.Fatalf("decoded %d frames, want %d", len(decoded), len(golden.frames))
 	}

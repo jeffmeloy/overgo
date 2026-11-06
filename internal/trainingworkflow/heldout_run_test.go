@@ -32,7 +32,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	derived := derivedIdentity(t, "overgo/heldout-run-test/")
 	source := derived(artifact.KindDataset, "dataset")
 	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "forecast-run", Kind: trainingprogram.ObjectiveForecast,
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
@@ -42,8 +42,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
 		Metric: trainingprogram.MetricForecastMAE, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	const alias = "objective.registered.forecast-run"
 	modelPath, modelID := registerObjective(t, ctx, store, root, objective, alias)
 
@@ -88,8 +87,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 		shownCount = len(shown)
 		return run.Train(ctx, recipe, shown)
 	}
-	result, err := RunHeldout(ctx, store, counting)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(RunHeldout(ctx, store, counting))(t)
 	if shownCount != len(training.Records) || !result.Passed {
 		t.Fatalf("training saw %d of %d training records, verdict passed %t", shownCount, len(training.Records), result.Passed)
 	}
@@ -101,8 +99,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{result.Observation}); err != nil {
 		t.Fatal(err)
 	}
-	approved, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{result.Verdict})
-	testcheck.NoError(t, err)
+	approved := testcheck.Must(PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{result.Verdict}))(t)
 	if approved.Authority != trainingprogram.ObjectiveApproved {
 		t.Fatalf("authority after a passed held-out run = %q", approved.Authority)
 	}
@@ -115,18 +112,15 @@ func recordedCheckpoint(t *testing.T, store *overgodb.Store, model, source, spli
 	t.Helper()
 	derived := derivedIdentity(t, "overgo/recorded-checkpoint-test/")
 	const parameters = 4
-	plan, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})
-	testcheck.NoError(t, err)
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(parameters)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}}))(t)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(parameters))(t)
 	weights := make([]float32, parameters)
-	muon, err := hostoptimizer.New(weights, slices.Repeat([]float32{1}, parameters), plan, config)
-	testcheck.NoError(t, err)
+	muon := testcheck.Must(hostoptimizer.New(weights, slices.Repeat([]float32{1}, parameters), plan, config))(t)
 	muon.Step()
 	state := muon.Snapshot()
 	rng := derived(artifact.KindProfile, "rng")
 	directory := filepath.Join(t.TempDir(), "checkpoint")
-	checkpoint, err := trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
+	checkpoint := testcheck.Must(trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
 		RunPlan: derived(artifact.KindRecipe, "run plan"), Program: derived(artifact.KindRecipe, "program"), Model: model,
 		Dataset: source, Split: split, Stream: trainingprogram.DatasetState{Identity: derived(artifact.KindProfile, "stream"), Position: 1},
 		Optimizer: state, ParameterCount: state.Parameters(),
@@ -135,8 +129,7 @@ func recordedCheckpoint(t *testing.T, store *overgodb.Store, model, source, spli
 		Lineage:    []trainingprogram.LineageParent{{Artifact: model, Relation: artifact.RelationTrainedFrom}},
 	}, func(stage string) error {
 		return optimizer.SavePlanWeights(filepath.Join(stage, trainingprogram.CheckpointWeights), plan, weights)
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := RecordCheckpoint(t.Context(), store, directory, checkpoint); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +145,7 @@ func TestAnObjectiveRunChargesExposureBeforeItReads(t *testing.T) {
 	derived := derivedIdentity(t, "overgo/heldout-charge-test/")
 	source := derived(artifact.KindDataset, "dataset")
 	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "forecast-charge", Kind: trainingprogram.ObjectiveForecast,
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
@@ -162,8 +155,7 @@ func TestAnObjectiveRunChargesExposureBeforeItReads(t *testing.T) {
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
 		Metric: trainingprogram.MetricForecastMAE, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	const alias = "objective.registered.forecast-charge"
 	modelPath, modelID := registerObjective(t, ctx, store, root, objective, alias)
 	examples := map[string]HeldoutExample{}
@@ -182,16 +174,14 @@ func TestAnObjectiveRunChargesExposureBeforeItReads(t *testing.T) {
 		},
 		Predict: func(HeldoutExample) (HeldoutPrediction, error) {
 			if trained {
-				reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, derived(artifact.KindCheckpoint, "another candidate"))
-				testcheck.NoError(t, err)
+				reads := testcheck.Must(evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, derived(artifact.KindCheckpoint, "another candidate")))(t)
 				chargedAtRead = append(chargedAtRead, reads)
 				trained = false
 			}
 			return HeldoutPrediction{Values: []float64{level, level}}, nil
 		},
 	}
-	result, err := RunHeldout(ctx, store, run)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(RunHeldout(ctx, store, run))(t)
 	// The stand-in read charged its own candidate after the run's: two, so the run's came first.
 	if result.Reads != 1 || !slices.Equal(chargedAtRead, []uint64{2}) {
 		t.Fatalf("the run read as %d, and a candidate charged during its read as %v", result.Reads, chargedAtRead)

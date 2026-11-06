@@ -32,10 +32,9 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	}, []runrecord.InteractionMessage{{Role: "assistant", Content: "recorded"}}, ""); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
-	}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	if next := handler.nextID.Add(1); next <= 7 {
 		t.Fatalf("next identifier = %d, want the counter seeded past the durable resp_7", next)
@@ -48,13 +47,11 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 // handing out an identifier whose alias never bound.
 func TestResponsesRefuseNonDurablePublication(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	defer handler.Close()
 	testcheck.NoError(t, store.Close())
 	response := serveTestRequest(handler, http.MethodPost, "/v1/responses",

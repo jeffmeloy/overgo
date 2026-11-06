@@ -15,10 +15,8 @@ import (
 func TestIdentitiesReadEmbeddedIDs(t *testing.T) {
 	t.Parallel()
 	digest := strings.Repeat("ab", 32)
-	evidence, err := artifact.ParseID("evidence:sha256:" + digest)
-	testcheck.NoError(t, err)
-	recipe, err := artifact.ParseID("recipe:sha256:" + strings.Repeat("cd", 32))
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(artifact.ParseID("evidence:sha256:" + digest))(t)
+	recipe := testcheck.Must(artifact.ParseID("recipe:sha256:" + strings.Repeat("cd", 32)))(t)
 	text := `{"result": "evidence:sha256:` + digest + `"} cites 2recipe:sha256:` + strings.Repeat("cd", 32) +
 		" and evidence:sha256:" + digest + " again; nothing:sha256:" + digest + " evidence:sha256:abc"
 	want := []artifact.ID{evidence, recipe}

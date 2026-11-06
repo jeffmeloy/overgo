@@ -11,8 +11,7 @@ import (
 
 func TestLiveEditReferenceParity(t *testing.T) {
 	t.Run("flow-schedule", func(t *testing.T) {
-		got, err := CompileEditFlowSigmas(EditFlowConfig{InferenceSteps: 1000, TrainTimesteps: 1000, Shift: 5, SigmaMax: 1, ExtraStep: true}, []int64{1000, 750, 500, 250})
-		testcheck.NoError(t, err)
+		got := testcheck.Must(CompileEditFlowSigmas(EditFlowConfig{InferenceSteps: 1000, TrainTimesteps: 1000, Shift: 5, SigmaMax: 1, ExtraStep: true}, []int64{1000, 750, 500, 250}))(t)
 		want := []float32{1, 0.7500000596046448, 0.5005995631217957, 0.25159743428230286}
 		for index := range want {
 			if math.Abs(float64(got[index]-want[index])) > 1e-7 {
@@ -21,12 +20,11 @@ func TestLiveEditReferenceParity(t *testing.T) {
 		}
 	})
 
-	plan, err := compileEditPlan(
+	plan := testcheck.Must(compileEditPlan(
 		editModelConfig{PatchSize: [3]int{1, 2, 2}, InputChannels: 8, Dim: 12, TextLength: 7, Layers: 2, TrainSteps: 1000},
 		LatentGeometry{Channels: 4, LatentFrames: 7, LatentHeight: 6, LatentWidth: 10},
 		4, 3, 3, []int64{1000, 500, 0},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if !reflect.DeepEqual(plan.ChunkFrames, []int{3, 3, 1}) || plan.TokensPerFrame != 15 || plan.SelfAttentionTokens != 45 || plan.CrossAttentionTokens != 7 || plan.DenoiserCalls != 12 {
 		t.Fatalf("plan=%+v", plan)
 	}

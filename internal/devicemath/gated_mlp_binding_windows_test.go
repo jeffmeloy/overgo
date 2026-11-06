@@ -15,8 +15,7 @@ import (
 
 func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	for _, shape := range [][3]int{{1, 3, 5}, {4, 5, 6}} {
 		for _, resident := range []bool{false, true} {
@@ -36,23 +35,18 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 				}()
 				if resident {
 					for index, binding := range bindings {
-						weight, err := AllocResidentF32(worker, len(weights[index]), weights[index])
-						testcheck.NoError(t, err)
+						weight := testcheck.Must(AllocResidentF32(worker, len(weights[index]), weights[index]))(t)
 						owned = append(owned, weight)
-						gradient, err := AllocResidentF32(worker, len(weights[index]), nil)
-						testcheck.NoError(t, err)
+						gradient := testcheck.Must(AllocResidentF32(worker, len(weights[index]), nil))(t)
 						owned = append(owned, gradient)
 						*binding = linWeight{dev: weight, gradient: gradient}
 					}
 				}
 				for range 2 {
 					incoming := randSlice(rng, len(x))
-					before, err := worker.ExecutionStats(t.Context())
-					testcheck.NoError(t, err)
-					got, err := gatedMLPBackwardTW(worker, x, mw, g, a, u, h, incoming, rows, width, inter)
-					testcheck.NoError(t, err)
-					after, err := worker.ExecutionStats(t.Context())
-					testcheck.NoError(t, err)
+					before := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
+					got := testcheck.Must(gatedMLPBackwardTW(worker, x, mw, g, a, u, h, incoming, rows, width, inter))(t)
+					after := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
 					upload, download := uint64(2*len(x)+4*len(g))*f32Bytes, uint64(len(x))*f32Bytes
 					grads := [][]float32{got.DWGate, got.DWUp, got.DWDown}
 					for index, binding := range bindings {
@@ -96,8 +90,7 @@ func TestGatedMLPBackwardResidentBindings(t *testing.T) {
 			})
 		}
 	}
-	stats, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	stats := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("MLP retained %d bytes", stats.CurrentBytes)
 	}

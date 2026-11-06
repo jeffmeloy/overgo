@@ -23,8 +23,7 @@ func TestToolModuleContract(t *testing.T) {
 
 func TestToolRecipeAdmission(t *testing.T) {
 	program := testToolProgram(t)
-	admission, err := AdmitTool(program)
-	testcheck.NoError(t, err)
+	admission := testcheck.Must(AdmitTool(program))(t)
 	if admission.Module != testToolModule || admission.Recipe != program.Definition().ID {
 		t.Fatalf("admission = %+v", admission)
 	}
@@ -35,17 +34,14 @@ func testToolProgram(t *testing.T) Program {
 	model := testutil.ArtifactID(t, artifact.KindModel, "tool-model")
 	module := ToolModule(testToolModule, PlacementHost)
 	node := Node{ID: "execute", Module: module.ID, Placement: PlacementHost}
-	definition, err := NewDefinitionWithDependencies(
+	definition := testcheck.Must(NewDefinitionWithDependencies(
 		TaskInference,
 		[]Dependency{{Role: DependencyModel, Artifact: model}},
 		[]Node{node}, nil,
 		[]Input{{Name: ToolCallPort, Data: DataToolCall, Target: Endpoint{Node: node.ID, Port: ToolCallPort}}},
 		[]Output{{Name: ToolResultPort, Data: DataToolResult, Source: Endpoint{Node: node.ID, Port: ToolResultPort}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := NewCatalog(module)
-	testcheck.NoError(t, err)
-	program, err := CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
+	))(t)
+	catalog := testcheck.Must(NewCatalog(module))(t)
+	program := testcheck.Must(CompileProgram(definition, catalog))(t)
 	return program
 }

@@ -23,8 +23,7 @@ func tinyMixtureModel(t *testing.T) *Model {
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
 	const expertInter = 8
 	policy := MoERouterPolicy{TopK: 2, Scoring: MoEScoringSoftmax, NormalizeTopKProb: true, RoutedScaling: 1, ExpertInter: expertInter}
-	m, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, policy, 0)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, policy, 0))(t)
 	return m
 }
 

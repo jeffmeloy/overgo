@@ -19,11 +19,9 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Capture fixture"}}))
 	front := httptest.NewServer(handler)
 	defer front.Close()
-	executable, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, executable, front.URL)
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, executable, front.URL))(t)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := browserSettle(t, ctx, browser)
@@ -55,8 +53,7 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 		settle(`!!micFile`)
 		var encoded string
 		testcheck.NoError(t, browser.Evaluate(ctx, `(async()=>btoa(String.fromCharCode(...new Uint8Array(await micFile.arrayBuffer()))))()`, &encoded))
-		wave, err := base64.StdEncoding.DecodeString(encoded)
-		testcheck.NoError(t, err)
+		wave := testcheck.Must(base64.StdEncoding.DecodeString(encoded))(t)
 		decoded, _, err := media.DecodeAudio(ctx, wave, 2048)
 		testcheck.NoError(t, err)
 		if decoded.Format.SampleRate != uint64(rate) || len(decoded.Samples) != 2048 {

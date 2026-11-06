@@ -17,10 +17,8 @@ import (
 func TestFrozenLlamaLoadReadsQueryAndKeyRowsInCheckpointOrder(t *testing.T) {
 	t.Parallel()
 	path := testutil.QuantizedLlamaGGUF(t, 1)
-	dense, err := LoadGGUF(path)
-	testcheck.NoError(t, err)
-	frozen, err := LoadGGUFFrozen(path, func(string) bool { return true })
-	testcheck.NoError(t, err)
+	dense := testcheck.Must(LoadGGUF(path))(t)
+	frozen := testcheck.Must(LoadGGUFFrozen(path, func(string) bool { return true }))(t)
 	reordered := 0
 	for name, values := range dense.Weights {
 		attention := strings.HasSuffix(name, queryProjection) || strings.HasSuffix(name, keyProjection)
@@ -53,8 +51,7 @@ func TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "model.embed_tokens.weight") {
 		t.Fatalf("holding every tensor: err = %v, want the stored embedding refused", err)
 	}
-	frozen, err := LoadGGUFFrozen(path, func(name string) bool { return strings.Contains(name, ".layers.") })
-	testcheck.NoError(t, err)
+	frozen := testcheck.Must(LoadGGUFFrozen(path, func(name string) bool { return strings.Contains(name, ".layers.") }))(t)
 	if !frozen.Frozen("model.layers.0.self_attn.v_proj.weight") || frozen.Frozen("model.embed_tokens.weight") {
 		t.Error("holding the layers' tensors did not hold their projections and leave the embedding in full precision")
 	}
@@ -75,8 +72,7 @@ func TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead(t *testing.T) {
 // retained-logits path and the numbers of the masked one.
 func TestMaskedLossWithoutAMaskIsTheLossOfEveryToken(t *testing.T) {
 	t.Parallel()
-	model, err := LoadGGUF(testutil.QuantizedDenseGGUF(t, 1))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(LoadGGUF(testutil.QuantizedDenseGGUF(t, 1)))(t)
 	tokens := []int{3, 4, 5, 6, 7, 4, 5, 6}
 	train := func(name string) bool { return strings.Contains(name, "layers.0.") }
 	want, wantGrads, err := model.MaskedLossAndLayerGradsOf(tokens, slices.Repeat([]bool{true}, len(tokens)), train, nil)

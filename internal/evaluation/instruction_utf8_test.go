@@ -21,14 +21,12 @@ func TestInstructionGenerationWithAnInvalidByteResumes(t *testing.T) {
 	suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "utf8-fixture", Cases: []instructionRulesCase{
 		{Name: "cut", Prompt: "Cut answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}}
-	compiled, err := compileInstructionRules(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindInstructionRules(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileInstructionRules(suite))(t)
+	plan := testcheck.Must(bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	cut := "OK\xe2\x82"

@@ -20,8 +20,7 @@ func TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers(t *testing.T) {
 		Gap: id(artifact.KindEvidence, "scaling-accounting-covered"), Falsifier: id(artifact.KindRecipe, "scaling-owner-audit"),
 		GapState: MechanismGapClosed,
 	}
-	census, err := CompileMechanismCensus([]MechanismAssessment{router, scaling})
-	testcheck.NoError(t, err)
+	census := testcheck.Must(CompileMechanismCensus([]MechanismAssessment{router, scaling}))(t)
 	reordered, err := CompileMechanismCensus([]MechanismAssessment{scaling, router})
 	if err != nil || reordered.ID() != census.ID() {
 		t.Fatalf("reordered census = (%s, %v), want %s", reordered.ID(), err, census.ID())

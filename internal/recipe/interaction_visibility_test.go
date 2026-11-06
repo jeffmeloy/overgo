@@ -25,7 +25,7 @@ func visibilityProgram(t *testing.T) Program {
 		valuesPort   PortName = "values"
 	)
 	placements := []Placement{PlacementHost}
-	catalog, err := NewCatalog(
+	catalog := testcheck.Must(NewCatalog(
 		Module{ID: sourceModule, Tasks: []Task{TaskInference}, Placements: placements,
 			Outputs: []Port{{Name: valuePort, Data: DataTensor, Cardinality: CardinalityOne}}},
 		Module{ID: branchModule, Tasks: []Task{TaskInference}, Placements: placements,
@@ -34,8 +34,7 @@ func visibilityProgram(t *testing.T) Program {
 		Module{ID: joinModule, Tasks: []Task{TaskInference}, Placements: placements,
 			Inputs:  []Port{{Name: valuesPort, Data: DataTensor, Cardinality: CardinalityMany}},
 			Outputs: []Port{{Name: valuePort, Data: DataTensor, Cardinality: CardinalityOne}}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "visibility-model")
 	nodes := []Node{
 		{ID: visibilityRoot, Module: sourceModule, Placement: PlacementHost},
@@ -46,7 +45,7 @@ func visibilityProgram(t *testing.T) Program {
 	edge := func(from NodeID, fromPort PortName, to NodeID, toPort PortName) Edge {
 		return Edge{From: Endpoint{Node: from, Port: fromPort}, To: Endpoint{Node: to, Port: toPort}}
 	}
-	definition, err := NewDefinitionWithDependencies(
+	definition := testcheck.Must(NewDefinitionWithDependencies(
 		TaskInference,
 		[]Dependency{{Role: DependencyModel, Artifact: modelID}},
 		nodes,
@@ -57,10 +56,8 @@ func visibilityProgram(t *testing.T) Program {
 			edge(visibilityRight, valuePort, visibilityJoin, valuesPort),
 		}, nil,
 		[]Output{{Name: valuePort, Data: DataTensor, Source: Endpoint{Node: visibilityJoin, Port: valuePort}}},
-	)
-	testcheck.NoError(t, err)
-	program, err := CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
+	))(t)
+	program := testcheck.Must(CompileProgram(definition, catalog))(t)
 	return program
 }
 
@@ -88,8 +85,7 @@ func TestInteractionVisibility(t *testing.T) {
 
 func TestSiblingHistoryIsolation(t *testing.T) {
 	program := visibilityProgram(t)
-	scope, err := program.InteractionScope(visibilityLeft)
-	testcheck.NoError(t, err)
+	scope := testcheck.Must(program.InteractionScope(visibilityLeft))(t)
 	if scope.Visibility.Allows(
 		visibilityActivation(t, program, visibilityLeft),
 		visibilityActivation(t, program, visibilityRight),
@@ -100,8 +96,7 @@ func TestSiblingHistoryIsolation(t *testing.T) {
 
 func TestAncestorHistoryVisibility(t *testing.T) {
 	program := visibilityProgram(t)
-	scope, err := program.InteractionScope(visibilityLeft)
-	testcheck.NoError(t, err)
+	scope := testcheck.Must(program.InteractionScope(visibilityLeft))(t)
 	current := visibilityActivation(t, program, visibilityLeft)
 	if !scope.Visibility.Allows(current, current) ||
 		!scope.Visibility.Allows(current, visibilityActivation(t, program, visibilityRoot)) {

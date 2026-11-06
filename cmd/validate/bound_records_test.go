@@ -48,14 +48,12 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
 	authorities := evaluation.ListingAuthorities()
-	data, err := json.Marshal(evaluation.MultipleChoiceSuite{
+	data := testcheck.Must(json.Marshal(evaluation.MultipleChoiceSuite{
 		Kind: evaluation.MultipleChoiceKind, Schema: "fixture/benchmark", Source: "store/mmlu",
 		Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy,
 		Cases: []evaluation.MultipleChoiceCase{{Name: "case-000", Prompt: "Question 0: word\nAnswer:", Candidates: []string{" A", " B", " C", " D"}}},
-	})
-	testcheck.NoError(t, err)
-	suite, err := evaluation.CompileSuite(data, authorities)
-	testcheck.NoError(t, err)
+	}))(t)
+	suite := testcheck.Must(evaluation.CompileSuite(data, authorities))(t)
 	model := testutil.ArtifactID(t, artifact.KindModel, "unknown execution model")
 	output := testutil.ArtifactID(t, artifact.KindEvaluation, "legacy report")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "benchmark/authorities", Artifacts: []artifact.Descriptor{
@@ -63,19 +61,14 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	legacy, err := runrecord.NewRun(authorities.RuntimeRecipe, runrecord.OutcomeSucceeded, nil, []artifact.ID{output}, "")
-	testcheck.NoError(t, err)
-	content, err := legacy.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("benchmark/legacy-run", []artifact.Content{content}, legacy.Lineage(), nil)
-	testcheck.NoError(t, err)
+	legacy := testcheck.Must(runrecord.NewRun(authorities.RuntimeRecipe, runrecord.OutcomeSucceeded, nil, []artifact.ID{output}, ""))(t)
+	content := testcheck.Must(legacy.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("benchmark/legacy-run", []artifact.Content{content}, legacy.Lineage(), nil))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	record, err := runrecord.NewEvaluation(authorities.RuntimeRecipe, legacy.ID, suite.Descriptor().Dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
-	testcheck.NoError(t, err)
-	batch, err = record.Batch("benchmark/legacy-evaluation")
-	testcheck.NoError(t, err)
+	record := testcheck.Must(runrecord.NewEvaluation(authorities.RuntimeRecipe, legacy.ID, suite.Descriptor().Dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}))(t)
+	batch = testcheck.Must(record.Batch("benchmark/legacy-evaluation"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -83,27 +76,21 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	read := func(cell ModelValidation) ModelValidation {
 		t.Helper()
 		benchmarks := benchmarkEvidence{suites: []evaluation.CompiledSuite{suite}, evidence: evaluation.LatestEvidence(t.Context(), store, map[artifact.ID]string{suite.Descriptor().Dataset: "store/mmlu"}, 0)}
-		value, err := benchmarks.bind(t.Context(), store, cell)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(benchmarks.bind(t.Context(), store, cell))(t)
 		return value
 	}
 	raw := evaluation.PromptingRawCompletion.Label()
 	if value := read(cell); value.Cost != int64(benchmarkBudget) || value.Protocol != raw {
 		t.Errorf("unknown execution was bound: %+v, want a fresh raw measurement at the budget's cost", value)
 	}
-	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"}))(t)
 	scored := 0
-	campaign, err := evaluation.NewIsolatedCampaign(store, benchmarkFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
+	campaign := testcheck.Must(evaluation.NewIsolatedCampaign(store, benchmarkFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
 		Model: model, Definition: authorities.ModelDefinition, Recipe: authorities.RuntimeRecipe,
-	}, platform, strings.Repeat("a", 40))
-	testcheck.NoError(t, err)
-	suite, err = evaluation.CompileSuite(data, campaign.Authorities())
-	testcheck.NoError(t, err)
-	fresh, err := campaign.Evaluate(t.Context(), suite)
-	testcheck.NoError(t, err)
-	run, err := runrecord.RequireRun(t.Context(), store, fresh.Run)
-	testcheck.NoError(t, err)
+	}, platform, strings.Repeat("a", 40)))(t)
+	suite = testcheck.Must(evaluation.CompileSuite(data, campaign.Authorities()))(t)
+	fresh := testcheck.Must(campaign.Evaluate(t.Context(), suite))(t)
+	run := testcheck.Must(runrecord.RequireRun(t.Context(), store, fresh.Run))(t)
 	bound := read(cell)
 	if bound.Cost != int64(run.MeasuredNS) || bound.Protocol != raw || scored != 1 {
 		t.Fatalf("known real execution was not retained: %+v, scored=%d", bound, scored)

@@ -26,16 +26,12 @@ func TestRealTransformerBlockCUDAParity(t *testing.T) {
 		t.Fatal("real artifact has no middle transformer block")
 	}
 	block, input := model.middle[0], trace.middleInputs[0]
-	program, err := compileTransformerBlockProgram(block, model.Cfg, trace.middleC, trace.middleH*trace.middleW)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(compileTransformerBlockProgram(block, model.Cfg, trace.middleC, trace.middleH*trace.middleW))(t)
 	want := block.forward(model, input, golden.B, trace.middleC, trace.middleH, trace.middleW)
-	referenceOutput, err := program.execute(context.Background(), nil, input)
-	testcheck.NoError(t, err)
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	referenceOutput := testcheck.Must(program.execute(context.Background(), nil, input))(t)
+	device := testcheck.Must(executor.New(0))(t)
 	defer device.Close()
-	deviceOutput, err := program.execute(context.Background(), device, input)
-	testcheck.NoError(t, err)
+	deviceOutput := testcheck.Must(program.execute(context.Background(), device, input))(t)
 	referenceDiff := testutil.MaxAbsDiff(referenceOutput, want)
 	deviceDiff := testutil.MaxAbsDiff(deviceOutput, want)
 	for index, value := range deviceOutput {

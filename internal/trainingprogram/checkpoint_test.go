@@ -24,18 +24,16 @@ import (
 func publishTestCheckpoint(t *testing.T, spec CheckpointSpec) (Checkpoint, string) {
 	t.Helper()
 	target := filepath.Join(t.TempDir(), "checkpoint")
-	checkpoint, err := PublishCheckpoint(target, spec, func(stage string) error {
+	checkpoint := testcheck.Must(PublishCheckpoint(target, spec, func(stage string) error {
 		return os.WriteFile(filepath.Join(stage, CheckpointWeights), []byte("weights"), 0o644)
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return checkpoint, target
 }
 
 func checkpointTestSpec(t *testing.T, state hostoptimizer.State) CheckpointSpec {
 	t.Helper()
 	id := func(kind artifact.Kind, value string) artifact.ID {
-		result, err := artifact.IdentifyBytes(kind, []byte(value))
-		testcheck.NoError(t, err)
+		result := testcheck.Must(artifact.IdentifyBytes(kind, []byte(value)))(t)
 		return result
 	}
 	model := id(artifact.KindModel, "model")
@@ -56,10 +54,8 @@ func checkpointTestSpec(t *testing.T, state hostoptimizer.State) CheckpointSpec 
 }
 
 func TestProductionCheckpointResumeExact(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(2, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 2, Rows: 1, Cols: 2}})
-	testcheck.NoError(t, err)
-	muon, err := hostoptimizer.New([]float32{1, 2}, []float32{3, 4}, plan, hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(2, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 2, Rows: 1, Cols: 2}}))(t)
+	muon := testcheck.Must(hostoptimizer.New([]float32{1, 2}, []float32{3, 4}, plan, hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9}))(t)
 	muon.Step()
 	spec := checkpointTestSpec(t, muon.Snapshot())
 	t.Run("complete-gguf", func(t *testing.T) {
@@ -81,8 +77,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		publish := func(t *testing.T) (Checkpoint, string) {
 			t.Helper()
 			directory := filepath.Join(t.TempDir(), "split")
-			checkpoint, err := PublishCheckpoint(directory, spec, write)
-			testcheck.NoError(t, err)
+			checkpoint := testcheck.Must(PublishCheckpoint(directory, spec, write))(t)
 			return checkpoint, directory
 		}
 		written, directory := publish(t)
@@ -90,21 +85,18 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		if err != nil || loaded.ID() != written.ID() || loaded.Stream != spec.Stream || loaded.Optimizer.Step != spec.Optimizer.Step {
 			t.Fatalf("split round trip = (%+v, %v)", loaded, err)
 		}
-		file, err := gguf.Open(filepath.Join(directory, CheckpointModel))
-		testcheck.NoError(t, err)
+		file := testcheck.Must(gguf.Open(filepath.Join(directory, CheckpointModel)))(t)
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 		if closeErr := file.Close(); err != nil || closeErr != nil {
 			t.Fatal(err, closeErr)
 		}
-		batch, err := written.Batch("split", directory)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(written.Batch("split", directory))(t)
 		for _, component := range inventory.Components {
 			if !slices.ContainsFunc(batch.Artifacts, func(descriptor artifact.Descriptor) bool { return descriptor.ID == component.ID }) {
 				t.Errorf("checkpoint evidence omits %s", component.ID)
 			}
 		}
-		original, err := os.ReadFile(filepath.Join(directory, CheckpointFrozenShard))
-		testcheck.NoError(t, err)
+		original := testcheck.Must(os.ReadFile(filepath.Join(directory, CheckpointFrozenShard)))(t)
 		changed := slices.Clone(original)
 		changed[len(changed)-1] ^= 1 // Same directory and shape, only frozen tensor bytes change.
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, CheckpointFrozenShard), changed, 0o644))
@@ -125,8 +117,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		incomplete.Weights = inventory.Components[0].ID
 		testcheck.NoError(t, identify(&incomplete))
 		for name, document := range map[string]any{CheckpointFilename: incomplete.document(), resumeFilename: incomplete.resume()} {
-			data, err := json.Marshal(document)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(document))(t)
 			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o644))
 		}
 		if _, err := LoadCheckpoint(directory); err == nil {
@@ -142,15 +133,13 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		testcheck.NoError(t, err)
 		// Reproduce the old v2 raw-file binding and sidecar, without changing
 		// their contract to the newly published split document.
-		weights, err := os.ReadFile(filepath.Join(directory, "model.gguf"))
-		testcheck.NoError(t, err)
+		weights := testcheck.Must(os.ReadFile(filepath.Join(directory, "model.gguf")))(t)
 		checkpoint.Weights, err = artifact.IdentifyBytes(artifact.KindTensorSet, weights)
 		checkpoint.version = artifact.SecondDocumentVersion
 		testcheck.NoError(t, err)
 		testcheck.NoError(t, identify(&checkpoint))
 		for name, document := range map[string]any{CheckpointFilename: checkpoint.document(), resumeFilename: checkpoint.resume()} {
-			data, err := json.Marshal(document)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(document))(t)
 			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o644))
 		}
 		loaded, err := LoadCheckpoint(directory)
@@ -194,8 +183,7 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 // digests the document chain names, and a version 1 document that inlined
 // its momentum, refuse.
 func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{{Name: "weight", End: 6, Rows: 2, Cols: 3}})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{{Name: "weight", End: 6, Rows: 2, Cols: 3}}))(t)
 	config := hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9}
 	extremes32 := []float32{math.Float32frombits(1), -0.0, math.MaxFloat32, -math.SmallestNonzeroFloat32, 1.0 / 3, -7.25}
 	extremes64 := []float64{math.Float64frombits(1), math.Copysign(0, -1), math.MaxFloat64, 1.0 / 3, -1e-300, 0.1}
@@ -210,8 +198,7 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 		t.Run(state.name, func(t *testing.T) {
 			spec := checkpointTestSpec(t, state.state)
 			written, target := publishTestCheckpoint(t, spec)
-			document, err := os.ReadFile(filepath.Join(target, CheckpointFilename))
-			testcheck.NoError(t, err)
+			document := testcheck.Must(os.ReadFile(filepath.Join(target, CheckpointFilename)))(t)
 			for _, inlined := range []string{`"momentum"`, `"stream"`, `"rng"`, `"optimizer"`} {
 				if bytes.Contains(document, []byte(inlined)) {
 					t.Fatalf("checkpoint document inlines %s: %s", inlined, document)
@@ -224,8 +211,7 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 			if info, err := os.Stat(momentumPath); err != nil || info.Size() != int64(state.width*spec.ParameterCount) {
 				t.Fatalf("momentum file = (%v, %v), want %d bytes a value", info, err, state.width)
 			}
-			loaded, err := LoadCheckpoint(target)
-			testcheck.NoError(t, err)
+			loaded := testcheck.Must(LoadCheckpoint(target))(t)
 			got := loaded.Optimizer
 			if loaded.ID() != written.ID() || loaded.Resume != written.Resume || got.Step != state.state.Step ||
 				got.Config != state.state.Config || got.PlanIdentity != state.state.PlanIdentity ||
@@ -234,8 +220,7 @@ func TestResumeSidecarRoundTripsBitExact(t *testing.T) {
 				!slices.EqualFunc(got.Momentum, state.state.Momentum, func(left, right float64) bool { return math.Float64bits(left) == math.Float64bits(right) }) {
 				t.Fatalf("loaded resume state %+v differs from the published %+v", got, state.state)
 			}
-			original, err := os.ReadFile(momentumPath)
-			testcheck.NoError(t, err)
+			original := testcheck.Must(os.ReadFile(momentumPath))(t)
 			flipped := slices.Clone(original)
 			flipped[0] ^= 1
 			testcheck.NoError(t, os.WriteFile(momentumPath, flipped, 0o644))

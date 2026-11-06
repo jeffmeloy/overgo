@@ -26,8 +26,7 @@ func TestLauncherForwardsWorkspaceEnablement(t *testing.T) {
 			record := filepath.Join(t.TempDir(), "arguments")
 			t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 			t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
-			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir(), Workspaces: workspaces}, 0)
-			testcheck.NoError(t, err)
+			supervisor := testcheck.Must(New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir(), Workspaces: workspaces}, 0))(t)
 			defer supervisor.Close()
 			proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 			response := httptest.NewRecorder()
@@ -35,8 +34,7 @@ func TestLauncherForwardsWorkspaceEnablement(t *testing.T) {
 			if response.Code != http.StatusServiceUnavailable {
 				t.Fatalf("startup = %d %s", response.Code, response.Body)
 			}
-			recorded, err := os.ReadFile(record)
-			testcheck.NoError(t, err)
+			recorded := testcheck.Must(os.ReadFile(record))(t)
 			arguments := strings.Split(strings.TrimSpace(string(recorded)), "\n")
 			for _, serving := range []string{"-listen", "-repo", "-model-id"} {
 				if !slices.Contains(arguments, serving) {

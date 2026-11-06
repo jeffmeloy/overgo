@@ -18,34 +18,26 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir(t), err)
 	}
 	binding := SenseNovaBinding()
-	cfg, err := LoadConfig(senseNovaDir(t), binding)
-	testcheck.NoError(t, err)
-	flowCfg, err := LoadFlowConfig(senseNovaDir(t))
-	testcheck.NoError(t, err)
-	src, err := safetensors.OpenSource(senseNovaDir(t))
-	testcheck.NoError(t, err)
+	cfg := testcheck.Must(LoadConfig(senseNovaDir(t), binding))(t)
+	flowCfg := testcheck.Must(LoadFlowConfig(senseNovaDir(t)))(t)
+	src := testcheck.Must(safetensors.OpenSource(senseNovaDir(t)))(t)
 	defer src.Close()
-	flow, err := InspectFlowProfile(senseNovaDir(t))
-	testcheck.NoError(t, err)
-	plan, err := CompileFlowPlan(src, cfg, flowCfg, flow)
-	testcheck.NoError(t, err)
+	flow := testcheck.Must(InspectFlowProfile(senseNovaDir(t)))(t)
+	plan := testcheck.Must(CompileFlowPlan(src, cfg, flowCfg, flow))(t)
 	want := testFlowPlan()
 	if plan != want {
 		t.Fatalf("plan = %+v, want %+v", plan, want)
 	}
 	// noise_scale_base_image_seq_len is the 256x256 reference token count.
-	shape, err := plan.ImagePlan(256, 256)
-	testcheck.NoError(t, err)
+	shape := testcheck.Must(plan.ImagePlan(256, 256))(t)
 	if shape.Tokens != plan.NoiseScaleBase {
 		t.Fatalf("256x256 tokens = %d, base = %d", shape.Tokens, plan.NoiseScaleBase)
 	}
 	if shape.NoiseScale != 1 || plan.NormalizedNoiseScale(shape.NoiseScale) != 0.125 {
 		t.Fatalf("256x256 noise scale = %g (normalized %g)", shape.NoiseScale, plan.NormalizedNoiseScale(shape.NoiseScale))
 	}
-	weights, err := LoadFlowTerminalWeights(src, plan, flow)
-	testcheck.NoError(t, err)
-	condition, err := FlowConditionRow(weights, plan, 0, plan.NormalizedNoiseScale(shape.NoiseScale))
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(LoadFlowTerminalWeights(src, plan, flow))(t)
+	condition := testcheck.Must(FlowConditionRow(weights, plan, 0, plan.NormalizedNoiseScale(shape.NoiseScale)))(t)
 	if len(condition) != plan.Hidden {
 		t.Fatalf("condition len = %d, want %d", len(condition), plan.Hidden)
 	}
@@ -62,8 +54,7 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 		t.Fatal("condition row is all zeros")
 	}
 	for _, prefix := range []string{flow.SourceVisionPrefix, flow.GenerationVisionPrefix} {
-		embedder, err := LoadVisionEmbedderWeights(src, prefix, plan)
-		testcheck.NoError(t, err)
+		embedder := testcheck.Must(LoadVisionEmbedderWeights(src, prefix, plan))(t)
 		image := make([]float32, plan.VisionChannels*64*64)
 		for i := range image {
 			image[i] = float32(i%17)/17 - 0.5
@@ -85,8 +76,7 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 	for i := range hidden {
 		hidden[i] = dtype.RoundBF16(float32(i%13)/13 - 0.5)
 	}
-	velocity, err := FlowHeadVelocity(weights.Head, plan, hidden, z, 0)
-	testcheck.NoError(t, err)
+	velocity := testcheck.Must(FlowHeadVelocity(weights.Head, plan, hidden, z, 0))(t)
 	if len(velocity) != plan.FlowDim {
 		t.Fatalf("velocity len = %d, want %d", len(velocity), plan.FlowDim)
 	}

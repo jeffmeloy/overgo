@@ -23,8 +23,7 @@ func TestRepositoryCountsEveryCapabilityPackage(t *testing.T) {
 	for entry, reads := range refused {
 		t.Errorf("%s has no identity: declare each read as a result setting or a neutral read (identity.go): %s", entry, strings.Join(reads, "; "))
 	}
-	flag, err := LinkFlag(ctx, "../..")
-	testcheck.NoError(t, err)
+	flag := testcheck.Must(LinkFlag(ctx, "../.."))(t)
 	for _, entry := range []string{"overgo/internal/rae", "overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve", "overgo/" + textRunner, evaluationCount} {
 		if identity := counted[entry]; identity == "" || !strings.Contains(flag, entry+"="+identity) {
 			t.Errorf("%s is counted %q, and the linker flag does not name it so", entry, identity)

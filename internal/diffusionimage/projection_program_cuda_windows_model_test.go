@@ -23,16 +23,14 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 	if golden.B != 1 {
 		t.Fatalf("projection graph currently requires batch 1, got %d", golden.B)
 	}
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	device := testcheck.Must(executor.New(0))(t)
 	defer device.Close()
 
-	patch, err := compileProjectionProgram(
+	patch := testcheck.Must(compileProjectionProgram(
 		model.patch,
 		imageGeometry{channels: model.Cfg.InChannels, height: golden.H, width: golden.W},
 		model.Cfg.BaseChannels, model.Cfg.PatchSize, model.Cfg.PatchSize, false,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	patchWant, patchH, patchW := conv2dValidStride(
 		golden.X, model.patch.weight, model.patch.bias, 1,
 		model.Cfg.InChannels, model.Cfg.BaseChannels, golden.H, golden.W,
@@ -44,12 +42,11 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 	testcheck.NoError(t, err)
 	for index, down := range trace.encDowns {
 		binding := model.encoders[index].transition
-		downProgram, err := compileProjectionProgram(
+		downProgram := testcheck.Must(compileProjectionProgram(
 			binding,
 			imageGeometry{channels: down.channels, height: down.h, width: down.width},
 			down.nextChannels, 1, 1, true,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		downWant, _, _ := conv2dValidStride(
 			down.input, binding.weight, binding.bias, 1,
 			down.channels, down.nextChannels, down.h, down.width, 1, 1,
@@ -63,10 +60,8 @@ func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
 
 func checkProjectionProgram(t *testing.T, device *executor.Executor, name string, program projectionProgram, input, want []float32) {
 	t.Helper()
-	referenceOutput, err := program.execute(context.Background(), nil, input)
-	testcheck.NoError(t, err)
-	deviceOutput, err := program.execute(context.Background(), device, input)
-	testcheck.NoError(t, err)
+	referenceOutput := testcheck.Must(program.execute(context.Background(), nil, input))(t)
+	deviceOutput := testcheck.Must(program.execute(context.Background(), device, input))(t)
 	referenceDiff, deviceDiff := testutil.MaxAbsDiff(referenceOutput, want), testutil.MaxAbsDiff(deviceOutput, want)
 	t.Logf("%s reference_max=%.3e cuda_max=%.3e", name, referenceDiff, deviceDiff)
 	if referenceDiff > 2e-5 || deviceDiff > 2e-3 {

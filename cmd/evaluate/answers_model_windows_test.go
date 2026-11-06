@@ -133,17 +133,14 @@ type answerReference struct {
 func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/answer_log_probabilities/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's reference answers are on file (%v); write them with %s", err, answersScript)
 	}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference answerReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -157,8 +154,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 			if differs {
 				tolerance, margin = known.tolerance, known.margin
 			}
-			asked, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(reference.Prompts)))
-			testcheck.NoError(t, err)
+			asked := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(reference.Prompts))))(t)
 			if digest := sha256.Sum256(asked); hex.EncodeToString(digest[:]) != reference.PromptsSHA256 {
 				t.Fatalf("%s is not the file the reference answered: write the answers again with %s", reference.Prompts, answersScript)
 			}
@@ -171,8 +167,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 			if _, err := os.Stat(model); err != nil {
 				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
-			runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{})
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{}))(t)
 			t.Cleanup(func() { _ = runner.Close() })
 			widest, same, tokens := 0.0, 0, 0
 			for index, own := range reference.Cases {

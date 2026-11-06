@@ -21,8 +21,7 @@ func TestBindFeedLeavesInputsUnchangedWhenTheUploadFails(t *testing.T) {
 	weight := builder.Input("weight", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
 	output := builder.Add(weight, weight)
 	testcheck.NoError(t, builder.Err())
-	compiled, err := executor.Compile(output)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(executor.Compile(output))(t)
 	inputs := compiled.NewDeviceInputs()
 	allocations := device.NewAllocationSet(nil)
 	if err := BindFeed(t.Context(), &allocations, inputs, weight, driver.Bytes([]float32{1})); err == nil {

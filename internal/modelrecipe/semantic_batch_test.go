@@ -19,10 +19,9 @@ func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("semantic-batch-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
-	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	model := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "semantic-batch/artifacts",
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
@@ -30,8 +29,7 @@ func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := CapabilityDefinition(recipe.TaskGeneration, model.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(CapabilityDefinition(recipe.TaskGeneration, model.ID))(t)
 	counting := &repositorytest.CountingRepository{Repository: store}
 	if _, _, err := PublishCandidate(ctx, counting, "semantic-batch/candidate", definition); err != nil {
 		t.Fatal(err)

@@ -33,8 +33,7 @@ func TestE4BValidationProducer(t *testing.T) {
 		t.Fatal("refused cycle changed the store")
 	}
 	encoded := []byte("pinned encoded payload; this host fixture checks identity, not audio quality")
-	audio, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
-	testcheck.NoError(t, err)
+	audio := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, encoded))(t)
 	path := filepath.Join(t.TempDir(), "payload")
 	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	origin := dataset.AudioPayloadOrigin{Container: audio}
@@ -91,8 +90,7 @@ func TestE4BValidationProducer(t *testing.T) {
 	if after, n := store.Head(); after != head || n != sequence {
 		t.Fatal("exact replay appended evidence")
 	}
-	before, err := evaluation.CompileTranscription(suite)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(evaluation.CompileTranscription(suite))(t)
 	suite.Cases[0].Reference = "different target"
 	testcheck.NoError(t, prepareTranscriptionSelection(t.Context(), store, &suite, []evaluation.TranscriptionResourceInput{input}, uint64(len(encoded))))
 	after, err := evaluation.CompileTranscription(suite)

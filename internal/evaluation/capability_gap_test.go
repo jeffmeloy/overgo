@@ -29,8 +29,7 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 	)
 	corpus := []artifact.ID{incumbentFirst, strongEvidence, weakEvidence, incumbentLatest}
 
-	targets, err := DeriveCapabilityGapTargets(ctx, store, corpus)
-	testcheck.NoError(t, err)
+	targets := testcheck.Must(DeriveCapabilityGapTargets(ctx, store, corpus))(t)
 	byKind := map[capabilityGapKind][]capabilityGapTarget{}
 	for _, target := range targets {
 		byKind[target.Kind] = append(byKind[target.Kind], target)

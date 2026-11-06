@@ -31,17 +31,14 @@ func interleaved(planar []float32, channels int) []float32 {
 func encoderGoldenCheck(t *testing.T, root, fixture, digest string, height, width, latent int) {
 	t.Helper()
 	mossFixtureBytes(t, fixture, digest)
-	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture)))(t)
 	defer source.Close()
 	read := func(name string) []float32 {
 		t.Helper()
-		values, err := safetensors.ReadF32(source.Tensors[name])
-		testcheck.NoError(t, err)
+		values := testcheck.Must(safetensors.ReadF32(source.Tensors[name]))(t)
 		return values
 	}
-	encoder, err := NewPictureEncoder(t.Context(), root, height, width)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(NewPictureEncoder(t.Context(), root, height, width))(t)
 	defer func() {
 		if err := encoder.Close(t.Context()); err != nil {
 			t.Error(err)
@@ -67,8 +64,7 @@ func encoderGoldenCheck(t *testing.T, root, fixture, digest string, height, widt
 			t.Fatalf("%s differs by %g of largest %g", name, worst, largest)
 		}
 	}
-	mean, err := encoder.mean(t.Context(), pixels)
-	testcheck.NoError(t, err)
+	mean := testcheck.Must(encoder.mean(t.Context(), pixels))(t)
 	compare("moments mean", mean, interleaved(read("moments_mean"), latent))
 	rows, gridHeight, gridWidth, err := encoder.Encode(t.Context(), pixels)
 	testcheck.NoError(t, err)

@@ -45,8 +45,7 @@ func pairedReadings(t *testing.T) (string, *overgodb.Store, artifact.ID, func(co
 	t.Helper()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      testutil.ArtifactID(t, artifact.KindModel, "paired model"),
 		Definition: testutil.ArtifactID(t, artifact.KindModelDefinition, "paired definition"),
@@ -55,15 +54,13 @@ func pairedReadings(t *testing.T) (string, *overgodb.Store, artifact.ID, func(co
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/paired", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	const cases = 40
 	suite := evaluation.MultipleChoiceSuite{Kind: evaluation.MultipleChoiceKind, Schema: "fixture/paired/v1", Source: "paired", Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy}
 	for index := range cases {
 		suite.Cases = append(suite.Cases, evaluation.MultipleChoiceCase{Name: fmt.Sprintf("case-%02d", index), Prompt: fmt.Sprintf("Question %d\nAnswer:", index), Candidates: []string{" A", " B"}})
 	}
-	source, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(json.Marshal(suite))(t)
 	contract := Contract{Metric: shareMetric, Origin: originEvaluation, Suite: "paired", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "paired comparison")}
 	// read answers the suite at a commit of its own, so each case is put to the model again, wrong on the cases from first up to last, and returns the cell the scorecard reads.
 	read := func(commit string, first, last int) Cell {
@@ -72,12 +69,9 @@ func pairedReadings(t *testing.T) (string, *overgodb.Store, artifact.ID, func(co
 		for _, testCase := range suite.Cases[first:last] {
 			wrong[testCase.Prompt] = true
 		}
-		campaign, err := evaluation.NewCampaign(store, answerer{wrong}, identity, environment, strings.Repeat(commit, 40))
-		testcheck.NoError(t, err)
-		compiled, err := evaluation.CompileSuite(source, campaign.Authorities())
-		testcheck.NoError(t, err)
-		result, err := campaign.Evaluate(ctx, compiled)
-		testcheck.NoError(t, err)
+		campaign := testcheck.Must(evaluation.NewCampaign(store, answerer{wrong}, identity, environment, strings.Repeat(commit, 40)))(t)
+		compiled := testcheck.Must(evaluation.CompileSuite(source, campaign.Authorities()))(t)
+		result := testcheck.Must(campaign.Evaluate(ctx, compiled))(t)
 		value := float64(cases-(last-first)) / cases
 		if len(result.Metrics) != 1 || result.Metrics[0].Value != value {
 			t.Fatalf("the reading at %s measured %+v, want an accuracy of %g", commit, result.Metrics, value)

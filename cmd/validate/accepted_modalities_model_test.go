@@ -139,10 +139,8 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 			t.Fatalf("coverage: accepted declaration changed: %s: %v", path, err)
 		}
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(retainedReferenceStore(roots.Store)))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -155,8 +153,7 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 	}
 	// Another lane's additions stand aside under their finding until their
 	// owner freezes them, as the inventory's acceptance sets them aside.
-	pending, err := loadMediaPending(root)
-	testcheck.NoError(t, err)
+	pending := testcheck.Must(loadMediaPending(root))(t)
 	entries = pending.catalogEntries(entries)
 	testcheck.NoError(t, checkAcceptedDenominator(t.Context(), store, coverage.Models, entries))
 	proofs := map[string]bool{}
@@ -211,8 +208,7 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 
 func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGateProof) {
 	t.Helper()
-	gate, err := loadAcceptedGate(t.Context(), store, proof)
-	testcheck.NoError(t, err)
+	gate := testcheck.Must(loadAcceptedGate(t.Context(), store, proof))(t)
 	for _, mutation := range []string{"failed", "skipped", "wrong-source", "wrong-verifier", "wrong-check", "missing"} {
 		t.Run(proof.Reference+"/"+mutation, func(t *testing.T) {
 			changed, changedProof := gate, proof
@@ -242,8 +238,7 @@ func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGate
 
 func requireAcceptedDocument(t *testing.T, root, path, digest string, target any) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, path))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(root, path)))(t)
 	if fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
 		t.Fatal("reviewed acceptance assignments changed", path)
 	}

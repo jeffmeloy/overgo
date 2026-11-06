@@ -14,13 +14,11 @@ import (
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
-	runner, err := openImageProjectorAs[*hunyuanVLRunner](path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*hunyuanVLRunner](path, OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), rasterPatchOptions{
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), rasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 4)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -37,15 +35,13 @@ func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 }
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := openImageProjectorAs[*hunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*hunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{}))(t)
 	defer runner.Close()
-	prompt, err := testSession(t, runner).BuildImagesPrompt(
+	prompt := testcheck.Must(testSession(t, runner).BuildImagesPrompt(
 		t.Context(), imagePromptTokenizer{marker: hunyuanVLImagePad, token: 9002},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if prompt.EmbeddingWidth != 6 || len(prompt.Embeddings) != 9*6 || len(prompt.EmbeddingTokenIndices) != 9 {
 		t.Fatalf("embedding contract = width %d values %d indices %d", prompt.EmbeddingWidth, len(prompt.Embeddings), len(prompt.EmbeddingTokenIndices))
 	}
@@ -80,12 +76,11 @@ func TestPreprocessRasterPatchOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := preprocessRasterPatches(input, rasterPatchPlan{
+	processed := testcheck.Must(preprocessRasterPatches(input, rasterPatchPlan{
 		patchSize: spec.PatchSize, mergeSize: spec.MergeSize,
 		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels},
 		mean:          spec.ImageMean, std: spec.ImageStd, interpolation: rasterBicubic,
-	}, rasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget})
-	testcheck.NoError(t, err)
+	}, rasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}))(t)
 	patchArea := spec.PatchSize * spec.PatchSize
 	redStarts := []float32{
 		processed.PixelValues[0], processed.PixelValues[3*patchArea],
@@ -107,13 +102,10 @@ func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 }
 
 func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
-	file, err := gguf.Open(writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(writeTinyHunyuanVL(t, tinyHunyuanVLTensors())))(t)
 	defer file.Close()
-	spec, err := readHunyuanVLSpec(file)
-	testcheck.NoError(t, err)
-	names, err := validateHunyuanVLCatalog(file, spec)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(readHunyuanVLSpec(file))(t)
+	names := testcheck.Must(validateHunyuanVLCatalog(file, spec))(t)
 	if slices.Contains(names, "mm.0.weight") {
 		t.Fatal("host-reordered convolution entered device catalog")
 	}
@@ -138,10 +130,8 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 		}
 	}
 	options := rasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
-	want, err := cpu.EncodeImage(t.Context(), input, options)
-	testcheck.NoError(t, err)
-	got, err := cuda.EncodeImage(t.Context(), input, options)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(cpu.EncodeImage(t.Context(), input, options))(t)
+	got := testcheck.Must(cuda.EncodeImage(t.Context(), input, options))(t)
 	compareFloat32Tolerance(t, "Hunyuan-VL", got.Embeddings.Data, want.Embeddings.Data, 2e-3)
 }
 

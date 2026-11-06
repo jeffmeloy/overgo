@@ -15,18 +15,14 @@ import (
 func TestMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 	runner := multiHeadMTPStateRunner()
 	session := multiHeadMTPStateFixture(t, runner, true)
-	data, err := runner.SaveMultiHeadMTPSession(session)
-	testcheck.NoError(t, err)
-	restored, err := runner.LoadMultiHeadMTPSession(data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveMultiHeadMTPSession(session))(t)
+	restored := testcheck.Must(runner.LoadMultiHeadMTPSession(data))(t)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
 	fresh := multiHeadMTPStateFixture(t, runner, false)
-	freshData, err := runner.SaveMultiHeadMTPSession(fresh)
-	testcheck.NoError(t, err)
-	freshRestored, err := runner.LoadMultiHeadMTPSession(freshData)
-	testcheck.NoError(t, err)
+	freshData := testcheck.Must(runner.SaveMultiHeadMTPSession(fresh))(t)
+	freshRestored := testcheck.Must(runner.LoadMultiHeadMTPSession(freshData))(t)
 	if !reflect.DeepEqual(freshRestored, fresh) {
 		t.Fatalf("fresh multi-head MTP session differs: got %+v want %+v", freshRestored, fresh)
 	}
@@ -39,10 +35,8 @@ func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 	runner.weights.AppendedMultiCarryDraft = nil
 	runner = attachFixtureProgram(runner)
 	session := multiHeadMTPStateFixture(t, runner, true)
-	data, err := runner.SaveMultiHeadMTPSession(session)
-	testcheck.NoError(t, err)
-	restored, err := runner.LoadMultiHeadMTPSession(data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveMultiHeadMTPSession(session))(t)
+	restored := testcheck.Must(runner.LoadMultiHeadMTPSession(data))(t)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored alternate multi-head MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
@@ -50,8 +44,7 @@ func TestAlternateMultiHeadMTPSessionStateRoundTrip(t *testing.T) {
 
 func TestMultiHeadMTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := multiHeadMTPStateRunner()
-	data, err := runner.SaveMultiHeadMTPSession(multiHeadMTPStateFixture(t, runner, true))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveMultiHeadMTPSession(multiHeadMTPStateFixture(t, runner, true)))(t)
 	for _, length := range []int{0, multiHeadMTPStateHeader - 1, len(data) - 1} {
 		if _, err := runner.LoadMultiHeadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated multi-head MTP state length %d was accepted", length)
@@ -95,8 +88,7 @@ func multiHeadMTPStateRunner() *Runner {
 
 func multiHeadMTPStateFixture(t *testing.T, runner *Runner, active bool) *MultiHeadMTPSession {
 	t.Helper()
-	signature, err := runner.sessionModelSignature()
-	testcheck.NoError(t, err)
+	signature := testcheck.Must(runner.sessionModelSignature())(t)
 	cacheValue := func(shape tensor.Shape, start float32) reference.Value {
 		elements, shapeErr := shape.Elements()
 		if shapeErr != nil {

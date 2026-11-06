@@ -37,13 +37,11 @@ func TestHermeticCUDAContinuationScoringHoldsDeviceMemory(t *testing.T) {
 		}
 	}
 	cycle()
-	warm, err := runner.DeviceMemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	warm := testcheck.Must(runner.DeviceMemoryStats(t.Context()))(t)
 	for range 4 {
 		cycle()
 	}
-	after, err := runner.DeviceMemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(runner.DeviceMemoryStats(t.Context()))(t)
 	if after.CurrentBytes > warm.CurrentBytes || after.Allocations > warm.Allocations {
 		t.Fatalf("device memory grew over four cycles of every prompt length: %d -> %d bytes, %d -> %d allocations",
 			warm.CurrentBytes, after.CurrentBytes, warm.Allocations, after.Allocations)

@@ -36,11 +36,9 @@ func TestATrainedCheckpointServesAtItsBasesPrecision(t *testing.T) {
 		Host: true, Observations: store,
 	})
 	checkpoint := filepath.Join(root, "uninterrupted")
-	served, err := safetensors.OpenFile(filepath.Join(checkpoint, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	served := testcheck.Must(safetensors.OpenFile(filepath.Join(checkpoint, trainingprogram.CheckpointWeights)))(t)
 	defer served.Close()
-	resumed, err := safetensors.OpenFile(filepath.Join(checkpoint, resumeDirectory, resumeWeightsFile))
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(safetensors.OpenFile(filepath.Join(checkpoint, resumeDirectory, resumeWeightsFile)))(t)
 	defer resumed.Close()
 	for name := range weights {
 		tensor, servedHeld := served.Tensors[name]
@@ -48,10 +46,8 @@ func TestATrainedCheckpointServesAtItsBasesPrecision(t *testing.T) {
 		if !servedHeld || !keptHeld || tensor.DType != servedBF16 || kept.DType != "F32" {
 			t.Fatalf("%s is served as %s and kept as %s, want BF16 served and F32 kept", name, tensor.DType, kept.DType)
 		}
-		values, err := safetensors.ReadF32(tensor)
-		testcheck.NoError(t, err)
-		exact, err := safetensors.ReadF32(kept)
-		testcheck.NoError(t, err)
+		values := testcheck.Must(safetensors.ReadF32(tensor))(t)
+		exact := testcheck.Must(safetensors.ReadF32(kept))(t)
 		for index, value := range exact {
 			if values[index] != dtype.RoundBF16(value) {
 				t.Fatalf("%s[%d] serves %g for the weight %g", name, index, values[index], value)

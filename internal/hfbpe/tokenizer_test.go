@@ -27,8 +27,7 @@ func TestDeclaredMetaspaceDecoder(t *testing.T) {
 		t.Run(scheme, func(t *testing.T) {
 			directory := t.TempDir()
 			testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(strings.ReplaceAll(fixture, "SCHEME", scheme)), 0600))
-			tokenizer, err := Load(directory)
-			testcheck.NoError(t, err)
+			tokenizer := testcheck.Must(Load(directory))(t)
 			prefix := ""
 			if scheme == "never" {
 				prefix = " "

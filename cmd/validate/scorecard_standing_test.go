@@ -23,8 +23,7 @@ import (
 // neither list. A scorecard with no held-out reading says nothing of paths.
 func TestScorecardReadingStatesItsStanding(t *testing.T) {
 	t.Parallel()
-	comparisons, err := scorecard.PathComparisons()
-	testcheck.NoError(t, err)
+	comparisons := testcheck.Must(scorecard.PathComparisons())(t)
 	at := slices.IndexFunc(comparisons, func(entry scorecard.PathComparison) bool { return entry.Test != "" })
 	if at < 0 {
 		t.Fatal("the embedded comparisons name no test")
@@ -35,12 +34,11 @@ func TestScorecardReadingStatesItsStanding(t *testing.T) {
 			Value: 0.25, Label: "accuracy, set (protocol)", Source: testutil.ArtifactID(t, artifact.KindEvaluation, name), Compared: compared,
 		}}}
 	}
-	text, err := pathStanding([]scorecard.Row{
+	text := testcheck.Must(pathStanding([]scorecard.Row{
 		row(named.Model, named.Task, named.Package+" "+named.Test),
 		row("an unchecked model", recipe.TaskImageGen, ""),
 		row("a trained model", recipe.TaskTraining, ""),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	compared := "- " + named.Model + " " + string(named.Task) + ": " + named.Package + " " + named.Test + " holds " + named.Holds
 	before, after, found := strings.Cut(text, "no comparison with a reference output is named")
 	if !found || !strings.Contains(before, compared) || !strings.Contains(after, "- an unchecked model image-gen\n") || strings.Contains(before, "an unchecked model") || strings.Contains(text, "a trained model") {

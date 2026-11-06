@@ -93,10 +93,8 @@ func requireViewIsConversion(t *testing.T, directory string) {
 	if _, err := Convert(Options{Directory: directory, OutputPath: converted, Name: "fixture"}); err != nil {
 		t.Fatal(err)
 	}
-	written, err := os.ReadFile(converted)
-	testcheck.NoError(t, err)
-	file, err := View(directory, "fixture")
-	testcheck.NoError(t, err)
+	written := testcheck.Must(os.ReadFile(converted))(t)
+	file := testcheck.Must(View(directory, "fixture"))(t)
 	defer file.Close()
 	shards := file.Shards()
 	if len(shards) != 1 || shards[0].Size != uint64(len(written)) {
@@ -120,8 +118,7 @@ func requireViewIsConversion(t *testing.T, directory string) {
 	if at := firstDifference(pieces, written); at >= 0 {
 		t.Fatalf("the view read in pieces differs from the converted file at byte %d", at)
 	}
-	opened, err := gguf.Open(directory)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(gguf.Open(directory))(t)
 	defer opened.Close()
 	if opened.ViewDirectory() == "" || len(opened.Tensors) != len(file.Tensors) || len(opened.Metadata) != len(file.Metadata) {
 		t.Errorf("gguf.Open of the directory = %d tensors, %d metadata, viewing %q; want the view of it", len(opened.Tensors), len(opened.Metadata), opened.ViewDirectory())

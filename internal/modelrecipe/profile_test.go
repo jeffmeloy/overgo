@@ -25,8 +25,7 @@ const unsupportedProfilePolicyValue = ^uint8(0)
 
 func seedProfileDocuments(t *testing.T) []ProfileDocument {
 	t.Helper()
-	documents, err := compileArchitectureProfileCatalog()
-	testcheck.NoError(t, err)
+	documents := testcheck.Must(compileArchitectureProfileCatalog())(t)
 	return documents
 }
 
@@ -53,8 +52,7 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 
 func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	base, err := CatalogProfileProvenance(profile)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(CatalogProfileProvenance(profile))(t)
 	facts := slices.Clone(architectureProfileFacts)
 	if len(base) != len(facts) {
 		t.Fatalf("profile facts = %d", len(base))
@@ -66,18 +64,15 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 	if got := fmt.Sprintf("%x", digest.Sum(nil)); got != architectureProfileFactDigest {
 		t.Fatalf("profile fact digest = %s", got)
 	}
-	schema, err := json.Marshal(architectureProfileFactSpecs)
-	testcheck.NoError(t, err)
+	schema := testcheck.Must(json.Marshal(architectureProfileFactSpecs))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(schema)); got != architectureProfileFactSchemaDigest {
 		t.Fatalf("profile fact schema digest = %s", got)
 	}
-	first, err := NewProfileDocumentWithProvenance(profile, base)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewProfileDocumentWithProvenance(profile, base))(t)
 	changed := slices.Clone(base)
 	changed[0].Origin = ProfileFactExternal
 	changed[0].SourceField = "parity.fixture"
-	second, err := NewProfileDocumentWithProvenance(profile, changed)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewProfileDocumentWithProvenance(profile, changed))(t)
 	if first.ID == second.ID {
 		t.Fatal("provenance-only change did not affect profile identity")
 	}
@@ -97,10 +92,9 @@ func TestProfileDocumentRejectsInvalidPolicy(t *testing.T) {
 	if _, err := NewProfileDocument(profile); err == nil {
 		t.Fatal("invalid profile document accepted")
 	}
-	content, err := json.Marshal(profileBody{
+	content := testcheck.Must(json.Marshal(profileBody{
 		Version: ProfileVersion, Architecture: profile.Name, Policy: profile,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := ParseProfileDocument(content); err == nil {
 		t.Fatal("invalid serialized profile accepted")
 	}
@@ -121,17 +115,14 @@ func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
 	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
-	content, err := profileContent(document)
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	document := testcheck.Must(NewProfileDocument(profile))(t)
+	content := testcheck.Must(profileContent(document))(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/profile/unbound",
 		[]artifact.Content{content},
 		nil,
 		nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -144,20 +135,17 @@ func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
 	profile, _ := model.LookupArchitecture("llama")
-	provenance, err := CatalogProfileProvenance(profile)
-	testcheck.NoError(t, err)
+	provenance := testcheck.Must(CatalogProfileProvenance(profile))(t)
 	externalID := testutil.ArtifactID(t, artifact.KindEvidence, "external-derivation")
 	for index := range provenance {
 		provenance[index].Origin = ProfileFactExternal
 		provenance[index].SourceField = "external.profile"
 		provenance[index].DerivationID = externalID
 	}
-	document, err := NewProfileDocumentWithProvenance(profile, provenance)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewProfileDocumentWithProvenance(profile, provenance))(t)
 	contents, lineage, err := ProfilePublicationFacts(document)
 	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("fixture/catalog/external", contents, lineage, nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch("fixture/catalog/external", contents, lineage, nil))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err == nil {
 		t.Fatal("profile with absent external derivation committed")
 	}
@@ -165,10 +153,8 @@ func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
 
 func TestProfileDocumentRejectsNonCanonicalContent(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	document, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
-	content, err := document.Content()
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewProfileDocument(profile))(t)
+	content := testcheck.Must(document.Content())(t)
 	content = append(content[:len(content)-1], []byte(",\"extra\":true}")...)
 	if _, err := ParseProfileDocument(content); err == nil {
 		t.Fatal("unknown profile field accepted")

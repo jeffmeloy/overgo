@@ -24,8 +24,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 			HeadCount: 1, HeadCountKV: 1, KeyLength: 2, ValueLength: 2,
 		},
 	}
-	plan, err := fixtureModelPlan(spec, model.Weights{})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(fixtureModelPlan(spec, model.Weights{}))(t)
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "external-target")
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "external-source")
 	adapterID := testutil.ArtifactID(t, artifact.KindAdapter, "external-adapter")
@@ -34,8 +33,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		Target: targetID, Source: sourceID, Adapter: adapterID,
 		Layers: []uint32{1}, SourceChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
 	}
-	identityID, err := artifact.JSONID(artifact.KindProfile, definition)
-	testcheck.NoError(t, err)
+	identityID := testcheck.Must(artifact.JSONID(artifact.KindProfile, definition))(t)
 	program := ExternalCrossAttentionProgram{
 		identity: identityID, definition: definition,
 		targetChannels: uint64(plan.Spec().EmbeddingLength), headChannels: uint64(plan.Spec().EmbeddingLength),

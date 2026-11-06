@@ -30,8 +30,7 @@ func TestAKillBetweenCutoverRenamesStartsNoEmptyStore(t *testing.T) {
 		t.Fatal("Open found a store where the cutover left none")
 	}
 	testcheck.NoError(t, os.Rename(aside, root))
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
 	if got, sequence := store.Head(); got != head || sequence != tailCommits {
 		t.Fatalf("the store moved back opens at %s@%d, want %s@%d", got, sequence, head, tailCommits)

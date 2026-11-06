@@ -24,8 +24,7 @@ func TestPackageExecutionCostAcceptance(t *testing.T) {
 {"Action":"skip","Package":"empty","Elapsed":0}
 {"Action":"fail","Package":"invalid-time","Elapsed":-1}
 `
-	report, err := GoTestJSONReport(events)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(GoTestJSONReport(events))(t)
 	if !report.PackagePassed("good") || report.PackagePassed("bad") || report.PackagePassed("empty") || RequireComplete(report) == nil {
 		t.Fatal("cost reporting changed evidence eligibility")
 	}

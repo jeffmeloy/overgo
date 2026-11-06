@@ -28,10 +28,8 @@ import (
 //   - the record refuses a key stated twice, because a later line would replace an earlier one unseen
 func TestSurfaceMoveRecordDefinesClaimDependencies(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", "surface-moves.txt"))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", "surface-moves.txt")))(t)
 	fields := map[string]string{}
 	var commits, stated []string
 	const commitsPart, figuresPart = "== commits ==", "== figures =="

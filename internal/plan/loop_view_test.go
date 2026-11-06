@@ -23,8 +23,7 @@ func TestLoopViewAndStop(t *testing.T) {
 	git(t, repository, "commit", "-q", "--allow-empty", "-m", "a commit that lands no row")
 	view := func() LoopView {
 		t.Helper()
-		read, err := ReadLoopView(t.Context(), repository)
-		testcheck.NoError(t, err)
+		read := testcheck.Must(ReadLoopView(t.Context(), repository))(t)
 		return read
 	}
 	first := view()
@@ -33,8 +32,7 @@ func TestLoopViewAndStop(t *testing.T) {
 		t.Fatalf("view = %+v", first)
 	}
 	// A live supervisor reads as running, and the stop wakes it.
-	campaign, err := processcontrol.BeginCampaign(repository, "loop-worker")
-	testcheck.NoError(t, err)
+	campaign := testcheck.Must(processcontrol.BeginCampaign(repository, "loop-worker"))(t)
 	defer campaign.Close()
 	if !view().Running {
 		t.Fatal("a live supervisor did not read as running")
@@ -69,8 +67,7 @@ func TestAParkedRowWaitsForACommit(t *testing.T) {
 	repository := planRepository(t, Plan{Campaign: "loop", Items: []Item{row("failing"), row("behind")}})
 	resolve := func() Dispatch {
 		t.Helper()
-		dispatch, err := ResolveDispatch(t.Context(), repository, DispatchRequest{Mode: ExecutionInteractive})
-		testcheck.NoError(t, err)
+		dispatch := testcheck.Must(ResolveDispatch(t.Context(), repository, DispatchRequest{Mode: ExecutionInteractive}))(t)
 		return dispatch
 	}
 	if dispatch := resolve(); dispatch.Item != "failing" {

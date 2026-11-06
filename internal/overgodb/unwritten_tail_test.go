@@ -117,8 +117,7 @@ func committedJournal(t *testing.T, sealed bool) (string, artifact.CommitID) {
 // appendTo writes tail at the end of the file at path.
 func appendTo(t *testing.T, path string, tail []byte) {
 	t.Helper()
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, storeFileMode)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.OpenFile(path, os.O_WRONLY|os.O_APPEND, storeFileMode))(t)
 	if _, err := file.Write(tail); err != nil {
 		t.Fatal(err)
 	}

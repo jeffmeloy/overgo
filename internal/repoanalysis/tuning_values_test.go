@@ -209,8 +209,7 @@ const format = 32
 		{file: "values.go", name: "unrowed", trades: "a chunk's reads", basis: "measured here"},
 		{file: "values.go", name: "widthGB", fixed: "a unit"},
 	}
-	found, err := tuningTableFindings(fixture, table, map[string]bool{"chunk": true})
-	testcheck.NoError(t, err)
+	found := testcheck.Must(tuningTableFindings(fixture, table, map[string]bool{"chunk": true}))(t)
 	want := []string{
 		"values.go#absent: the tree holds no such numeric value",
 		"values.go#copied: its comment cites a measurement or Strata and the table holds no row of it",
@@ -223,10 +222,8 @@ const format = 32
 		t.Fatalf("the fixture's findings = %q, want %q", found, want)
 	}
 
-	repository, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	document, err := plan.Load(filepath.Join(repository, filepath.FromSlash(plan.Path)))
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	document := testcheck.Must(plan.Load(filepath.Join(repository, filepath.FromSlash(plan.Path))))(t)
 	open := map[string]bool{}
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
@@ -235,8 +232,7 @@ const format = 32
 			}
 		}
 	}
-	live, err := gosyntax.DiscoverGo(repository, tuningPackages...)
-	testcheck.NoError(t, err)
+	live := testcheck.Must(gosyntax.DiscoverGo(repository, tuningPackages...))(t)
 	if found, err = tuningTableFindings(live, tuningTable, open); err != nil {
 		t.Fatal(err)
 	}

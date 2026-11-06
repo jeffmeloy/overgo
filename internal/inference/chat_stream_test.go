@@ -63,8 +63,7 @@ func assertChatStreamDeltas(
 	t.Helper()
 	var got []ChatToolCallDelta
 	for _, piece := range pieces {
-		deltas, err := stream.Accept(piece)
-		testcheck.NoError(t, err)
+		deltas := testcheck.Must(stream.Accept(piece))(t)
 		got = append(got, deltas...)
 	}
 	if len(got) != len(want) {
@@ -75,8 +74,7 @@ func assertChatStreamDeltas(
 			t.Fatalf("delta %d = %#v, want %#v", index, got[index], want[index])
 		}
 	}
-	message, err := stream.Finish()
-	testcheck.NoError(t, err)
+	message := testcheck.Must(stream.Finish())(t)
 	if len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Name != "weather" {
 		t.Fatalf("message = %#v", message)
 	}

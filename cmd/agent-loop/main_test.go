@@ -82,19 +82,16 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeHost, Value: "registry"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/host"}},
 	} {
-		manual, err := agenttool.NewManual(draft)
-		testcheck.NoError(t, err)
+		manual := testcheck.Must(agenttool.NewManual(draft))(t)
 		manuals, granted = append(manuals, manual), append(granted, manual.ID)
 	}
-	snapshot, err := agenttool.NewCatalogSnapshot(manuals)
-	testcheck.NoError(t, err)
-	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
+	snapshot := testcheck.Must(agenttool.NewCatalogSnapshot(manuals))(t)
+	worker := testcheck.Must(recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: "worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "delegated prompt"),
 		ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "delegated model recipe"),
 		ToolManuals: granted, Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "delegated policy")},
-	})
-	testcheck.NoError(t, err)
-	task, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
+	}))(t)
+	task := testcheck.Must(recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Edit the notes file.", Scope: []string{notes},
 		AllowedEffects: []string{"external:mutation", "workspace:mutation"},
 		Acceptance: []recipe.AcceptanceCriterion{
@@ -103,25 +100,20 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 		Verification:    []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "delegated gate")},
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "delegated budget"),
 		PauseConditions: []string{"drift"},
-	})
-	testcheck.NoError(t, err)
-	delegation, err := recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
+	}))(t)
+	delegation := testcheck.Must(recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
 		Task: task.ID, Worker: worker.ID,
 		Grant:     recipe.AgentCapabilityGrant{Manuals: granted, AllowedEffects: []string{"inspection", "mutation"}},
 		Scheduler: recipe.AgentSchedulerPolicy{MaxSteps: delegatedSteps, MaxParallel: 1},
 		Catalog:   snapshot.ID, Model: testutil.ArtifactID(t, artifact.KindModel, "delegated model"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	var contents []artifact.Content
 	for _, encode := range []func() (artifact.Content, error){snapshot.ArtifactContent, worker.ArtifactContent, task.Content, delegation.Content} {
-		content, err := encode()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(encode())(t)
 		contents = append(contents, content)
 	}
-	batch, err := artifact.NewDocumentBatch("delegated-loop-fixture", contents, nil, nil)
-	testcheck.NoError(t, err)
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch("delegated-loop-fixture", contents, nil, nil))(t)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	_, publishErr := agenttool.PublishManualCatalog(t.Context(), store, manuals)
 	_, commitErr := artifact.CommitBatch(t.Context(), store, batch)
 	testcheck.NoError(t, errors.Join(publishErr, commitErr, store.Close()))
@@ -155,8 +147,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 		t.Fatalf("mutated file = %q, %v, want after", data, err)
 	}
 
-	store, err = overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(repository))(t)
 	interaction, found, err := runrecord.ResolveInteraction(t.Context(), store, session+"-step-2")
 	if err := errors.Join(err, store.Close()); err != nil || !found || len(interaction.Tools) != 1 {
 		t.Fatalf("mutation step = %+v, found=%t, %v, want one checkpoint on its interaction", interaction, found, err)
@@ -185,8 +176,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 
 func TestAgentLoopProposesGatedStep(t *testing.T) {
 	repository := t.TempDir()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "cli-loop-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "cli-loop-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -198,12 +188,11 @@ func TestAgentLoopProposesGatedStep(t *testing.T) {
 		w.Write([]byte(`{"seen":true}`))
 	}))
 	defer server.Close()
-	inspect, err := agenttool.NewManual(agenttool.Manual{
+	inspect := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "probe.read", Description: "Read state for the CLI fixture.",
 		Effect:    agenttool.EffectInspection,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{inspect}); err != nil {
 		t.Fatal(err)
 	}

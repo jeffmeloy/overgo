@@ -35,18 +35,14 @@ func TestClipCodecKeepsToItsOwnCodesTime(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
-	profile, err := ResolveProfile(directory)
-	testcheck.NoError(t, err)
-	encoderGraph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
-	decoderPlan, err := CompileVAEDecoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(ResolveProfile(directory))(t)
+	encoderGraph := testcheck.Must(CompileVAEEncoderPlan(catalog.Tensors))(t)
+	decoderPlan := testcheck.Must(CompileVAEDecoderPlan(catalog.Tensors))(t)
 	const frames, height, width = 21, 480, 832
-	plan, err := CompileSourceCodecBoundary(SourceCodecProfile{
+	plan := testcheck.Must(CompileSourceCodecBoundary(SourceCodecProfile{
 		InputChannels: encoderGraph.InputChannels, LatentChannels: encoderGraph.LatentChannels,
 		Stride: encoderGraph.Stride, LatentStats: profile.LatentStats,
-	}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width})
-	testcheck.NoError(t, err)
+	}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}))(t)
 	plane := height * width
 	source := make([]float32, media.RGBChannels*frames*plane)
 	for channel := range media.RGBChannels {
@@ -57,20 +53,17 @@ func TestClipCodecKeepsToItsOwnCodesTime(t *testing.T) {
 			}
 		}
 	}
-	encoder, err := newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal())
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal()))(t)
 	defer encoder.Close()
 	started := time.Now()
 	latent, _, err := encoder.Encode(t.Context(), plan, source)
 	testcheck.NoError(t, err)
 	encoded := time.Since(started)
-	decoder, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-	testcheck.NoError(t, err)
+	decoder := testcheck.Must(NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal()))(t)
 	defer decoder.Close()
 	started = time.Now()
-	stats, err := decoder.DecodeContext(t.Context(), profile.LatentStats, latent, plan.Latent.Frames, plan.Latent.Height, plan.Latent.Width,
-		func(int, []float32, int, int) error { return nil })
-	testcheck.NoError(t, err)
+	stats := testcheck.Must(decoder.DecodeContext(t.Context(), profile.LatentStats, latent, plan.Latent.Frames, plan.Latent.Height, plan.Latent.Width,
+		func(int, []float32, int, int) error { return nil }))(t)
 	decoded := time.Since(started)
 	if stats.OutputFrames != frames {
 		t.Fatalf("decoded %d frames of %d", stats.OutputFrames, frames)

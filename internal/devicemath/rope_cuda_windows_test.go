@@ -37,8 +37,7 @@ func hostRopeHalf(x []float32, invFreq []float64, seq, nHeads, hd int) []float64
 // tolerance.
 func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nHeads, hd = 7, 3, 8
@@ -50,8 +49,7 @@ func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 	rng := rand.New(rand.NewSource(21))
 	x := randSlice(rng, seq*nHeads*hd)
 
-	got, err := RoPEHalfForward(worker, x, invF32, seq, nHeads, hd)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(RoPEHalfForward(worker, x, invF32, seq, nHeads, hd))(t)
 	want := hostRopeHalf(x, invF64, seq, nHeads, hd)
 	var maxDiff float64
 	for i := range want {
@@ -71,8 +69,7 @@ func TestRoPEHalfForwardMatchesHost(t *testing.T) {
 // as hostmath.
 func TestRoPEHalfBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nHeads, hd = 5, 2, 8
@@ -85,8 +82,7 @@ func TestRoPEHalfBackwardGradCheck(t *testing.T) {
 	x := randSlice(rng, seq*nHeads*hd)
 	dOut := randSlice(rng, seq*nHeads*hd)
 
-	dx, err := RoPEHalfBackward(worker, dOut, invF32, seq, nHeads, hd)
-	testcheck.NoError(t, err)
+	dx := testcheck.Must(RoPEHalfBackward(worker, dOut, invF32, seq, nHeads, hd))(t)
 
 	loss := func() float64 {
 		out := hostRopeHalf(x, invF64, seq, nHeads, hd)

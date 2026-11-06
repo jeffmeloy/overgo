@@ -45,8 +45,7 @@ func TestKTOGradientHoldsTheKLEstimateFixed(t *testing.T) {
 	if kl < 0 {
 		policy, reference = second, first
 	}
-	kto, err := trainingprogram.KTOPolicy(testutil.ArtifactID(t, artifact.KindModel, "reference"), 1, 1, 1)
-	testcheck.NoError(t, err)
+	kto := testcheck.Must(trainingprogram.KTOPolicy(testutil.ArtifactID(t, artifact.KindModel, "reference"), 1, 1, 1))(t)
 	observation, grads, err := policy.ktoLossAndGrads(reference, examples, kto)
 	if err != nil || observation.KL <= 0 {
 		t.Fatalf("KTO step %+v, %v; want a positive KL estimate", observation, err)
@@ -66,8 +65,7 @@ func TestKTOGradientHoldsTheKLEstimateFixed(t *testing.T) {
 				scores[index].MismatchedPolicy = score(policy, example.Mismatched)
 			}
 		}
-		result, err := kto.UnpairedLoss(scores)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(kto.UnpairedLoss(scores))(t)
 		return result.Loss
 	}
 	const h, tolerance = 1e-3, 1e-5
@@ -135,19 +133,15 @@ func TestScoreOnlyForwardsKeepNoLayerInputs(t *testing.T) {
 	golden := readTinyGolden(t)
 	model := modelFromGolden(t, golden)
 	for _, example := range ktoExamples(t, golden.Tokens) {
-		trace, err := model.sequenceTrace(example.Sequence)
-		testcheck.NoError(t, err)
-		scored, err := model.scoreSequence(example.Sequence, false)
-		testcheck.NoError(t, err)
+		trace := testcheck.Must(model.sequenceTrace(example.Sequence))(t)
+		scored := testcheck.Must(model.scoreSequence(example.Sequence, false))(t)
 		if scored.score != trace.score || slices.ContainsFunc(scored.states[:model.Dims.Layers], func(state []float32) bool { return state != nil }) ||
 			slices.ContainsFunc(trace.states, func(state []float32) bool { return len(state) == 0 }) {
 			t.Fatalf("%s: score-only %+v keeps %d layer inputs, trace %+v", example.ID, scored.score, len(scored.states), trace.score)
 		}
 	}
-	states, err := model.forwardStates(golden.Tokens, false)
-	testcheck.NoError(t, err)
-	retained, err := model.forwardStates(golden.Tokens, true)
-	testcheck.NoError(t, err)
+	states := testcheck.Must(model.forwardStates(golden.Tokens, false))(t)
+	retained := testcheck.Must(model.forwardStates(golden.Tokens, true))(t)
 	if states[0] != nil || !slices.Equal(states[model.Dims.Layers], retained[model.Dims.Layers]) {
 		t.Fatal("a score-only forward kept a layer input or reached another final stream")
 	}
@@ -160,8 +154,7 @@ func TestKTOStepDescends(t *testing.T) {
 	golden := readTinyGolden(t)
 	policy, reference := modelFromGolden(t, golden), modelFromGolden(t, golden)
 	examples := ktoExamples(t, golden.Tokens)
-	kto, err := trainingprogram.KTOPolicy(testutil.ArtifactID(t, artifact.KindModel, "reference"), 0.1, 1, 1)
-	testcheck.NoError(t, err)
+	kto := testcheck.Must(trainingprogram.KTOPolicy(testutil.ArtifactID(t, artifact.KindModel, "reference"), 0.1, 1, 1))(t)
 	before, _, err := policy.ktoLossAndGrads(reference, examples, kto)
 	testcheck.NoError(t, err)
 	batch := trainingdata.UnpairedBatch{Examples: examples, State: trainingdata.StreamState{

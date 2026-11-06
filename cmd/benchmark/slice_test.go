@@ -89,8 +89,7 @@ func TestSliceDocumentsDecode(t *testing.T) {
 		t.Fatalf("no slice documents: %v", err)
 	}
 	for _, path := range documents {
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		var document sliceDocument
 		if err := strictjson.DecodeBytes(data, &document); err != nil {
 			t.Fatalf("%s: %v", path, err)

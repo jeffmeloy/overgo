@@ -39,8 +39,7 @@ func tinyBridge(hidden, latent int) LatentBridgeWeights {
 }
 
 func TestLatentBridgeTrainerDescends(t *testing.T) {
-	trainer, err := NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
 		t.Fatalf("momentum %g, want derived %g", got, want)
@@ -53,12 +52,10 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 		seed ^= seed << 5
 		hidden[i] = float32(seed%2000)/1000 - 1
 	}
-	before, err := trainer.Loss(hidden)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(trainer.Loss(hidden))(t)
 	var first FlowHeadStepResult
 	for step := range 15 {
-		result, err := trainer.Step(hidden)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(trainer.Step(hidden))(t)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
 			t.Fatalf("step %d non-finite loss", step)
 		}
@@ -69,8 +66,7 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 			}
 		}
 	}
-	after, err := trainer.Loss(hidden)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss(hidden))(t)
 	if !(after < first.Loss) {
 		t.Fatalf("bridge reconstruction did not descend: %.6f -> %.6f", first.Loss, after)
 	}
@@ -80,15 +76,13 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 // publishes the trainer's pair and optimizer state as a checkpoint, and
 // reads both back bit for bit under every projection tensor name.
 func TestLatentBridgeTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
-	trainer, err := NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	hidden, _, _ := flowStimulus(6, trainer.hidden, 1)
 	if _, err := trainer.Step(hidden); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan()))(t)
 	view := trainer.pack.Weights
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"bridge.down.weight": view(bridgeDownW), "bridge.down.bias": view(bridgeDownB),
@@ -107,41 +101,33 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		seed ^= seed << 5
 		hidden[i] = float32(seed%2000)/1000 - 1
 	}
-	probe, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	probe := testcheck.Must(NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer probe.Close()
 
 	// Capture analytic gradients by rebuilding a fresh trainer whose Step is
 	// intercepted before the optimizer consumes them: replicate via a fresh
 	// trainer and numerical comparison against the shared Loss.
-	analyticTrainer, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	analyticTrainer := testcheck.Must(NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer analyticTrainer.Close()
-	baseline, err := analyticTrainer.Loss(hidden)
-	testcheck.NoError(t, err)
-	result, err := analyticTrainer.Step(hidden)
-	testcheck.NoError(t, err)
+	baseline := testcheck.Must(analyticTrainer.Loss(hidden))(t)
+	result := testcheck.Must(analyticTrainer.Step(hidden))(t)
 	if math.Abs(result.Loss-baseline) > 1e-9 {
 		t.Fatalf("step loss %.9g disagrees with evaluation %.9g", result.Loss, baseline)
 	}
 
 	groups := probe.OptimizerPlan().Groups()
 	for _, index := range []int{0, 5, groups[bridgeUpW].Start + 3, groups[bridgeDownB].Start, probe.ParameterCount() - 1} {
-		fresh, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
-		testcheck.NoError(t, err)
+		fresh := testcheck.Must(NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy()))(t)
 		freshWeights, _ := fresh.pack.Slabs()
 		original := freshWeights[index]
 		freshWeights[index] = original + epsilon
-		plus, err := fresh.Loss(hidden)
-		testcheck.NoError(t, err)
+		plus := testcheck.Must(fresh.Loss(hidden))(t)
 		freshWeights[index] = original - epsilon
-		minus, err := fresh.Loss(hidden)
-		testcheck.NoError(t, err)
+		minus := testcheck.Must(fresh.Loss(hidden))(t)
 		freshWeights[index] = original
 		numeric := (plus - minus) / (2 * epsilon)
 
-		grader, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
-		testcheck.NoError(t, err)
+		grader := testcheck.Must(NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy()))(t)
 		lossValue, gradientL2, err := grader.lossAndBridgeGradients(hidden)
 		testcheck.NoError(t, err)
 		if math.Abs(lossValue-baseline) > 1e-9 || gradientL2 <= 0 {

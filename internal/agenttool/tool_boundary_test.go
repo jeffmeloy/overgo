@@ -53,22 +53,19 @@ func TestToolEnvironmentProcess(t *testing.T) {
 // server's environment does not.
 func TestAToolReceivesOnlyWhatItsManualNames(t *testing.T) {
 	// Serial: it sets the server's environment and finds the tool on PATH.
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("TOOL_NAMED", "named")
 	t.Setenv("TOOL_PROVIDER_KEY", "held-by-the-server")
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: "tool.environment", Description: "Prints the environment it received.", Effect: EffectInspection,
 		Transport: Transport{
 			Kind: TransportArgv, Program: filepath.Base(executable),
 			Args:        []string{"-test.run=^TestToolEnvironmentProcess$", "--"},
 			Environment: []string{"TOOL_NAMED"},
 		},
-	})
-	testcheck.NoError(t, err)
-	result, err := NewOperatorExecutor().Invoke(t.Context(), manual, json.RawMessage(`{}`))
-	testcheck.NoError(t, err)
+	}))(t)
+	result := testcheck.Must(NewOperatorExecutor().Invoke(t.Context(), manual, json.RawMessage(`{}`)))(t)
 	var received string
 	testcheck.NoError(t, json.Unmarshal(result, &received))
 	if !strings.Contains(received, "TOOL_NAMED=named") || strings.Contains(received, "held-by-the-server") || !strings.Contains(strings.ToUpper(received), "PATH=") {

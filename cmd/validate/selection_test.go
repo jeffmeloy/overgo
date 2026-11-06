@@ -212,12 +212,10 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 	chat, raw := evaluation.PromptingChatTemplate.Label(), evaluation.PromptingRawCompletion.Label()
 	var suites []evaluation.CompiledSuite
 	for _, family := range []string{"mmlu", "mmlu-pro", "bbh", "ifeval", "dna"} {
-		data, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "store/" + family, Cases: []evaluation.ExactCase{
+		data := testcheck.Must(json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "store/" + family, Cases: []evaluation.ExactCase{
 			{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2},
-		}})
-		testcheck.NoError(t, err)
-		suite, err := evaluation.CompileSuite(data, evaluation.ListingAuthorities())
-		testcheck.NoError(t, err)
+		}}))(t)
+		suite := testcheck.Must(evaluation.CompileSuite(data, evaluation.ListingAuthorities()))(t)
 		suites = append(suites, suite)
 	}
 
@@ -253,8 +251,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 		if !benchmark(cell) {
 			continue
 		}
-		bound, err := catalog.bind(t.Context(), nil, cell)
-		testcheck.NoError(t, err)
+		bound := testcheck.Must(catalog.bind(t.Context(), nil, cell))(t)
 		registered[index] = bound
 	}
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: baseline})

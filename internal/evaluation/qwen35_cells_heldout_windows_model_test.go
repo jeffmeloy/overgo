@@ -45,10 +45,8 @@ func qwen35CellsModels(roots dataroot.Roots) []struct {
 func TestQwen35CellsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	type family struct {
 		name   string
 		suites map[string]CompiledSuite
@@ -92,8 +90,7 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 			suites := derived[index].suites
 			right := map[bool]map[string]map[string]bool{}
 			for _, f32 := range []bool{false, true} {
-				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32})
-				testcheck.NoError(t, err)
+				runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32}))(t)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)

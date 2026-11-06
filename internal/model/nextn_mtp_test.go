@@ -20,8 +20,7 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	norm := builder.Input("norm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("projection", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
-	current, err := draft.BuildDraftInput(builder, token, hidden, norm, norm, projection)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(draft.BuildDraftInput(builder, token, hidden, norm, norm, projection))(t)
 	weights := denseBlockInputs(builder, spec)
 	weights.AttentionQ = nil
 	weights.AttentionK = nil
@@ -32,10 +31,9 @@ func TestBuildGLM4NextNMTPPipeline(t *testing.T) {
 	weights.FeedForwardGate = nil
 	weights.FeedForwardUp = builder.Input("gate_up", dtype.F32, tensor.MustShape(8, 24))
 	plan := draft.Layer()
-	block, err := draft.Build(CachedBlockContext{
+	block := testcheck.Must(draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{0, 1}, Layer: plan.Layer,
-	}, weights)
-	testcheck.NoError(t, err)
+	}, weights))(t)
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 32))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, norm, head)
 	testcheck.NoError(t, err)
@@ -63,10 +61,9 @@ func TestBuildEXAONE4NextNMTPBlock(t *testing.T) {
 	weights.FeedForwardPostNorm = builder.Input("ffn_post", dtype.F32, tensor.MustShape(8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
 	plan := draft.Layer()
-	result, err := draft.Build(CachedBlockContext{
+	result := testcheck.Must(draft.Build(CachedBlockContext{
 		Builder: builder, Input: input, Positions: []uint32{0, 1}, Layer: plan.Layer,
-	}, weights)
-	testcheck.NoError(t, err)
+	}, weights))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(4, 1, 2)) {
 		t.Fatalf("unexpected EXAONE 4 NextN block: %+v", result)
 	}

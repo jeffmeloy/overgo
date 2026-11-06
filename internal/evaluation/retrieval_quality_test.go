@@ -56,16 +56,14 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	caseValue, err := NewRetrievalCase(RetrievalCase{
+	caseValue := testcheck.Must(NewRetrievalCase(RetrievalCase{
 		Query: fixture.receipt.Query, Split: split, Group: "question-family-a",
 		Judgments: []retrievalJudgment{missing, {
 			Chunk: relevantResult.Citation.Chunk, Source: relevantResult.Citation.Source,
 			StartRune: relevantResult.Citation.StartRune, EndRune: relevantResult.Citation.EndRune, Relevance: 3,
 		}},
-	})
-	testcheck.NoError(t, err)
-	evidence, err := publishRetrievalEvaluation(t.Context(), store, caseValue, fixture.receipt.ID)
-	testcheck.NoError(t, err)
+	}))(t)
+	evidence := testcheck.Must(publishRetrievalEvaluation(t.Context(), store, caseValue, fixture.receipt.ID))(t)
 	if evidence.Metrics.RelevantExpected != 2 || evidence.Metrics.RelevantReturned != 1 ||
 		evidence.Metrics.Returned != 2 || math.Abs(evidence.Metrics.Recall-0.5) > 1e-12 ||
 		math.Abs(evidence.Metrics.ReciprocalRank-0.5) > 1e-12 ||
@@ -81,10 +79,9 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 
 	abstentionFixture := publishConsumedRetrieval(t, store, "abstention", []string{"background"}, 1,
 		map[string]float64{"background": 1}, true)
-	abstention, err := NewRetrievalCase(RetrievalCase{
+	abstention := testcheck.Must(NewRetrievalCase(RetrievalCase{
 		Query: abstentionFixture.receipt.Query, Split: split, Group: "question-family-b", ExpectAbstain: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	abstained, err := publishRetrievalEvaluation(t.Context(), store, abstention, abstentionFixture.receipt.ID)
 	if err != nil || !abstained.Metrics.AbstentionCorrect || abstained.Metrics.RelevantExpected != 0 ||
 		abstained.Metrics.NormalizedDCG != 0 {
@@ -129,16 +126,14 @@ func publishConsumedRetrieval(
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "retrieval/fixture/" + tag, Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	documents, err := dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents)
-	testcheck.NoError(t, err)
+	documents = testcheck.Must(dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents))(t)
 	embedder := evaluationEmbedder{model: modelID}
 	reranker := evaluationReranker{policy: rerankID, scores: scores}
 	policy := dataset.AgentRetrievalPolicy{MaximumChunkRunes: 128, CandidateLimit: uint64(max(1, len(texts)))}
 	builder := dataset.AgentRetrievalBuilder{Repository: store}
-	projection, err := builder.Build(t.Context(), dataset.AgentRetrievalBuild{
+	projection := testcheck.Must(builder.Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: documents, Policy: policy, Embedder: embedder, RerankPolicy: rerankID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	query := dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: limit, AllowedDatasets: []artifact.ID{datasetID},
 		Embedder: embedder, Reranker: reranker,
@@ -146,9 +141,8 @@ func publishConsumedRetrieval(
 	if filterAll {
 		query.AllowedSources = []artifact.ID{absentSource}
 	}
-	consumed, err := runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, query, runrecord.RetrievalConsumer{
+	consumed := testcheck.Must(runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, query, runrecord.RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return consumedRetrievalFixture{receipt: consumed.Receipt, search: consumed.Search}
 }

@@ -40,8 +40,7 @@ func TestMain(m *testing.M) {
 // remain in TestStoreScaleContract to measure commits and test determinism.
 func copyScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, uint64) {
 	t.Helper()
-	fixture, err := scaleFixture()
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(scaleFixture())(t)
 	copyCorpusTree(t, fixture.root, root)
 	scaleCorpusCopies.Add(1)
 	return fixture.head, filepath.Join(root, checkpointDirectory, filepath.Base(fixture.snapshot)), fixture.contentBytes
@@ -57,26 +56,22 @@ func TestSharedScaleCorpusIsolation(t *testing.T) {
 		t.Fatal("fixture copies changed the deterministic corpus")
 	}
 	checkpoint := filepath.Join(newestCheckpoints(t, first), "aliases"+checkpointExtension)
-	data, err := os.ReadFile(checkpoint)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(checkpoint))(t)
 	data[len(data)/2] ^= 0xff
 	testcheck.NoError(t, os.WriteFile(checkpoint, data, storeFileMode))
-	writer, err := Create(first)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(Create(first))(t)
 	t.Cleanup(func() { _ = writer.Close() })
 	if writer.SnapshotReplay().Fallback == "" {
 		t.Fatal("damaged private checkpoint did not exercise recovery")
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindRun, []byte("private fixture mutation"))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, []byte("private fixture mutation")))(t)
 	if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "fixture/private", Artifacts: []artifact.Descriptor{{ID: id}}}); err != nil {
 		t.Fatal(err)
 	}
 	if current, _ := writer.Head(); current == head {
 		t.Fatal("private write did not change its own head")
 	}
-	reader, err := OpenReadOnly(second)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(OpenReadOnly(second))(t)
 	t.Cleanup(func() { _ = reader.Close() })
 	if current, _ := reader.Head(); current != head || !reader.SnapshotReplay().Loaded {
 		t.Fatal("private corruption or write reached a sibling")

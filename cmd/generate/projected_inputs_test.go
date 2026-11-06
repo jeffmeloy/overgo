@@ -21,8 +21,7 @@ func TestReadProjectedInputs(t *testing.T) {
   "deepstack_embeddings": [{"shape": [2, 2], "data": [1, 2, 3, 4]}]
 }`)
 	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
-	inputs, err := readProjectedInputs(path)
-	testcheck.NoError(t, err)
+	inputs := testcheck.Must(readProjectedInputs(path))(t)
 	if len(inputs.EmbeddingOverrides) != 1 ||
 		inputs.EmbeddingOverrides[0].TokenIndex != 1 ||
 		inputs.MultiAxisPositions == nil ||

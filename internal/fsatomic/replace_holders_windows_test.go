@@ -23,15 +23,11 @@ const holderEnvironment = "OVERGO_FSATOMIC_HOLDER"
 // and returns the release.
 func mapForReading(t *testing.T, path string) func() {
 	t.Helper()
-	name, err := syscall.UTF16PtrFromString(path)
-	testcheck.NoError(t, err)
-	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ,
-		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil, syscall.OPEN_EXISTING, 0, 0)
-	testcheck.NoError(t, err)
-	mapping, err := syscall.CreateFileMapping(handle, nil, syscall.PAGE_READONLY, 0, 0, nil)
-	testcheck.NoError(t, err)
-	view, err := syscall.MapViewOfFile(mapping, syscall.FILE_MAP_READ, 0, 0, 0)
-	testcheck.NoError(t, err)
+	name := testcheck.Must(syscall.UTF16PtrFromString(path))(t)
+	handle := testcheck.Must(syscall.CreateFile(name, syscall.GENERIC_READ,
+		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil, syscall.OPEN_EXISTING, 0, 0))(t)
+	mapping := testcheck.Must(syscall.CreateFileMapping(handle, nil, syscall.PAGE_READONLY, 0, 0, nil))(t)
+	view := testcheck.Must(syscall.MapViewOfFile(mapping, syscall.FILE_MAP_READ, 0, 0, 0))(t)
 	return func() {
 		_ = syscall.UnmapViewOfFile(view)
 		_ = syscall.CloseHandle(mapping)
@@ -84,8 +80,7 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 			child.Env = append(os.Environ(), holderEnvironment+"="+target)
 			stdin, err := child.StdinPipe()
 			testcheck.NoError(t, err)
-			stdout, err := child.StdoutPipe()
-			testcheck.NoError(t, err)
+			stdout := testcheck.Must(child.StdoutPipe())(t)
 			testcheck.NoError(t, child.Start())
 			defer func() { _ = stdin.Close(); _ = child.Wait() }()
 			lines := bufio.NewReader(stdout)
@@ -122,8 +117,7 @@ func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
 		})
 	}
 	t.Run("this process", func(t *testing.T) {
-		held, err := os.Open(target)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(os.Open(target))(t)
 		defer held.Close()
 		if err := replaceWith("again"); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("process %d", os.Getpid())) {
 			t.Fatalf("a holder in this process was not named: %v", err)

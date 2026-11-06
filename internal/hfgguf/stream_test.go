@@ -25,16 +25,14 @@ func (r *countedTensorSource) ReadAt(p []byte, offset int64) (int, error) {
 
 func streamMapping(t *testing.T, source *countedTensorSource, name string) tensorMapping {
 	t.Helper()
-	tensor, err := safetensors.NewTensor(name, "F32", []uint64{4}, source, 0, 16)
-	testcheck.NoError(t, err)
+	tensor := testcheck.Must(safetensors.NewTensor(name, "F32", []uint64{4}, source, 0, 16))(t)
 	return tensorMapping{name: name, tensor: tensor, shape: []uint64{4}, storage: gguf.DTypeF32, transforms: []TensorTransform{{Operation: transformAddOne}}}
 }
 
 func TestMappedTensorStreaming(t *testing.T) {
 	t.Run("read-on-demand", func(t *testing.T) {
 		first, second := &countedTensorSource{data: make([]byte, 16)}, &countedTensorSource{data: make([]byte, 16)}
-		tensors, err := mappedTensorData([]tensorMapping{streamMapping(t, first, "first"), streamMapping(t, second, "second")})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{streamMapping(t, first, "first"), streamMapping(t, second, "second")}))(t)
 		if first.reads != 0 || second.reads != 0 {
 			t.Fatal("conversion materialized unread tensors")
 		}
@@ -65,8 +63,7 @@ func TestMappedTensorStreaming(t *testing.T) {
 	})
 	t.Run("source-failure-is-sticky", func(t *testing.T) {
 		source := &countedTensorSource{data: []byte{1, 2, 3}}
-		tensors, err := mappedTensorData([]tensorMapping{streamMapping(t, source, "short")})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{streamMapping(t, source, "short")}))(t)
 		if _, err := io.ReadAll(tensors[0].Data); err == nil {
 			t.Fatal("accepted truncated transformed source")
 		}
@@ -77,8 +74,7 @@ func TestMappedTensorStreaming(t *testing.T) {
 	})
 	t.Run("writer-failure-leaves-payloads-unread", func(t *testing.T) {
 		source := &countedTensorSource{data: make([]byte, 16)}
-		tensors, err := mappedTensorData([]tensorMapping{streamMapping(t, source, "weight")})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{streamMapping(t, source, "weight")}))(t)
 		sentinel := errors.New("destination unavailable")
 		if err := gguf.Write(refusingTensorWriter{sentinel}, nil, tensors, gguf.WriteOptions{}); !errors.Is(err, sentinel) {
 			t.Fatalf("writer failure = %v", err)
@@ -89,8 +85,7 @@ func TestMappedTensorStreaming(t *testing.T) {
 	})
 	t.Run("failed-file-is-removed", func(t *testing.T) {
 		broken, later := &countedTensorSource{data: make([]byte, 4)}, &countedTensorSource{data: make([]byte, 16)}
-		tensors, err := mappedTensorData([]tensorMapping{streamMapping(t, broken, "broken"), streamMapping(t, later, "later")})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{streamMapping(t, broken, "broken"), streamMapping(t, later, "later")}))(t)
 		path := filepath.Join(t.TempDir(), "incomplete.gguf")
 		if err := gguf.WriteFileExclusive(path, nil, tensors, gguf.WriteOptions{}); err == nil {
 			t.Fatal("published truncated conversion")
@@ -106,8 +101,7 @@ func TestMappedTensorStreaming(t *testing.T) {
 		source := &countedTensorSource{data: make([]byte, 16)}
 		mapping := streamMapping(t, source, "invalid")
 		mapping.transforms = []TensorTransform{{Operation: "unknown"}}
-		tensors, err := mappedTensorData([]tensorMapping{mapping})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{mapping}))(t)
 		if _, err := io.ReadAll(tensors[0].Data); err == nil {
 			t.Fatal("accepted unknown transform")
 		}
@@ -121,12 +115,10 @@ func TestMappedTensorStreaming(t *testing.T) {
 	})
 	t.Run("gguf-roundtrip", func(t *testing.T) {
 		first, second := &countedTensorSource{data: make([]byte, 16)}, &countedTensorSource{data: make([]byte, 16)}
-		tensors, err := mappedTensorData([]tensorMapping{streamMapping(t, first, "first"), streamMapping(t, second, "second")})
-		testcheck.NoError(t, err)
+		tensors := testcheck.Must(mappedTensorData([]tensorMapping{streamMapping(t, first, "first"), streamMapping(t, second, "second")}))(t)
 		path := filepath.Join(t.TempDir(), "complete.gguf")
 		testcheck.NoError(t, gguf.WriteFileExclusive(path, nil, tensors, gguf.WriteOptions{}))
-		file, err := gguf.Open(path)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(gguf.Open(path))(t)
 		defer file.Close()
 		if len(file.Tensors) != len(tensors) {
 			t.Fatal("lost a tensor")

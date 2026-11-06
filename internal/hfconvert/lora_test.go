@@ -39,12 +39,11 @@ func writeLoRACheckpoint(t *testing.T, modelType string) loRACheckpoint {
 	spec := testutil.DenseCausalSpec{Vocab: 3, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 2, Seed: 3}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
 	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), weights, shapes, nil))
-	config, err := json.Marshal(map[string]any{
+	config := testcheck.Must(json.Marshal(map[string]any{
 		"model_type": modelType, "hidden_size": spec.Hidden, "intermediate_size": spec.Intermediate, "num_attention_heads": spec.Heads,
 		"num_key_value_heads": spec.KVHeads, "head_dim": spec.HeadDim, "num_hidden_layers": spec.Layers, "vocab_size": spec.Vocab,
 		"max_position_embeddings": 16, "rms_norm_eps": 1e-5, "rope_theta": 10000, "tie_word_embeddings": true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testutil.WriteTextFile(t, directory, "config.json", string(config))
 	testutil.WriteTextFile(t, directory, "tokenizer.json", `{"model":{"vocab":{"a":0,"<s>":1,"</s>":2},"merges":[]},"added_tokens":[{"id":1,"content":"<s>","special":true},{"id":2,"content":"</s>","special":true}]}`)
 	testutil.WriteTextFile(t, directory, "generation_config.json", `{"bos_token_id":1,"eos_token_id":2}`)
@@ -121,8 +120,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 	if _, err := Convert(Options{Directory: checkpoint.directory, OutputPath: basePath}); err != nil {
 		t.Fatal(err)
 	}
-	base, err := gguf.Open(basePath)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(gguf.Open(basePath))(t)
 	defer base.Close()
 	// The premise of the row permutation: the converted base holds the checkpoint's query rows permuted.
 	baseQuery, _ := readFloat32(t, base, "blk.0.attn_q.weight")
@@ -132,8 +130,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 			t.Fatalf("converted query weight[%d] = %v, want the permuted checkpoint's %v", index, baseQuery[index], wantQuery[index])
 		}
 	}
-	spec, err := model.ReadSpec(base)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(model.ReadSpec(base))(t)
 	for _, stabilized := range []bool{false, true} {
 		adapter := loRAAdapter(stabilized)
 		output := filepath.Join(t.TempDir(), "adapter.gguf")
@@ -148,8 +145,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 		if loaded.Alpha != 8 || len(loaded.Weights) != 3 {
 			t.Fatalf("stabilized=%t: loaded alpha %v with %d weights, want 8 and three", stabilized, loaded.Alpha, len(loaded.Weights))
 		}
-		file, err := gguf.Open(output)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(gguf.Open(output))(t)
 		for module, destination := range map[string]string{loRAQuery: "blk.0.attn_q.weight", loRAKey: "blk.1.attn_k.weight", loRADown: "blk.0.ffn_down.weight"} {
 			factors := adapter.Modules[module]
 			down, downExtents := readFloat32(t, file, destination+".lora_a")
@@ -158,8 +154,7 @@ func TestConvertLoRALoadsAndCarriesEveryUpdate(t *testing.T) {
 				len(upExtents) != 2 || upExtents[0] != uint64(factors.Rank) || upExtents[1] != uint64(factors.Out) {
 				t.Fatalf("%s: factor extents %v and %v, want GGUF's reversed in-by-rank and rank-by-out", module, downExtents, upExtents)
 			}
-			want, err := adapter.Delta(module)
-			testcheck.NoError(t, err)
+			want := testcheck.Must(adapter.Delta(module))(t)
 			switch module {
 			case loRAQuery:
 				want = rotaryRows(want, factors.Out, factors.In, 2)

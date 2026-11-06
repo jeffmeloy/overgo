@@ -13,18 +13,16 @@ const benchmarkReplayCommits = 256
 
 func BenchmarkSnapshotReplay(b *testing.B) {
 	root := b.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(b, err)
+	store := testcheck.Must(Create(root))(b)
 	for sequence := range benchmarkReplayCommits {
 		payload := fmt.Appendf(nil, "benchmark-artifact-%d", sequence)
 		id := testutil.ArtifactBytesID(b, artifact.KindRun, payload)
-		_, err = store.Commit(b.Context(), artifact.Batch{
+		testcheck.Must(store.Commit(b.Context(), artifact.Batch{
 			Key: fmt.Sprintf("benchmark/%d", sequence),
 			Artifacts: []artifact.Descriptor{{
 				ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream",
 			}},
-		})
-		testcheck.NoError(b, err)
+		}))(b)
 	}
 	if _, err := store.Snapshot(b.Context()); err != nil {
 		b.Fatal(err)
@@ -45,8 +43,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 
 func BenchmarkCompaction(b *testing.B) {
 	ctx := b.Context()
-	source, err := Create(b.TempDir())
-	testcheck.NoError(b, err)
+	source := testcheck.Must(Create(b.TempDir()))(b)
 	defer source.Close()
 	var previous artifact.ID
 	for sequence := range benchmarkReplayCommits {

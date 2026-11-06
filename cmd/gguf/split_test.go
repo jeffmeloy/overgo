@@ -52,8 +52,7 @@ func TestSplitCreatesOpenableShards(t *testing.T) {
 	prefix := filepath.Join(directory, "output")
 	testcheck.NoError(t, split(inputPath, prefix, gguf.SplitOptions{MaxTensors: 1}))
 	first := prefix + "-00001-of-00003.gguf"
-	file, err := gguf.Open(first)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(first))(t)
 	defer file.Close()
 	if file.SplitCount != 3 || len(file.Tensors) != 3 {
 		t.Fatalf("split/tensors = %d/%d, want 3/3", file.SplitCount, len(file.Tensors))

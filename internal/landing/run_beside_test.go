@@ -27,8 +27,7 @@ func TestALandingBesideARunWaitsOnlyForTheDevice(t *testing.T) {
 	const machine = "overgo-test-quiet-machine-lanes"
 	ctx := t.Context()
 	l := &landing{Options: Options{Log: io.Discard}}
-	release, err := l.holdQuiet(ctx, machine)
-	testcheck.NoError(t, err)
+	release := testcheck.Must(l.holdQuiet(ctx, machine))(t)
 	l.quiet, l.quietMachine = release, machine
 
 	held, let := make(chan struct{}), make(chan struct{})

@@ -30,8 +30,7 @@ func openSharedKVRunner(t *testing.T, path string, session modelrecipe.DecodeSes
 	if err != nil {
 		t.Fatalf("%s session: %v", session, err)
 	}
-	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(OpenWithProgram(t.Context(), &loaded, OpenOptions{}))(t)
 	return runner
 }
 
@@ -41,10 +40,8 @@ func generateSharedKV(t *testing.T, path string, session modelrecipe.DecodeSessi
 	t.Helper()
 	runner := openSharedKVRunner(t, path, session)
 	defer runner.Close()
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
-	before, err := runner.DeviceExecutionStats(t.Context())
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
+	before := testcheck.Must(runner.DeviceExecutionStats(t.Context()))(t)
 	ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: sharedKVSteps, Sampler: greedy, PromptTokenIDs: sharedKVPrompt,
 		DeviceGreedy: true, ContinueAfterEOG: true,
@@ -52,8 +49,7 @@ func generateSharedKV(t *testing.T, path string, session modelrecipe.DecodeSessi
 	if err != nil {
 		t.Fatalf("%s session generate: %v", session, err)
 	}
-	after, err := runner.DeviceExecutionStats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(runner.DeviceExecutionStats(t.Context()))(t)
 	return ids, after.GraphLaunches - before.GraphLaunches
 }
 

@@ -28,8 +28,7 @@ func TestBlockSelectionChunksCUDA(t *testing.T) {
 func runFlashNextCUDA(t *testing.T, check func(*testing.T, func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error))) {
 	t.Helper()
 	cudatest.Require(t)
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	device := testcheck.Must(executor.New(0))(t)
 	t.Cleanup(func() {
 		if err := device.Close(); err != nil {
 			t.Error(err)

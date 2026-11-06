@@ -44,8 +44,7 @@ func TestModelRegistrationIsAtomicIdempotentAndInactive(t *testing.T) {
 	testcheck.NoError(t, registerModels(args))
 	inspect := func() artifact.CommitID {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(repository))(t)
 		defer store.Close()
 		if _, found, err := store.Manifest(t.Context(), specification.Model); err != nil || !found {
 			t.Fatalf("registered model missing: %v", err)
@@ -146,11 +145,9 @@ func registrationFixture(t *testing.T) (string, modelRegistration) {
 	git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--no-gpg-sign", "-qm", "fixture")
 	source := "https://example.invalid/model"
 	git("remote", "add", "origin", source)
-	inventory, err := modelartifact.FromHFPath(directory)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromHFPath(directory))(t)
 	value := modelRegistration{Directory: "fixture", Model: inventory.Manifest.ID, TensorInventory: inventory.TensorInventory.ID, SourceRepository: source, SourceCommit: git("rev-parse", "HEAD")}
 	value.License.Path, value.License.SPDX, value.License.MediaType = "README.md", "LicenseRef-Fixture", "text/markdown"
-	value.License.Artifact, err = artifact.IdentifyBytes(artifact.KindFile, license)
-	testcheck.NoError(t, err)
+	value.License.Artifact = testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, license))(t)
 	return root, value
 }

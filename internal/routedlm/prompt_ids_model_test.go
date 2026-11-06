@@ -51,8 +51,7 @@ func TestSenseNovaPromptIDsMatchUpstream(t *testing.T) {
 	template := SenseNovaPromptTemplate()
 	rendered := func(prompt string, role PromptRole) []int {
 		t.Helper()
-		query, err := RenderEditPrompt(tokenizer, prompt, role, template, PromptSource{})
-		testcheck.NoError(t, err)
+		query := testcheck.Must(RenderEditPrompt(tokenizer, prompt, role, template, PromptSource{}))(t)
 		ids := make([]int, len(query.IDs))
 		for index, id := range query.IDs {
 			ids[index] = int(id)

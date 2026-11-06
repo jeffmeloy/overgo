@@ -17,11 +17,10 @@ import (
 
 func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 	t.Parallel()
-	value, err := reference.NewValue(
+	value := testcheck.Must(reference.NewValue(
 		tensor.MustShape(1, 1, 5),
 		[]float32{1, 2, 3, 4, 5},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	runner := attachFixtureProgram(&Runner{preparedModel: preparedModel{spec: model.Spec{
 		CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8},
 	}}})
@@ -163,8 +162,7 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 	}
 	for architecture, want := range tests {
 		spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}
-		plan, err := fixtureModelPlan(spec, model.Weights{})
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(fixtureModelPlan(spec, model.Weights{}))(t)
 		if got := plan.Forward().PersistentDeviceCache(); got != want {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
@@ -197,10 +195,8 @@ func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {
 				},
 			}
 			info := model.LayerWeights{Recurrent: test.recurrent}
-			plan, err := fixtureModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}})
-			testcheck.NoError(t, err)
-			schema, err := plan.CacheSchema(0, 1)
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(fixtureModelPlan(spec, model.Weights{Layers: []model.LayerWeights{info}}))(t)
+			schema := testcheck.Must(plan.CacheSchema(0, 1))(t)
 			first, second := schema.Primary.Key.Value.Shape, schema.Primary.Value.Value.Shape
 			if test.architecture == "falcon-h1" {
 				convolution, _ := schema.State(model.CacheStateConvolution)

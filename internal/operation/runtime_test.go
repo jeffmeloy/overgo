@@ -19,7 +19,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation-lifecycle-output")
 	started, release := make(chan struct{}), make(chan struct{})
 	publishing, commit := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
 		func(ctx context.Context, reporter Reporter) (Completion, error) {
 			total := uint64(2)
 			reporter.Progress(1, &total)
@@ -38,8 +38,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 				return Completion{Run: runID}, ctx.Err()
 			}
 			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	<-started
 	status, ok := manager.Status(id)
 	if !ok || status.State != StateRunning || status.Progress.Completed != 1 || len(status.Metrics) != 1 {
@@ -52,8 +51,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 		t.Fatalf("pre-commit status = %+v, present=%t", status, ok)
 	}
 	close(commit)
-	status, err = manager.Wait(t.Context(), id)
-	testcheck.NoError(t, err)
+	status = testcheck.Must(manager.Wait(t.Context(), id))(t)
 	if status.State != StateCompleted || status.Run == nil || *status.Run != runID || len(status.Outputs) != 1 || status.Outputs[0] != outputID {
 		t.Fatalf("completed status = %+v", status)
 	}
@@ -63,16 +61,14 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 	manager := newTestManager(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bounded-metrics-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "bounded-metrics-run")
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			for value := range 100 {
 				reporter.Metric(Metric{Name: "loss", Value: float64(value)})
 			}
 			return Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
-	status, err := manager.Wait(t.Context(), id)
-	testcheck.NoError(t, err)
+		}))(t)
+	status := testcheck.Must(manager.Wait(t.Context(), id))(t)
 	if len(status.Metrics) != 1 || status.Metrics[0].Name != "loss" || status.Metrics[0].Value != 99 {
 		t.Fatalf("metrics=%+v", status.Metrics)
 	}
@@ -152,8 +148,7 @@ func TestReporterTextStaysBounded(t *testing.T) {
 	}
 	running := len(seen())
 	close(release)
-	status, err = manager.Wait(t.Context(), id)
-	testcheck.NoError(t, err)
+	status = testcheck.Must(manager.Wait(t.Context(), id))(t)
 	if status.State != StateCompleted || status.Text != "" {
 		t.Fatalf("finished status is %q with a text of %d bytes, want completed and no text", status.State, len(status.Text))
 	}
@@ -181,15 +176,14 @@ func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "attempt-evidence-run")
 	first := testutil.ArtifactID(t, artifact.KindEvidence, "attempt-evidence-first")
 	second := testutil.ArtifactID(t, artifact.KindEvidence, "attempt-evidence-second")
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskInference, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskInference, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			reporter.Attempt(first)
 			reporter.Attempt(first)
 			reporter.Attempt(runID)
 			reporter.Attempt(second)
 			return Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	status, err := manager.Wait(t.Context(), id)
 	if err != nil || !slices.Equal(status.Attempts, []artifact.ID{first, second}) {
 		t.Fatalf("attempt evidence = (%v, %v)", status.Attempts, err)
@@ -203,14 +197,13 @@ func TestOperationTransitionsReachTheObserverInOrder(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation event recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation event run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation event output")
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			reporter.Attempt(testutil.ArtifactID(t, artifact.KindEvidence, "operation event attempt"))
 			reporter.Metric(Metric{Name: "loss", Value: 1})
 			reporter.Publishing()
 			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if _, err := manager.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
@@ -237,20 +230,18 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-cancel-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-cancel-run")
 	started, released := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(ctx context.Context, _ Reporter) (Completion, error) {
 			close(started)
 			defer close(released)
 			<-ctx.Done()
 			return Completion{Run: runID}, ctx.Err()
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	<-started
 	if !manager.Cancel(id) {
 		t.Fatal("active operation was not cancelled")
 	}
-	status, err := manager.Wait(t.Context(), id)
-	testcheck.NoError(t, err)
+	status := testcheck.Must(manager.Wait(t.Context(), id))(t)
 	<-released
 	if status.State != StateCancelled || status.Run == nil || *status.Run != runID {
 		t.Fatalf("cancelled status = %+v", status)
@@ -259,8 +250,7 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
-	manager, err := NewManager(8)
-	testcheck.NoError(t, err)
+	manager := testcheck.Must(NewManager(8))(t)
 	t.Cleanup(manager.Close)
 	return manager
 }

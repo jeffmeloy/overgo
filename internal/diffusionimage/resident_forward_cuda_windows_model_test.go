@@ -27,31 +27,24 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 	var hostOutput []float32
 	for index := range hostDurations {
 		started := time.Now()
-		var err error
-		hostOutput, err = model.Forward(golden.X, 1, golden.H, golden.W)
-		testcheck.NoError(t, err)
+		hostOutput = testcheck.Must(model.Forward(golden.X, 1, golden.H, golden.W))(t)
 		hostDurations[index] = time.Since(started)
 	}
 	compileStarted := time.Now()
-	forward, err := CompileResidentForward(t.Context(), model, 0, golden.H, golden.W)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, golden.H, golden.W))(t)
 	defer forward.Close(context.Background())
 	compileWall := time.Since(compileStarted)
-	before, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	before := testcheck.Must(forward.Stats(t.Context()))(t)
 	coldStarted := time.Now()
-	deviceOutput, err := forward.Execute(t.Context(), golden.X)
-	testcheck.NoError(t, err)
+	deviceOutput := testcheck.Must(forward.Execute(t.Context(), golden.X))(t)
 	coldWall := time.Since(coldStarted)
 	warmDurations := make([]time.Duration, 3)
 	for index := range warmDurations {
 		started := time.Now()
-		deviceOutput, err = forward.Execute(t.Context(), golden.X)
-		testcheck.NoError(t, err)
+		deviceOutput = testcheck.Must(forward.Execute(t.Context(), golden.X))(t)
 		warmDurations[index] = time.Since(started)
 	}
-	after, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(forward.Stats(t.Context()))(t)
 	slices.Sort(hostDurations)
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]

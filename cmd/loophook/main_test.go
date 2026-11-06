@@ -126,8 +126,7 @@ func TestPersistentStopHook(t *testing.T) {
 	git("config", "user.name", "Stop Fixture")
 	git("commit", "--allow-empty", "-qm", "baseline")
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "requested", Detail: "operator stopped", CodeCommit: gitHead()}
-	stopped, err := plan.RecordStop(t.Context(), event)
-	testcheck.NoError(t, err)
+	stopped := testcheck.Must(plan.RecordStop(t.Context(), event))(t)
 	git("commit", "--allow-empty", "-qm", "another worker committed")
 	testcheck.NoError(t, os.MkdirAll("docs", 0700))
 	testcheck.NoError(t, os.WriteFile(plan.Path, []byte("{broken plan"), 0600))

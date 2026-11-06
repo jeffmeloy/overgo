@@ -147,16 +147,14 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 	testskip.Short(t, "transfer comparison reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_transfers.json")
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoTransferSHA256))
 	var comparison mediaTransferComparison
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &comparison))
 	if comparison.Version != artifact.InitialDocumentVersion || comparison.Rationale == "" || len(comparison.Cases) != 2 || len(comparison.Quality) == 0 || len(comparison.Evidence) == 0 || len(comparison.Sources) == 0 {
 		t.Fatal("incomplete comparison")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -177,8 +175,7 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 		read(id)
 	}
 	for _, check := range comparison.Quality {
-		report, err := testevidence.GoTestJSONReport(string(read(check.Evidence)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(check.Evidence))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 || check.Name == "" || check.Command == "" {
 			t.Fatal("empty quality acquisition")
@@ -196,8 +193,7 @@ func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 		if before.Acceptance != acceptance {
 			t.Fatal("acquisition changed frozen acceptance")
 		}
-		accepted, err := compareMediaTransfers(before, after, entry.Steps, entry.StepInputBytes)
-		testcheck.NoError(t, err)
+		accepted := testcheck.Must(compareMediaTransfers(before, after, entry.Steps, entry.StepInputBytes))(t)
 		if name == "full" {
 			efficient = accepted
 		}

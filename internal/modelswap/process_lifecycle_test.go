@@ -17,8 +17,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		path, args = "cmd", []string{"/c", "ping -n 60 127.0.0.1 >nul"}
 	}
-	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
-	testcheck.NoError(t, err)
+	supervised := testcheck.Must(processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args}))(t)
 	exited := make(chan error, 1)
 	go func() {
 		_, waitErr := supervised.Wait(t.Context())

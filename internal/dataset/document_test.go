@@ -14,24 +14,19 @@ import (
 func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	assetA := testutil.ArtifactID(t, artifact.KindDatasetShard, "asset-a")
 	assetB := testutil.ArtifactID(t, artifact.KindFile, "asset-b")
-	version, err := NewVersion([]Asset{
+	version := testcheck.Must(NewVersion([]Asset{
 		{Name: "second", Artifact: assetB, Records: 3},
 		{Name: "first", Artifact: assetA, Records: 2},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	selector := testutil.ArtifactID(t, artifact.KindDatasetShard, "selector")
-	viewA, err := NewView(version.ID, &selector, []string{"target", "prompt"})
-	testcheck.NoError(t, err)
-	viewB, err := NewView(version.ID, nil, []string{"prompt"})
-	testcheck.NoError(t, err)
-	split, err := NewSplit(version.ID, []Partition{
+	viewA := testcheck.Must(NewView(version.ID, &selector, []string{"target", "prompt"}))(t)
+	viewB := testcheck.Must(NewView(version.ID, nil, []string{"prompt"}))(t)
+	split := testcheck.Must(NewSplit(version.ID, []Partition{
 		{Name: "train", View: viewA.ID}, {Name: "test", View: viewB.ID},
-	})
-	testcheck.NoError(t, err)
-	mixture, err := NewMixture([]Member{
+	}))(t)
+	mixture := testcheck.Must(NewMixture([]Member{
 		{Dataset: split.ID, Weight: 6}, {Dataset: version.ID, Weight: 2},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	weights := map[artifact.ID]uint64{}
 	for _, member := range mixture.Members {
 		weights[member.Dataset] = member.Weight
@@ -44,10 +39,8 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		{Name: "second", Dataset: split.ID, Inventory: assetA, StorageKind: "file", Source: "fixture", Modality: "mixed", Formats: []string{"txt", "json", "txt"}, Modalities: []string{"text", "audio", "text"}},
 		{Name: "first", Dataset: version.ID, Inventory: assetA, StorageKind: "file", Source: "fixture", Modality: "text"},
 	}
-	before, err := json.Marshal(entries)
-	testcheck.NoError(t, err)
-	catalog, err := NewCatalog(entries)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(json.Marshal(entries))(t)
+	catalog := testcheck.Must(NewCatalog(entries))(t)
 	after, err := json.Marshal(entries)
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("catalog mutated its input: %s, %v", after, err)
@@ -55,10 +48,8 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	expected := []CatalogEntry{entries[1], entries[0]}
 	expected[1].Formats = []string{"json", "txt"}
 	expected[1].Modalities = []string{"audio", "text"}
-	expectedJSON, err := json.Marshal(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: expected})
-	testcheck.NoError(t, err)
-	expectedID, err := artifact.IdentifyBytes(artifact.KindDataset, expectedJSON)
-	testcheck.NoError(t, err)
+	expectedJSON := testcheck.Must(json.Marshal(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: expected}))(t)
+	expectedID := testcheck.Must(artifact.IdentifyBytes(artifact.KindDataset, expectedJSON))(t)
 	content, err := catalog.Content()
 	if err != nil || string(content.Data) != string(expectedJSON) || catalog.ID != expectedID {
 		t.Fatalf("catalog bytes or identity differ: %s, %v", content.Data, err)
@@ -66,15 +57,13 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	for _, formats := range [][]string{nil, {}} {
 		entry := entries[1]
 		entry.Formats = formats
-		value, err := NewCatalog([]CatalogEntry{entry})
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewCatalog([]CatalogEntry{entry}))(t)
 		if (value.Catalog[0].Formats == nil) != (formats == nil) {
 			t.Fatal("catalog changed nil/empty input state")
 		}
 	}
 	duplicate := []CatalogEntry{entries[0], entries[0]}
-	before, err = json.Marshal(duplicate)
-	testcheck.NoError(t, err)
+	before = testcheck.Must(json.Marshal(duplicate))(t)
 	if _, err := NewCatalog(duplicate); err == nil {
 		t.Fatal("duplicate catalog entry accepted")
 	}
@@ -101,16 +90,14 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 	descriptors := []artifact.Descriptor{
 		{ID: assetA, Size: 7}, {ID: assetB, Size: 7}, {ID: selector, Size: 8},
 	}
-	batch, err := PublicationBatch("dataset-fixture", documents, []artifact.AliasBinding{{
+	batch := testcheck.Must(PublicationBatch("dataset-fixture", documents, []artifact.AliasBinding{{
 		Name: "datasets/training", Target: mixture.ID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	batch.Artifacts = descriptors
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(t.Context(), mixture.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), mixture.ID))(t)
 	if len(parents) != len(mixture.Members) {
 		t.Fatalf("mixture parents = %+v", parents)
 	}
@@ -128,17 +115,14 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	if _, err := NewMixture([]Member{{Dataset: source, Weight: 1}}); err == nil {
 		t.Fatal("singleton mixture accepted")
 	}
-	version, err := NewVersion([]Asset{{
+	version := testcheck.Must(NewVersion([]Asset{{
 		Name: "asset", Artifact: testutil.ArtifactID(t, artifact.KindFile, "asset"), Records: 1,
-	}})
-	testcheck.NoError(t, err)
-	content, err := version.Content()
-	testcheck.NoError(t, err)
+	}}))(t)
+	content := testcheck.Must(version.Content())(t)
 	var body map[string]any
 	testcheck.NoError(t, json.Unmarshal(content.Data, &body))
 	body["unknown"] = true
-	modified, err := json.Marshal(body)
-	testcheck.NoError(t, err)
+	modified := testcheck.Must(json.Marshal(body))(t)
 	if _, err := documentCodec.Parse(modified); err == nil {
 		t.Fatal("unknown dataset field accepted")
 	}

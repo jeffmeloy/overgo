@@ -41,14 +41,13 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 	samples := "assets/"
 
 	t.Run("a sample is read by what carries its digest and by nothing else", func(t *testing.T) {
-		snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
+		snapshot := testcheck.Must(gosyntax.Snapshot{}.Overlay(map[string][]byte{
 			"cmd/export/samples.go": []byte("package main\n" +
 				"var sampleRoot, pictureRoot = \"assets\", \"docs/pictures\"\n" +
 				"var read = []string{\"docs/verification/coverage.json\", \"docs/validation.json\", \"docs/processing.json\", \"docs/plan.json\"}\n"),
 			"internal/frozen/frozen_test.go": []byte("package frozen\n" +
 				"var want = map[string]string{\"" + worded + "\": \"" + filed + ".gif\"}\n"),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		texts := map[string]string{
 			"docs/verification/coverage.json": `{"bound": "output:sha256:` + identity + `", "left": "A` + embedded + `", "right": "` + embedded + `0", "ran": "cmd/gone TestGone"}`,
 			"docs/validation.json":            `{"sample": "` + samples + located + `.gif"}`,
@@ -75,8 +74,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 			documents = append(documents, document)
 		}
 		slices.Sort(documents)
-		census, err := TrackedDocumentCensus(snapshot, documents)
-		testcheck.NoError(t, err)
+		census := testcheck.Must(TrackedDocumentCensus(snapshot, documents))(t)
 		testcheck.NoError(t, DocumentReferences(census, func(document string) ([]byte, error) { return []byte(texts[document]), nil }))
 		var refused []string
 		for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
@@ -123,8 +121,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 
 	t.Run("the checkout's samples, pages and records are measured", func(t *testing.T) {
 		root := "../.."
-		documents, err := TrackedDocuments(t.Context(), root)
-		testcheck.NoError(t, err)
+		documents := testcheck.Must(TrackedDocuments(t.Context(), root))(t)
 		texts, held, records, pages := map[string]string{}, 0, 0, 0
 		for _, document := range documents {
 			record, page := strings.HasPrefix(document, "docs/verification/"), path.Dir(document) == documentsRoot && path.Ext(document) == ".md"
@@ -139,8 +136,7 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 			default:
 				continue
 			}
-			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-			testcheck.NoError(t, err)
+			data := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(document))))(t)
 			// A record that is a picture names nothing.
 			if utf8.Valid(data) {
 				texts[document] = string(data)

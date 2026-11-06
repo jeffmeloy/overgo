@@ -16,14 +16,12 @@ import (
 func TestDatasetPreviewShowsTrainedTokens(t *testing.T) {
 	t.Parallel()
 	fixture := newDPOTrainingFixture(t)
-	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	request := func(position int, dataset any) (int, trainingworkflow.Preview) {
 		t.Helper()
-		body, err := json.Marshal(map[string]any{"task": "training", "recipe": fixture.definition.ID,
-			"input": map[string]any{"dataset": dataset}, "position": position, "limit": 1})
-		testcheck.NoError(t, err)
+		body := testcheck.Must(json.Marshal(map[string]any{"task": "training", "recipe": fixture.definition.ID,
+			"input": map[string]any{"dataset": dataset}, "position": position, "limit": 1}))(t)
 		response := serveTestRequest(handler, http.MethodPost, "/training/preview", string(body))
 		var preview trainingworkflow.Preview
 		if response.Code == http.StatusOK {

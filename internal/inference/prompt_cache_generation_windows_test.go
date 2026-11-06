@@ -25,8 +25,7 @@ func TestPromptCacheRetainsDecodedTokensDevice(t *testing.T) {
 // read's tokens.
 func TestRecurrentPromptCacheReadsOnFromItsTurn(t *testing.T) {
 	cudatest.Require(t)
-	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUFLast(t, chatMLStart), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(writeHermeticQwen35GGUFLast(t, chatMLStart), OpenOptions{}))(t)
 	defer runner.Close()
 	// Token 7 opens a turn: the prompt's history is 1 4 5 and the follow-up keeps it and that turn's opening token.
 	prompt, followUp := []tokenizer.TokenID{1, 4, 5, 7, 6, 4}, []tokenizer.TokenID{1, 4, 5, 7, 5, 6, 7, 4}

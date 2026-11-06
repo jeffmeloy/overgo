@@ -32,8 +32,7 @@ func newReleaseFixture(t *testing.T) *releaseFixture {
 	t.Helper()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	t.Cleanup(func() { _ = store.Close() })
 	fixture := &releaseFixture{
 		root:   root,
@@ -75,11 +74,9 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("orphan introduction = (%v, %v)", found, err)
 	}
-	blob, err := store.blobs.path(orphan)
-	testcheck.NoError(t, err)
+	blob := testcheck.Must(store.blobs.path(orphan))(t)
 
-	report, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(Release(ctx, store, nil, RetentionPolicy{}, releasable))(t)
 	// A consumer at the head before the release resyncs: no delta names the bytes the release took.
 	crossesRelease := func(store *Store) {
 		t.Helper()
@@ -113,12 +110,10 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	// Restore the original loose bytes to model interruption after the durable release fact.
 	testcheck.NoError(t, store.blobs.prepare(orphan, fixture.orphan.Data))
 	testcheck.NoError(t, store.Close())
-	store, err = Create(fixture.root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(Create(fixture.root))(t)
 	defer store.Close()
 	crossesRelease(store)
-	again, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(Release(ctx, store, nil, RetentionPolicy{}, releasable))(t)
 	if again.Unreachable != 1 || again.Released != 0 || again.Commits != 0 ||
 		again.HeadAfter != report.HeadAfter || again.SequenceAfter != report.SequenceAfter || again.BlobsRemoved != 1 {
 		t.Fatalf("retry did not finish committed cleanup without changing the chain: %+v", again)
@@ -216,8 +211,7 @@ func TestReleaseRefusesACommitAfterItsSnapshot(t *testing.T) {
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	store := fixture.store
-	live, err := collectLiveSet(ctx, store, "release", nil, RetentionPolicy{})
-	testcheck.NoError(t, err)
+	live := testcheck.Must(collectLiveSet(ctx, store, "release", nil, RetentionPolicy{}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "after-the-snapshot", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindEvidence, "after-the-snapshot")}}); err != nil {
 		t.Fatal(err)
 	}
@@ -265,15 +259,12 @@ func TestReleaseThenBackupAndRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(t.TempDir(), "backup")
-	report, err := fixture.store.Backup(ctx, backup)
-	testcheck.NoError(t, err)
-	seal, err := ReadBackupSeal(backup)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(fixture.store.Backup(ctx, backup))(t)
+	seal := testcheck.Must(ReadBackupSeal(backup))(t)
 	if head, sequence := fixture.store.Head(); seal.Head != head || seal.Sequence != sequence || report.Head != head {
 		t.Fatalf("backup seal %+v does not name the released head (%s, %d)", seal, head, sequence)
 	}
-	rebuilt, err := Rebuild(ctx, fixture.store, filepath.Join(t.TempDir(), "rebuilt"), nil, nil, false)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(Rebuild(ctx, fixture.store, filepath.Join(t.TempDir(), "rebuilt"), nil, nil, false))(t)
 	// The aliased content and the unreachable claim carry bytes; the
 	// released orphan carries only its identity.
 	if rebuilt.ContentsKept != 2 || rebuilt.ContentsDropped != 1 || rebuilt.Artifacts != 3 {
@@ -289,8 +280,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := Create(fixture.root)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(Create(fixture.root))(t)
 	defer writer.Close()
 	var introduced bool
 	var introduceErr error
@@ -334,8 +324,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(filepath.Join(t.TempDir(), "store")))(t)
 	defer store.Close()
 	parent := retentionContent(t, artifact.KindEvidence, map[string]any{"role": "preparation"})
 	parent.Descriptor.Schema = "test/root/v1"
@@ -349,13 +338,11 @@ func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	followed := RetentionPolicy{FollowChildren: func(descriptor artifact.Descriptor) bool { return descriptor.Schema == "test/root/v1" }}
-	report, err := Release(ctx, store, nil, followed, releasable)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(Release(ctx, store, nil, followed, releasable))(t)
 	if report.Unreachable != 0 || report.Released != 0 || report.Commits != 0 || report.Retained != 2 {
 		t.Fatalf("release with followed children = %+v", report)
 	}
-	report, err = Release(ctx, store, nil, RetentionPolicy{}, releasable)
-	testcheck.NoError(t, err)
+	report = testcheck.Must(Release(ctx, store, nil, RetentionPolicy{}, releasable))(t)
 	if report.Unreachable != 1 || report.Released != 1 || report.Commits != 1 {
 		t.Fatalf("release without followed children = %+v", report)
 	}

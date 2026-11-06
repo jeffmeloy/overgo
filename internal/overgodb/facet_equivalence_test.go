@@ -66,8 +66,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	root := t.TempDir()
 	head, _, _ := copyScaleCorpus(t, root)
 
-	live, err := Create(root)
-	testcheck.NoError(t, err)
+	live := testcheck.Must(Create(root))(t)
 	defer live.Close()
 	snapshotReplay := live.SnapshotReplay()
 	if !snapshotReplay.Loaded {
@@ -83,8 +82,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	copyCorpusFile(t, live.log.file.Name(), logRoot+"/"+storeFilename)
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(logRoot, blobDirectory))
 	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(logRoot, segmentDirectory))
-	logOnly, err := OpenReadOnly(logRoot)
-	testcheck.NoError(t, err)
+	logOnly := testcheck.Must(OpenReadOnly(logRoot))(t)
 	defer logOnly.Close()
 	if logOnly.SnapshotReplay().Loaded {
 		t.Fatal("journal-only path unexpectedly loaded a snapshot")

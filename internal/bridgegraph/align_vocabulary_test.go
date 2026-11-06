@@ -26,10 +26,8 @@ func TestAlignVocabularyProjection(t *testing.T) {
 	target.Authorities = []representation.Authority{{
 		Role: representation.AuthorityTokenizer, Artifact: vocabulary,
 	}}
-	encodedTarget, err := json.Marshal(target)
-	testcheck.NoError(t, err)
-	target, err = representation.ParseContract(encodedTarget)
-	testcheck.NoError(t, err)
+	encodedTarget := testcheck.Must(json.Marshal(target))(t)
+	target = testcheck.Must(representation.ParseContract(encodedTarget))(t)
 	targetContent = encodedTarget
 	head := bridgeTestID(t, artifact.KindTensorSet, "align-head")
 	embedding := bridgeTestID(t, artifact.KindTensorSet, "target-embedding")
@@ -38,17 +36,15 @@ func TestAlignVocabularyProjection(t *testing.T) {
 		Vocabulary: vocabulary, VocabularyHead: head, TargetEmbedding: embedding,
 		VocabularySize: 4, VocabularyLimit: 4, EmbeddingMode: EmbeddingUntied, Bias: true,
 	}
-	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	testcheck.NoError(t, err)
+	program := testcheck.Must((Compiler{}).Compile(definition, sourceContent, targetContent))(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(2, 2))
 	vocabularyHead := builder.Input("vocabulary-head", dtype.F32, tensor.MustShape(2, 4))
 	vocabularyBias := builder.Input("vocabulary-bias", dtype.F32, tensor.MustShape(4))
 	targetEmbedding := builder.Input("target-embedding", dtype.F32, tensor.MustShape(4, 3))
-	output, err := program.Build(builder, input, Weights{
+	output := testcheck.Must(program.Build(builder, input, Weights{
 		First: vocabularyHead, FirstBias: vocabularyBias, Embedding: targetEmbedding,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	ops := make([]tensor.Op, 0, len(builder.Nodes()))
 	for _, node := range builder.Nodes() {
 		ops = append(ops, node.Op)
@@ -56,7 +52,7 @@ func TestAlignVocabularyProjection(t *testing.T) {
 	if !slices.Contains(ops, tensor.OpSoftmax) {
 		t.Fatalf("vocabulary graph operations=%v", ops)
 	}
-	values, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	values := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input:          inferenceValue(t, input.Shape, []float32{1, 2, 3, 4}),
 		vocabularyHead: reference.ZeroValue(vocabularyHead.Shape),
 		vocabularyBias: reference.ZeroValue(vocabularyBias.Shape),
@@ -65,8 +61,7 @@ func TestAlignVocabularyProjection(t *testing.T) {
 			2, 2, 2, 2,
 			3, 3, 3, 3,
 		}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !slices.Equal(values[output].Data, []float32{1, 2, 3, 1, 2, 3}) {
 		t.Fatalf("embedding-basis output=%v", values[output].Data)
 	}

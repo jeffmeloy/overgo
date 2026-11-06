@@ -13,8 +13,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		InputChannels: 3, LatentChannels: 2, Stride: [3]int{4, 8, 8},
 		LatentStats: VAELatentStats{Mean: []float32{1, -2}, Std: []float32{2, 4}},
 	}
-	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 24})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 24}))(t)
 	if plan.Latent != (SourceVideoShape{Channels: 2, Frames: 2, Height: 2, Width: 3}) ||
 		!slices.Equal(plan.SourceChunks, []int{1, 4}) {
 		t.Fatalf("source plan = %+v", plan)

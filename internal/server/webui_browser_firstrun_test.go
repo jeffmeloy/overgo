@@ -55,11 +55,9 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
 		testskip.NotApplicable(t, "the journey runs through cmd/webui-lane -journeys")
 	}
-	journey, err := prepareBrowserJourney(t)
-	testcheck.NoError(t, err)
+	journey := testcheck.Must(prepareBrowserJourney(t))(t)
 	binary, store := journey.binary, journey.store
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	sourceInfo, sourceErr := os.Stat(roots.Store)
 	storeInfo, storeErr := os.Stat(store)
 	if sourceErr == nil && storeErr == nil && os.SameFile(sourceInfo, storeInfo) {
@@ -67,8 +65,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	}
 	modelName, modelLocation := journey.model, journey.location
 	webuilane.Leg(t, "first-run journey", "model %s at %s", modelName, modelLocation)
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	// Leg 13's remote model: fake loopback provider declared in the lane
 	// store before the proxy child opens it; key in this environment (child
 	// inherits); retired after the journey.
@@ -80,11 +77,9 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
 	serverDir := testutil.RepoRoot(t)
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0))(t)
 	defer supervisor.Close()
-	repository, err := overgodb.OpenContext(t.Context(), store)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(overgodb.OpenContext(t.Context(), store))(t)
 	t.Cleanup(func() { _ = repository.Close() })
 	// The resolver only reads: a read-only view refreshes without the
 	// store's process lock, so the picker never waits behind other
@@ -104,8 +99,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// own: alone the journey's real model loads take about seven minutes,
 	// and beside the gate's test groups they take longer.
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, front.URL+"/")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, front.URL+"/"))(t)
 	defer browser.Close()
 	// Desktop journey: the narrower default viewport leaves the history drawer inert.
 	testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
@@ -150,8 +144,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	captureStates := func(name string) {
 		t.Helper()
 		for _, viewport := range webuilane.ScreenViewports {
-			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name)
-			testcheck.NoError(t, err)
+			findings := testcheck.Must(webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name))(t)
 			layoutFindings = append(layoutFindings, findings...)
 		}
 		testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
@@ -718,8 +711,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "Retire").click(); return true; })()`)
 		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
-		build, err := buildinfo.ReadFile(binary)
-		testcheck.NoError(t, err)
+		build := testcheck.Must(buildinfo.ReadFile(binary))(t)
 		// The child uses its embedded revision when present. Development
 		// binaries without one use the worktree, as ExecutableCodeCommit does.
 		stamped := false
@@ -820,10 +812,8 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	// A killed prior journey cannot run cleanup. Its dead endpoint must not
 	// compete with this fixture under the same picker name.
 	retireLaneRemote(t, storePath, remoteprovider.Location(provider))
-	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	laneStore, err := overgodb.OpenContext(t.Context(), storePath)
-	testcheck.NoError(t, err)
+	commit := testcheck.Must(runrecord.HeadCommit(testutil.RepoRoot(t)))(t)
+	laneStore := testcheck.Must(overgodb.OpenContext(t.Context(), storePath))(t)
 	declaration, err := remoteprovider.Declare(t.Context(), laneStore, provider, commit)
 	if closeErr := laneStore.Close(); closeErr != nil {
 		t.Fatal(closeErr)
@@ -864,16 +854,14 @@ func say(t *testing.T, ctx context.Context, browser *webuilane.Browser, text str
 // that already holds it from an earlier run keeps its active definition.
 func ensureLaneAgent(t *testing.T, base string) {
 	t.Helper()
-	listed, err := http.Get(base + "/agents")
-	testcheck.NoError(t, err)
+	listed := testcheck.Must(http.Get(base + "/agents"))(t)
 	inventory, _ := io.ReadAll(listed.Body)
 	listed.Body.Close()
 	if strings.Contains(string(inventory), `"name":"lane-agent"`) {
 		return
 	}
-	created, err := http.Post(base+"/agents/create", "application/json",
-		strings.NewReader(`{"name":"lane-agent","instructions":"You are the lane agent. Answer briefly.","tools":["store.head"]}`))
-	testcheck.NoError(t, err)
+	created := testcheck.Must(http.Post(base+"/agents/create", "application/json",
+		strings.NewReader(`{"name":"lane-agent","instructions":"You are the lane agent. Answer briefly.","tools":["store.head"]}`)))(t)
 	body, _ := io.ReadAll(created.Body)
 	created.Body.Close()
 	if created.StatusCode != http.StatusOK {

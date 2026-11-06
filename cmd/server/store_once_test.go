@@ -17,15 +17,13 @@ import (
 // own cost a start four opens, 0.8 s each on this machine's store.
 func TestTheServerOpensItsStoreOnce(t *testing.T) {
 	t.Parallel()
-	files, err := filepath.Glob("*.go")
-	testcheck.NoError(t, err)
+	files := testcheck.Must(filepath.Glob("*.go"))(t)
 	calls := map[string]int{}
 	for _, name := range files {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution))(t)
 		ast.Inspect(file, func(node ast.Node) bool {
 			if call, ok := node.(*ast.CallExpr); ok {
 				if selector, ok := call.Fun.(*ast.SelectorExpr); ok {

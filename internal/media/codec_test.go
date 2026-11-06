@@ -8,25 +8,22 @@ import (
 )
 
 func TestExecuteCodecProgram(t *testing.T) {
-	project, err := BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}})
-	testcheck.NoError(t, err)
-	head, err := BindCodecWeights(CodecHead, false, []struct{}{{}, {}, {}})
-	testcheck.NoError(t, err)
+	project := testcheck.Must(BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}}))(t)
+	head := testcheck.Must(BindCodecWeights(CodecHead, false, []struct{}{{}, {}, {}}))(t)
 	projectOp := NewCodecOperation[struct{}](CodecPointwise, "project", 2, 3)
 	projectOp.Bindings = project
 	headOp := NewCodecOperation[struct{}](CodecHead, "head", 3, 1)
 	headOp.Bindings = head
 	program := CodecProgram[struct{}]{Operations: []CodecOperation[struct{}]{projectOp, headOp}}
 	var visited []string
-	output, err := ExecuteCodecProgram("test", program, make([]int, len(program.Operations)), CodecVolume[string]{
+	output := testcheck.Must(ExecuteCodecProgram("test", program, make([]int, len(program.Operations)), CodecVolume[string]{
 		Storage: "storage", Channels: 2, Frames: 1, Height: 4, Width: 4,
 	}, false, func(_ int, operation CodecOperation[struct{}], state *int, current CodecVolume[string]) (CodecVolume[string], error) {
 		*state++
 		visited = append(visited, operation.Name)
 		current.Channels = operation.OutputChannels
 		return current, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if output.Channels != 1 || !slices.Equal(visited, program.Names()) {
 		t.Fatalf("output=%+v visited=%v program=%v", output, visited, program.Names())
 	}
@@ -89,8 +86,7 @@ func TestConvolutionGeometryMatches(t *testing.T) {
 }
 
 func TestUpsampledCausalVolume(t *testing.T) {
-	got, err := UpsampledCausalVolume(3, 4, 5, [3]int{2, 4, 4})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(UpsampledCausalVolume(3, 4, 5, [3]int{2, 4, 4}))(t)
 	if got != (VolumeGeometry{Frames: 5, Height: 16, Width: 20}) {
 		t.Fatalf("volume = %+v", got)
 	}

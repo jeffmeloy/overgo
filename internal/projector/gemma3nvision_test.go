@@ -15,23 +15,19 @@ import (
 )
 
 func TestGemma3nVisionTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32))))(t)
 	if !output.Shape.Equal(mustShape(4, 256)) || !slices.Equal(output.Data, make([]float32, 1024)) {
 		t.Fatalf("output = shape %v values %v", output.Shape, output.Data[:min(16, len(output.Data))])
 	}
 }
 
 func TestGemma3nVisionPromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{}))(t)
 	defer runner.Close()
 	tok := &recordingPromptTokenizer{pad: gemma3nImagePad}
-	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false))(t)
 	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<start_of_image>"+strings.Repeat(gemma3nImagePad, 256)+"<end_of_image>") ||
 		!strings.HasPrefix(tok.texts[0], "<bos><start_of_turn>user\n") {
 		t.Fatalf("prompt text = %q", tok.texts)
@@ -57,15 +53,14 @@ func TestGemma3nAveragePool(t *testing.T) {
 	input := builder.Input("input", dtype.F32, mustShape(1, 4, 4))
 	output := averagePoolSpatial(builder, input, 2, 2)
 	testcheck.NoError(t, builder.Err())
-	results, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input: {Shape: input.Shape, Data: []float32{
 			1, 2, 3, 4,
 			5, 6, 7, 8,
 			9, 10, 11, 12,
 			13, 14, 15, 16,
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	got := results[output]
 	want := []float32{3.5, 5.5, 11.5, 13.5}
 	if !slices.Equal(got.Data, want) {

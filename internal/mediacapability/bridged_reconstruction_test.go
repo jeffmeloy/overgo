@@ -32,23 +32,20 @@ import (
 // same picture back.
 func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	directory := roots.ResolveModelPath("webssl-dino-to-rae-bridge")
 	if _, held, err := rae.ResolveBridgedPair(directory); err != nil || !held {
 		testskip.NotApplicable(t, "no bridged pair with its encoder and collection is at "+directory)
 	}
 	testskip.Short(t, "loads the bridged encoder and the collection's 1.7 GB decoder")
 	capability := Catalog[recipe.TaskReconstruction]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
 	if files := len(source.Inventory.Manifest.Components); files != 7 || source.Define == nil {
 		t.Fatalf("the bridged pair resolves to %d files, want its bridge, the encoder's three, the decoder's two and the decoder's image processor", files)
 	}
 	definition, _, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if entry := program.Stages()[0].Module.ID; entry != modelrecipe.ModuleReconstructRepresentation {
 		t.Fatalf("the bridged pair compiles to entry module %s", entry)
 	}
@@ -66,16 +63,13 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	}
 	var encoded bytes.Buffer
 	testcheck.NoError(t, png.Encode(&encoded, picture))
-	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()})
-	testcheck.NoError(t, err)
-	output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
-	testcheck.NoError(t, err)
+	request := testcheck.Must(json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()}))(t)
+	output := testcheck.Must(capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request)))(t)
 	reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("reconstruction output is %T", capabilityruntime.Unwrap(output))
 	}
-	decoded, err := png.Decode(bytes.NewReader(reconstruction.Data))
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(png.Decode(bytes.NewReader(reconstruction.Data)))(t)
 	if reconstruction.Height != side || reconstruction.Width != side || decoded.Bounds() != picture.Bounds() {
 		t.Fatalf("the picture came back as %dx%d, PNG %v", reconstruction.Height, reconstruction.Width, decoded.Bounds())
 	}
@@ -112,8 +106,7 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	if math.IsNaN(ratio) || math.IsInf(ratio, 0) {
 		t.Fatalf("the bridged round trip gives no finite ratio: %v", ratio)
 	}
-	opened, err := OpenAutoencoder(directory)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(OpenAutoencoder(directory))(t)
 	defer opened.Close(t.Context())
 	back, latent, err := opened.RoundTrip(t.Context(), clip)
 	testcheck.NoError(t, err)

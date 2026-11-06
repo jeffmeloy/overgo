@@ -21,21 +21,19 @@ func TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit(t *testing.T) {
 	signature := recipecontract.ModalitySignature{
 		Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 	}
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "preference", Kind: trainingprogram.ObjectiveDPO, Signature: signature,
 		Dataset: datasetID, Split: trainingID, Processors: []artifact.ID{id(artifact.KindProfile, "preference processor")},
 		Loss: id(artifact.KindProfile, "preference loss"), Evaluation: id(artifact.KindProfile, "preference evaluation"),
 		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{id(artifact.KindEvidence, "preference evidence")},
 		Authority: trainingprogram.ObjectiveApproved,
-	})
-	testcheck.NoError(t, err)
-	view, err := sftEvaluationViewCodec.New(SFTEvaluationView{
+	}))(t)
+	view := testcheck.Must(sftEvaluationViewCodec.New(SFTEvaluationView{
 		Version: artifact.InitialDocumentVersion, Objective: objective.ID, Dataset: datasetID,
 		TrainingMembership: trainingID, HeldoutMembership: heldoutID,
 		Processors: objective.Processors, Signature: signature,
 		Records: []dataset.Record{{ID: "pair", Group: "heldout-group"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	policy := trainingprogram.PreferencePolicy{Reference: id(artifact.KindModel, "frozen reference"), Scale: 0.2}
 	plan, err := compilePreferenceTargetPlan(objective, view, preferenceTargetSuite{Policy: policy})
 	if err != nil || plan.Policy.Reference != policy.Reference || plan.Heldout != heldoutID {

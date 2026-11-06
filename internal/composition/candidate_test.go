@@ -44,8 +44,7 @@ func TestCompositeCandidateBindsModelRoutingSteeringAndTransform(t *testing.T) {
 		Code:              component(artifact.KindEvidence, "code revision"),
 		Environment:       component(artifact.KindEvidence, "environment"),
 	}
-	candidate, err := modelrecipe.NewCandidate(spec)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(modelrecipe.NewCandidate(spec))(t)
 
 	bound := make(map[modelrecipe.CandidateDomain]artifact.ID)
 	for _, declared := range candidate.Spec().Components {
@@ -71,8 +70,7 @@ func TestCompositeCandidateBindsModelRoutingSteeringAndTransform(t *testing.T) {
 	shuffled.References = slices.Clone(spec.References)
 	slices.Reverse(shuffled.Components)
 	slices.Reverse(shuffled.References)
-	canonical, err := modelrecipe.NewCandidate(shuffled)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(modelrecipe.NewCandidate(shuffled))(t)
 	if canonical.ID() != candidate.ID() {
 		t.Fatal("composite identity depends on declaration order")
 	}
@@ -88,24 +86,21 @@ func TestCompositeCandidateBindsModelRoutingSteeringAndTransform(t *testing.T) {
 		t.Run(string(declared.Domain), func(t *testing.T) {
 			dropped := cloneCompositeSpec(spec)
 			dropped.Components = append(dropped.Components[:index], dropped.Components[index+1:]...)
-			without, err := modelrecipe.NewCandidate(dropped)
-			testcheck.NoError(t, err)
+			without := testcheck.Must(modelrecipe.NewCandidate(dropped))(t)
 			if without.ID() == candidate.ID() {
 				t.Fatal("dropping a component preserved candidate identity")
 			}
 
 			retyped := cloneCompositeSpec(spec)
 			retyped.Components[index].Domain = retag[declared.Domain]
-			changedType, err := modelrecipe.NewCandidate(retyped)
-			testcheck.NoError(t, err)
+			changedType := testcheck.Must(modelrecipe.NewCandidate(retyped))(t)
 			if changedType.ID() == candidate.ID() {
 				t.Fatal("retyping a component preserved candidate identity")
 			}
 
 			replaced := cloneCompositeSpec(spec)
 			replaced.Components[index].Specification = component(declared.Specification.Kind(), "replacement "+string(declared.Domain))
-			changedSpec, err := modelrecipe.NewCandidate(replaced)
-			testcheck.NoError(t, err)
+			changedSpec := testcheck.Must(modelrecipe.NewCandidate(replaced))(t)
 			if changedSpec.ID() == candidate.ID() {
 				t.Fatal("replacing a component preserved candidate identity")
 			}

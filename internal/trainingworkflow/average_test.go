@@ -39,8 +39,7 @@ func TestAveragedTrainingPublishesTheAverage(t *testing.T) {
 		if err != nil || !result.Verdict.Valid() {
 			t.Fatalf("average %v: run = (%+v, %v), want a verdict", decay, result, err)
 		}
-		path, err := trainingprogram.CheckpointWeightsPath(output)
-		testcheck.NoError(t, err)
+		path := testcheck.Must(trainingprogram.CheckpointWeightsPath(output))(t)
 		if weights[index], err = os.ReadFile(path); err != nil {
 			t.Fatal(err)
 		}
@@ -63,23 +62,18 @@ func TestAveragedAdapterMergesToThePublishedModel(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(peft.Load(filepath.Join(output, LoRAAdapterDirectory)))(t)
 	merged := filepath.Join(t.TempDir(), "merged")
 	if _, err := peft.Merge(adapter, text.model, merged); err != nil {
 		t.Fatal(err)
 	}
-	fromAdapter, err := safetensors.OpenSource(merged)
-	testcheck.NoError(t, err)
+	fromAdapter := testcheck.Must(safetensors.OpenSource(merged))(t)
 	defer fromAdapter.Close()
-	fromCheckpoint, err := safetensors.OpenSource(output)
-	testcheck.NoError(t, err)
+	fromCheckpoint := testcheck.Must(safetensors.OpenSource(output))(t)
 	defer fromCheckpoint.Close()
 	for name, tensor := range fromCheckpoint.Tensors {
-		got, err := safetensors.ReadF32(fromAdapter.Tensors[name])
-		testcheck.NoError(t, err)
-		want, err := safetensors.ReadF32(tensor)
-		testcheck.NoError(t, err)
+		got := testcheck.Must(safetensors.ReadF32(fromAdapter.Tensors[name]))(t)
+		want := testcheck.Must(safetensors.ReadF32(tensor))(t)
 		for index := range want {
 			if math.Abs(float64(got[index]-want[index])) > 1e-5 {
 				t.Fatalf("%s[%d]: merged adapter %v, published model %v", name, index, got[index], want[index])
@@ -119,8 +113,7 @@ func TestAveragedAdapterIsNotTheRawAdapter(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-		testcheck.NoError(t, err)
+		adapter := testcheck.Must(peft.Load(filepath.Join(output, LoRAAdapterDirectory)))(t)
 		adapters[index] = adapter
 	}
 	for name, raw := range adapters[0].Modules {

@@ -51,10 +51,8 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 			observation.Hardware = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: prefill * millisecond}}
 			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: millisecond}}
 		}
-		observation, err := runrecord.NewServingObservation(observation)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("contended/" + observation.ID.String())
-		testcheck.NoError(t, err)
+		observation = testcheck.Must(runrecord.NewServingObservation(observation))(t)
+		batch := testcheck.Must(observation.Batch("contended/" + observation.ID.String()))(t)
 		if deferContent {
 			deferred = batch
 			batch = artifact.Batch{Key: "bare/" + observation.ID.String(), Artifacts: []artifact.Descriptor{{ID: observation.ID}}}

@@ -25,13 +25,10 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	var hostPixels []float32
 	for index := range hostDurations {
 		started := time.Now()
-		var err error
-		hostPixels, err = model.Sample(t.Context(), 1, size, size, steps, seed)
-		testcheck.NoError(t, err)
+		hostPixels = testcheck.Must(model.Sample(t.Context(), 1, size, size, steps, seed))(t)
 		hostDurations[index] = time.Since(started)
 	}
-	forward, err := CompileResidentForward(t.Context(), model, 0, size, size)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, size, size))(t)
 	defer forward.Close(context.Background())
 	if _, err := forward.Sample(t.Context(), steps, seed); err != nil {
 		t.Fatal(err)
@@ -40,16 +37,14 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	var devicePixels []float32
 	for index := range warmDurations {
 		started := time.Now()
-		devicePixels, err = forward.Sample(t.Context(), steps, seed)
-		testcheck.NoError(t, err)
+		devicePixels = testcheck.Must(forward.Sample(t.Context(), steps, seed))(t)
 		warmDurations[index] = time.Since(started)
 	}
 	slices.Sort(hostDurations)
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]
 	pixelDiff := testutil.MaxAbsDiff(devicePixels, hostPixels)
-	encoded, err := model.decode(t.Context(), sampleFeatures{pixels: devicePixels, height: size, width: size})
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(model.decode(t.Context(), sampleFeatures{pixels: devicePixels, height: size, width: size}))(t)
 	referencePath := testutil.FixturePath(t, "simplediffusion", "uvit_direct_seed7_steps2_64.png")
 	reference, err := os.ReadFile(referencePath)
 	if err != nil {
@@ -69,8 +64,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 func comparePNGPixels(t *testing.T, candidate, reference []byte) (changed, maximum int, mae float64) {
 	t.Helper()
 	decode := func(data []byte) []uint8 {
-		image, err := png.Decode(bytes.NewReader(data))
-		testcheck.NoError(t, err)
+		image := testcheck.Must(png.Decode(bytes.NewReader(data)))(t)
 		bounds := image.Bounds()
 		pixels := make([]uint8, 0, bounds.Dx()*bounds.Dy()*3)
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {

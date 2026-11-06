@@ -15,8 +15,7 @@ func TestCopyFilesPublishesExactBytes(t *testing.T) {
 	data := []byte(`{"format":"fixture"}`)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(source, name), data, 0o644))
 	testcheck.NoError(t, CopyFiles(source, target, []string{name}))
-	written, err := os.ReadFile(filepath.Join(target, name))
-	testcheck.NoError(t, err)
+	written := testcheck.Must(os.ReadFile(filepath.Join(target, name)))(t)
 	if !bytes.Equal(written, data) {
 		t.Fatalf("written = %q", written)
 	}

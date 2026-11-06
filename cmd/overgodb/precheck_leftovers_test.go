@@ -22,23 +22,19 @@ func TestRetirementReportNamesWhatIsSafe(t *testing.T) {
 	root := t.TempDir()
 	repository, backups := filepath.Join(root, "store"), filepath.Join(root, "backups")
 	commit := func(text string) {
-		store, err := overgodb.Create(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Create(repository))(t)
 		defer store.Close()
 		data := []byte(strings.Repeat(text, 1<<13))
-		id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, data))(t)
 		content := artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "leftovers/" + text, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	commit("first")
-	older, err := sealBackup(t.Context(), repository, backups)
-	testcheck.NoError(t, err)
+	older := testcheck.Must(sealBackup(t.Context(), repository, backups))(t)
 	commit("second")
-	newer, err := sealBackup(t.Context(), repository, backups)
-	testcheck.NoError(t, err)
+	newer := testcheck.Must(sealBackup(t.Context(), repository, backups))(t)
 	stale, fresh := repository+".superseded-aaaaaaaaaaaa", repository+".superseded-bbbbbbbbbbbb"
 	for _, directory := range []string{stale, filepath.Join(fresh, "blobs"), filepath.Join(backups, "not-a-backup")} {
 		testcheck.NoError(t, os.MkdirAll(directory, 0o755))
@@ -46,8 +42,7 @@ func TestRetirementReportNamesWhatIsSafe(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(fresh, "blobs", "small.pack"), nil, 0o644))
 	testcheck.NoError(t, os.Chtimes(stale, time.Time{}, time.Now().Add(-time.Hour)))
 
-	found, err := listLeftovers(repository, backups)
-	testcheck.NoError(t, err)
+	found := testcheck.Must(listLeftovers(repository, backups))(t)
 	want := []leftover{
 		{Path: newer, Kind: leftoverBackup, Keep: true},
 		{Path: older, Kind: leftoverBackup},

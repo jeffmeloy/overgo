@@ -28,20 +28,17 @@ func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
 	}
 	suite.Prompt, suite.MaxTokens = "Transcribe the speech exactly.", 128
 	suite.DecodeRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "exact decoder")
-	first, err := CompileTranscription(suite)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(CompileTranscription(suite))(t)
 	if first.identity == fixture.compiled.identity {
 		t.Fatal("projection protocol reused the native speech suite identity")
 	}
 	suite.MaxTokens++
-	second, err := CompileTranscription(suite)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(CompileTranscription(suite))(t)
 	if first.identity == second.identity {
 		t.Fatal("token budget is absent from the suite identity")
 	}
 	suite.Prompt += " Return only the transcript."
-	third, err := CompileTranscription(suite)
-	testcheck.NoError(t, err)
+	third := testcheck.Must(CompileTranscription(suite))(t)
 	if second.identity == third.identity {
 		t.Fatal("prompt is absent from the suite identity")
 	}
@@ -56,8 +53,7 @@ func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
 		t.Fatal("projected suite accepted raw-completion prompting")
 	}
 	authorities.Execution.Prompting = PromptingChatTemplate
-	plan, err := BindTranscription(fourth, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BindTranscription(fourth, authorities))(t)
 	prediction := fixture.successfulPrediction(t, "pinned", "reference stays outside prediction")
 	if _, err := EvaluateTranscription(t.Context(), fixture.store, fourth, plan, []TranscriptionPrediction{prediction}); err == nil {
 		t.Fatal("unbound native speech run was admitted as projected transcription")

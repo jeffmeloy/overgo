@@ -27,8 +27,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	// append a post-seal tail so torn-tail and corruption behavior stay
 	// exercised against real active frames.
 	const corpusTail = 3
-	tailWriter, err := Create(source)
-	testcheck.NoError(t, err)
+	tailWriter := testcheck.Must(Create(source))(t)
 	for ordinal := range corpusTail {
 		payload := fmt.Appendf(nil, "compatibility-tail/%d", ordinal)
 		id, idErr := artifact.IdentifyBytes(artifact.KindRun, payload)
@@ -67,8 +66,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	}
 
 	t.Run("inline log replays without a snapshot", func(t *testing.T) {
-		store, err := OpenReadOnly(copyCorpus(t, false))
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(copyCorpus(t, false)))(t)
 		defer store.Close()
 		if replay := store.SnapshotReplay(); replay.Loaded {
 			t.Fatalf("replay used a snapshot that does not exist: %+v", replay)
@@ -79,12 +77,10 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	t.Run("damaged snapshot falls back to the log", func(t *testing.T) {
 		root := copyCorpus(t, true)
 		damaged := filepath.Join(root, checkpointDirectory, filepath.Base(snapshotPath), "lineage"+checkpointExtension)
-		data, err := os.ReadFile(damaged)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(damaged))(t)
 		data[len(data)/2] ^= 0xFF
 		testcheck.NoError(t, os.WriteFile(damaged, data, storeFileMode))
-		store, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(root))(t)
 		defer store.Close()
 		replay := store.SnapshotReplay()
 		if replay.Loaded || replay.Fallback == "" {
@@ -96,19 +92,16 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	t.Run("torn tail recovers to the last complete commit", func(t *testing.T) {
 		root := copyCorpus(t, false)
 		path := filepath.Join(root, storeFilename)
-		info, err := os.Stat(path)
-		testcheck.NoError(t, err)
+		info := testcheck.Must(os.Stat(path))(t)
 		testcheck.NoError(t, os.Truncate(path, info.Size()-tornTailBytes))
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		defer store.Close()
 		_, sequence := store.Head()
 		if sequence != corpusSequence-1 {
 			t.Fatalf("torn tail recovered to sequence %d, want %d", sequence, corpusSequence-1)
 		}
 		content := []byte("post-recovery commit")
-		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, content))(t)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "text/plain"}
 		if _, err := store.Commit(t.Context(), artifact.Batch{
 			Key:       "compatibility/post-recovery",
@@ -122,8 +115,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	t.Run("mid log corruption is refused, not truncated", func(t *testing.T) {
 		root := copyCorpus(t, false)
 		path := filepath.Join(root, storeFilename)
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		data[len(data)/2] ^= 0xFF
 		testcheck.NoError(t, os.WriteFile(path, data, storeFileMode))
 		if _, err := OpenReadOnly(root); err == nil ||
@@ -134,23 +126,19 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 
 	t.Run("read-only refresh observes a live writer", func(t *testing.T) {
 		root := copyCorpus(t, true)
-		reader, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		reader := testcheck.Must(OpenReadOnly(root))(t)
 		defer reader.Close()
 		requireHead(t, reader)
-		writer, err := Create(root)
-		testcheck.NoError(t, err)
+		writer := testcheck.Must(Create(root))(t)
 		defer writer.Close()
 		content := []byte("refresh-visible commit")
-		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, content))(t)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "text/plain"}
-		written, err := writer.Commit(t.Context(), artifact.Batch{
+		written := testcheck.Must(writer.Commit(t.Context(), artifact.Batch{
 			Key:       "compatibility/refresh",
 			Artifacts: []artifact.Descriptor{descriptor},
 			Contents:  []artifact.Content{{Descriptor: descriptor, Data: content}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		testcheck.NoError(t, reader.Refresh(t.Context()))
 		refreshed, sequence := reader.Head()
 		if refreshed != written || sequence != corpusSequence+1 {
@@ -159,8 +147,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	})
 
 	t.Run("backup round-trips the head", func(t *testing.T) {
-		store, err := Create(copyCorpus(t, true))
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(copyCorpus(t, true)))(t)
 		defer store.Close()
 		destination := filepath.Join(t.TempDir(), "backup")
 		backupReport, err := store.Backup(t.Context(), destination)
@@ -169,23 +156,20 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		if backupHead != head || sequence != corpusSequence {
 			t.Fatalf("backup head %s seq %d, corpus %s seq %d", backupHead, sequence, head, corpusSequence)
 		}
-		restored, err := OpenReadOnly(destination)
-		testcheck.NoError(t, err)
+		restored := testcheck.Must(OpenReadOnly(destination))(t)
 		defer restored.Close()
 		requireHead(t, restored)
 	})
 
 	t.Run("retention release preserves the reachable catalog", func(t *testing.T) {
-		store, err := Create(copyCorpus(t, false))
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(copyCorpus(t, false)))(t)
 		defer store.Close()
 		ctx := t.Context()
 		if _, err := Release(ctx, store, nil, RetentionPolicy{}, releaseEverything); err != nil {
 			t.Fatal(err)
 		}
 		for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
-			id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal)))(t)
 			target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 			if has, hasErr := store.HasContent(ctx, id); err != nil || hasErr != nil || !found || target != id || !has {
 				t.Fatalf("released alias %d: found=%v has=%v err=%v/%v", ordinal, found, has, err, hasErr)
@@ -215,7 +199,6 @@ func copyCorpusTree(t *testing.T, source, destination string) {
 
 func copyCorpusFile(t *testing.T, source, destination string) {
 	t.Helper()
-	data, err := os.ReadFile(source)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(source))(t)
 	testcheck.NoError(t, os.WriteFile(destination, data, storeFileMode))
 }

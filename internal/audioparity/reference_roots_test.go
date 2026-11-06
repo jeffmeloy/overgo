@@ -36,16 +36,14 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 		{"-deps", "-test", "./internal/audioparity"},
 		{"-deps", "./cmd/evaluate", "./cmd/recipe"},
 	} {
-		selection, err := gosource.HostBuildSelection(root, patterns...)
-		testcheck.NoError(t, err)
+		selection := testcheck.Must(gosource.HostBuildSelection(root, patterns...))(t)
 		for path, selected := range selection.Files {
 			if selected {
 				paths[path] = true
 			}
 		}
 	}
-	source, err := gosource.LoadGo(root, slices.Sorted(maps.Keys(paths)))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(gosource.LoadGo(root, slices.Sorted(maps.Keys(paths))))(t)
 	return source
 }
 
@@ -56,8 +54,7 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 func resolveReferenceRoots(t *testing.T) referenceRoots {
 	t.Helper()
 	testskip.StoreAcceptance(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), roots.AudioReference)
 	return referenceRoots{store: store, datasets: roots.Datasets, models: filepath.Join(filepath.Dir(store), "models")}
 }
@@ -72,14 +69,11 @@ func librispeechPath(t *testing.T, elements ...string) string {
 func retainedAudioFile(t *testing.T, digest string, size uint64) string {
 	t.Helper()
 	testskip.StoreAcceptance(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	defer store.Close()
 	id := alignmentFileID(t, digest)
-	path, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile))(t)
 	verifyASRFile(t, path, id, size)
 	return path
 }

@@ -53,8 +53,7 @@ func variedPicture(side int, seed uint64) []float32 {
 // from the bridged tokens what it draws from its own encoder's.
 func TestEncoderBridgeIsJudgedByHeldOutReconstruction(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	collection := roots.ResolveModelPath("RAE-collections")
 	resolved, held, err := rae.ResolveCollection(collection)
 	if err != nil || !held {
@@ -64,10 +63,8 @@ func TestEncoderBridgeIsJudgedByHeldOutReconstruction(t *testing.T) {
 		testskip.NotApplicable(t, "the collection's encoder weights are absent: "+resolved.EncoderDirectory())
 	}
 	testskip.Short(t, "loads the collection's 1.7 GB decoder")
-	pair, err := rae.LoadAutoencoder(collection)
-	testcheck.NoError(t, err)
-	source, err := vitencoder.Load(resolved.EncoderDirectory())
-	testcheck.NoError(t, err)
+	pair := testcheck.Must(rae.LoadAutoencoder(collection))(t)
+	source := testcheck.Must(vitencoder.Load(resolved.EncoderDirectory()))(t)
 	// Eight pictures of 256 tokens to fit a map 769 wide, and one other to judge on.
 	const fitted = 8
 	frames := make([]bridgeFrame, fitted+1)
@@ -78,10 +75,8 @@ func TestEncoderBridgeIsJudgedByHeldOutReconstruction(t *testing.T) {
 	}
 	_, _, sourceWidth := source.Shape()
 	targetWidth, _ := pair.Latent()
-	fit, err := fitEncoderBridge(frames[:fitted], sourceWidth, targetWidth)
-	testcheck.NoError(t, err)
-	verdict, err := judgeEncoderBridge(t.Context(), pair.Decode, fit.Bridge, frames[fitted:])
-	testcheck.NoError(t, err)
+	fit := testcheck.Must(fitEncoderBridge(frames[:fitted], sourceWidth, targetWidth))(t)
+	verdict := testcheck.Must(judgeEncoderBridge(t.Context(), pair.Decode, fit.Bridge, frames[fitted:]))(t)
 	t.Logf("fit residual %.2e (%s); on the unseen picture a mean squared level error of %.3f from the own encoder and %.3f bridged, feature residual %.2e",
 		fit.Residual, fit.Rung, verdict.OwnEncoderError, verdict.BridgedError, verdict.FeatureResidual)
 	if fit.Residual > 1e-2 || fit.Rung == composition.AdapterBridge {
@@ -94,13 +89,10 @@ func TestEncoderBridgeIsJudgedByHeldOutReconstruction(t *testing.T) {
 		t.Fatalf("the bridged encoder is judged %+v, want what the decoder's own encoder gives", verdict)
 	}
 	// The pair the bridge makes, as it is served, gives back what the decoder's own pair does.
-	bridged, err := pair.Bridged(source, fit.Bridge)
-	testcheck.NoError(t, err)
+	bridged := testcheck.Must(pair.Bridged(source, fit.Bridge))(t)
 	unseen := frames[fitted].picture
-	own, err := pair.RoundTrip(t.Context(), unseen)
-	testcheck.NoError(t, err)
-	through, err := bridged.RoundTrip(t.Context(), unseen)
-	testcheck.NoError(t, err)
+	own := testcheck.Must(pair.RoundTrip(t.Context(), unseen))(t)
+	through := testcheck.Must(bridged.RoundTrip(t.Context(), unseen))(t)
 	var worst float64
 	for index, value := range own {
 		worst = max(worst, math.Abs(float64(value)-float64(through[index])))

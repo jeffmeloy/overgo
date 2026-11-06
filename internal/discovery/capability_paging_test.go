@@ -26,10 +26,9 @@ func TestCapabilityCatalogReadsEveryActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte("paged-weights"))
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/paged-model",
 		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len("paged-weights"))}},

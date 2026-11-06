@@ -49,8 +49,7 @@ func TestNoTestHeldEntryWaitsOnAClaim(t *testing.T) {
 	}
 	_, classOf, err := sortedEntries(keptList(t, unreachedList))
 	testcheck.NoError(t, err)
-	data, err := os.ReadFile(filepath.Join(checkoutRoot, "compatibility.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(checkoutRoot, "compatibility.json")))(t)
 	var manifest struct {
 		Claims []struct {
 			ID       string `json:"id"`

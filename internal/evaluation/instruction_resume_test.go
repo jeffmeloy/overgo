@@ -33,17 +33,14 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 		{Name: "second", Prompt: "Second answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}}
-	compiled, err := compileInstructionRules(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindInstructionRules(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileInstructionRules(suite))(t)
+	plan := testcheck.Must(bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	publishPlanFixtureAuthorities(t, store, plan)
 	interrupted := &interruptedInstructionFixture{instructionChatFixture: instructionChatFixture{answer: "OK"}, stopPrompt: "<user>Second answer.<model>"}
 	_, runErr := evaluateInstructionRules(t.Context(), store, interrupted, compiled, plan)
@@ -53,8 +50,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	}
 	store = overgodbtest.Create(t, root)
 	resumed := &instructionChatFixture{answer: "OK"}
-	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateInstructionRules(t.Context(), store, resumed, compiled, plan))(t)
 	if len(resumed.prompts) != 1 || resumed.prompts[0] != "<user>Second answer.<model>" || len(report.Observations) != len(suite.Cases) {
 		t.Fatalf("restart reacquired completed work: generated=%v report_cases=%d", resumed.prompts, len(report.Observations))
 	}
@@ -99,26 +95,22 @@ func (f *cancellingInstructionFixture) Generate(ctx context.Context, prompt stri
 func instructionResumeFixture(t *testing.T) (*overgodb.Store, instructionRulesPlan, Plan) {
 	t.Helper()
 	// One generated token is sufficient to witness uppercase success or failure.
-	compiled, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []instructionRulesCase{
+	compiled := testcheck.Must(compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []instructionRulesCase{
 		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
-	}})
-	testcheck.NoError(t, err)
-	plan, err := bindInstructionRules(compiled, ExactAuthorities{
+	}}))(t)
+	plan := testcheck.Must(bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
-	})
-	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	}))(t)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
 	publishPlanFixtureAuthorities(t, store, plan)
-	contents, err := datasetContents(compiled.dataset, compiled.split, compiled.suite.Cases, instructionRulesDatasetContract, instructionRulesSplitContract)
-	testcheck.NoError(t, err)
+	contents := testcheck.Must(datasetContents(compiled.dataset, compiled.split, compiled.suite.Cases, instructionRulesDatasetContract, instructionRulesSplitContract))(t)
 	testcheck.NoError(t, publishPlanAuthorities(t.Context(), store, plan, contents))
 	return store, compiled, plan
 }
@@ -127,11 +119,9 @@ func TestInstructionResumeRetainsQualityFailure(t *testing.T) {
 	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	failed := &instructionChatFixture{answer: "lowercase"}
-	first, err := evaluateInstructionRules(t.Context(), store, failed, compiled, plan)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(evaluateInstructionRules(t.Context(), store, failed, compiled, plan))(t)
 	improved := &instructionChatFixture{answer: "UPPERCASE"}
-	replay, err := evaluateInstructionRules(t.Context(), store, improved, compiled, plan)
-	testcheck.NoError(t, err)
+	replay := testcheck.Must(evaluateInstructionRules(t.Context(), store, improved, compiled, plan))(t)
 	if first.PromptStrict != 0 || replay.ID != first.ID || len(improved.prompts) != 0 {
 		t.Fatalf("replaced retained failure: first=%+v replay=%+v generated=%v", first, replay, improved.prompts)
 	}
@@ -148,8 +138,7 @@ func TestInstructionResumeFinishesPublicationAfterCancellation(t *testing.T) {
 		t.Fatalf("cancellation = %v", err)
 	}
 	resumed := &instructionChatFixture{answer: "WRONG"}
-	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateInstructionRules(t.Context(), store, resumed, compiled, plan))(t)
 	if len(resumed.prompts) != 0 || report.Observations[0].Raw != "OK" {
 		t.Fatalf("completed response lost: %+v prompts=%v", report, resumed.prompts)
 	}
@@ -194,8 +183,7 @@ func TestInstructionResumeConcurrentPublication(t *testing.T) {
 				t.Fatalf("same=%v error=%v", same, err)
 			}
 			replay := &instructionChatFixture{answer: "REPLACEMENT"}
-			report, err := evaluateInstructionRules(t.Context(), store, replay, compiled, plan)
-			testcheck.NoError(t, err)
+			report := testcheck.Must(evaluateInstructionRules(t.Context(), store, replay, compiled, plan))(t)
 			if report.Observations[0].Raw != winner.answer || len(replay.prompts) != 0 {
 				t.Fatalf("winner replaced: %+v", report.Observations[0])
 			}
@@ -232,10 +220,8 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 			case "token-cap":
 				compiled.suite.Cases[0].MaxTokens++
 			}
-			changed, err := compileInstructionRules(compiled.suite)
-			testcheck.NoError(t, err)
-			changedPlan, err := bindInstructionRules(changed, authorities)
-			testcheck.NoError(t, err)
+			changed := testcheck.Must(compileInstructionRules(compiled.suite))(t)
+			changedPlan := testcheck.Must(bindInstructionRules(changed, authorities))(t)
 			if changedPlan.identity == plan.identity {
 				t.Fatal("changed authority did not alter plan")
 			}
@@ -258,19 +244,15 @@ func TestInstructionResumeRejectsMisboundRecord(t *testing.T) {
 	store, compiled, plan := instructionResumeFixture(t)
 	testCase := compiled.suite.Cases[0]
 	// What the plan's execution is asked, named as the evaluation names it.
-	observed, err := plan.observed([]struct {
+	observed := testcheck.Must(plan.observed([]struct {
 		Name      string `json:"name"`
 		Prompt    string `json:"prompt"`
 		MaxTokens int    `json:"max_tokens"`
-	}{{testCase.Name, testCase.Prompt, testCase.MaxTokens}})
-	testcheck.NoError(t, err)
+	}{{testCase.Name, testCase.Prompt, testCase.MaxTokens}}))(t)
 	// A record that says it answers something else is filed under it.
-	answer, err := json.Marshal(ExactResult{Name: testCase.Name, PromptTokens: 1, GeneratedTokens: 1, Text: "OK"})
-	testcheck.NoError(t, err)
-	misbound, err := caseAnswersCodec.NewInitial(caseAnswers{Observed: planID(t, artifact.KindProfile, "asked-of-another"), Cases: []json.RawMessage{answer}})
-	testcheck.NoError(t, err)
-	batch, err := caseAnswersCodec.Batch("misbound-answers", misbound, artifact.DependencyLineage(misbound.ID, observed), nil)
-	testcheck.NoError(t, err)
+	answer := testcheck.Must(json.Marshal(ExactResult{Name: testCase.Name, PromptTokens: 1, GeneratedTokens: 1, Text: "OK"}))(t)
+	misbound := testcheck.Must(caseAnswersCodec.NewInitial(caseAnswers{Observed: planID(t, artifact.KindProfile, "asked-of-another"), Cases: []json.RawMessage{answer}}))(t)
+	batch := testcheck.Must(caseAnswersCodec.Batch("misbound-answers", misbound, artifact.DependencyLineage(misbound.ID, observed), nil))(t)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: observed})
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)

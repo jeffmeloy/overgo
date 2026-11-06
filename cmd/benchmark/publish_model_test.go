@@ -40,8 +40,7 @@ func TestBenchmarkPublishesUnderTheRunnersModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, path := range map[string]string{"whole": whole, "split": shard(0, 2)} {
-		candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-		testcheck.NoError(t, err)
+		candidate := testcheck.Must(modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative))(t)
 		published, err := publishedModel(path)
 		if err != nil || published != candidate.Definition.Model {
 			t.Fatalf("%s: published under %s (%v), measured as %s", name, published, err, candidate.Definition.Model)

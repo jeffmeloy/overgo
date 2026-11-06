@@ -213,10 +213,8 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 								value.Outcome, value.Failure = runrecord.OutcomeFailed, "execution_failed"
 							}
 						}
-						observation, err := runrecord.NewServingObservation(value)
-						testcheck.NoError(t, err)
-						content, err := observation.Content()
-						testcheck.NoError(t, err)
+						observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
+						content := testcheck.Must(observation.Content())(t)
 						batch.Contents = append(batch.Contents, content)
 						batch.Lineage = append(batch.Lineage, observation.Lineage()...)
 						id := observation.ID
@@ -230,8 +228,7 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 						if target && fault == "changed input" {
 							input = digest("different request")
 						}
-						evidence, err := json.Marshal(map[string]any{"observation": id, "input_sha256": input, "prompt_sha256": digest("prompt/" + mode), "output_sha256": digest("output/" + mode), "mode": mode, "reload": reload, "cycle": cycle, "action": action})
-						testcheck.NoError(t, err)
+						evidence := testcheck.Must(json.Marshal(map[string]any{"observation": id, "input_sha256": input, "prompt_sha256": digest("prompt/" + mode), "output_sha256": digest("output/" + mode), "mode": mode, "reload": reload, "cycle": cycle, "action": action}))(t)
 						if target && fault == "omitted mode" {
 							continue
 						}
@@ -245,10 +242,8 @@ func testMediaResourceAcceptance(t *testing.T, store *overgodb.Store, base model
 			}
 			steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-release-%d", reload), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1, Evidence: release})
 		}
-		record, err := runrecord.NewGateRecord(projection, environment, base.CodeCommit, runrecord.OutcomeSucceeded, "", uint64(len(steps)), steps)
-		testcheck.NoError(t, err)
-		documents, err := record.Batch("fixture/media-resource/" + record.Result.ID.String())
-		testcheck.NoError(t, err)
+		record := testcheck.Must(runrecord.NewGateRecord(projection, environment, base.CodeCommit, runrecord.OutcomeSucceeded, "", uint64(len(steps)), steps))(t)
+		documents := testcheck.Must(record.Batch("fixture/media-resource/" + record.Result.ID.String()))(t)
 		batch.Key = documents.Key
 		batch.Contents = append(batch.Contents, documents.Contents...)
 		batch.Lineage = append(batch.Lineage, documents.Lineage...)

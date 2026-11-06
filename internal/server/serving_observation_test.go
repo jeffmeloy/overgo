@@ -47,12 +47,11 @@ func TestServingObservationPublication(t *testing.T) {
 			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
 		},
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Repository: store, Analysis: testAnalysisPolicy,
-	}, &realizedServingGenerator{generator})
-	testcheck.NoError(t, err)
+	}, &realizedServingGenerator{generator}))(t)
 	defer handler.Close()
 	const prompt = "private-serving-prompt"
 	response := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"`+prompt+`","max_tokens":1}`)
@@ -60,24 +59,21 @@ func TestServingObservationPublication(t *testing.T) {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
 
-	operationID, err := handler.operations.Submit(t.Context(), operation.Request{
+	operationID := testcheck.Must(handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return handler.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID, modelID,
 			func(context.Context, operation.Reporter) (operation.Completion, error) {
 				return operation.Completion{Run: runID}, nil
 			})
-	})
-	testcheck.NoError(t, err)
-	status, err := handler.operations.Wait(t.Context(), operationID)
-	testcheck.NoError(t, err)
-	result, err := store.Query(t.Context(), overgodb.Query{
+	}))(t)
+	status := testcheck.Must(handler.operations.Wait(t.Context(), operationID))(t)
+	result := testcheck.Must(store.Query(t.Context(), overgodb.Query{
 		Artifact: &modelID, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		MaxResults: 8,
 		Projection: overgodb.ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Artifacts) != 2 || handler.observationErrors.Load() != 0 {
 		t.Fatalf("observations=%d publication_errors=%d", len(result.Artifacts), handler.observationErrors.Load())
 	}
@@ -113,7 +109,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, MaxStoredResponses: 1,
 	}, &recipeInspectorGenerator{
 		fakeGenerator: &fakeGenerator{},
@@ -121,8 +117,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 			Task:     recipe.TaskInference,
 			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer handler.Close()
 	completion := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime","max_tokens":1}`)
 	if completion.Code != http.StatusOK {
@@ -168,8 +163,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
 		},
 	}
-	handler, err := New(Config{Repository: store}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store}, generator))(t)
 	defer handler.Close()
 	responses := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
@@ -210,8 +204,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		runrecord.ServingHardwarePrefill,
 		runrecord.ServingHardwareFinish,
 	}
-	expected, err := generator.DeviceMemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	expected := testcheck.Must(generator.DeviceMemoryStats(t.Context()))(t)
 	if observation.Resources.PeakDeviceBytes != expected.PeakBytes || len(observation.Hardware) != len(wantStages) {
 		t.Fatalf("hardware=%+v resources=%+v", observation.Hardware, observation.Resources)
 	}

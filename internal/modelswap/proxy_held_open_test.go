@@ -49,8 +49,7 @@ func (heldOpenLauncher) Launch(_ context.Context, servable Servable) (Process, e
 // subscription, which the child names held open, is not waited for however long the drain grace is, and the answer
 // to the request that swapped says what each part of the swap cost while an answer that did not swap says nothing.
 func TestModelSwapProxyDoesNotWaitOnAHeldOpenStream(t *testing.T) {
-	supervisor, err := New(heldOpenLauncher{}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(heldOpenLauncher{}, 0))(t)
 	defer supervisor.Close()
 	supervisor.mu.Lock()
 	supervisor.grace = time.Hour
@@ -58,14 +57,12 @@ func TestModelSwapProxyDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"alpha": {Name: "alpha", Location: "alpha.gguf"}, "beta": {Name: "beta", Location: "beta.gguf"}}}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
-	first, err := http.Get(front.URL + "/health?swap=alpha")
-	testcheck.NoError(t, err)
+	first := testcheck.Must(http.Get(front.URL + "/health?swap=alpha"))(t)
 	first.Body.Close()
 	if first.Header.Get(swapPhasesHeader) == "" {
 		t.Fatal("the request that launched the first child was told nothing of its phases")
 	}
-	stream, err := http.Get(front.URL + "/runtime/activity/stream")
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(http.Get(front.URL + "/runtime/activity/stream"))(t)
 	defer stream.Body.Close()
 	if stream.Header.Get(swapPhasesHeader) != "" {
 		t.Fatalf("a request that did not swap reports phases %q", stream.Header.Get(swapPhasesHeader))

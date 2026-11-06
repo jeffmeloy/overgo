@@ -14,8 +14,7 @@ import (
 // rename that deletes a command directory fails here instead of at
 // evidence-recovery time.
 func TestReverifyInvokesLiveCommands(t *testing.T) {
-	source, err := os.ReadFile("main.go")
-	testcheck.NoError(t, err)
+	source := testcheck.Must(os.ReadFile("main.go"))(t)
 	invoked := regexp.MustCompile(`"\./(cmd/[a-z0-9-]+)"`).FindAllStringSubmatch(string(source), -1)
 	if len(invoked) == 0 {
 		t.Fatal("no invoked commands found; the recovery path changed shape")

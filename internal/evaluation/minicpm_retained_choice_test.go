@@ -19,15 +19,13 @@ import (
 // This checks the generated protocol; it grants no native likelihood credit.
 func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	model := parse("model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32")
 	// The conversion's activation is retired since MiniCPM5-1B is served from its own files
 	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.
-	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c"))
-	testcheck.NoError(t, err)
+	activated := testcheck.Must(recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c")))(t)
 	if served, found := activated.PrimaryDependency(recipe.DependencyModel); !found || served != model {
 		t.Fatal("the recipe is not MiniCPM5's conversion's")
 	}
@@ -46,8 +44,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 		{"musr", "evidence:sha256:4cc9db91a0dd52367871c6f664455a650cfd5a4b231a302a6460a9228286be75", 756, 284, 3},
 	} {
 		t.Run(cell.name, func(t *testing.T) {
-			value, err := RequireEvaluationEvidence(t.Context(), store, parse(cell.evidence))
-			testcheck.NoError(t, err)
+			value := testcheck.Must(RequireEvaluationEvidence(t.Context(), store, parse(cell.evidence)))(t)
 			if value.Recipe != activated.ID || value.ModelDefinition != definition || value.CodeCommit != "f278ca230121df1d0bedf8fc58bf7881a9ebc475" {
 				t.Fatal("retained model, recipe or producer differs")
 			}
@@ -60,8 +57,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 			if execution.Prompting != PromptingChatTemplate {
 				t.Fatal("generated evidence replaced by a different execution protocol")
 			}
-			compiled, err := CompileMultipleChoice(suite)
-			testcheck.NoError(t, err)
+			compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
 			bound, err := BindMultipleChoice(compiled, ExactAuthorities{ModelDefinition: value.ModelDefinition, RuntimeRecipe: value.Recipe, Environment: value.Environment, CodeCommit: value.CodeCommit, Execution: execution})
 			if err != nil || bound.Identity() != value.Plan || compiled.identity != body.CaseProfile {
 				t.Fatalf("retained generated protocol no longer binds exactly: %v", err)

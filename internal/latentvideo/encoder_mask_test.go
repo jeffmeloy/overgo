@@ -38,10 +38,8 @@ func TestPaddingEntersNoPromptRow(t *testing.T) {
 		mask[row] = 1
 	}
 	block := func(weights encoderBlockWeights, rows int) []float32 {
-		buckets, err := representation.RelativePositionBuckets(rows, rows, bucketCount, distance, true)
-		testcheck.NoError(t, err)
-		out, err := encoderBlockForward(x[:rows*dim], mask[:rows], buckets, 1, rows, dim, heads, ffn, bucketCount, weights, 1e-6, true)
-		testcheck.NoError(t, err)
+		buckets := testcheck.Must(representation.RelativePositionBuckets(rows, rows, bucketCount, distance, true))(t)
+		out := testcheck.Must(encoderBlockForward(x[:rows*dim], mask[:rows], buckets, 1, rows, dim, heads, ffn, bucketCount, weights, 1e-6, true))(t)
 		return out[:kept*dim]
 	}
 	whole := block(weights, padded)

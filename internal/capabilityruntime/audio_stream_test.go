@@ -44,11 +44,10 @@ func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 	for _, id := range []artifact.ID{model, f.source.Audio, f.result.Output, f.result.State} {
 		testutil.PublishArtifact(t, store, id)
 	}
-	batch, err := (workflowruntime.AudioStreamPolicy{
+	batch := testcheck.Must((workflowruntime.AudioStreamPolicy{
 		Model: model, Format: recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		MaxChunkSamples: 8, MaxOverlapSamples: 2,
-	}).Batch("policy")
-	testcheck.NoError(t, err)
+	}).Batch("policy"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -59,10 +58,8 @@ func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 
 func (f audioSessionFixture) open(t *testing.T, processor AudioStreamProcessor) (*AudioStreamSession, *ModelSessionDirector[struct{}, AudioStreamProcessor, struct{}]) {
 	t.Helper()
-	director, err := NewResidentModelSessionDirector("audio", "cpu", 1, processor)
-	testcheck.NoError(t, err)
-	session, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, artifact.ID{})
-	testcheck.NoError(t, err)
+	director := testcheck.Must(NewResidentModelSessionDirector("audio", "cpu", 1, processor))(t)
+	session := testcheck.Must(OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, artifact.ID{}))(t)
 	t.Cleanup(func() { session.Close(t.Context()) })
 	return session, director
 }
@@ -80,14 +77,12 @@ func TestAudioSessionRestartAndFinalization(t *testing.T) {
 	if result, err := session.Process(t.Context(), f.chunk); err != nil || result != f.result {
 		t.Fatalf("first result: %+v %v", result, err)
 	}
-	batch, err := session.CheckpointBatch("first")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(session.CheckpointBatch("first"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), f.store, batch); err != nil {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, session.Close(t.Context()))
-	restored, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, batch.Contents[0].Descriptor.ID)
-	testcheck.NoError(t, err)
+	restored := testcheck.Must(OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, batch.Contents[0].Descriptor.ID))(t)
 	defer restored.Close(t.Context())
 	final := workflowruntime.AudioStreamChunk{Sequence: 1, Span: recipecontract.SampleSpan{Start: 6, End: 14}, Audio: f.source.Audio, Final: true}
 	if _, err := restored.Process(t.Context(), final); err != nil {
@@ -100,13 +95,11 @@ func TestAudioSessionRestartAndFinalization(t *testing.T) {
 	if _, err := restored.Process(t.Context(), final); !errors.Is(err, ErrSessionUnavailable) {
 		t.Fatalf("final stream admitted input: %v", err)
 	}
-	batch, err = restored.CheckpointBatch("final")
-	testcheck.NoError(t, err)
+	batch = testcheck.Must(restored.CheckpointBatch("final"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), f.store, batch); err != nil {
 		t.Fatal(err)
 	}
-	cursor, err := workflowruntime.LoadAudioStream(t.Context(), f.store, f.source, batch.Contents[0].Descriptor.ID)
-	testcheck.NoError(t, err)
+	cursor := testcheck.Must(workflowruntime.LoadAudioStream(t.Context(), f.store, f.source, batch.Contents[0].Descriptor.ID))(t)
 	if _, err := cursor.Prepare(workflowruntime.AudioStreamChunk{Sequence: 2, Final: true}); err == nil {
 		t.Fatal("restart lost finalization")
 	}
@@ -124,8 +117,7 @@ func TestAudioSessionBackpressureCancellationAndLeaseLifetime(t *testing.T) {
 		// not commit progress or make its lease available early.
 		return f.result, nil
 	})
-	before, err := session.CheckpointBatch("before")
-	testcheck.NoError(t, err)
+	before := testcheck.Must(session.CheckpointBatch("before"))(t)
 	processed := make(chan error, 1)
 	go func() { _, err := session.Process(t.Context(), f.chunk); processed <- err }()
 	<-started
@@ -173,8 +165,7 @@ func TestAudioSessionFailurePreservesCheckpoint(t *testing.T) {
 				}
 				return f.result, nil
 			})
-			before, err := session.CheckpointBatch("before")
-			testcheck.NoError(t, err)
+			before := testcheck.Must(session.CheckpointBatch("before"))(t)
 			if name == "missing-chunk" {
 				f.chunk.Audio = testutil.ArtifactID(t, artifact.KindFile, "absent")
 			}

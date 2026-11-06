@@ -30,8 +30,7 @@ func TestStrataSamplingRefusesWhatItCannotHonor(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			sampler, err := sampling.New(test.config)
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(sampling.New(test.config))(t)
 			if _, round := strataSamplingOf(GenerateOptions{Sampler: sampler}); round != test.round {
 				t.Fatalf("the round takes this request: %t, want %t", round, test.round)
 			}

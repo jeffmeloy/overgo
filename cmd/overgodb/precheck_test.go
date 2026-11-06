@@ -53,8 +53,7 @@ func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	proof := overgodb.OperationProof{Checks: []check{{Name: "only", Passed: true}}}
 	proof.Verdict()
-	batch, err := proof.Batch(t.Context(), store)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(proof.Batch(t.Context(), store))(t)
 	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, overgodb.ErrProducerRefused) {
 		t.Fatalf("the plain door admitted a proof: %v", err)
 	}
@@ -77,8 +76,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		textContent(t, "held inline in the journal"),
 		textContent(t, strings.Repeat("held in a blob ", 1<<10)),
 	}
-	store, err := overgodb.Create(live)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(live))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cutover/fixture", Contents: contents}); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +106,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		t.Fatalf("a refused rebuild = %v, want nothing swapped", err)
 	}
 	serves(live, original)
-	rebuilt, err := overgodb.OpenReadOnly(candidate)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(overgodb.OpenReadOnly(candidate))(t)
 	head, _ := rebuilt.Head()
 	testcheck.NoError(t, rebuilt.Close())
 	if err := runSubcommand(rebuildArgs[:len(rebuildArgs)-1]); err == nil || !strings.Contains(err.Error(), "already exists") {
@@ -123,8 +120,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		writer, err := overgodb.Create(changing)
-		testcheck.NoError(t, err)
+		writer := testcheck.Must(overgodb.Create(changing))(t)
 		tail := textContent(t, "acknowledged after the candidate snapshot")
 		newer, err := writer.Commit(t.Context(), artifact.Batch{Key: "cutover/newer", Contents: []artifact.Content{tail}})
 		testcheck.NoError(t, errors.Join(err, writer.Close()))
@@ -155,16 +151,14 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 func textContent(t *testing.T, text string) artifact.Content {
 	t.Helper()
 	data := []byte(text)
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, data))(t)
 	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 }
 
 func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	ctx := t.Context()
 	sourcePath := filepath.Join(t.TempDir(), "source")
-	source, err := overgodb.Create(sourcePath)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(overgodb.Create(sourcePath))(t)
 	if _, err := source.Commit(ctx, artifact.Batch{Key: "census/fixture", Contents: []artifact.Content{textContent(t, "retained content")}}); err != nil {
 		t.Fatal(err)
 	}
@@ -178,8 +172,7 @@ func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	bindings := map[string][]byte{}
 	for _, name := range []string{"accepted_census.json", "media_census.json"} {
 		path := filepath.Join(checkout, "cmd", "validate", "testdata", name)
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		bindings[path] = data
 	}
 	result := receipt{OperationProof: overgodb.OperationProof{HeadBefore: head.String(), SequenceBefore: sequence}, Candidate: candidate}

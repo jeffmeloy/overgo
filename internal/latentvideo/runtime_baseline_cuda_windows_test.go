@@ -27,12 +27,10 @@ const (
 
 func productionNoiseGrid(t testing.TB, elements int) int {
 	t.Helper()
-	library, err := driver.Open()
-	testcheck.NoError(t, err)
+	library := testcheck.Must(driver.Open())(t)
 	defer library.Close()
 	testcheck.NoError(t, library.Init())
-	info, err := library.DeviceInfo(0)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(library.DeviceInfo(0))(t)
 	grid := (elements + 1023) / 1024
 	if ceiling := info.MultiprocessorCount * 6; grid > ceiling {
 		grid = ceiling
@@ -46,12 +44,10 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 	cudatest.Require(b)
 
 	config, weights := denoiserFixture(b)
-	geometry, err := config.CompileLatentGeometry(81, 832, 480)
-	testcheck.NoError(b, err)
-	program, err := CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
+	geometry := testcheck.Must(config.CompileLatentGeometry(81, 832, 480))(b)
+	program := testcheck.Must(CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
-	})
-	testcheck.NoError(b, err)
+	}))(b)
 	fixtureDir := testutil.FixturePath(b, "wan")
 	contextElements := config.TextLen * config.Dim
 	cond := loadRawContext(b, fixtureDir, "raw/g1_cond_context.f32le", contextElements)
@@ -60,8 +56,7 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		started := time.Now()
-		denoiser, err := NewDenoiserCUDASession(program, 0)
-		testcheck.NoError(b, err)
+		denoiser := testcheck.Must(NewDenoiserCUDASession(program, 0))(b)
 		result, err := denoiser.Denoise(context.Background(), DenoiseRequest{
 			Steps: 50, Shift: 5, GuideScale: 6,
 			CondContext: cond, UncondContext: uncond,

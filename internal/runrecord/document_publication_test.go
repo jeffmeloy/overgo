@@ -15,10 +15,8 @@ import (
 func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 	split := testutil.ArtifactBytesID(t, artifact.KindDatasetShard, []byte("publication-split"))
 	authority := testutil.ArtifactBytesID(t, artifact.KindEvidence, []byte("publication-authority"))
-	budget, err := NewBudget("queries", split, 16, authority)
-	testcheck.NoError(t, err)
-	content, err := budget.Content()
-	testcheck.NoError(t, err)
+	budget := testcheck.Must(NewBudget("queries", split, 16, authority))(t)
+	content := testcheck.Must(budget.Content())(t)
 	if content.Descriptor.ID != budget.ID {
 		t.Fatalf("content identity %s differs from document %s", content.Descriptor.ID, budget.ID)
 	}

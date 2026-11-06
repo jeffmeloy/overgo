@@ -62,11 +62,9 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
 	testskip.Short(t, "reading model files is integration")
 	modelPath, projectorPath, stored := storedProjectionPair(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
-	candidate, err := PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath))(t)
 	if candidate.Definition.ID != stored.ID {
 		t.Fatalf("intake defined %s for %s + %s; the store activated %s", candidate.Definition.ID, filepath.Base(modelPath), filepath.Base(projectorPath), stored.ID)
 	}

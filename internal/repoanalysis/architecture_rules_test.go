@@ -37,8 +37,7 @@ func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	rogue := filepath.Join(root, "internal", "rogue")
 	testcheck.NoError(t, os.MkdirAll(rogue, 0o755))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(rogue, "rogue.go"), []byte("package rogue\n\nconst deployHook = \"deploy.ps1\"\n"), 0o644))
-	violation, err := gosyntax.DiscoverGo(root, "internal")
-	testcheck.NoError(t, err)
+	violation := testcheck.Must(gosyntax.DiscoverGo(root, "internal"))(t)
 	goOnly, _ := repoanalysis.EntryAuthorityRuleFor(repoanalysis.EntryAuthorityGoOnly)
 	if _, err := repoanalysis.ValidateEntryAuthorities(violation, []repoanalysis.EntryAuthorityRule{goOnly}); err == nil ||
 		!strings.Contains(err.Error(), "internal/rogue/rogue.go bypasses the owner") {
@@ -49,12 +48,9 @@ func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 
 func TestProductionAuthorityBoundaries(t *testing.T) {
 	t.Parallel()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	testcheck.NoError(t, err)
-	clean, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
-	testcheck.NoError(t, err)
+	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(repo, "internal", "cmd"))(t)
+	clean := testcheck.Must(repoanalysis.AuditProductionAuthorityBoundaries(snapshot))(t)
 	testcheck.NoError(t, clean.Error())
 
 	tests := []struct {
@@ -86,10 +82,8 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			candidate, err := snapshot.Overlay(test.overlay)
-			testcheck.NoError(t, err)
-			report, err := repoanalysis.AuditProductionAuthorityBoundaries(candidate)
-			testcheck.NoError(t, err)
+			candidate := testcheck.Must(snapshot.Overlay(test.overlay))(t)
+			report := testcheck.Must(repoanalysis.AuditProductionAuthorityBoundaries(candidate))(t)
 			if report.Error() == nil {
 				t.Fatalf("%s bypass was admitted", test.family)
 			}
@@ -157,10 +151,8 @@ func architectureRSIFinding(t *testing.T, path, body, family, kind string) {
 
 func architectureRSISnapshot(t *testing.T) gosyntax.Snapshot {
 	t.Helper()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
-	testcheck.NoError(t, err)
+	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(repo, "internal", "cmd"))(t)
 	return snapshot
 }
 

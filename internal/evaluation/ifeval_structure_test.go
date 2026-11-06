@@ -17,8 +17,7 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 	t.Parallel()
 	t.Run("compiled criteria own their input values", func(t *testing.T) {
 		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "native-count-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "count", Prompt: "Repeat cat.", MaxTokens: 1, Rules: []instructionRule{{Name: "frequency", Kind: ifevalFrequency, Values: []string{"cat"}, Count: &countRule{Relation: relationAtLeast, Value: 2}}}}}}
-		compiled, err := compileInstructionRules(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(suite))(t)
 		suite.Cases[0].Rules[0].Values[0] = "dog"
 		suite.Cases[0].Rules[0].Count.Value = 3
 		strict, loose, err := evaluateInstructionViews("catcat", compiled.rules[0])
@@ -51,8 +50,7 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 		if err != nil || dropped != 0 {
 			t.Fatalf("%d %s: dropped=%d error=%v", index, c.Instruction, dropped, err)
 		}
-		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(assembled.(instructionRulesSuite)))(t)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("instruction denominator expanded")
 		}

@@ -35,8 +35,7 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 		hook()
 		*stream = saved
 		_ = written.Close()
-		printed, err := io.ReadAll(read)
-		testcheck.NoError(t, err)
+		printed := testcheck.Must(io.ReadAll(read))(t)
 		return string(printed)
 	}
 	prompted := func() string {

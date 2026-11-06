@@ -17,10 +17,9 @@ func TestAudioFeaturesToWaveformDCFrame(t *testing.T) {
 		data[bin] = float32(math.Inf(-1))
 	}
 	data[0] = 0
-	audio, err := audioFeaturesToWaveform(plan, newAudioWaveformTables(plan), reference.Value{
+	audio := testcheck.Must(audioFeaturesToWaveform(plan, newAudioWaveformTables(plan), reference.Value{
 		Shape: tensor.MustShape(uint64(plan.FrameWidth()), 1), Data: data,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(audio) != plan.HopSize {
 		t.Fatalf("waveform length = %d, want %d", len(audio), plan.HopSize)
 	}
@@ -50,9 +49,8 @@ func testAudioWaveformPlan(t *testing.T) model.AudioWaveformPlan {
 	if !ok {
 		t.Fatal("audio-token profile is missing")
 	}
-	plan, err := model.CompileModelPlanWithProfile(
+	plan := testcheck.Must(model.CompileModelPlanWithProfile(
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: profile.Name}}, model.Weights{}, profile,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return plan.AudioWaveform()
 }

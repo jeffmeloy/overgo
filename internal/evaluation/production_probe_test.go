@@ -51,8 +51,7 @@ func TestProductionCapabilityProbeBindsExecutionPath(t *testing.T) {
 		loaded.Observation != fixture.request.Observation || loaded.CheckDecision != fixture.request.CheckDecision {
 		t.Fatalf("loaded probe = (%+v, %v)", loaded, err)
 	}
-	parents, err := fixture.store.Parents(t.Context(), result.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(fixture.store.Parents(t.Context(), result.ID))(t)
 	for _, required := range []artifact.ID{
 		fixture.testCase.ID, fixture.profile.ID, fixture.model,
 		fixture.definition.ID, fixture.request.Placement.Capability.ID,
@@ -125,11 +124,10 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 		}); err != nil {
 			t.Fatal(err)
 		}
-		other, err := NewActivationCase(ActivationCase{
+		other := testcheck.Must(NewActivationCase(ActivationCase{
 			Name: "other.production.case", Task: recipe.TaskGeneration,
 			Contract: fixture.definition.ID, Input: otherInput, EvidenceCheck: otherCheck,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, _, err := PublishActivationCaseRegistry(t.Context(), fixture.store, []ActivationCase{fixture.testCase, other}); err != nil {
 			t.Fatal(err)
 		}
@@ -147,8 +145,7 @@ func newProductionProbeFixture(t *testing.T, name string) productionProbeFixture
 
 func newCapabilityEvaluationStore(t *testing.T) *overgodb.Store {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Errorf("close capability evaluation store: %v", err)
@@ -163,10 +160,9 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 
 	weights := []byte(name + "-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "probe/model/" + name,
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
@@ -174,15 +170,12 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskGeneration, manifest.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskGeneration, manifest.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "probe/candidate/"+name, definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "probe/verification/"+name, definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "probe/verification/"+name, definition.ID))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "production probe fixture"))
 	alias := "probe/capability/" + name
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -191,13 +184,12 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	selection, err := modelrecipe.ResolveCapabilityEvidenceSelector(ctx, store, modelrecipe.CapabilityEvidenceSelector{
+	selection := testcheck.Must(modelrecipe.ResolveCapabilityEvidenceSelector(ctx, store, modelrecipe.CapabilityEvidenceSelector{
 		Alias: alias, Task: recipe.TaskGeneration, Session: modelrecipe.SessionWarm,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	schema := testutil.ArtifactID(t, artifact.KindProfile, name+"-capability-schema")
 	testutil.PublishArtifact(t, store, schema)
-	capability, err := (runrecord.CapabilityIdentity{
+	capability := testcheck.Must((runrecord.CapabilityIdentity{
 		Implementation: manifest.ID, Release: "1.0.0",
 		Transport: runrecord.CapabilityTransport{Kind: runrecord.CapabilityTransportBuiltin, Protocol: "probe-model/1"},
 		Schema:    schema,
@@ -206,27 +198,21 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 			MaxInputBytes: 4096, MaxOutputBytes: 4096, MaxConcurrent: 1,
 			CPUThreads: 1, HostBytes: selection.Resources.ArtifactBytes,
 		},
-	}).Identify()
-	testcheck.NoError(t, err)
-	capabilityContent, err := capability.Content()
-	testcheck.NoError(t, err)
-	capabilityBatch, err := artifact.NewDocumentBatch(
+	}).Identify())(t)
+	capabilityContent := testcheck.Must(capability.Content())(t)
+	capabilityBatch := testcheck.Must(artifact.NewDocumentBatch(
 		"probe/model-capability/"+name,
 		[]artifact.Content{capabilityContent}, capability.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, capabilityBatch); err != nil {
 		t.Fatal(err)
 	}
-	placement, err := capabilityruntime.ResolveExactCapabilityPlacement(ctx, store, capability.ID, selection)
-	testcheck.NoError(t, err)
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	placement := testcheck.Must(capabilityruntime.ResolveExactCapabilityPlacement(ctx, store, capability.ID, selection))(t)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "probe-host-" + name, OS: runtime.GOOS, Arch: runtime.GOARCH,
 		Device: "host", Backend: "go", Driver: "production-probe", Runtime: runtime.Version(),
-	})
-	testcheck.NoError(t, err)
-	environmentBatch, err := environment.Batch("probe/environment/" + name)
-	testcheck.NoError(t, err)
+	}))(t)
+	environmentBatch := testcheck.Must(environment.Batch("probe/environment/" + name))(t)
 	if _, err := artifact.CommitBatch(ctx, store, environmentBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -239,19 +225,17 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	testCase, err := NewActivationCase(ActivationCase{
+	testCase := testcheck.Must(NewActivationCase(ActivationCase{
 		Name: name + ".production", Task: recipe.TaskGeneration,
 		Contract: definition.ID, Input: input, EvidenceCheck: check,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, _, err := PublishActivationCaseRegistry(ctx, store, []ActivationCase{testCase}); err != nil {
 		t.Fatal(err)
 	}
-	profile, err := NewActivationProfile(ActivationProfile{
+	profile := testcheck.Must(NewActivationProfile(ActivationProfile{
 		Name: name + ".local", Kind: ActivationProfileLocalModel,
 		Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, _, err := PublishActivationMatrix(ctx, store, []ActivationProfile{profile}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -295,24 +279,21 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	if !ok || output == "" {
 		t.Fatalf("placed output = %#v", measured.Output)
 	}
-	inputContent, err := artifact.JSONContent(
+	inputContent := testcheck.Must(artifact.JSONContent(
 		artifact.JSONContract(artifact.KindFile, "overgo."+executorName+"-input.v1"), "probe request",
-	)
-	testcheck.NoError(t, err)
-	operation, err := workflowruntime.ExecutionID(definition.ID, capabilityruntime.RunKeyOf[struct{}](definition, inputContent))
-	testcheck.NoError(t, err)
+	))(t)
+	operation := testcheck.Must(workflowruntime.ExecutionID(definition.ID, capabilityruntime.RunKeyOf[struct{}](definition, inputContent)))(t)
 	receipt, found, err := runrecord.ResolveStageReceipt(ctx, store, operation, stages[0].Node.ID)
 	if err != nil || !found || receipt.State != runrecord.StageCompleted {
 		t.Fatalf("placed stage receipt = %+v, found=%t err=%v", receipt, found, err)
 	}
-	interaction, err := runrecord.PublishInteraction(ctx, store, runrecord.Interaction{
+	interaction := testcheck.Must(runrecord.PublishInteraction(ctx, store, runrecord.Interaction{
 		Response: name + "-response", Recipe: definition.ID, Model: manifest.ID,
 		Node: stages[0].Node.ID, Operation: operation, Run: receipt.ID,
 	}, []runrecord.InteractionMessage{
 		{Role: "user", Content: "probe request"},
 		{Role: "assistant", Content: output},
-	}, "")
-	testcheck.NoError(t, err)
+	}, ""))(t)
 	var measuredNS uint64
 	for _, phase := range measured.Phases {
 		measuredNS += phase.WallNS
@@ -320,22 +301,19 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	if observed := uint64(executionWall.Nanoseconds()); observed > measuredNS {
 		measuredNS = observed
 	}
-	observation, err := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
+	observation := testcheck.Must(runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
 		Model: manifest.ID, Recipe: definition.ID, Environment: environment.ID,
 		Operation: operation, Task: definition.Task, Outcome: runrecord.OutcomeSucceeded,
 		StartedUnixNS: started.UnixNano(), MeasuredNS: measuredNS,
 		Usage:     runrecord.ServingUsage{InputBytes: uint64(len(raw)), OutputBytes: uint64(len(output))},
 		Resources: runrecord.ServingResources{PeakDeviceBytes: measured.PeakDeviceBytes},
-	})
-	testcheck.NoError(t, err)
-	checkDecision, err := recipe.NewDecision(
+	}))(t)
+	checkDecision := testcheck.Must(recipe.NewDecision(
 		testCase.ID, recipe.DecisionAccepted, recipe.EvidenceProduction, "",
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: check},
 		[]artifact.ID{testCase.Input, interaction.Trace, receipt.ID, observation.ID},
-	)
-	testcheck.NoError(t, err)
-	decisionBatch, err := checkDecision.Batch("probe/check-decision/" + name)
-	testcheck.NoError(t, err)
+	))(t)
+	decisionBatch := testcheck.Must(checkDecision.Batch("probe/check-decision/" + name))(t)
 	if _, err := artifact.CommitBatch(ctx, store, decisionBatch); err != nil {
 		t.Fatal(err)
 	}

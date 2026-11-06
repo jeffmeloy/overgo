@@ -28,8 +28,7 @@ func registerCensusModel(t *testing.T, store *overgodb.Store, name string, prese
 	ctx := t.Context()
 	payload := []byte(name)
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}})
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}}))(t)
 	path := filepath.Join(t.TempDir(), name+".bin")
 	if present {
 		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
@@ -43,8 +42,7 @@ func registerCensusModel(t *testing.T, store *overgodb.Store, name string, prese
 		t.Fatal(err)
 	}
 	if active {
-		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID))(t)
 		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "census-fixture/"+name, definition))
 	}
 	return manifest.ID, path
@@ -54,8 +52,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	storePath := t.TempDir()
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -84,24 +81,19 @@ func TestCapabilityCensusContract(t *testing.T) {
 	}
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "historical observation")
 	testutil.PublishArtifact(t, store, evidence)
-	verification, err := runrecord.NewModelVerification(presentID, "present", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("a", 40), Evidence: []artifact.ID{evidence}}})
-	testcheck.NoError(t, err)
-	verificationBatch, err := verification.Batch("census-fixture/verification")
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(runrecord.NewModelVerification(presentID, "present", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("a", 40), Evidence: []artifact.ID{evidence}}}))(t)
+	verificationBatch := testcheck.Must(verification.Batch("census-fixture/verification"))(t)
 	if _, err := artifact.CommitBatch(ctx, store, verificationBatch); err != nil {
 		t.Fatal(err)
 	}
-	later, err := runrecord.NewModelVerification(presentID, "later", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("c", 40), Evidence: []artifact.ID{evidence}}})
-	testcheck.NoError(t, err)
-	laterContent, err := later.Content()
-	testcheck.NoError(t, err)
+	later := testcheck.Must(runrecord.NewModelVerification(presentID, "later", []runrecord.CapabilityClaim{{Capability: "forecast", Tier: runrecord.TierRealArtifactSmoke, Commit: strings.Repeat("c", 40), Evidence: []artifact.ID{evidence}}}))(t)
+	laterContent := testcheck.Must(later.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "census-fixture/later-declaration", Artifacts: []artifact.Descriptor{laterContent.Descriptor}}); err != nil {
 		t.Fatal(err)
 	}
 
 	memo := discovery.NewMemo()
-	value, err := buildCapabilityCensus(ctx, store, strings.Repeat("b", 40), catalogLimit, memo)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(buildCapabilityCensus(ctx, store, strings.Repeat("b", 40), catalogLimit, memo))(t)
 	testcheck.NoError(t, discovery.PublishMemo(ctx, store, memo))
 	if len(value.Models) != 4 || !slices.Equal(value.Verifications, []artifact.ID{verification.ID}) {
 		t.Fatalf("incomplete census: %+v", value)
@@ -121,16 +113,14 @@ func TestCapabilityCensusContract(t *testing.T) {
 		t.Fatalf("active-only catalog changed: %d %t %v", len(activeOnly), truncated, err)
 	}
 	testcheck.NoError(t, checkCapabilityCensus(ctx, store, value, catalogLimit))
-	laterBatch, err := later.Batch("census-fixture/later-publication")
-	testcheck.NoError(t, err)
+	laterBatch := testcheck.Must(later.Batch("census-fixture/later-publication"))(t)
 	if _, err := artifact.CommitBatch(ctx, store, laterBatch); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
 		t.Fatalf("later evidence invalidated the frozen before picture: %v", err)
 	}
-	batch, err := capabilityCensusBatch(value)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(capabilityCensusBatch(value))(t)
 	if len(batch.Lineage) != 8 {
 		t.Fatalf("lineage = %d, want four models, three recipes and one verification", len(batch.Lineage))
 	}

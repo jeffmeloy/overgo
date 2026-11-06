@@ -13,10 +13,8 @@ func TestCanonicalLocalLocationContract(t *testing.T) {
 	file := filepath.Join(root, "dataset.jsonl")
 	testcheck.NoError(t, os.WriteFile(file, []byte("{}\n"), 0o600))
 	id := identifyLocationFixture(t, KindDataset, file)
-	first, err := CanonicalLocalLocation(id, LocationFile, file)
-	testcheck.NoError(t, err)
-	second, err := CanonicalLocalLocation(id, LocationFile, filepath.Join(root, ".", "dataset.jsonl"))
-	testcheck.NoError(t, err)
+	first := testcheck.Must(CanonicalLocalLocation(id, LocationFile, file))(t)
+	second := testcheck.Must(CanonicalLocalLocation(id, LocationFile, filepath.Join(root, ".", "dataset.jsonl")))(t)
 	if first.Value != second.Value || !filepath.IsAbs(first.Value) {
 		t.Fatalf("canonical locations = (%+v, %+v)", first, second)
 	}
@@ -34,8 +32,7 @@ func TestCanonicalLocalLocationContract(t *testing.T) {
 
 func identifyLocationFixture(t *testing.T, kind Kind, filename string) ID {
 	t.Helper()
-	file, err := os.Open(filename)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(filename))(t)
 	defer file.Close()
 	id, _, err := Identify(kind, file)
 	testcheck.NoError(t, err)

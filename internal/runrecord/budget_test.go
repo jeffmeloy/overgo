@@ -18,7 +18,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	proposer := id(artifact.KindEvidence, "proposer")
 	evaluator := id(artifact.KindEvidence, "evaluator")
-	partition, err := splitPartitionCodec.New(SplitPartition{
+	partition := testcheck.Must(splitPartitionCodec.New(SplitPartition{
 		Version:     artifact.InitialDocumentVersion,
 		Dataset:     id(artifact.KindDataset, "dataset"),
 		Development: id(artifact.KindDatasetShard, "development"),
@@ -26,8 +26,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 		Promotion:   id(artifact.KindDatasetShard, "promotion"),
 		Audit:       id(artifact.KindDatasetShard, "audit"),
 		Proposer:    proposer,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 
 	duplicate := partition
 	duplicate.ID = artifact.ID{}
@@ -36,17 +35,15 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 		t.Fatal("partition with shared promotion/audit shard accepted")
 	}
 
-	budget, err := budgetCodec.New(Budget{
+	budget := testcheck.Must(budgetCodec.New(Budget{
 		Version: artifact.InitialDocumentVersion, Unit: "queries", Split: partition.Promotion,
 		Issued: 5, Authority: id(artifact.KindEvidence, "authority"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	charge := func(amount uint64, purpose string) BudgetCharge {
-		value, err := budgetChargeCodec.New(BudgetCharge{
+		value := testcheck.Must(budgetChargeCodec.New(BudgetCharge{
 			Version: artifact.InitialDocumentVersion, Budget: budget.ID, Amount: amount,
 			Consumer: evaluator, Purpose: purpose,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return value
 	}
 	remaining, err := BudgetBalance(budget, []BudgetCharge{charge(2, "selection eval"), charge(3, "promotion eval")})
@@ -60,8 +57,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	foreign := charge(1, "foreign")
 	foreign.Budget = id(artifact.KindEvidence, "other-budget")
 	foreign.ID = artifact.ID{}
-	foreign, err = budgetChargeCodec.New(foreign)
-	testcheck.NoError(t, err)
+	foreign = testcheck.Must(budgetChargeCodec.New(foreign))(t)
 	if _, err := BudgetBalance(budget, []BudgetCharge{foreign}); err == nil {
 		t.Fatal("charge against another budget accepted")
 	}
@@ -73,14 +69,12 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	proposerCharge := charge(1, "proposer query")
 	proposerCharge.Consumer = proposer
 	proposerCharge.ID = artifact.ID{}
-	proposerCharge, err = budgetChargeCodec.New(proposerCharge)
-	testcheck.NoError(t, err)
+	proposerCharge = testcheck.Must(budgetChargeCodec.New(proposerCharge))(t)
 	blindedBudget := func(split artifact.ID, name string) Budget {
-		value, err := budgetCodec.New(Budget{
+		value := testcheck.Must(budgetCodec.New(Budget{
 			Version: artifact.InitialDocumentVersion, Unit: "queries", Split: split,
 			Issued: 5, Authority: id(artifact.KindEvidence, "authority-"+name),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return value
 	}
 	if err := ValidateBlinding(partition, blindedBudget(partition.Promotion, "promotion"), []BudgetCharge{proposerCharge}); err == nil {
@@ -105,7 +99,6 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 
 func mustContent(t *testing.T, budget Budget) []byte {
 	t.Helper()
-	content, err := budgetCodec.Content(budget)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(budgetCodec.Content(budget))(t)
 	return content.Data
 }

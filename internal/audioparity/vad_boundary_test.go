@@ -54,8 +54,7 @@ func verifyVADStreamBoundaries(t *testing.T) {
 				if err != nil || calls != 1 {
 					t.Fatalf("boundary execution: %v calls=%d", err, calls)
 				}
-				encoded, err := json.Marshal(state)
-				testcheck.NoError(t, err)
+				encoded := testcheck.Must(json.Marshal(state))(t)
 				var restored speechactivity.BoundaryState
 				testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 				if !reflect.DeepEqual(state, restored) {
@@ -86,8 +85,7 @@ func verifyVADOfflineBoundaries(t *testing.T) {
 		t.Run(fixture.Name, func(t *testing.T) {
 			c := fixture.Config
 			config := speechactivity.OfflineConfig{Smoothing: c.Smoothing, Threshold: c.Threshold, MinSpeech: int(c.MinSpeech), MaxSpeech: int(c.MaxSpeech), MinSilence: int(c.MinSilence), MergeSilence: fixture.MergeSilence, ExtendSpeech: fixture.ExtendSpeech}
-			got, err := speechactivity.OfflineDecisions(t.Context(), fixture.Probabilities, config, vadReferenceBytes)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(speechactivity.OfflineDecisions(t.Context(), fixture.Probabilities, config, vadReferenceBytes))(t)
 			if len(got) != len(fixture.Offline) {
 				t.Fatal("offline frame count differs")
 			}

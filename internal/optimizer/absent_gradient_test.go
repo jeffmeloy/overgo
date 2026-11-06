@@ -46,9 +46,7 @@ func stepAbsentGradient(t *testing.T, tensors map[string][]float32, pack *Tensor
 func TestAbsentGradientKeepsItsTensorOnTheHost(t *testing.T) {
 	t.Parallel()
 	tensors := map[string][]float32{"absent": {1, 1, 1, 1}, "present": {1, 1, 1, 1}}
-	pack, err := NewTensorPack(tensors, absentGeometry)
-	testcheck.NoError(t, err)
-	optimizer, err := pack.NewOptimizer(Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	testcheck.NoError(t, err)
+	pack := testcheck.Must(NewTensorPack(tensors, absentGeometry))(t)
+	optimizer := testcheck.Must(pack.NewOptimizer(Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant}))(t)
 	stepAbsentGradient(t, tensors, pack, func() { optimizer.Step() })
 }

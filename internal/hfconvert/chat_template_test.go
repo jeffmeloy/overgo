@@ -41,8 +41,7 @@ func TestConvertedChatTemplateSources(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			directory := t.TempDir()
 			if test.config != nil {
-				data, err := json.Marshal(map[string]any{"chat_template": test.config})
-				testcheck.NoError(t, err)
+				data := testcheck.Must(json.Marshal(map[string]any{"chat_template": test.config}))(t)
 				testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer_config.json"), data, 0600))
 			}
 			for name, content := range test.files {

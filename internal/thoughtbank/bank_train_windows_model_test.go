@@ -51,11 +51,9 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 	}
 	weights, _, err := LoadCheckpoint(filepath.Join(modelDirectory, "model.pt"))
 	testcheck.NoError(t, err)
-	tokenizer, err := hfbpe.Load(modelDirectory)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(hfbpe.Load(modelDirectory))(t)
 	text := orderedWikiTextRecord(t, datasetPath)
-	tokens, err := tokenizer.Encode(text)
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(tokenizer.Encode(text))(t)
 	if len(tokens) < 4 {
 		t.Fatalf("ordered WikiText record produced %d tokens, want at least 4", len(tokens))
 	}
@@ -76,23 +74,19 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 	hostWeights := cloneBankWeights(weights.Blocks[0].Bank)
 	original := cloneBankWeights(weights.Blocks[0].Bank)
 	config := optimizer.Config{BaseLearningRate: 1e-5, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
-	deviceTrainer, err := deviceWeights.NewTrainer(config)
-	testcheck.NoError(t, err)
+	deviceTrainer := testcheck.Must(deviceWeights.NewTrainer(config))(t)
 	defer deviceTrainer.Close()
-	hostTrainer, err := newFastWeightBankTrainer(hostWeights, config, func(pack *optimizer.TensorPack, config optimizer.Config) (optimizer.Stepper, error) {
+	hostTrainer := testcheck.Must(newFastWeightBankTrainer(hostWeights, config, func(pack *optimizer.TensorPack, config optimizer.Config) (optimizer.Stepper, error) {
 		host, err := pack.NewOptimizer(config)
 		if err != nil {
 			return nil, err
 		}
 		return hostBankStepper{optimizer: host}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer hostTrainer.Close()
 
-	deviceResult, err := deviceTrainer.Step(example)
-	testcheck.NoError(t, err)
-	hostResult, err := hostTrainer.Step(example)
-	testcheck.NoError(t, err)
+	deviceResult := testcheck.Must(deviceTrainer.Step(example))(t)
+	hostResult := testcheck.Must(hostTrainer.Step(example))(t)
 	if deviceResult.ProgramID == "" || deviceResult.ProgramID != hostResult.ProgramID {
 		t.Fatalf("compiled program identity differs: device=%q host=%q", deviceResult.ProgramID, hostResult.ProgramID)
 	}
@@ -112,8 +106,7 @@ func TestFractaleRealTrainingParity(t *testing.T) {
 
 func orderedWikiTextRecord(t *testing.T, path string) string {
 	t.Helper()
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	defer file.Close()
 	records := make([]trainingdata.RawRecord, 0, 8)
 	scanner := bufio.NewScanner(file)
@@ -134,25 +127,20 @@ func orderedWikiTextRecord(t *testing.T, path string) string {
 			Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 		},
 	}
-	dataset, err := trainingdata.MaterializeRecords(authority, processorID, records, trainingdata.ProcessorBinding{
+	dataset := testcheck.Must(trainingdata.MaterializeRecords(authority, processorID, records, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
 		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, trainingdata.EncodingUTF8),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer dataset.Close()
-	stream, err := trainingdata.NewStream(dataset, nil)
-	testcheck.NoError(t, err)
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
-	testcheck.NoError(t, err)
-	batch, err := batcher.Next(context.Background())
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingdata.NewStream(dataset, nil))(t)
+	batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1}))(t)
+	batch := testcheck.Must(batcher.Next(context.Background()))(t)
 	return string(batch.Examples[0].Values[0].Data)
 }
 
 func trainingArtifactID(t *testing.T, kind artifact.Kind, name string) artifact.ID {
 	t.Helper()
-	id, err := artifact.JSONID(kind, map[string]string{"name": name})
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.JSONID(kind, map[string]string{"name": name}))(t)
 	return id
 }
 

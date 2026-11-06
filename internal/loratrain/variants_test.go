@@ -18,8 +18,7 @@ import (
 func factorGradients(t *testing.T, config Config) map[string][]float32 {
 	t.Helper()
 	model, _, _ := tinyModel(t)
-	trainer, err := New(model, config)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(New(model, config))(t)
 	random := rand.New(rand.NewSource(2))
 	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
 		up := trainer.adapter.Modules[name].Up
@@ -51,8 +50,7 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 			rs   bool
 			want float64
 		}{{false, 8.0 / 4}, {true, 8.0 / 2}} {
-			trainer, err := New(model, Config{Rank: 4, Alpha: 8, Seed: 1, RSLoRA: test.rs})
-			testcheck.NoError(t, err)
+			trainer := testcheck.Must(New(model, Config{Rank: 4, Alpha: 8, Seed: 1, RSLoRA: test.rs}))(t)
 			for name := range trainer.Adapter().Modules {
 				if scale, err := trainer.Adapter().Scale(name); err != nil || math.Abs(scale-test.want) > 1e-12 {
 					t.Fatalf("rslora=%t: %s scale %v (%v), want %v", test.rs, name, scale, err, test.want)
@@ -116,12 +114,10 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 
 	t.Run("a saved adapter says how it was scaled", func(t *testing.T) {
 		model, _, _ := tinyModel(t)
-		trainer, err := New(model, Config{Rank: 2, Alpha: 6, Seed: 1, RSLoRA: true, UpRate: 4})
-		testcheck.NoError(t, err)
+		trainer := testcheck.Must(New(model, Config{Rank: 2, Alpha: 6, Seed: 1, RSLoRA: true, UpRate: 4}))(t)
 		directory := filepath.Join(t.TempDir(), "adapter")
 		testcheck.NoError(t, peft.Save(directory, trainer.Adapter()))
-		loaded, err := peft.Load(directory)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(peft.Load(directory))(t)
 		if !loaded.Config.RSLoRA || loaded.Config.Alpha != 24 {
 			t.Fatalf("loaded adapter is rslora=%t with alpha %v, want rank-stabilized at alpha 6 times the rate of 4", loaded.Config.RSLoRA, loaded.Config.Alpha)
 		}

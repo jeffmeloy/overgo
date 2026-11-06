@@ -55,8 +55,7 @@ func TestCommitCheckTestsHoldUnderTrimmedBuilds(t *testing.T) {
 		t.Errorf("the fix of the second checkout wrote the first checkout's file:\n%s", kept)
 	}
 
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	for _, trimmed := range [][]string{
 		{"./internal/clioptions", "^TestCLIInferenceDependencyBoundary$"},
 		{"./internal/plan", "^(TestColibriCampaign|TestSinglePlanAuthority|TestDoctrineParagraphsNameWhatTheyGovern)$"},

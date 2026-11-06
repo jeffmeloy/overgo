@@ -38,8 +38,7 @@ import (
 // restore would shorten, since an open restores them at once.
 func TestCheckpointFamiliesRecordIsWhole(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt")))(t)
 	number := func(what, text string) int64 {
 		t.Helper()
 		value, err := strconv.ParseInt(text, 10, 64)

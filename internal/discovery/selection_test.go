@@ -29,13 +29,11 @@ func TestSelectedServableScope(t *testing.T) {
 				id := testutil.ArtifactBytesID(t, artifact.KindModel, payload)
 				path := filepath.Join(t.TempDir(), name+".gguf")
 				testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
-				manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: id}})
-				testcheck.NoError(t, err)
-				_, err = store.Commit(t.Context(), artifact.Batch{Key: "selection/" + name,
+				manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: id}}))(t)
+				testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "selection/" + name,
 					Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(payload))}}, Manifests: []artifact.Manifest{manifest},
 					Locations: []artifact.LocationEvent{{Action: artifact.LocationAdd, Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: path}}},
-				})
-				testcheck.NoError(t, err)
+				}))(t)
 				publishVerifiedActivation(t, store, manifest.ID, name)
 				paths, models = append(paths, path), append(models, manifest.ID)
 			}
@@ -66,10 +64,9 @@ func TestSelectedServableScope(t *testing.T) {
 			previous, _, err := store.ResolveAlias(t.Context(), alias)
 			testcheck.NoError(t, err)
 			broken := testutil.ArtifactID(t, artifact.KindRecipe, "missing-definition")
-			_, err = store.Commit(t.Context(), artifact.Batch{Key: "selection/corrupt-unrelated",
+			testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "selection/corrupt-unrelated",
 				Artifacts: []artifact.Descriptor{{ID: broken}}, Aliases: []artifact.AliasBinding{{Name: alias, Target: broken, Previous: &previous}},
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			entries, err = ServableWithMemo(t.Context(), store, 2*len(models), NewMemo(), selectInput(models[0], paths[0]))
 			if err != nil || len(entries) != 1 || entries[0].Stale != "" {
 				t.Fatalf("unrelated activation affected selected model: %+v, %v", entries, err)

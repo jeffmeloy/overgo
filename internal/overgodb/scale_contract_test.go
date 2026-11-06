@@ -110,10 +110,8 @@ func scaleContent(ordinal int) []byte {
 func TestStoreScaleContract(t *testing.T) {
 	t.Parallel()
 	rootA, rootB := t.TempDir(), t.TempDir()
-	first, err := buildScaleCorpus(t.Context(), rootA)
-	testcheck.NoError(t, err)
-	second, err := buildScaleCorpus(t.Context(), rootB)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(buildScaleCorpus(t.Context(), rootA))(t)
+	second := testcheck.Must(buildScaleCorpus(t.Context(), rootB))(t)
 	headA, snapshotPath, latencies, contentBytes := first.head, first.snapshot, first.latencies, first.contentBytes
 	if headA != second.head {
 		t.Fatalf("corpus is not deterministic: head %s != %s", headA, second.head)
@@ -127,17 +125,14 @@ func TestStoreScaleContract(t *testing.T) {
 		t.Fatal("corpus sealed segments differ across roots")
 	}
 
-	journalInfo, err := os.Stat(filepath.Join(rootA, "overgodb.log"))
-	testcheck.NoError(t, err)
+	journalInfo := testcheck.Must(os.Stat(filepath.Join(rootA, "overgodb.log")))(t)
 	segmentBytes := treeBytes(t, filepath.Join(rootA, segmentDirectory))
 	metadataBytes := journalInfo.Size() + segmentBytes
-	snapshotInfo, err := os.Stat(snapshotPath)
-	testcheck.NoError(t, err)
+	snapshotInfo := testcheck.Must(os.Stat(snapshotPath))(t)
 	snapshotSize := snapshotInfo.Size()
 
 	replayStart := time.Now()
-	store, err := OpenReadOnly(rootA)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(OpenReadOnly(rootA))(t)
 	defer store.Close()
 	replayWall := time.Since(replayStart)
 	replay := store.SnapshotReplay()
@@ -152,8 +147,7 @@ func TestStoreScaleContract(t *testing.T) {
 	ctx := t.Context()
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 		content := scaleContent(ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, content))(t)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)
@@ -213,8 +207,7 @@ func treeBytes(t *testing.T, root string) int64 {
 
 func fileDigestAt(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(path))(t)
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:])
 }

@@ -33,8 +33,7 @@ func TestRecipeCandidateEvaluationAttribution(t *testing.T) {
 	candidate := attributionSide(t, "candidate-recipe")
 	candidate.Quality, candidate.ResourceBytes, candidate.WallNS = 0.62, 3072, 700
 
-	attribution, err := AttributeRecipeEvaluation(candidate, baseline)
-	testcheck.NoError(t, err)
+	attribution := testcheck.Must(AttributeRecipeEvaluation(candidate, baseline))(t)
 	if attribution.QualityDelta <= 0 || attribution.ResourceDelta >= 0 || attribution.WallDelta >= 0 ||
 		attribution.Coverage != 24 || attribution.Model != baseline.Model {
 		t.Fatalf("controlled attribution = %+v", attribution)

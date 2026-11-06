@@ -60,8 +60,7 @@ var longContextCodes = []struct {
 // the model lane.
 func TestFlashNextLongContextAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	ctx := t.Context()
 	name, location := flashNextServable(t, ctx, roots.Store)
 	articles := filepath.Join(roots.Datasets, "wikitext2_train_articles")
@@ -80,11 +79,9 @@ func TestFlashNextLongContextAcceptance(t *testing.T) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: testutil.RepoRoot(t)}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: roots.Store, Dir: testutil.RepoRoot(t)}, 0))(t)
 	defer supervisor.Close()
-	lease, err := supervisor.Acquire(ctx, modelswap.Servable{Name: name, Location: location})
-	testcheck.NoError(t, err)
+	lease := testcheck.Must(supervisor.Acquire(ctx, modelswap.Servable{Name: name, Location: location}))(t)
 	defer lease.Release()
 	server := &longContextServer{t: t, ctx: ctx, url: lease.Target, model: name}
 
@@ -137,8 +134,7 @@ func flashNextServable(t *testing.T, ctx context.Context, store string) (name, l
 	if _, err := os.Stat(store); err != nil {
 		testskip.NotApplicable(t, "no store at "+store)
 	}
-	db, err := overgodb.OpenReadOnly(store)
-	testcheck.NoError(t, err)
+	db := testcheck.Must(overgodb.OpenReadOnly(store))(t)
 	defer db.Close()
 	entries, _, err := discovery.CapabilityCatalog(ctx, db, longContextCatalogBound, discovery.LoadMemo(ctx, db))
 	testcheck.NoError(t, err)
@@ -161,8 +157,7 @@ func longContextCorpus(t *testing.T, articles string) string {
 	var corpus strings.Builder
 	placed := 0
 	for index := 0; corpus.Len() < longContextChars; index++ {
-		data, err := os.ReadFile(filepath.Join(articles, fmt.Sprintf("%05d.txt", index)))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(articles, fmt.Sprintf("%05d.txt", index))))(t)
 		for placed < len(longContextCodes) && float64(corpus.Len()) >= longContextCodes[placed].at*longContextChars {
 			fmt.Fprintf(&corpus, "\nThe archive code for the %s Room is %s.\n\n", longContextCodes[placed].room, longContextCodes[placed].code)
 			placed++

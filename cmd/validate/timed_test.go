@@ -67,8 +67,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 			testcheck.NoError(t, os.WriteFile(path, []byte("{} {}"), clioptions.PrivateFileMode))
 			return
 		}
-		id, err := artifact.ParseID(result)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(result))(t)
 		testcheck.NoError(t, jsonfile.Write(path, id, clioptions.PrivateFileMode))
 		if os.Getenv("OVERGO_TEST_SERVING_FAILED") != "" {
 			t.Fatal("producer failed after publication")
@@ -135,8 +134,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 			t.Fatal(err)
 		}
 		publish := func(start int64) artifact.ID {
-			observation, err := runrecord.PublishServingObservation(t.Context(), store, runrecord.ServingObservation{Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskInference, StartedUnixNS: start, MeasuredNS: 1, Outcome: runrecord.OutcomeSucceeded})
-			testcheck.NoError(t, err)
+			observation := testcheck.Must(runrecord.PublishServingObservation(t.Context(), store, runrecord.ServingObservation{Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskInference, StartedUnixNS: start, MeasuredNS: 1, Outcome: runrecord.OutcomeSucceeded}))(t)
 			return observation.ID
 		}
 		ctx, cancel := context.WithCancel(t.Context())
@@ -162,8 +160,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 		}
 	})
 
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	id := testutil.ArtifactID(t, artifact.KindEvidence, "child observation")
 	for _, mode := range []string{"missing", "malformed", "success", "failed"} {
 		t.Run("handoff "+mode, func(t *testing.T) {

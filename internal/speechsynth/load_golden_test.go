@@ -23,8 +23,7 @@ func TestLoadDerivesDimsAndMatchesManifest(t *testing.T) {
 		Shape []int64 `json:"shape"`
 	}](t, "g0_tensors.json")
 
-	source, err := safetensors.OpenSource(artifactDir(t))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(artifactDir(t)))(t)
 	defer source.Close()
 	if len(source.Tensors) != len(*manifest) {
 		t.Fatalf("tensor count: artifact %d != manifest %d", len(source.Tensors), len(*manifest))

@@ -12,8 +12,7 @@ import (
 func TestExpertProfileCountsExpertsNeverRouted(t *testing.T) {
 	t.Parallel()
 	counts := [][]uint64{{4, 0, 1, 0}, {0, 0, 9, 2}}
-	profile, err := rankExpertsByRoutes(2, 4, func(layer, expert uint32) uint64 { return counts[layer][expert] })
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(rankExpertsByRoutes(2, 4, func(layer, expert uint32) uint64 { return counts[layer][expert] }))(t)
 	if profile.Routed != 4 || len(profile.Pairs) != 8 {
 		t.Fatalf("profile counts %d of %d pairs routed, want 4 of 8", profile.Routed, len(profile.Pairs))
 	}

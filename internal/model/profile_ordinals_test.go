@@ -31,8 +31,7 @@ func TestEveryProfileOrdinalKeepsItsName(t *testing.T) {
 			reached[name] = constants
 		}
 	}
-	raw, err := os.ReadFile(profileOrdinalsFile)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(profileOrdinalsFile))(t)
 	var pinned map[string][]string
 	testcheck.NoError(t, json.Unmarshal(raw, &pinned))
 	for name, constants := range reached {
@@ -86,16 +85,14 @@ func profileEnums(kind reflect.Type, seen map[reflect.Type]bool) map[string]bool
 // since the blank holds a number. A constant with no type of its own takes the one before it in its block.
 func declaredEnums(t *testing.T) map[string][]string {
 	t.Helper()
-	files, err := filepath.Glob("*.go")
-	testcheck.NoError(t, err)
+	files := testcheck.Must(filepath.Glob("*.go"))(t)
 	slices.Sort(files)
 	enums := map[string][]string{}
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
 		}
-		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), file, nil, 0))(t)
 		for _, declaration := range parsed.Decls {
 			block, constants := declaration.(*ast.GenDecl)
 			if !constants || block.Tok != token.CONST {

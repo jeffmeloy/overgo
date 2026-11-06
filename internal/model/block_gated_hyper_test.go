@@ -40,8 +40,7 @@ func hostBridgeOperation(outputs ...*tensor.Tensor) (tensor.Op, bool) {
 // Python model's FP32 forward and continuation state, including distinct streams,
 // and holds the block to operations the device computes itself.
 func TestFlashNextGatedBlocks(t *testing.T) {
-	data, err := os.ReadFile("testdata/flashnext_gated.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/flashnext_gated.json"))(t)
 	var fixture struct {
 		Tolerance float64
 		Weights   map[string]struct {
@@ -66,8 +65,7 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 	for name, value := range fixture.Weights {
 		file.Tensors = append(file.Tensors, tensorInfo(name, value.Shape...))
 	}
-	inventory, err := ReadWeights(file, spec)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(ReadWeights(file, spec))(t)
 	var conv, state reference.Value
 	for _, test := range fixture.Cases {
 		t.Run(fmt.Sprintf("%s/%d", test.Name, test.Start), func(t *testing.T) {
@@ -94,20 +92,18 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 				positions[i] = test.Start + uint32(i)
 			}
 			plan := spec.PlanLayer(0, true)
-			result, err := executeCompiledLayer(blockDispatchOptions{
+			result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 				Spec: spec, Weights: weights, Plan: &plan,
 				Context: CachedBlockContext{
 					Builder: builder, Input: input("input", reference.Value{Shape: shape, Data: test.Input}),
 					Positions: positions, Recurrent: true, Sequences: 1,
 					PastKey: input("conv", conv), PastValue: input("state", state),
 				},
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			if op, found := hostBridgeOperation(result.Output, result.Key, result.Value); found {
 				t.Fatalf("the gated block holds %s, which the device runs through the host bridge", op)
 			}
-			values, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-			testcheck.NoError(t, err)
+			values := testcheck.Must(reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds))(t)
 			for _, check := range []struct {
 				name string
 				node *tensor.Tensor

@@ -31,8 +31,7 @@ func renamedProfileFixture(t *testing.T, applied bool) []byte {
 	if !found {
 		t.Fatal("the embedded catalog registers no resolvable architecture")
 	}
-	encoded, err := json.Marshal(profile)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(profile))(t)
 	var policy map[string]any
 	testcheck.NoError(t, json.Unmarshal(encoded, &policy))
 	stages, ok := policy["DenseStages"].(map[string]any)
@@ -44,17 +43,15 @@ func renamedProfileFixture(t *testing.T, applied bool) []byte {
 	// The version field is deliberately absent: the upgrade routes on the
 	// document's schema label, not on a version carried inside the body, so
 	// restating one here would only copy a production value into the fixture.
-	document, err := json.Marshal(map[string]any{
+	document := testcheck.Must(json.Marshal(map[string]any{
 		"architecture": profile.Name, "policy": policy,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return document
 }
 
 func upgradedExcludedExperts(t *testing.T, applied bool) uint32 {
 	t.Helper()
-	content, err := upgradeRenamedProfile(renamedProfileFixture(t, applied))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(upgradeRenamedProfile(renamedProfileFixture(t, applied)))(t)
 	var body struct {
 		Version      uint16                    `json:"version"`
 		Architecture string                    `json:"architecture"`
@@ -137,8 +134,7 @@ func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 	clear(policy)
 	policy["Name"] = name
 	policy["DenseStages"] = stages
-	sparse, err := json.Marshal(body)
-	testcheck.NoError(t, err)
+	sparse := testcheck.Must(json.Marshal(body))(t)
 	upgraded, err := upgradeRenamedProfile(sparse)
 	if err != nil {
 		t.Fatalf("sparse published document refused: %v", err)

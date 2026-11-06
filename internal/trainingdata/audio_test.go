@@ -18,8 +18,7 @@ func TestAudioDecodeConsolidationAcceptance(t *testing.T) {
 	wav := testutil.MonoPCM16WAV(16000, []int16{16384, -16384})
 	// libsndfile 1.2.2 / libFLAC 1.4.3 encodes and independently decodes
 	// these two mono PCM16 samples as [.5, -.5] at 16 kHz.
-	flac, err := hex.DecodeString("664c6143000000221000100000000d00000d03e800f000000002097732d2b267dfd70590c83568c6a10484000028200000007265666572656e6365206c6962464c414320312e342e3320323032333036323300000000fff865080001f2030005c07968")
-	testcheck.NoError(t, err)
+	flac := testcheck.Must(hex.DecodeString("664c6143000000221000100000000d00000d03e800f000000002097732d2b267dfd70590c83568c6a10484000028200000007265666572656e6365206c6962464c414320312e342e3320323032333036323300000000fff865080001f2030005c07968"))(t)
 	for name, data := range map[string][]byte{"wav": wav, "flac": flac} {
 		t.Run(name, func(t *testing.T) {
 			example, err := AudioProcessor(RoleInput, uint64(len(want)))(t.Context(), RawRecord{ID: "audio", Group: "source", Data: data})

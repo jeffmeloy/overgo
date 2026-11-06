@@ -27,15 +27,13 @@ func TestWindowsContainmentPrecedesExecution(t *testing.T) {
 		_ = run.Process.Kill()
 		_ = run.Wait()
 	})
-	handle, err := syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(run.Process.Pid))
-	testcheck.NoError(t, err)
+	handle := testcheck.Must(syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(run.Process.Pid)))(t)
 	defer syscall.CloseHandle(handle)
 	state, err := syscall.WaitForSingleObject(handle, 0)
 	if err != nil || state != syscall.WAIT_TIMEOUT {
 		t.Fatalf("suspended child already terminated: %d, %v", state, err)
 	}
-	tree, err := newProcessTree(run)
-	testcheck.NoError(t, err)
+	tree := testcheck.Must(newProcessTree(run))(t)
 	defer tree.close()
 	if err := run.Wait(); err != nil || strings.TrimSpace(output.String()) != "contained" {
 		t.Fatalf("contained execution: %q, %v", output.String(), err)

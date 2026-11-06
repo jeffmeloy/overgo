@@ -18,8 +18,7 @@ func TestMOSSRefinementVerificationRejectsChangedContract(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			for _, file := range []string{"checkpoint.json", "oracle-contract.json"} {
-				data, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "moss", file))
-				testcheck.NoError(t, err)
+				data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "moss", file)))(t)
 				if file == name {
 					data = append(data, ' ')
 				}

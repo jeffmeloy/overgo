@@ -27,10 +27,9 @@ func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Sto
 	if register != nil {
 		register(t.Context(), store)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	t.Cleanup(func() { handler.Close() })
 	return handler
 }
@@ -46,15 +45,13 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	// and a mutation manual whose only role is exercising the approval
 	// gate; the gate refuses it before any transport runs.
 	handler := agentTestHandler(t, func(ctx context.Context, store *overgodb.Store) {
-		manuals, err := agenttool.StandardManuals()
-		testcheck.NoError(t, err)
-		write, err := agenttool.NewManual(agenttool.Manual{
+		manuals := testcheck.Must(agenttool.StandardManuals())(t)
+		write := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the approval gate.",
 			Effect:    agenttool.EffectMutation,
 			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		// The argv manual publishes only under a committed policy naming
 		// its program -- the durable allowlist, not a CLI convenience.
 		if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"git"}); err != nil {

@@ -57,8 +57,7 @@ func TestRealCheckpointVendorParity(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", artifactDir(t), err)
 	}
-	got, err := m.Forward(g.X, g.B, g.H, g.W)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(m.Forward(g.X, g.B, g.H, g.W))(t)
 	requireWithin(t, "real forward", got, g.Out, tolReal)
 }
 
@@ -67,8 +66,7 @@ func TestRealCheckpointVendorParity(t *testing.T) {
 func TestRealCheckpointSample(t *testing.T) {
 	m := loadArtifactModel(t)
 	const steps = 4
-	img, err := m.Sample(t.Context(), 1, 32, 32, steps, 42)
-	testcheck.NoError(t, err)
+	img := testcheck.Must(m.Sample(t.Context(), 1, 32, 32, steps, 42))(t)
 	var sum float64
 	for _, v := range img {
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {

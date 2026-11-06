@@ -20,10 +20,8 @@ import (
 func TestManifestChangesOnlyWithTheInterface(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	manifest, err := compile(root)
-	testcheck.NoError(t, err)
-	content, err := manifest.Content()
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(compile(root))(t)
+	content := testcheck.Must(manifest.Content())(t)
 	var header map[string]json.RawMessage
 	testcheck.NoError(t, json.Unmarshal(content.Data, &header))
 	if _, carried := header["source_identity"]; carried {
@@ -37,8 +35,7 @@ func TestManifestChangesOnlyWithTheInterface(t *testing.T) {
 			t.Errorf("document %s lost the identity of its declaring source %s", document.Name, document.Source)
 		}
 	}
-	published, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestJSONPath)))
-	testcheck.NoError(t, err)
+	published := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestJSONPath))))(t)
 	if !bytes.Equal(bytes.TrimSpace(published), bytes.TrimSpace(content.Data)) {
 		t.Fatalf("%s is not what the source compiles to; regenerate with go run ./cmd/api-manifest -update", manifestJSONPath)
 	}

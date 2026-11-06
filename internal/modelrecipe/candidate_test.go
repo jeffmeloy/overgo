@@ -13,8 +13,7 @@ import (
 
 func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 	spec := candidateFixture(t)
-	first, err := NewCandidate(spec)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewCandidate(spec))(t)
 	if first.ID().Kind() != artifact.KindRecipe || first.ValidateIdentity() != nil {
 		t.Fatal("candidate identity is not a valid recipe document")
 	}
@@ -22,8 +21,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 	permuted := cloneCandidateSpec(spec)
 	slices.Reverse(permuted.Components)
 	slices.Reverse(permuted.References)
-	second, err := NewCandidate(permuted)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewCandidate(permuted))(t)
 	if second.ID() != first.ID() {
 		t.Fatal("candidate identity depends on component or reference input order")
 	}
@@ -35,13 +33,11 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 		t.Fatal("candidate getters expose mutable document storage")
 	}
 
-	content, err := first.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(first.Content())(t)
 	if content.Descriptor.MediaType != CandidateMediaType || content.Descriptor.Schema != CandidateSchema {
 		t.Fatalf("unexpected candidate contract: %+v", content.Descriptor)
 	}
-	parsedDocument, err := candidateCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
+	parsedDocument := testcheck.Must(candidateCodec.Parse(content.Data))(t)
 	parsed := Candidate{document: parsedDocument}
 	if parsed.ID() != first.ID() || parsed.ValidateIdentity() != nil {
 		t.Fatal("candidate document did not round-trip with exact identity")
@@ -114,8 +110,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 		t.Run("identity/"+name, func(t *testing.T) {
 			changed := cloneCandidateSpec(spec)
 			change(&changed)
-			candidate, err := NewCandidate(changed)
-			testcheck.NoError(t, err)
+			candidate := testcheck.Must(NewCandidate(changed))(t)
 			if candidate.ID() == first.ID() {
 				t.Fatal("field change did not change candidate identity")
 			}

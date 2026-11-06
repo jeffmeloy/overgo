@@ -26,8 +26,7 @@ func TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt(t *testing.T) {
 		"server/picture_test.go": "package server\n\nimport (\n\t\"testing\"\n\n\t\"fixture/media\"\n)\n\nfunc TestWebUIBrowserPicture(t *testing.T) { _ = media.M }\n\nfunc TestModelJourneyPicture(t *testing.T) {}\n",
 	})
 	candidate := lane{name: "webui", packages: []string{"./server"}, tests: "server", testPrefix: webuilane.BrowserTestPrefix}
-	reaches, err := discover(repo, candidate)
-	testcheck.NoError(t, err)
+	reaches := testcheck.Must(discover(repo, candidate))(t)
 	for _, change := range []struct {
 		paths []string
 		by    string

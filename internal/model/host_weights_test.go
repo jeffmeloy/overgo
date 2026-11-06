@@ -18,10 +18,8 @@ import (
 
 func TestLoadHostTensor(t *testing.T) {
 	data := hostTensorFixture(t, "weight", 4)
-	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
-	value, err := LoadHostTensor(t.Context(), file, file.Tensors[0])
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions()))(t)
+	value := testcheck.Must(LoadHostTensor(t.Context(), file, file.Tensors[0]))(t)
 	if !value.Shape.Equal(tensor.MustShape(4)) {
 		t.Fatalf("shape = %v", value.Shape.Slice())
 	}
@@ -59,8 +57,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 		every = append(every, tableRows-1-row, row)
 	}
 	reader.calls.Store(0)
-	value, err := LoadHostRows(t.Context(), file, file.Tensors[0], every)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(LoadHostRows(t.Context(), file, file.Tensors[0], every))(t)
 	if reader.calls.Load() != tableRows {
 		t.Fatalf("read %d rows, want %d", reader.calls.Load(), tableRows)
 	}
@@ -77,8 +74,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	check(long, value.Data)
 
 	// One set of eight ways: of nine rows read, eight stay.
-	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(NewHostRows(file, file.Tensors[0], hostRowWays))(t)
 	nine := []uint32{0, 1, 2, 3, 4, 5, 6, 7, 8}
 	for _, want := range []int64{9, 1} {
 		reader.calls.Store(0)
@@ -109,8 +105,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	// A table in a file is read through handles of its own, at the table's offset in the file.
 	path := filepath.Join(t.TempDir(), "table.gguf")
 	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
-	opened, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(gguf.Open(path))(t)
 	defer opened.Close()
 	if rows, err = NewHostRows(opened, opened.Tensors[0], 0); err != nil {
 		t.Fatal(err)
@@ -126,8 +121,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 		t.Fatalf("closing the reader left %d handles: %v", len(rows.handles), err)
 	}
 
-	scores, err := DotRows(t.Context(), file, file.Tensors[0], []float32{1, 1})
-	testcheck.NoError(t, err)
+	scores := testcheck.Must(DotRows(t.Context(), file, file.Tensors[0], []float32{1, 1}))(t)
 	for row, score := range scores {
 		if score != float32(4*row+3) {
 			t.Fatalf("score[%d] = %v, want %v", row, score, 4*row+3)
@@ -166,16 +160,14 @@ func TestHostRowsPrefetchesReadTogether(t *testing.T) {
 	reader := &heldRowReader{Reader: bytes.NewReader(data), started: make(chan struct{}), release: make(chan struct{})}
 	file, err := gguf.Parse(reader, uint64(len(data)), gguf.DefaultOptions())
 	testcheck.NoError(t, err)
-	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(NewHostRows(file, file.Tensors[0], hostRowWays))(t)
 	defer rows.Close()
 	reader.hold.Store(true)
 	rows.Prefetch(t.Context(), []uint32{1})
 	<-reader.started
 	reader.hold.Store(false)
 	rows.Prefetch(t.Context(), []uint32{2})
-	value, err := rows.Load(t.Context(), []uint32{2})
-	testcheck.NoError(t, err)
+	value := testcheck.Must(rows.Load(t.Context(), []uint32{2}))(t)
 	if value.Data[0] != 5 || reader.finished.Load() != 1 {
 		t.Fatalf("row 2 = %v with %d reads finished, want 5 beside the held read", value.Data, reader.finished.Load())
 	}

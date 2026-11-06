@@ -12,8 +12,7 @@ import (
 func TestByteCodecRoundTrip(t *testing.T) {
 	input := []byte{0, '\n', ' ', '!', 0xa0, 0xff}
 	encoded := encodeBytes(input)
-	decoded, err := decodeBytes(encoded)
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(decodeBytes(encoded))(t)
 	if !reflect.DeepEqual(decoded, input) {
 		t.Fatalf("decoded = %v, want %v", decoded, input)
 	}
@@ -156,25 +155,21 @@ func TestLoadEncodeDecodeAndSpecialTokens(t *testing.T) {
 		scalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(8)),
 		scalar("tokenizer.ggml.add_eos_token", gguf.ValueTypeBool, true),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
 	if vocab.Len() != 10 || len(vocab.mergeRank) != 4 {
 		t.Fatalf("vocab sizes = %d/%d, want 10/4", vocab.Len(), len(vocab.mergeRank))
 	}
 
-	ids, err := vocab.Encode("hello", EncodeOptions{AddSpecial: true})
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(vocab.Encode("hello", EncodeOptions{AddSpecial: true}))(t)
 	if want := []TokenID{7, 8}; !reflect.DeepEqual(ids, want) {
 		t.Fatalf("Encode = %v, want %v", ids, want)
 	}
-	decoded, err := vocab.Decode(ids, false)
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(vocab.Decode(ids, false))(t)
 	if decoded != "hello" {
 		t.Fatalf("Decode = %q, want hello", decoded)
 	}
 
-	ids, err = vocab.Encode("<eos>hello", EncodeOptions{ParseSpecial: true})
-	testcheck.NoError(t, err)
+	ids = testcheck.Must(vocab.Encode("<eos>hello", EncodeOptions{ParseSpecial: true}))(t)
 	if want := []TokenID{8, 7}; !reflect.DeepEqual(ids, want) {
 		t.Fatalf("special Encode = %v, want %v", ids, want)
 	}
@@ -195,10 +190,8 @@ func TestDecodeDeclaredDNAExtension(t *testing.T) {
 		array(MetadataDNASpecialTokens, gguf.ValueTypeString, []string{"<dna>", "</dna>", "<oov>"}),
 		scalar(MetadataDNAAutoTags, gguf.ValueTypeBool, false),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
-	decoded, err := vocab.Decode([]TokenID{1, 2, 3, 4, 5, 6, 7, 8, 9}, false)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
+	decoded := testcheck.Must(vocab.Decode([]TokenID{1, 2, 3, 4, 5, 6, 7, 8, 9}, false))(t)
 	if decoded != "<dna></dna><oov>ATCG" {
 		t.Fatalf("DNA extension decode = %q", decoded)
 	}
@@ -220,15 +213,12 @@ func TestGemma4RawBPEAndNewlines(t *testing.T) {
 		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true),
 		scalar("tokenizer.ggml.eot_token_id", gguf.ValueTypeUint32, uint32(8)),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
-	ids, err := vocab.Encode(" hi\n\né", EncodeOptions{AddSpecial: true})
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
+	ids := testcheck.Must(vocab.Encode(" hi\n\né", EncodeOptions{AddSpecial: true}))(t)
 	if want := []TokenID{0, 4, 5, 6, 7}; !reflect.DeepEqual(ids, want) {
 		t.Fatalf("Gemma 4 Encode = %v, want %v", ids, want)
 	}
-	decoded, err := vocab.Decode(ids, false)
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(vocab.Decode(ids, false))(t)
 	if decoded != " hi\n\né" {
 		t.Fatalf("Gemma 4 Decode = %q", decoded)
 	}
@@ -274,8 +264,7 @@ func TestLoadDeclaredFIMMetadata(t *testing.T) {
 		scalar("tokenizer.ggml.fim_rep_token_id", gguf.ValueTypeUint32, uint32(5)),
 		scalar("tokenizer.ggml.fim_sep_token_id", gguf.ValueTypeUint32, uint32(6)),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
 	if vocab.FIMPre != 1 ||
 		vocab.FIMSuf != 2 ||
 		vocab.FIMMid != 3 ||

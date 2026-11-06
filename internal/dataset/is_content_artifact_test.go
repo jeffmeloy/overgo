@@ -13,15 +13,13 @@ import (
 func TestIsContentArtifact(t *testing.T) {
 	content := []artifact.Kind{artifact.KindDataset, artifact.KindDatasetShard, artifact.KindFile}
 	for _, kind := range content {
-		id, err := artifact.IdentifyBytes(kind, []byte("content"))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, []byte("content")))(t)
 		if !IsContentArtifact(id) {
 			t.Fatalf("content kind %s rejected", kind)
 		}
 	}
 	for _, kind := range []artifact.Kind{artifact.KindModel, artifact.KindRecipe, artifact.KindEvidence, artifact.KindProfile} {
-		id, err := artifact.IdentifyBytes(kind, []byte("other"))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, []byte("other")))(t)
 		if IsContentArtifact(id) {
 			t.Fatalf("non-content kind %s accepted", kind)
 		}

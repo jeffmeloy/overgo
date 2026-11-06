@@ -66,8 +66,7 @@ func (l *crashLedger) head(id artifact.CommitID, sequence uint64) {
 }
 
 func crashContent(t testing.TB, kind artifact.Kind, data []byte) artifact.Content {
-	id, err := artifact.IdentifyBytes(kind, data)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(kind, data))(t)
 	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "application/octet-stream"}, Data: data}
 }
 
@@ -790,8 +789,7 @@ func crashSummary(findings []crashFinding) []string {
 }
 
 func crashTemp(t *testing.T) string {
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.EvalSymlinks(t.TempDir()))(t)
 	return root
 }
 

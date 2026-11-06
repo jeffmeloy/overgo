@@ -70,8 +70,7 @@ func modelFromGolden(t *testing.T, g *tinyGolden) *Model {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	m, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0))(t)
 	want := Dims{
 		Vocab: g.Config.VocabSize, Hidden: g.Config.HiddenSize,
 		Layers: g.Config.NumHiddenLayers, Heads: g.Config.NumAttentionHeads,

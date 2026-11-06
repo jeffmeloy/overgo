@@ -58,8 +58,7 @@ func TestModelJourneyServedProjector(t *testing.T) {
 		t.Fatalf("served projector unavailable: the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
 	t.Logf("served projector: model %s at %s, declared projector %s", name, location, projectorPath)
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0))(t)
 	defer supervisor.Close()
 	repository := overgodbtest.OpenReadOnly(t, store)
 	proxy := &modelswap.Proxy{
@@ -80,8 +79,7 @@ func TestModelJourneyServedProjector(t *testing.T) {
 	}
 	// The proxy admits the request once the served child has announced its
 	// listener, so one request reads the capability document.
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/workspace/manifest", nil)
-	testcheck.NoError(t, err)
+	request := testcheck.Must(http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/workspace/manifest", nil))(t)
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("the capability document did not answer: %v", err)

@@ -25,8 +25,7 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT to audit the exact stored guard records; no measurement runs")
 	}
-	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(filepath.Join("..", "..")))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	const acceptedSurface = "d3ff45edf061f7a2f8833d9625a6154532e1760fd08878cb89343f46a728341f"
 	const acceptedCommit = "e4b9d1e6b1b46626f1b934a7360db76c960277ce"

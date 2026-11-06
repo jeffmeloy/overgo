@@ -21,8 +21,7 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 		SourceResidency: recipe.ResidencyHostCache, TargetResidency: recipe.ResidencyDeviceNative,
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}
-	definition, err := compiler.Definition(sourceModel, targetModel, sourceContract, targetContract, bridge)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(compiler.Definition(sourceModel, targetModel, sourceContract, targetContract, bridge))(t)
 	bindings := []struct {
 		role recipe.DependencyRole
 		slot uint32
@@ -40,14 +39,12 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 			t.Fatalf("dependency %s/%d = %s, %t; want %s", binding.role, binding.slot, got, ok, binding.want)
 		}
 	}
-	program, err := recipe.CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(recipe.CompileProgram(definition, catalog))(t)
 	extents := map[artifact.ID]uint64{sourceModel: 13, targetModel: 17}
-	resources, err := CompileComponentSessionPlanWithExtents(
+	resources := testcheck.Must(CompileComponentSessionPlanWithExtents(
 		t.Context(), program,
 		func(_ context.Context, id artifact.ID) (uint64, error) { return extents[id], nil },
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(resources.Components) != len(extents) || resources.ArtifactBytes != 30 {
 		t.Fatalf("component resources = %+v", resources)
 	}
@@ -63,10 +60,8 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 	if !resources.RequestScoped() {
 		t.Fatal("target request lifetime was not preserved")
 	}
-	content, err := definition.Content()
-	testcheck.NoError(t, err)
-	roundTrip, err := recipe.ParseDefinition(content)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(definition.Content())(t)
+	roundTrip := testcheck.Must(recipe.ParseDefinition(content))(t)
 	if roundTrip.ID != definition.ID {
 		t.Fatalf("recipe identity changed: got %s want %s", roundTrip.ID, definition.ID)
 	}

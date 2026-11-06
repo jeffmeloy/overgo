@@ -41,8 +41,7 @@ func assertDecodedTokensContinue(t *testing.T, runner *Runner) {
 		t.Helper()
 		ctx, cancel := context.WithCancelCause(t.Context())
 		defer cancel(nil)
-		sampler, err := sampling.New(sampling.Config{})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(sampling.Config{}))(t)
 		var evaluation PromptEvaluation
 		delivered := 0
 		result, _, err := runner.Generate(ctx, "", GenerateOptions{
@@ -79,8 +78,7 @@ func assertDecodedTokensContinue(t *testing.T, runner *Runner) {
 func openPromptCacheHostRunner(t *testing.T) *Runner {
 	t.Helper()
 	path := testutil.HermeticLlamaGGUF(t, 16)
-	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference))(t)
 	t.Cleanup(func() { _ = runner.Close() })
 	return runner
 }

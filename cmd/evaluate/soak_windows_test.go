@@ -56,8 +56,7 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Create(t, roots.Store)
 	path := soakModelPath(t, ctx, store)
-	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, path)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(ctx, store, path))(t)
 	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
@@ -65,12 +64,10 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 	}
 	defer runner.Close()
 	runtime := chatShapedRuntime{runner}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	generate := func(prompt string) string {
 		t.Helper()
-		shaped, err := runtime.ShapeChatPrompt(prompt)
-		testcheck.NoError(t, err)
+		shaped := testcheck.Must(runtime.ShapeChatPrompt(prompt))(t)
 		// DeviceGreedy takes the device argmax path the evaluator's
 		// generated-answer scoring uses, the one that reuses parameterized
 		// decode sessions across generations.
@@ -138,10 +135,8 @@ const soakFiller = " and"
 func soakPromptWithTokens(t *testing.T, runtime chatShapedRuntime, tokens int) string {
 	t.Helper()
 	count := func(prompt string) int {
-		shaped, err := runtime.ShapeChatPrompt(prompt)
-		testcheck.NoError(t, err)
-		ids, err := runtime.TokenizeText(shaped, true, true)
-		testcheck.NoError(t, err)
+		shaped := testcheck.Must(runtime.ShapeChatPrompt(prompt))(t)
+		ids := testcheck.Must(runtime.TokenizeText(shaped, true, true))(t)
 		return len(ids)
 	}
 	base := "Q: Count the words."
@@ -177,8 +172,7 @@ func soakPrompt(repeats int) string {
 // evaluation domains admit text, the model every pass runs first.
 func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) string {
 	t.Helper()
-	entries, err := discovery.ServableWithMemo(ctx, store, 256, nil)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(discovery.ServableWithMemo(ctx, store, 256, nil))(t)
 	type sized struct {
 		path  string
 		bytes int64

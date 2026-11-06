@@ -78,25 +78,23 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 			}
 		}
 		profile := testutil.ArtifactID(t, artifact.KindProfile, name)
-		objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+		objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 			Name: name, Kind: kind,
 			Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{modality}, Outputs: []recipecontract.Modality{modality}},
 			Dataset:   testutil.ArtifactBytesID(t, artifact.KindDataset, data), Split: testutil.ArtifactID(t, artifact.KindDatasetShard, name),
 			Processors: []artifact.ID{profile}, Loss: profile, Evaluation: profile, Metric: metric,
 			Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, name)}, Authority: trainingprogram.ObjectiveApproved,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		model, objectiveID := testutil.ArtifactID(t, artifact.KindModel, name), publish(objective.Content())
 		if alias != "" {
 			if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/objective/" + name, Aliases: []artifact.AliasBinding{{Name: alias, Target: objectiveID}}}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		definition, err := recipe.NewDefinitionWithDependencies(recipe.TaskTraining,
+		definition := testcheck.Must(recipe.NewDefinitionWithDependencies(recipe.TaskTraining,
 			[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}, {Role: recipe.DependencyObjective, Artifact: objectiveID}},
 			[]recipe.Node{{ID: "optimize", Module: "training.optimize", Placement: recipe.PlacementHost}}, nil, nil,
-			[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}})
-		testcheck.NoError(t, err)
+			[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}}))(t)
 		return ModelValidation{
 			Model: model, ModelName: name, Location: filepath.Join(models, name, weights),
 			Kind: recipe.TaskTraining, Validation: trainingProof, Recipe: publish(definition.ArtifactContent()),
@@ -143,10 +141,8 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		for path, payload := range map[string][]byte{modelPath: modelWeights, projectorPath: projectorWeights} {
 			testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 		}
-		model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: modelComponent}})
-		testcheck.NoError(t, err)
-		projector, err := artifact.NewManifest(artifact.KindProjector, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: projectorComponent}})
-		testcheck.NoError(t, err)
+		model := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: modelComponent}}))(t)
+		projector := testcheck.Must(artifact.NewManifest(artifact.KindProjector, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: projectorComponent}}))(t)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key: key + "/facts",
 			Artifacts: []artifact.Descriptor{
@@ -160,20 +156,17 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		definition, err := modelrecipe.ProjectionDefinition(model.ID, projector.ID, artifact.ID{}, recipe.DataImage)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.ProjectionDefinition(model.ID, projector.ID, artifact.ID{}, recipe.DataImage))(t)
 		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, key, definition))
-		environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test"})
-		testcheck.NoError(t, err)
+		environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test"}))(t)
 		environmentBatch, err := environment.Batch(key + "/environment")
 		if err == nil {
 			_, err = artifact.CommitBatch(ctx, store, environmentBatch)
 		}
 		testcheck.NoError(t, err)
-		gate, err := runrecord.NewGateRecord(definition.ID, environment.ID, fixtureCommit, runrecord.OutcomeSucceeded, "", 1, []runrecord.GateStep{{
+		gate := testcheck.Must(runrecord.NewGateRecord(definition.ID, environment.ID, fixtureCommit, runrecord.OutcomeSucceeded, "", 1, []runrecord.GateStep{{
 			Name: "candidate-execution", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1, Evidence: evidence,
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		gateBatch, err := gate.Batch(key + "/gate")
 		if err == nil {
 			_, err = artifact.CommitBatch(ctx, store, gateBatch)
@@ -186,21 +179,18 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		}
 	}
 	exactRan := func(suite evaluation.ExactSuite) string {
-		compiled, err := evaluation.CompileExact(suite)
-		testcheck.NoError(t, err)
-		plan, err := evaluation.BindExact(compiled, evaluation.ExactAuthorities{
+		compiled := testcheck.Must(evaluation.CompileExact(suite))(t)
+		plan := testcheck.Must(evaluation.BindExact(compiled, evaluation.ExactAuthorities{
 			ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "exact"), RuntimeRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "exact"),
 			CodeCommit: fixtureCommit, Environment: testutil.ArtifactID(t, artifact.KindEvidence, "exact"),
 			Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return exactPlan + publish(plan.Content()).String() + ";report=" + testutil.ArtifactID(t, artifact.KindEvaluation, "exact").String() + ";cases=" + strconv.Itoa(len(suite.Cases))
 	}
 	var suite evaluation.ExactSuite
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, filepath.FromSlash(projectionSuites[0])), &suite))
 	exact := projection("Qwen27", exactRan(suite))
-	oracle, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(protocolOracle)))
-	testcheck.NoError(t, err)
+	oracle := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(protocolOracle))))(t)
 	protocol := projection("E4B", fmt.Sprintf("%s%x;model_definition=%s;cases=18", protocolNames, sha256.Sum256(oracle), testutil.ArtifactID(t, artifact.KindModelDefinition, "e4b")))
 	suite.Cases = slices.Clone(suite.Cases)
 	suite.Cases[0].Text += " but another answer"
@@ -340,20 +330,17 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	}
 	// A selected cell keeps its recipe even if another invocation replaces
 	// the active alias before its proof is read.
-	definition, err := recipe.RequireDefinition(ctx, store, objective.Recipe)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(ctx, store, objective.Recipe))(t)
 	testutil.PublishArtifact(t, store, objective.Model)
 	for _, placement := range []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice} {
 		nodes := slices.Clone(definition.Nodes)
 		nodes[0].Placement = placement
-		active, err := recipe.NewDefinitionWithDependencies(definition.Task, definition.Dependencies,
-			nodes, definition.Edges, definition.Inputs, definition.Outputs)
-		testcheck.NoError(t, err)
+		active := testcheck.Must(recipe.NewDefinitionWithDependencies(definition.Task, definition.Dependencies,
+			nodes, definition.Edges, definition.Inputs, definition.Outputs))(t)
 		if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/proof/"+string(placement)+"/candidate", active); err != nil {
 			t.Fatal(err)
 		}
-		verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/proof/"+string(placement), active.ID)
-		testcheck.NoError(t, err)
+		verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/proof/"+string(placement), active.ID))(t)
 		testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, active, verification, recipe.EvidenceVerified, "proof selection fixture"))
 		current := objective
 		current.Recipe = active.ID
@@ -363,8 +350,7 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		}
 		for _, cell := range selections {
 			t.Run(string(placement)+"/"+cell.Recipe.String(), func(t *testing.T) {
-				cost, err := proofCost(ctx, store, cell)
-				testcheck.NoError(t, err)
+				cost := testcheck.Must(proofCost(ctx, store, cell))(t)
 				if cell.Recipe != active.ID {
 					if cost != 0 {
 						t.Fatalf("another recipe supplied selected proof: cost %d", cost)

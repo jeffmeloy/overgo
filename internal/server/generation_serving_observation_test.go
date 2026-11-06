@@ -118,21 +118,17 @@ func TestGenerationAttemptCitesTheRunItsExecutorMade(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/executor/facts", Artifacts: []artifact.Descriptor{{ID: device}, {ID: made}}}); err != nil {
 		t.Fatal(err)
 	}
-	inner, err := runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{made}, "", strings.Repeat("ab", 20), device, 1, nil)
-	testcheck.NoError(t, err)
+	inner := testcheck.Must(runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{made}, "", strings.Repeat("ab", 20), device, 1, nil))(t)
 	// The executor's failure code is not the workspace's, so the two failed
 	// runs are different records.
-	refused, err := runrecord.NewRun(recipeID, runrecord.OutcomeFailed, nil, nil, "executor_refused")
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(runrecord.NewRun(recipeID, runrecord.OutcomeFailed, nil, nil, "executor_refused"))(t)
 	for key, run := range map[string]runrecord.Run{"fixture/executor/run": inner, "fixture/executor/refused": refused} {
-		batch, err := run.Batch(key)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(run.Batch(key))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	process, err := runrecord.CurrentEnvironment("process", "go")
-	testcheck.NoError(t, err)
+	process := testcheck.Must(runrecord.CurrentEnvironment("process", "go"))(t)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			switch raw {

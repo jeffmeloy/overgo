@@ -39,13 +39,11 @@ var promptTensorCoreModels = []struct {
 func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	// derive compiles the family's suite under the protocol asked, once for each model's parts.
 	derive := func(t *testing.T, family string, asked prompting) CompiledSuite {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(roots.Store)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 		defer store.Close()
 		authorities := ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "prompt-tensor-cores"), RuntimeRecipe: planID(t, artifact.KindRecipe, "prompt-tensor-cores"),
@@ -70,8 +68,7 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 			parts := map[string]CompiledSuite{"bbh": derive(t, "bbh", PromptingRawCompletion), "ifeval": derive(t, "ifeval", served.ifeval)}
 			right := map[bool]map[string]map[string]bool{}
 			for _, tensorCores := range []bool{false, true} {
-				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, file, inference.OpenOptions{PromptTensorCores: &tensorCores})
-				testcheck.NoError(t, err)
+				runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, file, inference.OpenOptions{PromptTensorCores: &tensorCores}))(t)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)

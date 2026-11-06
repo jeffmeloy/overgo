@@ -18,17 +18,14 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := NewModelBuilderWorkspace(ctx, store)
-	testcheck.NoError(t, err)
+	workspace := testcheck.Must(NewModelBuilderWorkspace(ctx, store))(t)
 	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
-	input, err := json.Marshal(modelBuildInput{Corpus: "abcd\nbcda\ncdab\ndabc", Seed: 1, Steps: 1})
-	testcheck.NoError(t, err)
-	completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild,
-		capabilities[0], input, testReporter{id: testutil.ArtifactID(t, artifact.KindEvidence, "model-builder-operation")})
-	testcheck.NoError(t, err)
+	input := testcheck.Must(json.Marshal(modelBuildInput{Corpus: "abcd\nbcda\ncdab\ndabc", Seed: 1, Steps: 1}))(t)
+	completion := testcheck.Must(workspace.ExecuteWorkflow(ctx, workflowModelBuild,
+		capabilities[0], input, testReporter{id: testutil.ArtifactID(t, artifact.KindEvidence, "model-builder-operation")}))(t)
 	if completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 5 {
 		t.Fatalf("completion=%+v", completion)
 	}

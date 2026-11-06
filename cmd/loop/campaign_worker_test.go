@@ -17,8 +17,7 @@ import (
 func TestCampaignWorkerExitContinues(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_WORKER_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
-		prompt, err := io.ReadAll(os.Stdin)
-		testcheck.NoError(t, err)
+		prompt := testcheck.Must(io.ReadAll(os.Stdin))(t)
 		body, bound := strings.CutPrefix(string(prompt), "Test campaign policy\n\n")
 		if !bound {
 			t.Fatal("strategy prompt was not supplied to worker")

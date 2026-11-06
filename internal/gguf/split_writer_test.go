@@ -55,8 +55,7 @@ func TestWriteSplitRoundTripsLogicalModel(t *testing.T) {
 		},
 	)
 	testcheck.NoError(t, err)
-	merged, err := Open(formatSplitPath(prefix, 0, 4))
-	testcheck.NoError(t, err)
+	merged := testcheck.Must(Open(formatSplitPath(prefix, 0, 4)))(t)
 	defer merged.Close()
 	if merged.SplitCount != 4 || len(merged.Tensors) != 5 {
 		t.Fatalf("split/tensors = %d/%d, want 4/5", merged.SplitCount, len(merged.Tensors))
@@ -88,8 +87,7 @@ func TestPlanSplitsHonorsAlignedPayloadTarget(t *testing.T) {
 			{Name: "c", Size: 16},
 		},
 	}
-	partitions, err := file.planSplits(SplitOptions{MaxTensors: 10, MaxBytes: 64})
-	testcheck.NoError(t, err)
+	partitions := testcheck.Must(file.planSplits(SplitOptions{MaxTensors: 10, MaxBytes: 64}))(t)
 	if len(partitions) != 2 || len(partitions[0]) != 2 || len(partitions[1]) != 1 {
 		t.Fatalf("partition sizes = %v", []int{len(partitions[0]), len(partitions[1])})
 	}

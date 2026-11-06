@@ -101,8 +101,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 		},
 	}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
-	handler, err := New(Config{Repository: store, Workflows: workspace, LibraryIntake: intake}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: workspace, LibraryIntake: intake}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	fixture.handler, fixture.workspace = handler, workspace
 	return fixture
@@ -117,10 +116,8 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	request := func(method, path string, body any, status int, out any) {
 		t.Helper()
 		var raw []byte
-		var err error
 		if body != nil {
-			raw, err = json.Marshal(body)
-			testcheck.NoError(t, err)
+			raw = testcheck.Must(json.Marshal(body))(t)
 		}
 		response := serveTestRequest(handler, method, path, string(raw))
 		if response.Code != status {

@@ -65,14 +65,12 @@ func TestStreamPublicationContract(t *testing.T) {
 			}
 			return nil
 		}}
-		store, err := New(objectRoot, observed)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(New(objectRoot, observed))(t)
 		streamSize := int64(artifact.MaxContentBytes) + 1
-		publication, err := store.Publish(ctx, PublishRequest{
+		publication := testcheck.Must(store.Publish(ctx, PublishRequest{
 			Kind: artifact.KindModel, MediaType: "application/octet-stream",
 			Reader: io.LimitReader(zeroReader{}, streamSize),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if publication.Descriptor.Size != uint64(streamSize) || !publication.Commit.Valid() {
 			t.Fatalf("publication = %+v", publication)
 		}
@@ -91,12 +89,10 @@ func TestStreamPublicationContract(t *testing.T) {
 		root := t.TempDir()
 		repository := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 		objectRoot := filepath.Join(root, "objects")
-		store, err := New(objectRoot, repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(New(objectRoot, repository))(t)
 		payload := []byte("idempotent object")
 		request := PublishRequest{Kind: artifact.KindDataset, Reader: bytes.NewReader(payload)}
-		first, err := store.Publish(ctx, request)
-		testcheck.NoError(t, err)
+		first := testcheck.Must(store.Publish(ctx, request))(t)
 		request.Reader = bytes.NewReader(payload)
 		second, err := store.Publish(ctx, request)
 		if err != nil || first != second {
@@ -108,8 +104,7 @@ func TestStreamPublicationContract(t *testing.T) {
 		}); !errors.Is(err, errStreamFixture) {
 			t.Fatalf("failed stream error = %v", err)
 		}
-		expected, err := artifact.IdentifyBytes(artifact.KindCheckpoint, []byte("expected"))
-		testcheck.NoError(t, err)
+		expected := testcheck.Must(artifact.IdentifyBytes(artifact.KindCheckpoint, []byte("expected")))(t)
 		if _, err := store.Publish(ctx, PublishRequest{
 			Kind: artifact.KindCheckpoint, Expected: &expected, Reader: bytes.NewBufferString("different"),
 		}); err == nil {
@@ -124,8 +119,7 @@ func TestStreamPublicationContract(t *testing.T) {
 
 func assertStagingEmpty(t *testing.T, root string) {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(root, stagingDirectory))
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(filepath.Join(root, stagingDirectory)))(t)
 	if len(entries) != 0 {
 		t.Fatalf("staging entries remain: %v", entries)
 	}

@@ -69,10 +69,8 @@ func openTemplateRunner(t *testing.T, contextLength uint32, template string, ada
 	t.Helper()
 	path := testutil.HermeticLlamaGGUFWith(t, contextLength,
 		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template))
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
-	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{LoRAAdapters: adapters})
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))(t)
+	runner := testcheck.Must(inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{LoRAAdapters: adapters}))(t)
 	t.Cleanup(func() { _ = runner.Close() })
 	return runner
 }
@@ -91,8 +89,7 @@ func TestContinuationRestoresSamplerState(t *testing.T) {
 	post := func(target *Handler, body map[string]any) (int, map[string]any) {
 		t.Helper()
 		body["model"] = testModelID
-		data, err := json.Marshal(body)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(body))(t)
 		response := serveTestRequest(target, http.MethodPost, "/v1/responses", string(data))
 		var decoded map[string]any
 		_ = json.Unmarshal(response.Body.Bytes(), &decoded)
@@ -104,10 +101,8 @@ func TestContinuationRestoresSamplerState(t *testing.T) {
 		if err != nil || !found || !interaction.Context.Valid() {
 			t.Fatalf("interaction %s = %+v found=%v err=%v", id, interaction, found, err)
 		}
-		tokens, err := runrecord.RequireInteractionContext(t.Context(), store, interaction.Context)
-		testcheck.NoError(t, err)
-		transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
-		testcheck.NoError(t, err)
+		tokens := testcheck.Must(runrecord.RequireInteractionContext(t.Context(), store, interaction.Context))(t)
+		transcript := testcheck.Must(runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message))(t)
 		return tokens, transcript.Messages[len(transcript.Messages)-1].Content
 	}
 	// A fresh grammar would begin again with "ab"; only the turn's own state
@@ -203,12 +198,10 @@ func TestContinuationRestoresSamplerState(t *testing.T) {
 		t.Fatalf("stopped turn kept sampling %s (%v), want its sampler state", stoppedTokens.Sampling, err)
 	}
 	parameters.State = nil
-	stateless, err := json.Marshal(parameters)
-	testcheck.NoError(t, err)
+	stateless := testcheck.Must(json.Marshal(parameters))(t)
 	interaction, _, err := runrecord.ResolveInteraction(t.Context(), store, stoppedID)
 	testcheck.NoError(t, err)
-	transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
-	testcheck.NoError(t, err)
+	transcript := testcheck.Must(runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message))(t)
 	kept := turnRecord{context: &runrecord.InteractionContext{Tokens: stoppedTokens.Tokens, Sampling: stateless, Held: stoppedTokens.Held}}
 	if err := handler.publishResponseInteraction(t.Context(), "resp_stateless", interaction.Parent,
 		responseMessages(transcript.Messages), runrecord.OutcomeCancelled, "", kept); err != nil {

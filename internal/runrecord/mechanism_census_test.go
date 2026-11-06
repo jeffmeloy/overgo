@@ -17,10 +17,8 @@ func TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers(t *testing.T) {
 		Gap: id(artifact.KindEvidence, "missing-router-observations"), Falsifier: id(artifact.KindRecipe, "router-observation-audit"),
 		GapState: trainingprogram.MechanismGapOpen,
 	}
-	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
-	content, err := census.Content()
-	testcheck.NoError(t, err)
+	census := testcheck.Must(trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment}))(t)
+	content := testcheck.Must(census.Content())(t)
 	descriptors := []artifact.Descriptor{{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}}
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{

@@ -28,12 +28,10 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	writer := overgodbtest.Create(t, fixture.storePath)
 	definition := fixture.workspace.program.Definition()
-	failed, err := runrecord.NewGateRecord(definition.ID, fixture.workspace.environment, transcriptionHTTPCommit,
+	failed := testcheck.Must(runrecord.NewGateRecord(definition.ID, fixture.workspace.environment, transcriptionHTTPCommit,
 		runrecord.OutcomeFailed, "fixture-retirement", 1, []runrecord.GateStep{{Name: "fixture-retirement",
-			Phase: runrecord.PhaseValidate, Outcome: runrecord.StepFailed, DurationNS: 1}})
-	testcheck.NoError(t, err)
-	batch, err := failed.Batch("transcription/fixture-retirement")
-	testcheck.NoError(t, err)
+			Phase: runrecord.PhaseValidate, Outcome: runrecord.StepFailed, DurationNS: 1}}))(t)
+	batch := testcheck.Must(failed.Batch("transcription/fixture-retirement"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), writer, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +71,7 @@ func testAudioTranscriptionsMultipart(t *testing.T) {
 			values := map[string]string{"model": fixture.workspace.policy.Recipe.String(), "response_format": "json", "stream": "false"}
 			for _, field := range []string{"file", "model", "response_format", "stream", name} {
 				if field == "file" {
-					part, err := writer.CreateFormFile(field, "clip.wav")
-					testcheck.NoError(t, err)
+					part := testcheck.Must(writer.CreateFormFile(field, "clip.wav"))(t)
 					if _, err := part.Write(fixture.wave); err != nil {
 						t.Fatal(err)
 					}

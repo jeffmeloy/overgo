@@ -22,8 +22,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	if err != nil || id.DigestHex() != "8489f99bbbca59394ebcaf90f2573fc50a7abaf8093cb6914fb398526d443608" {
 		t.Fatal("native options identity", err)
 	}
-	source, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer source.Close()
 	var contract struct {
 		Comparison struct {

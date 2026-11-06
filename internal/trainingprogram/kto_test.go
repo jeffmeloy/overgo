@@ -76,8 +76,7 @@ func TestKTOModeTrainsOnUnpairedFeedback(t *testing.T) {
 	})
 	t.Run("the KL estimate carries no gradient", func(t *testing.T) {
 		// A two-example batch whose mismatched rewards average 0.45 > 0.
-		policy, err := trainingprogram.KTOPolicy(reference, 0.7, 1, 1)
-		testcheck.NoError(t, err)
+		policy := testcheck.Must(trainingprogram.KTOPolicy(reference, 0.7, 1, 1))(t)
 		scores := []trainingprogram.UnpairedScores{
 			{Desirable: true, Policy: score(-2.1), Reference: score(-2.4), MismatchedPolicy: score(-3.3), MismatchedReference: score(-3.9)},
 			{Policy: score(-1.6), Reference: score(-1.5), MismatchedPolicy: score(-4.2), MismatchedReference: score(-4.5)},
@@ -91,8 +90,7 @@ func TestKTOModeTrainsOnUnpairedFeedback(t *testing.T) {
 			loss := func(delta float64) float64 {
 				moved := slices.Clone(scores)
 				move(moved, delta)
-				value, err := policy.UnpairedLoss(moved)
-				testcheck.NoError(t, err)
+				value := testcheck.Must(policy.UnpairedLoss(moved))(t)
 				return value.Loss
 			}
 			return (loss(epsilon) - loss(-epsilon)) / (2 * epsilon)
@@ -155,12 +153,9 @@ func TestKTOModeTrainsOnUnpairedFeedback(t *testing.T) {
 					undesirable++
 				}
 			}
-			policy, err := trainingprogram.KTOPolicy(reference, scale, desirable, undesirable)
-			testcheck.NoError(t, err)
-			beforeLoss, err := policy.UnpairedLoss(before)
-			testcheck.NoError(t, err)
-			afterLoss, err := policy.UnpairedLoss(after)
-			testcheck.NoError(t, err)
+			policy := testcheck.Must(trainingprogram.KTOPolicy(reference, scale, desirable, undesirable))(t)
+			beforeLoss := testcheck.Must(policy.UnpairedLoss(before))(t)
+			afterLoss := testcheck.Must(policy.UnpairedLoss(after))(t)
 			beforeMargin := beforeLoss.DesirableReward - beforeLoss.UndesirableReward
 			afterMargin := afterLoss.DesirableReward - afterLoss.UndesirableReward
 			if !(afterMargin > beforeMargin) || membership.ID == fixture.training.ID && !(afterLoss.Loss < beforeLoss.Loss) {
@@ -221,10 +216,8 @@ func (fixture ktoFixture) examples(t *testing.T, membership dataset.Membership) 
 	examples := make([]trainingdata.UnpairedExample, len(membership.Records))
 	for index, record := range membership.Records {
 		document := fixture.documents[record.ID]
-		prompt, err := tokenizer.Encode(document["prompt"].(string))
-		testcheck.NoError(t, err)
-		tokens, err := tokenizer.Encode(document["prompt"].(string) + document["completion"].(string))
-		testcheck.NoError(t, err)
+		prompt := testcheck.Must(tokenizer.Encode(document["prompt"].(string)))(t)
+		tokens := testcheck.Must(tokenizer.Encode(document["prompt"].(string) + document["completion"].(string)))(t)
 		mask := make([]bool, len(tokens))
 		for position := len(prompt); position < len(mask); position++ {
 			mask[position] = true
@@ -252,8 +245,7 @@ func loadKTOModel(t *testing.T, directory string) *densecausal.Model {
 func ktoScores(t *testing.T, policy, reference *densecausal.Model, examples []trainingdata.UnpairedExample) []trainingprogram.UnpairedScores {
 	t.Helper()
 	sequence := func(model *densecausal.Model, sequence trainingdata.PreferenceSequence) sequencescore.Score {
-		result, err := model.SequenceLogProb(sequence)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(model.SequenceLogProb(sequence))(t)
 		return result
 	}
 	scores := make([]trainingprogram.UnpairedScores, len(examples))

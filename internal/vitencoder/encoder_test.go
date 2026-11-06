@@ -54,23 +54,19 @@ func TestDinov2MatchesReference(t *testing.T) {
 	var reference golden
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join("testdata", "dinov2_golden.json"), &reference))
 	image := syntheticImage(256, 320)
-	resized, err := resizeBicubic(image, 256, 320, reference.Resized.Height, reference.Resized.Width)
-	testcheck.NoError(t, err)
+	resized := testcheck.Must(resizeBicubic(image, 256, 320, reference.Resized.Height, reference.Resized.Width))(t)
 	digest := sha256.Sum256(resized)
 	if hex.EncodeToString(digest[:]) != reference.Resized.SHA256 {
 		t.Fatal("the bicubic resize differs from PIL's")
 	}
-	encoder, err := Load(modeltest.Directory(t, "webssl-dino300m-full2b-224"))
-	testcheck.NoError(t, err)
-	pixels, err := encoder.preprocess.pixels(image, 256, 320)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(modeltest.Directory(t, "webssl-dino300m-full2b-224")))(t)
+	pixels := testcheck.Must(encoder.preprocess.pixels(image, 256, 320))(t)
 	for index, at := range reference.PixelIndices {
 		if pixels[at] != reference.Pixels[index] {
 			t.Fatalf("normalized pixel %d = %v, reference %v", at, pixels[at], reference.Pixels[index])
 		}
 	}
-	tokens, err := encoder.encode(pixels, true)
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(encoder.encode(pixels, true))(t)
 	hidden := encoder.geometry.Hidden
 	last := len(tokens)/hidden - 1
 	for _, check := range []struct {

@@ -40,8 +40,7 @@ type carbonProcessGolden struct {
 
 func TestCarbonServingProcessProbe(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	var golden carbonProcessGolden
 	testcheck.NoError(t, jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden))
 	if len(golden.Cases) == 0 {
@@ -55,15 +54,12 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	}
 	store := overgodbtest.Create(t, storePath)
 	started := time.Now()
-	loaded, err := modelrecipe.ResolveActiveGGUF(context.Background(), store, modelPath)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(context.Background(), store, modelPath))(t)
 	resolvedAt := time.Now()
-	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(OpenWithProgram(context.Background(), &loaded, OpenOptions{}))(t)
 	openedAt := time.Now()
 	defer runner.Close()
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	generate := func() time.Duration {
 		promptTokens := 0
 		requestStarted := time.Now()
@@ -89,18 +85,15 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 		return time.Since(requestStarted)
 	}
 	_ = generate()
-	before, err := runner.DeviceExecutionStats(context.Background())
-	testcheck.NoError(t, err)
+	before := testcheck.Must(runner.DeviceExecutionStats(context.Background()))(t)
 	wall := time.Since(started)
 	warm := make([]time.Duration, carbonWarmSamples)
 	for index := range warm {
 		warm[index] = generate()
 	}
 	slices.Sort(warm)
-	memory, err := runner.DeviceMemoryStats(context.Background())
-	testcheck.NoError(t, err)
-	execution, err := runner.DeviceExecutionStats(context.Background())
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(runner.DeviceMemoryStats(context.Background()))(t)
+	execution := testcheck.Must(runner.DeviceExecutionStats(context.Background()))(t)
 	instantiations := execution.GraphInstantiations - before.GraphInstantiations
 	updates := execution.GraphUpdates - before.GraphUpdates
 	graphLaunches := execution.GraphLaunches - before.GraphLaunches

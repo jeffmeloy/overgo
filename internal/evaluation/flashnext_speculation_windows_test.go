@@ -77,16 +77,14 @@ func (r *speculationRuntime) ShapeChatPrompt(prompt string) (string, error) {
 func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	// Serial: both arms share the one card and the resident model.
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(flashNextModel), filepath.Join(roots.References(), flashNextDraft)
 	for _, path := range []string{model, draft} {
 		if _, err := os.Stat(path); err != nil {
 			t.Skipf("Flash-Next's held-out check needs %s: %v", path, err)
 		}
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "flash-next"), RuntimeRecipe: planID(t, artifact.KindRecipe, "flash-next"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "device"),
@@ -97,8 +95,7 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 		t.Fatalf("the store derived %d suites for %s: %v %v", len(suites), speculationHeldOut, err, closeErr)
 	}
 	suite := suites[0]
-	runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{Draft: draft})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{Draft: draft}))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -110,13 +107,11 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	// answer scores the part under one arm and returns its headline metric's value.
 	answer := func(runtime *speculationRuntime) float64 {
 		t.Helper()
-		answers, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		answers := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		defer answers.Close()
 		publishPlanFixtureAuthorities(t, answers, suite.plan)
 		started := time.Now()
-		result, err := suite.execute(t.Context(), answers, runtime)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(suite.execute(t.Context(), answers, runtime))(t)
 		metrics := map[string]float64{}
 		for _, metric := range result.Metrics {
 			metrics[metric.Name] = metric.Value

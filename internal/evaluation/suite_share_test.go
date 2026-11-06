@@ -126,20 +126,17 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	var raw []byte
 	const prompts = 25
 	for prompt := range prompts {
-		line, err := json.Marshal(map[string]any{"prompt": fmt.Sprintf("Write about item %d.", prompt), "instruction_id_list": []string{"punctuation:no_comma"}, "kwargs": []map[string]any{{}}})
-		testcheck.NoError(t, err)
+		line := testcheck.Must(json.Marshal(map[string]any{"prompt": fmt.Sprintf("Write about item %d.", prompt), "instruction_id_list": []string{"punctuation:no_comma"}, "kwargs": []map[string]any{{}}}))(t)
 		raw = append(append(raw, line...), '\n')
 	}
 	path := filepath.Join(root, "source.jsonl")
 	testcheck.NoError(t, os.WriteFile(path, raw, 0o600))
 	digest := sha256.Sum256(raw)
-	imported, err := dataset.ImportBenchmark(ctx, store, path, dataset.BenchmarkImportSpec{
+	imported := testcheck.Must(dataset.ImportBenchmark(ctx, store, path, dataset.BenchmarkImportSpec{
 		Source: "share-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1",
 		Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}},
-	})
-	testcheck.NoError(t, err)
-	manifest, err := json.Marshal(benchmarkManifest{Datasets: []benchmarkDeclaration{{Name: "ifeval/default/train", Dataset: imported.ID}}})
-	testcheck.NoError(t, err)
+	}))(t)
+	manifest := testcheck.Must(json.Marshal(benchmarkManifest{Datasets: []benchmarkDeclaration{{Name: "ifeval/default/train", Dataset: imported.ID}}}))(t)
 	manifestPath := filepath.Join(root, "manifest.json")
 	testcheck.NoError(t, os.WriteFile(manifestPath, manifest, 0o600))
 	if _, err := CatalogLocalBenchmarks(ctx, store, manifestPath); err != nil {

@@ -11,17 +11,14 @@ import (
 )
 
 func TestScratchOracleBundle(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json")))(t)
 	oracle, canonical, err := NormalizeScratchOracle(raw)
 	testcheck.NoError(t, err)
 	if oracle.ID.Kind() != artifact.KindEvidence || oracle.SourceCommit != "214950b3b0316bcdcab38a3b95127a927c0ab5be" {
 		t.Fatalf("oracle identity/source = %s / %s", oracle.ID, oracle.SourceCommit)
 	}
-	corpusID, err := oracle.CorpusID()
-	testcheck.NoError(t, err)
-	splitID, err := oracle.SplitID()
-	testcheck.NoError(t, err)
+	corpusID := testcheck.Must(oracle.CorpusID())(t)
+	splitID := testcheck.Must(oracle.SplitID())(t)
 	if corpusID.Kind() != artifact.KindDataset || splitID.Kind() != artifact.KindDatasetShard || corpusID.String() == splitID.String() {
 		t.Fatalf("oracle corpus/split identities = %s / %s", corpusID, splitID)
 	}
@@ -32,8 +29,7 @@ func TestScratchOracleBundle(t *testing.T) {
 		oracle.FinalValLoss != 2.17824882011284 {
 		t.Fatalf("oracle trajectory changed: %v final-val=%g", oracle.LossHistory, oracle.FinalValLoss)
 	}
-	content, err := oracle.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(oracle.Content())(t)
 	if content.Descriptor.ID != oracle.ID || !bytes.Equal(content.Data, canonical) {
 		t.Fatal("oracle content identity or bytes changed")
 	}

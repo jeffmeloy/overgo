@@ -28,8 +28,7 @@ const krea2048AdaptivePNG = "b25fa024af3b623ee443c74207b6a6ee32abeb6d0a5df7ba61c
 // too large for git.
 func krea2048AdaptivePNGPath(b *testing.B) string {
 	b.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(b))
-	testcheck.NoError(b, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(b)))(b)
 	return filepath.Join(roots.References(), "krea", "krea2_native_go_fox_seed42.png")
 }
 
@@ -53,16 +52,13 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	b.Helper()
 	ctx := b.Context()
 	totalStart := time.Now()
-	profile, err := ResolveProfile(kreaModelDir(b))
-	testcheck.NoError(b, err)
-	generator, err := LoadGenerator(ctx, kreaModelDir(b), profile, request)
-	testcheck.NoError(b, err)
+	profile := testcheck.Must(ResolveProfile(kreaModelDir(b)))(b)
+	generator := testcheck.Must(LoadGenerator(ctx, kreaModelDir(b), profile, request))(b)
 	defer closeReporting(b, ctx, generator)
 	loadWall := time.Since(totalStart)
 
 	prepareStart := time.Now()
-	session, err := generator.prepare(ctx, request)
-	testcheck.NoError(b, err)
+	session := testcheck.Must(generator.prepare(ctx, request))(b)
 	prepareWall := time.Since(prepareStart)
 	integrateStart := time.Now()
 	if _, err := generator.integrate(ctx, session); err != nil {
@@ -70,8 +66,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	}
 	integrateWall := time.Since(integrateStart)
 	decodeStart := time.Now()
-	generated, err := generator.decode(ctx, session)
-	testcheck.NoError(b, err)
+	generated := testcheck.Must(generator.decode(ctx, session))(b)
 	decodeWall := time.Since(decodeStart)
 	encodeStart := time.Now()
 	encoded, minimum, maximum := generated.Data, generated.Minimum, generated.Maximum

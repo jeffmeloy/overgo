@@ -52,8 +52,7 @@ func TestSynthWall(t *testing.T) {
 		testcheck.NoError(t, err)
 		backbone[run] = time.Since(start).Seconds()
 		codecStart := time.Now()
-		pcm, err := m.LatentsToPCM(t.Context(), latents)
-		testcheck.NoError(t, err)
+		pcm := testcheck.Must(m.LatentsToPCM(t.Context(), latents))(t)
 		codec[run] = time.Since(codecStart).Seconds()
 		total[run] = time.Since(start).Seconds()
 		if len(pcm) == 0 {

@@ -58,8 +58,7 @@ func TestDownloadCLICallerBudget(t *testing.T) {
 		t.Fatalf("caller deadline = %v", err)
 	}
 	// The retained prefix lives in the destination's sibling bookkeeping directory.
-	partials, err := filepath.Glob(filepath.Join(filepath.Dir(destination), "."+filepath.Base(destination)+".download", "weights.bin.partial-*"))
-	testcheck.NoError(t, err)
+	partials := testcheck.Must(filepath.Glob(filepath.Join(filepath.Dir(destination), "."+filepath.Base(destination)+".download", "weights.bin.partial-*")))(t)
 	retained := false
 	for _, path := range partials {
 		if strings.HasSuffix(path, ".etag") {

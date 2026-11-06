@@ -16,18 +16,14 @@ func TestPositionedDrawsFollowThePosition(t *testing.T) {
 	)
 	logits := []float32{0.3, 0.1, 0.25, 0.2, 0.15, 0.05, 0.35, 0.12}
 	config := Config{Temperature: 1, Seed: seed}
-	busy, err := New(config)
-	testcheck.NoError(t, err)
+	busy := testcheck.Must(New(config))(t)
 	history := make([]int, 0, positions)
 	draws := map[float64]bool{}
 	for position := range positions {
 		history = append(history, position%len(logits))
-		busied, err := busy.SampleWithHistory(logits, history)
-		testcheck.NoError(t, err)
-		fresh, err := New(config)
-		testcheck.NoError(t, err)
-		alone, err := fresh.SampleWithHistory(logits, history)
-		testcheck.NoError(t, err)
+		busied := testcheck.Must(busy.SampleWithHistory(logits, history))(t)
+		fresh := testcheck.Must(New(config))(t)
+		alone := testcheck.Must(fresh.SampleWithHistory(logits, history))(t)
 		if busied != alone {
 			t.Fatalf("position %d: a sampler that drew before picks %d, a fresh one %d", position, busied, alone)
 		}

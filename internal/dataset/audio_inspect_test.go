@@ -37,8 +37,7 @@ func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			data := floatWAV(test.samples)
 			source := publishInspectionSource(t, store, data)
-			result, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: source}, inspectionPolicy())
-			testcheck.NoError(t, err)
+			result := testcheck.Must(InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: source}, inspectionPolicy()))(t)
 			if test.violation == "" {
 				if result.Decision.Outcome != recipecontract.AudioAdmissionAccepted || !slices.Equal(result.Samples, test.samples) {
 					t.Fatalf("accepted result=%+v", result)
@@ -84,8 +83,7 @@ func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
 			source := publishInspectionSource(t, store, test.data)
 			policy := inspectionPolicy()
 			policy.MaximumSamples = test.bound
-			result, err := InspectAudio(t.Context(), store, test.data, AudioPayloadOrigin{Container: source}, policy)
-			testcheck.NoError(t, err)
+			result := testcheck.Must(InspectAudio(t.Context(), store, test.data, AudioPayloadOrigin{Container: source}, policy))(t)
 			if result.Signal.DecodeStatus != test.status || result.Decision.Outcome != recipecontract.AudioAdmissionQuarantined || result.Samples != nil || result.Signal.SampleCount != 0 || result.DecodeError == "" {
 				t.Fatalf("failure=%+v", result)
 			}
@@ -115,21 +113,18 @@ func TestAudioDecodeEmbeddedSelectorLineage(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	container := publishInspectionSource(t, store, []byte("parquet-container"))
 	data := floatWAV([]float32{.5, -.5})
-	first, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy())
-	testcheck.NoError(t, err)
+	first := testcheck.Must(InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy()))(t)
 	head, _ := store.Head()
 	replay, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy())
 	after, _ := store.Head()
 	if err != nil || replay.DecisionID != first.DecisionID || head != after {
 		t.Fatalf("embedded replay changed publication: %v", err)
 	}
-	second, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 1}, inspectionPolicy())
-	testcheck.NoError(t, err)
+	second := testcheck.Must(InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 1}, inspectionPolicy()))(t)
 	if first.SignalID == second.SignalID || first.Signal.Source.Audio != second.Signal.Source.Audio {
 		t.Fatal("selector or payload identity lost")
 	}
-	parents, err := store.Parents(t.Context(), first.Signal.Source.Profile)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), first.Signal.Source.Profile))(t)
 	if len(parents) != 2 {
 		t.Fatalf("decode profile parents=%v", parents)
 	}

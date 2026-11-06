@@ -18,8 +18,7 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 	path := saveMutationPlan(t, root, document)
 	before, err := os.ReadFile(path)
 	testcheck.NoError(t, err)
-	lock, err := authoritylock.Acquire(root)
-	testcheck.NoError(t, err)
+	lock := testcheck.Must(authoritylock.Acquire(root))(t)
 	defer lock.Close()
 	called := false
 	err = withPlanMutation(root, func(plan.Plan) error {
@@ -29,8 +28,7 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "mutation is active") || called {
 		t.Fatalf("locked plan mutation = (called=%t, err=%v)", called, err)
 	}
-	after, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(os.ReadFile(path))(t)
 	if string(after) != string(before) {
 		t.Fatal("refused plan mutation changed plan bytes")
 	}

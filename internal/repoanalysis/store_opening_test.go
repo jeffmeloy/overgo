@@ -4,20 +4,15 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/testcheck"
 )
 
 // threeLineStoreCeiling is the most three-line store openings the module's tests may keep: what compact-tests/store-
-// helper left, in overgo's store's own tests, which the helper's package imports, in helpers and closures whose
-// deferred close falls at their own return rather than the test's, in cleanups that close whichever store their
-// variable holds last, since the test opens another into it, and in the tests whose change runs the device lane in full.
-const threeLineStoreCeiling = 58
+// helper and compact-tests/call-checks left, a helper's whose deferred close falls at its own return and whose err it
+// reads again, which neither one call nor one expression takes.
+const threeLineStoreCeiling = 1
 
 // threeLineStores counts the store openings of a test file that say in three lines what overgodbtest says in one: a
 // store and err assigned from overgodb's Open, Create or OpenReadOnly, the err checked by testcheck.NoError, and the
@@ -128,29 +123,11 @@ func opened(t *testing.T) {
 	defer file.Close()
 }
 `
-	parsed, err := parser.ParseFile(token.NewFileSet(), "p_test.go", fixture, parser.SkipObjectResolution)
-	testcheck.NoError(t, err)
+	parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), "p_test.go", fixture, parser.SkipObjectResolution))(t)
 	if got := threeLineStores(parsed); got != 2 {
 		t.Fatalf("the fixture holds %d three-line store openings, want the deferred close's and the cleanup's", got)
 	}
-	total := 0
-	for _, top := range []string{"cmd", "internal"} {
-		testcheck.NoError(t, filepath.WalkDir(filepath.Join(checkoutRoot, top), func(path string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/testdata/") {
-				return err
-			}
-			source, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
-			if err != nil {
-				return err
-			}
-			total += threeLineStores(file)
-			return nil
-		}))
-	}
+	total := testFileCount(t, threeLineStores)
 	if total > threeLineStoreCeiling {
 		t.Errorf("the module's tests hold %d three-line store openings, over the ceiling of %d, so open each with overgodbtest", total, threeLineStoreCeiling)
 	}

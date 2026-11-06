@@ -38,8 +38,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 	}
 	store := overgodbtest.Create(t, storePath)
 	for _, seed := range graftSeeds {
-		checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(out, fmt.Sprintf("seed-%d", seed)))
-		testcheck.NoError(t, err)
+		checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(filepath.Join(out, fmt.Sprintf("seed-%d", seed))))(t)
 		_, recorded, err := store.Artifact(t.Context(), checkpoint.ID())
 		if err != nil || !recorded || checkpoint.Optimizer.Step != 1 || checkpoint.ParameterCount != checkpoint.Optimizer.Parameters() {
 			t.Fatalf("seed %d checkpoint %s at step %d recorded %t (%v), want the one-step bridge recorded", seed, checkpoint.ID(), checkpoint.Optimizer.Step, recorded, err)

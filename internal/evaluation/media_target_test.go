@@ -18,19 +18,17 @@ func TestMediaTargetMetricsRequireExplicitVerifierAuthority(t *testing.T) {
 	} {
 		view := textTargetView(t, recipecontract.ModalityText)
 		view.Signature.Outputs[0] = modality
-		view, err := sftEvaluationViewCodec.New(view)
-		testcheck.NoError(t, err)
+		view = testcheck.Must(sftEvaluationViewCodec.New(view))(t)
 		expected := testutil.ArtifactID(t, artifact.KindOutput, "expected "+string(modality))
 		output := testutil.ArtifactID(t, artifact.KindOutput, "output "+string(modality))
-		plan, err := compileMediaTargetPlan(view, mediaTargetSuite{
+		plan := testcheck.Must(compileMediaTargetPlan(view, mediaTargetSuite{
 			Oracles: []mediaOracle{mediaDecode, mediaArtifactIdentity},
 			Scorers: []mediaScorerSpec{{
 				Name: "declared-score", Kind: mediaIndependentScorer, Verifier: verifier,
 				Direction: runrecord.DirectionMaximize,
 			}},
 			Cases: []mediaTargetCase{{Record: "heldout", Expected: expected}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		observation := mediaTargetObservation{
 			Record: "heldout", Output: output,
 			Oracles:   []mediaOracleResult{{Kind: mediaArtifactIdentity, Passed: true}, {Kind: mediaDecode, Passed: true}},

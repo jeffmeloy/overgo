@@ -15,8 +15,7 @@ func TestDenseConversionPreservesChatTemplate(t *testing.T) {
 	const template = "{% if enable_thinking is false %}<think>\n\n</think>\n\n{% endif %}"
 	path := filepath.Join(directory, "chat_template.jinja")
 	testcheck.NoError(t, os.WriteFile(path, []byte(template), 0o644))
-	metadata, err := modelMetadata(directory, "fixture", archProfiles["llama"], modelConfig{Vocabulary: 1, HeadDim: 1})
-	testcheck.NoError(t, err)
+	metadata := testcheck.Must(modelMetadata(directory, "fixture", archProfiles["llama"], modelConfig{Vocabulary: 1, HeadDim: 1}))(t)
 	count := 0
 	for _, item := range metadata {
 		if item.Key == "tokenizer.chat_template" {
@@ -46,8 +45,7 @@ func TestDNATokenizerMetadataPreservesDeclaredExtension(t *testing.T) {
 		"auto_dna_tags": true
 	}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "dna_config.json"), []byte(config), 0o644))
-	metadata, err := dnaTokenizerMetadata(directory, 32)
-	testcheck.NoError(t, err)
+	metadata := testcheck.Must(dnaTokenizerMetadata(directory, 32))(t)
 	values := make(map[string]any, len(metadata))
 	for _, item := range metadata {
 		values[item.Key] = item.Value.Data

@@ -70,13 +70,11 @@ func TestQuantizeModelCreatesOutputWithoutOverwrite(t *testing.T) {
 	}
 	testcheck.NoError(t, err)
 
-	report, err := quantizeModel(inputPath, outputPath, dtype.Q4_0, false, "")
-	testcheck.NoError(t, err)
+	report := testcheck.Must(quantizeModel(inputPath, outputPath, dtype.Q4_0, false, ""))(t)
 	if report.Converted != 1 || report.Preserved != 0 {
 		t.Fatalf("report = %#v", report)
 	}
-	output, err := gguf.Open(outputPath)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(gguf.Open(outputPath))(t)
 	defer output.Close()
 	tensor, ok := output.Tensor("weight")
 	if !ok || tensor.Type != dtype.Q4_0 || tensor.Size != 36 {
@@ -126,16 +124,13 @@ func TestQuantizeModelUsesImportanceMatrix(t *testing.T) {
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
 		t.Fatalf("failed output remains: %v", err)
 	}
-	report, err := quantizeModel(inputPath, outputPath, dtype.IQ2XXS, false, imatrixPath)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(quantizeModel(inputPath, outputPath, dtype.IQ2XXS, false, imatrixPath))(t)
 	if report.Converted != 1 || report.Preserved != 0 {
 		t.Fatalf("report = %#v", report)
 	}
-	output, err := gguf.Open(outputPath)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(gguf.Open(outputPath))(t)
 	defer output.Close()
-	want, err := quant.QuantizeWeighted(dtype.IQ2XXS, values, weights)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(quant.QuantizeWeighted(dtype.IQ2XXS, values, weights))(t)
 	tensor, ok := output.Tensor(name)
 	if !ok || tensor.Type != dtype.IQ2XXS {
 		t.Fatalf("output tensor = %#v, present=%v", tensor, ok)

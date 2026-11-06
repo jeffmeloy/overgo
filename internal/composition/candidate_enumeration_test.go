@@ -31,10 +31,9 @@ func TestCompositionCandidateEnumerationRanksByResidualAndFitness(t *testing.T) 
 		descriptorStatistics(0.5, 3.0, 0.9, -0.4, 0.6))
 	silentDonor := descriptorComponent(t, "enumeration-unmeasured", "blk.10.ffn_gate.weight",
 		descriptorStatistics(0.0009, 0.021, 0.0095, 0.1, 0.2))
-	index, err := NewExactComponentIndex([]CatalogComponent{
+	index := testcheck.Must(NewExactComponentIndex([]CatalogComponent{
 		target, graftDonor, linearDonor, residualDonor, expertDonor, bridgeDonor, silentDonor,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	measurements := []DonorSeamMeasurement{
 		{Donor: graftDonor.Model, Component: graftDonor.Name, Residual: 0, Fitness: 0.4},
 		{Donor: linearDonor.Model, Component: linearDonor.Name, Residual: 0.3, Fitness: 0.9},

@@ -26,8 +26,7 @@ func captionFixture(t *testing.T, sources, scenes int) CaptionMatchingSpec {
 			}
 		}
 	}
-	data, err := json.Marshal(rows)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(rows))(t)
 	captions := filepath.Join(t.TempDir(), "captions.json")
 	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	return CaptionMatchingSpec{Clips: directory, Captions: captions, Cases: 5, Seed: 17}
@@ -40,8 +39,7 @@ func captionFixture(t *testing.T, sources, scenes int) CaptionMatchingSpec {
 func TestCaptionMatchingAnswersAreTheTrueCaptionsLetter(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 4, 6)
-	suite, err := BuildCaptionMatching(spec)
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildCaptionMatching(spec))(t)
 	if suite.Kind != GeneratedAnswerKind || len(suite.Cases) != spec.Cases {
 		t.Fatalf("suite = %s with %d cases, want %s with %d", suite.Kind, len(suite.Cases), GeneratedAnswerKind, spec.Cases)
 	}
@@ -77,13 +75,10 @@ func TestCaptionMatchingAnswersAreTheTrueCaptionsLetter(t *testing.T) {
 func TestCaptionMatchingIsReproducible(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 6, 6)
-	first, err := BuildCaptionMatching(spec)
-	testcheck.NoError(t, err)
-	again, err := BuildCaptionMatching(spec)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(BuildCaptionMatching(spec))(t)
+	again := testcheck.Must(BuildCaptionMatching(spec))(t)
 	spec.Seed++
-	other, err := BuildCaptionMatching(spec)
-	testcheck.NoError(t, err)
+	other := testcheck.Must(BuildCaptionMatching(spec))(t)
 	firstJSON, _ := json.Marshal(first)
 	againJSON, _ := json.Marshal(again)
 	otherJSON, _ := json.Marshal(other)

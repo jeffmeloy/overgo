@@ -176,8 +176,7 @@ func TestGenerationFixedBudgetPreservesGreedyAndExplicitStops(t *testing.T) {
 				submit: make(chan continuousGenerateRequest, 1), done: make(chan struct{})}
 			go generator.run()
 			t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), generator))
-			sampler, err := sampling.New(sampling.Config{Temperature: 0})
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 			observed := 0
 			options := GenerateOptions{MaxNewTokens: 4, Sampler: sampler, DeviceGreedy: true,
 				ContinueAfterEOG: test.continueAfterEOG, PromptTokenIDs: []tokenizer.TokenID{2},
@@ -227,8 +226,7 @@ func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
 		if config.Samplers == nil {
 			config.Samplers = []sampling.SamplerStage{sampling.SamplerTopK, sampling.SamplerTemperature}
 		}
-		sampler, err := sampling.New(config)
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(config))(t)
 		return &continuousGenerateState{request: continuousGenerateRequest{options: GenerateOptions{
 			Sampler: sampler, DeviceTopK: true,
 		}}}

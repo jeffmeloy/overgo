@@ -30,8 +30,7 @@ func TestReadWavTokenizerDecoderSpec(t *testing.T) {
 		metadata("wavtokenizer-dec.attention.group_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 		metadata("wavtokenizer-dec.attention.group_norm_groups", gguf.ValueTypeUint32, uint32(3)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "wavtokenizer-dec" || spec.EmbeddingLength != 8 ||
 		spec.OutputEmbeddingLength != 16 || spec.PosNetEmbeddingLength != 12 ||
 		spec.PosNetBlockCount != 6 || spec.ConvNextBlockCount != 4 ||
@@ -58,8 +57,7 @@ func TestReadDFlashSpec(t *testing.T) {
 			Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{2, 7}},
 		},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "dflash" || !spec.NonCausalAttention || spec.DFlashBlockSize != 8 ||
 		len(spec.TargetLayers) != 2 || spec.TargetLayers[1] != 7 || spec.RopeDimensionCount != 4 {
 		t.Fatalf("unexpected DFlash spec: %+v", spec)
@@ -83,8 +81,7 @@ func TestReadEagle3Spec(t *testing.T) {
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{2, 7, 11},
 		}},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "eagle3" || spec.TargetHiddenSize != 12 ||
 		len(spec.TargetLayers) != 3 || !spec.NormBeforeResidual || spec.RopeDimensionCount != 4 {
 		t.Fatalf("unexpected Eagle3 spec: %+v", spec)
@@ -112,8 +109,7 @@ func TestReadErnie45MoESpec(t *testing.T) {
 		metadata("ernie4_5-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
 		metadata("ernie4_5-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.MoELayerStep != 2 || spec.LeadingDenseBlocks != 1 ||
 		spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 5 ||
 		spec.ExpertWeightsScale != 1.25 || !spec.ExpertWeightsNorm ||
@@ -141,8 +137,7 @@ func TestReadPaddleOCRSpec(t *testing.T) {
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.RopeDimensionCount != 4 || spec.RopeSections != [4]int32{1, 1, 0, 0} ||
 		usesNormalRoPE(spec.Architecture) || !spec.UsesRoPE(1) {
 		t.Fatalf("unexpected PaddleOCR spec: %+v", spec)
@@ -169,8 +164,7 @@ func TestReadQwen2VLSpecUsesMRoPESections(t *testing.T) {
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "qwen2vl" || spec.RopeDimensionCount != 4 ||
 		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
 		usesNormalRoPE(spec.Architecture) {
@@ -203,8 +197,7 @@ func TestReadQwen3VLSpecUsesMRoPEAndDeepstackMetadata(t *testing.T) {
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "qwen3vl" || spec.RopeDimensionCount != 4 ||
 		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
 		spec.DeepstackLayerCount != 3 || spec.PoolingType != 4 ||
@@ -239,8 +232,7 @@ func TestReadQwen3VLMoESpecUsesMRoPEExpertsAndDeepstackMetadata(t *testing.T) {
 			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{1, 1, 0, 0},
 		}},
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "qwen3vlmoe" || spec.RopeDimensionCount != 4 ||
 		spec.RopeSections != [4]int32{1, 1, 0, 0} || spec.RopeScalingFactor != 4 ||
 		spec.DeepstackLayerCount != 3 || spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 ||
@@ -282,8 +274,7 @@ func TestReadMambaSpec(t *testing.T) {
 		metadata("mamba.ssm.dt_b_c_rms", gguf.ValueTypeBool, true),
 		metadata("mamba.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "mamba" || !spec.RopeDisabled || spec.HeadCount != 0 || spec.HeadCountKV != 0 ||
 		spec.FeedForwardLength != 0 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
 		spec.SSMStateSize != 2 || spec.SSMTimeStepRank != 2 || spec.SSMGroupCount != 1 || !spec.SSMDtBCNorm {
@@ -307,8 +298,7 @@ func TestReadMamba2Spec(t *testing.T) {
 		metadata("mamba2.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("mamba2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "mamba2" || !spec.RopeDisabled || spec.HeadCount != 0 || spec.HeadCountKV != 0 ||
 		spec.FeedForwardLength != 0 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
 		spec.SSMStateSize != 2 || spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 2 {
@@ -334,8 +324,7 @@ func TestReadFalconH1Spec(t *testing.T) {
 		metadata("falcon-h1.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("falcon-h1.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "falcon-h1" || spec.RopeDisabled || spec.HeadCount != 2 ||
 		spec.HeadCountKV != 1 || spec.KeyLength != 4 || spec.ValueLength != 4 ||
 		spec.RopeDimensionCount != 4 || spec.SSMConvKernel != 3 || spec.SSMInnerSize != 8 ||
@@ -364,8 +353,7 @@ func TestReadJambaSpec(t *testing.T) {
 		metadata("jamba.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("jamba.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "jamba" || !spec.RopeDisabled || !spec.IsRecurrentLayer(0) ||
 		spec.IsRecurrentLayer(1) || spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 ||
 		spec.SSMGroupCount != 1 || spec.ExpertFeedForward != 6 || spec.ExpertWeightsNorm {
@@ -401,8 +389,7 @@ func TestReadGraniteHybridSpec(t *testing.T) {
 		metadata("granitehybrid.expert_shared_feed_forward_length", gguf.ValueTypeUint32, uint32(5)),
 		metadata("granitehybrid.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "granitehybrid" || !spec.RopeDisabled || !spec.IsRecurrentLayer(0) ||
 		spec.IsRecurrentLayer(1) || spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 ||
 		spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 2 || spec.ExpertFeedForward != 6 ||
@@ -434,8 +421,7 @@ func TestReadPLaMo2Spec(t *testing.T) {
 		metadata("plamo2.ssm.group_count", gguf.ValueTypeUint32, uint32(0)),
 		metadata("plamo2.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "plamo2" || !spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(1) ||
 		spec.LayerKVHeadCount(1) != 1 || spec.SSMInnerSize != 8 || spec.SSMStateSize != 2 ||
 		spec.SSMTimeStepRank != 4 || spec.SSMGroupCount != 0 ||
@@ -477,8 +463,7 @@ func TestReadNemotronHMoESpec(t *testing.T) {
 		metadata("nemotron_h_moe.moe_latent_size", gguf.ValueTypeUint32, uint32(4)),
 		metadata("nemotron_h_moe.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "nemotron_h_moe" || !spec.RopeDisabled || spec.IsRecurrentLayer(0) ||
 		!spec.IsRecurrentLayer(1) || spec.IsRecurrentLayer(2) || spec.LayerFeedForwardLength(2) != 6 ||
 		spec.LayerHeadCount(1) != 0 || spec.LayerKVHeadCount(0) != 1 || spec.SSMInnerSize != 16 ||
@@ -514,8 +499,7 @@ func TestReadNemotronHDenseSpecReadsGroupedSSM(t *testing.T) {
 		metadata("nemotron_h.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
 		metadata("nemotron_h.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "nemotron_h" || spec.IsRecurrentLayer(0) || !spec.IsRecurrentLayer(1) ||
 		spec.LayerFeedForwardLength(2) != 6 || spec.SSMInnerSize != 16 || spec.SSMGroupCount != 2 ||
 		spec.ExpertCount != 0 {
@@ -539,8 +523,7 @@ func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 		metadata("talkie.logit_scale", gguf.ValueTypeFloat32, float32(0.125)),
 		metadata("talkie.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.Architecture != "talkie" || !spec.UsesUnweightedRMSNorm() ||
 		spec.UsesUnweightedLayerNorm() || spec.RopeDimensionCount != 4 ||
 		usesNormalRoPE(spec.Architecture) || spec.OutputLogitMultiplier() != 0.125 {
@@ -585,8 +568,7 @@ func TestReadNormalRoPELongRoPESpecs(t *testing.T) {
 				metadata(prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, float32(1.25)),
 				metadata(prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 			}}
-			spec, err := ReadSpec(file)
-			testcheck.NoError(t, err)
+			spec := testcheck.Must(ReadSpec(file))(t)
 			if spec.RopeScalingType != "longrope" || spec.RopeDimensionCount != 4 ||
 				spec.OriginalContextLength != 4096 || spec.RopeAttentionFactor != 1.25 ||
 				!supportsLongRoPE(architecture) {

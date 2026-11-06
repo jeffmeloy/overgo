@@ -14,8 +14,7 @@ import (
 func jointFixture(t *testing.T) *safetensors.Source {
 	t.Helper()
 	mossFixtureBytes(t, "joint.safetensors", "2c7092412f54441b286f0c50eecc04ec39c56ff72400d87b124cd0a107fe1236")
-	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "joint.safetensors"))
-	testcheck.NoError(t, err)
+	s := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "joint.safetensors")))(t)
 	t.Cleanup(func() { s.Close() })
 	return s
 }
@@ -51,11 +50,9 @@ func TestMOSSRotaryJointGolden(t *testing.T) {
 	for _, length := range []int{2, 4} {
 		for block := range 2 {
 			t.Run(fmt.Sprintf("%d/%d", length, block), func(t *testing.T) {
-				p, err := compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.F32)
-				testcheck.NoError(t, err)
+				p := testcheck.Must(compileRotaryJointProgram(spec, 1e-6, length+6, block, dtype.F32))(t)
 				prefix := fmt.Sprintf("cpu-f32.%d.block.%d.", length, block)
-				got, err := reference.Execute([]*tensor.Tensor{p.output}, jointFeeds(t, p, oracle, prefix, dtype.F32))
-				testcheck.NoError(t, err)
+				got := testcheck.Must(reference.Execute([]*tensor.Tensor{p.output}, jointFeeds(t, p, oracle, prefix, dtype.F32)))(t)
 				compareRefinement(t, got[p.output].Data, refinementValues(t, oracle, prefix+"output"), 1.3e-6)
 			})
 		}

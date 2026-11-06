@@ -13,13 +13,11 @@ func TestAbsentGradientLeavesAGroupAlone(t *testing.T) {
 	t.Parallel()
 	const elements, side = 8, 2
 	weights, gradients := make([]float32, elements), make([]float32, elements)
-	plan, err := CompilePlan(elements, []GroupSpec{
+	plan := testcheck.Must(CompilePlan(elements, []GroupSpec{
 		{Name: "absent", Start: 0, End: elements / 2, Rows: side, Cols: side},
 		{Name: "present", Start: elements / 2, End: elements, Rows: side, Cols: side},
-	})
-	testcheck.NoError(t, err)
-	optimizer, err := New(weights, gradients, plan, Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	testcheck.NoError(t, err)
+	}))(t)
+	optimizer := testcheck.Must(New(weights, gradients, plan, Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant}))(t)
 	fill := func() {
 		for index := range gradients {
 			gradients[index] = float32(index + 1)

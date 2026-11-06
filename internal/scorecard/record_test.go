@@ -266,16 +266,14 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 	zero := trained(0.25, of(0), runrecord.DirectionMaximize)
 	zero.Model = testutil.ArtifactID(t, artifact.KindModel, "zero-base")
 	published := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
-	path, err := Publish(directory, published, Record{Commit: "a", Rows: []Row{older}})
-	testcheck.NoError(t, err)
+	path := testcheck.Must(Publish(directory, published, Record{Commit: "a", Rows: []Row{older}}))(t)
 	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), `"base"`) {
 		t.Fatalf("a held-out quality without a base publishes %s (%v), want no base field", data, err)
 	}
 	if _, err := Publish(directory, published.Add(time.Hour), Record{Commit: "b", Rows: []Row{below, zero}}); err != nil {
 		t.Fatal(err)
 	}
-	records, err := Records(directory)
-	testcheck.NoError(t, err)
+	records := testcheck.Must(Records(directory))(t)
 	if len(records) != 2 || filepath.Base(path) != records[0].Name {
 		t.Fatalf("read %d records, want the older one first", len(records))
 	}

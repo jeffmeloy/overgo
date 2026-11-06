@@ -48,8 +48,7 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 		t.Helper()
 		server := httptest.NewServer(handler)
 		t.Cleanup(server.Close)
-		browser, err := webuilane.Open(ctx, path, server.URL)
-		testcheck.NoError(t, err)
+		browser := testcheck.Must(webuilane.Open(ctx, path, server.URL))(t)
 		t.Cleanup(func() { _ = browser.Close() })
 		check = func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 		settle = browserSettle(t, ctx, browser)

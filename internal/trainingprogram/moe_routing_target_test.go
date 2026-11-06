@@ -19,15 +19,14 @@ func TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers(t *testing
 		Evidence: id(artifact.KindEvidence, "target-evidence"), ReopenTrigger: id(artifact.KindRecipe, "target-drift-check"),
 	}
 
-	uniform, err := moeRoutingTargetContract.New(moeRoutingTarget{
+	uniform := testcheck.Must(moeRoutingTargetContract.New(moeRoutingTarget{
 		Version: artifact.InitialDocumentVersion, Candidate: candidate.ID(),
 		moeRoutingTargetSpec: moeRoutingTargetSpec{
 			Mode: moeRoutingTargetUniform, Prior: prior,
 			Strata:      []moeRoutingStratumTarget{{Stratum: first, Masses: []uint64{1, 1}}, {Stratum: second, Masses: []uint64{3, 3}}},
 			Assumptions: []moeRoutingAssumption{assumption},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := moeRoutingTargetContract.Content(uniform)
 	if err != nil || content.Descriptor.ID != uniform.ID || content.Descriptor.Schema != moeRoutingTargetSchema {
 		t.Fatalf("uniform content = (%+v, %v)", content.Descriptor, err)
@@ -95,12 +94,10 @@ func routingTargetCandidate(t *testing.T, id func(artifact.Kind, string) artifac
 		Mechanism: id(artifact.KindRecipe, "quantile-router"), Owner: id(artifact.KindEvidence, "router-owner"),
 		Gap: id(artifact.KindEvidence, "router-gap"), Falsifier: id(artifact.KindRecipe, "router-falsifier"), GapState: MechanismGapOpen,
 	}
-	census, err := CompileMechanismCensus([]MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
-	candidate, err := CompileMechanismCandidate(
+	census := testcheck.Must(CompileMechanismCensus([]MechanismAssessment{assessment}))(t)
+	candidate := testcheck.Must(CompileMechanismCandidate(
 		census, id(artifact.KindEvidence, "marin-provenance"), assessment.Mechanism,
 		id(artifact.KindEvidence, "cost-bound"), id(artifact.KindEvidence, "benefit-evidence"),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return candidate
 }

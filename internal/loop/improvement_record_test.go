@@ -23,8 +23,7 @@ import (
 // loss would be as complete: the test holds the record to the rule, not to a good result.
 func TestTheSmallestModelsImprovementRecordIsComplete(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "improvement-run-qwen25-05b.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "improvement-run-qwen25-05b.txt")))(t)
 	fields := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

@@ -12,8 +12,7 @@ import (
 // resolved store root, so every command resolves the store the same way.
 func TestStoreRoot(t *testing.T) {
 	t.Run("flag overrides the contract", func(t *testing.T) {
-		root, err := StoreRoot("  C:/somewhere/overgodb-store  ")
-		testcheck.NoError(t, err)
+		root := testcheck.Must(StoreRoot("  C:/somewhere/overgodb-store  "))(t)
 		if root != "C:/somewhere/overgodb-store" {
 			t.Fatalf("flag not honored verbatim after trim: %q", root)
 		}
@@ -23,10 +22,8 @@ func TestStoreRoot(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
 		t.Setenv(Env, dir)
-		root, err := StoreRoot("")
-		testcheck.NoError(t, err)
-		roots, err := ResolveCurrent()
-		testcheck.NoError(t, err)
+		root := testcheck.Must(StoreRoot(""))(t)
+		roots := testcheck.Must(ResolveCurrent())(t)
 		if root != roots.Store {
 			t.Fatalf("fallback %q differs from the resolved store %q", root, roots.Store)
 		}

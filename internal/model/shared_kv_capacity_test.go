@@ -147,14 +147,12 @@ func TestBuildGemma4SharedKVReadsSourceAtAppendOffset(t *testing.T) {
 		owner, shared uint32
 	}{{"sliding", 0, 2}, {"full", 1, 3}} {
 		t.Run(test.name, func(t *testing.T) {
-			pair, err := buildSharedKVPair(spec, test.owner, test.shared, active, capacity, tensor.CacheWriteAppend)
-			testcheck.NoError(t, err)
+			pair := testcheck.Must(buildSharedKVPair(spec, test.owner, test.shared, active, capacity, tensor.CacheWriteAppend))(t)
 			if pair.shared.Key != pair.owner.Key || pair.owner.Key.Op != tensor.OpCacheAppend ||
 				pair.owner.Key.Shape.Dims[2] != uint64(capacity) {
 				t.Fatalf("shared key = %v (%s), want the owner's capacity-wide append", pair.shared.Key.Shape.Slice(), pair.shared.Key.Op)
 			}
-			nodes, err := tensor.Topological(pair.shared.Output)
-			testcheck.NoError(t, err)
+			nodes := testcheck.Must(tensor.Topological(pair.shared.Output))(t)
 			var found bool
 			for _, node := range nodes {
 				if node.Op != tensor.OpAttention {
@@ -180,8 +178,7 @@ func TestBuildGemma4SharedKVReadsSourceAtAppendOffset(t *testing.T) {
 // count changes the output.
 func sharedKVFeeds(t *testing.T, outputs []*tensor.Tensor, active uint32) map[*tensor.Tensor]reference.Value {
 	t.Helper()
-	nodes, err := tensor.Topological(outputs...)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(outputs...))(t)
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	seen := make(map[string]int)
 	for _, node := range nodes {
@@ -190,8 +187,7 @@ func sharedKVFeeds(t *testing.T, outputs []*tensor.Tensor, active uint32) map[*t
 		}
 		occurrence := seen[node.Name]
 		seen[node.Name]++
-		elements, err := node.Shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(node.Shape.Elements())(t)
 		hash := fnv.New32a()
 		fmt.Fprintf(hash, "%s#%d", node.Name, occurrence)
 		seed := float64(hash.Sum32() % 997)
@@ -225,12 +221,9 @@ func TestSharedKVAppendMatchesConcatBitForBit(t *testing.T) {
 		owner, shared uint32
 	}{{"sliding", 0, 2}, {"full", 1, 3}} {
 		t.Run(test.name, func(t *testing.T) {
-			concat, err := buildSharedKVPair(spec, test.owner, test.shared, active, active, tensor.CacheWriteConcat)
-			testcheck.NoError(t, err)
-			appended, err := buildSharedKVPair(spec, test.owner, test.shared, active, capacity, tensor.CacheWriteAppend)
-			testcheck.NoError(t, err)
-			want, err := reference.Execute(concat.outputs, sharedKVFeeds(t, concat.outputs, active))
-			testcheck.NoError(t, err)
+			concat := testcheck.Must(buildSharedKVPair(spec, test.owner, test.shared, active, active, tensor.CacheWriteConcat))(t)
+			appended := testcheck.Must(buildSharedKVPair(spec, test.owner, test.shared, active, capacity, tensor.CacheWriteAppend))(t)
+			want := testcheck.Must(reference.Execute(concat.outputs, sharedKVFeeds(t, concat.outputs, active)))(t)
 			got, err := reference.Execute(appended.outputs, sharedKVFeeds(t, appended.outputs, active))
 			if err != nil {
 				t.Fatalf("append graph: %v", err)

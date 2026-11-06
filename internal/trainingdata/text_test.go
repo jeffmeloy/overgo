@@ -19,12 +19,10 @@ func TestAdjacentTokenRows(t *testing.T) {
 }
 
 func TestJSONTextPairProcessor(t *testing.T) {
-	processor, err := JSONTextPairProcessor("question", "answer")
-	testcheck.NoError(t, err)
-	example, err := processor(t.Context(), RawRecord{
+	processor := testcheck.Must(JSONTextPairProcessor("question", "answer"))(t)
+	example := testcheck.Must(processor(t.Context(), RawRecord{
 		ID: "gsm8k/0", Data: []byte(`{"question":"What is 48 + 24?","answer":"72"}`),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	input, target, err := TextPair(example)
 	testcheck.NoError(t, err)
 	if input != "What is 48 + 24?" || target != "72" {

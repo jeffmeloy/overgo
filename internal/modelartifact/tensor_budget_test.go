@@ -30,29 +30,23 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 	path := testutil.TempGGUF(t, "counted.gguf", nil, []gguf.TensorData{
 		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
 	})
-	opened, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(gguf.Open(path))(t)
 	defer opened.Close()
-	inventory, err := FromGGUF(opened, artifact.KindModel)
-	testcheck.NoError(t, err)
-	encoded, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(opened, artifact.KindModel))(t)
+	encoded := testcheck.Must(os.ReadFile(path))(t)
 	source := &countedReader{source: bytes.NewReader(encoded)}
-	file, err := gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions()))(t)
 
 	// Sampling alone: 4 samples x 4 bytes = 16 bytes recorded.
-	sampled, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
+	sampled := testcheck.Must(MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: 1 << 20,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	// Sampling plus spectral: the full 64-byte tensor read must be charged on
 	// top of the sampled bytes, so recorded ReadBytes strictly exceeds the
 	// sampling-only document's.
-	spectral, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
+	spectral := testcheck.Must(MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: 1 << 20, SpectralMaxDim: 8,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if spectral.Measurements[0].SpectralStatus != SpectralComputed {
 		t.Fatalf("spectral status = %q, want computed", spectral.Measurements[0].SpectralStatus)
 	}

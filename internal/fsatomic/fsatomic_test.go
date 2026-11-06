@@ -19,8 +19,7 @@ func TestReplacePublishesExactFile(t *testing.T) {
 	if _, err := os.Stat(source); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("source state = %v, want absent", err)
 	}
-	got, err := os.ReadFile(target)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(os.ReadFile(target))(t)
 	if string(got) != "after" {
 		t.Fatalf("target = %q, want after", got)
 	}
@@ -33,10 +32,8 @@ func TestSyncFilePersistsHardLinkMetadata(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(source, []byte("content"), 0o600))
 	testcheck.NoError(t, os.Link(source, linked))
 	testcheck.NoError(t, SyncFile(linked))
-	sourceInfo, err := os.Stat(source)
-	testcheck.NoError(t, err)
-	linkedInfo, err := os.Stat(linked)
-	testcheck.NoError(t, err)
+	sourceInfo := testcheck.Must(os.Stat(source))(t)
+	linkedInfo := testcheck.Must(os.Stat(linked))(t)
 	if !os.SameFile(sourceInfo, linkedInfo) {
 		t.Fatal("synced link does not identify its source file")
 	}

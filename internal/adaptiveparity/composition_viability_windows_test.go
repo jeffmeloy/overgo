@@ -47,7 +47,7 @@ func TestComponentCompositionViability(t *testing.T) {
 		t.Fatalf("recorded profile stream too short: %d tokens", len(tokens))
 	}
 	started := time.Now()
-	result, err := trainingworkflow.RunGraftViability(trainingworkflow.GraftConfig{
+	result := testcheck.Must(trainingworkflow.RunGraftViability(trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: compositionSeeds, Steps: compositionSteps,
@@ -57,8 +57,7 @@ func TestComponentCompositionViability(t *testing.T) {
 			tokens[compositionWindow : 2*compositionWindow],
 		},
 		HeldOut: tokens[2*compositionWindow : 3*compositionWindow],
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Outcomes) != len(compositionSeeds) {
 		t.Fatalf("outcomes = %d, want one per seed", len(result.Outcomes))
 	}

@@ -23,14 +23,11 @@ func TestMeasureAtLocationGGUF(t *testing.T) {
 	path := testutil.TempGGUF(t, "model.gguf", nil, []gguf.TensorData{
 		{Name: "w", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
 	})
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	inventory, err := FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(file, artifact.KindModel))(t)
 
-	doc, err := MeasureAtLocation(inventory.TensorInventory, path, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20})
-	testcheck.NoError(t, err)
+	doc := testcheck.Must(MeasureAtLocation(inventory.TensorInventory, path, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20}))(t)
 	if len(doc.Measurements) != 1 || doc.Measurements[0].Name != "w" {
 		t.Fatalf("gguf measurements = %+v", doc.Measurements)
 	}
@@ -49,16 +46,13 @@ func TestMeasureAtLocationSafetensors(t *testing.T) {
 		data = append(data, scalar[:]...)
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "model.safetensors"), data, 0o600))
-	repository, err := hfrepo.Open(dir)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(hfrepo.Open(dir))(t)
 	defer repository.Close()
-	inventory, err := FromHFRepository(repository)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromHFRepository(repository))(t)
 
 	// Location is the repository directory; MeasureAtLocation dispatches on the
 	// inventory's safetensors format.
-	doc, err := MeasureAtLocation(inventory.TensorInventory, dir, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20})
-	testcheck.NoError(t, err)
+	doc := testcheck.Must(MeasureAtLocation(inventory.TensorInventory, dir, MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20}))(t)
 	if len(doc.Measurements) != 1 || doc.Measurements[0].Name != "weight" {
 		t.Fatalf("safetensors measurements = %+v", doc.Measurements)
 	}

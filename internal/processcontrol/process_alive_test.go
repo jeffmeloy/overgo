@@ -18,8 +18,7 @@ func TestProcessAlive(t *testing.T) {
 	if ProcessAlive(0) || ProcessAlive(-1) {
 		t.Fatal("a non-positive pid was reported alive")
 	}
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	child := exec.Command(executable, "-test.run=^$")
 	testcheck.NoError(t, child.Run())
 	if ProcessAlive(child.Process.Pid) {

@@ -17,8 +17,7 @@ import (
 func TestRxBrainUnicodeClassesMatchReference(t *testing.T) {
 	const fixtureSHA = "7db1e9a46d0478d3ae4c3d77276cec9c636a8fdb041ff30d2aa6d701d00c0e66"
 	const sourceSHA = "ae5ca95eeb8e9a8774513a996e4e820a05c27db32966aa8e071c10828402cb73"
-	raw, err := os.ReadFile(filepath.Join("testdata", "rxbrain-hf-unicode-classes.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "rxbrain-hf-unicode-classes.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != fixtureSHA {
 		t.Fatalf("Unicode class fixture drifted: %s", got)
 	}

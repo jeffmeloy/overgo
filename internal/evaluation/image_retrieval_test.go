@@ -69,14 +69,12 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 		{Name: "b1", Group: "b", Image: "b1.png"}, {Name: "b2", Group: "b", Image: "b2.png"},
 		{Name: "solo", Group: "solo", Image: "solo.png"},
 	}}
-	compiled, err := compileImageRetrieval(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindImageRetrieval(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileImageRetrieval(suite))(t)
+	plan := testcheck.Must(bindImageRetrieval(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	embedder := vectorEmbedder{
@@ -126,8 +124,7 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 	for _, pick := range picks {
 		images[pick.Clip] = pick.Clip + ".png"
 	}
-	built, err := BuildSceneRetrieval(picks, images)
-	testcheck.NoError(t, err)
+	built := testcheck.Must(BuildSceneRetrieval(picks, images))(t)
 	if _, err := compileImageRetrieval(built); err != nil || len(built.Cases) != 9 {
 		t.Fatalf("the picked suite has %d cases and compiles with %v", len(built.Cases), err)
 	}

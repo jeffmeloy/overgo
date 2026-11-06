@@ -119,8 +119,7 @@ func TestARowRunsOnlyUnderTheAnswerItWasWrittenFor(t *testing.T) {
 // though nothing else is ready, and they cannot land; an unanswered ordinary decision goes on as it does.
 func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 	t.Parallel()
-	document, err := MarkDoctrine(decisionFixture(), "choose")
-	testcheck.NoError(t, err)
+	document := testcheck.Must(MarkDoctrine(decisionFixture(), "choose"))(t)
 	if _, err := MarkDoctrine(document, "unknown"); err == nil {
 		t.Fatal("an unknown decision was marked")
 	}
@@ -137,8 +136,7 @@ func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
 	} else if _, err := Advance(ordinary, "first", "do"); err != nil {
 		t.Fatalf("a row under an unanswered ordinary decision could not land: %v", err)
 	}
-	answered, err := Answer(document, "choose", "a")
-	testcheck.NoError(t, err)
+	answered := testcheck.Must(Answer(document, "choose", "a"))(t)
 	if dispatch, err := selectDispatch(answered, "", ""); err != nil || dispatch.Item != "first" {
 		t.Fatalf("answered, dispatch = %+v, %v; want first", dispatch, err)
 	}
@@ -153,10 +151,8 @@ func TestPromptAndNextAgreeOnAnAwaitingRow(t *testing.T) {
 	other := document.Decisions[0]
 	other.ID, other.Blocks = "unrelated", []string{"another-row"}
 	document.Decisions = append(document.Decisions, other)
-	next, err := selectDispatch(document, "", "")
-	testcheck.NoError(t, err)
-	named, err := selectDispatch(document, "", "first/do")
-	testcheck.NoError(t, err)
+	next := testcheck.Must(selectDispatch(document, "", ""))(t)
+	named := testcheck.Must(selectDispatch(document, "", "first/do"))(t)
 	if next.Item != "first" || named.Item != "first" || named.Waiting != "" {
 		t.Fatalf("next = %+v, by name = %+v", next, named)
 	}

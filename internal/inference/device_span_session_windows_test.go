@@ -18,15 +18,13 @@ func TestSpanDecodeSession(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticQwen35GGUF(t)
-	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{}))(t)
 	defer runner.Close()
 	ctx := t.Context()
 
 	// Teacher-forced host oracle over the full token history.
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
-	oracle, err := runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1})
-	testcheck.NoError(t, err)
+	oracle := testcheck.Must(runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1}))(t)
 	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	for index, token := range tokens {
@@ -44,10 +42,9 @@ func TestSpanDecodeSession(t *testing.T) {
 	release := func(cache *deviceKVCache) {
 		testcheck.NoError(t, cache.Release(t.Context()))
 	}
-	boundary, err := runner.forwardDeviceCachedModeLocked(
+	boundary := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[:2], nil, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer release(boundary)
 
 	check := func(label string, cache *deviceKVCache) {
@@ -68,10 +65,9 @@ func TestSpanDecodeSession(t *testing.T) {
 		}
 	}
 
-	first, err := runner.forwardDeviceCachedModeLocked(
+	first := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[2:], boundary, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	check("compiled span", first)
 	session := first.session
 	if session == nil {
@@ -82,10 +78,9 @@ func TestSpanDecodeSession(t *testing.T) {
 	}
 	release(first)
 
-	second, err := runner.forwardDeviceCachedModeLocked(
+	second := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, tokens[2:], boundary, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	check("replayed span", second)
 	if second.session != session || session.replays == 0 {
 		t.Fatalf(

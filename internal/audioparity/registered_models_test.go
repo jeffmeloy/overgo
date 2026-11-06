@@ -19,14 +19,12 @@ import (
 
 func TestCanonicalAudioModelRegistration(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile("testdata/registered_models.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/registered_models.json"))(t)
 	// The reference store and the models beside it come from the declared
 	// roots, the same reference the CPU ASR acceptance reads.
 	reference := resolveReferenceRoots(t)
 	storeRoot, root := reference.store, filepath.Dir(reference.store)
-	empty, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	empty := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	if err := verifyRegisteredAudioModels(t.Context(), empty, root, data); err == nil {
 		t.Fatal("accepted an empty catalog")
 	}

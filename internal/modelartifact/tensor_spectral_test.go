@@ -13,18 +13,15 @@ import (
 
 func openGGUF(t *testing.T, tensors []gguf.TensorData) *gguf.File {
 	t.Helper()
-	file, err := gguf.Open(testutil.TempGGUF(t, "fixture.gguf", nil, tensors))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(testutil.TempGGUF(t, "fixture.gguf", nil, tensors)))(t)
 	t.Cleanup(func() { file.Close() })
 	return file
 }
 
 func measure(t *testing.T, file *gguf.File, policy MeasurementPolicy) map[string]TensorMeasurement {
 	t.Helper()
-	inventory, err := FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
-	document, err := MeasureGGUF(inventory.TensorInventory, file, policy)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(file, artifact.KindModel))(t)
+	document := testcheck.Must(MeasureGGUF(inventory.TensorInventory, file, policy))(t)
 	byName := map[string]TensorMeasurement{}
 	for _, m := range document.Measurements {
 		byName[m.Name] = m

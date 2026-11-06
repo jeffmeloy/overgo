@@ -20,19 +20,16 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 		{ID: "d-1", Group: "d"}, {ID: "e-1", Group: "e"},
 	}
 	partitions := []SplitPartition{{Name: "train", Weight: 4}, {Name: "test", Weight: 1}}
-	first, err := BuildGroupSplit(source, records, 42, partitions)
-	testcheck.NoError(t, err)
-	second, err := BuildGroupSplit(source, []Record{
+	first := testcheck.Must(BuildGroupSplit(source, records, 42, partitions))(t)
+	second := testcheck.Must(BuildGroupSplit(source, []Record{
 		records[5], records[3], records[1], records[4], records[0], records[2],
-	}, 42, []SplitPartition{partitions[1], partitions[0]})
-	testcheck.NoError(t, err)
+	}, 42, []SplitPartition{partitions[1], partitions[0]}))(t)
 	if first.Split.ID != second.Split.ID || !reflect.DeepEqual(first.Memberships, second.Memberships) {
 		t.Fatal("same source and seed produced different split")
 	}
 	groupPartition := map[string]string{}
 	for _, membership := range first.Memberships {
-		content, err := membership.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(membership.Content())(t)
 		if _, err := membershipCodec.Parse(content.Data); err != nil {
 			t.Fatal(err)
 		}
@@ -54,12 +51,10 @@ func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BuildGroupSplit(source, []Record{
+	plan := testcheck.Must(BuildGroupSplit(source, []Record{
 		{ID: "a", Group: "a"}, {ID: "b", Group: "b"}, {ID: "c", Group: "c"},
-	}, 7, []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}})
-	testcheck.NoError(t, err)
-	batch, err := plan.PublicationBatch("fixture/split", nil)
-	testcheck.NoError(t, err)
+	}, 7, []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}}))(t)
+	batch := testcheck.Must(plan.PublicationBatch("fixture/split", nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +83,8 @@ func TestSplitPublicationRejectsCrossWiredPlan(t *testing.T) {
 		{ID: "a", Group: "a"}, {ID: "b", Group: "b"}, {ID: "c", Group: "c"},
 	}
 	partitions := []SplitPartition{{Name: "train", Weight: 2}, {Name: "test", Weight: 1}}
-	first, err := BuildGroupSplit(source, records, 7, partitions)
-	testcheck.NoError(t, err)
-	second, err := BuildGroupSplit(source, records, 8, partitions)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(BuildGroupSplit(source, records, 7, partitions))(t)
+	second := testcheck.Must(BuildGroupSplit(source, records, 8, partitions))(t)
 	first.Memberships[0] = second.Memberships[0]
 	if _, err := first.PublicationBatch("fixture/cross-wired", nil); err == nil {
 		t.Fatal("cross-wired split plan accepted")

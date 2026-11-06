@@ -19,8 +19,7 @@ import (
 
 func verifySpeakerSessionControls(t *testing.T, root string, session *speechrecognition.Session, publication *audioPublication, policy dataset.AudioInspectionPolicy, commit string, environment artifact.ID) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, "clip-partial.wav"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(root, "clip-partial.wav")))(t)
 	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
 	if err != nil || id.DigestHex() != "ff407d029c95a37cd986d6f496c4780c58efa8afe4760ab84150942c25eba8ce" {
 		t.Fatal("partial signal differs")
@@ -30,8 +29,7 @@ func verifySpeakerSessionControls(t *testing.T, root string, session *speechreco
 	origin := dataset.AudioPayloadOrigin{Container: id}
 	policy.MaximumEncodedBytes = uint64(len(data))
 	policy.MaximumSamples = samples
-	lease, err := session.Lease(t.Context())
-	testcheck.NoError(t, err)
+	lease := testcheck.Must(session.Lease(t.Context()))(t)
 	defer lease.Release()
 	binding := speechrecognition.RunBinding{Key: "speaker/partial-run", CodeCommit: commit, Environment: environment}
 	first, run, err := lease.Diarize(t.Context(), data, origin, policy, binding)

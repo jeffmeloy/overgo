@@ -19,8 +19,7 @@ import (
 // and reports each one's wall time (one worker.Do vs nh), per SQA finding 2.
 func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 32, 8, 2, 16

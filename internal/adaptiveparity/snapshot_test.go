@@ -16,7 +16,7 @@ func TestSnapshotImportRoundTrip(t *testing.T) {
 	golden := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-golden")
 	measurement := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-measurement")
 
-	snapshot, err := New(
+	snapshot := testcheck.Must(New(
 		[]Source{{Name: "adaptive", Repository: "local/adaptive_new", Commit: "214950b3b0316bcdcab38a3b95127a927c0ab5be"}},
 		[]Capability{{
 			ID: "image-to-text", Source: "adaptive", EntryPoint: "go/extmodel/vqa.go:Run",
@@ -33,23 +33,19 @@ func TestSnapshotImportRoundTrip(t *testing.T) {
 				PeakBytes: 10_590_000_000, Evidence: measurement,
 			}},
 		}},
-	)
-	testcheck.NoError(t, err)
-	content, err := snapshot.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	content := testcheck.Must(snapshot.Content())(t)
 
 	// Import accepts noncanonical producer field order, then owns canonical bytes.
 	var unordered map[string]any
 	testcheck.NoError(t, json.Unmarshal(content.Data, &unordered))
-	producer, err := json.MarshalIndent(unordered, "", "  ")
-	testcheck.NoError(t, err)
+	producer := testcheck.Must(json.MarshalIndent(unordered, "", "  "))(t)
 	imported, canonical, err := Import(bytes.NewReader(producer))
 	testcheck.NoError(t, err)
 	if imported.ID != snapshot.ID || !bytes.Equal(canonical, content.Data) {
 		t.Fatalf("import identity/bytes differ: %s vs %s", imported.ID, snapshot.ID)
 	}
-	parsed, err := Parse(canonical)
-	testcheck.NoError(t, err)
+	parsed := testcheck.Must(Parse(canonical))(t)
 	if parsed.ID != snapshot.ID || parsed.Capabilities[0].Signature.Inputs[0] != ModalityImage {
 		t.Fatalf("round trip changed identity or ordered signature: %+v", parsed)
 	}

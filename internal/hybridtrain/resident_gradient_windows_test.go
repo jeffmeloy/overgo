@@ -10,10 +10,8 @@ import (
 )
 
 func TestResidentMatrixGradientViews(t *testing.T) {
-	model, err := BuildModel(smallHybrid(), testSeed)
-	testcheck.NoError(t, err)
-	plans, err := model.matrixPlans()
-	testcheck.NoError(t, err)
+	model := testcheck.Must(BuildModel(smallHybrid(), testSeed))(t)
+	plans := testcheck.Must(model.matrixPlans())(t)
 	// Simulated disjoint allocations; no device acquisition is needed to test
 	// the optimizer-layout-to-view binding.
 	for _, base := range []driver.DevicePtr{1, driver.DevicePtr(model.MatrixParamCount()*4 + 1)} {

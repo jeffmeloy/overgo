@@ -14,8 +14,7 @@ import (
 // repo's committed expectations (adaptive TestFixedUnigramTokenizerRealGated).
 func TestRealTokenizerParity(t *testing.T) {
 	modelDir := wanModelDir(t)
-	tok, err := loadFixedUnigramTokenizer(filepath.Join(modelDir, "google", "umt5-xxl"), 16)
-	testcheck.NoError(t, err)
+	tok := testcheck.Must(loadFixedUnigramTokenizer(filepath.Join(modelDir, "google", "umt5-xxl"), 16))(t)
 	cases := []struct {
 		text string
 		ids  []int

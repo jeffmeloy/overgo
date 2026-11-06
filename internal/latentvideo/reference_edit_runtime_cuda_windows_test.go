@@ -42,23 +42,20 @@ func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, 
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
 		VAEStride: [3]int{4, 8, 8},
 	}
-	base, err := LoadDenoiserConfig(wanDir, policy)
-	testcheck.NoError(t, err)
-	sigmas, err := CompileEditFlowSigmas(EditFlowConfig{
+	base := testcheck.Must(LoadDenoiserConfig(wanDir, policy))(t)
+	sigmas := testcheck.Must(CompileEditFlowSigmas(EditFlowConfig{
 		InferenceSteps: 2, TrainTimesteps: policy.NumTrainTimesteps, Shift: 5,
 		SigmaMin: 0, SigmaMax: 1, ExtraStep: true,
-	}, []int64{900})
-	testcheck.NoError(t, err)
+	}, []int64{900}))(t)
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
-	runtime, err := NewReferenceEditRuntime(ReferenceEditRuntimeConfig{
+	runtime := testcheck.Must(NewReferenceEditRuntime(ReferenceEditRuntimeConfig{
 		WanDirectory: wanDir, EditCheckpoint: filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"),
 		Policy: policy, LatentStats: loadSourceCodecStats(t),
 		Source:         sourceShape,
 		FramesPerChunk: 1, LocalAttentionFrames: 1,
 		Timesteps: []int64{900}, Sigmas: sigmas, ContextTimestep: 0,
 		Layers: base.NumLayers, DeviceOrdinal: 0,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	t.Cleanup(func() {
 		if err := runtime.Close(); err != nil {
 			t.Error(err)
@@ -75,14 +72,13 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 	for run := range 2 {
 		var frames [][]float32
 		started := time.Now()
-		result, err := runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, height, width int) error {
+		result := testcheck.Must(runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, height, width int) error {
 			if height != 16 || width != 32 {
 				t.Fatalf("decoded frame shape=%dx%d", height, width)
 			}
 			frames = append(frames, append([]float32(nil), frame...))
 			return nil
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if result.Sampler.DenoiseCalls != 2 || result.Sampler.ContextRefreshCalls != 2 ||
 			result.Source.SourceChunks != 2 || result.Decode.OutputFrames != 5 || len(frames) != 5 {
 			t.Fatalf("runtime result sampler=%+v source=%+v decode=%+v frames=%d", result.Sampler, result.Source, result.Decode, len(frames))

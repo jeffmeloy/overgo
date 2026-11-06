@@ -37,17 +37,14 @@ func TestAGemma4DirectoryIsTheBytesItsConversionWrites(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for the Gemma 4 directory")
 	}
-	roots, err := dataroot.ResolveCurrent()
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.ResolveCurrent())(t)
 	directory := roots.ResolveModelPath("gemma-4-12B-it")
 	if !Viewed(directory) {
 		t.Fatalf("%s is not served from its own files", directory)
 	}
-	viewed, err := View(directory, "")
-	testcheck.NoError(t, err)
+	viewed := testcheck.Must(View(directory, ""))(t)
 	defer viewed.Close()
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	defer source.Close()
 	if architecture, found := viewed.MetadataValue("general.architecture"); !found || architecture.Data != "gemma4" {
 		t.Fatalf("the view's architecture is %v", architecture)

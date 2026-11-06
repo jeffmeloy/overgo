@@ -85,22 +85,19 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 	t.Helper()
 	ctx := t.Context()
 	root := filepath.Dir(request.ModelDirectory)
-	model, err := loadTrainableModel(request.ModelDirectory)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(loadTrainableModel(request.ModelDirectory))(t)
 	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
 	if err != nil || !slices.Equal(tokens.ends, []int{tokens.end}) {
 		t.Fatalf("the fixture's ending tokens = (%v, %v), want its one end token %d", tokens.ends, err, tokens.end)
 	}
-	encoded, err := tokens.encode("ab")
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(tokens.encode("ab"))(t)
 	prompt := make([]tokenizer.TokenID, len(encoded))
 	for index, id := range encoded {
 		prompt[index] = tokenizer.TokenID(id)
 	}
 	draw := func(generator evaluation.Generator, seed int64) (ids []tokenizer.TokenID, chances []float64) {
 		t.Helper()
-		sampler, err := sampling.New(sampling.Config{Temperature: 1, Seed: seed})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 1, Seed: seed}))(t)
 		returned, _, err := generator.Generate(ctx, "", inference.GenerateOptions{
 			MaxNewTokens: 8, Sampler: sampler, PromptTokenIDs: prompt, PostSamplingProbabilities: 1,
 			OnToken: func(event inference.TokenEvent) error {
@@ -121,8 +118,7 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 	const seeds = 24
 	agree := func(weights string) (drawn [][]tokenizer.TokenID, ended int) {
 		t.Helper()
-		generator, err := served.generator()
-		testcheck.NoError(t, err)
+		generator := testcheck.Must(served.generator())(t)
 		if again, err := served.generator(); err != nil || again != generator {
 			t.Fatalf("%s were opened twice with no step between (%v)", weights, err)
 		}
@@ -155,11 +151,9 @@ func heldToHostSampler(t *testing.T, request Request, onHost bool, agreement flo
 			drawn = append(drawn, gotIDs)
 		}
 		// An answer stands under the weights it was drawn from where it was drawn, and where the host scores it.
-		standing, err := served.standing(prompt, answers, rollouts)
-		testcheck.NoError(t, err)
+		standing := testcheck.Must(served.standing(prompt, answers, rollouts))(t)
 		for index, got := range standing {
-			scored, err := model.SequenceLogProb(rollouts[index].Sequence)
-			testcheck.NoError(t, err)
+			scored := testcheck.Must(model.SequenceLogProb(rollouts[index].Sequence))(t)
 			if bound := agreement * math.Abs(scored.LogProbability); math.Abs(got-scored.LogProbability) > bound || math.Abs(got-sampled[index]) > bound {
 				t.Fatalf("%s, seed %d: the answer stands at %v by the runtime, %v by the host, and was drawn at %v", weights, index, got, scored.LogProbability, sampled[index])
 			}
@@ -208,8 +202,7 @@ func bootstrappedRewardSession(t *testing.T, model string) Request {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	recipeID, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts))
-	testcheck.NoError(t, err)
+	recipeID := testcheck.Must(bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts)))(t)
 	if again, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts)); err != nil || again != recipeID {
 		t.Fatalf("published again the recipe is %s (%v), want %s", again, err, recipeID)
 	}
@@ -254,8 +247,7 @@ func TestBootstrappedRewardRecipeRunsARewardSession(t *testing.T) {
 	bootstrappedRewardSession(t, writeTrainingGGUF(t))
 	_, fixture := rewardFixture(t)
 	// A directory's recipe is published for its weights file, as a training command names it.
-	weights, err := IdentifyModelWeights(fixture.ModelDirectory)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(IdentifyModelWeights(fixture.ModelDirectory))(t)
 	request := bootstrappedRewardSession(t, weights)
 	request.ModelDirectory, request.Device = fixture.ModelDirectory, hostWeightedStep
 	heldToARewardSession(t, request)

@@ -35,8 +35,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 			}
 		}
 	}
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	commit(store, 20)
 	if _, err := store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
@@ -50,8 +49,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 		t.Fatal("Close did not report the checkpoint it could not write")
 	}
 	testcheck.NoError(t, os.Remove(blocked))
-	reopened, err := Create(root)
-	testcheck.NoError(t, err)
+	reopened := testcheck.Must(Create(root))(t)
 	if head, sequence := reopened.Head(); head != before || sequence != 40 {
 		t.Fatalf("an open stopped at sequence %d, head %s, after commits through 40, head %s", sequence, head, before)
 	}
@@ -66,8 +64,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 	reopened.tail = ^uint64(0)
 	testcheck.NoError(t, reopened.Close())
 	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, checkpointDirectory)))
-	replayed, err := OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	replayed := testcheck.Must(OpenReadOnly(root))(t)
 	defer replayed.Close()
 	if head, sequence := replayed.Head(); head != after || sequence != 41 {
 		t.Fatalf("a full replay reached sequence %d, head %s, want 41, head %s", sequence, head, after)

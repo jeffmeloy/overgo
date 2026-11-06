@@ -25,12 +25,11 @@ func TestConvertLoRAWritesTheGGUFAdapter(t *testing.T) {
 	spec := testutil.DenseCausalSpec{Vocab: 3, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 3}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
 	testcheck.NoError(t, safetensors.Save(filepath.Join(base, "model.safetensors"), weights, shapes, nil))
-	config, err := json.Marshal(map[string]any{
+	config := testcheck.Must(json.Marshal(map[string]any{
 		"model_type": "llama", "hidden_size": spec.Hidden, "intermediate_size": spec.Intermediate, "num_attention_heads": spec.Heads,
 		"num_key_value_heads": spec.KVHeads, "head_dim": spec.HeadDim, "num_hidden_layers": spec.Layers, "vocab_size": spec.Vocab,
 		"max_position_embeddings": 16, "rms_norm_eps": 1e-5, "rope_theta": 10000,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testutil.WriteTextFile(t, base, "config.json", string(config))
 	adapterDirectory := filepath.Join(root, "adapter")
 	adapter := peft.Adapter{
@@ -40,8 +39,7 @@ func TestConvertLoRAWritesTheGGUFAdapter(t *testing.T) {
 	testcheck.NoError(t, peft.Save(adapterDirectory, adapter))
 	output := filepath.Join(root, "adapter.gguf")
 	testcheck.NoError(t, runSubcommand([]string{"convert-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}))
-	file, err := gguf.Open(output)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(output))(t)
 	defer file.Close()
 	var names []string
 	for _, info := range file.Tensors {

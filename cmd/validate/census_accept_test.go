@@ -33,8 +33,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	storePath := t.TempDir()
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -42,10 +41,8 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	})
 	commit := strings.Repeat("b", 40)
 	registerCensusModel(t, store, "frozen", true, true)
-	base, err := buildCapabilityCensus(ctx, store, commit, catalogLimit, discovery.NewMemo())
-	testcheck.NoError(t, err)
-	baseBatch, err := capabilityCensusBatch(base)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(buildCapabilityCensus(ctx, store, commit, catalogLimit, discovery.NewMemo()))(t)
+	baseBatch := testcheck.Must(capabilityCensusBatch(base))(t)
 	if _, err := artifact.CommitBatch(ctx, store, baseBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +57,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	}
 	read := func() written {
 		t.Helper()
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		// The command commits through its own handle; this one catches up.
 		testcheck.NoError(t, store.Refresh(ctx))
 		head, _ := store.Head()
@@ -103,8 +99,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 		if err := checkCensusDisposition(ctx, store, binding); err != nil {
 			t.Fatalf("the written binding fails the acceptance tests' check: %v", err)
 		}
-		current, err := capabilityCensusCodec.Require(ctx, store, binding.Current)
-		testcheck.NoError(t, err)
+		current := testcheck.Must(capabilityCensusCodec.Require(ctx, store, binding.Current))(t)
 		if current.ProducerCommit != commit {
 			t.Fatalf("the census names producer %q, want the commit given", current.ProducerCommit)
 		}
@@ -115,8 +110,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 		if err != nil || !found {
 			t.Fatalf("the finding is not in the store: found=%t: %v", found, err)
 		}
-		filed, err := finding.Parse(content.Data)
-		testcheck.NoError(t, err)
+		filed := testcheck.Must(finding.Parse(content.Data))(t)
 		want := []artifact.ID{base.ID, binding.Current}
 		if previous != base.ID {
 			want = append(want, previous)
@@ -127,8 +121,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 		// The command supplies the rest of the finding itself: the binding file
 		// as its owner surface, the one command as its closure path, and the
 		// check of the new census as the check that fails while it stands.
-		owner, err := artifact.IdentifyBytes(artifact.KindFile, []byte(path))
-		testcheck.NoError(t, err)
+		owner := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, []byte(path)))(t)
 		if filed.Status != finding.StatusOpen || filed.Severity != finding.SeverityLow || !slices.Equal(filed.OwnerSurfaces, []artifact.ID{owner}) ||
 			!strings.Contains(filed.ClosurePath, "-accept-census "+path) || !strings.HasSuffix(filed.FailableCheck, "-check-census "+binding.Current.String()) {
 			t.Fatalf("the command left a part of the finding to its caller, or named another file or census: %+v", filed)
@@ -137,8 +130,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 		if err != nil || !found {
 			t.Fatalf("the finding has no disposition: found=%t: %v", found, err)
 		}
-		resolution, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(reason))
-		testcheck.NoError(t, err)
+		resolution := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte(reason)))(t)
 		if closed.ID != binding.Disposition || closed.Status != finding.StatusClosed || !slices.Contains(closed.Evidence, resolution) {
 			t.Fatalf("the disposition %+v is not the bound closing with the reason given", closed)
 		}
@@ -156,8 +148,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 				t.Fatalf("%s has no introduction: found=%t: %v", child, found, err)
 			}
 			commits[introduced.Commit] = true
-			edges, err := store.Parents(ctx, child)
-			testcheck.NoError(t, err)
+			edges := testcheck.Must(store.Parents(ctx, child))(t)
 			for _, parent := range parents {
 				if !slices.ContainsFunc(edges, func(edge artifact.Lineage) bool { return edge.Parent == parent }) {
 					t.Fatalf("the store holds no edge from %s to %s", child, parent)

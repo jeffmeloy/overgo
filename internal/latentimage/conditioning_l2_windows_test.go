@@ -57,12 +57,10 @@ func TestMOSSConditioningL2Golden(t *testing.T) {
 					t.Error(label, "native differs")
 				}
 			}
-			cpu, err := reference.Execute([]*tensor.Tensor{out}, feeds)
-			testcheck.NoError(t, err)
+			cpu := testcheck.Must(reference.Execute([]*tensor.Tensor{out}, feeds))(t)
 			compare("cpu", cpu[out].Data)
 			for pass := range 2 {
-				got, err := run([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
 				compare([]string{"cuda", "repeat"}[pass], got[out].Data)
 			}
 		})

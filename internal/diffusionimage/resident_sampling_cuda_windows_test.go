@@ -57,21 +57,15 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 		B, H, W int
 		X, Out  []float32
 	}](t, "real_forward")
-	forward, err := CompileResidentForward(t.Context(), model, 0, golden.H, golden.W)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, golden.H, golden.W))(t)
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
-	actual, err := forward.Execute(t.Context(), golden.X)
-	testcheck.NoError(t, err)
+	actual := testcheck.Must(forward.Execute(t.Context(), golden.X))(t)
 	requireWithin(t, "independent vendor forward", actual, golden.Out, tolReal)
 	const steps, seed = 3, int64(7)
-	want, err := samplingHostBoundary(t.Context(), forward, steps, seed)
-	testcheck.NoError(t, err)
-	before, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
-	got, err := forward.Sample(t.Context(), steps, seed)
-	testcheck.NoError(t, err)
-	after, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	want := testcheck.Must(samplingHostBoundary(t.Context(), forward, steps, seed))(t)
+	before := testcheck.Must(forward.Stats(t.Context()))(t)
+	got := testcheck.Must(forward.Sample(t.Context(), steps, seed))(t)
+	after := testcheck.Must(forward.Stats(t.Context()))(t)
 	requireWithin(t, "complete resident sample", got, want, tolTight)
 	download := after.Execution.DeviceToHostBytes - before.Execution.DeviceToHostBytes
 	t.Logf("sampling steps=%d elements=%d h2d_bytes=%d d2h_bytes=%d owned_peak_bytes=%d", steps, len(got), after.Execution.HostToDeviceBytes-before.Execution.HostToDeviceBytes, download, after.Device.PeakBytes)
@@ -79,14 +73,11 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 		t.Fatalf("sampling downloaded %d bytes, want one final image (%d)", download, wantBytes)
 	}
 	for _, count := range []int{1, 8, 3} {
-		want, err := samplingHostBoundary(t.Context(), forward, count, seed)
-		testcheck.NoError(t, err)
-		got, err := forward.Sample(t.Context(), count, seed)
-		testcheck.NoError(t, err)
+		want := testcheck.Must(samplingHostBoundary(t.Context(), forward, count, seed))(t)
+		got := testcheck.Must(forward.Sample(t.Context(), count, seed))(t)
 		requireWithin(t, "changed step count", got, want, tolTight)
 	}
-	stable, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	stable := testcheck.Must(forward.Stats(t.Context()))(t)
 	canceled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 	if _, err := forward.Sample(canceled, steps, seed); !errors.Is(err, context.Canceled) {
@@ -105,11 +96,9 @@ func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 	if _, err := forward.Sample(boundary, 8, seed); !errors.Is(err, context.Canceled) {
 		t.Fatalf("in-progress cancellation after %d context checks: %v", boundary.limit, err)
 	}
-	got, err = forward.Sample(t.Context(), steps, seed)
-	testcheck.NoError(t, err)
+	got = testcheck.Must(forward.Sample(t.Context(), steps, seed))(t)
 	requireWithin(t, "post-cancellation sample", got, want, tolTight)
-	recovered, err := forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	recovered := testcheck.Must(forward.Stats(t.Context()))(t)
 	if recovered.Device.CurrentBytes != stable.Device.CurrentBytes || recovered.Device.PeakBytes != stable.Device.PeakBytes {
 		t.Fatalf("repeated sampling grew storage: stable=%+v recovered=%+v", stable.Device, recovered.Device)
 	}
@@ -136,8 +125,7 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 	const modeEnvironment = "OVERGO_SAMPLING_MEASUREMENT_MODE"
 	if output := os.Getenv(resultEnvironment); output != "" {
 		measurement := measureSamplingSequence(t, directory, os.Getenv(modeEnvironment))
-		data, err := json.Marshal(measurement)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(measurement))(t)
 		testcheck.NoError(t, os.WriteFile(output, data, 0600))
 		return
 	}
@@ -152,8 +140,7 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 		}
 		testcheck.NoError(t, testevidence.VerifyOutput("go test", string(result.Output)))
 		var measurement samplingMeasurement
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		testcheck.NoError(t, json.Unmarshal(data, &measurement))
 		if result.PeakWorkingSetByte == 0 || len(measurement.Durations) == 0 || len(measurement.Pixels) == 0 {
 			t.Fatal("required measurement is unavailable")
@@ -198,13 +185,11 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 	const steps, seed, size, repeats = 2, int64(7), 64, 3
 	counter := func() time.Duration {
 		t.Helper()
-		value, err := processmeasure.Counter()
-		testcheck.NoError(t, err)
+		value := testcheck.Must(processmeasure.Counter())(t)
 		return value
 	}
 	started := counter()
-	forward, err := CompileResidentForward(t.Context(), model, 0, size, size)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(CompileResidentForward(t.Context(), model, 0, size, size))(t)
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), forward))
 	result := samplingMeasurement{Compile: counter() - started}
 	sample := func() []float32 {
@@ -225,8 +210,7 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 	started = counter()
 	result.Pixels = sample()
 	result.Initialization = counter() - started
-	result.Before, err = forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	result.Before = testcheck.Must(forward.Stats(t.Context()))(t)
 	for range repeats {
 		started := counter()
 		pixels := sample()
@@ -238,7 +222,6 @@ func measureSamplingSequence(t *testing.T, directory, mode string) samplingMeasu
 		}
 		requireWithin(t, "fresh sample repeat", pixels, result.Pixels, tolTight)
 	}
-	result.After, err = forward.Stats(t.Context())
-	testcheck.NoError(t, err)
+	result.After = testcheck.Must(forward.Stats(t.Context()))(t)
 	return result
 }

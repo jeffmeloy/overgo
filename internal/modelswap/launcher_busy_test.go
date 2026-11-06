@@ -45,8 +45,7 @@ func TestModelSwapStartupBusy(t *testing.T) {
 	for mode, code := range map[string]string{"busy": "resource_busy", "memory": "insufficient_memory", "invalid": "model_load_failed", "misleading-text": "model_load_failed"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("OVERGO_TEST_CHILD_STARTUP", mode)
-			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
-			testcheck.NoError(t, err)
+			supervisor := testcheck.Must(New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0))(t)
 			defer supervisor.Close()
 			proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 			for range 2 { // Refusal releases the startup owner so an explicit retry can run.
@@ -70,8 +69,7 @@ func TestModelSwapStartupBusy(t *testing.T) {
 func TestChildFailureCarriesItsOwnError(t *testing.T) {
 	// Serial: it sets the process environment the child reads.
 	t.Setenv("OVERGO_TEST_CHILD_STARTUP", "invalid")
-	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0))(t)
 	defer supervisor.Close()
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 	response := httptest.NewRecorder()

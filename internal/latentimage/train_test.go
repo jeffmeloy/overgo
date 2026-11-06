@@ -50,19 +50,16 @@ func finalStimulus(rows, hidden, out int) (x, temb, target []float64) {
 }
 
 func TestFinalLayerTrainerDescends(t *testing.T) {
-	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	if got, want := trainer.Config().Momentum, 29.0/31.0; math.Abs(got-want) > 1e-12 {
 		t.Fatalf("momentum %g, want derived %g", got, want)
 	}
 	x, temb, target := finalStimulus(5, 8, 4)
-	before, err := trainer.Loss(x, temb, target)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(trainer.Loss(x, temb, target))(t)
 	var first FinalLayerStepResult
 	for step := range 12 {
-		result, err := trainer.Step(x, temb, target)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(trainer.Step(x, temb, target))(t)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
 			t.Fatalf("step %d non-finite loss", step)
 		}
@@ -73,8 +70,7 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 			}
 		}
 	}
-	after, err := trainer.Loss(x, temb, target)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss(x, temb, target))(t)
 	if !(after < first.Loss) {
 		t.Fatalf("final layer loss did not descend: %.6f -> %.6f", first.Loss, after)
 	}
@@ -84,15 +80,13 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 // publishes the trainer's organ and optimizer state as a checkpoint, and
 // reads both back bit for bit under every head tensor name.
 func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
-	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	x, temb, target := finalStimulus(5, 8, 4)
 	if _, err := trainer.Step(x, temb, target); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan()))(t)
 	view := trainer.pack.Weights
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"final.norm": view(trainer.norm), "final.table": view(trainer.table),
@@ -103,12 +97,10 @@ func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing.T) {
 	weights := tinyFinalLayer(7, 3)
 	weights.Norm = nil // the Wan2.1 head: non-parametric LayerNorm
-	trainer, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	x, temb, target := finalStimulus(3, 7, 3)
-	baseline, err := trainer.Loss(x, temb, target)
-	testcheck.NoError(t, err)
+	baseline := testcheck.Must(trainer.Loss(x, temb, target))(t)
 	stepLoss, gradientL2, err := trainer.lossAndGradients(x, temb, target)
 	testcheck.NoError(t, err)
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
@@ -118,16 +110,13 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 	groups := trainer.OptimizerPlan().Groups()
 	_, gradients := trainer.pack.Slabs()
 	for _, index := range []int{groups[trainer.table].Start + 2, groups[trainer.table].Start + 7 + 2, groups[trainer.linear].Start + 4, groups[trainer.bias].Start} {
-		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-		testcheck.NoError(t, err)
+		fresh := testcheck.Must(NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 		freshWeights, _ := fresh.pack.Slabs()
 		original := freshWeights[index]
 		freshWeights[index] = original + epsilonFD
-		plus, err := fresh.Loss(x, temb, target)
-		testcheck.NoError(t, err)
+		plus := testcheck.Must(fresh.Loss(x, temb, target))(t)
 		freshWeights[index] = original - epsilonFD
-		minus, err := fresh.Loss(x, temb, target)
-		testcheck.NoError(t, err)
+		minus := testcheck.Must(fresh.Loss(x, temb, target))(t)
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilonFD)
 		got := float64(gradients[index])
@@ -141,8 +130,7 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 			t.Fatal(err)
 		}
 	}
-	after, err := trainer.Loss(x, temb, target)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss(x, temb, target))(t)
 	if !(after < baseline) {
 		t.Fatalf("layernorm head did not descend: %.6f -> %.6f", baseline, after)
 	}
@@ -153,11 +141,9 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	weights := tinyFinalLayer(7, 3)
 	x, temb, target := finalStimulus(3, 7, 3)
 
-	grader, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	grader := testcheck.Must(NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer grader.Close()
-	baseline, err := grader.Loss(x, temb, target)
-	testcheck.NoError(t, err)
+	baseline := testcheck.Must(grader.Loss(x, temb, target))(t)
 	stepLoss, gradientL2, err := grader.lossAndGradients(x, temb, target)
 	testcheck.NoError(t, err)
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
@@ -176,16 +162,13 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	}
 	_, gradients := grader.pack.Slabs()
 	for _, index := range indices {
-		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
-		testcheck.NoError(t, err)
+		fresh := testcheck.Must(NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy()))(t)
 		freshWeights, _ := fresh.pack.Slabs()
 		original := freshWeights[index]
 		freshWeights[index] = original + epsilon
-		plus, err := fresh.Loss(x, temb, target)
-		testcheck.NoError(t, err)
+		plus := testcheck.Must(fresh.Loss(x, temb, target))(t)
 		freshWeights[index] = original - epsilon
-		minus, err := fresh.Loss(x, temb, target)
-		testcheck.NoError(t, err)
+		minus := testcheck.Must(fresh.Loss(x, temb, target))(t)
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilon)
 		got := float64(gradients[index])

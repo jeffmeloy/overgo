@@ -40,23 +40,20 @@ func TestResourceFitnessContract(t *testing.T) {
 	model := planID(t, artifact.KindModel, "resource model")
 	recipe := planID(t, artifact.KindRecipe, "resource recipe")
 	workload := planID(t, artifact.KindProfile, "compiled evaluation plan")
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture",
 		Backend: "fixture", Driver: "fixture",
-	})
-	testcheck.NoError(t, err)
-	run, err := runrecord.NewBoundRun(
+	}))(t)
+	run := testcheck.Must(runrecord.NewBoundRun(
 		recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{workload}, []artifact.ID{planID(t, artifact.KindOutput, "resource output")}, "",
 		runtimeLedgerCommit, environment.ID, 31, []runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: 31}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	campaign := &Campaign{
 		identity:    modelrecipe.ProgramIdentity{Model: model, Recipe: recipe},
 		environment: environment,
 	}
-	fitness, err := campaign.resourceFitness(workload, run)
-	testcheck.NoError(t, err)
+	fitness := testcheck.Must(campaign.resourceFitness(workload, run))(t)
 	if fitness.Scope.Surface != runrecord.SurfaceEvaluation || fitness.Scope.Model != model ||
 		fitness.Scope.Hardware != environment.ID || fitness.Scope.Provider.Valid() ||
 		fitness.Scope.Workload != workload || fitness.Scope.Attempt != run.ID || run.Recipe != recipe {
@@ -73,19 +70,17 @@ func TestResourceFitnessContract(t *testing.T) {
 	observedZero.Measures = append(observedZero.Measures, runrecord.ResourceMeasure{
 		Metric: runrecord.ResourceInputTokens, Value: 0,
 	})
-	observedZero, err = runrecord.NewResourceFitness(observedZero)
-	testcheck.NoError(t, err)
+	observedZero = testcheck.Must(runrecord.NewResourceFitness(observedZero))(t)
 	if tokens, observed := observedZero.Measure(runrecord.ResourceInputTokens); !observed || tokens != 0 {
 		t.Fatalf("observed-zero input tokens = %d, observed %t", tokens, observed)
 	}
 
 	foreign := run
 	foreign.Recipe = planID(t, artifact.KindRecipe, "foreign resource recipe")
-	foreign, err = runrecord.NewBoundRun(
+	foreign = testcheck.Must(runrecord.NewBoundRun(
 		foreign.Recipe, foreign.Outcome, foreign.Inputs, foreign.Outputs, foreign.Failure,
 		foreign.CodeCommit, foreign.Environment, foreign.MeasuredNS, foreign.Phases,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := campaign.resourceFitness(workload, foreign); err == nil {
 		t.Fatal("accepted a run from another recipe")
 	}
@@ -112,16 +107,13 @@ func TestResourceFitnessContract(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			terminalCampaign, err := NewCampaign(
+			terminalCampaign := testcheck.Must(NewCampaign(
 				store, terminalResourceRuntime{failure: terminal.failure},
 				modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: recipe},
 				environment, runtimeLedgerCommit,
-			)
-			testcheck.NoError(t, err)
-			source, err := json.Marshal(exactFixture())
-			testcheck.NoError(t, err)
-			suite, err := CompileSuite(source, terminalCampaign.Authorities())
-			testcheck.NoError(t, err)
+			))(t)
+			source := testcheck.Must(json.Marshal(exactFixture()))(t)
+			suite := testcheck.Must(CompileSuite(source, terminalCampaign.Authorities()))(t)
 			result, evaluateErr := terminalCampaign.Evaluate(t.Context(), suite)
 			if evaluateErr == nil {
 				t.Fatal("terminal evaluation succeeded")

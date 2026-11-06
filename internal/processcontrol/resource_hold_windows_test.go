@@ -15,8 +15,7 @@ import (
 // out until they release, and a waiter on the resource is woken by that release.
 func TestHoldResourceAdmitsOneHolderAlone(t *testing.T) {
 	name := sharedAdmissionName(t)
-	release, err := HoldResource(name)
-	testcheck.NoError(t, err)
+	release := testcheck.Must(HoldResource(name))(t)
 	if _, err := HoldResource(name); !errors.Is(err, ErrResourceBusy) {
 		t.Errorf("a second hold: %v, want typed contention", err)
 	}

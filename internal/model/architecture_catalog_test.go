@@ -73,8 +73,7 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			profile := ArchitectureProfile{Name: fixtureArchitectureName}
 			mutate(&profile)
-			content, err := json.Marshal([]ArchitectureProfile{profile})
-			testcheck.NoError(t, err)
+			content := testcheck.Must(json.Marshal([]ArchitectureProfile{profile}))(t)
 			if _, err := parseArchitectureRegistry(content); err == nil {
 				t.Fatal("invalid profile accepted")
 			}

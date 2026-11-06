@@ -18,10 +18,8 @@ func TestCompileToolWorkflowUsesExactManualDependencies(t *testing.T) {
 		{ID: "update", Manual: mutate.ID, After: []recipe.NodeID{"inspect"}},
 		{ID: "inspect", Manual: inspect.ID},
 	}}
-	first, err := CompileToolWorkflow(proposal, []Manual{mutate, inspect})
-	testcheck.NoError(t, err)
-	second, err := CompileToolWorkflow(proposal, []Manual{inspect, mutate})
-	testcheck.NoError(t, err)
+	first := testcheck.Must(CompileToolWorkflow(proposal, []Manual{mutate, inspect}))(t)
+	second := testcheck.Must(CompileToolWorkflow(proposal, []Manual{inspect, mutate}))(t)
 	if first.Program().Definition().ID != second.Program().Definition().ID ||
 		len(first.Program().Stages()) != 2 || first.Program().Stages()[0].Node.ID != "inspect" {
 		t.Fatalf("compiled workflows differ: %+v %+v", first.Program().Definition(), second.Program().Definition())
@@ -44,10 +42,9 @@ func TestCompileToolWorkflowRefusesUngroundedMutation(t *testing.T) {
 
 func workflowManual(t *testing.T, name string, effect Effect) Manual {
 	t.Helper()
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: name, Description: "Workflow test tool.", Effect: effect,
 		Transport: Transport{Kind: TransportHTTP, URL: "https://example.test/" + name},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return manual
 }

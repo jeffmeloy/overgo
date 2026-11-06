@@ -60,8 +60,7 @@ func TestNeedleCallsMatchUpstreamOnEvaluationCases(t *testing.T) {
 	if len(fixture.Cases) == 0 || fixture.GeneratedTokens <= 0 {
 		t.Fatalf("the fixture holds %d cases of %d tokens", len(fixture.Cases), fixture.GeneratedTokens)
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	generator, err := LoadGenerator(roots.ResolveModelPath("needle"))
 	if err != nil {
 		t.Fatalf("Needle artifact unavailable: %v", err)
@@ -83,17 +82,13 @@ func TestNeedleCallsMatchUpstreamOnEvaluationCases(t *testing.T) {
 			t.Fatalf("%s: the encoder input a served request builds is %v, and upstream builds %v", reference.Name, renamed, reference.NamedEncoderIDs)
 		}
 		// The plain decode: the ids of the tools as given, and no names to restore.
-		encoded, err := generator.model.encodeTokens(given, fixture.GeneratedTokens)
-		testcheck.NoError(t, err)
-		selector, err := generator.prepareGeneration(encoded)
-		testcheck.NoError(t, err)
-		plain, err := selector.selectText()
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(generator.model.encodeTokens(given, fixture.GeneratedTokens))(t)
+		selector := testcheck.Must(generator.prepareGeneration(encoded))(t)
+		plain := testcheck.Must(selector.selectText())(t)
 		if plain != reference.PlainFloat32 {
 			t.Fatalf("%s: the plain decode answers\n  %q\nand upstream, computing in float32,\n  %q", reference.Name, plain, reference.PlainFloat32)
 		}
-		served, err := generator.Generate(textgeneration.Request{Text: prompt, MaxTokens: fixture.GeneratedTokens})
-		testcheck.NoError(t, err)
+		served := testcheck.Must(generator.Generate(textgeneration.Request{Text: prompt, MaxTokens: fixture.GeneratedTokens}))(t)
 		if served != reference.NamedFloat32 {
 			t.Fatalf("%s: a served request answers\n  %q\nand upstream, computing in float32 with names normalized,\n  %q", reference.Name, served, reference.NamedFloat32)
 		}

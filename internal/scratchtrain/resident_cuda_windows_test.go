@@ -20,15 +20,12 @@ import (
 func TestScratchResidentTrajectoryParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t)))(t)
 	const steps = 3
 	policy := trainingprogram.BuiltinOptimizerPolicy()
-	host, err := construction.TrainShared(steps, policy)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(construction.TrainShared(steps, policy))(t)
 	initializedAt := time.Now()
-	trainer, err := NewResidentTrainer(construction, steps, policy)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewResidentTrainer(construction, steps, policy))(t)
 	defer trainer.Close()
 	initWall := time.Since(initializedAt)
 	// A resident cache hit must enforce the same boundary as a fresh graph.
@@ -49,10 +46,8 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 		walls[step] = time.Since(started)
 		testcheck.NoError(t, err)
 	}
-	validationTokens, err := construction.Tokens(construction.Split().Validation[0])
-	testcheck.NoError(t, err)
-	validation, err := trainer.Evaluate(validationTokens)
-	testcheck.NoError(t, err)
+	validationTokens := testcheck.Must(construction.Tokens(construction.Split().Validation[0]))(t)
+	validation := testcheck.Must(trainer.Evaluate(validationTokens))(t)
 	worst := math.Abs(validation - host.ValidationLoss)
 	for step := range steps {
 		worst = max(worst, math.Abs(losses[step]-host.Losses[step]))
@@ -79,21 +74,17 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t)))(t)
 	const steps = 2
-	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
 	for step := range steps {
-		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
-		testcheck.NoError(t, err)
+		tokens := testcheck.Must(construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)]))(t)
 		if _, err := trainer.Step(tokens, step+1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	trained, err := trainer.Trained()
-	testcheck.NoError(t, err)
+	trained := testcheck.Must(trainer.Trained())(t)
 	if step := trained.Snapshot().Step; step != steps {
 		t.Fatalf("trained state is at step %d, want the last step %d", step, steps)
 	}
@@ -110,30 +101,21 @@ func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 func TestScratchResidentStateParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t)))(t)
 	const steps = 3
 	hostWeights := construction.InitialWeights()
 	hostGradients := make([]float32, len(hostWeights))
-	hostModel, err := construction.BindMADTransformer(hostWeights)
-	testcheck.NoError(t, err)
-	hostGradient, err := construction.BindMADTransformer(hostGradients)
-	testcheck.NoError(t, err)
-	config, err := construction.OptimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps)
-	testcheck.NoError(t, err)
-	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.OptimizerPlan(), config)
-	testcheck.NoError(t, err)
-	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	hostModel := testcheck.Must(construction.BindMADTransformer(hostWeights))(t)
+	hostGradient := testcheck.Must(construction.BindMADTransformer(hostGradients))(t)
+	config := testcheck.Must(construction.OptimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps))(t)
+	hostMuon := testcheck.Must(optimizer.New(hostWeights, hostGradients, construction.OptimizerPlan(), config))(t)
+	trainer := testcheck.Must(NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	defer trainer.Close()
-	backward, err := trainer.training.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-	testcheck.NoError(t, err)
-	optimize, err := trainer.training.Select(trainingprogram.PhaseOptimize)
-	testcheck.NoError(t, err)
+	backward := testcheck.Must(trainer.training.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward))(t)
+	optimize := testcheck.Must(trainer.training.Select(trainingprogram.PhaseOptimize))(t)
 
 	for step := range steps {
-		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
-		testcheck.NoError(t, err)
+		tokens := testcheck.Must(construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)]))(t)
 		hostLoss, trace, err := hostmath.MADTransformerForward(hostModel, tokens)
 		testcheck.NoError(t, err)
 		testcheck.NoError(t, hostmath.MADTransformerBackward(hostModel, hostGradient, tokens, trace))

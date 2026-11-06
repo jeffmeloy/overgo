@@ -22,8 +22,7 @@ func TestFlashNextNGram(t *testing.T) { RunFlashNextNGram(t, reference.Execute) 
 // RunFlashNextNGram shares original-model cases between host and CUDA execution.
 func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)) {
 	t.Helper()
-	data, err := os.ReadFile("testdata/flashnext_ngram.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/flashnext_ngram.json"))(t)
 	var f struct {
 		Tolerance float64
 		Config    struct {
@@ -60,8 +59,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 	var contents, encoded bytes.Buffer
 	testcheck.NoError(t, binary.Write(&contents, binary.LittleEndian, table.Data))
 	testcheck.NoError(t, gguf.Write(&encoded, nil, []gguf.TensorData{{Name: "per_layer_token_embd.weight", Shape: table.Shape, Type: dtype.F32, Data: &contents}}, gguf.WriteOptions{}))
-	file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions()))(t)
 	var history []uint32
 	var conv reference.Value
 	for _, test := range f.Cases {
@@ -75,8 +73,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 			if !slices.Equal(rows, test.Rows) || !slices.Equal(next, test.History) {
 				t.Fatalf("rows/history = %v/%v, original %v/%v", rows, next, test.Rows, test.History)
 			}
-			selected, err := LoadHostRows(t.Context(), file, file.Tensors[0], rows)
-			testcheck.NoError(t, err)
+			selected := testcheck.Must(LoadHostRows(t.Context(), file, file.Tensors[0], rows))(t)
 			if !slices.Equal(selected.Data, test.Embedding) {
 				t.Fatal("selected embedding differs from original")
 			}
@@ -99,12 +96,10 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 				PastStates:    CacheStates[*tensor.Tensor]{CacheStateNGramConvolution: {Mode: CacheStateFixed, Value: input("past", conv)}},
 			}
 			activation := input("input", reference.Value{Shape: tensor.MustShape(uint64(f.Config.Hidden), uint64(f.Config.HC), tokens), Data: test.Input})
-			result, err := buildNGramInjection(blockDispatchOptions{Context: c, Spec: spec, Weights: LayerGraphWeights{
+			result := testcheck.Must(buildNGramInjection(blockDispatchOptions{Context: c, Spec: spec, Weights: LayerGraphWeights{
 				NGramKey: weight("ple_key"), NGramValue: weight("ple_value"), NGramKeyNorm: weight("ple_norm_key"), NGramQueryNorm: weight("ple_norm_query"), NGramConvNorm: weight("ple_norm_conv"), NGramConv: weight("ple_conv1d"),
-			}}, activation)
-			testcheck.NoError(t, err)
-			values, err := run(result.States.AppendValues([]*tensor.Tensor{result.Output}), feeds)
-			testcheck.NoError(t, err)
+			}}, activation))(t)
+			values := testcheck.Must(run(result.States.AppendValues([]*tensor.Tensor{result.Output}), feeds))(t)
 			for _, check := range []struct {
 				name string
 				node *tensor.Tensor
@@ -146,8 +141,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 		data := []float32{-4, -ngramGateFloor, -ngramGateFloor / 2, 0, ngramGateFloor / 2, ngramGateFloor, 4}
 		node := b.Input("gate", dtype.F32, tensor.MustShape(uint64(len(data))))
 		out := b.SignedSqrt(node, ngramGateFloor)
-		values, err := run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{node: {Shape: node.Shape, Data: data}})
-		testcheck.NoError(t, err)
+		values := testcheck.Must(run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{node: {Shape: node.Shape, Data: data}}))(t)
 		for i, want := range []float32{-2, -.001, -.001, 0, .001, .001, 2} {
 			if math.Abs(float64(values[out].Data[i]-want)) > 1e-7 {
 				t.Fatalf("root[%d] = %g, want %g", i, values[out].Data[i], want)

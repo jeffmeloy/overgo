@@ -26,11 +26,10 @@ func TestCapabilityIdentityContract(t *testing.T) {
 			MaxInputBytes: 4096, MaxOutputBytes: 8192, MaxConcurrent: 2, CPUThreads: 2, HostBytes: 1 << 30,
 		},
 	}
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: "capability.inspect", Description: "Inspect through one exact capability.", Effect: EffectInspection,
 		Transport: Transport{Kind: TransportHTTP, URL: "https://tool.example/run", Protocol: "strict-json/1"}, CapabilityIdentity: &identity,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := PublishManualCatalog(ctx, store, []Manual{manual}); err != nil {
 		t.Fatal(err)
 	}

@@ -48,10 +48,8 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 			})
 			writeModel(t, model, weights, shapes)
 		}
-		encoded, err := json.Marshal(request)
-		testcheck.NoError(t, err)
-		executable, err := os.Executable()
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(json.Marshal(request))(t)
+		executable := testcheck.Must(os.Executable())(t)
 		first := 0
 		for process := 1; process <= 2; process++ {
 			command := exec.CommandContext(t.Context(), executable, "-test.run=^TestAReplayKeyNamesTheCodeThatComputesIt$")
@@ -73,8 +71,7 @@ func runChainChild(t *testing.T, encoded string) {
 	t.Helper()
 	var request chainChildRequest
 	testcheck.NoError(t, json.Unmarshal([]byte(encoded), &request))
-	store, err := overgodb.Create(request.Store)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(request.Store))(t)
 	defer store.Close()
 	result, err := RunChainViability(store, ChainConfig{
 		ScorerDir: request.Scorer, DrafterDir: request.Drafter,
@@ -91,8 +88,7 @@ func runChainChild(t *testing.T, encoded string) {
 //   - a stage answered from an earlier receipt publishes none
 func completedChainStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	defer store.Close()
 	receipts := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: runrecord.StageReceiptSchema}},

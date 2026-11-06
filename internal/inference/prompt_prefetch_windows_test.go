@@ -30,11 +30,9 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
 	const hidden, intermediate, experts, topK, tokens, layers = 256, 256, 8, 2, 1024, 2
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
-	cuda, err := executor.NewWithWorker(worker)
-	testcheck.NoError(t, err)
+	cuda := testcheck.Must(executor.NewWithWorker(worker))(t)
 	defer cuda.Close()
 	value := func(seed, index int) float32 { return float32((index*7+seed*13)%23-11) / 64 }
 	// read builds the layers over a residency of limit card bytes, runs them once, and answers the output's bits and the
@@ -86,10 +84,8 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 		testcheck.NoError(t, builder.Err())
 		var file bytes.Buffer
 		testcheck.NoError(t, gguf.Write(&file, nil, encoded, gguf.WriteOptions{}))
-		parsed, err := gguf.Parse(bytes.NewReader(file.Bytes()), uint64(file.Len()), gguf.DefaultOptions())
-		testcheck.NoError(t, err)
-		weights, err := modeldevice.NewDeviceWeights(worker)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(gguf.Parse(bytes.NewReader(file.Bytes()), uint64(file.Len()), gguf.DefaultOptions()))(t)
+		weights := testcheck.Must(modeldevice.NewDeviceWeights(worker))(t)
 		defer func() {
 			if err := cuda.SetExpertBanks(nil); err != nil {
 				t.Error(err)
@@ -102,8 +98,7 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 		loader.Experts(weights, parsed.Tensors, limit)
 		testcheck.NoError(t, loader.Load(ctx, nil))
 		testcheck.NoError(t, cuda.SetExpertBanks(weights))
-		graph, err := executor.CompileIndexed(output)
-		testcheck.NoError(t, err)
+		graph := testcheck.Must(executor.CompileIndexed(output))(t)
 		var bindings []tensor.InputBinding[driver.DevicePtr]
 		for _, node := range banks {
 			_, pointer, err := weights.Input(builder, node.Name)
@@ -111,12 +106,9 @@ func TestAPromptReadCopiesTheNextGroupsExpertsAhead(t *testing.T) {
 			bindings = append(bindings, tensor.InputBinding[driver.DevicePtr]{Node: node, Value: pointer})
 		}
 		testcheck.NoError(t, graph.Inputs.Bind(bindings))
-		before, err := cuda.Metrics(ctx)
-		testcheck.NoError(t, err)
-		result, err := cuda.ExecuteCompiled(ctx, graph.Graph, host, graph.Inputs)
-		testcheck.NoError(t, err)
-		after, err := cuda.Metrics(ctx)
-		testcheck.NoError(t, err)
+		before := testcheck.Must(cuda.Metrics(ctx))(t)
+		result := testcheck.Must(cuda.ExecuteCompiled(ctx, graph.Graph, host, graph.Inputs))(t)
+		after := testcheck.Must(cuda.Metrics(ctx))(t)
 		return slices.Clone(driver.Bytes(result[output].Data)), after.PrefetchedExperts - before.PrefetchedExperts
 	}
 	// The card holds every expert under no limit, and none beyond the banks' tables of a pointer an expert.

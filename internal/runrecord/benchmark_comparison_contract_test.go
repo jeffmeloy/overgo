@@ -30,7 +30,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 			TotalMilliseconds: milliseconds, TTFTMilliseconds: 1,
 		}
 	}
-	record, err := benchmarkrecord.NewBenchmarkComparisonRecord(benchmarkrecord.BenchmarkComparisonRecord{
+	record := testcheck.Must(benchmarkrecord.NewBenchmarkComparisonRecord(benchmarkrecord.BenchmarkComparisonRecord{
 		Identity: benchmarkrecord.BenchmarkIdentity{
 			Model: model, Recipe: recipeID, TokenizerContainer: model,
 			Environment: environment, CodeCommit: strings.Repeat("c", 40),
@@ -43,8 +43,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 			Index: 0, First: "baseline",
 			Baseline: observation(10), Candidate: observation(9),
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testcheck.NoError(t, record.ValidateIdentity())
 	content, err := record.Content()
 	if err != nil || len(content.Data) == 0 {

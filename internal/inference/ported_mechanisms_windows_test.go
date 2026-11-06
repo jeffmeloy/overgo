@@ -58,8 +58,7 @@ func TestPortedMechanismsFollowModelFacts(t *testing.T) {
 			func(t *testing.T) string { return writeFlashNextFixture(t, strataFlashNext) }, OpenOptions{}, facts{qsa: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			runner, err := openF32FixtureRunner(c.path(t), c.options)
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(openF32FixtureRunner(c.path(t), c.options))(t)
 			defer runner.Close()
 			got := facts{
 				cells: slices.Contains(runner.cellLayers, true), qsa: slices.Contains(runner.qsaLayers, true),

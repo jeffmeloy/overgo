@@ -22,8 +22,7 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 	hnorm := builder.Input("hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
 	draft := fixtureDraftProgram(t, spec, Weights{}, 0)
-	current, err := draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(draft.BuildDraftInput(builder, token, hidden, enorm, hnorm, projection))(t)
 	weights := LayerGraphWeights{
 		AttentionNorm:   builder.Input("attn_norm", dtype.F32, tensor.MustShape(8)),
 		AttentionQ:      builder.Input("q", dtype.F32, tensor.MustShape(8, 8)),
@@ -38,10 +37,9 @@ func TestBuildHYV3MTPPipeline(t *testing.T) {
 		FeedForwardDown: builder.Input("down", dtype.F32, tensor.MustShape(12, 8)),
 	}
 	plan := draft.Layer()
-	block, err := draft.Build(CachedBlockContext{
+	block := testcheck.Must(draft.Build(CachedBlockContext{
 		Builder: builder, Input: current, Positions: []uint32{4}, Layer: plan.Layer,
-	}, weights)
-	testcheck.NoError(t, err)
+	}, weights))(t)
 	outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 	head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
 	logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)

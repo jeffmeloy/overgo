@@ -116,8 +116,7 @@ func TestMMLUProAsksAsLMEvalDoes(t *testing.T) {
 		for index := range suite.Cases {
 			suite.Cases[index].Demonstrations = demonstrations[:shots]
 		}
-		compiled, err := CompileGroupedChoice(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(CompileGroupedChoice(suite))(t)
 		for index, scored := range compiled.choice.delimited().Cases {
 			if scored.Prompt != asked[index].Context || !slices.Equal(scored.Candidates, asked[index].Continuations) {
 				t.Errorf("with %d demonstrations, %s is asked as\n%q\nwith candidates %q, where lm-eval asks\n%q\nwith %q",
@@ -201,24 +200,19 @@ func mmluProIdentities(t *testing.T, cases []storeCase, authorities ExactAuthori
 	t.Helper()
 	assembled, _, err := assembleMMLUProSuite(cases)
 	testcheck.NoError(t, err)
-	compiled, err := CompileGroupedChoice(assembled.(GroupedChoiceSuite))
-	testcheck.NoError(t, err)
-	plan, err := BindGroupedChoice(compiled, authorities)
-	testcheck.NoError(t, err)
-	document, err := json.Marshal(assembled)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileGroupedChoice(assembled.(GroupedChoiceSuite)))(t)
+	plan := testcheck.Must(BindGroupedChoice(compiled, authorities))(t)
+	document := testcheck.Must(json.Marshal(assembled))(t)
 	if derived, err := CompileSuite(document, authorities); err != nil || derived.Plan().Identity() != plan.Identity() {
 		t.Fatalf("the suite compiled from its document binds another plan: %v", err)
 	}
-	comparison, err := plan.comparisonIdentity()
-	testcheck.NoError(t, err)
+	comparison := testcheck.Must(plan.comparisonIdentity())(t)
 	scored := compiled.choice.delimited()
 	asked := make([]askedChoice, len(scored.Cases))
 	for index, testCase := range scored.Cases {
 		asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
 	}
-	answers, err := plan.observed(asked)
-	testcheck.NoError(t, err)
+	answers := testcheck.Must(plan.observed(asked))(t)
 	ids := []artifact.ID{plan.body.Dataset, plan.body.Split, plan.body.CaseProfile, plan.body.Scorer, plan.Identity(), comparison, answers}
 	named := make([]string, len(ids))
 	for index, id := range ids {
@@ -299,15 +293,13 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 	assembled, _, err := assembleMMLUProSuite(fixture)
 	testcheck.NoError(t, err)
 	suite := assembled.(GroupedChoiceSuite)
-	compiled, err := CompileGroupedChoice(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileGroupedChoice(suite))(t)
 	if got := compiled.choice.suite.Cases[1].Candidates; !slices.Equal(got, []string{"A", "B"}) {
 		t.Fatalf("the suite's own candidates are %q, want the bare letters", got)
 	}
 	glued := suite
 	glued.Delimiter = ""
-	gluedPlan, err := CompileGroupedChoice(glued)
-	testcheck.NoError(t, err)
+	gluedPlan := testcheck.Must(CompileGroupedChoice(glued))(t)
 	for _, asked := range []prompting{PromptingRawCompletion, PromptingChatTemplate} {
 		authorities := raw
 		authorities.Execution.Prompting = asked
@@ -322,21 +314,17 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 		t.Error("a suite scored after a tab was compiled, and its scorer's method names the target delimiter")
 	}
 
-	plan, err := BindGroupedChoice(compiled, raw)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BindGroupedChoice(compiled, raw))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	var prompts []string
 	var candidates [][]string
-	report, err := EvaluateGroupedChoice(t.Context(), store, recordingScorer{prompts: &prompts, candidates: &candidates}, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateGroupedChoice(t.Context(), store, recordingScorer{prompts: &prompts, candidates: &candidates}, compiled, plan))(t)
 	if len(prompts) != len(suite.Cases) || prompts[1] != "One plus one?\nA. three\nB. two\nAnswer:" || !slices.Equal(candidates[1], []string{" A", " B"}) {
 		t.Fatalf("the scorer was asked %q with %q", prompts, candidates)
 	}
-	observations, err := json.Marshal(report.Observations)
-	testcheck.NoError(t, err)
-	groups, err := json.Marshal(report.Groups)
-	testcheck.NoError(t, err)
+	observations := testcheck.Must(json.Marshal(report.Observations))(t)
+	groups := testcheck.Must(json.Marshal(report.Groups))(t)
 	const (
 		pinnedAnswers      = "profile:sha256:b18cd03429d6ba014ebe2b851a79ba33e31506d0e9f834423a03067228fa91c0"
 		pinnedObservations = "0b4637e4f62fe693ee3ac40d2dd949a992a761b15365c8d7606adec8b704ae98"

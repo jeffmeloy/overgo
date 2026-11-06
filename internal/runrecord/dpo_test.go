@@ -18,13 +18,11 @@ func TestDPORunEvidenceBindsAuthority(t *testing.T) {
 	reference := id(artifact.KindModel, "dpo-reference")
 	dataset := id(artifact.KindDataset, "dpo-dataset")
 	checkpoint := id(artifact.KindCheckpoint, "dpo-checkpoint")
-	run, err := NewRun(recipe, OutcomeSucceeded, []artifact.ID{policy, reference, dataset}, []artifact.ID{checkpoint}, "")
-	testcheck.NoError(t, err)
-	evaluation, err := NewEvaluation(recipe, run.ID, dataset, []Metric{
+	run := testcheck.Must(NewRun(recipe, OutcomeSucceeded, []artifact.ID{policy, reference, dataset}, []artifact.ID{checkpoint}, ""))(t)
+	evaluation := testcheck.Must(NewEvaluation(recipe, run.ID, dataset, []Metric{
 		{Name: "dpo-loss", Value: 0.6, Direction: DirectionMinimize},
 		{Name: "preference-margin", Value: 0.2, Direction: DirectionMaximize},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	lineage := run.Lineage()
 	if !slices.Contains(lineage, artifact.Lineage{Child: run.ID, Parent: reference, Relation: artifact.RelationDependsOn}) ||
 		!slices.Contains(lineage, artifact.Lineage{Child: checkpoint, Parent: run.ID, Relation: artifact.RelationProducedBy}) {

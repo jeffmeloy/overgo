@@ -15,14 +15,12 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	source, err := Create(filepath.Join(root, "source"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Create(filepath.Join(root, "source")))(t)
 	defer source.Close()
 	contract := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: "application/json", Schema: "test/rebuild-store-local/v1",
 	}
-	content, err := contract.ContentBytes([]byte(`{"receipt":"physical"}`))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentBytes([]byte(`{"receipt":"physical"}`)))(t)
 	localAlias := StoreLocalAliasPrefix + "fixture/current"
 	if _, err := source.Commit(ctx, artifact.Batch{
 		Key: "test/rebuild/store-local", Contents: []artifact.Content{content},
@@ -59,8 +57,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	if _, err := Rebuild(ctx, source, destination, nil, func(string, artifact.ID) error { return nil }, false); err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := Create(destination)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(Create(destination))(t)
 	defer rebuilt.Close()
 	target, found, err := artifact.ResolveAlias(ctx, rebuilt, localAlias)
 	if err != nil || !found || target != content.Descriptor.ID {

@@ -49,11 +49,10 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 		}
 	}
 	view := textTargetView(t, recipecontract.ModalityText)
-	plan, err := compileTextTargetPlan(view, textTargetSuite{
+	plan := testcheck.Must(compileTextTargetPlan(view, textTargetSuite{
 		Scorers: []textScorerSpec{{Kind: textGeneratedAnswer}},
 		Cases:   []textTargetCase{{Record: "heldout", Answers: []string{"answer"}}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	report, err := scoreTextTargets(plan, []textTargetObservation{{Record: "heldout", Raw: "answer", ContinuationLogLikelihood: &likelihood}})
 	if err != nil || len(report.Metrics) != 1 || report.Metrics[0].Name != string(textGeneratedAnswer) {
 		t.Fatalf("undeclared scorer affected report: %+v, err=%v", report, err)
@@ -62,7 +61,7 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 
 func textTargetView(t *testing.T, input recipecontract.Modality) SFTEvaluationView {
 	t.Helper()
-	view, err := sftEvaluationViewCodec.New(SFTEvaluationView{
+	view := testcheck.Must(sftEvaluationViewCodec.New(SFTEvaluationView{
 		Version:            artifact.InitialDocumentVersion,
 		Objective:          testutil.ArtifactID(t, artifact.KindProfile, "text target objective"),
 		Dataset:            testutil.ArtifactID(t, artifact.KindDataset, "text target dataset"),
@@ -73,7 +72,6 @@ func textTargetView(t *testing.T, input recipecontract.Modality) SFTEvaluationVi
 			Inputs: []recipecontract.Modality{input}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 		},
 		Records: []dataset.Record{{ID: "heldout", Group: "heldout"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return view
 }

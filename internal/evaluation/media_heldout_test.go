@@ -38,8 +38,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	for index := range 12 {
 		records = append(records, dataset.Record{ID: fmt.Sprintf("utterance/%02d", index), Group: fmt.Sprintf("speaker-%02d", index)})
 	}
-	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	testcheck.NoError(t, err)
+	split := testcheck.Must(dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}}))(t)
 	var training, heldout dataset.Membership
 	for _, membership := range split.Memberships {
 		if membership.Partition == "train" {
@@ -50,7 +49,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	}
 	const bound = 3
 	session := heldoutTraining(t, store, source, training.ID)
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "speech", Kind: trainingprogram.ObjectiveLatentL2,
 		Signature: recipecontract.ModalitySignature{
 			Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityAudio},
@@ -59,8 +58,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
 		Metric: trainingprogram.MetricAudioSNR, HeldoutRecords: bound, Evidence: []artifact.ID{session.Observation},
 		Authority: trainingprogram.ObjectiveAdaptive,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	view, err := CompileSFTEvaluationView(objective, training, heldout)
 	if err != nil || len(heldout.Records) <= bound || len(view.Records) != bound || view.Records[0] != heldout.Records[0] {
 		t.Fatalf("view holds %d of %d held-out records (%v), want the first %d", len(view.Records), len(heldout.Records), err, bound)
@@ -79,8 +77,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	for index, record := range view.Records {
 		cases = append(cases, HeldoutCase{Record: record.ID, Values: tone(index)})
 	}
-	plan, err := CompileHeldoutPlan(objective, view, cases)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileHeldoutPlan(objective, view, cases))(t)
 	answer := func(amplitude float64) HeldoutReport {
 		t.Helper()
 		var observations []HeldoutObservation
@@ -91,17 +88,14 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 			}
 			observations = append(observations, HeldoutObservation{Record: target.Record, Values: values})
 		}
-		report, err := plan.Score(observations)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(plan.Score(observations))(t)
 		return report
 	}
 	base, trained, louder := answer(0.5), answer(0.1), answer(0.8)
 	// The store holds the objective, its split and the identities it names,
 	// as a registration commits them.
-	registration, err := split.PublicationBatch("test-registration", nil)
-	testcheck.NoError(t, err)
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
+	registration := testcheck.Must(split.PublicationBatch("test-registration", nil))(t)
+	content := testcheck.Must(objective.Content())(t)
 	registration.Contents = append(registration.Contents, content)
 	for _, id := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: id})
@@ -118,8 +112,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		if err != nil || verdict.Metric != trainingprogram.MetricAudioSNR || verdict.Passed != candidate.passed {
 			t.Fatalf("%s trained answer = (%+v, %v), want passed %t on held-out SNR", candidate.name, verdict, err, candidate.passed)
 		}
-		batch, err := HeldoutBatch(view, plan, base, candidate.report, verdict)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(HeldoutBatch(view, plan, base, candidate.report, verdict))(t)
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -144,8 +137,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	// the order given, so each refusal is of the first record.
 	silent := slices.Clone(cases)
 	silent[0].Values = make([]float64, samples)
-	quiet, err := CompileHeldoutPlan(objective, view, silent)
-	testcheck.NoError(t, err)
+	quiet := testcheck.Must(CompileHeldoutPlan(objective, view, silent))(t)
 	var exact []HeldoutObservation
 	for _, target := range cases {
 		exact = append(exact, HeldoutObservation{Record: target.Record, Values: slices.Clone(target.Values)})

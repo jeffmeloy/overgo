@@ -12,8 +12,7 @@ import (
 func TestAgentDefinitionAuthority(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	definition := agentDefinitionFixture(t)
-	content, err := definition.ArtifactContent()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(definition.ArtifactContent())(t)
 	artifacts := agentDefinitionDependencies(definition)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "agent/definition", Artifacts: artifacts, Contents: []artifact.Content{content}, Lineage: definition.Lineage(),
@@ -48,7 +47,7 @@ func TestAgentCapabilityRefusal(t *testing.T) {
 
 func agentDefinitionFixture(t *testing.T) AgentDefinition {
 	t.Helper()
-	value, err := NewAgentDefinition(AgentDefinition{
+	value := testcheck.Must(NewAgentDefinition(AgentDefinition{
 		Name:              "research-agent",
 		Prompt:            testutil.ArtifactID(t, artifact.KindFile, "agent-prompt"),
 		ModelRecipe:       testutil.ArtifactID(t, artifact.KindRecipe, "agent-model-recipe"),
@@ -56,8 +55,7 @@ func agentDefinitionFixture(t *testing.T) AgentDefinition {
 		CapabilityBundles: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "agent-bundle")},
 		Datasets:          []artifact.ID{testutil.ArtifactID(t, artifact.KindDataset, "agent-dataset")},
 		Policies:          []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "agent-policy")},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return value
 }
 

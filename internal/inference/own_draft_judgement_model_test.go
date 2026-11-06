@@ -20,8 +20,7 @@ import (
 func TestAServedModelDraftsOnlyWhereDraftingIsFaster(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	for _, test := range []struct {
 		name   string
 		drafts bool
@@ -30,8 +29,7 @@ func TestAServedModelDraftsOnlyWhereDraftingIsFaster(t *testing.T) {
 		{"Qwen3.8-27B-UD-Q6_K.gguf", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			runner, err := openNativeFixtureRunner(modeltest.Directory(t, test.name), OpenOptions{JudgeOwnDrafts: true})
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(openNativeFixtureRunner(modeltest.Directory(t, test.name), OpenOptions{JudgeOwnDrafts: true}))(t)
 			defer runner.Close()
 			if runner.SpeculatesByDefault() != test.drafts {
 				t.Fatalf("judged at open, %s drafts by default %t, want %t", test.name, runner.SpeculatesByDefault(), test.drafts)

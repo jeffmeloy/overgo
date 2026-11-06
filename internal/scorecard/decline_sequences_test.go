@@ -28,8 +28,7 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      testutil.ArtifactID(t, artifact.KindModel, "slow model"),
 		Definition: testutil.ArtifactID(t, artifact.KindModelDefinition, "slow definition"),
@@ -38,15 +37,13 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/slow", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	const cases, perReading, readings = 100, 5, 12
 	suite := evaluation.MultipleChoiceSuite{Kind: evaluation.MultipleChoiceKind, Schema: "fixture/slow/v1", Source: "slow", Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy}
 	for index := range cases {
 		suite.Cases = append(suite.Cases, evaluation.MultipleChoiceCase{Name: fmt.Sprintf("case-%03d", index), Prompt: fmt.Sprintf("Question %d\nAnswer:", index), Candidates: []string{" A", " B"}})
 	}
-	source, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(json.Marshal(suite))(t)
 	contract := Contract{Metric: shareMetric, Origin: originEvaluation, Suite: "slow", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "slow comparison")}
 	row := func(quality Cell) Row {
 		cells := map[metric.Name]Cell{}
@@ -63,12 +60,9 @@ func TestGeneratedSlowQualityDecline(t *testing.T) {
 		for _, testCase := range suite.Cases[:reading*perReading] {
 			wrong[testCase.Prompt] = true
 		}
-		campaign, err := evaluation.NewCampaign(store, answerer{wrong}, identity, environment, strings.Repeat(commit, 40/len(commit)))
-		testcheck.NoError(t, err)
-		compiled, err := evaluation.CompileSuite(source, campaign.Authorities())
-		testcheck.NoError(t, err)
-		result, err := campaign.Evaluate(ctx, compiled)
-		testcheck.NoError(t, err)
+		campaign := testcheck.Must(evaluation.NewCampaign(store, answerer{wrong}, identity, environment, strings.Repeat(commit, 40/len(commit))))(t)
+		compiled := testcheck.Must(evaluation.CompileSuite(source, campaign.Authorities()))(t)
+		result := testcheck.Must(campaign.Evaluate(ctx, compiled))(t)
 		value := float64(cases-reading*perReading) / cases
 		cell := Cell{Value: value, Source: result.Evaluation, Direction: runrecord.DirectionMaximize, Cases: cases, Noise: shareError(value, cases), Contract: contract,
 			Compared: "internal/fixture TestPairedPathMatchesItsReference"}

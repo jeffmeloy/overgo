@@ -62,8 +62,7 @@ func TestToolCallResidualDirection(t *testing.T) {
 		Vector:      id(artifact.KindTensorSet, "direction vector"),
 		Selector:    selector,
 	}
-	published, err := NewResidualDirection(direction)
-	testcheck.NoError(t, err)
+	published := testcheck.Must(NewResidualDirection(direction))(t)
 	if !published.ID.Valid() || len(published.Lineage()) != 10 {
 		t.Fatalf("direction identity or lineage differs: %s edges=%d", published.ID, len(published.Lineage()))
 	}
@@ -124,10 +123,8 @@ func TestToolCallResidualDirection(t *testing.T) {
 
 	wrongTap := direction
 	wrongTap.Contract = embedding.ID
-	wrongPublished, err := NewResidualDirection(wrongTap)
-	testcheck.NoError(t, err)
-	wrongContent, err := wrongPublished.Content()
-	testcheck.NoError(t, err)
+	wrongPublished := testcheck.Must(NewResidualDirection(wrongTap))(t)
+	wrongContent := testcheck.Must(wrongPublished.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "fixture/residual-direction-wrong-tap",
 		Contents: []artifact.Content{wrongContent}, Lineage: wrongPublished.Lineage(),

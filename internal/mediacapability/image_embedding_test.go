@@ -34,14 +34,10 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	capability := Catalog[recipe.TaskImageEmbedding]
 	embed := func(t *testing.T, directory string, encoded []byte) ([]float32, error) {
 		t.Helper()
-		source, err := capability.Resolve(t.Context(), directory)
-		testcheck.NoError(t, err)
-		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskImageEmbedding, source.Inventory.Manifest.ID)
-		testcheck.NoError(t, err)
-		program, err := modelrecipe.CompileCapability(definition)
-		testcheck.NoError(t, err)
-		request, err := json.Marshal(map[string]any{"image": encoded})
-		testcheck.NoError(t, err)
+		source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
+		definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskImageEmbedding, source.Inventory.Manifest.ID))(t)
+		program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
+		request := testcheck.Must(json.Marshal(map[string]any{"image": encoded}))(t)
 		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
 		if err != nil {
 			return nil, err
@@ -54,24 +50,20 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	}
 	gradient := encodePNG(t, 240, 300, func(x, y, c int) uint8 { return uint8((x*7 + y*13 + c*29 + (x*y)%17) % 256) })
 	checker := encodePNG(t, 240, 300, func(x, y, c int) uint8 { return uint8(255 * ((x/20 + y/20 + c) % 2)) })
-	first, err := embed(t, directory, gradient)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(embed(t, directory, gradient))(t)
 	var config struct {
 		Hidden int `json:"hidden_size"`
 	}
-	data, err := os.ReadFile(filepath.Join(directory, "config.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(directory, "config.json")))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &config))
 	if len(first) != config.Hidden {
 		t.Fatalf("embedding has %d values, the checkpoint's hidden size is %d", len(first), config.Hidden)
 	}
-	again, err := embed(t, directory, gradient)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(embed(t, directory, gradient))(t)
 	if !equalEmbeddings(first, again) {
 		t.Fatal("the same image embedded differently twice")
 	}
-	other, err := embed(t, directory, checker)
-	testcheck.NoError(t, err)
+	other := testcheck.Must(embed(t, directory, checker))(t)
 	if cosine(first, other) > 0.99 {
 		t.Fatalf("different images embed alike: cosine %.4f", cosine(first, other))
 	}

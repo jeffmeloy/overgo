@@ -13,12 +13,9 @@ import (
 func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	compilation, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
-	testcheck.NoError(t, err)
-	source, err := compilation.SourceContent()
-	testcheck.NoError(t, err)
-	staging, err := StageManualCandidates(ctx, store, source, compilation.Manuals)
-	testcheck.NoError(t, err)
+	compilation := testcheck.Must(CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1"))(t)
+	source := testcheck.Must(compilation.SourceContent())(t)
+	staging := testcheck.Must(StageManualCandidates(ctx, store, source, compilation.Manuals))(t)
 	if _, found, err := store.ResolveAlias(ctx, RegisteredAlias("weather.forecast")); err != nil || found {
 		t.Fatalf("candidate changed a registered alias: found=%t err=%v", found, err)
 	}
@@ -27,8 +24,7 @@ func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 	}
 	verification, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, NewOperatorExecutor())
 	testcheck.NoError(t, err)
-	activation, err := ActivateCandidateCatalog(ctx, store, staging.Candidate.ID, verification.ID)
-	testcheck.NoError(t, err)
+	activation := testcheck.Must(ActivateCandidateCatalog(ctx, store, staging.Candidate.ID, verification.ID))(t)
 	if !activation.Changed || !activation.Coverage.Complete || activation.Snapshot != staging.Snapshot.ID {
 		t.Fatalf("activation = %+v", activation)
 	}
@@ -41,12 +37,9 @@ func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 func TestCandidateGrantRejectsDrift(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	compilation, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
-	testcheck.NoError(t, err)
-	source, err := compilation.SourceContent()
-	testcheck.NoError(t, err)
-	staging, err := StageManualCandidates(ctx, store, source, compilation.Manuals)
-	testcheck.NoError(t, err)
+	compilation := testcheck.Must(CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1"))(t)
+	source := testcheck.Must(compilation.SourceContent())(t)
+	staging := testcheck.Must(StageManualCandidates(ctx, store, source, compilation.Manuals))(t)
 	missingHTTP := NewOperatorExecutor()
 	delete(missingHTTP.adapters, TransportHTTP)
 	if _, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, missingHTTP); err == nil {
@@ -54,8 +47,7 @@ func TestCandidateGrantRejectsDrift(t *testing.T) {
 	}
 	grant, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, NewOperatorExecutor())
 	testcheck.NoError(t, err)
-	foreign, err := artifact.JSONID(artifact.KindProfile, "drift")
-	testcheck.NoError(t, err)
+	foreign := testcheck.Must(artifact.JSONID(artifact.KindProfile, "drift"))(t)
 	mutations := map[string]func(*CandidateVerification){
 		"tool set":        func(value *CandidateVerification) { value.ToolSet = foreign },
 		"manual schemas":  func(value *CandidateVerification) { value.Schemas = foreign },
@@ -66,12 +58,9 @@ func TestCandidateGrantRejectsDrift(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			drifted := grant
 			mutate(&drifted)
-			drifted, err = candidateVerificationCodec.New(drifted)
-			testcheck.NoError(t, err)
-			content, err := candidateVerificationCodec.Content(drifted)
-			testcheck.NoError(t, err)
-			batch, err := artifact.NewDocumentBatch("candidate/grant-drift/"+name, []artifact.Content{content}, nil, nil)
-			testcheck.NoError(t, err)
+			drifted = testcheck.Must(candidateVerificationCodec.New(drifted))(t)
+			content := testcheck.Must(candidateVerificationCodec.Content(drifted))(t)
+			batch := testcheck.Must(artifact.NewDocumentBatch("candidate/grant-drift/"+name, []artifact.Content{content}, nil, nil))(t)
 			if _, err := store.Commit(ctx, batch); err != nil {
 				t.Fatal(err)
 			}
@@ -103,10 +92,8 @@ func TestActiveCatalogExcludesStaleRegisteredAliases(t *testing.T) {
 func activateTestCandidate(t *testing.T, store *overgodb.Store, manual Manual, sourceText string) {
 	t.Helper()
 	ctx := t.Context()
-	source, err := openAPISourceContent(sourceText)
-	testcheck.NoError(t, err)
-	staging, err := StageManualCandidates(ctx, store, source, []Manual{manual})
-	testcheck.NoError(t, err)
+	source := testcheck.Must(openAPISourceContent(sourceText))(t)
+	staging := testcheck.Must(StageManualCandidates(ctx, store, source, []Manual{manual}))(t)
 	verification, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, NewOperatorExecutor())
 	testcheck.NoError(t, err)
 	if _, err := ActivateCandidateCatalog(ctx, store, staging.Candidate.ID, verification.ID); err != nil {

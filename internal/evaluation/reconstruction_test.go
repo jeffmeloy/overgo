@@ -71,19 +71,16 @@ func reconstructionFixture() ReconstructionSuite {
 func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 	t.Parallel()
 	suite := reconstructionFixture()
-	compiled, err := compileReconstruction(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindReconstruction(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileReconstruction(suite))(t)
+	plan := testcheck.Must(bindReconstruction(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	autoencoder := &levelShift{levels: map[string]uint8{"one.mp4": 1, "ten.mp4": 10}}
-	report, err := evaluateReconstruction(t.Context(), store, autoencoder, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateReconstruction(t.Context(), store, autoencoder, compiled, plan))(t)
 	// Every value off by one level is a mean squared error of 1, and by ten of 100. Sums of
 	// whole squares are exact, so the errors are held to their values and not to a tolerance.
 	if len(report.Observations) != 2 || report.Observations[0].LevelError != 1 || report.Observations[1].LevelError != 100 ||
@@ -105,8 +102,7 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 		t.Fatal("a runtime that cannot reconstruct was evaluated")
 	}
 	// The suite file compiles through the same door every suite does.
-	data, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(suite))(t)
 	if _, err := compileSuite(data, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
@@ -123,15 +119,13 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 // better. The suite once failed whole at such a clip, for want of a ratio to give it.
 func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 	t.Parallel()
-	source, err := json.Marshal(reconstructionFixture())
-	testcheck.NoError(t, err)
+	source := testcheck.Must(json.Marshal(reconstructionFixture()))(t)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "autoencoder"),
 		Definition: planID(t, artifact.KindModelDefinition, "autoencoder definition"),
 		Recipe:     planID(t, artifact.KindRecipe, "autoencoder recipe"),
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	for name, test := range map[string]struct {
 		autoencoder *levelShift
 		clips       [2]float64
@@ -146,10 +140,8 @@ func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/autoencoder", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 				t.Fatal(err)
 			}
-			campaign, err := NewCampaign(store, test.autoencoder, identity, environment, planTestCommit)
-			testcheck.NoError(t, err)
-			suite, err := CompileSuite(source, campaign.Authorities())
-			testcheck.NoError(t, err)
+			campaign := testcheck.Must(NewCampaign(store, test.autoencoder, identity, environment, planTestCommit))(t)
+			suite := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
 			result, err := campaign.Evaluate(t.Context(), suite)
 			if err != nil {
 				t.Fatalf("the suite was not published: %v", err)
@@ -206,8 +198,7 @@ func (r *oneTrip) Reconstruct(context.Context, ReconstructionCase, ClipCut) (Rou
 // cannot be written.
 func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileReconstruction(reconstructionFixture())
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(compileReconstruction(reconstructionFixture()))(t)
 	plan, err := bindReconstruction(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
@@ -308,10 +299,8 @@ func TestReconstructionRefusesWhatItCannotCompile(t *testing.T) {
 	// The same clips at another cut are another set to measure on.
 	wider := reconstructionFixture()
 	wider.Cut.Width = 16
-	left, err := compileReconstruction(reconstructionFixture())
-	testcheck.NoError(t, err)
-	right, err := compileReconstruction(wider)
-	testcheck.NoError(t, err)
+	left := testcheck.Must(compileReconstruction(reconstructionFixture()))(t)
+	right := testcheck.Must(compileReconstruction(wider))(t)
 	if left.dataset == right.dataset {
 		t.Fatal("two cuts of the same clips are one dataset")
 	}
@@ -328,8 +317,7 @@ func TestClipReconstructionSuiteBindsEachClipToItsBytes(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
 	cut := ClipCut{Frames: 21, FPS: 16, Width: 832, Height: 480}
-	suite, err := BuildClipReconstruction(directory, 2, 17, cut)
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildClipReconstruction(directory, 2, 17, cut))(t)
 	if suite.Source != "vidgen-1m/reconstruction/21x480x832" || suite.Cut != cut || len(suite.Cases) != 2 {
 		t.Fatalf("suite = %+v, want two clips under a source that names the cut", suite)
 	}
@@ -358,10 +346,8 @@ func TestClipReconstructionSuiteBindsEachClipToItsBytes(t *testing.T) {
 	}
 	stretched := cropped
 	stretched.Cut.Crop = false
-	left, err := compileReconstruction(cropped)
-	testcheck.NoError(t, err)
-	right, err := compileReconstruction(stretched)
-	testcheck.NoError(t, err)
+	left := testcheck.Must(compileReconstruction(cropped))(t)
+	right := testcheck.Must(compileReconstruction(stretched))(t)
 	if left.dataset == right.dataset {
 		t.Fatal("a cropped and a stretched cut of the same clips are one dataset")
 	}

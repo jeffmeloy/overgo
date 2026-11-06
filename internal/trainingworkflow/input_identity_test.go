@@ -20,8 +20,7 @@ func identityFixtureFile(t *testing.T, directory, name, content string) artifact
 	t.Helper()
 	path := filepath.Join(directory, name)
 	testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	id, err := artifact.IdentifyBytes(artifact.KindModel, []byte(content))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte(content)))(t)
 	return id
 }
 
@@ -47,8 +46,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	}
 
 	ggufPath := writeTrainingGGUF(t)
-	ggufFile, err := gguf.Open(ggufPath)
-	testcheck.NoError(t, err)
+	ggufFile := testcheck.Must(gguf.Open(ggufPath))(t)
 	inventory, err := modelartifact.FromGGUF(ggufFile, artifact.KindModel)
 	if closeErr := ggufFile.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -70,8 +68,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	}
 	t.Run("registered-gguf", func(t *testing.T) {
 		store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
-		registration, err := inventory.Batch("registered/" + expected.String())
-		testcheck.NoError(t, err)
+		registration := testcheck.Must(inventory.Batch("registered/" + expected.String()))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, registration); err != nil {
 			t.Fatal(err)
 		}
@@ -87,8 +84,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 			testcheck.NoError(t, safetensors.Save(filepath.Join(directory, file), map[string][]float32{name: {float32(index)}}, map[string][]int{name: {1}}, nil))
 		}
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), []byte(`{"weight_map":{"first":"model-00001-of-00003.safetensors","second":"model-00002-of-00003.safetensors","third":"model-00003-of-00003.safetensors"}}`), 0o644))
-		inventory, err := modelartifact.FromSafetensorsPath(directory)
-		testcheck.NoError(t, err)
+		inventory := testcheck.Must(modelartifact.FromSafetensorsPath(directory))(t)
 		id, err := identifyModel(directory)
 		if err != nil || id != inventory.Manifest.ID {
 			t.Fatalf("indexed identity = (%s, %v), want %s", id, err, inventory.Manifest.ID)
@@ -112,15 +108,13 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 		testcheck.NoError(t, os.Mkdir(directory, 0o755))
 		testcheck.NoError(t, WriteTrainedModel(t.Context(), store, base, directory, 1, lookupTrained(map[string][]float32{"changed.weight": {5, 6}})))
 		path := filepath.Join(directory, trainingprogram.CheckpointModel)
-		id, err := identifyModel(path)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(identifyModel(path))(t)
 		recorded, err := identifyAndRecordWeights(t.Context(), store, path)
 		if err != nil || recorded != id {
 			t.Fatalf("bootstrap identity = (%s, %v), want %s", recorded, err, id)
 		}
 		frozen := filepath.Join(directory, trainingprogram.CheckpointFrozenShard)
-		original, err := os.ReadFile(frozen)
-		testcheck.NoError(t, err)
+		original := testcheck.Must(os.ReadFile(frozen))(t)
 		changed := slices.Clone(original)
 		changed[len(changed)-1] ^= 1
 		testcheck.NoError(t, os.WriteFile(frozen, changed, 0o644))

@@ -19,18 +19,15 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 	sourceTokenLimit := authority.SourceContract.Tensor.Axes[tensor.SingletonExtent].Bounds.Maximum
 	layer := *authority.SourceContract.Producer.Layer
 	headCount := uint64(tensor.PairedExtent)
-	external, err := composition.NewExternalCrossAttentionDefinition(composition.ExternalCrossAttentionDefinition{
+	external := testcheck.Must(composition.NewExternalCrossAttentionDefinition(composition.ExternalCrossAttentionDefinition{
 		Target: authority.Recipe.TargetModel, Source: authority.Recipe.SourceModel,
 		Adapter: authority.Recipe.BridgeWeights, Layers: []uint32{layer},
 		SourceChannels: sourceChannels, HeadCount: headCount, SourceTokenLimit: sourceTokenLimit,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authority.Recipe.ExternalCrossAttention = external.ID
-	authority.Recipe, err = composition.NewCompositionRecipe(authority.Recipe)
-	testcheck.NoError(t, err)
+	authority.Recipe = testcheck.Must(composition.NewCompositionRecipe(authority.Recipe))(t)
 	authority.ExternalCrossAttention = &external
-	batch, err := authority.Batch("fixture/composition/external-cross-attention")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(authority.Batch("fixture/composition/external-cross-attention"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +36,7 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 		t.Fatal("llama architecture profile is absent")
 	}
 	keyChannels := targetChannels / headCount
-	plan, err := model.CompileModelPlanWithProfile(model.Spec{
+	plan := testcheck.Must(model.CompileModelPlanWithProfile(model.Spec{
 		CommonSpec: model.CommonSpec{
 			Architecture: profile.Name, ContextLength: uint32(sourceTokenLimit),
 			EmbeddingLength: uint32(targetChannels), BlockCount: layer + uint32(tensor.SingletonExtent),
@@ -49,22 +46,19 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 			HeadCount: uint32(headCount), HeadCountKV: uint32(headCount),
 			KeyLength: uint32(keyChannels), ValueLength: uint32(keyChannels),
 		},
-	}, model.Weights{}, profile)
-	testcheck.NoError(t, err)
+	}, model.Weights{}, profile))(t)
 	if _, err := composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
 	); err == nil {
 		t.Fatal("external cross-attention compiled before recipe activation")
 	}
-	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/external-activate", nil)
-	testcheck.NoError(t, err)
+	activation := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/external-activate", nil))(t)
 	if _, err := store.Commit(ctx, activation); err != nil {
 		t.Fatal(err)
 	}
-	compiled, err := composition.CompileExternalCrossAttentionPlan(
+	compiled := testcheck.Must(composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if compiled.CompositionRecipe != authority.Recipe.ID || compiled.Definition != external.ID ||
 		compiled.Adapter != authority.Recipe.BridgeWeights || compiled.CacheIdentity.Kind() != artifact.KindProfile ||
 		compiled.TargetChannels != targetChannels || compiled.HeadChannels != keyChannels ||

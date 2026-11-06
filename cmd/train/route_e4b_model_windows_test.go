@@ -70,8 +70,7 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 		t.Fatalf("checkpoint at step %d with %d f32 momentum values (%v), want step 1 with one per trained parameter", checkpoint.Optimizer.Step, len(checkpoint.Optimizer.MomentumF32), err)
 	}
 	trained := filepath.Join(out, trainingprogram.CheckpointModel)
-	file, err := gguf.Open(trained)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(trained))(t)
 	query, trainedQuery := file.Tensor("blk.0.attn_q.weight")
 	embedding, frozenEmbedding := file.Tensor("per_layer_token_embd.weight")
 	if err := file.Close(); err != nil || len(file.SourcePaths()) != 2 || !trainedQuery || query.Type != gguf.DTypeF32 || query.Shard != 0 ||
@@ -82,17 +81,14 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	checkpoint.Optimizer.MomentumF32 = nil
 	debug.FreeOSMemory()
 
-	store, err = overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(storePath))(t)
 	candidate := registeredCandidate(t, store, checkpoint.ID())
 	err = modelrecipetest.ActivateCandidate(ctx, store, "e4b/trained-model", candidate)
 	if closeErr := store.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
-	served, err := modelcli.OpenRunner(ctx, storePath, trained, inference.OpenOptions{})
-	testcheck.NoError(t, err)
-	greedy, err := sampling.New(sampling.Config{})
-	testcheck.NoError(t, err)
+	served := testcheck.Must(modelcli.OpenRunner(ctx, storePath, trained, inference.OpenOptions{}))(t)
+	greedy := testcheck.Must(sampling.New(sampling.Config{}))(t)
 	generated := 0
 	_, answer, err := served.Generate(ctx, e4bHeldOutPrompt, inference.GenerateOptions{
 		MaxNewTokens: 8, Sampler: greedy, OnToken: func(inference.TokenEvent) error { generated++; return nil },
@@ -109,10 +105,8 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	debug.FreeOSMemory()
 
 	// The base serves as intake registers a trained model's candidate.
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative)
-	testcheck.NoError(t, err)
-	baseline, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative))(t)
+	baseline := testcheck.Must(inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{}))(t)
 	before, err := baseline.ScoreContinuations(ctx, e4bHeldOutPrompt, []string{e4bHeldOutAnswer})
 	if closeErr := baseline.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)

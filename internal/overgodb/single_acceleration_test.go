@@ -20,8 +20,7 @@ func TestCheckpointsAreTheOnlyAcceleration(t *testing.T) {
 	head, _, _ := copyScaleCorpus(t, root)
 	digestOf := func(wantLoaded bool) string {
 		t.Helper()
-		store, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(root))(t)
 		defer store.Close()
 		replay := store.SnapshotReplay()
 		if replay.Loaded != wantLoaded || wantLoaded == (replay.Fallback != "") {
@@ -42,10 +41,8 @@ func TestCheckpointsAreTheOnlyAcceleration(t *testing.T) {
 		t.Fatal("a full replay answered differently from the anchored open")
 	}
 
-	store, err := Create(root)
-	testcheck.NoError(t, err)
-	info, err := store.Snapshot(t.Context())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
+	info := testcheck.Must(store.Snapshot(t.Context()))(t)
 	testcheck.NoError(t, store.Close())
 	if info.Path != newestCheckpoints(t, root) {
 		t.Fatalf("the maintenance point names %s, the newest generation is %s", info.Path, newestCheckpoints(t, root))

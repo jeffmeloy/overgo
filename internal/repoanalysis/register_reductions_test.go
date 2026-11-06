@@ -59,8 +59,7 @@ var reductionsDisplaced = map[string]map[string][]string{
 // resolves a finding; the checkout shows the repeat gone.
 func TestTheRegistersTestReductionsLand(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join(checkoutRoot, "docs", "sqa_findings.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(checkoutRoot, "docs", "sqa_findings.json")))(t)
 	var register struct {
 		Findings []struct {
 			ID     string   `json:"id"`

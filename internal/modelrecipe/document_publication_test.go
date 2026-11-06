@@ -16,11 +16,9 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 	if !ok {
 		t.Fatal("llama architecture profile unavailable")
 	}
-	document, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewProfileDocument(profile))(t)
 	testcheck.NoError(t, document.ValidateIdentity())
-	content, err := document.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(document.Content())(t)
 	parsed, err := ParseProfileDocument(content)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip = (%+v, %v)", parsed.ID, err)

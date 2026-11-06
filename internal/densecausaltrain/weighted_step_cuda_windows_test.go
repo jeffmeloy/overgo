@@ -51,8 +51,7 @@ func rewardGroup(t *testing.T, position uint64, rewards ...float64) trainingdata
 	for index, reward := range rewards {
 		members[index] = trainingdata.Rollout{ID: string(rune('a' + index)), Sequence: answers[index], Reward: reward}
 	}
-	group, err := trainingdata.NewRolloutGroup("group", evaluator, trainingdata.StreamState{Identity: stream, Position: position}, members)
-	testcheck.NoError(t, err)
+	group := testcheck.Must(trainingdata.NewRolloutGroup("group", evaluator, trainingdata.StreamState{Identity: stream, Position: position}, members))(t)
 	return group
 }
 
@@ -105,8 +104,7 @@ func weightedGradient(t *testing.T, model *densecausal.Model, answers []training
 // device is handed.
 func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingdata.RolloutGroup, momentum float64) []float64 {
 	t.Helper()
-	update, err := model.NewDenseUpdate(derivedTestLearningRate(t, model), momentum, nil)
-	testcheck.NoError(t, err)
+	update := testcheck.Must(model.NewDenseUpdate(derivedTestLearningRate(t, model), momentum, nil))(t)
 	losses := make([]float64, len(groups))
 	for step, group := range groups {
 		rewards := make([]float64, len(group.Rollouts))
@@ -114,8 +112,7 @@ func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingda
 		for index, rollout := range group.Rollouts {
 			rewards[index], answers[index] = rollout.Reward, rollout.Sequence
 		}
-		weights, err := trainingprogram.OrderGradients(rewards)
-		testcheck.NoError(t, err)
+		weights := testcheck.Must(trainingprogram.OrderGradients(rewards))(t)
 		for index := range weights {
 			weights[index] = 0 - weights[index]
 		}
@@ -158,8 +155,7 @@ func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingda
 // the byte.
 func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const momentum, lossLimit = 0.9, 2e-3
 	same := func(left, right *densecausal.Model) bool {
@@ -167,16 +163,14 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 	}
 	train := func(model *densecausal.Model, resume *densecausal.TrainState, groups ...[]densecausal.WeightedSequence) Result {
 		t.Helper()
-		result, err := TrainDeviceResidentWeighted(model, worker, groups, derivedTestLearningRate(t, model), momentum, Options{Resume: resume})
-		testcheck.NoError(t, err)
+		result := testcheck.Must(TrainDeviceResidentWeighted(model, worker, groups, derivedTestLearningRate(t, model), momentum, Options{Resume: resume}))(t)
 		return result
 	}
 
 	// Fine-tuning: the mean written out is the mean.
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}, {2, 3, 5, 7, 11, 13, 17, 19}}
 	plain, written, hosted := tinyMuonModel(t), tinyMuonModel(t), tinyMuonModel(t)
-	before, err := TrainDeviceResidentWeighted(plain, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, plain), momentum, Options{})
-	testcheck.NoError(t, err)
+	before := testcheck.Must(TrainDeviceResidentWeighted(plain, worker, oneSequenceGroups(batches), derivedTestLearningRate(t, plain), momentum, Options{}))(t)
 	// How far the device's fine-tuning stands from the host's over as many
 	// steps is the trainer's own difference, its step taken in single
 	// precision on the device and in double on the host. The weighted uses
@@ -203,8 +197,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 	// Rewards: the device's step against the reference.
 	weighted := func(group trainingdata.RolloutGroup) []densecausal.WeightedSequence {
 		t.Helper()
-		sequences, err := densecausal.RewardSequences(group)
-		testcheck.NoError(t, err)
+		sequences := testcheck.Must(densecausal.RewardSequences(group))(t)
 		return sequences
 	}
 	ordered := orderedRewardGroups(t)
@@ -239,8 +232,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		control = append(control, densecausal.WeightedSequence{Tokens: answer.Tokens, Weights: weights})
 	}
 	wanted, wantedLoss := weightedGradient(t, reference, passing, []float64{share, share})
-	update, err := reference.NewDenseUpdate(derivedTestLearningRate(t, reference), momentum, nil)
-	testcheck.NoError(t, err)
+	update := testcheck.Must(reference.NewDenseUpdate(derivedTestLearningRate(t, reference), momentum, nil))(t)
 	testcheck.NoError(t, update.Pack.GatherGradients(wanted))
 	update.Step()
 	update.Pack.Scatter()

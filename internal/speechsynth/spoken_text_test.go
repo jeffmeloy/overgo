@@ -73,8 +73,7 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 			t.Skipf("UNAVAILABLE: pocket-tts tokenizer unavailable: %v; parity NOT verified", err)
 		}
 		for _, reference := range fixture.Cases {
-			ids, err := tokenizer.Encode(reference.Spoken)
-			testcheck.NoError(t, err)
+			ids := testcheck.Must(tokenizer.Encode(reference.Spoken))(t)
 			if !slices.Equal(ids, reference.IDs) {
 				t.Errorf("%q is read as %v, and the model's own tokenizer reads %v", reference.Spoken, ids, reference.IDs)
 			}

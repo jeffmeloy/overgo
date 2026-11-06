@@ -13,13 +13,11 @@ import (
 func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	first := commitDeltaContent(t, "first")
-	firstCommit, err := store.Commit(t.Context(), artifact.Batch{
+	firstCommit := testcheck.Must(store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/commit-delta/first", Contents: []artifact.Content{first},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	record := commitDeltaContent(t, "review record")
 	expected := firstCommit
 	request := artifact.Batch{
@@ -29,12 +27,10 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 	}
 	_, requestDigest, err := encodeBatch(request)
 	testcheck.NoError(t, err)
-	commit, err := store.Commit(t.Context(), request)
-	testcheck.NoError(t, err)
+	commit := testcheck.Must(store.Commit(t.Context(), request))(t)
 	for ordinal := range 32 {
 		payload := []byte{byte(ordinal)}
-		id, err := artifact.IdentifyBytes(artifact.KindFile, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, payload))(t)
 		if _, err := store.Commit(t.Context(), artifact.Batch{
 			Key:       fmt.Sprintf("fixture/commit-delta/unrelated/%d", ordinal),
 			Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(payload))}},
@@ -67,8 +63,7 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 	testcheck.NoError(t, store.sealActiveSegment(t.Context()))
 	assert("sealed")
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	assert("reopened sealed")
 }
@@ -78,8 +73,7 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 	const unrelatedCommitPopulation = 128
 
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	var coordinate commitCoordinate
 	for ordinal := range unrelatedCommitPopulation {
 		unrelated := commitDeltaContent(t, fmt.Sprintf("unrelated before reviewed commit %d", ordinal))
@@ -100,12 +94,10 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 
-	journal, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_RDWR, storeFileMode)
-	testcheck.NoError(t, err)
+	journal := testcheck.Must(os.OpenFile(filepath.Join(root, storeFilename), os.O_RDWR, storeFileMode))(t)
 	if _, err := journal.WriteAt([]byte{0xff}, coordinate.offset+frameHeaderBytes); err != nil {
 		t.Fatal(err)
 	}
@@ -126,8 +118,7 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 func commitDeltaContent(t *testing.T, value string) artifact.Content {
 	t.Helper()
 	payload := []byte(value)
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, payload))(t)
 	return artifact.Content{
 		Descriptor: artifact.Descriptor{
 			ID: id, Size: uint64(len(payload)), MediaType: "text/plain", Schema: "fixture/commit-delta/v1",

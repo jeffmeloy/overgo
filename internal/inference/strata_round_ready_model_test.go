@@ -17,8 +17,7 @@ import (
 // its PCIe share from the link's probe. The drafter is the first drafting request's (readyStrataRound).
 func TestFlashNextRoundIsReadyAtOpen(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
 	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative)
 	if err != nil {

@@ -23,30 +23,25 @@ func TestABrokenVerificationKeepsItsRecipe(t *testing.T) {
 		store := openProgramStore(t)
 		t.Cleanup(func() { store.Close() })
 		inventory, resolved := publishProgramFacts(t, store, path)
-		tuned, err := InferenceWithModelDefinition(
+		tuned := testcheck.Must(InferenceWithModelDefinition(
 			inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid, DecodeSessionRequest, recipe.ResidencyHybridNative,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if tuned.ID == definitionRecipe(t, inventory, resolved).ID {
 			t.Fatal("the fixture's tuned recipe is the one its file derives")
 		}
 		if _, _, err := PublishCandidate(t.Context(), store, "fixture/keep/candidate", tuned); err != nil {
 			t.Fatal(err)
 		}
-		batch, err := artifact.NewDocumentBatch("fixture/keep/alias", nil, nil, []artifact.AliasBinding{
+		batch := testcheck.Must(artifact.NewDocumentBatch("fixture/keep/alias", nil, nil, []artifact.AliasBinding{
 			{Name: activeAlias(tuned.Model, tuned.Task), Target: tuned.ID},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
-		loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 		defer loaded.Close()
-		identity, err := loaded.Identity()
-		testcheck.NoError(t, err)
-		state, err := loaded.State()
-		testcheck.NoError(t, err)
+		identity := testcheck.Must(loaded.Identity())(t)
+		state := testcheck.Must(loaded.State())(t)
 		if identity.Recipe != tuned.ID || state.Verification != StateBroken || state.Reason == "" {
 			t.Fatalf("recipe %v, state %+v, want the tuned %v, broken", identity.Recipe, state, tuned.ID)
 		}

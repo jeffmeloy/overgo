@@ -221,14 +221,10 @@ func TestPaddingTakesNoPosition(t *testing.T) {
 	for _, token := range real {
 		compact = append(compact, embed[token*e.Hidden:][:e.Hidden]...)
 	}
-	padded, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), mask)
-	testcheck.NoError(t, err)
-	bare, err := encodeSelected(e, e.RMSNormEps, len(real), e.Intermediate, append([]float64(nil), compact...), storeLayerAt(e, store), nil)
-	testcheck.NoError(t, err)
-	prog, err := CompileEncoderProgramMasked(e, float32(e.RMSNormEps), seq, dtype.F32, mask)
-	testcheck.NoError(t, err)
-	graph, err := prog.RunHostFeed(reference.Execute, func(name string) ([]float32, error) { return store[name], nil }, f32slice(embed))
-	testcheck.NoError(t, err)
+	padded := testcheck.Must(encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), mask))(t)
+	bare := testcheck.Must(encodeSelected(e, e.RMSNormEps, len(real), e.Intermediate, append([]float64(nil), compact...), storeLayerAt(e, store), nil))(t)
+	prog := testcheck.Must(CompileEncoderProgramMasked(e, float32(e.RMSNormEps), seq, dtype.F32, mask))(t)
+	graph := testcheck.Must(prog.RunHostFeed(reference.Execute, func(name string) ([]float32, error) { return store[name], nil }, f32slice(embed)))(t)
 	row := padded.LayerCount * padded.Hidden
 	var hostApart, graphApart float64
 	for at, token := range real {

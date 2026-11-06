@@ -27,8 +27,7 @@ func TestEvidenceConditioningRecordIsOfItsJudgments(t *testing.T) {
 	t.Parallel()
 	read := func(name string) map[string]string {
 		t.Helper()
-		raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", name))
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", name)))(t)
 		fields := map[string]string{}
 		for line := range strings.Lines(string(raw)) {
 			if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

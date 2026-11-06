@@ -19,8 +19,7 @@ func TestACheckpointKeepsWhatServesItsModel(t *testing.T) {
 		testutil.WriteTextFile(t, source, name, name)
 	}
 	testcheck.NoError(t, CopyModelFiles(source, stage))
-	entries, err := os.ReadDir(stage)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(stage))(t)
 	var kept []string
 	for _, entry := range entries {
 		kept = append(kept, entry.Name())

@@ -10,20 +10,17 @@ import (
 
 func TestHostStateBytesMatchesAllocations(t *testing.T) {
 	for _, frozen := range []bool{false, true} {
-		plan, err := CompilePlan(30, []GroupSpec{
+		plan := testcheck.Must(CompilePlan(30, []GroupSpec{
 			{Name: "tall", End: 6, Rows: 3, Cols: 2},
 			{Name: "wide", Start: 6, End: 14, Rows: 2, Cols: 4},
 			{Name: "optional", Start: 14, End: 30, Rows: 4, Cols: 4, Frozen: frozen},
-		})
-		testcheck.NoError(t, err)
-		admitted, err := plan.HostStateBytes()
-		testcheck.NoError(t, err)
+		}))(t)
+		admitted := testcheck.Must(plan.HostStateBytes())(t)
 		weights, gradients := make([]float32, plan.ParameterCount()), make([]float32, plan.ParameterCount())
 		for index := range gradients {
 			gradients[index] = float32(index + 1)
 		}
-		state, err := New(weights, gradients, plan, fixtureConfig)
-		testcheck.NoError(t, err)
+		state := testcheck.Must(New(weights, gradients, plan, fixtureConfig))(t)
 		state.Step()
 		actual := uint64(cap(state.momentum)+cap(state.scratch.input)+cap(state.scratch.transposed)+cap(state.scratch.output)+cap(state.scratch.gram)+cap(state.scratch.square)) * binaryschema.Uint64Bytes
 		if admitted != actual {
@@ -33,13 +30,11 @@ func TestHostStateBytesMatchesAllocations(t *testing.T) {
 	if _, err := (Plan{}).HostStateBytes(); err == nil {
 		t.Fatal("uncompiled plan admitted")
 	}
-	empty, err := CompilePlan(0, nil)
-	testcheck.NoError(t, err)
+	empty := testcheck.Must(CompilePlan(0, nil))(t)
 	if bytes, err := empty.HostStateBytes(); err != nil || bytes != 0 {
 		t.Fatalf("empty plan storage = %d, %v", bytes, err)
 	}
-	huge, err := CompilePlan(math.MaxInt, []GroupSpec{{Name: "huge", End: math.MaxInt, Rows: 1, Cols: math.MaxInt}})
-	testcheck.NoError(t, err)
+	huge := testcheck.Must(CompilePlan(math.MaxInt, []GroupSpec{{Name: "huge", End: math.MaxInt, Rows: 1, Cols: math.MaxInt}}))(t)
 	if _, err := huge.HostStateBytes(); err == nil {
 		t.Fatal("unaddressable optimizer state admitted")
 	}

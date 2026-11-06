@@ -42,8 +42,7 @@ func TestProtectionContract(t *testing.T) {
 }
 
 func TestGPUWorkflowContract(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	configured, _, err := Verify(root)
 	if err != nil || configured == "" {
 		t.Fatalf("GPU workflow contract = (%q, %v)", configured, err)

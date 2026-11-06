@@ -19,17 +19,13 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
 	ctx := t.Context()
-	store, err := Create(sourceRoot)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(sourceRoot))(t)
 	defer store.Close()
 
-	rootEvidence, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane motivation"))
-	testcheck.NoError(t, err)
-	finding, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane finding"))
-	testcheck.NoError(t, err)
+	rootEvidence := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane motivation")))(t)
+	finding := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("plane finding")))(t)
 	explanation := []byte(`{"decision":"rollback","cause":"sustained live regression"}`)
-	explanationID, err := artifact.IdentifyBytes(artifact.KindEvidence, explanation)
-	testcheck.NoError(t, err)
+	explanationID := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, explanation))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "plane/causal-evidence",
 		Artifacts: []artifact.Descriptor{
@@ -76,14 +72,11 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	if _, err := Rebuild(ctx, store, rebuiltRoot, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(OpenReadOnly(rebuiltRoot))(t)
 	defer rebuilt.Close()
 	rebuiltLink, rebuiltExplanation := answer(rebuilt)
-	sourceEncoded, err := json.Marshal(sourceLink)
-	testcheck.NoError(t, err)
-	rebuiltEncoded, err := json.Marshal(rebuiltLink)
-	testcheck.NoError(t, err)
+	sourceEncoded := testcheck.Must(json.Marshal(sourceLink))(t)
+	rebuiltEncoded := testcheck.Must(json.Marshal(rebuiltLink))(t)
 	if string(sourceEncoded) != string(rebuiltEncoded) {
 		t.Fatalf("causal link drifted across the rebuild: %s vs %s", sourceEncoded, rebuiltEncoded)
 	}

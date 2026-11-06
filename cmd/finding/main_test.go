@@ -28,10 +28,9 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		t.Fatalf("output = %q", output.String())
 	}
 	store := overgodbtest.Create(t, repository)
-	result, err := store.Query(t.Context(), overgodb.Query{
+	result := testcheck.Must(store.Query(t.Context(), overgodb.Query{
 		Kind: artifact.KindEvidence, MaxResults: 100, Projection: overgodb.ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	found := false
 	for _, descriptor := range result.Artifacts {
 		if descriptor.MediaType != finding.MediaType {

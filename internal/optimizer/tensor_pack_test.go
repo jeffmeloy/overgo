@@ -17,14 +17,13 @@ func TestTensorPackBindsDeterministicallyAndReplacesGradients(t *testing.T) {
 	)
 	matrix := []float32{1, 2, 3, 4}
 	vector := []float32{5, 6}
-	pack, err := NewTensorPack(
+	pack := testcheck.Must(NewTensorPack(
 		map[string][]float32{"vector": vector, "matrix": matrix},
 		MatrixGeometry(map[string][2]int{
 			"matrix": {matrixRows, matrixCols},
 			"vector": {vectorRows, vectorCols},
 		}),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	first, _ := pack.plan.Group(0)
 	second, _ := pack.plan.Group(1)
 	if first.Name != "matrix" || second.Name != "vector" {
@@ -64,11 +63,10 @@ func TestSectionPackKeepsDeclarationOrderAndDecodesBF16Masters(t *testing.T) {
 		oneBF16      = 0x3f80 // 1.0
 		minusTwoBF16 = 0xc000 // -2.0
 	)
-	pack, err := NewSectionPack([]TensorSection{
+	pack := testcheck.Must(NewSectionPack([]TensorSection{
 		{Name: "z.bias", Rows: 1, Cols: 2, Values: []float32{3, 4}},
 		{Name: "a.weight", Rows: 1, Cols: 2, BF16: []uint16{oneBF16, minusTwoBF16}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if first, _ := pack.Plan().Group(0); first.Name != "z.bias" {
 		t.Fatalf("first group = %q, want declaration order", first.Name)
 	}

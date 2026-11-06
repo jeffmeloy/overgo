@@ -15,14 +15,10 @@ import (
 )
 
 func TestPersistedDecisionMaterializationCommand(t *testing.T) {
-	decision, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("decision"))
-	testcheck.NoError(t, err)
-	closure, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("materialization"))
-	testcheck.NoError(t, err)
-	first, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("first"))
-	testcheck.NoError(t, err)
-	second, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("second"))
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("decision")))(t)
+	closure := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("materialization")))(t)
+	first := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("first")))(t)
+	second := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("second")))(t)
 	outputRoot := filepath.Join(t.TempDir(), "outputs")
 	recordRoot := t.TempDir()
 	original := materializeCandidateTrial

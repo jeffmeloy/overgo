@@ -17,14 +17,12 @@ import (
 
 func nullableParquetFixture(t *testing.T) (string, uint64) {
 	t.Helper()
-	data, err := os.ReadFile("testdata/nullable_parquet.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/nullable_parquet.json"))(t)
 	var fixture struct {
 		Parquet string `json:"parquet_base64"`
 	}
 	testcheck.NoError(t, json.Unmarshal(data, &fixture))
-	encoded, err := base64.StdEncoding.DecodeString(fixture.Parquet)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(base64.StdEncoding.DecodeString(fixture.Parquet))(t)
 	path := filepath.Join(t.TempDir(), "nullable.parquet")
 	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	// For this tiny oracle the complete encoded file exceeds the cumulative
@@ -34,8 +32,7 @@ func nullableParquetFixture(t *testing.T) (string, uint64) {
 
 func TestParquetRowsPhysicalJoin(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
-	r, err := OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text", "id"}, budget)
-	testcheck.NoError(t, err)
+	r := testcheck.Must(OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text", "id"}, budget))(t)
 	defer r.Close()
 	if r.Rows() != 6 {
 		t.Fatalf("physical rows = %d", r.Rows())
@@ -45,8 +42,7 @@ func TestParquetRowsPhysicalJoin(t *testing.T) {
 	// Revisit a previous group and resume inside the next group: identities
 	// and nulls must not depend on traversal order or cache state.
 	for _, ordinal := range []uint64{0, 1, 2, 3, 4, 5, 1, 4} {
-		row, err := r.Read(t.Context(), ordinal)
-		testcheck.NoError(t, err)
+		row := testcheck.Must(r.Read(t.Context(), ordinal))(t)
 		if !reflect.DeepEqual(row["audio.bytes"], wantAudio[ordinal]) || !reflect.DeepEqual(row["text"], wantText[ordinal]) || row["id"] == nil || *row["id"] != string(rune('0'+ordinal)) {
 			t.Fatalf("physical row %d = %v", ordinal, row)
 		}
@@ -67,8 +63,7 @@ func TestParquetRowsPhysicalJoin(t *testing.T) {
 
 func TestParquetWorkspaceAndMalformedPages(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
-	r, err := OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text"}, budget)
-	testcheck.NoError(t, err)
+	r := testcheck.Must(OpenParquetRows(t.Context(), path, []string{"audio.bytes", "text"}, budget))(t)
 	defer r.Close()
 	// Exhaust the decode budget independently of the metadata budget.
 	r.maximumBytes = 1

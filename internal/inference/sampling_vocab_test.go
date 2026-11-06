@@ -25,8 +25,7 @@ func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {
 		PAD:  tokenizer.NullToken,
 		Mask: tokenizer.NullToken,
 	}}}
-	vocabulary, err := runner.SamplingInfillVocabulary()
-	testcheck.NoError(t, err)
+	vocabulary := testcheck.Must(runner.SamplingInfillVocabulary())(t)
 	if !slices.Equal(vocabulary.Pieces, []string{"a", "", ""}) {
 		t.Fatalf("infill pieces = %q", vocabulary.Pieces)
 	}

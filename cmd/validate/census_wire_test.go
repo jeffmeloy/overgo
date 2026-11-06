@@ -13,8 +13,7 @@ import (
 
 func TestCapabilityCensusWireCompatibility(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile("testdata/capability_census_v1.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/capability_census_v1.json"))(t)
 	base := string(bytes.TrimSpace(data))
 	for _, test := range []struct {
 		name, field string
@@ -25,8 +24,7 @@ func TestCapabilityCensusWireCompatibility(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			wire := []byte(strings.Replace(base, `}],"verifications"`, test.field+`}],"verifications"`, 1))
-			value, err := capabilityCensusCodec.Parse(wire)
-			testcheck.NoError(t, err)
+			value := testcheck.Must(capabilityCensusCodec.Parse(wire))(t)
 			encoded, err := capabilityCensusCodec.Encode(value)
 			if err != nil || !bytes.Equal(wire, encoded) {
 				t.Fatalf("stored representation changed: %s: %v", encoded, err)
@@ -59,8 +57,7 @@ func TestCapabilityCensusWireCompatibility(t *testing.T) {
 	}
 	testcheck.NoError(t, json.Unmarshal([]byte(base), &view))
 	view.Models[0].KeyEnvironment = "TEST_PROVIDER_KEY"
-	current, err := json.Marshal(view.Models)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(json.Marshal(view.Models))(t)
 	frozen, err := json.Marshal(censusModels(view.Models))
 	if err != nil || !bytes.Equal(current, frozen) {
 		t.Fatalf("current publication changed: %s: %v", frozen, err)

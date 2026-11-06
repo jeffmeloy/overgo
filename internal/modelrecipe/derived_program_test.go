@@ -17,26 +17,20 @@ func TestAGGUFNothingRecordsResolvesFromItsFile(t *testing.T) {
 	t.Parallel()
 	path := t.TempDir() + "/model.gguf"
 	writeServingDefinitionGGUF(t, path, false)
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromGGUF(file, artifact.KindModel))(t)
 	catalog, found, err := CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !found {
 		t.Fatalf("catalog policy: %v, %v", found, err)
 	}
 	resolve := func(t *testing.T, store artifact.Reader) (ProgramIdentity, ModelState, RuntimePolicy) {
 		t.Helper()
-		loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 		t.Cleanup(func() { loaded.Close() })
-		identity, err := loaded.Identity()
-		testcheck.NoError(t, err)
-		state, err := loaded.State()
-		testcheck.NoError(t, err)
-		policy, err := loaded.RuntimePolicy()
-		testcheck.NoError(t, err)
+		identity := testcheck.Must(loaded.Identity())(t)
+		state := testcheck.Must(loaded.State())(t)
+		policy := testcheck.Must(loaded.RuntimePolicy())(t)
 		return identity, state, policy
 	}
 	open := openedProgramStore
@@ -69,10 +63,9 @@ func TestAGGUFNothingRecordsResolvesFromItsFile(t *testing.T) {
 		if _, _, err := PublishCandidate(t.Context(), store, "fixture/derived/unactivated", definition); err != nil {
 			t.Fatal(err)
 		}
-		batch, err := artifact.NewDocumentBatch("fixture/derived/alias", nil, nil, []artifact.AliasBinding{
+		batch := testcheck.Must(artifact.NewDocumentBatch("fixture/derived/alias", nil, nil, []artifact.AliasBinding{
 			{Name: activeAlias(definition.Model, definition.Task), Target: definition.ID},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}

@@ -28,8 +28,7 @@ func TestTinyModelBackwardMatchesTorch(t *testing.T) {
 	_, trace, err := m.forward(fx.X, fx.B, fx.H, fx.W, true)
 	testcheck.NoError(t, err)
 	grads := Grads{}
-	dx, err := m.backwardFromTrace(trace, oracle.DOut, grads)
-	testcheck.NoError(t, err)
+	dx := testcheck.Must(m.backwardFromTrace(trace, oracle.DOut, grads))(t)
 	requireWithin(t, "tiny dX", dx, oracle.DX, tolGrad)
 	worst := 0.0
 	for key, samples := range oracle.GradSamples {

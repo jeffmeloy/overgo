@@ -13,14 +13,13 @@ GGML_TABLE_BEGIN(uint64_t, sample_grid, 2)
     0x0102030405060708, 9
 GGML_TABLE_END()
 `
-	got, err := extractTable(source, tableSpec{
+	got := testcheck.Must(extractTable(source, tableSpec{
 		cType:  "uint64_t",
 		cName:  "sample_grid",
 		goType: "uint64",
 		goName: "sampleGrid",
 		size:   2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []string{"0x0102030405060708", "0x0000000000000009"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("values = %v, want %v", got, want)

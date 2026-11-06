@@ -22,12 +22,9 @@ func TestCompletionsShareThePlan(t *testing.T) {
 			base := &fakeGenerator{}
 			generator := &protocolAdmissionGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, base)}
 			handler := newTestHandlerWithRepository(t, generator)
-			prepared, err := handler.preparePrompt(t.Context(), nativePrompt{Text: "inspect"}, true)
-			testcheck.NoError(t, err)
-			short, err := json.Marshal(prepared.TokenIDs)
-			testcheck.NoError(t, err)
-			long, err := json.Marshal(append(prepared.TokenIDs, prepared.TokenIDs...))
-			testcheck.NoError(t, err)
+			prepared := testcheck.Must(handler.preparePrompt(t.Context(), nativePrompt{Text: "inspect"}, true))(t)
+			short := testcheck.Must(json.Marshal(prepared.TokenIDs))(t)
+			long := testcheck.Must(json.Marshal(append(prepared.TokenIDs, prepared.TokenIDs...)))(t)
 			fits, over := uint32(len(prepared.TokenIDs)), uint32(2*len(prepared.TokenIDs))
 			generator.limit = fits + 1
 			body := fmt.Sprintf(`{"prompt":[%s,%s],"max_tokens":1,"stream":%t}`, short, long, stream)

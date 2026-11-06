@@ -46,10 +46,8 @@ func TestCanonicalComponentDescriptorComparable(t *testing.T) {
 		t, "descriptor-model-b", "blk.10.ffn_gate.weight",
 		descriptorStatistics(1.0, 20.0, 10.0, 0.1, 0.2),
 	)
-	baseDescriptor, err := CanonicalDescriptor(base)
-	testcheck.NoError(t, err)
-	scaledDescriptor, err := CanonicalDescriptor(scaled)
-	testcheck.NoError(t, err)
+	baseDescriptor := testcheck.Must(CanonicalDescriptor(base))(t)
+	scaledDescriptor := testcheck.Must(CanonicalDescriptor(scaled))(t)
 	if !baseDescriptor.Measured || !scaledDescriptor.Measured {
 		t.Fatalf("measured components lost their measurements: %+v %+v", baseDescriptor, scaledDescriptor)
 	}
@@ -68,8 +66,7 @@ func TestCanonicalComponentDescriptorComparable(t *testing.T) {
 		t.Fatalf("typed contract drifted: %+v vs %+v", baseDescriptor, scaledDescriptor)
 	}
 
-	unmeasured, err := CanonicalDescriptor(descriptorComponent(t, "descriptor-model-a", "blk.11.attn_q.weight", nil))
-	testcheck.NoError(t, err)
+	unmeasured := testcheck.Must(CanonicalDescriptor(descriptorComponent(t, "descriptor-model-a", "blk.11.attn_q.weight", nil)))(t)
 	if unmeasured.Measured || unmeasured.Scale != descriptorUnmeasuredBucket ||
 		unmeasured.Location != descriptorUnmeasuredBucket || unmeasured.Tau4 != descriptorUnmeasuredBucket {
 		t.Fatalf("unmeasured descriptor = %+v", unmeasured)
@@ -109,19 +106,15 @@ func TestExactComponentRetrievalDeterministic(t *testing.T) {
 			descriptorStatistics(0.002, 0.03, 0.02, 0.05, 0.15)),
 		descriptorComponent(t, "retrieval-model-b", "output_norm.weight", nil),
 	}
-	forward, err := NewExactComponentIndex(components)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(NewExactComponentIndex(components))(t)
 	reversed := make([]CatalogComponent, len(components))
 	for index, component := range components {
 		reversed[len(components)-1-index] = component
 	}
-	backward, err := NewExactComponentIndex(reversed)
-	testcheck.NoError(t, err)
+	backward := testcheck.Must(NewExactComponentIndex(reversed))(t)
 	query := components[0]
-	first, err := forward.Search(query, 4)
-	testcheck.NoError(t, err)
-	second, err := backward.Search(query, 4)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(forward.Search(query, 4))(t)
+	second := testcheck.Must(backward.Search(query, 4))(t)
 	if len(first) == 0 || len(first) != len(second) {
 		t.Fatalf("shortlists differ in size: %d vs %d", len(first), len(second))
 	}
@@ -130,8 +123,7 @@ func TestExactComponentRetrievalDeterministic(t *testing.T) {
 			t.Fatalf("input order changed the shortlist at %d:\n%+v\n%+v", index, first[index], second[index])
 		}
 	}
-	again, err := forward.Search(query, 4)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(forward.Search(query, 4))(t)
 	for index := range first {
 		if first[index] != again[index] {
 			t.Fatalf("repeated query drifted at %d", index)

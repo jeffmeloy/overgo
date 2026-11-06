@@ -12,12 +12,10 @@ func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "capture settling runs through cmd/webui-lane")
 	}
-	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	path := testcheck.Must(FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	ctx := t.Context()
 	html := `<style>body{margin:0;background:rgb(0,0,0);color:rgb(255,255,255);transition:background-color 1s linear}body.light{background:rgb(255,255,255);color:rgb(0,0,0)}@keyframes pulse{to{opacity:.5}}.spinner{animation:pulse 1s infinite}.paused{animation:pulse 1s paused}</style><body><span class="spinner"></span><span class="paused"></span><p>Readable after the theme transition.</p></body>`
-	browser, err := Open(ctx, path, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(Open(ctx, path, "data:text/html,"+strings.ReplaceAll(html, " ", "%20")))(t)
 	defer browser.Close()
 	testcheck.NoError(t, browser.Evaluate(ctx, `(() => { void document.body.offsetWidth; document.body.className = "light"; return getComputedStyle(document.body).backgroundColor; })()`, nil))
 	findings, err := CaptureState(ctx, browser, "", ScreenViewports[0], "theme-transition")
@@ -36,8 +34,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "the layout audit runs through cmd/webui-lane")
 	}
-	browserPath, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	// A data URL ends at a "#", so the colours are written as rgb().
 	faulty := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)">` +
 		`<div style="width:3000px;height:10px"></div>` +
@@ -64,12 +61,10 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		t.Helper()
 		ctx := t.Context()
 		// A data URL keeps a "+" literal, so spaces travel percent-encoded; a glyph needs the charset.
-		browser, err := Open(ctx, browserPath, "data:text/html;charset=utf-8,"+strings.ReplaceAll(html, " ", "%20"))
-		testcheck.NoError(t, err)
+		browser := testcheck.Must(Open(ctx, browserPath, "data:text/html;charset=utf-8,"+strings.ReplaceAll(html, " ", "%20")))(t)
 		defer browser.Close()
 		testcheck.NoError(t, browser.SetViewport(ctx, 800, 600))
-		findings, err := browser.LayoutAudit(ctx)
-		testcheck.NoError(t, err)
+		findings := testcheck.Must(browser.LayoutAudit(ctx))(t)
 		image, err := browser.Screenshot(ctx)
 		if err != nil || len(image) < 8 || string(image[1:4]) != "PNG" {
 			t.Fatalf("screenshot = %d bytes, %v", len(image), err)
@@ -101,8 +96,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	// A phone-wide page whose header pushes the content below the first screen's upper part.
 	tall := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><div style="height:500px"></div><div id="panels">content</div></body>`
 	ctx := t.Context()
-	browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(tall, " ", "%20"))
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(tall, " ", "%20")))(t)
 	defer browser.Close()
 	findings, err := CaptureState(ctx, browser, "", ScreenViewports[1], "tall")
 	if err != nil || len(findings) != 1 || findings[0].Finding.Kind != layoutHeader {
@@ -128,11 +122,9 @@ func TestWebUIBrowserPromisePredicateHolds(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "predicate waits run through cmd/webui-lane")
 	}
-	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	path := testcheck.Must(FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	ctx := t.Context()
-	browser, err := Open(ctx, path, "data:text/html,<body></body>")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(Open(ctx, path, "data:text/html,<body></body>"))(t)
 	defer browser.Close()
 	testcheck.NoError(t, browser.Evaluate(ctx, `(() => { window.checks = 0; window.done = false; setTimeout(() => { window.done = true; }, 300); return true; })()`, nil))
 	testcheck.NoError(t, browser.Eventually(ctx, `new Promise((resolve, reject) => { window.checks++; setTimeout(() => window.checks % 2 ? resolve(window.done) : reject(new Error("not yet")), 5); })`))

@@ -47,11 +47,10 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A local attempt, then its spillover to a peer on compatibility evidence.
-	local, err := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
+	local := testcheck.Must(runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
 		Model: model, Recipe: recipeID, Environment: environment, Operation: operationID, Task: recipe.TaskInference,
 		Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
 		Model: model, Recipe: recipeID, Environment: environment, Operation: operationID, Task: recipe.TaskInference,
 		Previous: local.ID, Attempt: local.Attempt + 1, Compatibility: compatibility,
@@ -70,7 +69,7 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	attempts := 0
-	blocked, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	blocked := testcheck.Must(handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, operation.Reporter) (operation.Completion, error) {
 			if attempts++; attempts == 1 {
 				return operation.Completion{Run: runID}, testutil.Recoverable(errors.New("approval required"), operatoraction.Block{
@@ -79,18 +78,15 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 				})
 			}
 			return operation.Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if status, err := handler.operations.Wait(ctx, blocked); err != nil || status.State != operation.StateBlocked {
 		t.Fatalf("fixture operation = %+v, %v", status, err)
 	}
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
+	browser := testcheck.Must(webuilane.Open(ctx, path, server.URL))(t)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := browserSettle(t, ctx, browser)

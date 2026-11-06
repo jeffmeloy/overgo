@@ -27,10 +27,9 @@ func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("selector-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "selector/model",
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
@@ -38,8 +37,7 @@ func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := CapabilityDefinition(recipe.TaskGeneration, manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(CapabilityDefinition(recipe.TaskGeneration, manifest.ID))(t)
 	if _, _, err := PublishCandidate(ctx, store, "selector/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -67,10 +65,9 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 	identities := make(map[artifact.ID]struct{})
 	sessions := []SessionSelection{SessionPin, SessionWarm}
 	for _, session := range sessions {
-		selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+		selected := testcheck.Must(ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 			Alias: fixture.alias, Task: recipe.TaskGeneration, Session: session,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if selected.Activation.Definition.ID != fixture.definition.ID ||
 			selected.Program.Definition().ID != fixture.definition.ID ||
 			selected.Resources.ArtifactBytes != fixture.bytes ||
@@ -107,10 +104,9 @@ func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *test
 		t.Fatal(err)
 	}
 	resolve := func(alias string) CapabilityEvidenceSelection {
-		selection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+		selection := testcheck.Must(ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 			Alias: alias, Task: recipe.TaskGeneration, Session: SessionWarm,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return selection
 	}
 	primary, alternate := resolve(fixture.alias), resolve(alternateAlias)
@@ -151,38 +147,33 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 		peer:  testutil.ArtifactID(t, artifact.KindEvidence, "selector-peer-operation"),
 	}
 	observe := func(environment artifact.ID) runrecord.ServingObservation {
-		observation, err := runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
+		observation := testcheck.Must(runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
 			Model: fixture.model, Recipe: fixture.definition.ID, Environment: environment,
 			Operation: operations[environment], Task: recipe.TaskGeneration, Outcome: runrecord.OutcomeSucceeded,
 			StartedUnixNS: time.Now().UnixNano(), MeasuredNS: uint64(time.Nanosecond),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return observation
 	}
 	localObservation, peerObservation := observe(local), observe(peer)
-	localSelection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+	localSelection := testcheck.Must(ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionWarm,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	resources := localSelection.Resources
-	resourceContent, err := resources.Content()
-	testcheck.NoError(t, err)
+	resourceContent := testcheck.Must(resources.Content())(t)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{Key: "selector/resources", Contents: []artifact.Content{resourceContent}}); err != nil {
 		t.Fatal(err)
 	}
-	compatibility, err := PublishRemotePeerAuthority(ctx, fixture.store, "selector/peer", RemotePeerCapability{
+	compatibility := testcheck.Must(PublishRemotePeerAuthority(ctx, fixture.store, "selector/peer", RemotePeerCapability{
 		Environment: peer, Tasks: []recipe.Task{recipe.TaskGeneration}, Endpoint: "https://peer.example/v1/generation",
 	}, RemotePeerCompatibility{
 		Model: fixture.model, Recipe: fixture.definition.ID, Resources: resources.Identity, Task: recipe.TaskGeneration,
 		LocalEnvironment: local, PeerEnvironment: peer,
 		LocalObservation: localObservation.ID, PeerObservation: peerObservation.ID,
-	})
-	testcheck.NoError(t, err)
-	selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+	}))(t)
+	selected := testcheck.Must(ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionSpillover,
 		Compatibility: compatibility.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if selected.Peer.ID != compatibility.ID || selected.Peer.PeerObservation != peerObservation.ID ||
 		selected.Resources.Identity != resources.Identity {
 		t.Fatalf("spillover selection=%+v", selected)

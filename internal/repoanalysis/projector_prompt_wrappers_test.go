@@ -17,8 +17,7 @@ import (
 func TestProjectorSessionOwnsNoPromptWrappers(t *testing.T) {
 	t.Parallel()
 	directory := filepath.Join("..", "..", "internal", "projector")
-	packages, err := parser.ParseDir(token.NewFileSet(), directory, nil, 0)
-	testcheck.NoError(t, err)
+	packages := testcheck.Must(parser.ParseDir(token.NewFileSet(), directory, nil, 0))(t)
 	forbidden := map[string]struct{}{
 		"imagesPrompt": {}, "videoPrompt": {}, "audioPrompt": {},
 		"audioSampleRate": {}, "mediaHistoryPrompt": {},

@@ -7,8 +7,7 @@ import (
 )
 
 func TestPrefixStateRequiresEveryLayer(t *testing.T) {
-	state, err := NewPrefixState(2, 1, 2, 2, 2)
-	testcheck.NoError(t, err)
+	state := testcheck.Must(NewPrefixState(2, 1, 2, 2, 2))(t)
 	if state.Complete() {
 		t.Fatal("empty prefix state is complete")
 	}

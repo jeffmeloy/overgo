@@ -26,8 +26,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("synthesize clip = (%+v, %v)", receipt, err)
 	}
-	frames, err := decodeFFmpegFrames(t.Context(), ffmpeg, clip, nil, 4, 3)
-	testcheck.NoError(t, err)
+	frames := testcheck.Must(decodeFFmpegFrames(t.Context(), ffmpeg, clip, nil, 4, 3))(t)
 	if len(frames) == 0 {
 		t.Fatal("decoded no frames")
 	}

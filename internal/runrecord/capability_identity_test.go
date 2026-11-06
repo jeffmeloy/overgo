@@ -20,7 +20,7 @@ func TestCapabilityIdentityContract(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	identity, err := (CapabilityIdentity{
+	identity := testcheck.Must((CapabilityIdentity{
 		Implementation: implementation,
 		Release:        "2.0.1",
 		Transport:      CapabilityTransport{Kind: CapabilityTransportHTTP, Endpoint: "https://tool.example/run", Protocol: "strict-json/1"},
@@ -29,12 +29,9 @@ func TestCapabilityIdentityContract(t *testing.T) {
 		Resources: CapabilityResourceEnvelope{
 			MaxInputBytes: 4096, MaxOutputBytes: 8192, MaxConcurrent: 2, CPUThreads: 2, HostBytes: 1 << 30,
 		},
-	}).Identify()
-	testcheck.NoError(t, err)
-	content, err := identity.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("capability/identity", []artifact.Content{content}, identity.Lineage(), nil)
-	testcheck.NoError(t, err)
+	}).Identify())(t)
+	content := testcheck.Must(identity.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("capability/identity", []artifact.Content{content}, identity.Lineage(), nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -21,8 +21,7 @@ func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteImageInventoryFixture(t, root)
 
-	inventory, err := modelartifact.FromHFPath(root)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromHFPath(root))(t)
 	if got := len(inventory.TensorInventory.Tensors); got != 4 {
 		t.Fatalf("tensor facts = %d, want 4", got)
 	}
@@ -30,10 +29,9 @@ func TestLatentImageInventoryAcceptsDiffusersShards(t *testing.T) {
 
 func writeInventorySafetensor(t testing.TB, path, tensor string) {
 	t.Helper()
-	header, err := json.Marshal(map[string]any{
+	header := testcheck.Must(json.Marshal(map[string]any{
 		tensor: map[string]any{"dtype": "U8", "shape": []uint64{1}, "data_offsets": []uint64{0, 1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	data := make([]byte, 8, 9+len(header))
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
 	data = append(data, header...)
@@ -54,10 +52,8 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		{modelrecipe.ModuleDiffusionImagePrepare, artifact.ID{}},
 	}
 	for _, test := range tests {
-		definition, err := modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile)
-		testcheck.NoError(t, err)
-		program, err := modelrecipe.CompileCapability(definition)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile))(t)
+		program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 		if got := program.Stages()[0].Module.ID; got != test.prepare {
 			t.Fatalf("operator module=%q, want %q", got, test.prepare)
 		}
@@ -69,8 +65,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	testutil.WriteImageProfileFixture(t, root)
 	testutil.WriteImageInventoryFixture(t, root)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
-	source, err := imageCapability().Resolve(t.Context(), root)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(imageCapability().Resolve(t.Context(), root))(t)
 	definition, facts, err := source.Define(modelID)
 	testcheck.NoError(t, err)
 	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
@@ -90,16 +85,14 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	}
 	writeInventorySafetensor(t, filepath.Join(root, "model.safetensors"), "weight")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-image")
-	source, err := imageCapability().Resolve(t.Context(), root)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(imageCapability().Resolve(t.Context(), root))(t)
 	definition, facts, err := source.Define(modelID)
 	testcheck.NoError(t, err)
 	profileID, bound := definition.PrimaryDependency(recipe.DependencyFlowProfile)
 	if len(facts) != 1 || !bound || facts[0].Descriptor.ID != profileID || definition.Model != modelID {
 		t.Fatalf("SenseNova binding model=%s facts=%d", definition.Model, len(facts))
 	}
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if got := program.Stages()[0].Module.ID; got != modelrecipe.ModuleRoutedImagePrepare {
 		t.Fatalf("SenseNova operator=%q", got)
 	}
@@ -108,10 +101,8 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "encoded-image-runtime")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "encoded-image-profile")
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profileID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profileID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if program.Stages()[0].Module.ID != modelrecipe.ModuleLatentImagePrepare ||
 		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
 		t.Fatalf("latent image program=%+v", definition)

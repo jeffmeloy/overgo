@@ -26,25 +26,21 @@ import (
 func TestMOSSResidentSession(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Catalog[recipe.TaskImageGen].Resolve(t.Context(), root))(t)
 	if len(source.Manifests) != 3 {
 		t.Fatal("component manifests missing")
 	}
 	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
-	batch, err := source.Inventory.Batch(t.Name())
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(source.Inventory.Batch(t.Name()))(t)
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
 	if err = modelrecipe.PublishFacts(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(modelrecipe.CompileCandidateExecution(t.Context(), store, program))(t)
 	director := pictureService(t)
 	serve := func(ctx context.Context, request latentimage.Request) (capabilityruntime.Measured, error) {
 		b, err := json.Marshal(request)
@@ -67,8 +63,7 @@ func TestMOSSResidentSession(t *testing.T) {
 		if !ok || image.Width != request.Width || image.Height != request.Height {
 			t.Fatal("image extent or type differs")
 		}
-		content, err := latentimage.PNGContent(image)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(latentimage.PNGContent(image))(t)
 		held, found, err := artifact.ReadContent(t.Context(), store, content.Descriptor.ID)
 		if err != nil || !found || !bytes.Equal(held.Data, image.Data) {
 			t.Fatal("PNG not retained", err)
@@ -83,8 +78,7 @@ func TestMOSSResidentSession(t *testing.T) {
 		return image.Data
 	}
 	first := latentimage.Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}
-	measured, err := serve(t.Context(), first)
-	testcheck.NoError(t, err)
+	measured := testcheck.Must(serve(t.Context(), first))(t)
 	baseline := check(measured, first)
 	// This exact PNG identifies the composition already compared with the native
 	// float authority; native numerical acceptance remains in latentimage tests.
@@ -99,8 +93,7 @@ func TestMOSSResidentSession(t *testing.T) {
 	} {
 		request := first
 		change(&request)
-		measured, err = serve(t.Context(), request)
-		testcheck.NoError(t, err)
+		measured = testcheck.Must(serve(t.Context(), request))(t)
 		if bytes.Equal(check(measured, request), baseline) {
 			t.Fatal("request change did not reach generator")
 		}
@@ -135,14 +128,12 @@ func TestMOSSResidentSession(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || left > 0 {
 		t.Fatal("request cancellation lost", err, left)
 	}
-	measured, err = serve(t.Context(), first)
-	testcheck.NoError(t, err)
+	measured = testcheck.Must(serve(t.Context(), first))(t)
 	if !bytes.Equal(check(measured, first), baseline) || measured.Load <= 0 {
 		t.Fatal("cancelled session was not replaced cleanly")
 	}
 	portrait := latentimage.Request{Prompt: "green tree", Width: 32, Height: 48, Steps: 3, Seed: 7}
-	measured, err = serve(t.Context(), portrait)
-	testcheck.NoError(t, err)
+	measured = testcheck.Must(serve(t.Context(), portrait))(t)
 	check(measured, portrait)
 	if measured.Load <= 0 || director.Snapshot().Entries != 1 {
 		t.Fatal("extent change did not replace bounded session")

@@ -53,15 +53,12 @@ func TestMediaValidationProjection(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "application/x-ndjson", Schema: "overgo/go-test-output/v1"}
 	data := []byte("{\"Action\":\"start\",\"Package\":\"fixture\"}\n{\"Action\":\"run\",\"Package\":\"fixture\",\"Test\":\"TestGeneration\"}\n{\"Action\":\"fail\",\"Package\":\"fixture\",\"Test\":\"TestGeneration\"}\n{\"Action\":\"fail\",\"Package\":\"fixture\"}\n")
-	content, err := contract.ContentBytes(data)
-	testcheck.NoError(t, err)
-	passed, err := contract.ContentBytes(bytes.ReplaceAll(data, []byte(`"fail"`), []byte(`"pass"`)))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentBytes(data))(t)
+	passed := testcheck.Must(contract.ContentBytes(bytes.ReplaceAll(data, []byte(`"fail"`), []byte(`"pass"`))))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-validation", Contents: []artifact.Content{content, passed}}); err != nil {
 		t.Fatal(err)
 	}
-	missing, err := contract.Identify([]byte("absent"))
-	testcheck.NoError(t, err)
+	missing := testcheck.Must(contract.Identify([]byte("absent")))(t)
 	index := mediaValidationIndex{Version: 1, Source: strings.Repeat("1", 40), Environment: "fixture", Checks: []mediaValidationCheck{
 		{Name: "Failed generation", Evidence: content.Descriptor.ID, Command: "go test -json", Scope: "Fixture failure"},
 		{Name: "Missing acquisition", Evidence: missing, Command: "go test -json", Scope: "Fixture missing content"},
@@ -69,15 +66,12 @@ func TestMediaValidationProjection(t *testing.T) {
 	}}
 	index.Notes = []string{"[Retained protocol](docs/image_video_protocol.json); source path `docs/original.go`."}
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o755))
-	encoded, err := json.Marshal(index)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(index))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, mediaValidationPath), encoded, 0o600))
-	bindings, err := json.Marshal(map[string]map[string][]string{"Failed generation": {"fixture": {"TestGeneration"}}, "Missing acquisition": {"fixture": {"TestGeneration"}}, "Missing overlay": {"fixture": {"TestGeneration"}}})
-	testcheck.NoError(t, err)
+	bindings := testcheck.Must(json.Marshal(map[string]map[string][]string{"Failed generation": {"fixture": {"TestGeneration"}}, "Missing acquisition": {"fixture": {"TestGeneration"}}, "Missing overlay": {"fixture": {"TestGeneration"}}}))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, mediaAssertionsPath), bindings, 0o600))
 	var output bytes.Buffer
-	projection, err := projectMediaValidation(t.Context(), root, store)
-	testcheck.NoError(t, err)
+	projection := testcheck.Must(projectMediaValidation(t.Context(), root, store))(t)
 	writeMediaValidation(&output, projection)
 	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", "retained overlay sources:", "### Acquisition notes (historical)", "](image_video_protocol.json)", "`docs/original.go`", "](image_video_validation.json)", "](image_video_assertions.json)", content.Descriptor.ID.String(), missing.String()} {
 		if !strings.Contains(output.String(), want) {

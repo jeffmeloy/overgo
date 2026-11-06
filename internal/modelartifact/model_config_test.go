@@ -30,8 +30,7 @@ func TestModelConfigArtifactContract(t *testing.T) {
 		{Name: "generation_config.json", SHA256: digest},
 		{Name: "dna_config.json", SHA256: digest},
 	}
-	document, err := NewModelConfigDocument(model, sequence, generation, sources)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewModelConfigDocument(model, sequence, generation, sources))(t)
 	if document.Sources[0].Name != "dna_config.json" {
 		t.Fatalf("sources not sorted: %+v", document.Sources)
 	}
@@ -39,8 +38,7 @@ func TestModelConfigArtifactContract(t *testing.T) {
 	if err != nil || replay.ID != document.ID {
 		t.Fatalf("identity not order-canonical: (%v, %v)", replay.ID, err)
 	}
-	content, err := document.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(document.Content())(t)
 	parsed, err := ParseModelConfigDocument(content.Data)
 	if err != nil || parsed.ID != document.ID || parsed.Sequence.K != 2 ||
 		parsed.Generation.ContextLength != 4096 {
@@ -106,8 +104,7 @@ func TestModelConfigArtifactFromFiles(t *testing.T) {
 		t.Fatalf("sources = %+v", sources)
 	}
 	model := testutil.ArtifactID(t, artifact.KindModel, "extracted-model")
-	document, err := NewModelConfigDocument(model, sequence, generation, sources)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewModelConfigDocument(model, sequence, generation, sources))(t)
 	for _, source := range document.Sources {
 		if source.Name == "dna_config.json" && source.SHA256 != dnaDigest {
 			t.Fatalf("dna_config digest = %s, want %s", source.SHA256, dnaDigest)

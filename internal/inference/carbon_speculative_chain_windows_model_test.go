@@ -33,8 +33,7 @@ import (
 // so chain windows must stay k-aligned. Drafter wall is measured per token
 // to price the future pair.
 func TestCarbonSpeculativeChain(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Skipf("UNAVAILABLE: converted Carbon artifact absent at %s", modelPath)
@@ -52,12 +51,10 @@ func TestCarbonSpeculativeChain(t *testing.T) {
 	if prompt == "" {
 		t.Fatal("golden suite lacks the k-aligned corpus case")
 	}
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
-	)
-	testcheck.NoError(t, err)
-	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	))(t)
+	runner := testcheck.Must(inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{}))(t)
 	defer runner.Close()
 
 	generate := func(from string, tokens int) (string, time.Duration) {

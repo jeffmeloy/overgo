@@ -14,8 +14,7 @@ import (
 )
 
 func TestKimiNativeRankBPE(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_rank_reference.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_rank_reference.json")))(t)
 	var reference struct {
 		Vocab map[string]int `json:"vocab"`
 		Cases []struct {
@@ -45,8 +44,7 @@ func TestKimiNativeRankBPE(t *testing.T) {
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 		array("tokenizer.ggml.merges", gguf.ValueTypeString, []string{}),
 	}
-	encoder, err := Load(&gguf.File{Metadata: metadata})
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(&gguf.File{Metadata: metadata}))(t)
 	if !encoder.IgnoreMerges || !encoder.rankBPE {
 		t.Fatal("Kimi GGUF pre-tokenizer did not select rank BPE")
 	}

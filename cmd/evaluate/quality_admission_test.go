@@ -17,14 +17,12 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	t.Chdir(root)
 	repository, declaration := declareHostedFixture(t, "OVERGO_QUALITY_ADMISSION_TEST_KEY", []string{"A"})
-	session, err := openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit}, modelRequest{Path: declaration.Location, Suites: []string{"derived"}})
-	testcheck.NoError(t, err)
+	session := testcheck.Must(openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit}, modelRequest{Path: declaration.Location, Suites: []string{"derived"}}))(t)
 	defer session.Close()
 	hosted := session.(*hostedSession)
 	// Reuse the local suite orchestration with a CPU fixture runtime.
 	native := nativeSession{store: hosted.store, campaign: hosted.campaign, model: declaration.Model}
-	fixture, err := os.ReadFile(filepath.Join(root, "internal", "dataset", "testdata", "mmlu-dev.arrow"))
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(os.ReadFile(filepath.Join(root, "internal", "dataset", "testdata", "mmlu-dev.arrow")))(t)
 	cache := t.TempDir()
 	target := filepath.Join(cache, "cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o700))
@@ -42,8 +40,7 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("quality report absent: found=%t err=%v", found, err)
 	}
-	content, err := artifact.RequireTypedContent(t.Context(), hosted.store, reportID)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(artifact.RequireTypedContent(t.Context(), hosted.store, reportID))(t)
 	var report evaluation.MultipleChoiceReport
 	testcheck.NoError(t, json.Unmarshal(content.Data, &report))
 	if report.Plan != planID || len(report.Observations) == 0 || uint64(len(report.Observations)) != suites[0].Descriptor().Cases {

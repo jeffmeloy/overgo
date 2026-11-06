@@ -16,10 +16,8 @@ import (
 // checkpoint, and reads both back bit for bit under every parameter name.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	model := tinyModel()
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount())
-	testcheck.NoError(t, err)
-	trainer, err := NewTrainer(model, config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount()))(t)
+	trainer := testcheck.Must(NewTrainer(model, config))(t)
 	defer trainer.Close()
 	if _, err := trainer.Step(TrainingPair{Source: []int{3, 4}, DecoderInput: []int{1, 5}, Targets: []int{5, 1}}); err != nil {
 		t.Fatal(err)

@@ -32,7 +32,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	providerIdentity, err := (CapabilityIdentity{
+	providerIdentity := testcheck.Must((CapabilityIdentity{
 		Implementation: providerImplementation,
 		Release:        "1.0.0",
 		Transport: CapabilityTransport{
@@ -43,14 +43,11 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		Resources: CapabilityResourceEnvelope{
 			MaxInputBytes: 1, MaxOutputBytes: 1, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 1,
 		},
-	}).Identify()
-	testcheck.NoError(t, err)
-	providerContent, err := providerIdentity.Content()
-	testcheck.NoError(t, err)
-	providerBatch, err := artifact.NewDocumentBatch(
+	}).Identify())(t)
+	providerContent := testcheck.Must(providerIdentity.Content())(t)
+	providerBatch := testcheck.Must(artifact.NewDocumentBatch(
 		"fitness-comparison/provider", []artifact.Content{providerContent}, providerIdentity.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := store.Commit(ctx, providerBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -93,18 +90,16 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 
 	loadChunk := func(chunk ObservationChunk) ObservationStream {
 		t.Helper()
-		summary, err := commitObservationChunk(t, ctx, store, chunk)
-		testcheck.NoError(t, err)
-		loaded, err := RequireObservationStream(ctx, store, chunk.Scope.Attempt, summary.ID, ObservationStreamBounds{
+		summary := testcheck.Must(commitObservationChunk(t, ctx, store, chunk))(t)
+		loaded := testcheck.Must(RequireObservationStream(ctx, store, chunk.Scope.Attempt, summary.ID, ObservationStreamBounds{
 			MaxChunks: 1, MaxRawBytes: summary.Stats.Bytes,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return loaded
 	}
 	stream := func(scope ResourceScope, cost, wall, peak, failures, retries uint64) ObservationStream {
 		t.Helper()
 		work := InteractionWork{Failures: failures, Retries: retries, ToolCalls: 1, SemanticTransitions: 2}
-		fitness, err := NewResourceFitness(ResourceFitness{
+		fitness := testcheck.Must(NewResourceFitness(ResourceFitness{
 			Scope: scope,
 			Measures: []ResourceMeasure{
 				{Metric: ResourceCostUnits, Value: cost},
@@ -112,10 +107,8 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 				{Metric: ResourceWallNS, Value: wall},
 			},
 			Interactions: &work,
-		})
-		testcheck.NoError(t, err)
-		chunk, err := NewInitialObservationChunk(fitness, ObservationSampleExecution, wall)
-		testcheck.NoError(t, err)
+		}))(t)
+		chunk := testcheck.Must(NewInitialObservationChunk(fitness, ObservationSampleExecution, wall))(t)
 		return loadChunk(chunk)
 	}
 	agentBaseline := stream(agentBaselineScope, 10, 100, 1_000, 1, 2)
@@ -204,7 +197,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}
 	observedWork := InteractionWork{ToolCalls: 1, SemanticTransitions: 2}
 	hiddenWork := InteractionWork{Failures: 1, Retries: 1}
-	completeChunk, err := NewObservationChunk(omittedBaselineScope, artifact.ID{}, []ObservationSample{
+	completeChunk := testcheck.Must(NewObservationChunk(omittedBaselineScope, artifact.ID{}, []ObservationSample{
 		{
 			Ordinal: 1, ElapsedNS: 50, Kind: ObservationSampleExecution,
 			Measures: []ResourceMeasure{
@@ -223,10 +216,9 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			},
 			Interactions: &hiddenWork,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	completeBaseline := loadChunk(completeChunk)
-	omittedChunk, err := NewObservationChunk(omittedCandidateScope, artifact.ID{}, []ObservationSample{{
+	omittedChunk := testcheck.Must(NewObservationChunk(omittedCandidateScope, artifact.ID{}, []ObservationSample{{
 		Ordinal: 1, ElapsedNS: 90, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{
 			{Metric: ResourceCostUnits, Value: 5},
@@ -234,8 +226,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			{Metric: ResourceWallNS, Value: 90},
 		},
 		Interactions: &observedWork,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	omittedCandidate := loadChunk(omittedChunk)
 	if _, err := CompareResourceFitness(ctx, store, []ResourceFitnessLane{{
 		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
@@ -246,7 +237,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 
 	// Equal total, metric, and sample-kind coverage is still insufficient when
 	// a candidate drops the interaction observation that carried failed work.
-	hiddenWorkChunk, err := NewObservationChunk(hiddenWorkCandidateScope, artifact.ID{}, []ObservationSample{
+	hiddenWorkChunk := testcheck.Must(NewObservationChunk(hiddenWorkCandidateScope, artifact.ID{}, []ObservationSample{
 		{
 			Ordinal: 1, ElapsedNS: 45, Kind: ObservationSampleExecution,
 			Measures: []ResourceMeasure{
@@ -264,8 +255,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 				{Metric: ResourceWallNS, Value: 0},
 			},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	hiddenWorkCandidate := loadChunk(hiddenWorkChunk)
 	if _, err := CompareResourceFitness(ctx, store, []ResourceFitnessLane{{
 		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
@@ -282,20 +272,18 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}
 	// The adjusted value is deliberately structural first: exact source replay
 	// must reject it even though its no-regression arithmetic is valid.
-	structural, err := newResourceFitnessComparison([]ResourceFitnessLane{
+	structural := testcheck.Must(newResourceFitnessComparison([]ResourceFitnessLane{
 		transferred[0], {
 			Name: ResourceLaneTool, RequiredMetrics: required, RequireInteractions: true,
 			Baseline: toolBaseline, Candidate: toolCandidate,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := structural.VerifiedBatch(ctx, store, "fitness-comparison/forged"); err == nil {
 		t.Fatal("verified publication accepted a forged aggregate")
 	}
-	forgedBatch, err := resourceFitnessComparisonCodec.Batch(
+	forgedBatch := testcheck.Must(resourceFitnessComparisonCodec.Batch(
 		"fitness-comparison/forged-bypass", structural, structural.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, forgedBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -315,8 +303,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			Baseline: toolBaseline, Candidate: genuineToolCandidate,
 		},
 	}
-	comparison, err := CompareResourceFitness(ctx, store, lanes)
-	testcheck.NoError(t, err)
+	comparison := testcheck.Must(CompareResourceFitness(ctx, store, lanes))(t)
 	if !comparison.StrictImprovement || comparison.Lanes[0].Name != ResourceLaneAgent ||
 		comparison.Lanes[0].StrictInteractions == nil || comparison.Lanes[0].StrictInteractions.Failures != 1 ||
 		comparison.Lanes[0].StrictInteractions.Retries != 1 {
@@ -337,8 +324,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if !slices.Equal(comparison.SourceChunks(), wantChunks) {
 		t.Fatalf("source chunks = %v, want %v", comparison.SourceChunks(), wantChunks)
 	}
-	batch, err := comparison.VerifiedBatch(ctx, store, "fitness-comparison/genuine")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(comparison.VerifiedBatch(ctx, store, "fitness-comparison/genuine"))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -346,11 +332,10 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	// Advance an endpoint alias. The stored comparison remains bound to and
 	// re-verifiable from its historical summary head.
 	oldHead := agentCandidate.SummaryIDs[len(agentCandidate.SummaryIDs)-1]
-	next, err := NewObservationChunk(agentCandidate.Scope, oldHead, []ObservationSample{{
+	next := testcheck.Must(NewObservationChunk(agentCandidate.Scope, oldHead, []ObservationSample{{
 		Ordinal: 2, ElapsedNS: 200, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 200}},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := commitObservationChunk(t, ctx, store, next); err != nil {
 		t.Fatal(err)
 	}
@@ -374,8 +359,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
 		Baseline: agentBaseline, Repeats: []ObservationStream{repeat}, Candidate: withinEnvelope,
 	}
-	enveloped, err := CompareResourceFitness(ctx, store, []ResourceFitnessLane{envelopeLane})
-	testcheck.NoError(t, err)
+	enveloped := testcheck.Must(CompareResourceFitness(ctx, store, []ResourceFitnessLane{envelopeLane}))(t)
 	if got := enveloped.Lanes[0].NoiseEnvelope; !reflect.DeepEqual(got, []ResourceMeasure{
 		{Metric: ResourceCostUnits, Value: 0},
 		{Metric: ResourcePeakHostBytes, Value: 0},

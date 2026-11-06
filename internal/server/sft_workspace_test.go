@@ -83,16 +83,13 @@ func newSFTFixture(t *testing.T) sftFixture {
 		if index >= 6 {
 			user, assistant = strings.Repeat("ba", 4), strings.Repeat("dc", 4)
 		}
-		data, err := json.Marshal(dataset.Conversation{Messages: []dataset.ChatMessage{
+		data := testcheck.Must(json.Marshal(dataset.Conversation{Messages: []dataset.ChatMessage{
 			{Role: "user", Content: user[:1+index%6]}, {Role: "assistant", Content: assistant[:1+index%6]},
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, fmt.Sprintf("%02d.json", index+1)), data, 0o600))
 	}
-	registered, err := dataset.RegisterDirectoryDatasetAs(ctx, store, "chats", directory, dataset.ModalityStructured)
-	testcheck.NoError(t, err)
-	workspace, err := NewSFTWorkspace(store, roots, SFTTrainer{Model: model, File: served, Render: sftLetters})
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDatasetAs(ctx, store, "chats", directory, dataset.ModalityStructured))(t)
+	workspace := testcheck.Must(NewSFTWorkspace(store, roots, SFTTrainer{Model: model, File: served, Render: sftLetters}))(t)
 	return sftFixture{store: store, roots: roots, workspace: workspace, model: model, conversations: registered.Dataset}
 }
 
@@ -208,8 +205,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	// The preview marks the tokens a run learns: the replies alone, or every token when asked to train on the prompts.
 	learned := func(input json.RawMessage) (trained, masked int) {
 		t.Helper()
-		page, err := workspace.PreviewWorkflow(ctx, WorkflowTraining, capability.Task, capability.Recipe, input, 0, 1)
-		testcheck.NoError(t, err)
+		page := testcheck.Must(workspace.PreviewWorkflow(ctx, WorkflowTraining, capability.Task, capability.Recipe, input, 0, 1))(t)
 		for _, token := range page.(trainingworkflow.Preview).Page[0].Sequences[0].Tokens {
 			if token.Trained {
 				trained++
@@ -421,8 +417,7 @@ func TestTrainingOpensOnADerivedRecipe(t *testing.T) {
 	if !errors.Is(err, ErrNoTrainingRecipe) {
 		t.Fatalf("a model with no training recipe: %v", err)
 	}
-	capabilities, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowTraining)
-	testcheck.NoError(t, err)
+	capabilities := testcheck.Must(fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowTraining))(t)
 	if len(capabilities) == 0 {
 		t.Fatal("a model with no training recipe offers no training")
 	}

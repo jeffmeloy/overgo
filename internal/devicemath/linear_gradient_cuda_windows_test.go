@@ -31,27 +31,22 @@ func TestLinearBackwardResidentGradient(t *testing.T) {
 			t.Fatal("invalid resident matrix binding accepted")
 		}
 	}
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	for _, shape := range [][3]int{{1, 3, 5}, {7, 8, 3}} {
 		rows, in, out := shape[0], shape[1], shape[2]
 		rng := rand.New(rand.NewSource(77))
 		x, weight := randSlice(rng, rows*in), randSlice(rng, in*out)
-		dWeight, err := AllocResidentF32(worker, len(weight), weight)
-		testcheck.NoError(t, err)
-		dGradient, err := AllocResidentF32(worker, len(weight), nil)
-		testcheck.NoError(t, err)
+		dWeight := testcheck.Must(AllocResidentF32(worker, len(weight), weight))(t)
+		dGradient := testcheck.Must(AllocResidentF32(worker, len(weight), nil))(t)
 		for range 2 {
 			incoming := randSlice(rng, rows*out)
 			wantX, wantWeight := make([]float32, len(x)), make([]float32, len(weight))
 			hostmath.LinearBackward(wantX, wantWeight, nil, x, weight, incoming, rows, in, out, false)
-			before, err := worker.ExecutionStats(t.Context())
-			testcheck.NoError(t, err)
+			before := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
 			gotX, gotWeight, err := linearBackwardTW(worker, x, linWeight{dev: dWeight, gradient: dGradient}, incoming, rows, in, out)
 			testcheck.NoError(t, err)
-			after, err := worker.ExecutionStats(t.Context())
-			testcheck.NoError(t, err)
+			after := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
 			if gotWeight != nil || after.DeviceToHostBytes-before.DeviceToHostBytes != uint64(len(x))*f32Bytes {
 				t.Fatal("matrix VJP crossed the host boundary")
 			}
@@ -76,8 +71,7 @@ func TestLinearBackwardResidentGradient(t *testing.T) {
 		}
 		testcheck.NoError(t, FreeResident(worker, dWeight, dGradient))
 	}
-	stats, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	stats := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("VJP retained %d bytes after caller release", stats.CurrentBytes)
 	}

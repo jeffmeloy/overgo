@@ -11,8 +11,7 @@ import (
 func TestReadInputFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "schema.json")
 	testcheck.NoError(t, os.WriteFile(path, []byte(`{"type":"boolean"}`), 0o600))
-	got, err := readInput([]string{path})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(readInput([]string{path}))(t)
 	if string(got) != `{"type":"boolean"}` {
 		t.Fatalf("input = %q", got)
 	}

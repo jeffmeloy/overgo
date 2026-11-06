@@ -36,8 +36,7 @@ func TestARowParagraphLeavesWithItsLastRow(t *testing.T) {
 		{"first", "two", []string{"both", "standing", "campaign"}},
 		{"second", "one", []string{"standing", "campaign"}},
 	} {
-		advanced, err := Advance(document, advance.item, advance.step)
-		testcheck.NoError(t, err)
+		advanced := testcheck.Must(Advance(document, advance.item, advance.step))(t)
 		var left []string
 		for _, paragraph := range advanced.Doctrine {
 			left = append(left, paragraph.Text)

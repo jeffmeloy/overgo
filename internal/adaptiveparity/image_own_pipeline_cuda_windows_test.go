@@ -71,27 +71,23 @@ type pictureService struct {
 // its profile.
 func pictureServing(t *testing.T, directory, name string) pictureService {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
 	capability := mediacapability.Catalog[recipe.TaskImageGen]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
 	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	batch, err := source.Inventory.Batch("test/" + name + "/inventory")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(source.Inventory.Batch("test/" + name + "/inventory"))(t)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
 	batch.Contents = append(batch.Contents, facts...)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	return pictureService{store: store, capability: capability, execution: modelrecipetest.CandidateExecution(t, store, program), directory: directory}
 }
 
@@ -101,16 +97,13 @@ func pictureServing(t *testing.T, directory, name string) pictureService {
 // gives a byte each, row by row.
 func (service pictureService) agreement(t *testing.T, request any, width, height, side int, reference []byte) float64 {
 	t.Helper()
-	raw, err := json.Marshal(request)
-	testcheck.NoError(t, err)
-	output, err := service.capability.Execute(t.Context(), service.store, service.directory, service.execution, string(raw))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(request))(t)
+	output := testcheck.Must(service.capability.Execute(t.Context(), service.store, service.directory, service.execution, string(raw)))(t)
 	served, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("a served picture is %T", capabilityruntime.Unwrap(output))
 	}
-	decoded, err := png.Decode(bytes.NewReader(served.Data))
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(png.Decode(bytes.NewReader(served.Data)))(t)
 	means := squareMeans(decoded, side)
 	if bounds := decoded.Bounds(); bounds.Dx() != width || bounds.Dy() != height || len(means) != len(reference) {
 		t.Fatalf("served %v, %d square means; the reference is %dx%d, %d", bounds, len(means), width, height, len(reference))

@@ -24,7 +24,6 @@ func TestSinglePlanAuthority(t *testing.T) {
 			t.Errorf("parallel plan surface exists: %s (stat err %v)", banned, err)
 		}
 	}
-	document, err := Load(filepath.Join(root, filepath.FromSlash(Path)))
-	testcheck.NoError(t, err)
+	document := testcheck.Must(Load(filepath.Join(root, filepath.FromSlash(Path))))(t)
 	testcheck.NoError(t, Validate(document))
 }

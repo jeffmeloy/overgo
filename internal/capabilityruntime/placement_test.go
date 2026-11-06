@@ -20,7 +20,7 @@ func TestExactCapabilityPlacementAndReceipt(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	capability, err := (runrecord.CapabilityIdentity{
+	capability := testcheck.Must((runrecord.CapabilityIdentity{
 		Implementation: modelID, Release: "1.0.0",
 		Transport: runrecord.CapabilityTransport{Kind: runrecord.CapabilityTransportBuiltin, Protocol: "overgo-model/1"},
 		Schema:    schema, Platform: runrecord.CapabilityPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH},
@@ -28,12 +28,9 @@ func TestExactCapabilityPlacementAndReceipt(t *testing.T) {
 			MaxInputBytes: 4096, MaxOutputBytes: 4096, MaxConcurrent: 1,
 			CPUThreads: 1, HostBytes: selection.Resources.ArtifactBytes,
 		},
-	}).Identify()
-	testcheck.NoError(t, err)
-	content, err := capability.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("capability/placement", []artifact.Content{content}, capability.Lineage(), nil)
-	testcheck.NoError(t, err)
+	}).Identify())(t)
+	content := testcheck.Must(capability.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("capability/placement", []artifact.Content{content}, capability.Lineage(), nil))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

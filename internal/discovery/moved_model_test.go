@@ -24,10 +24,9 @@ func TestMovedModelResolvesByIdentity(t *testing.T) {
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	recorded := filepath.Join(t.TempDir(), "models", "family-1.0", "head", "model.safetensors")
 	writeFile(t, recorded, payload)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/moved/facts",
 		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},

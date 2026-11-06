@@ -107,32 +107,20 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	var prefixGold prefixOracle
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &prefixGold))
 	binding := routedlm.SenseNovaBinding()
-	flowBinding, err := routedlm.InspectFlowProfile(senseNovaModelDir)
-	testcheck.NoError(t, err)
-	cfg, err := routedlm.LoadConfig(senseNovaModelDir, binding)
-	testcheck.NoError(t, err)
-	flowCfg, err := routedlm.LoadFlowConfig(senseNovaModelDir)
-	testcheck.NoError(t, err)
-	source, err := safetensors.OpenSource(senseNovaModelDir)
-	testcheck.NoError(t, err)
+	flowBinding := testcheck.Must(routedlm.InspectFlowProfile(senseNovaModelDir))(t)
+	cfg := testcheck.Must(routedlm.LoadConfig(senseNovaModelDir, binding))(t)
+	flowCfg := testcheck.Must(routedlm.LoadFlowConfig(senseNovaModelDir))(t)
+	source := testcheck.Must(safetensors.OpenSource(senseNovaModelDir))(t)
 	defer source.Close()
-	rope, err := routedlm.CompileRopePlan(source, cfg, binding)
-	testcheck.NoError(t, err)
-	flow, err := routedlm.CompileFlowPlan(source, cfg, flowCfg, flowBinding)
-	testcheck.NoError(t, err)
-	image, err := flow.ImagePlan(oracle.Request.Width, oracle.Request.Height)
-	testcheck.NoError(t, err)
-	vision, err := routedlm.LoadVisionEmbedderWeights(source, flowBinding.GenerationVisionPrefix, flow)
-	testcheck.NoError(t, err)
-	flowTerminal, err := routedlm.LoadFlowTerminalWeights(source, flow, flowBinding)
-	testcheck.NoError(t, err)
-	terminal, err := routedlm.LoadTerminalWeights(source, cfg, binding)
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	rope := testcheck.Must(routedlm.CompileRopePlan(source, cfg, binding))(t)
+	flow := testcheck.Must(routedlm.CompileFlowPlan(source, cfg, flowCfg, flowBinding))(t)
+	image := testcheck.Must(flow.ImagePlan(oracle.Request.Width, oracle.Request.Height))(t)
+	vision := testcheck.Must(routedlm.LoadVisionEmbedderWeights(source, flowBinding.GenerationVisionPrefix, flow))(t)
+	flowTerminal := testcheck.Must(routedlm.LoadFlowTerminalWeights(source, flow, flowBinding))(t)
+	terminal := testcheck.Must(routedlm.LoadTerminalWeights(source, cfg, binding))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
-	cuda, err := executor.NewWithWorker(worker)
-	testcheck.NoError(t, err)
+	cuda := testcheck.Must(executor.NewWithWorker(worker))(t)
 	defer cuda.Close()
 	started := time.Now()
 	prefixNames := []string{"conditional", "unconditional"}
@@ -152,10 +140,9 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	testcheck.NoError(t, err)
 	conditional, unconditional := prefixes[0], prefixes[1]
 	t.Logf("SenseNova shared prefix stream: layers=%d branches=%d wall=%.3fs", prefixStats.Layers, prefixStats.Branches, prefixStats.Wall.Seconds())
-	generation, err := routedlm.NewDeviceGenerationSession(
+	generation := testcheck.Must(routedlm.NewDeviceGenerationSession(
 		t.Context(), worker, cuda, source, cfg, binding, rope, image, conditional, unconditional,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer generation.Close(t.Context())
 	sessionStats := generation.Stats()
 	t.Logf("SenseNova retained generation session: graphs=%d setup=%.3fs prefix=%.3fGiB",
@@ -174,14 +161,12 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			zFloor = 0.999999
 		}
 		checkGenerationSample(t, "z", z, want.Z, zFloor)
-		planar, err := media.UnpackPlanar(z, flow.VisionChannels, image.TokenHeight, image.TokenWidth, image.TokenPatch, media.PatchChannelsLast)
-		testcheck.NoError(t, err)
+		planar := testcheck.Must(media.UnpackPlanar(z, flow.VisionChannels, image.TokenHeight, image.TokenWidth, image.TokenPatch, media.PatchChannelsLast))(t)
 		hidden, gotImage, err := routedlm.VisionEmbedTokens(vision, flow, planar, image.Width, image.Height)
 		if err != nil || gotImage != image {
 			t.Fatalf("vision embedding: shape=%+v err=%v", gotImage, err)
 		}
-		condition, err := routedlm.FlowConditionRow(flowTerminal, flow, want.Timestep, flow.NormalizedNoiseScale(image.NoiseScale))
-		testcheck.NoError(t, err)
+		condition := testcheck.Must(routedlm.FlowConditionRow(flowTerminal, flow, want.Timestep, flow.NormalizedNoiseScale(image.NoiseScale)))(t)
 		testcheck.NoError(t, routedlm.AddConditionRows(hidden, condition))
 		observedLayers := []int(nil)
 		if stepIndex == 0 {
@@ -210,8 +195,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		}
 		final := make([][]float32, len(branches))
 		for index := range branches {
-			final[index], err = routedlm.GenerationFinalHidden(branches[index], terminal.FinalNorm[1], image.Tokens, cfg.HiddenSize, cfg.RMSNormEps)
-			testcheck.NoError(t, err)
+			final[index] = testcheck.Must(routedlm.GenerationFinalHidden(branches[index], terminal.FinalNorm[1], image.Tokens, cfg.HiddenSize, cfg.RMSNormEps))(t)
 		}
 		if stepIndex == 0 {
 			checkAdaptiveValues(t, "conditional boundary", final[0], adaptive.Step0.ConditionalBoundary)
@@ -221,11 +205,9 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		checkGenerationSample(t, "unconditional boundary native", final[1], want.UnconditionalBoundary, 0.999)
 		velocities := make([][]float32, len(final))
 		for index := range final {
-			velocities[index], err = routedlm.FlowHeadVelocity(flowTerminal.Head, flow, final[index], z, want.Timestep)
-			testcheck.NoError(t, err)
+			velocities[index] = testcheck.Must(routedlm.FlowHeadVelocity(flowTerminal.Head, flow, final[index], z, want.Timestep))(t)
 		}
-		guided, err := routedlm.GuidedFlowVelocity(velocities, []float32{oracle.Request.CFGScale, 1 - oracle.Request.CFGScale})
-		testcheck.NoError(t, err)
+		guided := testcheck.Must(routedlm.GuidedFlowVelocity(velocities, []float32{oracle.Request.CFGScale, 1 - oracle.Request.CFGScale}))(t)
 		if stepIndex == 0 {
 			checkAdaptiveValues(t, "guided velocity", guided, adaptive.Step0.GuidedVelocity)
 		}
@@ -242,8 +224,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		t.Logf("SenseNova neutral generation step=%d lifecycle=%s layers=%d branches=%d body=%.3fs htod=%d dtoh=%d",
 			stepIndex, lifecycle, stats.Layers, stats.Branches, stats.Wall.Seconds(), stats.HostToDevice, stats.DeviceToHost)
 	}
-	generated, err := DecodeGeneratedImage(z, flow, image)
-	testcheck.NoError(t, err)
+	generated := testcheck.Must(DecodeGeneratedImage(z, flow, image))(t)
 	if generated.Width != oracle.Request.Width || generated.Height != oracle.Request.Height ||
 		generated.Channels != 3 || len(generated.Data) == 0 {
 		t.Fatalf("SenseNova generated image = %+v", generated)
@@ -254,8 +235,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	}
 	t.Logf("SenseNova terminal PNG: bytes=%d sha256=%s range=[%g,%g]",
 		len(generated.Data), hash, generated.Minimum, generated.Maximum)
-	memory, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	t.Logf("SenseNova neutral generation leadership: steps=%d wall=%.3fs peak=%.3fGiB", len(oracle.Steps), time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30))
 }
 
@@ -297,8 +277,7 @@ func checkGenerationSource(t *testing.T, oracle generationLeadershipOracle) {
 		filepath.Join(senseNovaModelDir, "SenseNova-U1", oracle.Source.ModelingPath):  oracle.Source.ModelingSHA,
 	}
 	for path, want := range checks {
-		file, err := os.Open(path)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(os.Open(path))(t)
 		hash := sha256.New()
 		_, copyErr := io.Copy(hash, file)
 		closeErr := file.Close()

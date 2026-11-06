@@ -21,14 +21,12 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{}))(t)
 	defer runner.Close()
 	if !runner.SpeculatesByDefault() {
 		t.Fatal("the model's own next-token layer does not speculate by default")
 	}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	drafted := 0
 	byDefault := GenerateOptions{
 		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: []tokenizer.TokenID{1, 4, 5},

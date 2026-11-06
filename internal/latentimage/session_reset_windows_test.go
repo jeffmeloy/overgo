@@ -27,8 +27,7 @@ import (
 func TestSessionRefusesAnotherTimestepScale(t *testing.T) {
 	const loadedFor, another = 500, 1000
 	loaded := Request{Prompt: "a fixture", Width: 64, Height: 64, Steps: 4, Seed: 1, DynamicShiftMu: 1, NumTrainTimesteps: loadedFor}
-	schedule, err := CompileFlowSchedule(loaded.Steps, loaded.NumTrainTimesteps, loaded.DynamicShiftMu)
-	testcheck.NoError(t, err)
+	schedule := testcheck.Must(CompileFlowSchedule(loaded.Steps, loaded.NumTrainTimesteps, loaded.DynamicShiftMu))(t)
 	var profile Profile
 	profile.Sampling = samplingPolicy{DefaultSteps: loaded.Steps, TrainTimesteps: loadedFor}
 	generator := &Generator{

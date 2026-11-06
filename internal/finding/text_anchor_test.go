@@ -13,8 +13,7 @@ import (
 // of its name: a census disposition must name the census records it joins.
 func TestTextBatchBindsArtifactIdentitiesAsThemselves(t *testing.T) {
 	t.Parallel()
-	census, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("a census"))
-	testcheck.NoError(t, err)
+	census := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("a census")))(t)
 	document, batch, err := NewTextBatch("census moved", SeverityLow,
 		[]string{"cmd/compatibility"}, []string{census.String(), "the live denominator grew"}, "rebind", "go test ./cmd/compatibility")
 	testcheck.NoError(t, err)

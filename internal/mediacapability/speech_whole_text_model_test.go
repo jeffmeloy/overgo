@@ -35,15 +35,11 @@ const wholeTextReading = "The tide went out before dawn. A grey heron stood at t
 func TestSpeechReadsWholeText(t *testing.T) {
 	directory := testutil.ModelArtifactDir(t, "pocket-tts")
 	capability := Catalog[recipe.TaskSpeech]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, source.Inventory.Manifest.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSpeech, source.Inventory.Manifest.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	stored := t.TempDir()
-	store, err := overgodb.Create(stored)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(stored))(t)
 	defer func() {
 		if store != nil {
 			if err := store.Close(); err != nil {
@@ -56,8 +52,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 	// measured: its load and the stages it ran.
 	serve := func(ctx context.Context, path string, request map[string]any) (speechsynth.Audio, []byte, capabilityruntime.Measured, error) {
 		t.Helper()
-		raw, err := json.Marshal(request)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(request))(t)
 		output, err := capability.Execute(ctx, store, path, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(raw))
 		if err != nil {
 			return speechsynth.Audio{}, nil, capabilityruntime.Measured{}, err
@@ -67,23 +62,18 @@ func TestSpeechReadsWholeText(t *testing.T) {
 		if !enveloped || !spoken {
 			t.Fatalf("%s was answered with %T", raw, output)
 		}
-		content, err := OutputContent(audio)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(OutputContent(audio))(t)
 		return audio, content.Data, measured, nil
 	}
 
 	reading := speechsynth.DocumentRequest{Text: wholeTextReading, Voice: "alba", Seed: 7, Temperature: 0.5}
-	synth, err := speechsynth.LoadSynthesizer(directory)
-	testcheck.NoError(t, err)
-	plan, err := synth.PlanDocument(t.Context(), reading)
-	testcheck.NoError(t, err)
+	synth := testcheck.Must(speechsynth.LoadSynthesizer(directory))(t)
+	plan := testcheck.Must(synth.PlanDocument(t.Context(), reading))(t)
 	if len(plan.Segments) < 2 {
 		t.Fatalf("the text is planned as %d segments, and a whole reading needs more than one to differ from a clip", len(plan.Segments))
 	}
-	direct, err := synth.Speak(t.Context(), reading)
-	testcheck.NoError(t, err)
-	want, err := OutputContent(direct)
-	testcheck.NoError(t, err)
+	direct := testcheck.Must(synth.Speak(t.Context(), reading))(t)
+	want := testcheck.Must(OutputContent(direct))(t)
 
 	request := map[string]any{"text": reading.Text, "voice": reading.Voice, "seed": reading.Seed, "temperature": reading.Temperature}
 	whole, published, measured, err := serve(t.Context(), directory, request)
@@ -95,8 +85,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 
 	testcheck.NoError(t, store.Close())
 	store = nil
-	store, err = overgodb.Create(stored)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(stored))(t)
 	_, replayed, measured, err := serve(t.Context(), t.TempDir(), request)
 	if err != nil {
 		t.Fatalf("the store had answered the request, and with no model to load it was not answered again: %v", err)

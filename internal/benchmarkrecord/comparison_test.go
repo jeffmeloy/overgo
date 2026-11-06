@@ -17,8 +17,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 	baseline := BenchmarkConfiguration{Tokens: 4, Runs: 3, Warmup: 0}
 	candidate := baseline
 	candidate.CachePrompt = true
-	baseDigest, err := baseline.Digest()
-	testcheck.NoError(t, err)
+	baseDigest := testcheck.Must(baseline.Digest())(t)
 	candidateDigest, err := candidate.Digest()
 	if err != nil || baseDigest == candidateDigest {
 		t.Fatalf("options digest did not bind the changed factor: %v", err)
@@ -94,13 +93,11 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 			}
 		})
 	}
-	record, err := NewBenchmarkComparisonRecord(input)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(NewBenchmarkComparisonRecord(input))(t)
 	if !record.ID.Valid() || record.Outcome != "all-pairs-faster" || record.MedianDeltaMilliseconds != -10 {
 		t.Fatalf("comparison verdict = %+v", record)
 	}
-	content, err := record.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(record.Content())(t)
 	replay, err := benchmarkComparisonCodec.Parse(content.Data)
 	if err != nil || replay.ID != record.ID || replay.Outcome != record.Outcome {
 		t.Fatalf("comparison replay = %+v, %v", replay, err)

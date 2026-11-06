@@ -37,10 +37,8 @@ func newWholeTextRun(t *testing.T, store artifact.Repository, name string) whole
 	t.Helper()
 	model := testutil.ArtifactID(t, artifact.KindModel, name)
 	testutil.PublishArtifact(t, store, model)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, model)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSpeech, model))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	return wholeTextRun{store: store, model: model, definition: definition, program: program}
 }
 
@@ -48,8 +46,7 @@ func newWholeTextRun(t *testing.T, store artifact.Repository, name string) whole
 // recording with the bytes the store keeps for it.
 func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request SynthesisRequest, bind func(*workflowruntime.Runtime) error) (Audio, *artifact.Content, error) {
 	t.Helper()
-	content, err := capabilityruntime.InputContent("overgo.speech-input.v1", request)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(capabilityruntime.InputContent("overgo.speech-input.v1", request))(t)
 	input := run.definition.Inputs[0]
 	audio, result, err := capabilityruntime.ExecuteMeasured[Audio](ctx, run.store, run.model, run.program, capabilityruntime.RunKeyOf[*Synthesizer](run.definition, content),
 		map[recipe.PortName]workflowruntime.Value{input.Name: workflowruntime.ArtifactValue(input.Data, request, content)}, bind)
@@ -73,8 +70,7 @@ func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request Synth
 // refused when it is made.
 func TestWholeTextBinding(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(directory))(t)
 	defer func() {
 		if store != nil {
 			if err := store.Close(); err != nil {
@@ -116,8 +112,7 @@ func TestWholeTextBinding(t *testing.T) {
 	if !reflect.DeepEqual(first, read(reading)) {
 		t.Fatalf("the stages returned %+v, and the reading was %+v", first, read(reading))
 	}
-	want, err := WAVContent(first)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(WAVContent(first))(t)
 	if stored == nil {
 		t.Fatal("the reading was returned and nothing of it was stored")
 	}
@@ -129,23 +124,20 @@ func TestWholeTextBinding(t *testing.T) {
 
 	testcheck.NoError(t, store.Close())
 	store = nil
-	store, err = overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(directory))(t)
 	run.store = store
 	replayed, kept, err := run.execute(t.Context(), t, request, bind)
 	testcheck.NoError(t, err)
 	if len(asked) != 1 {
 		t.Fatalf("a request the store had answered was read aloud again: %d readings", len(asked))
 	}
-	again, err := WAVContent(replayed)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(WAVContent(replayed))(t)
 	if kept == nil || !bytes.Equal(kept.Data, want.Data) || !bytes.Equal(again.Data, want.Data) || again.Descriptor != want.Descriptor {
 		t.Fatalf("a request the store had answered came back as %d samples, and the first reading held %d", len(replayed.PCM), len(first.PCM))
 	}
 	// A served request publishes its answer's WAV in a run of its own, into the
 	// store that holds the same bytes from the stage.
-	published, err := artifact.NewDocumentBatch("speech-whole-text-binding/published", []artifact.Content{again}, nil, nil)
-	testcheck.NoError(t, err)
+	published := testcheck.Must(artifact.NewDocumentBatch("speech-whole-text-binding/published", []artifact.Content{again}, nil, nil))(t)
 	if _, err := artifact.Publish(t.Context(), store, published); err != nil {
 		t.Fatalf("the store that holds the reading from its stage refused the same WAV published again: %v", err)
 	}
@@ -178,8 +170,7 @@ func TestWholeTextBinding(t *testing.T) {
 		t.Fatalf("the stopped request, sent again, gave %d samples after %d readings: %v", len(retried.PCM), len(asked), err)
 	}
 
-	runtime, err := workflowruntime.NewForProgram(store, run.program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(workflowruntime.NewForProgram(store, run.program))(t)
 	if err := RegisterWholeText(runtime, run.model, nil); err == nil {
 		t.Fatal("a binding with no synthesizer to read was accepted")
 	}

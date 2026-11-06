@@ -23,8 +23,7 @@ const (
 // packageNodes counts the production nodes of the fixture package holding source.
 func packageNodes(t *testing.T, source string) int {
 	t.Helper()
-	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)}))(t)
 	return writtenNodes(snapshot, false)
 }
 
@@ -128,8 +127,7 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 	if _, err := l.commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	landed, err := plan.Load(fixture.planPath())
-	testcheck.NoError(t, err)
+	landed := testcheck.Must(plan.Load(fixture.planPath()))(t)
 	if slices.ContainsFunc(landed.Items, func(item plan.Item) bool { return item.ID == "new" }) {
 		t.Fatal("the new row stayed in the plan its landing published")
 	}

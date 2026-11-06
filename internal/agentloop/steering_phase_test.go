@@ -22,11 +22,10 @@ func TestToolCallPropensityPreservesEffectAuthority(t *testing.T) {
 	coordinator, _ := coordinatorFixture(t)
 	direction := testutil.ArtifactID(t, artifact.KindRecipe, "propensity direction")
 	manual := func(name string, effect agenttool.Effect) agenttool.Manual {
-		value, err := agenttool.NewManual(agenttool.Manual{
+		value := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 			Name: name, Description: "Effect authority fixture.", Effect: effect,
 			Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return value
 	}
 	read := manual("probe.read", agenttool.EffectInspection)

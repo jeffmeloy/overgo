@@ -57,8 +57,7 @@ func TestScorecardMarksAReadingOutsideItsModelsUse(t *testing.T) {
 		t.Fatalf("a scorecard whose models have no recorded use says %q of uses", text)
 	}
 
-	held, err := scorecard.ModelUses()
-	testcheck.NoError(t, err)
+	held := testcheck.Must(scorecard.ModelUses())(t)
 	if len(held) == 0 {
 		t.Fatal("the repository records no model's use")
 	}

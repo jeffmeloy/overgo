@@ -38,23 +38,20 @@ func TestTrajectorySupervisorPermitsNewEvidence(t *testing.T) {
 	fixture := newTrajectorySupervisorFixture(t)
 	previousBase := fixture.baseExchange(t, "previous", `{}`)
 	currentBase := fixture.baseExchange(t, "current", `{}`)
-	obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
+	obligation := testcheck.Must(runrecord.NewAgentObligation(runrecord.AgentObligation{
 		Task: fixture.recipe, Name: "verify-result", Scope: "trajectory", MutationEpoch: 1,
 		Sources: []artifact.ID{previousBase.ID},
-	})
-	testcheck.NoError(t, err)
-	resolution, err := runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
+	}))(t)
+	resolution := testcheck.Must(runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
 		Obligation: obligation.ID, Scope: obligation.Scope, MutationEpoch: obligation.MutationEpoch,
 		Evidence: []artifact.ID{currentBase.receipt, currentBase.result},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	obligationContent, _ := obligation.Content()
 	resolutionContent, _ := resolution.Content()
-	batch, err := artifact.NewDocumentBatch(
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"trajectory/obligation", []artifact.Content{obligationContent, resolutionContent},
 		append(obligation.Lineage(), resolution.Lineage()...), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +97,7 @@ func TestRequireTrajectoryHealthDecisionRejectsForgedLineage(t *testing.T) {
 	currentBase := fixture.baseExchange(t, "current", `{}`)
 	previous := fixture.agentTrajectory(t, previousBase.trace, nil, nil, nil)
 	current := fixture.agentTrajectory(t, currentBase.trace, nil, nil, nil)
-	decision, err := trajectoryHealthDecisionCodec.New(trajectoryHealthDecision{
+	decision := testcheck.Must(trajectoryHealthDecisionCodec.New(trajectoryHealthDecision{
 		Version:         artifact.InitialDocumentVersion,
 		Previous:        previous.ID,
 		Current:         current.ID,
@@ -108,17 +105,14 @@ func TestRequireTrajectoryHealthDecisionRejectsForgedLineage(t *testing.T) {
 		CurrentReceipt:  currentBase.receipt,
 		Decision:        executionfailure.DecisionRetireSession,
 		Rule:            trajectoryRuleExactNoProgress,
-	})
-	testcheck.NoError(t, err)
-	content, err := trajectoryHealthDecisionCodec.Content(decision)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(trajectoryHealthDecisionCodec.Content(decision))(t)
 	forgedLineage := slices.DeleteFunc(decision.Lineage(), func(edge artifact.Lineage) bool {
 		return edge.Parent == decision.CurrentReceipt
 	})
-	batch, err := artifact.NewDocumentBatch(
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"trajectory/health/forged-lineage", []artifact.Content{content}, forgedLineage, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -159,11 +153,10 @@ func newTrajectorySupervisorFixtureInStore(t *testing.T, store *overgodb.Store) 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	manual, err := agenttool.NewManual(agenttool.Manual{
+	manual := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "trajectory.inspect", Description: "Inspect exact trajectory state.",
 		Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{manual}); err != nil {
 		t.Fatal(err)
 	}
@@ -183,17 +176,14 @@ func (fixture trajectorySupervisorFixture) exchange(
 func (fixture trajectorySupervisorFixture) baseExchange(t *testing.T, name, arguments string) trajectoryBase {
 	t.Helper()
 	ctx := t.Context()
-	argumentContent, err := runrecord.AttemptArgumentContent([]byte(arguments))
-	testcheck.NoError(t, err)
-	argumentBatch, err := artifact.NewDocumentBatch("trajectory/arguments/"+name, []artifact.Content{argumentContent}, nil, nil)
-	testcheck.NoError(t, err)
+	argumentContent := testcheck.Must(runrecord.AttemptArgumentContent([]byte(arguments)))(t)
+	argumentBatch := testcheck.Must(artifact.NewDocumentBatch("trajectory/arguments/"+name, []artifact.Content{argumentContent}, nil, nil))(t)
 	if _, err := artifact.CommitBatch(ctx, fixture.store, argumentBatch); err != nil && !errorsIsNoChange(err) {
 		t.Fatal(err)
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "trajectory-operation-"+name)
 	resultText := "stable-result"
-	result, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(resultText))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte(resultText)))(t)
 	base := runrecord.StageReceipt{
 		Recipe: fixture.recipe, Node: recipe.NodeID("tool"), Operation: operation, Attempt: 1,
 		State:  runrecord.StageAdmitted,
@@ -208,9 +198,8 @@ func (fixture trajectorySupervisorFixture) baseExchange(t *testing.T, name, argu
 	}
 	base.State = runrecord.StageCompleted
 	base.Outputs = []runrecord.StageBinding{{Port: "output", Artifacts: []artifact.ID{result}}}
-	receipt, err := runrecord.PublishStageReceipt(ctx, fixture.store, base, nil, []artifact.Descriptor{{ID: result, Size: uint64(len(resultText))}})
-	testcheck.NoError(t, err)
-	interaction, err := runrecord.PublishInteraction(ctx, fixture.store, runrecord.Interaction{
+	receipt := testcheck.Must(runrecord.PublishStageReceipt(ctx, fixture.store, base, nil, []artifact.Descriptor{{ID: result, Size: uint64(len(resultText))}}))(t)
+	interaction := testcheck.Must(runrecord.PublishInteraction(ctx, fixture.store, runrecord.Interaction{
 		Response: "trajectory-" + name, Recipe: fixture.recipe, Model: fixture.model,
 		Node: recipe.NodeID("tool"), Operation: operation, Run: receipt.ID,
 	}, []runrecord.InteractionMessage{
@@ -220,10 +209,8 @@ func (fixture trajectorySupervisorFixture) baseExchange(t *testing.T, name, argu
 		}}},
 		{Role: "tool", Content: resultText, ToolCallID: "call"},
 		{Role: "assistant", Content: "done"},
-	}, "")
-	testcheck.NoError(t, err)
-	trace, err := runrecord.RequireInteractionTrace(ctx, fixture.store, interaction.Trace)
-	testcheck.NoError(t, err)
+	}, ""))(t)
+	trace := testcheck.Must(runrecord.RequireInteractionTrace(ctx, fixture.store, interaction.Trace))(t)
 	return trajectoryBase{ID: trace.ID, trace: trace, receipt: receipt.ID, result: result}
 }
 
@@ -236,14 +223,11 @@ func (fixture trajectorySupervisorFixture) agentTrajectory(
 	base.TaskContract, base.Terminal = fixture.recipe, runrecord.OutcomeSucceeded
 	base.ToolManuals = []artifact.ID{fixture.manual.ID}
 	base.Obligations, base.Resolutions, base.Context = obligations, resolutions, context
-	trajectory, err := runrecord.NewAgentTrajectory(base)
-	testcheck.NoError(t, err)
-	content, err := trajectory.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	trajectory := testcheck.Must(runrecord.NewAgentTrajectory(base))(t)
+	content := testcheck.Must(trajectory.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"trajectory/agent/"+trajectory.ID.String(), []artifact.Content{content}, trajectory.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil && !errorsIsNoChange(err) {
 		t.Fatal(err)
 	}

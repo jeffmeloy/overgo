@@ -17,13 +17,10 @@ import (
 func TestAHeldOutReadingKeepsTheStateItRanUnder(t *testing.T) {
 	t.Parallel()
 	metrics := []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}
-	plain, err := runrecord.NewEvaluation(testutil.ArtifactID(t, artifact.KindRecipe, "candidate"), testutil.ArtifactID(t, artifact.KindRun, "run"),
-		testutil.ArtifactID(t, artifact.KindDataset, "suite"), metrics)
-	testcheck.NoError(t, err)
-	read, err := plain.UnderState(string(modelrecipe.StateNotVerified))
-	testcheck.NoError(t, err)
-	content, err := read.Content()
-	testcheck.NoError(t, err)
+	plain := testcheck.Must(runrecord.NewEvaluation(testutil.ArtifactID(t, artifact.KindRecipe, "candidate"), testutil.ArtifactID(t, artifact.KindRun, "run"),
+		testutil.ArtifactID(t, artifact.KindDataset, "suite"), metrics))(t)
+	read := testcheck.Must(plain.UnderState(string(modelrecipe.StateNotVerified)))(t)
+	content := testcheck.Must(read.Content())(t)
 	parsed, err := runrecord.ParseEvaluation(content.Data)
 	if err != nil || parsed.Verification != string(modelrecipe.StateNotVerified) || parsed.ID == plain.ID {
 		t.Fatalf("the reading came back as %+v (%v), want its state, under an identity of its own", parsed, err)

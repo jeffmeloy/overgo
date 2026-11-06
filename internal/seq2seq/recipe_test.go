@@ -31,15 +31,12 @@ func TestGenerateAnswersWhatTheRecipeStagesAnswer(t *testing.T) {
 		pieces[index] = tokenizer.UnigramPiece{Piece: string(rune('a' + index))}
 	}
 	pieces[0].Piece = "▁"
-	table, err := tokenizer.NewUnigram(pieces, 0)
-	testcheck.NoError(t, err)
+	table := testcheck.Must(tokenizer.NewUnigram(pieces, 0))(t)
 	model.Dims.EOSToken = model.Dims.Vocab - 1
 	generator := &Generator{model: model, tokenizer: table}
 	request := textgeneration.Request{Text: text, MaxTokens: bound}
-	direct, err := generator.Generate(request)
-	testcheck.NoError(t, err)
-	staged, err := generateThroughRecipe(t, generator, request)
-	testcheck.NoError(t, err)
+	direct := testcheck.Must(generator.Generate(request))(t)
+	staged := testcheck.Must(generateThroughRecipe(t, generator, request))(t)
 	if direct != staged || direct == "" {
 		t.Fatalf("direct generation %q, recipe stages %q", direct, staged)
 	}
@@ -63,17 +60,13 @@ func TestGeneratorReportsTheTokensItsSelectionDecoded(t *testing.T) {
 		pieces[index] = tokenizer.UnigramPiece{Piece: string(rune('a' + index))}
 	}
 	pieces[0].Piece = "▁"
-	table, err := tokenizer.NewUnigram(pieces, 0)
-	testcheck.NoError(t, err)
-	source, err := table.Encode(text)
-	testcheck.NoError(t, err)
+	table := testcheck.Must(tokenizer.NewUnigram(pieces, 0))(t)
+	source := testcheck.Must(table.Encode(text))(t)
 	generator := &Generator{model: model, tokenizer: table}
 	for _, test := range []struct{ end, tokens int }{{end: model.Dims.Vocab - 1, tokens: bound}, {end: model.Dims.StartToken}} {
 		model.Dims.EOSToken = test.end
-		selected, err := executeGenerationStages(model, source, bound)
-		testcheck.NoError(t, err)
-		output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: text, MaxTokens: bound})
-		testcheck.NoError(t, err)
+		selected := testcheck.Must(executeGenerationStages(model, source, bound))(t)
+		output := testcheck.Must(generateThroughRecipe(t, generator, textgeneration.Request{Text: text, MaxTokens: bound}))(t)
 		if len(selected) != test.tokens || output != table.Decode(selected) || generator.OutputTokens() != uint64(test.tokens) {
 			t.Fatalf("ending on token %d the generator reports %d tokens for %q; want the %d its selection decoded (%v, %q)",
 				test.end, generator.OutputTokens(), output, test.tokens, selected, table.Decode(selected))

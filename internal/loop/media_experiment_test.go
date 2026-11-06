@@ -33,8 +33,7 @@ func TestMediaExperimentResume(t *testing.T) {
 			testutil.PublishArtifact(t, store, request)
 			media[index] = MediaCell{Index: index, Request: request}
 		}
-		experiment, err := NewMediaExperiment(model, data, budget, media)
-		testcheck.NoError(t, err)
+		experiment := testcheck.Must(NewMediaExperiment(model, data, budget, media))(t)
 		return experiment
 	}
 	acquirer := func(store *overgodb.Store, calls *int, failAt int) Acquirer {
@@ -54,13 +53,11 @@ func TestMediaExperimentResume(t *testing.T) {
 	}
 
 	directory := t.TempDir()
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(directory))(t)
 	experiment := build(t, store)
 
 	calls := 0
-	report, err := ResumeMediaExperiment(t.Context(), store, experiment, acquirer(store, &calls, -1))
-	testcheck.NoError(t, err)
+	report := testcheck.Must(ResumeMediaExperiment(t.Context(), store, experiment, acquirer(store, &calls, -1)))(t)
 	if calls != cells || report.Acquired != cells || report.Reused != 0 || len(report.Acquisitions) != cells {
 		t.Fatalf("full run: calls=%d report=%+v", calls, report)
 	}
@@ -68,8 +65,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	// Reopen the store and resume: retained cells are reused without any acquire.
 	testcheck.NoError(t, store.Close())
 	reopened := overgodbtest.Create(t, directory)
-	resumed, err := ResumeMediaExperiment(t.Context(), reopened, experiment, poison)
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(ResumeMediaExperiment(t.Context(), reopened, experiment, poison))(t)
 	if resumed.ID != report.ID || resumed.Reused != cells || resumed.Acquired != 0 {
 		t.Fatalf("resume did not reuse every cell without mutation: %+v vs %+v", resumed, report)
 	}
@@ -87,8 +83,7 @@ func TestMediaExperimentResume(t *testing.T) {
 		t.Fatalf("interrupted run acquired %d cells, want %d before the interruption", interrupted, cells-1)
 	}
 	recovered := 0
-	report, err = ResumeMediaExperiment(t.Context(), partialStore, partial, acquirer(partialStore, &recovered, -1))
-	testcheck.NoError(t, err)
+	report = testcheck.Must(ResumeMediaExperiment(t.Context(), partialStore, partial, acquirer(partialStore, &recovered, -1)))(t)
 	if recovered != 1 || report.Acquired != 1 || report.Reused != cells-1 {
 		t.Fatalf("recovery re-acquired %d cells, want only the missing one: %+v", recovered, report)
 	}

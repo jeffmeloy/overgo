@@ -39,15 +39,11 @@ func TestVideoEditClipActivation(t *testing.T) {
 			t.Skipf("UNAVAILABLE: %v", err)
 		}
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-clip-activation")
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, edit)
 	// 21 source frames are 6 latent frames: two chunks of the declared
@@ -58,23 +54,20 @@ func TestVideoEditClipActivation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(latentvideo.ReferenceEditRequest{
+	raw := testcheck.Must(json.Marshal(latentvideo.ReferenceEditRequest{
 		Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
 		Seed:   7, SourceArtifact: clip.Descriptor.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	capability := videoCapability()
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
-		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))
-		testcheck.NoError(t, err)
+		output := testcheck.Must(capability.Execute(t.Context(), store, edit, execution, string(raw)))(t)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)
 		}
-		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-		testcheck.NoError(t, err)
+		animation := testcheck.Must(gif.DecodeAll(bytes.NewReader(video.Data)))(t)
 		if video.MediaType != media.GIFMediaType || video.Frames != 21 || len(animation.Image) != 21 ||
 			video.Height != 16 || video.Width != 32 || video.ResidentRun != residentRun(run) {
 			t.Fatalf("run %d video=%+v decoded_frames=%d", run, video, len(animation.Image))
@@ -94,8 +87,7 @@ func TestVideoEditClipActivation(t *testing.T) {
 // page would attach: frames x height x width, signed-unit planar pixels.
 func syntheticClipContent(t testing.TB, frames, height, width int) artifact.Content {
 	t.Helper()
-	encoder, err := latentvideo.NewGIFEncoder(16, latentvideo.SignedUnitPixels)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(latentvideo.NewGIFEncoder(16, latentvideo.SignedUnitPixels))(t)
 	plane := height * width
 	for frame := range frames {
 		values := make([]float32, media.RGBChannels*plane)
@@ -108,9 +100,7 @@ func syntheticClipContent(t testing.TB, frames, height, width int) artifact.Cont
 		}
 		testcheck.NoError(t, encoder.Add(frame, values, height, width))
 	}
-	video, err := encoder.Finish()
-	testcheck.NoError(t, err)
-	content, err := latentvideo.VideoContent(video)
-	testcheck.NoError(t, err)
+	video := testcheck.Must(encoder.Finish())(t)
+	content := testcheck.Must(latentvideo.VideoContent(video))(t)
 	return content
 }

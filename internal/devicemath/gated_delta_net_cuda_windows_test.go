@@ -115,8 +115,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 // grouped q/k atomic accumulation and per-column gate path are exercised.
 func TestGatedDeltaNetBackwardMatchesKernel(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	maxAbs := testutil.MaxAbsDiff[float32, float32]

@@ -18,8 +18,7 @@ func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
 	var encoded bytes.Buffer
 	archive := zip.NewWriter(&encoded)
 	for name, body := range map[string]string{"archive/data.pkl": metadata, "archive/data/0": "\x00\x00\x80\x3f"} {
-		entry, err := archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
-		testcheck.NoError(t, err)
+		entry := testcheck.Must(archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store}))(t)
 		if _, err := entry.Write([]byte(body)); err != nil {
 			t.Fatal(err)
 		}
@@ -31,8 +30,7 @@ func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
 			root := t.TempDir()
 			path := filepath.Join(root, "model"+suffix)
 			testcheck.NoError(t, os.WriteFile(path, encoded.Bytes(), 0o600))
-			inventory, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}})
-			testcheck.NoError(t, err)
+			inventory := testcheck.Must(FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}}))(t)
 			fact, found := inventory.TensorInventory.Tensor("weights/weight")
 			if !found || fact.Storage != "f32" || fact.Bytes != 4 || len(fact.Shape) != 1 || fact.Shape[0] != 1 {
 				t.Fatalf("tensor facts: %+v", inventory.TensorInventory)
@@ -54,18 +52,16 @@ func TestFromFilesInventoriesIndexedShardsOnce(t *testing.T) {
 	shards := []string{"model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"}
 	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
 	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
-	index, err := json.Marshal(map[string]any{
+	index := testcheck.Must(json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	indexPath := filepath.Join(directory, "model.safetensors.index.json")
 	testcheck.NoError(t, os.WriteFile(indexPath, index, 0o600))
-	inventory, err := FromFiles(directory, []FileSpec{
+	inventory := testcheck.Must(FromFiles(directory, []FileSpec{
 		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
 		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
 		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(inventory.TensorInventory.Tensors) != len(shards) {
 		t.Fatalf("tensor facts = %d, want %d", len(inventory.TensorInventory.Tensors), len(shards))
 	}
@@ -83,18 +79,16 @@ func TestFromFilesInventoriesNonstandardIndexedShards(t *testing.T) {
 	}
 	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
 	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
-	index, err := json.Marshal(map[string]any{
+	index := testcheck.Must(json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	indexPath := filepath.Join(directory, "diffusion_pytorch_model.safetensors.index.json")
 	testcheck.NoError(t, os.WriteFile(indexPath, index, 0o600))
-	inventory, err := FromFiles(directory, []FileSpec{
+	inventory := testcheck.Must(FromFiles(directory, []FileSpec{
 		{Path: indexPath, Name: "shard-index", Role: artifact.ComponentShardIndex},
 		{Path: filepath.Join(directory, shards[0]), Name: "weights-0", Role: artifact.ComponentWeightsShard},
 		{Path: filepath.Join(directory, shards[1]), Name: "weights-1", Role: artifact.ComponentWeightsShard},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(inventory.TensorInventory.Tensors) != 2 {
 		t.Fatalf("tensor facts = %d, want 2", len(inventory.TensorInventory.Tensors))
 	}
@@ -115,8 +109,7 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 			FileSpec{Path: filepath.Join(headDir, "model.safetensors"), Name: head + "/weights", Role: artifact.ComponentWeights},
 		)
 	}
-	inventory, err := FromFiles(directory, specs)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromFiles(directory, specs))(t)
 	if len(inventory.Components) != 4 || len(inventory.Manifest.Components) != 4 || len(inventory.Locations) != 5 {
 		t.Fatalf("inventory shape = %d/%d/%d", len(inventory.Components), len(inventory.Manifest.Components), len(inventory.Locations))
 	}
@@ -151,8 +144,7 @@ func TestFromFilesNamespacesDualHeadTensors(t *testing.T) {
 			FileSpec{Path: filepath.Join(headDir, "model.safetensors"), Name: head + "/weights", Role: artifact.ComponentWeights},
 		)
 	}
-	relocated, err := FromFiles(other, otherSpecs)
-	testcheck.NoError(t, err)
+	relocated := testcheck.Must(FromFiles(other, otherSpecs))(t)
 	if relocated.Manifest.ID != inventory.Manifest.ID || relocated.TensorInventory.ID != inventory.TensorInventory.ID {
 		t.Fatalf("relocated identities differ: %s != %s", relocated.Manifest.ID, inventory.Manifest.ID)
 	}

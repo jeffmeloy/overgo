@@ -33,10 +33,8 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 		for _, clip := range clips {
 			suite.Cases = append(suite.Cases, GeneratedAnswerCase{Name: "fixture/edit/" + clip, Prompt: "which is true of " + clip + " as drawn " + drawn, MaxTokens: 1, Answers: []string{"a"}})
 		}
-		compiled, err := CompileGeneratedAnswer(suite)
-		testcheck.NoError(t, err)
-		plan, err := bindGeneratedAnswer(compiled, authorities)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(CompileGeneratedAnswer(suite))(t)
+		plan := testcheck.Must(bindGeneratedAnswer(compiled, authorities))(t)
 		// The model, recipe and environment the plans name are the same three,
 		// published with the first.
 		if !published {
@@ -72,8 +70,7 @@ func TestEvaluatedSetStatesAKindOnlyForCasesOfOneUnit(t *testing.T) {
 	t.Parallel()
 	read := func(profile any) EvaluatedSet {
 		t.Helper()
-		data, err := json.Marshal(profile)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(profile))(t)
 		set, ok := evaluatedSet(data)
 		if !ok {
 			t.Fatalf("the profile %s reads no set", data)

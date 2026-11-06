@@ -28,8 +28,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 		},
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()

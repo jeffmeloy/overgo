@@ -27,17 +27,14 @@ func TestActivationMatrixCoverage(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	capability, err := (runrecord.CapabilityIdentity{
+	capability := testcheck.Must((runrecord.CapabilityIdentity{
 		Implementation: implementation, Release: "1.0.0",
 		Transport: runrecord.CapabilityTransport{Kind: runrecord.CapabilityTransportBuiltin, Protocol: "matrix/1"},
 		Schema:    schema, Platform: runrecord.CapabilityPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		Resources: runrecord.CapabilityResourceEnvelope{MaxInputBytes: 1, MaxOutputBytes: 1, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 1},
-	}).Identify()
-	testcheck.NoError(t, err)
-	content, err := capability.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("matrix/capability", []artifact.Content{content}, capability.Lineage(), nil)
-	testcheck.NoError(t, err)
+	}).Identify())(t)
+	content := testcheck.Must(capability.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("matrix/capability", []artifact.Content{content}, capability.Lineage(), nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -45,10 +42,8 @@ func TestActivationMatrixCoverage(t *testing.T) {
 		Name: "generate", Task: recipe.TaskGeneration, Contract: contract, Input: input, EvidenceCheck: check,
 	}})
 	testcheck.NoError(t, err)
-	local, err := NewActivationProfile(ActivationProfile{Name: "local", Kind: ActivationProfileLocalModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
-	testcheck.NoError(t, err)
-	peer, err := NewActivationProfile(ActivationProfile{Name: "peer", Kind: activationProfilePeerModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
-	testcheck.NoError(t, err)
+	local := testcheck.Must(NewActivationProfile(ActivationProfile{Name: "local", Kind: ActivationProfileLocalModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}}))(t)
+	peer := testcheck.Must(NewActivationProfile(ActivationProfile{Name: "peer", Kind: activationProfilePeerModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}}))(t)
 	matrix, _, err := PublishActivationMatrix(ctx, store, []ActivationProfile{peer, local}, []ActivationCoverageResult{{
 		Case: registry.Cases[0], Profile: local.ID, Evidence: evidence,
 	}})

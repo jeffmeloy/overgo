@@ -30,14 +30,12 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	ids := make([]artifact.ID, 0, 12)
 	const decisions = 8
 	for ordinal := range decisions {
-		decision, err := recipe.NewDecision(
+		decision := testcheck.Must(recipe.NewDecision(
 			subject, recipe.DecisionRefused, recipe.EvidenceParity, fmt.Sprintf("batched decision %d", ordinal),
 			recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation},
 			[]artifact.ID{derivation},
-		)
-		testcheck.NoError(t, err)
-		batch, err := decision.Batch(fmt.Sprintf("batched/decision/%d", ordinal))
-		testcheck.NoError(t, err)
+		))(t)
+		batch := testcheck.Must(decision.Batch(fmt.Sprintf("batched/decision/%d", ordinal)))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -45,8 +43,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	}
 	ids = append(ids, testutil.ArtifactID(t, artifact.KindEvidence, "batched-absent"))
 	counting := &repositorytest.CountingRepository{Repository: store}
-	loaded, err := loadDecisions(ctx, counting, ids)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(loadDecisions(ctx, counting, ids))(t)
 	if len(loaded) != decisions {
 		t.Fatalf("loaded %d decisions, want %d", len(loaded), decisions)
 	}

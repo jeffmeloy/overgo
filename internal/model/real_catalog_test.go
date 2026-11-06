@@ -14,13 +14,10 @@ import (
 // serving reads them, without loading tensor data.
 func realCatalog(t *testing.T, path string) (model.Spec, model.Weights) {
 	t.Helper()
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	spec, err := model.ReadSpec(file)
-	testcheck.NoError(t, err)
-	weights, err := model.ReadWeights(file, spec)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(model.ReadSpec(file))(t)
+	weights := testcheck.Must(model.ReadWeights(file, spec))(t)
 	return spec, weights
 }
 

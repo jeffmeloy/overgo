@@ -24,12 +24,10 @@ func TestAWritableOpenOfAnAbsentStoreRefuses(t *testing.T) {
 			t.Fatalf("a refused open left %s: %v", path, err)
 		}
 	}
-	started, err := Create(root)
-	testcheck.NoError(t, err)
+	started := testcheck.Must(Create(root))(t)
 	testcheck.NoError(t, started.Close())
 	for _, reopen := range []func(string) (*Store, error){Open, Create} {
-		store, err := reopen(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(reopen(root))(t)
 		testcheck.NoError(t, store.Close())
 	}
 }

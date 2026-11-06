@@ -70,16 +70,13 @@ func TestLocalEditSuiteChecksTheChangeAndTheRestApart(t *testing.T) {
 	// in the same garage: no question may offer it.
 	sibling := "The same man in the garage closes the car door and wipes his hands."
 	rows = append(rows, captionRow{Vid: "clip00" + sceneMarker + "0002", Caption: sibling})
-	data, err := json.Marshal(rows)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(rows))(t)
 	captions := filepath.Join(t.TempDir(), "captions.json")
 	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	// Six of the twelve clips' captions name one worn thing by a colour an edit can change.
 	const editable = 6
-	items, err := PickLocalVideoEdits(directory, captions, editable, 17)
-	testcheck.NoError(t, err)
-	again, err := PickLocalVideoEdits(directory, captions, editable, 17)
-	testcheck.NoError(t, err)
+	items := testcheck.Must(PickLocalVideoEdits(directory, captions, editable, 17))(t)
+	again := testcheck.Must(PickLocalVideoEdits(directory, captions, editable, 17))(t)
 	if len(items) != editable {
 		t.Fatalf("%d clips were picked, want %d", len(items), editable)
 	}
@@ -113,8 +110,7 @@ func TestLocalEditSuiteChecksTheChangeAndTheRestApart(t *testing.T) {
 	for _, item := range items {
 		videos[item.ID] = item.ID + ".gif"
 	}
-	suite, err := BuildGeneratedVideoLocalEdit(items, videos, "a judge")
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildGeneratedVideoLocalEdit(items, videos, "a judge"))(t)
 	first := suite.Cases[0]
 	if len(suite.Cases) != editable || suite.Source != localEditSource || first.Name != localEditSource+"/"+items[0].ID ||
 		!slices.Equal(first.Answers, []string{string(captionLetters[items[0].Question.Answer])}) || !strings.Contains(first.Prompt, items[0].ID+".gif") {

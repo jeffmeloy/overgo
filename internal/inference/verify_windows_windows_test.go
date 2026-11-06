@@ -33,8 +33,7 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 	cudatest.Require(t)
 	const generated = 24
 	trunk := writeFlashNextFixture(t, strataFlashNextWindows)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	prompt := make([]tokenizer.TokenID, 40)
 	for index := range prompt {
 		prompt[index] = tokenizer.TokenID(3 + (index*7+index/5)%int(flashNextVocab-3))
@@ -54,8 +53,7 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 		return ids[len(prompt):]
 	}
 	// The verifier off: the steps write their state out, as before the port.
-	stepped, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative)
-	testcheck.NoError(t, err)
+	stepped := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative))(t)
 	stepped.qsaWindows = false
 	written := generate(stepped, true, nil)
 	testcheck.NoError(t, stepped.Close())
@@ -64,9 +62,8 @@ func TestVerifyWindowsMatchPlainDecoding(t *testing.T) {
 	}
 	keptOverall := 0
 	for _, copyTrunk := range []bool{false, true} {
-		runner, err := openFixtureRunnerWithResidency(trunk,
-			OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, copyTrunk, strataFlashNextWindows)}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(trunk,
+			OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, copyTrunk, strataFlashNextWindows)}, recipe.ResidencyDeviceNative))(t)
 		if !runner.windowsDecode() {
 			_ = runner.Close()
 			t.Fatal("the fixture at Strata's geometry does not decode through the verifier")

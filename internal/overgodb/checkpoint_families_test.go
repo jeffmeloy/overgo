@@ -33,15 +33,13 @@ func newCensusFixture(t *testing.T) censusFixture {
 	mint := func(schema, body string) artifact.Content {
 		t.Helper()
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: schema}
-		content, err := contract.ContentBytes([]byte(body))
-		testcheck.NoError(t, err)
+		content := testcheck.Must(contract.ContentBytes([]byte(body)))(t)
 		return content
 	}
 	fixture.alpha, fixture.later = mint("test/alpha/v1", `{"alpha":1}`), mint("test/alpha/v1", `{"alpha":2,"later":true}`)
 	fixture.first, fixture.other = mint("test/beta/v1", `{"beta":1}`), mint("test/beta/v1", `{"beta":"the second of two"}`)
 	fixture.declared = artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "declared and not carried")}
-	store, err := Create(fixture.root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(fixture.root))(t)
 	for _, batch := range []artifact.Batch{
 		{
 			Key: "alpha/one/" + fixture.alpha.Descriptor.ID.String(), Contents: []artifact.Content{fixture.alpha},
@@ -85,8 +83,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 	t.Parallel()
 	fixture := newCensusFixture(t)
 	const repeats = 2
-	census, err := censusCheckpoint(fixture.root, repeats)
-	testcheck.NoError(t, err)
+	census := testcheck.Must(censusCheckpoint(fixture.root, repeats))(t)
 	const head = 3
 	if census.sequence != head || census.generation != checkpointGeneration(head) || len(census.loads) != repeats {
 		t.Fatalf("census of generation %q at sequence %d with %d loads, want the one at the head, %d, loaded %d times", census.generation, census.sequence, len(census.loads), head, repeats)
@@ -104,8 +101,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 		if member.name != registered[index].name || len(member.restores) != repeats || !slices.IsSorted(member.restores) {
 			t.Fatalf("member %d is %s with restores %v, want %s timed %d times, shortest first", index, member.name, member.restores, registered[index].name, repeats)
 		}
-		file, err := os.Stat(filepath.Join(newestCheckpoints(t, fixture.root), member.name+checkpointExtension))
-		testcheck.NoError(t, err)
+		file := testcheck.Must(os.Stat(filepath.Join(newestCheckpoints(t, fixture.root), member.name+checkpointExtension)))(t)
 		attributed, records := member.header+member.framing, 0
 		families[member.name] = map[string]held{}
 		for _, family := range member.families {
@@ -120,8 +116,7 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 	// the separator after it.
 	encoded := func(record any) int {
 		t.Helper()
-		raw, err := json.Marshal(record)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(record))(t)
 		return len(raw) + 1
 	}
 	artifactBytes := func(descriptor artifact.Descriptor, sequence uint64) int {

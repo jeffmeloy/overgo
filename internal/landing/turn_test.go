@@ -36,8 +36,7 @@ func TestCommitsOfTwoWorktreesTakeTurns(t *testing.T) {
 	fixture.git("config", "core.autocrlf", "false")
 	linked := &sliceFixture{t: t, repo: filepath.Join(t.TempDir(), "linked")}
 	fixture.git("worktree", "add", "-q", "--detach", linked.repo, "HEAD")
-	main, err := os.Stat(fixture.repo)
-	testcheck.NoError(t, err)
+	main := testcheck.Must(os.Stat(fixture.repo))(t)
 	for _, checkout := range []*sliceFixture{fixture, linked} {
 		root, branch, err := trunkOf(ctx, checkout.repo)
 		if err != nil || branch != "refs/heads/trunk" {

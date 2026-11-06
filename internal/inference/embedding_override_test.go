@@ -45,8 +45,7 @@ func TestCogVLMMixedVisualExpertBlockAdmission(t *testing.T) {
 		{TokenIndex: 2, Embedding: []float32{2}},
 		{TokenIndex: 4, Embedding: []float32{3}},
 	}
-	blocks, err := validateVisualExpertBlocks(6, []AttentionBlock{{Start: 4, End: 5}, {Start: 1, End: 3}}, overrides)
-	testcheck.NoError(t, err)
+	blocks := testcheck.Must(validateVisualExpertBlocks(6, []AttentionBlock{{Start: 4, End: 5}, {Start: 1, End: 3}}, overrides))(t)
 	if len(blocks) != 2 || blocks[0] != (AttentionBlock{Start: 1, End: 3}) {
 		t.Fatalf("ordered blocks = %v", blocks)
 	}
@@ -316,10 +315,9 @@ func TestCompileProjectedRequestPlan(t *testing.T) {
 		CommonSpec: model.CommonSpec{Architecture: "gemma4", ContextLength: 2, EmbeddingLength: 4},
 	}}}
 	runner = attachFixtureProgram(runner)
-	plan, err := runner.compileProjectedRequestPlan(2, false, ProjectedInputs{
+	plan := testcheck.Must(runner.compileProjectedRequestPlan(2, false, ProjectedInputs{
 		BidirectionalAttentionBlocks: []AttentionBlock{{Start: 0, End: 2}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if plan.overridePolicy != model.EmbeddingOverrideRawScaled || plan.multiPositions != nil ||
 		!slices.Equal(plan.attentionBlockIDs, []float32{0, 0}) || plan.visualMode {
 		t.Fatalf("projected request plan = %+v", plan)
@@ -383,11 +381,10 @@ func TestDeepstackLayerMapping(t *testing.T) {
 
 func TestAddDeepstackEmbedding(t *testing.T) {
 	shape := tensor.MustShape(2, 2)
-	got, err := addDeepstackEmbedding(
+	got := testcheck.Must(addDeepstackEmbedding(
 		reference.Value{Shape: shape, Data: []float32{1, 2, 3, 4}},
 		reference.Value{Shape: shape, Data: []float32{10, 20, 30, 40}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := []float32{11, 22, 33, 44}
 	for index := range want {
 		if got.Data[index] != want[index] {

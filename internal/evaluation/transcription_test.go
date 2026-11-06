@@ -28,9 +28,8 @@ func TestStoredTranscriptionReportRejectsAlteredScoresAndDenominators(t *testing
 	})
 	defer fixture.store.Close()
 	prediction := fixture.successfulPrediction(t, "exact", "hello word")
-	report, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan,
-		[]TranscriptionPrediction{prediction})
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{prediction}))(t)
 	store := fixture.store.(*overgodb.Store)
 	head, sequence := store.Head()
 	actual, err := RequireTranscriptionReport(t.Context(), store, report.ID)
@@ -68,11 +67,9 @@ func TestStoredTranscriptionReportRejectsAlteredScoresAndDenominators(t *testing
 			changed.ID = artifact.ID{}
 			changed.Observations = slices.Clone(report.Observations)
 			test.change(&changed)
-			id, err := artifact.JSONID(artifact.KindEvaluation, changed)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.JSONID(artifact.KindEvaluation, changed))(t)
 			changed.ID = id
-			content, err := transcriptionReportContract.ContentJSON(id, changed)
-			testcheck.NoError(t, err)
+			content := testcheck.Must(transcriptionReportContract.ContentJSON(id, changed))(t)
 			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: id.String(), Contents: []artifact.Content{content}}); err != nil {
 				t.Fatal(err)
 			}
@@ -95,9 +92,8 @@ func TestUnreadableTranscriptionReportIsAGap(t *testing.T) {
 	})
 	defer fixture.store.Close()
 	store := fixture.store.(*overgodb.Store)
-	report, err := EvaluateTranscription(t.Context(), store, fixture.compiled, fixture.plan,
-		[]TranscriptionPrediction{fixture.successfulPrediction(t, "exact", "hello word")})
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateTranscription(t.Context(), store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{fixture.successfulPrediction(t, "exact", "hello word")}))(t)
 	if read, err := TranscriptionQualities(t.Context(), store, nil); err != nil || read[fixture.recipe].Record != report.ID {
 		t.Fatalf("a readable report reads as %+v (%v), want its own", read[fixture.recipe], err)
 	}
@@ -105,11 +101,9 @@ func TestUnreadableTranscriptionReportIsAGap(t *testing.T) {
 	altered := report
 	altered.ID = artifact.ID{}
 	altered.Overall.WordErrorRate = 0
-	id, err := artifact.JSONID(artifact.KindEvaluation, altered)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.JSONID(artifact.KindEvaluation, altered))(t)
 	altered.ID = id
-	content, err := transcriptionReportContract.ContentJSON(id, altered)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(transcriptionReportContract.ContentJSON(id, altered))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: id.String(), Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +142,7 @@ func TestTranscriptionEvaluationUsesStoredPredictionsAndFailureDenominators(t *t
 		fixture.failedPrediction(t, "silence", speechrecognition.AudioAdmissionFailure),
 		fixture.successfulPrediction(t, "exact", "hello world"),
 	}
-	report, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan, predictions)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan, predictions))(t)
 	if report.Overall.Utterances != 3 || report.Overall.AdmissionFailures != 1 ||
 		report.Overall.InferenceFailures != 0 || report.Overall.SilentControls != 1 ||
 		report.Overall.SilentControlFailures != 0 || report.Overall.SampleCount != 36_000 ||
@@ -183,8 +176,7 @@ func TestTranscriptionPredictionIsolationAndAuthorityRefusal(t *testing.T) {
 	})
 	defer fixture.store.Close()
 	prediction := fixture.successfulPrediction(t, "exact", "hello world")
-	encoded, err := json.Marshal(prediction)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(prediction))(t)
 	if slices.ContainsFunc([]string{"Hello,   world!", "hello world"}, func(reference string) bool {
 		return bytes.Contains(encoded, []byte(reference))
 	}) {
@@ -192,8 +184,7 @@ func TestTranscriptionPredictionIsolationAndAuthorityRefusal(t *testing.T) {
 	}
 	foreign := fixture
 	foreign.plan.body.CodeCommit = "fedcba9876543210fedcba9876543210fedcba98"
-	foreign.plan.identity, err = artifact.JSONID(artifact.KindProfile, foreign.plan.body)
-	testcheck.NoError(t, err)
+	foreign.plan.identity = testcheck.Must(artifact.JSONID(artifact.KindProfile, foreign.plan.body))(t)
 	if _, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, foreign.plan,
 		[]TranscriptionPrediction{prediction}); err == nil {
 		t.Fatal("prediction from a foreign code authority was accepted")
@@ -202,14 +193,12 @@ func TestTranscriptionPredictionIsolationAndAuthorityRefusal(t *testing.T) {
 	reordered.Normalization = []TranscriptionNormalization{
 		TranscriptionCollapseWhitespace, TranscriptionLowercase, TranscriptionStripPunctuation,
 	}
-	other, err := CompileTranscription(reordered)
-	testcheck.NoError(t, err)
-	otherPlan, err := BindTranscription(other, ExactAuthorities{
+	other := testcheck.Must(CompileTranscription(reordered))(t)
+	otherPlan := testcheck.Must(BindTranscription(other, ExactAuthorities{
 		ModelDefinition: fixture.plan.body.ModelDefinition, RuntimeRecipe: fixture.recipe,
 		CodeCommit: transcriptionTestCommit, Environment: fixture.environment,
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if otherPlan.Identity() == fixture.plan.Identity() {
 		t.Fatal("normalization order did not change scoring provenance")
 	}
@@ -223,9 +212,8 @@ func TestTranscriptionSilentSuccessIsNegativeControlFailure(t *testing.T) {
 	})
 	defer fixture.store.Close()
 	prediction := fixture.successfulPrediction(t, "silence", "hallucinated speech")
-	report, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan,
-		[]TranscriptionPrediction{prediction})
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{prediction}))(t)
 	if report.Overall.Utterances != 0 || report.Overall.SilentControls != 1 ||
 		report.Overall.SilentControlFailures != 1 || !report.Observations[0].ControlViolation {
 		t.Fatalf("silent control counted as success: %+v", report.Overall)
@@ -263,26 +251,22 @@ func TestTranscriptionCountsWordsWrittenOneWay(t *testing.T) {
 	})
 	defer fixture.store.Close()
 	predictions := []TranscriptionPrediction{fixture.successfulPrediction(t, "numbers", heard)}
-	plain, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan, predictions)
-	testcheck.NoError(t, err)
+	plain := testcheck.Must(EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan, predictions))(t)
 	if plain.Observations[0].WordEdits == 0 {
 		t.Fatal("lowercased and stripped of punctuation, a transcript in its own conventions was charged nothing: the case tries nothing")
 	}
 	suite := fixture.compiled.suite
 	suite.Normalization = []TranscriptionNormalization{transcriptionWhisperEnglish}
-	compiled, err := CompileTranscription(suite)
-	testcheck.NoError(t, err)
-	plan, err := BindTranscription(compiled, ExactAuthorities{
+	compiled := testcheck.Must(CompileTranscription(suite))(t)
+	plan := testcheck.Must(BindTranscription(compiled, ExactAuthorities{
 		ModelDefinition: fixture.plan.body.ModelDefinition, RuntimeRecipe: fixture.recipe,
 		CodeCommit: transcriptionTestCommit, Environment: fixture.environment,
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if plan.Identity() == fixture.plan.Identity() {
 		t.Fatal("a suite counted another way has the plan of the suite it was made from")
 	}
-	report, err := EvaluateTranscription(t.Context(), fixture.store, compiled, plan, predictions)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateTranscription(t.Context(), fixture.store, compiled, plan, predictions))(t)
 	if counted := report.Observations[0]; counted.WordEdits != 0 || counted.CharacterEdits != 0 || counted.ReferenceWords != uint64(len(strings.Fields(heard))) {
 		t.Fatalf("written one way, the transcript is charged %d of %d words and %d characters, and it says what was said", counted.WordEdits, counted.ReferenceWords, counted.CharacterEdits)
 	}
@@ -376,21 +360,18 @@ func (fixture transcriptionEvaluationFixture) successfulPrediction(t *testing.T,
 		artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema), transcription,
 	)
 	testcheck.NoError(t, err)
-	run, err := runrecord.NewBoundRun(
+	run := testcheck.Must(runrecord.NewBoundRun(
 		fixture.recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{fixture.compiled.dataset, fixture.compiled.split, testCase.Source.Audio, testCase.Source.Profile},
 		[]artifact.ID{output.Descriptor.ID}, "",
 		transcriptionTestCommit, fixture.environment, 100,
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 100}},
-	)
-	testcheck.NoError(t, err)
-	runContent, err := run.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	))(t)
+	runContent := testcheck.Must(run.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"evaluation/transcription/prediction/"+name+"/"+run.ID.DigestHex(),
 		[]artifact.Content{output, runContent}, run.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err = artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -407,8 +388,7 @@ func (fixture transcriptionEvaluationFixture) failedPrediction(t *testing.T, nam
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: 100}},
 	)
 	testcheck.NoError(t, err)
-	batch, err := run.Batch("evaluation/transcription/prediction/" + name)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(run.Batch("evaluation/transcription/prediction/" + name))(t)
 	if _, err = artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
 		t.Fatal(err)
 	}

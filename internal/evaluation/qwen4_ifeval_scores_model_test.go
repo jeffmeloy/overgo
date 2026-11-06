@@ -15,13 +15,11 @@ import (
 
 func TestQwenFourIFEvalScoresAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(value))(t)
 		return id
 	}
 	profile := parse("evidence:sha256:cb3c98ead452ad292b511e8d58dfb40f16f70b0c42e0cb096a0e8af960654257")

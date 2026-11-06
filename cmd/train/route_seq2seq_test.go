@@ -33,8 +33,7 @@ func TestSeq2SeqRoutePublishesCheckpoint(t *testing.T) {
 	dataset := filepath.Join(root, "pairs.jsonl")
 	testcheck.NoError(t, os.WriteFile(dataset, []byte("{\"question\":\"a b\",\"answer\":\"c\"}\n"), 0o600))
 	checkpoint, out := requireRoutePublishes(t, "seq2seq", "-model", model, "-dataset", dataset, "-input-field", "question", "-target-field", "answer")
-	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights)))(t)
 	defer weights.Close()
 	var elements uint64
 	for _, tensor := range weights.Tensors {
@@ -118,8 +117,7 @@ func writeBF16Safetensors(t *testing.T, path string, tensors map[string][]float3
 		}
 		header[name] = map[string]any{"dtype": "BF16", "shape": shapes[name], "data_offsets": []int{begin, len(data)}}
 	}
-	encoded, err := json.Marshal(header)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(header))(t)
 	file := binary.LittleEndian.AppendUint64(nil, uint64(len(encoded)))
 	testcheck.NoError(t, os.WriteFile(path, append(append(file, encoded...), data...), 0o600))
 }

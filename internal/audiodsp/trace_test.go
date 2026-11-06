@@ -16,8 +16,7 @@ func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
 	// Zero range replaces every value with the selected maximum. The loud
 	// tail makes trimming after this transformation observably incorrect.
 	samples := []float32{1, 1, 1, 1, 1000, 1000, 1000, 1000}
-	plan, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	var workspace Workspace
 	options := ProcessOptions{FrameLimit: 1}
 	selected, frames, err := plan.Process(t.Context(), [][]float32{samples}, config.SampleRate, &workspace, options)
@@ -47,8 +46,7 @@ func TestFrameSelectionPrecedesGlobalTransform(t *testing.T) {
 
 func TestFrameTraceRefusalAndBudget(t *testing.T) {
 	config := testFrontendConfig()
-	plan, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	chunks := [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}
 	var workspace Workspace
 	sentinel := errors.New("observer refused")
@@ -76,8 +74,7 @@ func TestFrameTraceRefusalAndBudget(t *testing.T) {
 }
 
 func TestFrameTraceSteadyStateAllocations(t *testing.T) {
-	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	chunks := [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}
 	var workspace Workspace
 	options := ProcessOptions{Observe: func(FrameTrace) error { return nil }}

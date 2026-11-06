@@ -32,8 +32,7 @@ func TestQuantizeWeightedMatchesPinnedGGML(t *testing.T) {
 			if result, _, callErr := initialize.Call(uintptr(dataType)); result != 0 {
 				t.Fatalf("ggml_quantize_init result/error = %d/%v", result, callErr)
 			}
-			got, err := QuantizeWeighted(dataType, values, weights)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(QuantizeWeighted(dataType, values, weights))(t)
 			want := make([]byte, len(got))
 			function := library.NewProc("quantize_" + dataType.String())
 			written, _, callErr := function.Call(

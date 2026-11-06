@@ -33,10 +33,9 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	caseValue, err := retrievalCaseCodec.RequireExactLineage(
+	caseValue := testcheck.Must(retrievalCaseCodec.RequireExactLineage(
 		t.Context(), store, knowledge.baseline.Case, RetrievalCase.Lineage,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	request := SupervisedGroundedReplayRequest{
 		RunRecipe: knowledge.transform.Spec().Operation,
 		EpisodeBounds: dataset.CapabilityEpisodeProjectionBounds{
@@ -80,8 +79,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 		Trajectories:       [3]artifact.ID{previous.ID, stuck.ID, recovered.ID},
 		KnowledgeAdmission: knowledge.admission.ID,
 	}
-	result, err := RunSupervisedGroundedReplay(t.Context(), store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(RunSupervisedGroundedReplay(t.Context(), store, request))(t)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded ||
 		!slices.Equal(result.Run.Outputs, []artifact.ID{result.Summary}) ||
 		result.Route.Disposition != runrecord.RouteSelected || result.Route.Winner != route.wantWinner ||
@@ -106,28 +104,23 @@ func publishGroundedReplayEpisodeSource(
 	gateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "grounded-replay-gate-recipe")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "grounded-replay-environment")
 	const codeCommit = "0123456789abcdef0123456789abcdef01234567"
-	gate, err := runrecord.NewGateRecord(
+	gate := testcheck.Must(runrecord.NewGateRecord(
 		gateRecipe, environment, codeCommit, runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "verify", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepSucceeded, DurationNS: 1}},
-	)
-	testcheck.NoError(t, err)
-	attempt, err := runrecord.NewAttemptRecord(runrecord.AttemptRecord{
+	))(t)
+	attempt := testcheck.Must(runrecord.NewAttemptRecord(runrecord.AttemptRecord{
 		PlanItem: "grounded-upgrade", PlanStep: "supervised-replay", Strategy: "supervised-grounded",
 		Result: gate.Result.ID, Recipe: gateRecipe, CodeCommit: codeCommit,
 		Outcome: runrecord.OutcomeSucceeded, WallNS: 1, TaskContract: trace.TaskContract,
 		Environment: environment, Trajectory: trace.ID, CostUnits: 1,
-	})
-	testcheck.NoError(t, err)
-	gateContent, err := gate.Result.Content()
-	testcheck.NoError(t, err)
-	attemptContent, err := attempt.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	gateContent := testcheck.Must(gate.Result.Content())(t)
+	attemptContent := testcheck.Must(attempt.Content())(t)
 	lineage := append(gate.Result.Lineage(), attempt.Lineage()...)
-	batch, err := artifact.NewDocumentBatch(
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"evaluation/grounded-replay/episode-source",
 		[]artifact.Content{gateContent, attemptContent}, lineage, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	batch.Artifacts = []artifact.Descriptor{{ID: gateRecipe}, {ID: environment}}
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)

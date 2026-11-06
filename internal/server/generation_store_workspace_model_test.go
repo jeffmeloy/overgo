@@ -39,8 +39,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	defer live.Close()
 	ctx := t.Context()
 	catalog := BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent)
-	capabilities, err := NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, workflowGeneration)
-	testcheck.NoError(t, err)
+	capabilities := testcheck.Must(NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, workflowGeneration))(t)
 	var oscillator *WorkflowCapability
 	tasks := map[recipe.Task]int{}
 	for index, capability := range capabilities {
@@ -64,8 +63,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 		t.Fatalf("scratch capabilities = %+v, %v", scratch, err)
 	}
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter)
-	testcheck.NoError(t, err)
+	completion := testcheck.Must(workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter))(t)
 	descriptor, found, err := store.Artifact(ctx, completion.Outputs[0])
 	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
 		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
@@ -80,8 +78,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	// Replay: the recorded request resubmitted unchanged answers with the
 	// same output behind the same request document (a page's regenerate),
 	// and the request with another seed answers with a different output.
-	replayed, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter)
-	testcheck.NoError(t, err)
+	replayed := testcheck.Must(workspace.ExecuteWorkflow(ctx, workflowGeneration, scratch[0], json.RawMessage(`{"class":1,"seed":424242}`), reporter))(t)
 	again, err := requireRecordedRequest(ctx, store, replayed.Run)
 	if err != nil || again.ID != request.ID || replayed.Outputs[0] != completion.Outputs[0] {
 		t.Fatalf("replay = %+v request %s, %v; want output %s behind %s", replayed, again.ID, err, completion.Outputs[0], request.ID)

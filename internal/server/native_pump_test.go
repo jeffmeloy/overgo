@@ -21,11 +21,10 @@ func TestNativeCompletionUsesThePump(t *testing.T) {
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	defer handler.Close()
 	response := serveTestRequest(handler, http.MethodPost, "/completion", `{"prompt":"hi","n_predict":4}`)
 	var completion nativeCompletionResponse

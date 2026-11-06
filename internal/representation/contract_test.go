@@ -41,12 +41,11 @@ func TestRepresentationContract(t *testing.T) {
 	}
 
 	producer, tensorContract, sequence, normalization, authorities := base()
-	contract, err := contractCodec.New(Contract{
+	contract := testcheck.Must(contractCodec.New(Contract{
 		Version: ContractVersion, Producer: producer, Modality: ModalityAudio,
 		Tensor: tensorContract, Sequence: sequence, Normalization: normalization,
 		Authorities: authorities,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if contract.ID.Kind() != artifact.KindProfile || contract.Version != ContractVersion {
 		t.Fatalf("identity/version = %s/%d", contract.ID, contract.Version)
 	}
@@ -54,13 +53,11 @@ func TestRepresentationContract(t *testing.T) {
 		t.Fatalf("contract is not canonical: %+v", contract)
 	}
 	testcheck.NoError(t, contract.ValidateIdentity())
-	content, err := contract.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.Content())(t)
 	if content.Descriptor.ID != contract.ID || content.Descriptor.MediaType != ContractMediaType || content.Descriptor.Schema != ContractSchema {
 		t.Fatalf("descriptor = %+v", content.Descriptor)
 	}
-	parsed, err := contractCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
+	parsed := testcheck.Must(contractCodec.Parse(content.Data))(t)
 	if parsed.ID != contract.ID || !slices.Equal(parsed.Lineage(), contract.Lineage()) {
 		t.Fatalf("round trip identity/lineage differs")
 	}
@@ -149,8 +146,7 @@ func TestRepresentationContract(t *testing.T) {
 		var body map[string]any
 		testcheck.NoError(t, json.Unmarshal(content.Data, &body))
 		body["unknown"] = true
-		data, err := json.Marshal(body)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(body))(t)
 		if _, err := contractCodec.Parse(data); err == nil {
 			t.Fatal("unknown field accepted")
 		}

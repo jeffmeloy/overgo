@@ -61,14 +61,12 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	path := filepath.Join(root, "docs/image_video_routed_images.json")
 	var bundle mediaRoutedBundle
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoRoutedImagesSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Previous == "" || bundle.Scope == "" || bundle.ReuseScope == "" || len(bundle.Numerical) != 3 || len(bundle.Failed) != 1 {
 		t.Fatal("incomplete routed image bundle")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -80,8 +78,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	}
 	checkTest := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty routed check")
@@ -90,8 +87,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	for revision, digest := range map[string]string{bundle.Previous: bundle.ConverterBefore, bundle.Source: bundle.ConverterAfter} {
 		command := exec.Command("git", "show", revision+":internal/safetensors/convert.go")
 		command.Dir = root
-		data, err := command.Output()
-		testcheck.NoError(t, err)
+		data := testcheck.Must(command.Output())(t)
 		if fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
 			t.Fatal("unreviewed shared converter change")
 		}
@@ -128,8 +124,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		}
 		checkTest(check.Evidence)
 	}
-	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	testcheck.NoError(t, err)
+	quality := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json")))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	type frozenCase struct {
 		ID           string                  `json:"id"`
@@ -166,8 +161,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 			t.Fatal("unexpected image")
 		}
 		reference := frozen.Cases[index]
-		run, err := runrecord.RequireExactRun(t.Context(), store, c.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireExactRun(t.Context(), store, c.Run))(t)
 		if run.Recipe != reference.Recipe || !slices.Equal(run.Inputs, reference.Inputs) || !slices.Equal(run.Outputs, []artifact.ID{c.Output}) {
 			t.Fatal("frozen recipe or request differs")
 		}

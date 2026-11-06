@@ -50,14 +50,12 @@ func TestDinov2WithRegistersMatchesReference(t *testing.T) {
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join("testdata", "dinov2_registers_golden.json"), &reference))
 	// The encoder is no registered model of its own: it sits beside the
 	// collection whose decoder reads its tokens.
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	directory := roots.ResolveModelPath("dinov2-with-registers-base")
 	if _, err := os.Stat(filepath.Join(directory, "model.safetensors")); err != nil {
 		testskip.NotApplicable(t, "the with-registers encoder is absent: "+directory)
 	}
-	encoder, err := Load(directory)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(directory))(t)
 	input, grid, hidden := encoder.Shape()
 	if input != reference.Input || grid*grid != reference.Tokens || hidden != reference.Hidden {
 		t.Fatalf("encoder takes %d, a %d grid of %d wide tokens; the reference %d, %d tokens of %d", input, grid, hidden, reference.Input, reference.Tokens, reference.Hidden)
@@ -72,8 +70,7 @@ func TestDinov2WithRegistersMatchesReference(t *testing.T) {
 			}
 		}
 	}
-	pixels, err := InterpolateBicubic(picture, channels, side, side, input, input)
-	testcheck.NoError(t, err)
+	pixels := testcheck.Must(InterpolateBicubic(picture, channels, side, side, input, input))(t)
 	mean, deviation := encoder.Normalization()
 	for c := range channels {
 		plane := pixels[c*input*input:][:input*input]
@@ -94,8 +91,7 @@ func TestDinov2WithRegistersMatchesReference(t *testing.T) {
 	if gap := worst(encoder.position, reference.PositionIndices, reference.Position); gap > 1e-5 {
 		t.Fatalf("the fitted position embeddings differ from the reference by up to %.3g", gap)
 	}
-	tokens, err := encoder.Patches(pixels, false)
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(encoder.Patches(pixels, false))(t)
 	if len(tokens) != reference.Tokens*reference.Hidden {
 		t.Fatalf("%d token values, want %d", len(tokens), reference.Tokens*reference.Hidden)
 	}
@@ -113,8 +109,7 @@ func TestDinov2WithRegistersMatchesReference(t *testing.T) {
 	}
 	// With its affine the same forward is the checkpoint's own output, which
 	// differs: the two norms are told apart.
-	affine, err := encoder.Patches(pixels, true)
-	testcheck.NoError(t, err)
+	affine := testcheck.Must(encoder.Patches(pixels, true))(t)
 	if worst(affine, reference.TokenIndices, reference.TokenValues) < 1e-2 {
 		t.Fatal("the final norm's affine changed nothing")
 	}

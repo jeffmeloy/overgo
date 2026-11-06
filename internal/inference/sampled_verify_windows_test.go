@@ -34,15 +34,13 @@ func TestSampledVerifyWindowsKeepTheDistribution(t *testing.T) {
 	trunk := writeHermeticFlashNextGGUF(t)
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	for _, copyTrunk := range []bool{false, true} {
-		runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, recipe.ResidencyDeviceNative))(t)
 		var drafted, kept, same int
 		counts := [2]map[tokenizer.TokenID]int{{}, {}}
 		for seed := range int64(seeds) {
 			generate := func(plain bool) []tokenizer.TokenID {
 				t.Helper()
-				sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1})
-				testcheck.NoError(t, err)
+				sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1}))(t)
 				options := GenerateOptions{
 					MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: true, PlainDecode: plain,
 				}

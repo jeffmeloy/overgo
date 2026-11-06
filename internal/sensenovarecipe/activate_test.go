@@ -32,17 +32,15 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	testutil.PublishArtifact(t, store, modelID)
 	flowProfile := publishFlowProfileFixture(t, ctx, store)
 
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(
 		ctx, store, "fixture/sensenova/candidate", definition,
 	); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(
+	verification := testcheck.Must(modelrecipetest.PublishVerification(
 		ctx, store, "fixture/sensenova/verification", definition.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
@@ -68,10 +66,8 @@ func publishFlowProfileFixture(t *testing.T, ctx context.Context, store *overgod
 	directory := t.TempDir()
 	const metadata = `{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(metadata), 0o600))
-	profile, err := routedlm.InspectFlowProfile(directory)
-	testcheck.NoError(t, err)
-	content, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(routedlm.InspectFlowProfile(directory))(t)
+	content := testcheck.Must(profile.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/sensenova/flow-profile", Contents: []artifact.Content{content},
 	}); err != nil {

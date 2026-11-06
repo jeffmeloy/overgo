@@ -57,22 +57,19 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 		{Name: "exact", Text: "He hoped there would be stew."},
 		{Name: "two wrong", Text: "The cat sat on the mat."},
 	}}
-	compiled, err := compileSpeechRoundTrip(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindSpeechRoundTrip(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileSpeechRoundTrip(suite))(t)
+	plan := testcheck.Must(bindSpeechRoundTrip(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	speaker := echoSpeaker{judge: "recognizer-a", identity: judge, heard: map[string]string{
 		"He hoped there would be stew.": "he hoped there would be stew",
 		"The cat sat on the mat.":       "the bat sat on mat",
 	}}
-	report, err := evaluateSpeechRoundTrip(t.Context(), store, speaker, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateSpeechRoundTrip(t.Context(), store, speaker, compiled, plan))(t)
 	// The first case is exact; the second, six words, loses "cat" to "bat" and the second "the".
 	if report.Words != 12 || report.Errors != 2 || report.WordErrorRate != 2.0/12.0 ||
 		report.Observations[0].Errors != 0 || report.Observations[1].Errors != 2 {
@@ -119,20 +116,16 @@ func TestSpeechRoundTripCountsWordsWrittenOneWay(t *testing.T) {
 	)
 	score := func(suite SpeechRoundTripSuite) (speechRoundTripPlan, speechRoundTripReport) {
 		t.Helper()
-		compiled, err := compileSpeechRoundTrip(suite)
-		testcheck.NoError(t, err)
-		plan, err := bindSpeechRoundTrip(compiled, ExactAuthorities{
+		compiled := testcheck.Must(compileSpeechRoundTrip(suite))(t)
+		plan := testcheck.Must(bindSpeechRoundTrip(compiled, ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 			CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 			Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-		})
-		testcheck.NoError(t, err)
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		}))(t)
+		store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		defer store.Close()
 		publishPlanFixtureAuthorities(t, store, plan)
-		report, err := evaluateSpeechRoundTrip(t.Context(), store, echoSpeaker{judge: "recognizer-a", heard: map[string]string{said: heard}}, compiled, plan)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(evaluateSpeechRoundTrip(t.Context(), store, echoSpeaker{judge: "recognizer-a", heard: map[string]string{said: heard}}, compiled, plan))(t)
 		return compiled, report
 	}
 	plain := SpeechRoundTripSuite{Kind: speechRoundTripKind, Schema: "fixture/v1", Source: "fixture", Voice: "alba", Seed: 7, Judge: "recognizer-a", Cases: []SpeechRoundTripCase{{Name: "numbers", Text: said}}}
@@ -208,8 +201,7 @@ func TestSpeechRoundTripSuiteIsPickedBySeedFromTheUsableTexts(t *testing.T) {
 		texts = append(texts, sentence(fmt.Sprintf("TEXT NUMBER %d OF THE CORPUS READ ALOUD", index)))
 	}
 	spec := SpeechRoundTripSpec{Parquet: "corpus.parquet", Cases: 5, Seed: 17, Voice: "alba", SynthesisSeed: 7, Judge: "granite"}
-	first, err := speechRoundTripSuiteOf(texts, spec)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(speechRoundTripSuiteOf(texts, spec))(t)
 	again, _ := speechRoundTripSuiteOf(texts, spec)
 	spec.Seed++
 	other, _ := speechRoundTripSuiteOf(texts, spec)

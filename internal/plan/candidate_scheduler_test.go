@@ -46,10 +46,9 @@ func TestSchedulerRankedByRealizedDelta(t *testing.T) {
 		{Candidate: fastCandidate, Strategy: fastStrategy, PredictedWallNS: uint64(time.Hour), PredictedVRAM: candidateVRAM},
 		{Candidate: oversizedCandidate, Strategy: fastStrategy, PredictedWallNS: uint64(time.Hour), PredictedVRAM: oversizedVRAM},
 	}
-	scheduler, err := CompileCandidateScheduler(outcomes, candidates, SchedulerBudget{
+	scheduler := testcheck.Must(CompileCandidateScheduler(outcomes, candidates, SchedulerBudget{
 		WallNS: uint64(candidateBudget), VRAMBytes: budgetVRAM,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if scheduler.Selected != fastCandidate || len(scheduler.Ranking) != 2 || scheduler.Ranking[1] != slowCandidate {
 		t.Fatalf("scheduler ranking = %v; selected=%s", scheduler.Ranking, scheduler.Selected)
 	}

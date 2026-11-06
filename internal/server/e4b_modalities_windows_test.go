@@ -106,13 +106,10 @@ func TestE4BHTTPModalities(t *testing.T) {
 	publish := os.Getenv("OVERGO_E4B_PUBLISH_PROTOCOL") == "1"
 	var revision string
 	if publish {
-		var err error
-		revision, err = runrecord.VerifyingCommit(testutil.RepoRoot(t))
-		testcheck.NoError(t, err)
+		revision = testcheck.Must(runrecord.VerifyingCommit(testutil.RepoRoot(t)))(t)
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	storeRoot := cmp.Or(os.Getenv("OVERGO_E4B_PUBLISH_STORE"), roots.Store)
 	ctx := t.Context()
 	store := overgodbtest.OpenReadOnly(t, storeRoot)
@@ -125,16 +122,12 @@ func TestE4BHTTPModalities(t *testing.T) {
 		{"tensor-set:sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e", artifact.LocationFile},
 		{"dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3", artifact.LocationDirectory},
 	} {
-		id, err := artifact.ParseID(input.id)
-		testcheck.NoError(t, err)
-		path, err := artifact.AvailablePath(ctx, store, id, input.kind)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(input.id))(t)
+		path := testcheck.Must(artifact.AvailablePath(ctx, store, id, input.kind))(t)
 		paths = append(paths, path)
 	}
-	projectionCandidate, err := modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1])
-	testcheck.NoError(t, err)
-	runner, err := modelcli.OpenRunner(ctx, storeRoot, paths[0], inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	projectionCandidate := testcheck.Must(modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1]))(t)
+	runner := testcheck.Must(modelcli.OpenRunner(ctx, storeRoot, paths[0], inference.OpenOptions{}))(t)
 	defer func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -144,8 +137,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 		t.Fatalf("wrong model: %s", got)
 	}
 	testcheck.NoError(t, runner.RuntimePolicy().ValidateIdentity())
-	projection, err := projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: projectionCandidate.Processor})
-	testcheck.NoError(t, err)
+	projection := testcheck.Must(projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: projectionCandidate.Processor}))(t)
 	defer func() {
 		if err := projection.Close(); err != nil {
 			t.Error(err)
@@ -155,8 +147,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 		t.Fatalf("incomplete projection: %+v", got)
 	}
 	trace := &e4bServingTrace{Runner: runner}
-	handler, err := New(Config{RuntimePolicy: runner.RuntimePolicy(), MaxConcurrent: 1, MaxTokens: 128, ImageProjector: projection, AudioProjector: projection, VideoFPS: 1, VideoMaxFrames: 2}, trace)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{RuntimePolicy: runner.RuntimePolicy(), MaxConcurrent: 1, MaxTokens: 128, ImageProjector: projection, AudioProjector: projection, VideoFPS: 1, VideoMaxFrames: 2}, trace))(t)
 	defer func() {
 		if err := handler.Close(); err != nil {
 			t.Error(err)
@@ -224,15 +215,12 @@ func TestE4BHTTPModalities(t *testing.T) {
 		if err != nil || current != revision {
 			t.Fatalf("protocol producer source changed: %v", err)
 		}
-		loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, paths[0])
-		testcheck.NoError(t, err)
-		identity, err := loaded.Identity()
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(ctx, store, paths[0]))(t)
+		identity := testcheck.Must(loaded.Identity())(t)
 		writer := overgodbtest.Create(t, storeRoot)
 		testcheck.NoError(t, modelintake.RegisterProjectionCandidate(ctx, writer, projectionCandidate))
 		evidence := fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%x;model_definition=%s;cases=18", sha256.Sum256(oracleBytes), identity.Definition)
-		proof, err := modelintake.PublishVerification(ctx, writer, projectionCandidate.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence)
-		testcheck.NoError(t, err)
+		proof := testcheck.Must(modelintake.PublishVerification(ctx, writer, projectionCandidate.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence))(t)
 		active, found, err := modelrecipe.ActiveRecord(ctx, writer, projectionCandidate.Definition.Model, recipe.TaskProjection)
 		testcheck.NoError(t, err)
 		if !found || active.Definition.ID != projectionCandidate.Definition.ID {
@@ -266,13 +254,11 @@ func prepareE4BServingCases(t *testing.T, ctx context.Context, corpusDirectory s
 	if err = json.Unmarshal(oracleBytes, &oracle); err != nil {
 		t.Fatal(err)
 	}
-	imageBytes, err := os.ReadFile(testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png"))
-	testcheck.NoError(t, err)
+	imageBytes := testcheck.Must(os.ReadFile(testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(imageBytes)); got != "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e" {
 		t.Fatal("image differs from native oracle")
 	}
-	picture, err := png.Decode(bytes.NewReader(imageBytes))
-	testcheck.NoError(t, err)
+	picture := testcheck.Must(png.Decode(bytes.NewReader(imageBytes)))(t)
 	flipped := image.NewRGBA(picture.Bounds())
 	for y := picture.Bounds().Min.Y; y < picture.Bounds().Max.Y; y++ {
 		for x := picture.Bounds().Min.X; x < picture.Bounds().Max.X; x++ {
@@ -283,8 +269,7 @@ func prepareE4BServingCases(t *testing.T, ctx context.Context, corpusDirectory s
 	testcheck.NoError(t, png.Encode(&second, flipped))
 	// FFV1 keeps both native-reference frames lossless; use the actual encoded
 	// video route, including decode and ordering, instead of injecting projections.
-	ffmpeg, err := media.ResolveFFmpeg("")
-	testcheck.NoError(t, err)
+	ffmpeg := testcheck.Must(media.ResolveFFmpeg(""))(t)
 	command := exec.CommandContext(ctx, ffmpeg, "-v", "error", "-f", "image2pipe", "-framerate", "1", "-i", "pipe:0", "-frames:v", "2", "-c:v", "ffv1", "-f", "matroska", "pipe:1")
 	command.Stdin = bytes.NewReader(append(slices.Clone(imageBytes), second.Bytes()...))
 	videoBytes, err := command.Output()
@@ -317,8 +302,7 @@ func prepareE4BServingCases(t *testing.T, ctx context.Context, corpusDirectory s
 	if wave.Format.Channels != 1 || wave.Format.SampleRate != 16000 || len(wave.Samples) != 105440 {
 		t.Fatal("audio differs from native oracle geometry")
 	}
-	wav, err := media.EncodeWAVPCM16(wave.Samples, int(wave.Format.SampleRate))
-	testcheck.NoError(t, err)
+	wav := testcheck.Must(media.EncodeWAVPCM16(wave.Samples, int(wave.Format.SampleRate)))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(wav)); got != "20e10e583b4918e05cea91316f7bde65a345d2756e64abc7f7ee133e2a0547f5" {
 		t.Fatal("wave differs from native oracle")
 	}
@@ -364,10 +348,8 @@ func encodeE4BServingRequest(t *testing.T, runner *inference.Runner, test e4bSer
 	if route == "/completion" {
 		body["n_predict"] = 128
 		if len(test.media) == 0 {
-			formatted, err := runner.FormatChatWithOptions([]inference.ChatMessage{{Role: "user", Content: test.question}}, inference.ChatFormatOptions{AddGenerationPrompt: true})
-			testcheck.NoError(t, err)
-			ids, err := runner.TokenizeText(formatted, true, true)
-			testcheck.NoError(t, err)
+			formatted := testcheck.Must(runner.FormatChatWithOptions([]inference.ChatMessage{{Role: "user", Content: test.question}}, inference.ChatFormatOptions{AddGenerationPrompt: true}))(t)
+			ids := testcheck.Must(runner.TokenizeText(formatted, true, true))(t)
 			body["prompt"] = ids
 		} else {
 			body["prompt"] = map[string]any{"prompt_string": strings.Repeat("<__media__>", len(test.media)) + test.question, "multimodal_data": test.media}
@@ -398,7 +380,6 @@ func encodeE4BServingRequest(t *testing.T, runner *inference.Runner, test e4bSer
 		content = append(content, map[string]any{"type": textType, "text": test.question})
 		body[key], body[maximum] = []any{map[string]any{"role": "user", "content": content}}, 128
 	}
-	encoded, err := json.Marshal(body)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(body))(t)
 	return encoded
 }

@@ -48,18 +48,15 @@ func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 		if !warm {
 			value.Phases = append(value.Phases, runrecord.PhaseMetric{Phase: runrecord.PhaseLoad, DurationNS: ns(30000)})
 		}
-		observation, err := runrecord.NewServingObservation(value)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("warm/" + observation.ID.String())
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
+		batch := testcheck.Must(observation.Batch("warm/" + observation.ID.String()))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	attempt(false, 1742, 100, 1496)
 	attempt(true, 50, 128, 941)
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	summary := summaries[served]
 	first := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)
 	rate := throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)

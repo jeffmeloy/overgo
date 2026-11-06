@@ -29,8 +29,7 @@ func marshalTestJSON(t *testing.T, value any) string {
 func commitTestBlob(t *testing.T, store artifact.Repository, kind artifact.Kind, label string) artifact.ID {
 	t.Helper()
 	data := []byte(label)
-	id, err := artifact.IdentifyBytes(kind, data)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(kind, data))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "server/test/blob/" + label,
 		Contents: []artifact.Content{{Descriptor: artifact.Descriptor{

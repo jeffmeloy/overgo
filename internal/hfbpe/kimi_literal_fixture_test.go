@@ -17,8 +17,7 @@ import (
 // The compact projection pins a published literal-control vector to the
 // independently sourced Kimi K3 tokenizer before any adapter implementation.
 func TestKimiLiteralReferenceFixture(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_k3_literal_reference.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "kimi_k3_literal_reference.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "60f04dde1eef39a86ad68058d05b829ae7f063b9bafe4fa24560f550a2643f9c" {
 		t.Fatalf("Kimi literal reference projection changed: %s", got)
 	}

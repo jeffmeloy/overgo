@@ -25,8 +25,7 @@ import (
 func TestModelInventory(t *testing.T) {
 	t.Parallel()
 	identify := func(kind artifact.Kind, text string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte(text))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, []byte(text)))(t)
 		return id
 	}
 	activation := identify(artifact.KindRecipe, "accepted")
@@ -70,8 +69,7 @@ func TestModelInventory(t *testing.T) {
 	write("Model/shards/part-1.safetensors", "weights")
 	write("notes/README.md", "no weights here")
 	write("loose.gguf", "a file beside the directories is not a directory")
-	read, err := modelDirectories([]string{root})
-	testcheck.NoError(t, err)
+	read := testcheck.Must(modelDirectories([]string{root}))(t)
 	if len(read) != 2 || filepath.Base(read[0].Path) != "Model" || !read[0].Weights || read[0].ModelType != "llama" || len(read[0].ConfigDigests) == 0 {
 		t.Fatalf("model directory = %+v", read)
 	}

@@ -13,32 +13,27 @@ import (
 )
 
 func TestAgentContractEnforcement(t *testing.T) {
-	contract, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
+	contract := testcheck.Must(recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: testutil.ArtifactID(t, artifact.KindRecipe, "agent"), Objective: "Change one package.",
 		Scope: []string{"internal/agentloop"}, AllowedEffects: []string{"workspace:mutation"},
 		Acceptance:   []recipe.AcceptanceCriterion{{Name: "tests", Scope: "internal/agentloop", Verifier: testutil.ArtifactID(t, artifact.KindRecipe, "tests")}},
 		Verification: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "gate")}, Budget: testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"opaque mutation"},
-	})
-	testcheck.NoError(t, err)
-	obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
+	}))(t)
+	obligation := testcheck.Must(runrecord.NewAgentObligation(runrecord.AgentObligation{
 		Task: contract.ID, Name: "tests", Scope: "internal/agentloop", Sources: []artifact.ID{contract.ID},
-	})
-	testcheck.NoError(t, err)
-	state, err := NewContractState(contract, []runrecord.AgentObligation{obligation})
-	testcheck.NoError(t, err)
+	}))(t)
+	state := testcheck.Must(NewContractState(contract, []runrecord.AgentObligation{obligation}))(t)
 	if len(state.epochs) != 0 {
 		t.Fatalf("a fresh contract state holds the epochs %v, want none", state.epochs)
 	}
-	manual, err := agenttool.NewManual(agenttool.Manual{
+	manual := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "file.write", Description: "Write one file.", Effect: agenttool.EffectMutation,
 		Arguments: []agenttool.Field{{Name: "path", Kind: agenttool.FieldString, Required: true}},
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
-	effect, err := agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{"path":"internal/agentloop/coordinator.go"}`), nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	effect := testcheck.Must(agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{"path":"internal/agentloop/coordinator.go"}`), nil))(t)
 	testcheck.NoError(t, state.Admit(effect))
 	state.ObserveMutation(effect)
 	if len(state.epochs) != 1 || state.epochs[obligation.Scope] != 1 {

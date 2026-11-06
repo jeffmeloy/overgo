@@ -32,14 +32,13 @@ const cudaVAEDecodeTolerance = goldenVAEDecodeTolerance
 func decodeVAEFrames(t *testing.T, decode func(sink VideoFrameSink) (VAEDecodeStats, error)) ([][]float32, VAEDecodeStats) {
 	t.Helper()
 	var frames [][]float32
-	stats, err := decode(func(index int, frame []float32, height, width int) error {
+	stats := testcheck.Must(decode(func(index int, frame []float32, height, width int) error {
 		if index != len(frames) {
 			return fmt.Errorf("frame index %d, want %d", index, len(frames))
 		}
 		frames = append(frames, append([]float32(nil), frame...))
 		return nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return frames, stats
 }
 
@@ -53,8 +52,7 @@ func runVAEDecodeCUDAAgainstHost(t *testing.T, manifestName string) {
 	hostFrames, _ := decodeVAEFrames(t, func(sink VideoFrameSink) (VAEDecodeStats, error) {
 		return DecodeLatentVideo(checkpoint, plan, stats, golden.latent, shape.LatentFrames, shape.LatentHeight, shape.LatentWidth, sink)
 	})
-	session, err := NewVAEDecoderCUDASession(checkpoint, plan, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewVAEDecoderCUDASession(checkpoint, plan, 0))(t)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
@@ -88,8 +86,7 @@ func TestVAEDecodeCUDAGoldenG4(t *testing.T) {
 
 func loadF32LE(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	if len(raw) != 4*elements {
 		t.Fatalf("%s: %d bytes, want %d", path, len(raw), 4*elements)
 	}
@@ -126,8 +123,7 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 			z[i] = float32(math.Sin(float64(i)*0.61 + 0.17))
 		}
 	}
-	session, err := NewVAEDecoderCUDASession(checkpoint, plan, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewVAEDecoderCUDASession(checkpoint, plan, 0))(t)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
@@ -136,14 +132,13 @@ func TestVAEDecodeCUDAProduction(t *testing.T) {
 	var frame0 []float32
 	frames := 0
 	started := time.Now()
-	decodeStats, err := session.Decode(stats, z, latentFrames, latentH, latentW, func(index int, frame []float32, height, width int) error {
+	decodeStats := testcheck.Must(session.Decode(stats, z, latentFrames, latentH, latentW, func(index int, frame []float32, height, width int) error {
 		if index == 0 {
 			frame0 = append([]float32(nil), frame...)
 		}
 		frames++
 		return nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	wall := time.Since(started)
 	if frames != 81 {
 		t.Fatalf("decoded %d frames, want 81", frames)

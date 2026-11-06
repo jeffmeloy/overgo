@@ -154,8 +154,7 @@ var carryTree = []string{"go.mod", "go.sum", "internal", "kernels", "cmd/evaluat
 // commit puts every case to the thought bank's model and none to the text
 // runner's.
 func TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	checkout, store := filepath.Join(t.TempDir(), "checkout"), filepath.Join(t.TempDir(), "store")
 	git := func(arguments ...string) string { return gitFixture(t, checkout, arguments...) }
 	write := func(name string, content []byte) {

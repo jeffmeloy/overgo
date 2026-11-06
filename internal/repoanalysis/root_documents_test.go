@@ -17,12 +17,9 @@ import (
 func TestRootHoldsNoPolicyDocuments(t *testing.T) {
 	t.Parallel()
 	root := "../.."
-	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	testcheck.NoError(t, err)
-	documents, err := TrackedDocuments(t.Context(), root)
-	testcheck.NoError(t, err)
-	census, err := TrackedDocumentCensus(snapshot, documents)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(root, "internal", "cmd"))(t)
+	documents := testcheck.Must(TrackedDocuments(t.Context(), root))(t)
+	census := testcheck.Must(TrackedDocumentCensus(snapshot, documents))(t)
 	shared := 0
 	for _, document := range census {
 		if path.Dir(document.Path) != "." || path.Ext(document.Path) != ".json" {

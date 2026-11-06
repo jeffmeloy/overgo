@@ -13,11 +13,9 @@ import (
 )
 
 func TestDeepSeekOCRTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32))))(t)
 	if !output.Shape.Equal(mustShape(3, 3)) || !slices.Equal(output.Data, make([]float32, 9)) {
 		t.Fatalf("output = shape %v values %v", output.Shape, output.Data)
 	}
@@ -39,8 +37,7 @@ func TestDeepSeekOCRRequiresPreprocessingMetadata(t *testing.T) {
 
 func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 	spec := tinyDeepSeekOCRSpec()
-	input, err := preprocessDeepSeekOCRImage(image.NewRGBA(image.Rect(0, 0, 128, 64)), spec, true)
-	testcheck.NoError(t, err)
+	input := testcheck.Must(preprocessDeepSeekOCRImage(image.NewRGBA(image.Rect(0, 0, 128, 64)), spec, true))(t)
 	if input.GridW != 2 || input.GridH != 1 || len(input.Tiles) != 3 {
 		t.Fatalf("grid = %dx%d, tiles = %d", input.GridW, input.GridH, len(input.Tiles))
 	}
@@ -50,25 +47,20 @@ func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 }
 
 func TestDeepSeekOCRCanDisableDynamicTiles(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](
-		writeTinyDeepSeekOCR(t, false), OpenOptions{DisableDynamicTiles: true})
-
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*DeepSeekOCRRunner](
+		writeTinyDeepSeekOCR(t, false), OpenOptions{DisableDynamicTiles: true}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 128, 64)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 128, 64))))(t)
 	if !output.Shape.Equal(mustShape(3, 3)) {
 		t.Fatalf("output shape = %v", output.Shape)
 	}
 }
 
 func TestDeepSeekOCRPromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{}))(t)
 	defer runner.Close()
 	tok := &recordingPromptTokenizer{pad: DeepSeekOCRImagePad}
-	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false))(t)
 	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 3)+"after" {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}

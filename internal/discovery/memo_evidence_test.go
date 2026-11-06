@@ -22,13 +22,11 @@ func TestIdentityMemoPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "model.bin")
 	payload := []byte("model bytes that would normally cost a full hash pass")
 	testcheck.NoError(t, os.WriteFile(path, payload, 0o644))
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	digest, size, err := artifact.Identify(artifact.KindModel, file)
 	file.Close()
 	testcheck.NoError(t, err)
-	info, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(os.Stat(path))(t)
 
 	hashed := NewMemo()
 	key := path + "\x00" + artifact.KindModel.String()
@@ -57,21 +55,18 @@ func TestIdentityMemoPersistence(t *testing.T) {
 	// A file whose bytes changed misses: the persisted claim is bound to
 	// the stat under which it was hashed.
 	testcheck.NoError(t, os.WriteFile(path, append(payload, " grown"...), 0o644))
-	changed, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(os.Stat(path))(t)
 	if _, hit := loaded.lookup(key, changed); hit {
 		t.Fatal("changed file served a stale identity")
 	}
 
 	// New identities recorded on a loaded memo publish under a moved alias.
 	testcheck.NoError(t, os.Chtimes(path, time.Now(), time.Now()))
-	file, err = os.Open(path)
-	testcheck.NoError(t, err)
+	file = testcheck.Must(os.Open(path))(t)
 	regrown, regrownSize, err := artifact.Identify(artifact.KindModel, file)
 	file.Close()
 	testcheck.NoError(t, err)
-	refreshed, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	refreshed := testcheck.Must(os.Stat(path))(t)
 	loaded.record(key, refreshed, fileIdentity{id: regrown, size: regrownSize, present: true})
 	testcheck.NoError(t, PublishMemo(ctx, store, loaded))
 	final, _, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias)

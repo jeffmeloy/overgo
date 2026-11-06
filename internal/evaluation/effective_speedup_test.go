@@ -28,7 +28,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 				}, Covered: true,
 			}
 		}
-		fit, err := scalingFitCodec.New(scalingFit{
+		fit := testcheck.Must(scalingFitCodec.New(scalingFit{
 			Version: artifact.InitialDocumentVersion, Study: id(artifact.KindEvidence, name+" study"),
 			CostAxis: scalingCostMeasuredFLOPs, QualityEvaluator: evaluator, FitEvaluator: id(artifact.KindProfile, name+" fit evaluator"),
 			FitMethod: id(artifact.KindProfile, name+" fit method"), UncertaintyMethod: id(artifact.KindProfile, name+" uncertainty method"),
@@ -43,8 +43,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 				Name: "observed points only", Evidence: id(artifact.KindEvidence, name+" assumption"),
 				ReopenTrigger: id(artifact.KindRecipe, name+" assumption reopen"),
 			}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return fit
 	}
 	baseline, candidate := makeFit("baseline", []string{"100", "200", "300"}), makeFit("candidate", []string{"50", "100", "150"})
@@ -63,8 +62,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 	}
 	wrongUnits := candidate
 	wrongUnits.ID, wrongUnits.CostAxis = artifact.ID{}, scalingCostWallNS
-	wrongUnits, err = scalingFitCodec.New(wrongUnits)
-	testcheck.NoError(t, err)
+	wrongUnits = testcheck.Must(scalingFitCodec.New(wrongUnits))(t)
 	if _, err := buildEffectiveSpeedup(baseline, wrongUnits); err == nil {
 		t.Fatal("incompatible cost units admitted")
 	}
@@ -78,8 +76,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 	}
 	noQualityMatch.Holdouts[0].Observed.Numerator, noQualityMatch.Holdouts[0].Predicted.Numerator = "99", "99"
 	noQualityMatch.Holdouts[0].Uncertainty.Lower.Numerator, noQualityMatch.Holdouts[0].Uncertainty.Upper.Numerator = "99", "99"
-	noQualityMatch, err = scalingFitCodec.New(noQualityMatch)
-	testcheck.NoError(t, err)
+	noQualityMatch = testcheck.Must(scalingFitCodec.New(noQualityMatch))(t)
 	if _, err := buildEffectiveSpeedup(baseline, noQualityMatch); err == nil {
 		t.Fatal("predicted or unmatched quality produced speedup")
 	}
@@ -120,8 +117,7 @@ func TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant(t *testing.T) {
 	for index, permutation := range permutations {
 		candidate := base
 		candidate.Pairs = permutation
-		identified, err := effectiveSpeedupCodec.New(candidate)
-		testcheck.NoError(t, err)
+		identified := testcheck.Must(effectiveSpeedupCodec.New(candidate))(t)
 		if !slices.IsSortedFunc(identified.Pairs, compareEffectiveSpeedupPairs) {
 			t.Fatal("effective speedup pairs are not in canonical total order")
 		}

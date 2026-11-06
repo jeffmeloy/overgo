@@ -39,19 +39,16 @@ func verifyNativeRestartChild(t *testing.T, encoded string) {
 	if len(request.Chunks) == 0 || len(request.Chunks) != len(request.Expected) {
 		t.Fatal("restart child has no exact continuation denominator")
 	}
-	store, err := overgodb.Create(request.Store)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(request.Store))(t)
 	defer store.Close()
-	session, err := speechrecognition.LoadSession(t.Context(), store, request.Recipe, 4<<30)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(speechrecognition.LoadSession(t.Context(), store, request.Recipe, 4<<30))(t)
 	defer session.Close(t.Context())
 	wrong := request.Source
 	wrong.Audio = request.Chunks[0].Audio
 	if stream, err := session.OpenStream(t.Context(), speechrecognition.StreamRequest{Source: wrong, Resume: request.Resume}); err == nil || stream != nil || session.Snapshot().Active != 0 {
 		t.Fatal("wrong source restart acquired or retained a lease")
 	}
-	stream, err := session.OpenStream(t.Context(), speechrecognition.StreamRequest{Source: request.Source, Resume: request.Resume})
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(session.OpenStream(t.Context(), speechrecognition.StreamRequest{Source: request.Source, Resume: request.Resume}))(t)
 	defer stream.Close(t.Context())
 	for i, chunk := range request.Chunks {
 		result, err := stream.Process(t.Context(), chunk)

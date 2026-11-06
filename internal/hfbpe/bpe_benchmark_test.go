@@ -39,8 +39,7 @@ func BenchmarkEncodeSharedBPE(b *testing.B) {
 	for _, units := range []int{8, 512} {
 		text := strings.Repeat("abcde ", units)
 		b.Run(fmt.Sprintf("bytes=%d", len(text)), func(b *testing.B) {
-			ids, err := tok.Encode(text)
-			testcheck.NoError(b, err)
+			ids := testcheck.Must(tok.Encode(text))(b)
 			b.ReportMetric(float64(len(ids)), "tokens/op")
 			b.ReportAllocs()
 			b.ResetTimer()

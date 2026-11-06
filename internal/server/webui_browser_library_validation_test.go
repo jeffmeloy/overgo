@@ -32,12 +32,10 @@ const laneHubRepository = "lane/validated"
 // GGUF, a page leg a few fixture bytes.
 func hubFixtureServer(t *testing.T, file string) *httptest.Server {
 	t.Helper()
-	handle, err := os.Open(file)
-	testcheck.NoError(t, err)
+	handle := testcheck.Must(os.Open(file))(t)
 	defer handle.Close()
 	hash := sha256.New()
-	size, err := io.Copy(hash, handle)
-	testcheck.NoError(t, err)
+	size := testcheck.Must(io.Copy(hash, handle))(t)
 	name := filepath.Base(file)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/models", func(response http.ResponseWriter, _ *http.Request) {
@@ -72,8 +70,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 		testskip.NotApplicable(t, "library validation runs through cmd/webui-lane -journeys")
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	small := roots.ResolveModelPath("overgo-hfconvert/Qwen2.5-0.5B-f16.gguf")
 	if _, err := os.Stat(small); err != nil {
 		t.Fatalf("library validation unavailable: the small text model is absent: %v", err)
@@ -98,15 +95,13 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	testcheck.NoError(t, prepareBrowserJourneyStore(ctx, roots.Store, storeDir))
 	store := overgodbtest.Create(t, storeDir)
 	intake := LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate}
-	workbench, err := New(Config{
+	workbench := testcheck.Must(New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: filepath.Join(t.TempDir(), "downloads"),
-	}, GenerationRefused{Reason: idleRefusal})
-	testcheck.NoError(t, err)
+	}, GenerationRefused{Reason: idleRefusal}))(t)
 	defer workbench.Close()
 	testcheck.NoError(t, os.MkdirAll(workbench.config.HubDownloadRoot, 0o755))
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: storeDir, Dir: root}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: storeDir, Dir: root}, 0))(t)
 	defer supervisor.Close()
 	catalog := overgodbtest.OpenReadOnly(t, storeDir)
 	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
@@ -116,10 +111,8 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
-	browser, err := webuilane.Open(ctx, path, front.URL+"/")
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
+	browser := testcheck.Must(webuilane.Open(ctx, path, front.URL+"/"))(t)
 	defer browser.Close()
 	testcheck.NoError(t, browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height))
 	// API idleness does not imply shell readiness: workspace scripts load
@@ -151,8 +144,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 			t.Logf("%s: the modified tree refused with the source rule after admitting the model", what)
 			return false
 		}
-		id, err := artifact.ParseID(admitted)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(admitted))(t)
 		assertBrowserPredicate(t, ctx, browser, `(() => { window.laneValidation = ''; return true; })()`)
 		waitBrowserOperationState(t, workbench, id, operation.StateCompleted)
 		return true

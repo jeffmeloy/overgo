@@ -64,24 +64,20 @@ func tinyTrainableModel() *Model {
 
 func testOptimizerConfig(t *testing.T, model *Model) optimizer.Config {
 	t.Helper()
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount())
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount()))(t)
 	return config
 }
 
 func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
 	input := []float32{0.4, 0.9, 1.3, 1.1, 0.8, 1.6, 2.1, 1.9, 1.4, 2.3}
 	target := []float32{2.6, 2.2}
-	before, err := trainer.Loss(input, target)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(trainer.Loss(input, target))(t)
 	var first, last TrainStepResult
 	for step := range 6 {
-		result, err := trainer.Step(input, target)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(trainer.Step(input, target))(t)
 		if math.IsNaN(result.Total) || math.IsInf(result.Total, 0) {
 			t.Fatalf("step %d loss is non-finite: %+v", step, result)
 		}
@@ -96,8 +92,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 	if first.Step != 1 || last.Step != 6 || last.GradientL2 <= 0 {
 		t.Fatalf("optimizer step facts are wrong: first=%+v last=%+v", first, last)
 	}
-	after, err := trainer.Loss(input, target)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(trainer.Loss(input, target))(t)
 	if first.Total != before || !(after < before) {
 		t.Fatalf("loss evaluation disagrees with training: before=%.6f first=%.6f after=%.6f", before, first.Total, after)
 	}
@@ -105,8 +100,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 
 func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
 	if trainer.ParameterCount() == 0 || len(parameters) != len(model.trainableNames()) {
@@ -124,8 +118,7 @@ func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 // bit for bit.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(model, testOptimizerConfig(t, model)))(t)
 	defer trainer.Close()
 	if _, err := trainer.Step([]float32{0.4, 0.9, 1.3, 1.1, 0.8, 1.6, 2.1, 1.9, 1.4, 2.3}, []float32{2.6, 2.2}); err != nil {
 		t.Fatal(err)

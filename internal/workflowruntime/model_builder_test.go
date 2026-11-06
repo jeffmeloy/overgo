@@ -71,8 +71,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "builder-operation")
 	store := testRepository(t)
-	result, err := ExecuteModelBuild(t.Context(), store, operation, fixture)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(ExecuteModelBuild(t.Context(), store, operation, fixture))(t)
 	if fixture.phase != 5 || result.Decision.Kind() != artifact.KindEvidence || result.Model == fixture.state.Model ||
 		result.Recipe == fixture.state.Recipe {
 		t.Fatalf("builder result=%+v phases=%d", result, fixture.phase)

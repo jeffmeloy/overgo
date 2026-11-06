@@ -13,13 +13,11 @@ import (
 
 func TestAudioPayloadReaderCoordinatesAndIdentity(t *testing.T) {
 	path, budget := nullableParquetFixture(t)
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	container, _, err := artifact.Identify(artifact.KindDatasetShard, file)
 	_ = file.Close()
 	testcheck.NoError(t, err)
-	source, err := NewAudioPayloadReader(budget)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(NewAudioPayloadReader(budget))(t)
 	defer source.Close()
 	audio, _ := artifact.IdentifyBytes(artifact.KindFile, []byte("e"))
 	reference := AudioPayloadReference{Path: path, Audio: audio, Origin: AudioPayloadOrigin{Container: container, Column: "audio.bytes", Row: new(uint64(4))}}

@@ -32,8 +32,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	if after != initial {
 		t.Fatal("cancelled import published facts")
 	}
-	receipt, err := Register(t.Context(), store, model, projector)
-	testcheck.NoError(t, err)
+	receipt := testcheck.Must(Register(t.Context(), store, model, projector))(t)
 	if receipt["inspection"] == nil || receipt["recipe"] != nil || receipt["qualification"] != "structural-only" {
 		t.Fatalf("source registration receipt = %+v", receipt)
 	}
@@ -62,16 +61,13 @@ func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
 	if err != nil || execute == nil {
 		t.Fatalf("the directory does not validate: %v", err)
 	}
-	receipt, err := Register(t.Context(), store, directory, "")
-	testcheck.NoError(t, err)
+	receipt := testcheck.Must(Register(t.Context(), store, directory, ""))(t)
 	if request.Recipe != receipt["recipe"] {
 		t.Fatalf("validates under %v, registers under %v", request.Recipe, receipt["recipe"])
 	}
-	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(t.Context(), store, directory))(t)
 	defer loaded.Close()
-	identity, err := loaded.Identity()
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(loaded.Identity())(t)
 	if identity.Model != receipt["model"] {
 		t.Fatalf("ran as %v, registered as %v", identity.Model, receipt["model"])
 	}

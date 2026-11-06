@@ -68,8 +68,7 @@ func TestPreferenceLossVariantsShareTheDPOPath(t *testing.T) {
 		t.Fatalf("held-out views=%d programs=%d, want one view judging three programs", len(views), len(programs))
 	}
 	reference := testutil.ArtifactID(t, artifact.KindModel, "reference")
-	own, err := json.Marshal(trainingprogram.PreferencePolicy{Reference: reference, Scale: 0.1})
-	testcheck.NoError(t, err)
+	own := testcheck.Must(json.Marshal(trainingprogram.PreferencePolicy{Reference: reference, Scale: 0.1}))(t)
 	before, err := json.Marshal(struct {
 		Reference artifact.ID
 		Scale     float64
@@ -112,8 +111,7 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "store")))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -129,18 +127,14 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	var lines bytes.Buffer
 	for index, document := range documents {
 		records[index] = dataset.Record{ID: document["id"].(string), Group: document["group"].(string)}
-		line, err := json.Marshal(document)
-		testcheck.NoError(t, err)
+		line := testcheck.Must(json.Marshal(document))(t)
 		lines.Write(append(line, '\n'))
 	}
 	testcheck.NoError(t, os.WriteFile(fixture.dataset, lines.Bytes(), 0o600))
-	source, err := artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes())
-	testcheck.NoError(t, err)
+	source := testcheck.Must(artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes()))(t)
 	const splitSeed = 17
-	split, err := dataset.BuildGroupSplit(source, records, splitSeed, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	testcheck.NoError(t, err)
-	batch, err := split.PublicationBatch("fixture/preference-variants/split", nil)
-	testcheck.NoError(t, err)
+	split := testcheck.Must(dataset.BuildGroupSplit(source, records, splitSeed, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}}))(t)
+	batch := testcheck.Must(split.PublicationBatch("fixture/preference-variants/split", nil))(t)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: source, Size: uint64(lines.Len())})
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
@@ -161,17 +155,14 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	}
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "dpo objective evidence")
 	text := []recipecontract.Modality{recipecontract.ModalityText}
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "dpo", Kind: trainingprogram.ObjectiveDPO, Signature: recipecontract.ModalitySignature{Inputs: text, Outputs: text},
 		Dataset: source, Split: fixture.training.ID, Processors: []artifact.ID{processor}, Loss: profile("dpo loss"), Evaluation: evaluation,
 		Metric: metric, Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	policies.Objective = objective.ID
-	objectiveContent, err := objective.Content()
-	testcheck.NoError(t, err)
-	optimizerContent, err := optimizer.Content()
-	testcheck.NoError(t, err)
+	objectiveContent := testcheck.Must(objective.Content())(t)
+	optimizerContent := testcheck.Must(optimizer.Content())(t)
 	var descriptors []artifact.Descriptor
 	for _, id := range []artifact.ID{
 		policy, reference, processor, objective.Loss, evidence, policies.Precision, policies.Placement,
@@ -185,16 +176,14 @@ func newPreferenceFixture(t *testing.T, documents []map[string]any, processorPro
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipetest.DPODefinition(append([]recipe.Dependency{
+	definition := testcheck.Must(modelrecipetest.DPODefinition(append([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: policy},
 		{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
-	}, modelrecipetest.PolicyDependencies(policies)...))
-	testcheck.NoError(t, err)
+	}, modelrecipetest.PolicyDependencies(policies)...)))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/preference-variants/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/preference-variants/verification", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/preference-variants/verification", definition.ID))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "preference variants fixture"))
 	fixture.recipe = definition.ID
 	return fixture
@@ -216,9 +205,7 @@ func writePreferenceModel(t *testing.T, directory string, seed int64) artifact.I
 	} {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
 	}
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
-	id, err := artifact.IdentifyBytes(artifact.KindModel, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(path))(t)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, data))(t)
 	return id
 }

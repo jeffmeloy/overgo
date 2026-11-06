@@ -76,8 +76,7 @@ func TestWriteRoundTripsMetadataAndTensors(t *testing.T) {
 	)
 	testcheck.NoError(t, err)
 
-	file, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions()))(t)
 	if file.Version != CurrentVersion || file.Alignment != 64 {
 		t.Fatalf("version/alignment = %d/%d, want %d/64", file.Version, file.Alignment, CurrentVersion)
 	}
@@ -117,8 +116,7 @@ func TestWriteRoundTripsMetadataAndTensors(t *testing.T) {
 func TestWriteEmptyFileRoundTrips(t *testing.T) {
 	var encoded bytes.Buffer
 	testcheck.NoError(t, Write(&encoded, nil, nil, WriteOptions{Version: 2}))
-	file, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions()))(t)
 	if file.Version != 2 || file.DataOffset != uint64(encoded.Len()) ||
 		len(file.Metadata) != 0 || len(file.Tensors) != 0 {
 		t.Fatalf("empty file = %#v", file)
@@ -221,18 +219,16 @@ func TestFileWriteToMergesSplitSources(t *testing.T) {
 		3,
 		[]splitFixtureTensor{{name: "third", fill: 0x33}},
 	)
-	source, err := Open(firstPath)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Open(firstPath))(t)
 	defer source.Close()
 
 	var encoded bytes.Buffer
 	testcheck.NoError(t, source.WriteTo(&encoded, WriteOptions{}))
-	merged, err := Parse(
+	merged := testcheck.Must(Parse(
 		bytes.NewReader(encoded.Bytes()),
 		uint64(encoded.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if merged.SplitCount != 1 || len(merged.Tensors) != 3 {
 		t.Fatalf("merged split/tensors = %d/%d, want 1/3", merged.SplitCount, len(merged.Tensors))
 	}

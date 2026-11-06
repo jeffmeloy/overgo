@@ -139,8 +139,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		for path, text := range files {
 			write(filepath.Join(root, filepath.FromSlash(path)), text)
 		}
-		resolved, err := inventory(root)
-		testcheck.NoError(t, err)
+		resolved := testcheck.Must(inventory(root))(t)
 		batch, err := resolved.Batch("fixture/model/" + name)
 		if err == nil {
 			err = modelrecipe.PublishFacts(ctx, store, batch)
@@ -181,8 +180,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, repository))
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskGeneration, thoughts))
 
-	cells, err := registeredCells(ctx, store)
-	testcheck.NoError(t, err)
+	cells := testcheck.Must(registeredCells(ctx, store))(t)
 	for _, want := range []struct {
 		model      artifact.ID
 		task       recipe.Task

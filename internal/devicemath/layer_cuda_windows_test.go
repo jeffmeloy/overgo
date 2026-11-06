@@ -79,8 +79,7 @@ func hostLayer(x []float32, w LayerWeights, dims LayerDims) (c LayerCache, y []f
 // transformer-layer VJP.
 func TestLayerBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	dims := LayerDims{Seq: 4, D: 8, NH: 2, NKV: 1, HD: 4, Inter: 12, Eps: 1e-6}
@@ -97,8 +96,7 @@ func TestLayerBackwardGradCheck(t *testing.T) {
 	dy := randSlice(rng, dims.Seq*dims.D)
 
 	cache, _ := hostLayer(x, w, dims)
-	grads, err := LayerBackward(worker, x, w, cache, dy, dims)
-	testcheck.NoError(t, err)
+	grads := testcheck.Must(LayerBackward(worker, x, w, cache, dy, dims))(t)
 
 	loss := func() float64 {
 		_, y := hostLayer(x, w, dims)

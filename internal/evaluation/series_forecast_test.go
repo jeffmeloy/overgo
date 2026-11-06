@@ -57,18 +57,15 @@ func TestSeriesForecastScoresTheMeanAbsoluteErrorOfEveryStep(t *testing.T) {
 		{Name: "rising", Context: []float32{1, 2, 3}, Target: []float32{4, 5}},
 		{Name: "flat", Context: []float32{7, 7}, Target: []float32{7, 9, 7}},
 	}}
-	compiled, err := compileSeriesForecast(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindSeriesForecast(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileSeriesForecast(suite))(t)
+	plan := testcheck.Must(bindSeriesForecast(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateSeriesForecast(t.Context(), store, lastValueForecaster{}, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateSeriesForecast(t.Context(), store, lastValueForecaster{}, compiled, plan))(t)
 	// The first window's forecast is 3, 3 against 4, 5: errors 1 and 2; the
 	// second's is 7, 7, 7 against 7, 9, 7: errors 0, 2 and 0.
 	if want := 5.0 / 5.0; report.Steps != 5 || math.Abs(report.MeanAbsoluteError-want) > 1e-12 ||
@@ -120,8 +117,7 @@ func TestETTWindowsAreConsecutiveAndDoNotOverlap(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "ETTh1.csv")
 	testcheck.NoError(t, os.WriteFile(path, []byte(table.String()), 0o600))
-	suite, err := BuildETTSeriesForecast(SeriesForecastSpec{CSV: path, Context: 3, Horizon: 2})
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildETTSeriesForecast(SeriesForecastSpec{CSV: path, Context: 3, Horizon: 2}))(t)
 	if len(suite.Cases) != 2 || suite.Cases[0].Name != "etth1/oil-temperature/000" ||
 		fmt.Sprint(suite.Cases[0].Context, suite.Cases[0].Target) != "[0.5 1.5 2.5] [3.5 4.5]" ||
 		fmt.Sprint(suite.Cases[1].Context, suite.Cases[1].Target) != "[5.5 6.5 7.5] [8.5 9.5]" {

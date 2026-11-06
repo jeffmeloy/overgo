@@ -48,10 +48,9 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 	command := func(t *testing.T, arguments ...string) (int, string) {
 		t.Helper()
 		var said bytes.Buffer
-		receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
+		receipt := testcheck.Must(processcontrol.Run(t.Context(), processcontrol.Command{
 			Path: os.Args[0], Args: arguments, Stderr: &said, Env: append(os.Environ(), commandChildEnvironment+"="+childStandIn),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return receipt.ExitCode, said.String()
 	}
 
@@ -106,13 +105,11 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		directory := t.TempDir()
 		base, dataset, storePath := writeServingFixture(t, directory), filepath.Join(directory, "dataset.txt"), filepath.Join(directory, "store")
 		testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
-		store, err := overgodb.Create(storePath)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Create(storePath))(t)
 		if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 			t.Fatal(err)
 		}
-		recipeID, err := trainingworkflow.BootstrapTokenRecipe(t.Context(), store, base, dataset)
-		testcheck.NoError(t, err)
+		recipeID := testcheck.Must(trainingworkflow.BootstrapTokenRecipe(t.Context(), store, base, dataset))(t)
 		// The command writes through a handle of its own.
 		testcheck.NoError(t, store.Close())
 		first, resumed := filepath.Join(directory, "first"), filepath.Join(directory, "resumed")
@@ -141,8 +138,7 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		// read is a record's lines of a key, a colon and a value, by key.
 		read := func(name string) map[string]string {
 			t.Helper()
-			raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-			testcheck.NoError(t, err)
+			raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", name)))(t)
 			fields := map[string]string{}
 			for line := range strings.Lines(string(raw)) {
 				if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

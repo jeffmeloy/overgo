@@ -20,15 +20,13 @@ import (
 
 func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	var pointers []driver.DevicePtr
 	allocate := residentAllocation(t, worker, &pointers)
 	allocateRows := func(rows []uint32) driver.DevicePtr {
 		t.Helper()
-		pointer, err := AllocResidentU32(worker, rows)
-		testcheck.NoError(t, err)
+		pointer := testcheck.Must(AllocResidentU32(worker, rows))(t)
 		pointers = append(pointers, pointer)
 		return pointer
 	}
@@ -110,12 +108,10 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 
 func TestResidentOpsSessionMatchesWrappers(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	left, right := []float32{-2, -1, 0, 1, 2, 3}, []float32{3, 2, 1, 0, -1, -2}
-	leftPtr, err := AllocResidentF32(worker, len(left), left)
-	testcheck.NoError(t, err)
+	leftPtr := testcheck.Must(AllocResidentF32(worker, len(left), left))(t)
 	rightPtr, err := AllocResidentF32(worker, len(right), right)
 	if err != nil {
 		_ = FreeResident(worker, leftPtr)
@@ -153,8 +149,7 @@ func TestResidentOpsSessionMatchesWrappers(t *testing.T) {
 
 func TestResidentArenaReusesStorage(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	if err := WithResidentOps(worker, func(ops *ResidentOps) error {
 		arena, err := ops.NewArena(12)

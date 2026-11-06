@@ -38,8 +38,7 @@ func TestIntakeListsProviderModels(t *testing.T) {
 	}
 	t.Setenv(intakeTestVariable, "intake-key")
 	for _, listing := range []server.ProviderListing{declared, {Endpoint: fake.URL, Key: "intake-key"}} {
-		models, err := intake.ListModels(t.Context(), store, listing)
-		testcheck.NoError(t, err)
+		models := testcheck.Must(intake.ListModels(t.Context(), store, listing))(t)
 		if len(models) != 1 || models[0].ID != "vendor/listed" || models[0].Name != "Listed" || models[0].ContextLength != 2048 {
 			t.Fatalf("listed = %+v", models)
 		}

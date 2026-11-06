@@ -17,8 +17,7 @@ func TestWebUIRouteSchemasMatchHandlerBodies(t *testing.T) {
 	bodies := map[string]reflect.Type{
 		"/agents/definitions": reflect.TypeFor[agentDefinitionInput](),
 	}
-	catalog, err := parseWorkspaceSchema()
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(parseWorkspaceSchema())(t)
 	schemas := make(map[string]workspaceObjectSchema, len(catalog.Schemas))
 	for _, schema := range catalog.Schemas {
 		schemas[schema.ID] = schema

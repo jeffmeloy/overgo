@@ -22,8 +22,7 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	testskip.Short(t, "runs the full 30-block denoiser on CUDA")
 	manifest, dir := loadDenoiseManifest(t, name)
 	program := newGoldenDenoiserProgram(t, manifest)
-	session, err := NewDenoiserCUDASession(program, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewDenoiserCUDASession(program, 0))(t)
 	if program.weights != nil {
 		t.Fatal("resident session retained host denoiser weights")
 	}
@@ -41,15 +40,14 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	uncondContext := loadRawContext(t, dir, manifest.Request.UncondContext, contextElements)
 	sampleIn := manifest.trace(t, dir, "step_00_sample_in")
 
-	result, err := session.Denoise(context.Background(), DenoiseRequest{
+	result := testcheck.Must(session.Denoise(context.Background(), DenoiseRequest{
 		Steps: manifest.Request.Steps, Shift: manifest.Request.Shift,
 		GuideScale:    manifest.Request.GuideScale,
 		CondContext:   condContext,
 		UncondContext: uncondContext,
 		InitialSample: sampleIn,
 		TraceSteps:    true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for i, step := range result.Steps {
 		prefix := fmt.Sprintf("step_%02d_", i)
 		requireParity(t, prefix+"sample_in", step.SampleIn, manifest.trace(t, dir, prefix+"sample_in"), goldenSampleTolerance)
@@ -60,10 +58,8 @@ func runSessionGoldenDenoise(t *testing.T, name string) {
 	}
 	requireParity(t, "final_latent", result.Latent, loadG1Tensor(t, dir, manifest.FinalLatent), goldenFinalTolerance)
 
-	execution, err := session.ExecutionStats()
-	testcheck.NoError(t, err)
-	memory, err := session.MemoryStats()
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(session.ExecutionStats())(t)
+	memory := testcheck.Must(session.MemoryStats())(t)
 	t.Logf("graph_launches=%d graph_instantiations=%d graph_updates=%d kernel_launches=%d htod_bytes=%d dtoh_bytes=%d",
 		execution.GraphLaunches, execution.GraphInstantiations, execution.GraphUpdates,
 		execution.KernelLaunches, execution.HostToDeviceBytes, execution.DeviceToHostBytes)
@@ -98,28 +94,24 @@ func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 	testskip.Short(t, "runs the full 30-block denoiser on CUDA")
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	config, weights := denoiserFixture(t)
-	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)
-	testcheck.NoError(t, err)
-	program, err := CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
+	geometry := testcheck.Must(config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height))(t)
+	program := testcheck.Must(CompileDenoiserProgramPrecision(config, weights, geometry, DenoiserPrecision{
 		MatmulWeights: dtype.BF16, RoundAttentionStorage: true,
-	})
-	testcheck.NoError(t, err)
-	session, err := NewDenoiserCUDASession(program, 0)
-	testcheck.NoError(t, err)
+	}))(t)
+	session := testcheck.Must(NewDenoiserCUDASession(program, 0))(t)
 	defer func() {
 		if err := session.Close(); err != nil {
 			t.Errorf("close session: %v", err)
 		}
 	}()
 	contextElements := config.TextLen * config.Dim
-	result, err := session.Denoise(context.Background(), DenoiseRequest{
+	result := testcheck.Must(session.Denoise(context.Background(), DenoiseRequest{
 		Steps: manifest.Request.Steps, Shift: manifest.Request.Shift,
 		GuideScale:    manifest.Request.GuideScale,
 		CondContext:   loadRawContext(t, dir, manifest.Request.CondContext, contextElements),
 		UncondContext: loadRawContext(t, dir, manifest.Request.UncondContext, contextElements),
 		InitialSample: manifest.trace(t, dir, "step_00_sample_in"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := loadG1Tensor(t, dir, manifest.FinalLatent)
 	var dot, gotNorm, wantNorm, deltaSquares, maxDelta float64
 	for i := range want {

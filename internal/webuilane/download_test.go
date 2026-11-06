@@ -18,8 +18,7 @@ func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "download isolation runs through cmd/webui-lane")
 	}
-	executable, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	const payload = "isolated browser download"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/download" {
@@ -31,13 +30,11 @@ func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 		w.Write([]byte(`<a id="download" href="/download" download="fixture.txt">Download</a>`))
 	}))
 	defer server.Close()
-	browser, err := Open(t.Context(), executable, server.URL)
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(Open(t.Context(), executable, server.URL))(t)
 	defer browser.Close()
 	// Observe browser-level completion on a separate socket: page method calls
 	// consume their own events while waiting for command responses.
-	endpoint, err := os.ReadFile(filepath.Join(browser.profile, "DevToolsActivePort"))
-	testcheck.NoError(t, err)
+	endpoint := testcheck.Must(os.ReadFile(filepath.Join(browser.profile, "DevToolsActivePort")))(t)
 	port, target, found := strings.Cut(strings.TrimSpace(string(endpoint)), "\n")
 	if !found {
 		t.Fatal("browser event endpoint is absent")
@@ -48,8 +45,7 @@ func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 		ctx, cancel = context.WithDeadlineCause(ctx, deadline, context.DeadlineExceeded)
 		defer cancel()
 	}
-	events, err := dialWebSocket(ctx, "ws://127.0.0.1:"+strings.TrimSpace(port)+strings.TrimSpace(target))
-	testcheck.NoError(t, err)
+	events := testcheck.Must(dialWebSocket(ctx, "ws://127.0.0.1:"+strings.TrimSpace(port)+strings.TrimSpace(target)))(t)
 	defer events.close()
 	testcheck.NoError(t, events.call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": filepath.Join(browser.profile, "downloads"), "eventsEnabled": true}, nil))
 	testcheck.NoError(t, browser.Eventually(t.Context(), `!!document.querySelector('#download')`))
@@ -57,8 +53,7 @@ func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 	destination := filepath.Join(browser.profile, "downloads", "fixture.txt")
 	guid := ""
 	for {
-		data, err := events.readText()
-		testcheck.NoError(t, err)
+		data := testcheck.Must(events.readText())(t)
 		var event struct {
 			Method string `json:"method"`
 			Params struct {
@@ -81,8 +76,7 @@ func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 			break
 		}
 	}
-	data, err := os.ReadFile(destination)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(destination))(t)
 	if string(data) != payload {
 		t.Fatal("download bytes differ")
 	}

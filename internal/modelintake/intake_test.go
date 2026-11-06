@@ -51,8 +51,7 @@ func (recordingGenerator) Generate(_ context.Context, prompt string, options inf
 // counts a compiled exact plan requires, so a replay of the same model
 // reproduces it exactly.
 func TestRecordExactSuiteReplays(t *testing.T) {
-	suite, err := RecordExactSuite(t.Context(), recordingGenerator{}, "intake-test", []string{"one two three", "alpha beta"}, 4)
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(RecordExactSuite(t.Context(), recordingGenerator{}, "intake-test", []string{"one two three", "alpha beta"}, 4))(t)
 	if len(suite.Cases) != 2 || suite.Cases[0].Text != "three two one " || suite.Cases[0].PromptTokens != 3 || suite.Cases[0].GeneratedTokens != 3 {
 		t.Fatalf("recorded suite = %+v", suite.Cases)
 	}
@@ -70,8 +69,7 @@ func TestMeasuredVerificationRequestBinding(t *testing.T) {
 	store := overgodbtest.Create(t, path)
 	model := testutil.ArtifactID(t, artifact.KindModel, "verification request fixture")
 	testutil.PublishArtifact(t, store, model)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, model)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, model))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -79,11 +77,9 @@ func TestMeasuredVerificationRequestBinding(t *testing.T) {
 	var inputs []artifact.Content
 	var records []modelrecipe.Verification
 	for _, text := range []string{"first request", "second request"} {
-		input, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.verification-request-fixture.v1"), text)
-		testcheck.NoError(t, err)
+		input := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.verification-request-fixture.v1"), text))(t)
 		measured := capabilityruntime.Measured{Input: input}
-		verified, err := PublishMeasuredVerification(ctx, store, definition, revision, time.Millisecond, "host", "go", "fixture execution", measured)
-		testcheck.NoError(t, err)
+		verified := testcheck.Must(PublishMeasuredVerification(ctx, store, definition, revision, time.Millisecond, "host", "go", "fixture execution", measured))(t)
 		bound, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verified.Gate, verified.Run)
 		if err != nil || !slices.Equal(bound.Run.Inputs, []artifact.ID{input.Descriptor.ID}) {
 			t.Fatalf("request lost from verifier run: %+v: %v", bound.Run.Inputs, err)
@@ -112,8 +108,7 @@ func TestMeasuredVerificationRequestBinding(t *testing.T) {
 			t.Fatalf("invalid request admitted or partially published: %v", err)
 		}
 	}
-	legacy, err := PublishVerification(ctx, store, definition, revision, time.Millisecond, "host", "go", "fixture execution")
-	testcheck.NoError(t, err)
+	legacy := testcheck.Must(PublishVerification(ctx, store, definition, revision, time.Millisecond, "host", "go", "fixture execution"))(t)
 	legacyRun, err := runrecord.RequireExactRun(ctx, store, legacy.Run)
 	if err != nil || len(legacyRun.Inputs) != 0 {
 		t.Fatalf("legacy publication invented a request: %v", err)

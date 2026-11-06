@@ -36,10 +36,9 @@ func TestBindSequenceOutputGraphWeights(t *testing.T) {
 		}},
 	}
 	builder := tensor.NewBuilder()
-	weights, err := BindSequenceOutputGraphWeights(info, func(info gguf.TensorInfo) (*tensor.Tensor, error) {
+	weights := testcheck.Must(BindSequenceOutputGraphWeights(info, func(info gguf.TensorInfo) (*tensor.Tensor, error) {
 		return builder.Input(info.Name, dtype.F32, tensor.MustShape(1)), builder.Err()
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for name, node := range map[string]*tensor.Tensor{
 		"input": weights.InputConv, "output": weights.Output,
 		"residual_norm":  weights.Residual[0].Norm1,

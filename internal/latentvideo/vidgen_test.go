@@ -21,14 +21,12 @@ func TestListCaptionedClips(t *testing.T) {
 	}
 	manifest := `[{"vid":"clip-a","caption":"a red flower"},{"vid":"clip-b","caption":"a blue door"},{"vid":"absent-clip","caption":"never on disk"}]`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, vidGenCaptionFile), []byte(manifest), 0o600))
-	clips, err := ListCaptionedClips(root, 8)
-	testcheck.NoError(t, err)
+	clips := testcheck.Must(ListCaptionedClips(root, 8))(t)
 	if len(clips) != 2 || clips[0].Name != "clip-a" || clips[0].Caption != "a red flower" ||
 		clips[1].Name != "clip-b" || clips[1].Caption != "a blue door" {
 		t.Fatalf("clips = %+v, want the two captioned clips in name order", clips)
 	}
-	limited, err := ListCaptionedClips(root, 1)
-	testcheck.NoError(t, err)
+	limited := testcheck.Must(ListCaptionedClips(root, 1))(t)
 	if len(limited) != 1 || limited[0].Name != "clip-a" {
 		t.Fatalf("limited = %+v", limited)
 	}
@@ -44,8 +42,7 @@ func TestDecodeClipSource(t *testing.T) {
 	}
 	ctx := t.Context()
 	const frames, height, width = 5, 32, 48
-	encoder, err := NewMP4Encoder(ctx, ffmpeg, 8, UnitPixels)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(NewMP4Encoder(ctx, ffmpeg, 8, UnitPixels))(t)
 	levels := [3]float32{0.8, 0.4, 0.2}
 	frame := make([]float32, 3*height*width)
 	for channel := range 3 {
@@ -56,12 +53,10 @@ func TestDecodeClipSource(t *testing.T) {
 	for index := range frames {
 		testcheck.NoError(t, encoder.Add(index, frame, height, width))
 	}
-	encoded, err := encoder.Finish()
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(encoder.Finish())(t)
 	path := filepath.Join(t.TempDir(), "solid.mp4")
 	testcheck.NoError(t, os.WriteFile(path, encoded.Data, 0o600))
-	decoded, err := DecodeClipSource(ctx, ffmpeg, path, SourceVideoShape{Channels: 3, Frames: frames, Height: height, Width: width})
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(DecodeClipSource(ctx, ffmpeg, path, SourceVideoShape{Channels: 3, Frames: frames, Height: height, Width: width}))(t)
 	spatial := height * width
 	for channel := range 3 {
 		var sum float64

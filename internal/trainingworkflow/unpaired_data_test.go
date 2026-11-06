@@ -34,8 +34,7 @@ func TestUnpairedDatasetReadsLabelledCompletions(t *testing.T) {
 	lines := func(documents ...map[string]any) []byte {
 		var raw bytes.Buffer
 		for _, document := range documents {
-			line, err := json.Marshal(document)
-			testcheck.NoError(t, err)
+			line := testcheck.Must(json.Marshal(document))(t)
 			raw.Write(append(line, '\n'))
 		}
 		return raw.Bytes()
@@ -48,8 +47,7 @@ func TestUnpairedDatasetReadsLabelledCompletions(t *testing.T) {
 			"label": index%desirableEvery == 0,
 		})
 	}
-	read, err := unpairedBatchesResume(t.Context(), lines(documents...), 0, encode, nil, nil)
-	testcheck.NoError(t, err)
+	read := testcheck.Must(unpairedBatchesResume(t.Context(), lines(documents...), 0, encode, nil, nil))(t)
 	if read.units != 2 || len(read.batches) != read.units || read.desirable != 3 || read.undesirable != 9 || read.stream.Position != 2*ktoMicrobatchExamples {
 		t.Fatalf("read %d units, %d batches, %d desirable and %d undesirable to position %d", read.units, len(read.batches), read.desirable, read.undesirable, read.stream.Position)
 	}

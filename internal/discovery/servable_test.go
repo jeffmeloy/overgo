@@ -49,8 +49,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 			// Two manifest references to one shard still name one physical payload.
 			components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: uint32(len(components)), Name: "shared-shard", Artifact: components[1].Artifact})
 		}
-		manifest, err := artifact.NewManifest(artifact.KindModel, components)
-		testcheck.NoError(t, err)
+		manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, components))(t)
 		batch.Manifests = []artifact.Manifest{manifest}
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
@@ -81,8 +80,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	shards := []string{"x", strings.Repeat("shard", 16)}
 	split := publish("split", shards...)
 	publishVerifiedActivation(t, store, split, "split")
-	sized, err := LocalServable(ctx, store)
-	testcheck.NoError(t, err)
+	sized := testcheck.Must(LocalServable(ctx, store))(t)
 	if len(sized) != 2 || sized[0].Model != healthy || sized[1].Model != split ||
 		sized[0].Bytes != int64(len("discovery-weights-healthy")) || sized[1].Bytes != int64(len(shards[0])+len(shards[1])) {
 		t.Fatalf("local weights = %+v, want healthy then the complete split model without duplicate shard bytes", sized)
@@ -104,8 +102,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	drifted, err := Servable(ctx, store, 10)
-	testcheck.NoError(t, err)
+	drifted := testcheck.Must(Servable(ctx, store, 10))(t)
 	for _, entry := range drifted {
 		if entry.Model == healthy && !strings.Contains(entry.Stale, "not measured") {
 			t.Fatalf("drifted entry = %+v, want it reported stale", entry)
@@ -119,9 +116,8 @@ func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID arti
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "discovery-definition-"+suffix)
 	testutil.PublishArtifact(t, store, profile)
 	testutil.PublishArtifact(t, store, definitionID)
-	definition, err := modelrecipe.InferenceWithModelDefinition(modelID, profile, definitionID,
-		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(modelID, profile, definitionID,
+		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference))(t)
 	testcheck.NoError(t, modelrecipetest.PublishActivation(t.Context(), store, "fixture/discovery/"+suffix, definition))
 }
 
@@ -132,10 +128,9 @@ func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
 	oldComponent := testutil.ArtifactBytesID(t, artifact.KindTensorSet, oldPayload)
 	location := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(location, currentPayload, 0o600))
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: oldComponent,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/discovery/replaced",
 		Artifacts: []artifact.Descriptor{{ID: oldComponent, Size: uint64(len(oldPayload))}},
@@ -165,11 +160,10 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(
 		modelID, profile, definitionID, recipe.PlacementHost,
 		modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/legacy-candidate/"+suffix, definition); err != nil {
 		t.Fatal(err)
 	}
@@ -177,20 +171,17 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 		ctx, store, "fixture/discovery/legacy-validated/"+suffix, definition, recipe.StatusValidated, nil, nil,
 	)
 	testcheck.NoError(t, err)
-	active, err := recipe.NewLifecycleEvent(
+	active := testcheck.Must(recipe.NewLifecycleEvent(
 		definition, recipe.StatusValidated, recipe.StatusActive, &validated.ID, nil, []artifact.ID{intent},
-	)
-	testcheck.NoError(t, err)
-	content, err := active.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	))(t)
+	content := testcheck.Must(active.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/discovery/legacy-active/"+suffix, []artifact.Content{content}, nil,
 		[]artifact.AliasBinding{
 			{Name: "recipe.status." + definition.ID.String(), Target: active.ID, Previous: &validated.ID},
 			{Name: "recipe.active.inference." + modelID.String(), Target: definition.ID},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -213,10 +204,9 @@ func TestEveryPresentModelListsWithItsState(t *testing.T) {
 		if present {
 			testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
 		}
-		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{
+		manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{
 			{Role: artifact.ComponentWeights, Name: "weights", Artifact: component},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       "fixture/discovery/states/" + name,
 			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
@@ -245,8 +235,7 @@ func TestEveryPresentModelListsWithItsState(t *testing.T) {
 	if len(states) != 2 || states[unverified] != modelrecipe.StateNotVerified || states[verified] == modelrecipe.StateNotVerified || states[verified] == "" {
 		t.Fatalf("states = %v", states)
 	}
-	measured, err := Servable(ctx, store, 10)
-	testcheck.NoError(t, err)
+	measured := testcheck.Must(Servable(ctx, store, 10))(t)
 	if len(measured) != 1 || measured[0].Model != verified {
 		t.Fatalf("the measured surface holds %+v, want only the activated model", measured)
 	}

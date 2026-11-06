@@ -32,8 +32,7 @@ func (g screensGenerator) ModelProperties() inference.ModelProperties {
 // banner in its panel, no page error).
 func TestWebUIBrowserScreens(t *testing.T) {
 	requireWebUILane(t, "browser screens run through cmd/webui-lane")
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	repository := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_SCREENS_TEST_KEY", "screens-key")
 	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
@@ -47,8 +46,7 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, httpServer.URL+"/"))(t)
 	defer browser.Close()
 	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"))
 	testcheck.NoError(t, err)

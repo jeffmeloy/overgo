@@ -88,8 +88,7 @@ func (*countingWorkflows) ExecuteWorkflow(context.Context, WorkflowKind, Workflo
 func TestManifestAcquiresEachCapabilityOnce(t *testing.T) {
 	t.Parallel()
 	workflows := &countingWorkflows{tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskSpeech}}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Analysis: testAnalysisPolicy, Workflows: workflows}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Analysis: testAnalysisPolicy, Workflows: workflows}, &fakeGenerator{}))(t)
 	manifest := func() (map[string]bool, map[string]bool) {
 		t.Helper()
 		workflows.listed = map[WorkflowKind]int{}

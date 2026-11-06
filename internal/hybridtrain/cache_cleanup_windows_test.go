@@ -10,8 +10,7 @@ import (
 )
 
 func TestResidentTrainingCacheCleanup(t *testing.T) {
-	model, err := BuildModel(smallHybrid(), testSeed)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(BuildModel(smallHybrid(), testSeed))(t)
 	training := &residentTraining{
 		model:     model,
 		weights:   make([]devicemath.HybridLayerResidentMatrices, len(model.Weights)),

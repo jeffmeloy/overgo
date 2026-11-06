@@ -21,16 +21,13 @@ import (
 
 func TestIFEvalLanguageAcceptance(t *testing.T) {
 	t.Parallel()
-	p, err := compiledIFEvalLanguage()
-	testcheck.NoError(t, err)
+	p := testcheck.Must(compiledIFEvalLanguage())(t)
 	parse := func(text string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(text))(t)
 		return id
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var selection struct {
 		Oracle   artifact.ID
@@ -139,8 +136,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 		if want.Exception != 0 || label != want.Detected {
 			t.Fatalf("%s detected=%s/%s", name, label, want.Detected)
 		}
-		prob, err := p.probabilities(grams)
-		testcheck.NoError(t, err)
+		prob := testcheck.Must(p.probabilities(grams))(t)
 		if len(prob) != len(want.Probabilities) {
 			t.Fatal("language probability denominator differs")
 		}
@@ -163,8 +159,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 		if !mapped || len(rules) != 1 {
 			t.Fatal("native language instruction missing or duplicated")
 		}
-		rule, err := compileInstructionRule(rules[0])
-		testcheck.NoError(t, err)
+		rule := testcheck.Must(compileInstructionRule(rules[0]))(t)
 		strict, loose, err := evaluateInstructionViews(oracle.Boundary[c.Boundary].Response, []compiledInstructionRule{rule})
 		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {

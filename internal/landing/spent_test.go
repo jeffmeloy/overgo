@@ -100,8 +100,7 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	release, err := l.holdQuiet(ctx, quietTestMachine)
-	testcheck.NoError(t, err)
+	release := testcheck.Must(l.holdQuiet(ctx, quietTestMachine))(t)
 	group.Wait()
 	testcheck.NoError(t, release())
 	if l.spent.Measurement <= 0 {

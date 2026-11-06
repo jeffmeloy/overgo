@@ -18,14 +18,10 @@ func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 	value := struct {
 		Name string `json:"name"`
 	}{Name: "publication-owner"}
-	data, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	id, err := contract.Identify(data)
-	testcheck.NoError(t, err)
-	owned, err := contract.ContentJSON(id, value)
-	testcheck.NoError(t, err)
-	manual, err := contract.Content(id, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(value))(t)
+	id := testcheck.Must(contract.Identify(data))(t)
+	owned := testcheck.Must(contract.ContentJSON(id, value))(t)
+	manual := testcheck.Must(contract.Content(id, data))(t)
 	if owned.Descriptor != manual.Descriptor || string(owned.Data) != string(manual.Data) {
 		t.Fatalf("owner output differs from manual pair: %+v vs %+v", owned, manual)
 	}

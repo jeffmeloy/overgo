@@ -16,22 +16,18 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "derivation")
 	evidence := testutil.ArtifactID(t, artifact.KindRun, "run")
-	decision, err := NewDecision(
+	decision := testcheck.Must(NewDecision(
 		subject, DecisionRefused, EvidenceParity, "output parity failed",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
 		[]artifact.ID{derivation, evidence},
-	)
-	testcheck.NoError(t, err)
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
-	parsed, err := ParseDecision(content.Data)
-	testcheck.NoError(t, err)
+	))(t)
+	content := testcheck.Must(decision.Content())(t)
+	parsed := testcheck.Must(ParseDecision(content.Data))(t)
 	if parsed.ID != decision.ID || parsed.Decider != decision.Decider || parsed.Tier != EvidenceParity ||
 		parsed.Reason != decision.Reason {
 		t.Fatalf("parsed decision = %+v", parsed)
 	}
-	batch, err := decision.Batch("test/decision")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(decision.Batch("test/decision"))(t)
 	parents := map[artifact.ID]bool{subject: true, derivation: true, evidence: true}
 	if len(batch.Contents) != 1 || len(batch.Lineage) != len(parents) {
 		t.Fatalf("decision batch = %+v", batch)
@@ -41,11 +37,10 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 			t.Fatalf("decision lineage = %+v", batch.Lineage)
 		}
 	}
-	second, err := NewDecision(
+	second := testcheck.Must(NewDecision(
 		subject, DecisionRefused, EvidenceExperimental, decision.Reason,
 		decision.Decider, decision.Evidence,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if second.ID == decision.ID {
 		t.Fatal("decision tier did not affect identity")
 	}
@@ -67,14 +62,12 @@ func TestRefusalDecisionCarriesMeasuredReason(t *testing.T) {
 	failedRun := testutil.ArtifactID(t, artifact.KindRun, "failed-run")
 	decider := Decider{CodeCommit: decisionTestCommit, Derivation: derivation}
 
-	decision, err := NewDecision(
+	decision := testcheck.Must(NewDecision(
 		subject, DecisionRefused, EvidenceExperimental,
 		"held-out loss regressed beyond the noise envelope",
 		decider, []artifact.ID{failedRun},
-	)
-	testcheck.NoError(t, err)
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	content := testcheck.Must(decision.Content())(t)
 	parsed, err := ParseDecision(content.Data)
 	if err != nil || parsed.Reason != decision.Reason || len(parsed.Evidence) != 1 || parsed.Evidence[0] != failedRun {
 		t.Fatalf("parsed refusal = (%+v, %v)", parsed, err)
@@ -150,11 +143,10 @@ func TestEvidenceTierIsVerificationVocabulary(t *testing.T) {
 	}
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "tier-subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "tier-derivation")
-	decision, err := NewDecision(
+	decision := testcheck.Must(NewDecision(
 		subject, DecisionAccepted, EvidenceVerified, "verification evidence stands",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation}, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if decision.Tier != EvidenceVerified {
 		t.Fatalf("tier = %q", decision.Tier)
 	}

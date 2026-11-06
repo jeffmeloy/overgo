@@ -18,8 +18,7 @@ import (
 // census counts them all.
 func TestQueryScansProportionalToItsPage(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	contract := func(schema string) artifact.DocumentContract {
 		return artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "application/json", Schema: schema}
@@ -27,8 +26,7 @@ func TestQueryScansProportionalToItsPage(t *testing.T) {
 	queried, other := contract("test/paged/v1"), contract("test/crowd/v1")
 	document := func(c artifact.DocumentContract, body string) artifact.Content {
 		data := fmt.Appendf(nil, "{%q:%q}", c.Schema, body)
-		id, err := artifact.IdentifyBytes(c.Kind, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(c.Kind, data))(t)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: c.MediaType, Schema: c.Schema}, Data: data}
 	}
 	const pagedCount, crowdPerCommit = 7, 20

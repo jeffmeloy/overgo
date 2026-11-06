@@ -22,8 +22,7 @@ func TestPublishRemoteModelDefinitionBindsRelayRecipe(t *testing.T) {
 	providerID := testutil.ArtifactID(t, artifact.KindProfile, "hosted-provider")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, providerID)
-	definition, err := RemoteInferenceDefinition(modelID, providerID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(RemoteInferenceDefinition(modelID, providerID))(t)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/remote/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +40,7 @@ func TestPublishRemoteModelDefinitionBindsRelayRecipe(t *testing.T) {
 	if err := RequireModelDefinitionBinding(ctx, store, published, other, definition.ID); err == nil || !strings.Contains(err.Error(), "differs") {
 		t.Fatalf("binding to another model: %v", err)
 	}
-	local, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	testcheck.NoError(t, err)
+	local := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest))(t)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/remote/local-candidate", local); err != nil {
 		t.Fatal(err)
 	}

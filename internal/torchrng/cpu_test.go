@@ -19,13 +19,11 @@ import (
 func TestCPUNormalGolden(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(testutil.RepoRoot(t), "fixtures", "torchrng", "cpu-normal.safetensors")
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	if hash := fmt.Sprintf("%x", sha256.Sum256(raw)); hash != "3c98167f1812b016c241bfad8db14765689b03fbca9a24691d357cfa611a5cf4" {
 		t.Fatalf("reference identity differs: %s", hash)
 	}
-	source, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer source.Close()
 	if len(source.Tensors) != 60 || len(source.Metadata) != 1 {
 		t.Fatal("reference coverage or provenance differs")
@@ -45,10 +43,8 @@ func TestCPUNormalGolden(t *testing.T) {
 				if !ok || value.DType != "F32" || !slices.Equal(value.Shape, []uint64{uint64(count)}) {
 					t.Fatal("missing exact reference geometry")
 				}
-				want, err := io.ReadAll(value.Reader())
-				testcheck.NoError(t, err)
-				got, err := CPUNormal(seed, count)
-				testcheck.NoError(t, err)
+				want := testcheck.Must(io.ReadAll(value.Reader()))(t)
+				got := testcheck.Must(CPUNormal(seed, count))(t)
 				if len(got) != count || len(want) != count*4 {
 					t.Fatal("noise length differs")
 				}
@@ -73,13 +69,11 @@ func TestCPUNormalRefusesInvalidCount(t *testing.T) {
 
 func TestCPUNormalScalarGolden(t *testing.T) {
 	path := testutil.FixturePath(t, "torchrng", "cpu-short-normal.safetensors")
-	b, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	b := testcheck.Must(os.ReadFile(path))(t)
 	if fmt.Sprintf("%x", sha256.Sum256(b)) != "0c11dea5db75d3aeaba0fd0d019da7514a1bb37b0ffe7d76fcbd4141118a3f4c" {
 		t.Fatal("native short noise identity")
 	}
-	source, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer source.Close()
 	if len(source.Tensors) != 90 {
 		t.Fatal("native short noise coverage")
@@ -91,10 +85,8 @@ func TestCPUNormalScalarGolden(t *testing.T) {
 			if !found || v.DType != "F32" {
 				t.Fatal("native short noise case", name)
 			}
-			want, err := io.ReadAll(v.Reader())
-			testcheck.NoError(t, err)
-			got, err := CPUNormal(seed, count)
-			testcheck.NoError(t, err)
+			want := testcheck.Must(io.ReadAll(v.Reader()))(t)
+			got := testcheck.Must(CPUNormal(seed, count))(t)
 			if len(got) != count || len(want) != count*4 {
 				t.Fatal("short noise extent")
 			}

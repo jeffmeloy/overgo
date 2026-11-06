@@ -12,19 +12,18 @@ import (
 func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 	t.Parallel()
 	const bbhPrompt = "Q: True and not False is\nA:True\n\nQ: not True is\nA:"
-	bbh, err := CompileGroupedChoice(GroupedChoiceSuite{
+	bbh := testcheck.Must(CompileGroupedChoice(GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: "lm-eval/leaderboard-bbh/v1.0", Source: "bbh-fixture",
 		Normalization: sequencescore.NormalizationMean,
 		Cases: []DemonstratedChoice{{
 			Name: "boolean", Group: "boolean-expressions", Prompt: "Q: not True is\nA:", Candidates: []string{"False", "True"}, Answer: 0,
 			Demonstrations: []MultipleChoiceCase{{Name: "demo", Prompt: "Q: True and not False is\nA:", Candidates: []string{"False", "True"}, Answer: 1}},
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if bbh.choice.suite.Cases[0].Prompt != bbhPrompt {
 		t.Fatalf("BBH prompt = %q", bbh.choice.suite.Cases[0].Prompt)
 	}
-	musr, err := CompileGroupedChoice(GroupedChoiceSuite{
+	musr := testcheck.Must(CompileGroupedChoice(GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: "lm-eval/leaderboard-musr/v1.0", Source: "musr-fixture",
 		Normalization: sequencescore.NormalizationMean,
 		Cases: []DemonstratedChoice{{
@@ -32,17 +31,14 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 			Prompt:     "A is left of B.\n\nWhere is A?\n\n1 - left\n2 - right\nAnswer:",
 			Candidates: []string{"left", "right"}, Answer: 0,
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for _, compiled := range []groupedChoicePlan{bbh, musr} {
-		plan, err := BindGroupedChoice(compiled, ExactAuthorities{
+		plan := testcheck.Must(BindGroupedChoice(compiled, ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 			RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 			Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-		})
-		testcheck.NoError(t, err)
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		}))(t)
+		store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := EvaluateGroupedChoice(
 			t.Context(), store,

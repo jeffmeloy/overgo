@@ -157,16 +157,14 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 			{ID: "second", Status: StatusOpen, Verify: "go test ./..."},
 		},
 	}}}
-	advanced, err := Advance(document, "item", "first")
-	testcheck.NoError(t, err)
+	advanced := testcheck.Must(Advance(document, "item", "first"))(t)
 	if len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
 		t.Fatalf("first advance retained the completed step: %+v", advanced.Items[0])
 	}
 	if _, step, ok := Current(advanced, worklease.UnassignedRole); !ok || step.ID != "second" {
 		t.Fatalf("current after first advance = %s, open=%v", step.ID, ok)
 	}
-	advanced, err = Advance(advanced, "item", "second")
-	testcheck.NoError(t, err)
+	advanced = testcheck.Must(Advance(advanced, "item", "second"))(t)
 	if len(advanced.Items) != 0 {
 		t.Fatalf("final advance retained the completed item: %+v", advanced.Items)
 	}

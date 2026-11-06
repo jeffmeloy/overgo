@@ -13,8 +13,7 @@ func verifyHybridCachedBackward(t *testing.T, worker *device.Worker, x []float32
 	t.Helper()
 	_, cache, err := HybridDecoderLayerForwardDevice(worker, x, w, d, state)
 	testcheck.NoError(t, err)
-	got, err := hybridLayerBackwardCachedW(worker, x, hybridHostMatW(w), w, d, state, incoming, &cache)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(hybridLayerBackwardCachedW(worker, x, hybridHostMatW(w), w, d, state, incoming, &cache))(t)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("retained and prepared forward gradients differ")
 	}

@@ -34,19 +34,17 @@ func TestWebUIBrowserPhoneTopBarHoldsALongSupportTier(t *testing.T) {
 	rung := func(name string, held bool) map[string]any {
 		return map[string]any{"name": name, "held": held, "detail": "the top bar leg's " + name + " rung"}
 	}
-	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{{
+	catalog := testcheck.Must(json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{{
 		"model": manifest.Model.Model, "location": "C:/models/" + health["model"].(string), "present": true, "recipe": "recipe:served",
 		"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:served", "tier": "verified"}},
 		"support": map[string]any{"tier": "parity-checked", "rungs": []map[string]any{
 			rung("registered", true), rung("execution-verified", true), rung("parity-checked", true), rung("guarded", true), rung("trainable", true),
 		}},
-	}}})
-	testcheck.NoError(t, err)
+	}}}))(t)
 	// The health probe as a server with a device answers it, so the memory bar stands in the bar too.
 	memory := testDeviceMemory()
 	health["device"] = map[string]any{"current_bytes": memory.TotalBytes - memory.FreeBytes, "peak_bytes": memory.TotalBytes - memory.FreeBytes, "total_bytes": memory.TotalBytes, "free_bytes": memory.FreeBytes, "owners": memory.Owners}
-	probed, err := json.Marshal(health)
-	testcheck.NoError(t, err)
+	probed := testcheck.Must(json.Marshal(health))(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/catalog/models":

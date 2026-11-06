@@ -109,8 +109,7 @@ func TestAudioDecodeRejectsMalformedWAV(t *testing.T) {
 }
 
 func TestAudioDecodeFLACIntegrity(t *testing.T) {
-	encoded, err := hex.DecodeString(stereoFLACHex)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(hex.DecodeString(stereoFLACHex))(t)
 	audio, status, err := DecodeAudio(t.Context(), encoded, 48)
 	if err != nil || status != recipecontract.AudioDecodeComplete || len(audio.Samples) != 48 || audio.Format.Channels != 2 {
 		t.Fatalf("decode=%+v status=%s %v", audio, status, err)

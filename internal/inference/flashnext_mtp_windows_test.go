@@ -72,8 +72,7 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 		}
 		raw := make([]byte, info.Size)
 		testcheck.NoError(t, trunk.ReadTensorData(info, raw))
-		data, err := quant.Dequantize(info.Type, raw, info.Size/4)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(quant.Dequantize(info.Type, raw, info.Size/4))(t)
 		if norm {
 			for index := range data {
 				data[index]--
@@ -129,8 +128,7 @@ func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, ge
 	}
 	metadata := []gguf.Metadata{testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen4exp-mtp")}
 	path := filepath.Join(t.TempDir(), "hermetic-flash-next-mtp.gguf")
-	file, err := os.Create(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Create(path))(t)
 	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
@@ -175,14 +173,12 @@ func TestFlashNextMTPKeepsThePromptCache(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	const generated = 12
 	first := []tokenizer.TokenID{4, 9, 17}
 	// The follow-up turn adds a user's tokens after the first turn's answer.
 	followUp := []tokenizer.TokenID{21, 30}
-	plainRunner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative)
-	testcheck.NoError(t, err)
+	plainRunner := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative))(t)
 	plain := func(prompt []tokenizer.TokenID) []tokenizer.TokenID {
 		t.Helper()
 		ids, _, err := plainRunner.Generate(t.Context(), "", GenerateOptions{
@@ -195,9 +191,8 @@ func TestFlashNextMTPKeepsThePromptCache(t *testing.T) {
 	plainSecond := plain(append(slices.Clone(plainFirst), followUp...))
 	testcheck.NoError(t, plainRunner.Close())
 	for _, copyTrunk := range []bool{false, true} {
-		runner, err := openFixtureRunnerWithResidency(trunk,
-			OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(trunk,
+			OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative))(t)
 		turn := func(prompt []tokenizer.TokenID) ([]tokenizer.TokenID, int) {
 			t.Helper()
 			cached := -1
@@ -236,13 +231,11 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	const generated = 24
 	prompt := []tokenizer.TokenID{4, 9, 17}
 	for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
-		plainRunner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, residency)
-		testcheck.NoError(t, err)
+		plainRunner := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{}, residency))(t)
 		if tokens := plainRunner.SpeculativeDraftTokens(); tokens != 0 || plainRunner.SpeculatesByDefault() {
 			t.Fatalf("%s: the trunk alone declares %d draft tokens", residency, tokens)
 		}
@@ -259,8 +252,7 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 			t.Fatalf("%s: the fixture selects one token throughout (%v)", residency, lookahead)
 		}
 		for _, copyTrunk := range []bool{false, true} {
-			runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, residency)
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk)}, residency))(t)
 			if tokens := runner.SpeculativeDraftTokens(); tokens != hyperDraftTokens || !runner.SpeculatesByDefault() {
 				_ = runner.Close()
 				t.Fatalf("%s: the attached draft declares %d draft tokens, speculating by default %t", residency, tokens, runner.SpeculatesByDefault())

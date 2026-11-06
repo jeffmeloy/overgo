@@ -20,8 +20,7 @@ func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
 		t.Fatalf("assemble: dropped=%d err=%v", dropped, err)
 	}
 	suite := assembled.(instructionRulesSuite)
-	compiled, err := compileInstructionRules(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(compileInstructionRules(suite))(t)
 	if len(compiled.rules[0]) != 2 {
 		t.Fatal("repeated instruction disappeared")
 	}

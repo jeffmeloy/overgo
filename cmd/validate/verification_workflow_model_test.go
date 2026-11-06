@@ -31,8 +31,7 @@ import (
 func TestStructuredMediaReportProjection(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	storePath := retainedReferenceStore(roots.Store)
 	store := overgodbtest.OpenReadOnly(t, storePath)
 	t.Run("shared retained projection", func(t *testing.T) {
@@ -45,8 +44,7 @@ func TestStructuredMediaReportProjection(t *testing.T) {
 
 func assertStructuredMediaReport(t *testing.T, root, storePath string) {
 	t.Helper()
-	output, err := generateMediaReport(root, storePath)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(generateMediaReport(root, storePath))(t)
 	var value mediaProjection
 	testcheck.NoError(t, json.Unmarshal(output.JSON, &value))
 	var index mediaValidationIndex
@@ -97,8 +95,7 @@ func assertStructuredMediaProtocol(t *testing.T, root string, reader artifact.Re
 		fixture := t.TempDir()
 		path := filepath.Join(fixture, imageVideoProtocolPath)
 		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
-		raw, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(value))(t)
 		testcheck.NoError(t, os.WriteFile(path, raw, 0600))
 		return fixture
 	}
@@ -151,10 +148,8 @@ func assertStructuredMediaProtocol(t *testing.T, root string, reader artifact.Re
 func TestMediaReceiptRetainedContracts(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t)
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var bindings map[string]map[string][]string
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &bindings))

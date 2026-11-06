@@ -24,8 +24,7 @@ var strataDraftModel = filepath.Join("Qwen3.8-Flash-Next", "unsloth-UD-IQ4_XS", 
 // tensors (dense.txt's names, kinds, shapes and offsets, and dense.bin's bytes) and its experts' blobs (experts.bin's
 // bytes, the first, a middle and the last chunk of experts) are the rt pack's that mtp_rt.py wrote from the same file.
 func TestStrataDraftPackIsStratas(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	rt := filepath.Join(roots.References(), "strata", "mtp", "rt")
 	path := roots.ResolveModelPath(strataDraftModel)
 	for _, need := range []string{path, filepath.Join(rt, "dense.txt")} {
@@ -33,15 +32,12 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 			t.Skipf("the pack's check needs %s: %v", need, err)
 		}
 	}
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	t.Cleanup(func() { file.Close() })
 	dense, tensors, err := strataDraftDense(file)
 	testcheck.NoError(t, err)
-	reference, err := os.ReadFile(filepath.Join(rt, "dense.bin"))
-	testcheck.NoError(t, err)
-	index, err := os.Open(filepath.Join(rt, "dense.txt"))
-	testcheck.NoError(t, err)
+	reference := testcheck.Must(os.ReadFile(filepath.Join(rt, "dense.bin")))(t)
+	index := testcheck.Must(os.Open(filepath.Join(rt, "dense.txt")))(t)
 	defer index.Close()
 	lines := 0
 	scanner := bufio.NewScanner(index)
@@ -76,8 +72,7 @@ func TestStrataDraftPackIsStratas(t *testing.T) {
 	if lines != len(tensors) {
 		t.Errorf("the pack holds %d dense tensors, dense.txt %d", len(tensors), lines)
 	}
-	experts, err := os.Open(filepath.Join(rt, "experts.bin"))
-	testcheck.NoError(t, err)
+	experts := testcheck.Must(os.Open(filepath.Join(rt, "experts.bin")))(t)
 	defer experts.Close()
 	gateUp, _ := file.Tensor("mtp.layers.0.mlp.experts.gate_up_proj")
 	down, _ := file.Tensor("mtp.layers.0.mlp.experts.down_proj")

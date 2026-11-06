@@ -34,13 +34,11 @@ func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
 			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	post := func(request, text string) (int, workflowResponse) {
 		t.Helper()
-		body, err := json.Marshal(workflowRequest{Task: recipe.TaskGeneration, Recipe: recipeID, Input: json.RawMessage(fmt.Sprintf(`{"text":%q}`, text)), Request: request})
-		testcheck.NoError(t, err)
+		body := testcheck.Must(json.Marshal(workflowRequest{Task: recipe.TaskGeneration, Recipe: recipeID, Input: json.RawMessage(fmt.Sprintf(`{"text":%q}`, text)), Request: request}))(t)
 		response := serveTestRequest(handler, http.MethodPost, "/generation/run", string(body))
 		var submission workflowResponse
 		if response.Code == http.StatusAccepted {

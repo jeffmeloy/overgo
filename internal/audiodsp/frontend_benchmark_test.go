@@ -10,8 +10,7 @@ import (
 )
 
 func BenchmarkFrontend(b *testing.B) {
-	encoded, err := os.ReadFile("testdata/power_logmel_frontend.json")
-	testcheck.NoError(b, err)
+	encoded := testcheck.Must(os.ReadFile("testdata/power_logmel_frontend.json"))(b)
 	var config FrontendConfig
 	testcheck.NoError(b, json.Unmarshal(encoded, &config))
 	// Fixed synthetic input, not an ASR quality or real-time serving claim.
@@ -39,8 +38,7 @@ func BenchmarkFrontend(b *testing.B) {
 			name = "hop-chunks"
 		}
 		b.Run(name, func(b *testing.B) {
-			plan, err := NewFrontend(config, uint64(math.MaxInt))
-			testcheck.NoError(b, err)
+			plan := testcheck.Must(NewFrontend(config, uint64(math.MaxInt)))(b)
 			var workspace Workspace
 			ctx := b.Context()
 			if _, _, err := plan.Process(ctx, chunks, config.SampleRate, &workspace, ProcessOptions{}); err != nil {
@@ -67,8 +65,7 @@ func TestFrontendSteadyStateAllocations(t *testing.T) {
 			config.ResampleTaps = []float64{0.5, 1, 0.5}
 		}
 		t.Run(name, func(t *testing.T) {
-			plan, err := NewFrontend(config, 1<<20)
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 			chunks := [][]float32{nil, samples[:3], nil, samples[3:], nil}
 			ctx := t.Context()
 			var workspace Workspace

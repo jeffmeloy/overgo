@@ -16,8 +16,7 @@ func TestProfileDocumentsBeforeALaterFact(t *testing.T) {
 	if !found {
 		t.Fatal("baichuan profile absent")
 	}
-	current, err := CatalogProfileProvenance(profile)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(CatalogProfileProvenance(profile))(t)
 	if !slices.ContainsFunc(current, func(item ProfileFactProvenance) bool { return slices.Contains(laterProfileFacts, item.Fact) }) {
 		t.Fatal("a profile derived now records no provenance for the later facts")
 	}
@@ -29,8 +28,7 @@ func TestProfileDocumentsBeforeALaterFact(t *testing.T) {
 	earlier := slices.DeleteFunc(slices.Clone(architectureProfileFactSpecs), func(spec ProfileFactSpec) bool {
 		return slices.Contains(laterProfileFacts, spec.Fact)
 	})
-	derivation, err := catalogProfileDerivation(profile, earlier)
-	testcheck.NoError(t, err)
+	derivation := testcheck.Must(catalogProfileDerivation(profile, earlier))(t)
 	var written []ProfileFactProvenance
 	for _, spec := range earlier {
 		written = append(written, ProfileFactProvenance{

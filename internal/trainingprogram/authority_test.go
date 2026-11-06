@@ -33,17 +33,15 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 			{Name: "augmentation", Algorithm: rngAlgorithm, Seed: 19},
 		},
 	}
-	scratch, err := CompileScratchConstruction(scratchSpec)
-	testcheck.NoError(t, err)
+	scratch := testcheck.Must(CompileScratchConstruction(scratchSpec))(t)
 	if scratch.ID().Kind() != artifact.KindRecipe || scratch.InitializedModel() != scratchSpec.InitializedModel {
 		t.Fatalf("scratch construction identity/model = %s / %s", scratch.ID(), scratch.InitializedModel())
 	}
 
-	muon, err := hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{
+	muon := testcheck.Must(hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{
 		{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2},
 		{Name: "bias", Start: 4, End: 6, Rows: 2, Cols: 1, Frozen: true},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	programSpec := ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
@@ -59,8 +57,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		},
 		Optimizer: muon,
 	}
-	program, err := CompileTrainingProgram(programSpec)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileTrainingProgram(programSpec))(t)
 	if program.ID().Kind() != artifact.KindRecipe || program.Objective() != ObjectiveTokenPrediction || program.OptimizerIdentity() != muon.Identity() {
 		t.Fatalf("program identity/objective/Muon = %s / %s / %s", program.ID(), program.Objective(), program.OptimizerIdentity())
 	}
@@ -85,8 +82,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		},
 		Program: program,
 	}
-	plan, err := CompileTrainingRunPlan(runSpec)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileTrainingRunPlan(runSpec))(t)
 	if plan.ID().Kind() != artifact.KindRecipe || plan.InitialMode() != InitialScratch ||
 		plan.Model() != scratchSpec.InitializedModel || plan.Dataset() != scratchSpec.Dataset ||
 		plan.Program().ID() != program.ID() {
@@ -146,9 +142,8 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 }
 
 func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
-	program, err := CompileTrainingProgram(ProgramSpec{
+	plan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}}))(t)
+	program := testcheck.Must(CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
 			{ID: "forward", Phase: PhaseForward},
@@ -158,8 +153,7 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 		},
 		Parameters: []ParameterSpec{{Name: "scalar", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  plan,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	type state struct{ order []string }
 	binding := func(id string) Binding[state] {
 		return Binding[state]{Operator: id, Execute: func(value *state) error {
@@ -167,10 +161,8 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 			return nil
 		}}
 	}
-	execution, err := Bind(program, []Binding[state]{binding("optimize"), binding("evaluate"), binding("backward"), binding("forward")})
-	testcheck.NoError(t, err)
-	execution, err = execution.Select(PhaseForward, PhaseBackward, PhaseOptimize)
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(Bind(program, []Binding[state]{binding("optimize"), binding("evaluate"), binding("backward"), binding("forward")}))(t)
+	execution = testcheck.Must(execution.Select(PhaseForward, PhaseBackward, PhaseOptimize))(t)
 	value := state{}
 	testcheck.NoError(t, execution.Run(&value))
 	want := []string{"forward", "backward", "optimize"}

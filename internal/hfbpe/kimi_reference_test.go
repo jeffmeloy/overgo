@@ -16,8 +16,7 @@ import (
 // at Xenova/Kimi-K3-tokenizer commit 3f11cbe14873d9b64356607af3bbef7608aadf5b.
 // It retains every vocabulary entry that can affect these fixed pieces.
 func TestKimiDeclaredTokenizerReference(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_k3_rank_reference.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "kimi_k3_rank_reference.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "fe1bec80dcf4a56ac59c1fffe529d8ea84e7118fe69a941dc3242ca087059ae6" {
 		t.Fatalf("Kimi reference projection changed: %s", got)
 	}
@@ -43,8 +42,7 @@ func TestKimiDeclaredTokenizerReference(t *testing.T) {
 		len(reference.Vocab) != 150 || len(reference.Cases) != 15 {
 		t.Fatal("Kimi source identity or reference coverage changed")
 	}
-	splitRaw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	testcheck.NoError(t, err)
+	splitRaw := testcheck.Must(os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json")))(t)
 	var split struct {
 		Pattern string `json:"pattern"`
 	}
@@ -56,15 +54,13 @@ func TestKimiDeclaredTokenizerReference(t *testing.T) {
 		map[string]any{"type": "ByteLevel", "add_prefix_space": false, "trim_offsets": true, "use_regex": false},
 	}}
 	model := map[string]any{"type": "BPE", "ignore_merges": true, "merges": []string{}, "vocab": reference.Vocab}
-	data, err := json.Marshal(map[string]any{
+	data := testcheck.Must(json.Marshal(map[string]any{
 		"model": model, "pre_tokenizer": pre, "decoder": map[string]any{"type": "ByteLevel"},
 		"added_tokens": reference.AddedTokens,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	dir := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
-	encoder, err := Load(dir)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(dir))(t)
 	for index, sample := range reference.Cases {
 		if got := encoder.preTokenize(sample.Input); !slices.Equal(got, sample.Pieces) {
 			t.Errorf("case %d Split(%q) = %q; want %q", index, sample.Input, got, sample.Pieces)

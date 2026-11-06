@@ -45,8 +45,7 @@ func hookedRepository(t *testing.T) (run func(environment []string, arguments ..
 	setup("add", "-A")
 	setup("commit", "-q", "-m", "side")
 	setup("checkout", "-q", "master")
-	hook, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), filepath.FromSlash(trunkHookDirectory), trunkHook))
-	testcheck.NoError(t, err)
+	hook := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), filepath.FromSlash(trunkHookDirectory), trunkHook)))(t)
 	write(filepath.Join(trunkHookDirectory, trunkHook), string(hook))
 	setup("update-index", "--refresh")
 	setup("config", "core.hooksPath", trunkHookDirectory)
@@ -71,8 +70,7 @@ func TestOnlyALandingMovesTheTrunkInGit(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			run, _ := hookedRepository(t)
-			before, err := run(nil, "rev-parse", "refs/heads/master")
-			testcheck.NoError(t, err)
+			before := testcheck.Must(run(nil, "rev-parse", "refs/heads/master"))(t)
 			if name == "delete" {
 				if output, err := run(nil, "checkout", "-q", "--detach"); err != nil {
 					t.Fatalf("%v: %s", err, output)
@@ -132,8 +130,7 @@ func TestALandingRefusesATrunkWithoutItsHook(t *testing.T) {
 func TestAResetThatMovesNothingPasses(t *testing.T) {
 	t.Parallel()
 	run, _ := hookedRepository(t)
-	before, err := run(nil, "rev-parse", "refs/heads/master")
-	testcheck.NoError(t, err)
+	before := testcheck.Must(run(nil, "rev-parse", "refs/heads/master"))(t)
 	if output, err := run(nil, "reset", "-q"); err != nil {
 		t.Fatalf("a reset that moves nothing was refused: %v: %s", err, output)
 	}

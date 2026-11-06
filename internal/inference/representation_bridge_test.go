@@ -119,15 +119,13 @@ func TestProductionEmbeddingInjection(t *testing.T) {
 		source: source, target: target,
 		weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 	}
-	runtime, err := OpenProductionComposition(
+	runtime := testcheck.Must(OpenProductionComposition(
 		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
-	)
-	testcheck.NoError(t, err)
-	result, err := runtime.Forward(
+	))(t)
+	result := testcheck.Must(runtime.Forward(
 		t.Context(),
 		[]tokenizer.TokenID{1, 2}, []tokenizer.TokenID{3, 4},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := []float32{10, 20, 30, 10, 20, 30}
 	if !slices.Equal(result.Data, want) || len(target.overrides) != len(want)/len(bias.Data) ||
 		!slices.Equal(source.layers, []int32{int32(*authority.SourceContract.Producer.Layer)}) ||
@@ -168,8 +166,7 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	runtime, source := transformedRepresentationCacheFixture(t)
 	sourceTokens := []tokenizer.TokenID{1, 2}
 	targetTokens := []tokenizer.TokenID{3, 4}
-	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(runtime.transformedRepresentationCacheIdentity(sourceTokens))(t)
 	repeated, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil || repeated != identity {
 		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, identity, err)
@@ -229,14 +226,13 @@ func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition
 	}
 	first := reference.ZeroValue(tensor.MustShape(2, 3))
 	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
-	runtime, err := OpenProductionComposition(
+	runtime := testcheck.Must(OpenProductionComposition(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
 			source: source, target: target,
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return runtime, source
 }
 
@@ -259,12 +255,11 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "bridge-regression")
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "bridge-evaluator")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "bridge-training-policy")
-	promotionPolicy, err := composition.NewRepresentationBridgePromotionPolicy(composition.RepresentationBridgePromotionPolicy{
+	promotionPolicy := testcheck.Must(composition.NewRepresentationBridgePromotionPolicy(composition.RepresentationBridgePromotionPolicy{
 		Direction: runrecord.DirectionMaximize, MinimumSeeds: 2,
 		MinimumHeldOutGain: 0.05, MinimumSourceDependence: 0.1, MaximumRegression: 0.02,
 		MaximumSeedSpread: 0.05, MaximumLatencyIncrease: 0.25, MaximumDeviceByteIncrease: 64,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceContract.Producer.Definition, targetContract.Producer.Definition,
 		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
@@ -276,22 +271,20 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/production-composition/parents", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	bridge, err := composition.NewBridgeDefinition(composition.BridgeDefinition{
+	bridge := testcheck.Must(composition.NewBridgeDefinition(composition.BridgeDefinition{
 		SourceModel: sourceModel, TargetModel: targetModel,
 		Graph: bridgegraph.Definition{
 			Source: sourceContract.ID, Target: targetContract.ID,
 			Operator: bridgegraph.OperatorLinear, Bias: true,
 		},
 		Weights: weights, WeightInventory: inventory,
-	}, sourceContract, targetContract)
-	testcheck.NoError(t, err)
-	execution, err := (modelrecipe.RepresentationBridgeCompiler{
+	}, sourceContract, targetContract))(t)
+	execution := testcheck.Must((modelrecipe.RepresentationBridgeCompiler{
 		SourcePlacement: recipe.PlacementDevice, TargetPlacement: recipe.PlacementDevice,
 		SourceResidency: recipe.ResidencyDeviceF32, TargetResidency: recipe.ResidencyDeviceF32,
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
-	}).Definition(sourceModel, targetModel, sourceContract.ID, targetContract.ID, weights)
-	testcheck.NoError(t, err)
-	promotion, err := (composition.RepresentationBridgePromoter{}).Evaluate(promotionPolicy, composition.RepresentationBridgePromotion{
+	}).Definition(sourceModel, targetModel, sourceContract.ID, targetContract.ID, weights))(t)
+	promotion := testcheck.Must((composition.RepresentationBridgePromoter{}).Evaluate(promotionPolicy, composition.RepresentationBridgePromotion{
 		Bridge: weights, SourceModel: sourceModel, TargetModel: targetModel,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
 		HeldOutSplit: heldOut, RegressionSet: regression, Evaluator: evaluator,
@@ -299,27 +292,23 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 			{Seed: 11, BridgeScore: 0.9, CheapBaselineScore: 0.8, DroppedSourceScore: 0.7, ShuffledSourceScore: 0.72, RegressionBaselineScore: 0.85, RegressionCandidateScore: 0.84, BaselineLatencyNS: 100, ComposedLatencyNS: 110, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1020},
 			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85, BaselineLatencyNS: 100, ComposedLatencyNS: 112, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
 		},
-	})
-	testcheck.NoError(t, err)
-	compositionRecipe, err := composition.NewCompositionRecipe(composition.CompositionRecipe{
+	}))(t)
+	compositionRecipe := testcheck.Must(composition.NewCompositionRecipe(composition.CompositionRecipe{
 		SourceModel: sourceModel, TargetModel: targetModel, Task: recipe.TaskGeneration,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
 		BridgeDefinition: bridge.ID, BridgeWeights: weights, ExecutionRecipe: execution.ID,
 		TrainingPolicy: trainingPolicy, PromotionPolicy: promotionPolicy.ID, Promotion: promotion.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authority := composition.CompositionAuthority{
 		SourceContract: sourceContract, TargetContract: targetContract, Bridge: bridge,
 		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: compositionRecipe,
 	}
-	batch, err := authority.Batch("fixture/production-composition/authority")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(authority.Batch("fixture/production-composition/authority"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	if activate {
-		activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/production-composition/activate", nil)
-		testcheck.NoError(t, err)
+		activation := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/production-composition/activate", nil))(t)
 		if _, err := store.Commit(ctx, activation); err != nil {
 			t.Fatal(err)
 		}
@@ -357,10 +346,8 @@ func inferenceBridgeContract(
 			Kind: representation.NormalizationNone, Magnitude: representation.MagnitudeNative,
 		},
 	}
-	content, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	parsed, err := representation.ParseContract(content)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(json.Marshal(value))(t)
+	parsed := testcheck.Must(representation.ParseContract(content))(t)
 	return content, parsed
 }
 

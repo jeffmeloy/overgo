@@ -26,10 +26,9 @@ func TestPromptTemplateAuthority(t *testing.T) {
 	if _, declared, err := LoadPromptTemplate(ctx, store, model); err != nil || declared {
 		t.Fatalf("undeclared template = (%t, %v)", declared, err)
 	}
-	published, err := PublishPromptTemplate(ctx, store, PromptTemplate{
+	published := testcheck.Must(PublishPromptTemplate(ctx, store, PromptTemplate{
 		Model: model, Source: "tokenizer-metadata", ScoringPrefix: "<dna>",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	loaded, declared, err := LoadPromptTemplate(ctx, store, model)
 	if err != nil || !declared || loaded.ID != published.ID || loaded.ScoringPrefix != "<dna>" {
 		t.Fatalf("loaded template = (%+v, %t, %v)", loaded, declared, err)
@@ -56,19 +55,17 @@ func (s *prefixedFixtureScorer) ScoringPrefix() string { return s.prefix }
 // and one without scores from the empty context.
 func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileSequenceScoring(sequenceScoringSuite{
+	compiled := testcheck.Must(compileSequenceScoring(sequenceScoringSuite{
 		Kind: sequenceScoringKind, Schema: "carbon/dna-corpus/v1", Source: "store/dna",
 		Cases: []sequenceScoringCase{{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := bindSequenceScoring(compiled, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(bindSequenceScoring(compiled, authorities))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := &prefixedFixtureScorer{prefix: "<dna>"}

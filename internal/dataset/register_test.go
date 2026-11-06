@@ -34,16 +34,13 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 	if _, err := PublishLegacyCatalog(ctx, store, legacyRoot, legacyContent); err != nil {
 		t.Fatal(err)
 	}
-	before, err := InspectCatalog(ctx, store)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(InspectCatalog(ctx, store))(t)
 	root := registerFixture(t)
-	registered, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(RegisterDirectoryDataset(ctx, store, "clip-corpus", root))(t)
 	if !registered.Changed || registered.Files != 3 {
 		t.Fatalf("registration = %+v", registered)
 	}
-	coverage, err := InspectCatalog(ctx, store)
-	testcheck.NoError(t, err)
+	coverage := testcheck.Must(InspectCatalog(ctx, store))(t)
 	if coverage.Registered != before.Registered+1 || !coverage.Complete {
 		t.Fatalf("coverage = registered %d complete %t, want the legacy entries plus the new one",
 			coverage.Registered, coverage.Complete)
@@ -61,8 +58,7 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 		t.Fatalf("modality = %q set = %v, want a mixed corpus with the exact set, not a byte-volume winner",
 			entry.Entry.Modality, entry.Entry.Modalities)
 	}
-	repeat, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	testcheck.NoError(t, err)
+	repeat := testcheck.Must(RegisterDirectoryDataset(ctx, store, "clip-corpus", root))(t)
 	if repeat.Changed {
 		t.Fatalf("idempotent re-registration changed the store: %+v", repeat)
 	}
@@ -75,16 +71,14 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 func TestRegisterContentIdentity(t *testing.T) {
 	ctx := t.Context()
 	build := func(payload []byte) artifact.ID {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		defer store.Close()
 		root := t.TempDir()
 		path := filepath.Join(root, "clip.mp4")
 		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 		fixed := time.Unix(1700000000, 0)
 		testcheck.NoError(t, os.Chtimes(path, fixed, fixed))
-		registered, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-		testcheck.NoError(t, err)
+		registered := testcheck.Must(RegisterDirectoryDataset(ctx, store, "clip-corpus", root))(t)
 		return registered.Dataset
 	}
 	first := build(bytes.Repeat([]byte{0xAA}, 4096))
@@ -104,12 +98,10 @@ func TestRegisterTouchDoesNotReidentify(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "clip.mp4")
 	testcheck.NoError(t, os.WriteFile(path, bytes.Repeat([]byte{0xCC}, 4096), 0o600))
-	first, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(RegisterDirectoryDataset(ctx, store, "clip-corpus", root))(t)
 	touched := time.Unix(1800000000, 0)
 	testcheck.NoError(t, os.Chtimes(path, touched, touched))
-	second, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(RegisterDirectoryDataset(ctx, store, "clip-corpus", root))(t)
 	if second.Changed || second.Dataset != first.Dataset {
 		t.Fatalf("touch re-identified: first=%s second=%s changed=%t", first.Dataset, second.Dataset, second.Changed)
 	}

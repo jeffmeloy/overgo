@@ -49,13 +49,11 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 	empty := filepath.Join(root, "empty.txt")
 	absent := filepath.Join(root, "new.txt")
 	store := overgodbtest.Open(t, t.TempDir())
-	manual, err := agenttool.NewManual(agenttool.Manual{Name: "file.write", Description: "Write workspace files.", Effect: agenttool.EffectMutation,
+	manual := testcheck.Must(agenttool.NewManual(agenttool.Manual{Name: "file.write", Description: "Write workspace files.", Effect: agenttool.EffectMutation,
 		Arguments: []agenttool.Field{{Name: "path", Kind: agenttool.FieldString, Required: true}},
-		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}, {Scope: agenttool.EffectScopeWorkspace, Value: second}, {Scope: agenttool.EffectScopeWorkspace, Value: empty}, {Scope: agenttool.EffectScopeWorkspace, Value: absent}}}, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}})
-	testcheck.NoError(t, err)
+		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}, {Scope: agenttool.EffectScopeWorkspace, Value: second}, {Scope: agenttool.EffectScopeWorkspace, Value: empty}, {Scope: agenttool.EffectScopeWorkspace, Value: absent}}}, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}}))(t)
 	arguments, _ := json.Marshal(map[string]string{"path": target})
-	effect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
-	testcheck.NoError(t, err)
+	effect := testcheck.Must(agenttool.DeriveInvocationEffect(manual, arguments, nil))(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	for _, failure := range []string{"later preimage", "completion receipt"} {
 		t.Run(failure, func(t *testing.T) {
@@ -63,26 +61,20 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 			modes := map[string]os.FileMode{}
 			for path, data := range before {
 				testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o640))
-				info, err := os.Stat(path)
-				testcheck.NoError(t, err)
+				info := testcheck.Must(os.Stat(path))(t)
 				modes[path] = info.Mode().Perm()
 			}
 			if err := os.Remove(absent); err != nil && !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
 			}
-			runtime, err := NewMutationCheckpointRuntime(root, store)
-			testcheck.NoError(t, err)
-			checkpoint, err := runtime.BeginCheckpoint(ctx, testutil.ArtifactID(t, artifact.KindEvidence, failure), 1, effect, 1)
-			testcheck.NoError(t, err)
+			runtime := testcheck.Must(NewMutationCheckpointRuntime(root, store))(t)
+			checkpoint := testcheck.Must(runtime.BeginCheckpoint(ctx, testutil.ArtifactID(t, artifact.KindEvidence, failure), 1, effect, 1))(t)
 			for _, path := range []string{target, second, empty, absent} {
 				testcheck.NoError(t, os.WriteFile(path, []byte("after"), 0o600))
 			}
-			checkpoint, err = runtime.SealCheckpoint(ctx, checkpoint)
-			testcheck.NoError(t, err)
-			request, err := RestoreApprovalRequest(checkpoint, recipeID)
-			testcheck.NoError(t, err)
-			decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
-			testcheck.NoError(t, err)
+			checkpoint = testcheck.Must(runtime.SealCheckpoint(ctx, checkpoint))(t)
+			request := testcheck.Must(RestoreApprovalRequest(checkpoint, recipeID))(t)
+			decision := testcheck.Must(runrecord.NewHumanDecision(request, operatoraction.AnswerGrant))(t)
 			testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, decision))
 			testcheck.NoError(t, os.WriteFile(target, []byte("drift"), 0o640))
 			if _, err := runtime.RestoreCheckpoint(ctx, checkpoint, effect, recipeID); err == nil {
@@ -122,8 +114,7 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 			if data, err := os.ReadFile(target); err != nil || string(data) != "before" {
 				t.Fatalf("first restored file=%q, %v", data, err)
 			}
-			runtime, err = NewMutationCheckpointRuntime(root, store)
-			testcheck.NoError(t, err)
+			runtime = testcheck.Must(NewMutationCheckpointRuntime(root, store))(t)
 			receipt, err := runtime.RestoreCheckpoint(ctx, checkpoint, effect, recipeID)
 			if err != nil {
 				t.Fatalf("exact interrupted restore retry: %v", err)

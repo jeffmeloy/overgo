@@ -29,15 +29,13 @@ var hashingOpeners = map[string]string{
 // uploads instead of hashing the file first.
 func TestModelOpensShareTheClaimedLoad(t *testing.T) {
 	t.Parallel()
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd"))(t)
 	var found []string
 	for _, file := range snapshot.Files {
 		if file.Test || filepath.ToSlash(filepath.Dir(file.Path)) == "internal/modelrecipe" {
 			continue
 		}
-		syntax, err := file.Syntax()
-		testcheck.NoError(t, err)
+		syntax := testcheck.Must(file.Syntax())(t)
 		ast.Inspect(syntax, func(node ast.Node) bool {
 			if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == "ResolveActiveGGUF" && !slices.Contains(found, file.Path) {
 				found = append(found, file.Path)

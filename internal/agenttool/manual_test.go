@@ -20,15 +20,12 @@ func validManual() Manual {
 }
 
 func TestNewManualCanonicalizesAndIdentifies(t *testing.T) {
-	manual, err := NewManual(validManual())
-	testcheck.NoError(t, err)
+	manual := testcheck.Must(NewManual(validManual()))(t)
 	if !manual.ID.Valid() || manual.Version != ManualVersion {
 		t.Fatalf("manual = %+v, want identified version %d", manual, ManualVersion)
 	}
-	content, err := manual.Content()
-	testcheck.NoError(t, err)
-	parsed, err := manualCodec.Parse(content)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(manual.Content())(t)
+	parsed := testcheck.Must(manualCodec.Parse(content))(t)
 	if parsed.ID != manual.ID || parsed.Name != manual.Name || parsed.Effect != EffectInspection {
 		t.Fatalf("parsed = %+v, want the round-tripped manual", parsed)
 	}

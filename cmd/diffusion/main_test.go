@@ -50,8 +50,7 @@ func TestParseCLIUsesRecipeDefaults(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("runtime policy: found=%t err=%v", found, err)
 	}
-	config, err := parseCLI([]string{"-eps", fmt.Sprint(fixtureEpsilon), "model.gguf", "prompt"})
-	testcheck.NoError(t, err)
+	config := testcheck.Must(parseCLI([]string{"-eps", fmt.Sprint(fixtureEpsilon), "model.gguf", "prompt"}))(t)
 	want := policy.Interactive.Diffusion
 	got := config.diffusion
 	if got.MaxLength != want.Length || got.Steps != want.Steps || int(got.Algorithm) != want.Algorithm ||

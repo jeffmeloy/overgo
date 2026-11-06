@@ -144,11 +144,9 @@ func TestTheKeyValueCacheIsStoredInBF16(t *testing.T) {
 				for _, value := range append(slices.Clone(next.storage.keys), next.storage.values...) {
 					result.bytes += value.CapacityBytes
 				}
-				host, err := runner.downloadDeviceCache(ctx, next)
-				testcheck.NoError(t, err)
+				host := testcheck.Must(runner.downloadDeviceCache(ctx, next))(t)
 				result.first = append(slices.Clone(host.Layers[0].Key.Data), host.Layers[0].Value.Data...)
-				uploaded, err := runner.uploadDeviceCache(ctx, host)
-				testcheck.NoError(t, err)
+				uploaded := testcheck.Must(runner.uploadDeviceCache(ctx, host))(t)
 				back, err := runner.downloadDeviceCache(ctx, uploaded)
 				_ = uploaded.Release(ctx)
 				testcheck.NoError(t, err)

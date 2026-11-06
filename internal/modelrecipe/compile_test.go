@@ -16,11 +16,9 @@ import (
 
 func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest))(t)
 	testcheck.NoError(t, definition.Validate(catalog))
-	plan, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{}))(t)
 	if plan.Recipe.ID != definition.ID || plan.Model.Forward().Operation != model.ForwardOperationCached {
 		t.Fatalf("compiled plan = %+v", plan)
 	}
@@ -32,12 +30,10 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 
 func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "capacity-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionCapacity)
-	testcheck.NoError(t, err)
-	program, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionCapacity))(t)
+	program := testcheck.Must(compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: 1,
-	}}, model.Weights{Layers: []model.LayerWeights{{}}})
-	testcheck.NoError(t, err)
+	}}, model.Weights{Layers: []model.LayerWeights{{}}}))(t)
 	if program.Decode.Session != DecodeSessionCapacity || len(program.Nodes) != len(definition.Nodes) ||
 		program.Residency != recipe.ResidencyHybridNative {
 		t.Fatalf("runtime program = %+v", program)
@@ -47,12 +43,10 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 func TestRecipeDecodeSessionPolicyIsAuthoritative(t *testing.T) {
 	const fixtureLayerCount = 1
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "request-capable-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionRequest)
-	testcheck.NoError(t, err)
-	program, err := compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHybrid, DecodeSessionRequest))(t)
+	program := testcheck.Must(compileInferenceFixture(definition, model.Spec{CommonSpec: model.CommonSpec{
 		Architecture: "llama", BlockCount: fixtureLayerCount,
-	}}, model.Weights{Layers: []model.LayerWeights{{}}})
-	testcheck.NoError(t, err)
+	}}, model.Weights{Layers: []model.LayerWeights{{}}}))(t)
 	if program.Decode.Session != DecodeSessionRequest {
 		t.Fatalf("decode session = %q, need recipe request policy", program.Decode.Session)
 	}
@@ -60,8 +54,7 @@ func TestRecipeDecodeSessionPolicyIsAuthoritative(t *testing.T) {
 
 func TestCapacityDecodePolicyRequiresCompatibleModel(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "request-only-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionCapacity)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionCapacity))(t)
 	if _, err := compileInferenceFixture(
 		definition,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}},
@@ -75,14 +68,12 @@ func TestIdentityBoundQwen35ProgramOwnsDenseAndRecurrentLayers(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "qwen35-model")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "qwen35-profile")
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "qwen35-definition")
-	definition, err := InferenceWithModelDefinition(
+	definition := testcheck.Must(InferenceWithModelDefinition(
 		modelID, profileID, definitionID, recipe.PlacementHybrid, DecodeSessionCapacity,
 		recipe.ResidencyHybridNative,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	fixture := modeltest.Qwen35DenseRecurrentPair()
-	program, err := compileInferenceFixture(definition, fixture.Spec, fixture.ServingWeights())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(compileInferenceFixture(definition, fixture.Spec, fixture.ServingWeights()))(t)
 	testcheck.NoError(t, program.ValidateServing())
 	first, _ := program.Model.Layer(0)
 	second, _ := program.Model.Layer(1)
@@ -111,8 +102,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	for _, test := range tests {
 		t.Run(string(test.task), func(t *testing.T) {
 			modelID := testutil.ArtifactID(t, artifact.KindModel, string(test.task)+"-model")
-			definition, err := CapabilityDefinition(test.task, modelID)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(CapabilityDefinition(test.task, modelID))(t)
 			if definition.Task != test.task || definition.Model != modelID || len(definition.Inputs) != len(test.inputs) || len(definition.Outputs) != 1 || definition.Outputs[0].Data != test.output {
 				t.Fatalf("definition = %+v", definition)
 			}
@@ -121,8 +111,7 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 					t.Fatalf("input[%d] = %+v", index, definition.Inputs[index])
 				}
 			}
-			program, err := CompileCapability(definition)
-			testcheck.NoError(t, err)
+			program := testcheck.Must(CompileCapability(definition))(t)
 			stages := program.Stages()
 			if len(stages) != len(test.modules) {
 				t.Fatalf("stages = %+v", stages)
@@ -160,8 +149,7 @@ func TestCapabilityComponentSlots(t *testing.T) {
 		{Node: "integrate", Model: transformer},
 		{Node: "decode", Model: vae},
 	}
-	definition, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, bindings)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, bindings))(t)
 	if definition.Model != composite {
 		t.Fatalf("composite identity lost: %s", definition.Model)
 	}
@@ -176,13 +164,11 @@ func TestCapabilityComponentSlots(t *testing.T) {
 	if slotted["prepare"] != encoder || slotted["integrate"] != transformer || slotted["decode"] != vae {
 		t.Fatalf("slotted models = %v", slotted)
 	}
-	program, err := CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileCapability(definition))(t)
 	if program.Definition().Model != composite {
 		t.Fatal("compiled program lost the composite identity")
 	}
-	unbound, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, nil)
-	testcheck.NoError(t, err)
+	unbound := testcheck.Must(GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, nil))(t)
 	if unbound.ID == definition.ID {
 		t.Fatal("component slots did not change the recipe identity")
 	}
@@ -200,10 +186,9 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "projection-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "projection-projector")
 	processorID := testutil.ArtifactID(t, artifact.KindProfile, "projection-processor")
-	definition, err := ProjectionDefinition(
+	definition := testcheck.Must(ProjectionDefinition(
 		modelID, projectorID, processorID, recipe.DataVideo, recipe.DataImage, recipe.DataAudio, recipe.DataImage,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	bound, ok := definition.PrimaryDependency(recipe.DependencyProjector)
 	if !ok || bound != projectorID || len(definition.Inputs) != len(projectionStages) {
 		t.Fatalf("projection definition = %+v", definition)
@@ -211,8 +196,7 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	if bound, ok := definition.PrimaryDependency(recipe.DependencyProcessorProfile); !ok || bound != processorID {
 		t.Fatalf("processor profile = (%s, %t)", bound, ok)
 	}
-	program, err := CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileCapability(definition))(t)
 	if !program.UsesCatalog(workflowrecipe.Catalog()) {
 		t.Fatal("projection program omitted workflow catalog authority")
 	}
@@ -255,8 +239,7 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition, err := test.define(modelID, profileID)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(test.define(modelID, profileID))(t)
 			if len(definition.Inputs) != len(test.inputs) || definition.Outputs[0].Data != recipe.DataVideo {
 				t.Fatalf("definition = %+v", definition)
 			}
@@ -265,8 +248,7 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 					t.Fatalf("input[%d] = %+v", index, definition.Inputs[index])
 				}
 			}
-			program, err := CompileCapability(definition)
-			testcheck.NoError(t, err)
+			program := testcheck.Must(CompileCapability(definition))(t)
 			for index, stage := range program.Stages() {
 				if stage.Module.ID != test.modules[index] || stage.Node.Placement != recipe.PlacementHybrid {
 					t.Fatalf("stage[%d] = %+v", index, stage)
@@ -278,13 +260,11 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 
 func TestTypedOscillatorVideoRecipeSelectsHostRuntime(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-oscillator-video-model")
-	definition, err := GenerationDefinition(ModuleOscillatorVideoPrepare, modelID, artifact.ID{})
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(GenerationDefinition(ModuleOscillatorVideoPrepare, modelID, artifact.ID{}))(t)
 	if definition.Inputs[0].Data != recipe.DataClassConditioning || definition.Outputs[0].Data != recipe.DataVideo {
 		t.Fatalf("definition = %+v", definition)
 	}
-	program, err := CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileCapability(definition))(t)
 	want := []recipe.ModuleID{ModuleOscillatorVideoPrepare, ModuleOscillatorVideoIntegrate, ModuleOscillatorVideoDecode}
 	for index, stage := range program.Stages() {
 		if stage.Module.ID != want[index] || stage.Node.Placement != recipe.PlacementHost {
@@ -312,13 +292,11 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition, err := GenerationDefinition(test.prepare, modelID, test.profile)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(GenerationDefinition(test.prepare, modelID, test.profile))(t)
 			if definition.Inputs[0].Data != test.input {
 				t.Fatalf("input=%q, want %q", definition.Inputs[0].Data, test.input)
 			}
-			program, err := CompileCapability(definition)
-			testcheck.NoError(t, err)
+			program := testcheck.Must(CompileCapability(definition))(t)
 			for index, stage := range program.Stages() {
 				if stage.Module.ID != test.modules[index] || stage.Node.Placement != test.placement {
 					t.Fatalf("stage[%d]=%+v", index, stage)
@@ -334,8 +312,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profiled-image-model")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profiled-image-policy")
-	definition, err := GenerationDefinition(ModuleLatentImagePrepare, modelID, profileID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(GenerationDefinition(ModuleLatentImagePrepare, modelID, profileID))(t)
 	if bound, ok := definition.PrimaryDependency(recipe.DependencyProfile); !ok || bound != profileID {
 		t.Fatalf("image profile dependency = (%s, %v)", bound, ok)
 	}
@@ -361,8 +338,7 @@ func TestSpeechDocumentGraphRetired(t *testing.T) {
 
 func TestCompileCapabilityRejectsInferenceProgram(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "capability-inference-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest))(t)
 	if _, err := CompileCapability(definition); err == nil {
 		t.Fatal("capability compiler accepted inference recipe")
 	}
@@ -370,12 +346,9 @@ func TestCompileCapabilityRejectsInferenceProgram(t *testing.T) {
 
 func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "persisted-model")
-	definition, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
-	testcheck.NoError(t, err)
-	content, err := Content(definition)
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("fixture/recipe/publish", []artifact.Content{content}, nil, nil)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest))(t)
+	content := testcheck.Must(Content(definition))(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("fixture/recipe/publish", []artifact.Content{content}, nil, nil))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
@@ -384,8 +357,7 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("content = (%v, %v)", ok, err)
 	}
-	want, err := definition.Content()
-	testcheck.NoError(t, err)
+	want := testcheck.Must(definition.Content())(t)
 	if string(content.Data) != string(want) {
 		t.Fatal("persisted recipe content changed")
 	}

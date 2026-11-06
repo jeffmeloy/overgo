@@ -11,14 +11,12 @@ import (
 
 func TestSenseNovaGenerationLayerGraphStructure(t *testing.T) {
 	cfg := generationGraphConfig()
-	rope, err := newRopePlan(cfg.HeadDim, []RopeSection{
+	rope := testcheck.Must(newRopePlan(cfg.HeadDim, []RopeSection{
 		{Width: 4, Theta: 5e6, Axis: AxisTime},
 		{Width: 2, Theta: 1e4, Axis: AxisHeight},
 		{Width: 2, Theta: 1e4, Axis: AxisWidth},
-	})
-	testcheck.NoError(t, err)
-	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
-	testcheck.NoError(t, err)
+	}))(t)
+	graph := testcheck.Must(buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16))(t)
 	if !graph.Output.Shape.Equal(tensor.MustShape(uint64(cfg.HiddenSize), 4)) {
 		t.Fatalf("generation output shape=%v", graph.Output.Shape)
 	}

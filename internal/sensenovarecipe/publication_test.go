@@ -16,10 +16,9 @@ func TestDecodeGeneratedImagePublishesPlanarPNG(t *testing.T) {
 	}
 	patches, height, width, err := media.PackPlanar(planar, 3, 2, 2, 2, media.PatchChannelsLast)
 	testcheck.NoError(t, err)
-	image, err := DecodeGeneratedImage(patches, routedlm.FlowPlan{VisionChannels: 3}, routedlm.FlowImagePlan{
+	image := testcheck.Must(DecodeGeneratedImage(patches, routedlm.FlowPlan{VisionChannels: 3}, routedlm.FlowImagePlan{
 		Width: 2, Height: 2, TokenWidth: width, TokenHeight: height, TokenPatch: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if image.Width != 2 || image.Height != 2 || image.Channels != 3 || image.MediaType != "image/png" || len(image.Data) == 0 {
 		t.Fatalf("image = %+v", image)
 	}

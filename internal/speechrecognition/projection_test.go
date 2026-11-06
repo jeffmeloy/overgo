@@ -23,18 +23,14 @@ func TestEncoderOutputAdapter(t *testing.T) {
 		maxFrames = max(maxFrames, tc.Frames)
 	}
 	var w Workspace
-	adapter, err := e.NewOutputAdapter(t.Context(), &w, maxFrames, 1, 0, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
-	execution, err := adapter.Bind(t.Context())
-	testcheck.NoError(t, err)
-	forward, err := execution.Select(trainingprogram.PhaseForward)
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(e.NewOutputAdapter(t.Context(), &w, maxFrames, 1, 0, trainingprogram.BuiltinOptimizerPolicy()))(t)
+	execution := testcheck.Must(adapter.Bind(t.Context()))(t)
+	forward := testcheck.Must(execution.Select(trainingprogram.PhaseForward))(t)
 	frozenWeight, frozenBias := slices.Clone(e.output.weight), slices.Clone(e.output.bias)
 	for _, tc := range fixture.Cases {
 		hidden, frames, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil)
 		testcheck.NoError(t, err)
-		base, err := e.Project(t.Context(), hidden, frames, &w)
-		testcheck.NoError(t, err)
+		base := testcheck.Must(e.Project(t.Context(), hidden, frames, &w))(t)
 		example := adaptertrain.LinearCTCExample{Hidden: hidden, Targets: []int{1}, Frames: frames}
 		if err := forward.Run(&example); err != nil || !slices.Equal(base, example.Logits) {
 			t.Fatalf("identity projection changed encoder logits: %v", err)
@@ -43,8 +39,7 @@ func TestEncoderOutputAdapter(t *testing.T) {
 	tc := fixture.Cases[0]
 	hidden, frames, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil)
 	testcheck.NoError(t, err)
-	base, err := e.Project(t.Context(), hidden, frames, &w)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(e.Project(t.Context(), hidden, frames, &w))(t)
 	beforeHidden, beforeBase := slices.Clone(hidden), slices.Clone(base)
 	beforeAdapter := adapter.WeightSnapshot()
 	example := adaptertrain.LinearCTCExample{Hidden: hidden, Targets: []int{1}, Frames: frames}
@@ -87,26 +82,22 @@ func TestReloadedOutputProjection(t *testing.T) {
 	fixture, _, base := smallEncoder(t)
 	tc := fixture.Cases[0]
 	var workspace Workspace
-	adapter, err := base.NewOutputAdapter(t.Context(), &workspace, tc.Frames, 1, 0, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(base.NewOutputAdapter(t.Context(), &workspace, tc.Frames, 1, 0, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	hidden, frames, err := base.Encode(t.Context(), tc.Features, tc.Frames, &workspace, nil)
 	testcheck.NoError(t, err)
 	original := slices.Clone(hidden)
-	execution, err := adapter.Bind(t.Context())
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(adapter.Bind(t.Context()))(t)
 	example := adaptertrain.LinearCTCExample{Hidden: hidden, Frames: frames, Targets: []int{1}}
 	testcheck.NoError(t, execution.Run(&example))
 	binding := adaptertrain.InputProjectionBinding{BaseRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "base"), TargetTransform: testutil.ArtifactID(t, artifact.KindProfile, "transform")}
 	directory := t.TempDir()
 	testcheck.NoError(t, adapter.SaveWeights(directory, binding))
-	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights)))(t)
 	id, _, err := artifact.Identify(artifact.KindTensorSet, file)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatalf("hash %v close %v", err, closeErr)
 	}
-	adapted, err := base.WithOutputProjection(t.Context(), directory, binding, id)
-	testcheck.NoError(t, err)
+	adapted := testcheck.Must(base.WithOutputProjection(t.Context(), directory, binding, id))(t)
 	if &base.output.weight[0] != &adapted.output.weight[0] || &base.blocks[0] != &adapted.blocks[0] {
 		t.Fatal("frozen base copied")
 	}
@@ -121,10 +112,8 @@ func TestReloadedOutputProjection(t *testing.T) {
 	if err != nil || !slices.Equal(hidden, original) {
 		t.Fatalf("frozen encoding changed: %v", err)
 	}
-	logits, err := adapted.Project(t.Context(), hidden, frames, &reloaded)
-	testcheck.NoError(t, err)
-	forward, err := execution.Select(trainingprogram.PhaseForward)
-	testcheck.NoError(t, err)
+	logits := testcheck.Must(adapted.Project(t.Context(), hidden, frames, &reloaded))(t)
+	forward := testcheck.Must(execution.Select(trainingprogram.PhaseForward))(t)
 	if err := forward.Run(&example); err != nil || !slices.Equal(example.Logits, logits) {
 		t.Fatalf("reloaded logits differ: %v", err)
 	}

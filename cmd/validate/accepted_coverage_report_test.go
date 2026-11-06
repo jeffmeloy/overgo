@@ -29,17 +29,14 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 	t.Run("image-video", TestAcceptedImageVideoEvidence)
 	t.Run("specialized", TestAcceptedSpecializedTaskEvidence)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(retainedReferenceStore(roots.Store)))(t)
 	defer store.Close()
 	entries, truncated, err := discovery.RegisteredCatalog(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store))
 	if err != nil || truncated {
 		t.Fatal("full denominator unavailable", err)
 	}
-	value, err := projectModalityCoverage(t.Context(), root, store, nil)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(projectModalityCoverage(t.Context(), root, store, nil))(t)
 	first := slices.IndexFunc(value.Models, func(row modalityModelProjection) bool { return len(row.Cells) > 0 && row.Cells[0].Accepted })
 	gap := slices.IndexFunc(value.Models, func(row modalityModelProjection) bool { return len(row.Cells) > 0 && !row.Cells[0].Accepted })
 	if first < 0 || gap < 0 {
@@ -63,8 +60,7 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 		"gap without owner":        func(p *modalityCoverageProjection) { p.Models[gap].Cells[0].RepairOwner = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
-			data, err := json.Marshal(value)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(value))(t)
 			var changed modalityCoverageProjection
 			testcheck.NoError(t, json.Unmarshal(data, &changed))
 			mutate(&changed)
@@ -73,8 +69,7 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 			}
 		})
 	}
-	output, err := generateMediaReport(root, retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(generateMediaReport(root, retainedReferenceStore(roots.Store)))(t)
 	var report mediaProjection
 	testcheck.NoError(t, json.Unmarshal(output.JSON, &report))
 	if report.Coverage == nil {

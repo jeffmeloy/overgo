@@ -74,8 +74,7 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 		{Name: "letters", Prompt: "Q1\nA. one\nB. two\nAnswer:", Candidates: []string{" A", " B"}, Answer: 1},
 		{Name: "texts", Prompt: "Is it so?", Candidates: []string{" False", " True"}, Answer: 1},
 	} {
-		want, err := ChatChoicePrompt(runtime, testCase)
-		testcheck.NoError(t, err)
+		want := testcheck.Must(ChatChoicePrompt(runtime, testCase))(t)
 		if _, err := answerChoiceByGeneration(t.Context(), runtime, testCase); err != nil {
 			t.Fatal(err)
 		}
@@ -155,8 +154,7 @@ func chatLetterSuite() MultipleChoiceSuite {
 func indexedChatReading(t *testing.T, runtime Runtime, suite MultipleChoiceSuite) EvalSummary {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -170,14 +168,10 @@ func indexedChatReading(t *testing.T, runtime Runtime, suite MultipleChoiceSuite
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/chat", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
-	campaign, err := newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated)
-	testcheck.NoError(t, err)
-	source, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
-	compiled, err := CompileSuite(source, campaign.WithPrompting(PromptingChatTemplate).Authorities())
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
+	campaign := testcheck.Must(newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated))(t)
+	source := testcheck.Must(json.Marshal(suite))(t)
+	compiled := testcheck.Must(CompileSuite(source, campaign.WithPrompting(PromptingChatTemplate).Authorities()))(t)
 	if _, err := campaign.Evaluate(ctx, compiled); err != nil {
 		t.Fatal(err)
 	}
@@ -201,10 +195,9 @@ func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
 	suite := chatLetterSuite()
 	written := func(observations []choiceObservation) []byte {
 		t.Helper()
-		report, err := json.Marshal(struct {
+		report := testcheck.Must(json.Marshal(struct {
 			Observations []choiceObservation `json:"observations"`
-		}{observations})
-		testcheck.NoError(t, err)
+		}{observations}))(t)
 		return report
 	}
 	for _, last := range []string{" no idea", ""} {
@@ -251,12 +244,9 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 	raw := ListingAuthorities()
 	templated := raw
 	templated.Execution.Prompting = PromptingChatTemplate
-	compiled, err := CompileMultipleChoice(suite)
-	testcheck.NoError(t, err)
-	rawPlan, err := BindMultipleChoice(compiled, raw)
-	testcheck.NoError(t, err)
-	templatedPlan, err := BindMultipleChoice(compiled, templated)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
+	rawPlan := testcheck.Must(BindMultipleChoice(compiled, raw))(t)
+	templatedPlan := testcheck.Must(BindMultipleChoice(compiled, templated))(t)
 	if rawPlan.body.Scorer == templatedPlan.body.Scorer {
 		t.Fatal("generated-letter method did not change the scorer authority")
 	}

@@ -25,8 +25,7 @@ func TestMADRegressionAdvisoryReplaysKnownSeries(t *testing.T) {
 	if len(advisory.PhaseDeltas) != 2 {
 		t.Fatalf("phase deltas = %+v", advisory.PhaseDeltas)
 	}
-	content, err := advisory.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(advisory.Content())(t)
 	parsed, err := ParseAdvisory(content.Data)
 	if err != nil || parsed.ID != advisory.ID || parsed.Surprise() != advisory.Surprise() {
 		t.Fatalf("advisory round trip = (%+v, %v)", parsed, err)
@@ -62,15 +61,13 @@ func TestMADRegressionAdvisoryRejectsMixedEnvironment(t *testing.T) {
 	}
 	otherEnvironment := testutil.ArtifactID(t, artifact.KindEvidence, "other-environment")
 	prior := observations[1]
-	otherRun, err := NewBoundRun(
+	otherRun := testcheck.Must(NewBoundRun(
 		prior.Run.Recipe, prior.Run.Outcome, prior.Run.Inputs, prior.Run.Outputs, prior.Run.Failure,
 		prior.Run.CodeCommit, otherEnvironment, prior.Run.MeasuredNS, prior.Run.Phases,
-	)
-	testcheck.NoError(t, err)
-	otherEvaluation, err := NewEvaluation(
+	))(t)
+	otherEvaluation := testcheck.Must(NewEvaluation(
 		prior.Evaluation.Recipe, otherRun.ID, prior.Evaluation.Dataset, prior.Evaluation.Metrics,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	observations[1].Run, observations[1].Evaluation = otherRun, otherEvaluation
 	if _, _, err := DetectRegression(observations, "latency", 3, 3); err == nil {
 		t.Fatal("mixed environment series accepted")
@@ -82,18 +79,16 @@ func advisoryObservation(t *testing.T, sequence uint64, value float64, prefill, 
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "advisory-recipe")
 	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "advisory-environment")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output-"+string(rune('a'+sequence)))
-	run, err := NewBoundRun(
+	run := testcheck.Must(NewBoundRun(
 		recipeID, OutcomeSucceeded, nil, []artifact.ID{outputID}, "", fixtureCodeCommit,
 		environmentID, prefill+decode+10, []PhaseMetric{
 			{Phase: PhasePrefill, DurationNS: prefill},
 			{Phase: PhaseDecode, DurationNS: decode},
 		},
-	)
-	testcheck.NoError(t, err)
-	evaluation, err := NewEvaluation(
+	))(t)
+	evaluation := testcheck.Must(NewEvaluation(
 		recipeID, run.ID, testutil.ArtifactID(t, artifact.KindDataset, "advisory-dataset"),
 		[]Metric{{Name: "latency", Value: value, Unit: "ms", Direction: DirectionMinimize}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return Observation{Sequence: sequence, Run: run, Evaluation: evaluation}
 }

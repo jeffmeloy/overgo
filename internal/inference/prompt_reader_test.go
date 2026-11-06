@@ -21,8 +21,7 @@ func TestPromptReaderReadsAPromptWithoutTheModel(t *testing.T) {
 	t.Parallel()
 	const template = "{% for message in messages %}a{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}"
 	path := testutil.HermeticLlamaGGUFWith(t, 16, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template))
-	reader, err := OpenPromptReader(path)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(OpenPromptReader(path))(t)
 	t.Cleanup(func() {
 		if err := reader.Close(); err != nil {
 			t.Error(err)
@@ -32,15 +31,12 @@ func TestPromptReaderReadsAPromptWithoutTheModel(t *testing.T) {
 	if err != nil || shaped != "acdb" {
 		t.Fatalf("the conversation is shaped as %q (%v), and the file's template gives %q", shaped, err, "acdb")
 	}
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	t.Cleanup(func() { _ = file.Close() })
-	vocabulary, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocabulary := testcheck.Must(tokenizer.Load(file))(t)
 	encode := func(text string, parseSpecial bool) []tokenizer.TokenID {
 		t.Helper()
-		ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{AddSpecial: true, ParseSpecial: parseSpecial})
-		testcheck.NoError(t, err)
+		ids := testcheck.Must(vocabulary.Encode(text, tokenizer.EncodeOptions{AddSpecial: true, ParseSpecial: parseSpecial}))(t)
 		return ids
 	}
 	started, err := reader.GenerationTokens(shaped, true)

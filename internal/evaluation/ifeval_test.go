@@ -11,7 +11,7 @@ import (
 func TestIFEvalPinnedOracleParity(t *testing.T) {
 	t.Parallel()
 	const response = "preface\nHELLO WORLD\npostscript"
-	compiled, err := compileInstructionRules(instructionRulesSuite{
+	compiled := testcheck.Must(compileInstructionRules(instructionRulesSuite{
 		Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
 		Cases: []instructionRulesCase{{
 			Name: "uppercase", Prompt: "Reply in uppercase and include HELLO.", MaxTokens: 8,
@@ -20,20 +20,17 @@ func TestIFEvalPinnedOracleParity(t *testing.T) {
 				{Name: "keyword", Kind: ruleContainsAll, Values: []string{"HELLO"}},
 			},
 		}},
-	})
-	testcheck.NoError(t, err)
-	plan, err := bindInstructionRules(compiled, ExactAuthorities{
+	}))(t)
+	plan := testcheck.Must(bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateInstructionRules(
+	report := testcheck.Must(evaluateInstructionRules(
 		t.Context(), store, exactGenerator{pieces: []string{response}}, compiled, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	observation := report.Observations[0]
 	if report.PromptStrict != 0 || report.InstructionStrict != 0.5 || report.PromptLoose != 1 ||
 		report.InstructionLoose != 1 || observation.Raw != response ||

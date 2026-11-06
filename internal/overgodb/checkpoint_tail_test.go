@@ -23,8 +23,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	written := 0
 	write := func(records int) {
 		t.Helper()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		if store.tail != checkpointTail {
 			t.Fatalf("an open gave its handle the tail %d, want the store's own %d", store.tail, checkpointTail)
 		}
@@ -42,8 +41,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	// past its checkpoint, and whether it was loaded from one.
 	read := func() (*Store, uint64, bool) {
 		t.Helper()
-		store, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(root))(t)
 		store.tail = 0
 		return store, store.sequence - store.anchored, store.SnapshotReplay().Loaded
 	}
@@ -99,8 +97,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 
 	// A writer that wrote a checkpoint itself counts its tail from that one: with one record
 	// after it, it closes without writing another, however many it wrote before it.
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	store.tail = tail
 	for record := range tail {
 		id := testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("before-snapshot-%d", record))
@@ -108,8 +105,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	info, err := store.Snapshot(ctx)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(store.Snapshot(ctx))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "tail/after-snapshot", Artifacts: []artifact.Descriptor{{ID: testutil.ArtifactID(t, artifact.KindEvidence, "after-snapshot")}}}); err != nil {
 		t.Fatal(err)
 	}

@@ -12,8 +12,7 @@ import (
 func TestEnvBaseWinsAndNamesAllRoots(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv(Env, base)
-	roots, err := Resolve(t.TempDir())
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(t.TempDir()))(t)
 	if roots.Source != Env || roots.Models != filepath.Join(base, "models") ||
 		roots.Store != filepath.Join(base, "overgodb-store") ||
 		roots.Checkpoints != filepath.Join(base, "checkpoints") {
@@ -34,8 +33,7 @@ func TestConfigFileOverridesPerRootWithDefaultsForOmitted(t *testing.T) {
 	elsewhere := t.TempDir()
 	config := `{"models":"` + filepath.ToSlash(filepath.Join(elsewhere, "weights")) + `"}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(work, ConfigFile), []byte(config), 0o644))
-	roots, err := Resolve(work)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(work))(t)
 	if roots.Source != ConfigFile {
 		t.Fatalf("expected config source, got %q", roots.Source)
 	}
@@ -78,8 +76,7 @@ func TestRelativeConfigRootsResolveFromConfigDirectory(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(work, ConfigFile), []byte(`{"models":"weights"}`), 0o644))
-	roots, err := Resolve(work)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(work))(t)
 	if roots.Models != filepath.Join(work, "weights") {
 		t.Fatalf("relative models root = %q", roots.Models)
 	}
@@ -88,8 +85,7 @@ func TestRelativeConfigRootsResolveFromConfigDirectory(t *testing.T) {
 func TestDefaultsPreservePreContractBehavior(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()
-	roots, err := Resolve(work)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(work))(t)
 	if roots.Source != "defaults" || roots.Store != filepath.Join(work, "overgodb-store") {
 		t.Fatalf("fallback wrong: %+v", roots)
 	}
@@ -98,8 +94,7 @@ func TestDefaultsPreservePreContractBehavior(t *testing.T) {
 func TestResolveModelPathPrefersExistingThenRoots(t *testing.T) {
 	t.Setenv(Env, "")
 	work := t.TempDir()
-	roots, err := Resolve(work)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(work))(t)
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(roots.Models, "qwen"), 0o755))
 	testcheck.NoError(t, os.MkdirAll(filepath.Join(roots.Checkpoints, "tuned"), 0o755))
 	if got := roots.ResolveModelPath("qwen"); got != filepath.Join(roots.Models, "qwen") {
@@ -128,8 +123,7 @@ func TestAModelBesideTheStoreWinsOverTheConfiguredRoot(t *testing.T) {
 	work, elsewhere := t.TempDir(), t.TempDir()
 	config := `{"models":` + strconv.Quote(filepath.ToSlash(elsewhere)) + `}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(work, ConfigFile), []byte(config), 0o644))
-	roots, err := Resolve(work)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(work))(t)
 	beside := filepath.Join(work, "models")
 	for _, directory := range []string{filepath.Join(elsewhere, "both"), filepath.Join(beside, "both"), filepath.Join(elsewhere, "outside-only")} {
 		testcheck.NoError(t, os.MkdirAll(directory, 0o755))
@@ -153,8 +147,7 @@ func TestOvergoDBRuntimeAuthority(t *testing.T) {
 	legacy := filepath.Join(base, "repodb-store")
 	testcheck.NoError(t, os.MkdirAll(legacy, 0o700))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(legacy, "repodb.log"), []byte("legacy"), 0o600))
-	roots, err := Resolve(t.TempDir())
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(Resolve(t.TempDir()))(t)
 	want := filepath.Join(base, "overgodb-store")
 	if roots.Store != want {
 		t.Fatalf("store = %q, want %q", roots.Store, want)

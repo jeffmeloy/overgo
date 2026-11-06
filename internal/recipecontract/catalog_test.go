@@ -18,8 +18,7 @@ func TestCanonicalModuleCatalogContract(t *testing.T) {
 			{Name: "embeddings", Data: recipe.DataEmbeddings, Cardinality: recipe.CardinalityOne},
 		},
 	}
-	catalog, err := recipe.NewCatalog(module)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(recipe.NewCatalog(module))(t)
 
 	module.Tasks[0] = recipe.TaskForecast
 	module.Outputs[0].Data = recipe.DataImage

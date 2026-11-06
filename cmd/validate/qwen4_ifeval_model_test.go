@@ -43,19 +43,16 @@ func checkQwenIFEvalResponse(row qwenIFEvalResponse, name, prompt string) error 
 
 func TestQwenFourIFEvalAcquisitionAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(value))(t)
 		return id
 	}
 	read := func(id artifact.ID, target any) {
 		t.Helper()
-		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, id))(t)
 		testcheck.NoError(t, json.Unmarshal(content.Data, target))
 	}
 	profileID := parse(qwenIFEvalProfile)

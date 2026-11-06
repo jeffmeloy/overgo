@@ -24,8 +24,7 @@ func TestAResumeRefusesAnAverageItsCheckpointDoesNotName(t *testing.T) {
 	testcheck.NoError(t, run("saved", TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 3}))
 	checkpoint := filepath.Join(text.root, "saved"+stepCheckpointInfix+"000004")
 	weights, state := filepath.Join(checkpoint, averageDirectory, averageWeightsFile), filepath.Join(checkpoint, averageDirectory, averageStateFile)
-	saved, err := os.ReadFile(weights)
-	testcheck.NoError(t, err)
+	saved := testcheck.Must(os.ReadFile(weights))(t)
 	flipped := append([]byte(nil), saved...)
 	flipped[len(flipped)-1] ^= 0xff
 	testcheck.NoError(t, os.WriteFile(weights, flipped, 0o600))
@@ -33,8 +32,7 @@ func TestAResumeRefusesAnAverageItsCheckpointDoesNotName(t *testing.T) {
 		t.Fatalf("a resume from an average with a flipped byte answered %v, want a refusal naming its weights", err)
 	}
 	testcheck.NoError(t, os.WriteFile(weights, saved, 0o600))
-	kept, err := os.ReadFile(state)
-	testcheck.NoError(t, err)
+	kept := testcheck.Must(os.ReadFile(state))(t)
 	testcheck.NoError(t, os.Remove(state))
 	if err := run("from-stateless", TextHeldoutRequest{Resume: checkpoint}); err == nil || !strings.Contains(err.Error(), averageDirectory+"/"+averageStateFile) {
 		t.Fatalf("a resume from an average whose state is gone answered %v, want a refusal naming it", err)

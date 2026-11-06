@@ -17,10 +17,9 @@ const setKeyTestCommit = "0123456789abcdef0123456789abcdef01234567"
 func TestSetKeyPlacesTheKeyInTheEnvironment(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_SET_KEY_TEST", "")
-	declaration, err := Declare(t.Context(), store, Provider{
+	declaration := testcheck.Must(Declare(t.Context(), store, Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_SET_KEY_TEST", Model: "vendor/model",
-	}, setKeyTestCommit)
-	testcheck.NoError(t, err)
+	}, setKeyTestCommit))(t)
 	if Refusal(declaration.Provider) == "" {
 		t.Fatal("a keyless declaration is not refused")
 	}

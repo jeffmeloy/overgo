@@ -22,12 +22,10 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 		Donor:     testutil.ArtifactID(t, artifact.KindModel, "ranking-observed"),
 		Component: "model.layers.11.mlp.gate_proj.weight", Distance: 0.2,
 	}
-	cold, err := TrainProposalRanker(nil, nil, nil)
-	testcheck.NoError(t, err)
+	cold := testcheck.Must(TrainProposalRanker(nil, nil, nil))(t)
 	verifier := "go test ./internal/composition -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1"
 	proposal := func(candidate BridgeCandidate, blocker string) BridgeProposal {
-		value, err := NewBridgeProposal(target, []BridgeCandidate{candidate}, cold, verifier, blocker)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewBridgeProposal(target, []BridgeCandidate{candidate}, cold, verifier, blocker))(t)
 		return value
 	}
 	refusedProposal := proposal(bad, "measured operator mismatch")
@@ -35,14 +33,11 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "ranking measurement")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "ranking decider")
 	decider := recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation}
-	refused, err := recipe.NewDecision(refusedProposal.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
-		"operator contract mismatch", decider, []artifact.ID{evidence})
-	testcheck.NoError(t, err)
-	observed, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionObserved, recipe.EvidenceVerified,
-		"bounded trial completed", decider, []artifact.ID{evidence})
-	testcheck.NoError(t, err)
-	coldContent, err := cold.Content()
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(recipe.NewDecision(refusedProposal.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
+		"operator contract mismatch", decider, []artifact.ID{evidence}))(t)
+	observed := testcheck.Must(recipe.NewDecision(observedProposal.ID, recipe.DecisionObserved, recipe.EvidenceVerified,
+		"bounded trial completed", decider, []artifact.ID{evidence}))(t)
+	coldContent := testcheck.Must(cold.Content())(t)
 	refusedContent, _ := refusedProposal.Content()
 	observedContent, _ := observedProposal.Content()
 	refusedDecision, _ := refused.Content()
@@ -62,8 +57,7 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ranker, err := TrainProposalRankerFromStore(ctx, store)
-	testcheck.NoError(t, err)
+	ranker := testcheck.Must(TrainProposalRankerFromStore(ctx, store))(t)
 	ranked := ranker.Rank([]BridgeCandidate{bad, good})
 	if len(ranked) != 2 || ranked[0].Donor != good.Donor || ranked[1].Donor != bad.Donor {
 		t.Fatalf("refusal-ledger ranking = %+v", ranked)
@@ -71,11 +65,9 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	if len(ranker.Rows) != 2 || len(ranker.Decisions) != 2 {
 		t.Fatalf("ranker evidence = %+v", ranker)
 	}
-	accepted, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionAccepted, recipe.EvidenceParity,
-		"promotion result", decider, []artifact.ID{evidence})
-	testcheck.NoError(t, err)
-	acceptedBatch, err := accepted.Batch("proposal-ranking-promotion")
-	testcheck.NoError(t, err)
+	accepted := testcheck.Must(recipe.NewDecision(observedProposal.ID, recipe.DecisionAccepted, recipe.EvidenceParity,
+		"promotion result", decider, []artifact.ID{evidence}))(t)
+	acceptedBatch := testcheck.Must(accepted.Batch("proposal-ranking-promotion"))(t)
 	if _, err := store.Commit(ctx, acceptedBatch); err != nil {
 		t.Fatal(err)
 	}

@@ -67,13 +67,11 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t, "retained media lifecycle evidence")
 	root := testutil.RepoRoot(t)
-	bundle, err := readMediaLifecycleBundle(root)
-	testcheck.NoError(t, err)
+	bundle := testcheck.Must(readMediaLifecycleBundle(root))(t)
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Scope == "" || len(bundle.Checks) == 0 || len(bundle.Failed) == 0 {
 		t.Fatal("incomplete lifecycle evidence")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := evidenceReader(t, store, "lifecycle evidence")
 	var protocol struct {
@@ -146,15 +144,13 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 func TestImageVideoLifecycleRejectsChangedEvidence(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_lifecycle.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_lifecycle.json")))(t)
 	for _, field := range []string{"source_base", "source_changes", "source_patch", "protocol", "checks", "failed_attempts", "test_sources", "source_size_review"} {
 		t.Run(field, func(t *testing.T) {
 			var changed map[string]any
 			testcheck.NoError(t, json.Unmarshal(raw, &changed))
 			delete(changed, field)
-			data, err := json.Marshal(changed)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(changed))(t)
 			if err := checkMediaProtocolIdentity(data, imageVideoLifecycleSHA256); err == nil {
 				t.Fatal("accepted missing lifecycle evidence", field)
 			}

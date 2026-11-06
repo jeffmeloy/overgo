@@ -23,8 +23,7 @@ import (
 func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 6, 6)
-	items, err := PickVideoEdits(spec.Clips, spec.Captions, 5, 17)
-	testcheck.NoError(t, err)
+	items := testcheck.Must(PickVideoEdits(spec.Clips, spec.Captions, 5, 17))(t)
 	again, _ := PickVideoEdits(spec.Clips, spec.Captions, 5, 17)
 	if len(items) != 5 || fmt.Sprint(items) != fmt.Sprint(again) {
 		t.Fatalf("the same seed picked %v and then %v", items, again)
@@ -59,8 +58,7 @@ func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 			t.Fatalf("item %s offers the change made in %d statements and its own caption in %d, want two of each", item.ID, made, own)
 		}
 	}
-	suite, err := BuildGeneratedVideoEdit(items, videos, "judge-a")
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildGeneratedVideoEdit(items, videos, "judge-a"))(t)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != len(items) {
 		t.Fatalf("suite = %d cases judged by %q (%v), want one a clip that compile", len(suite.Cases), suite.Judge, err)
 	}
@@ -97,14 +95,12 @@ func TestVideoEditsPassOverClipsThatShowAChangeAlready(t *testing.T) {
 		rows = append(rows, captionRow{Vid: vid, Caption: caption})
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, vid+clipExtension), []byte("clip"), 0o600))
 	}
-	data, err := json.Marshal(rows)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(rows))(t)
 	captions := filepath.Join(t.TempDir(), "captions.json")
 	testcheck.NoError(t, os.WriteFile(captions, data, 0o600))
 	// Six of the twelve captions say snow, night, a cartoon, fog, a sketch or rain.
 	const unchanged = 6
-	items, err := PickVideoEdits(directory, captions, unchanged, 17)
-	testcheck.NoError(t, err)
+	items := testcheck.Must(PickVideoEdits(directory, captions, unchanged, 17))(t)
 	for _, item := range items {
 		for _, word := range []string{"snow", "night", "cartoon", "fog", "sketch", "Rain"} {
 			if strings.Contains(item.Caption, word) {

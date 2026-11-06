@@ -36,19 +36,15 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 	l := &adapterLifecycle{fixture: loadCTCTrainingFixture(t)}
 	l.storePath = filepath.Join(t.TempDir(), "store")
 	var err error
-	l.store, err = overgodb.Create(l.storePath)
-	testcheck.NoError(t, err)
+	l.store = testcheck.Must(overgodb.Create(l.storePath))(t)
 	t.Cleanup(func() { l.store.Close() })
 	l.base, _ = l.publishTranscriptionBase(t, l.fixture)
-	l.origin.Container, err = artifact.ParseID("file:sha256:" + l.fixture.record.ShardSHA256)
-	testcheck.NoError(t, err)
-	data, err := os.ReadFile("../dataset/testdata/audio_inspection_policy.json")
-	testcheck.NoError(t, err)
+	l.origin.Container = testcheck.Must(artifact.ParseID("file:sha256:" + l.fixture.record.ShardSHA256))(t)
+	data := testcheck.Must(os.ReadFile("../dataset/testdata/audio_inspection_policy.json"))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &l.policy))
 	f := &audioMeasurementFixture{l: l, corpus: lifecycleHeldout(t, l, "testdata/resource_heldout.json"), directory: t.TempDir()}
 	sourceIdentity := audioSources(t, l.fixture.root).Identity()
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0))))(t)
 	batch, err := environment.Batch("audio-measurement/environment/" + environment.ID.String())
 	l.commit(t, batch, err)
 	f.binding = speechrecognition.RunBinding{CodeCommit: strings.TrimSpace(baselineCommand(t, l.fixture.root, "git", "rev-parse", "HEAD")), Environment: environment.ID, Dataset: f.corpus.suite.Dataset, Split: f.corpus.suite.Split}
@@ -61,12 +57,10 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 	}{
 		{"silence", silence}, {"corrupt", []byte("fLaC")},
 	} {
-		id, err := artifact.IdentifyBytes(artifact.KindFile, control.data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, control.data))(t)
 		path := filepath.Join(f.directory, control.name)
 		testcheck.NoError(t, os.WriteFile(path, control.data, 0600))
-		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		testcheck.NoError(t, err)
+		location := testcheck.Must(artifact.CanonicalLocalLocation(id, artifact.LocationFile, path))(t)
 		l.commit(t, artifact.Batch{Key: "audio-measurement/control/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(control.data))}}, Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, nil)
 		origin := dataset.AudioPayloadOrigin{Container: id}
 		inspection, err := dataset.InspectAudio(t.Context(), l.store, control.data, origin, l.policy)
@@ -81,8 +75,7 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 			t.Fatal("corrupt control acquired decoded geometry or lost its decode error")
 		}
 	}
-	f.corpus.compiled, err = evaluation.CompileTranscription(f.corpus.suite)
-	testcheck.NoError(t, err)
+	f.corpus.compiled = testcheck.Must(evaluation.CompileTranscription(f.corpus.suite))(t)
 	suitePath := filepath.Join(f.directory, "suite.json")
 	writeAudioMeasurementJSON(t, suitePath, f.corpus.suite)
 	var inputs []map[string]any
@@ -118,8 +111,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	if measured.Wall <= 0 || measured.PeakWorkingSetByte == 0 {
 		t.Fatal("process measurements unavailable")
 	}
-	f.l.store, err = overgodb.Create(f.l.storePath)
-	testcheck.NoError(t, err)
+	f.l.store = testcheck.Must(overgodb.Create(f.l.storePath))(t)
 	var reportID artifact.ID
 	for field := range strings.FieldsSeq(string(measured.Output)) {
 		id, err := artifact.ParseID(field)
@@ -128,8 +120,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 			break
 		}
 	}
-	content, err := artifact.RequireTypedContent(t.Context(), f.l.store, reportID)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(artifact.RequireTypedContent(t.Context(), f.l.store, reportID))(t)
 	var result audioMeasuredProcess
 	testcheck.NoError(t, json.Unmarshal(content.Data, &result.Report))
 	result.Report.ID = reportID
@@ -163,23 +154,17 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	}
 	// The outer measurement includes process startup, source I/O, cold load,
 	// warmup, timed inference, scoring and publication. It is not inference RSS.
-	receipt, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-process-measurement/v1"), struct {
+	receipt := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-process-measurement/v1"), struct {
 		Report        artifact.ID `json:"report"`
 		WallNS        uint64      `json:"wall_ns"`
 		PeakHostBytes uint64      `json:"peak_host_bytes"`
-	}{reportID, uint64(measured.Wall), measured.PeakWorkingSetByte})
-	testcheck.NoError(t, err)
-	fitness, err := runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Model: report.Model, Hardware: f.binding.Environment, Workload: report.Plan, Attempt: receipt.Descriptor.ID}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: uint64(measured.Wall)}, {Metric: runrecord.ResourcePeakHostBytes, Value: measured.PeakWorkingSetByte}}})
-	testcheck.NoError(t, err)
-	chunk, err := runrecord.NewInitialObservationChunk(fitness, runrecord.ObservationSampleExecution, uint64(measured.Wall))
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("audio-process/"+receipt.Descriptor.ID.DigestHex(), []artifact.Content{receipt}, artifact.DependencyLineage(receipt.Descriptor.ID, reportID, report.Plan, report.Model, f.binding.Environment), nil)
-	testcheck.NoError(t, err)
-	summary, err := runrecord.BindObservationChunk(t.Context(), f.l.store, &batch, chunk)
-	testcheck.NoError(t, err)
+	}{reportID, uint64(measured.Wall), measured.PeakWorkingSetByte}))(t)
+	fitness := testcheck.Must(runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Model: report.Model, Hardware: f.binding.Environment, Workload: report.Plan, Attempt: receipt.Descriptor.ID}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: uint64(measured.Wall)}, {Metric: runrecord.ResourcePeakHostBytes, Value: measured.PeakWorkingSetByte}}}))(t)
+	chunk := testcheck.Must(runrecord.NewInitialObservationChunk(fitness, runrecord.ObservationSampleExecution, uint64(measured.Wall)))(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("audio-process/"+receipt.Descriptor.ID.DigestHex(), []artifact.Content{receipt}, artifact.DependencyLineage(receipt.Descriptor.ID, reportID, report.Plan, report.Model, f.binding.Environment), nil))(t)
+	summary := testcheck.Must(runrecord.BindObservationChunk(t.Context(), f.l.store, &batch, chunk))(t)
 	f.l.commit(t, batch, nil)
-	result.Stream, err = runrecord.RequireObservationStream(t.Context(), f.l.store, receipt.Descriptor.ID, summary.ID, runrecord.ObservationStreamBounds{MaxChunks: 1, MaxRawBytes: summary.Stats.Bytes})
-	testcheck.NoError(t, err)
+	result.Stream = testcheck.Must(runrecord.RequireObservationStream(t.Context(), f.l.store, receipt.Descriptor.ID, summary.ID, runrecord.ObservationStreamBounds{MaxChunks: 1, MaxRawBytes: summary.Stats.Bytes}))(t)
 	t.Logf("held-out=%s speakers=%d utterances=%d WER=%.6f CER=%.6f cold_load_ns=%d warm_timed_seconds=%.6f process_wall=%s process_peak_bytes=%d; corrupt admission=%s outside decoded-duration denominator; no GPU, training, full-corpus or promotion claim", reportID, len(speakers), quality.Overall.Utterances, quality.Overall.WordErrorRate, quality.Overall.CharacterErrorRate, report.Load.WallNS, report.Summary.WallSeconds, measured.Wall, measured.PeakWorkingSetByte, f.controls[len(f.controls)-1].DecisionID)
 	return result
 }

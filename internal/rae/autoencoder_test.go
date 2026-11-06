@@ -33,8 +33,7 @@ const roundTripMarginDB = 4
 // another size is scaled and cropped to the size the pair works at.
 func TestRepresentationAutoencoderRoundTripsAPicture(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	collection := roots.ResolveModelPath("RAE-collections")
 	resolved, held, err := ResolveCollection(collection)
 	if err != nil || !held {
@@ -44,8 +43,7 @@ func TestRepresentationAutoencoderRoundTripsAPicture(t *testing.T) {
 		testskip.NotApplicable(t, "the collection's encoder weights are absent: "+resolved.EncoderDirectory())
 	}
 	testskip.Short(t, "loads the 1.7 GB ViT-XL decoder")
-	pair, err := LoadAutoencoder(collection)
-	testcheck.NoError(t, err)
+	pair := testcheck.Must(LoadAutoencoder(collection))(t)
 	side := pair.Side()
 	if channels, grid := pair.Latent(); side != 256 || channels != 768 || grid != 16 {
 		t.Fatalf("the pair works at %d with a latent of %d channels over a %d grid", side, channels, grid)
@@ -66,8 +64,7 @@ func TestRepresentationAutoencoderRoundTripsAPicture(t *testing.T) {
 			}
 		}
 	}
-	back, err := pair.RoundTrip(t.Context(), picture)
-	testcheck.NoError(t, err)
+	back := testcheck.Must(pair.RoundTrip(t.Context(), picture))(t)
 	if len(back) != len(picture) {
 		t.Fatalf("%d values came back for %d", len(back), len(picture))
 	}
@@ -97,8 +94,7 @@ func TestRepresentationAutoencoderRoundTripsAPicture(t *testing.T) {
 	}
 	var encoded bytes.Buffer
 	testcheck.NoError(t, png.Encode(&encoded, wide))
-	reconstruction, err := pair.Reconstruct(t.Context(), encoded.Bytes())
-	testcheck.NoError(t, err)
+	reconstruction := testcheck.Must(pair.Reconstruct(t.Context(), encoded.Bytes()))(t)
 	if reconstruction.Height != side || reconstruction.Width != side {
 		t.Fatalf("a wide picture came back as %dx%d, want the pair's %dx%d", reconstruction.Height, reconstruction.Width, side, side)
 	}

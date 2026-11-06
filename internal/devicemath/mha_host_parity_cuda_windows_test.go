@@ -53,8 +53,7 @@ func hostCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd int) []float32 {
 // This de-risks the densecausal-exact device layer backward.
 func TestMultiHeadAttentionBackwardMatchesHostCausal(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 6, 4, 2, 8

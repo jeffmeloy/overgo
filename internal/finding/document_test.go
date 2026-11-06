@@ -12,15 +12,13 @@ import (
 func TestFindingRoundTripAndNormalizeAnyOrder(t *testing.T) {
 	owner := testutil.ArtifactID(t, artifact.KindRecipe, "series-recipe")
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "advisory-one")
-	document, err := New(
+	document := testcheck.Must(New(
 		"confirmed regression in series x", SeverityMedium, StatusOpen,
 		[]artifact.ID{owner}, []artifact.ID{evidence},
 		"diagnose via phase deltas; close with fix landed.",
 		"advisories stop raising across two consecutive windows after the fix.",
-	)
-	testcheck.NoError(t, err)
-	canonical, err := document.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	canonical := testcheck.Must(document.Content())(t)
 	parsed, err := Parse(canonical.Data)
 	if err != nil || parsed.ID != document.ID {
 		t.Fatalf("round trip failed: %v", err)

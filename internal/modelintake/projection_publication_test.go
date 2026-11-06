@@ -19,21 +19,16 @@ func TestProjectionFactsPublicationBindsCompleteCandidate(t *testing.T) {
 	inventory := func(kind artifact.Kind, name string) modelartifact.Inventory {
 		t.Helper()
 		weights := testutil.ArtifactID(t, artifact.KindTensorSet, name)
-		manifest, err := artifact.NewManifest(kind, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}})
-		testcheck.NoError(t, err)
-		tensors, err := modelartifact.NewTensorInventoryDocument(manifest.ID, modelartifact.TensorFormatGGUF, []modelartifact.TensorFact{{Name: "weight", Shape: []uint64{1}, Storage: "f32", Bytes: 4}})
-		testcheck.NoError(t, err)
+		manifest := testcheck.Must(artifact.NewManifest(kind, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}}))(t)
+		tensors := testcheck.Must(modelartifact.NewTensorInventoryDocument(manifest.ID, modelartifact.TensorFormatGGUF, []modelartifact.TensorFact{{Name: "weight", Shape: []uint64{1}, Storage: "f32", Bytes: 4}}))(t)
 		return modelartifact.Inventory{Manifest: manifest, TensorInventory: tensors, Components: []artifact.Descriptor{{ID: weights}}}
 	}
 	model, media := inventory(artifact.KindModel, "language"), inventory(artifact.KindProjector, "media")
 	makeCandidate := func(policy, source string) ProjectionCandidate {
 		t.Helper()
-		config, err := modelartifact.NewModelConfigDocument(model.Manifest.ID, nil, &modelartifact.GenerationEssentials{ImageAttention: policy}, []modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat(source, 64)}})
-		testcheck.NoError(t, err)
-		processor, err := (projector.MediaPreprocessProfile{Version: artifact.InitialDocumentVersion}).BindModelConfig(config)
-		testcheck.NoError(t, err)
-		definition, err := modelrecipe.ProjectionDefinition(model.Manifest.ID, media.Manifest.ID, processor.ID, recipe.DataImage)
-		testcheck.NoError(t, err)
+		config := testcheck.Must(modelartifact.NewModelConfigDocument(model.Manifest.ID, nil, &modelartifact.GenerationEssentials{ImageAttention: policy}, []modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat(source, 64)}}))(t)
+		processor := testcheck.Must((projector.MediaPreprocessProfile{Version: artifact.InitialDocumentVersion}).BindModelConfig(config))(t)
+		definition := testcheck.Must(modelrecipe.ProjectionDefinition(model.Manifest.ID, media.Manifest.ID, processor.ID, recipe.DataImage))(t)
 		return ProjectionCandidate{Model: model, Projector: media, Processor: &processor, Config: &config, Definition: definition, Media: []recipe.DataKind{recipe.DataImage}}
 	}
 	first, changed := makeCandidate("causal", "a"), makeCandidate("vision", "b")

@@ -13,8 +13,7 @@ func TestDocumentHistoricalContentCutoff(t *testing.T) {
 	t.Parallel()
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
-	delayed, err := contract.ContentBytes([]byte(`{"value":"delayed evidence"}`))
-	testcheck.NoError(t, err)
+	delayed := testcheck.Must(contract.ContentBytes([]byte(`{"value":"delayed evidence"}`)))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cutoff/descriptor", Artifacts: []artifact.Descriptor{delayed.Descriptor}}); err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +69,7 @@ func TestDocumentHistoricalContentCutoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	if got := read(); !slices.Equal(got, want) {
 		t.Fatalf("snapshot replay changed historical population=%v", got)

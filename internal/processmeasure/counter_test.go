@@ -31,8 +31,7 @@ func TestCounterConversion(t *testing.T) {
 }
 
 func TestCounterPrecision(t *testing.T) {
-	previous, err := Counter()
-	testcheck.NoError(t, err)
+	previous := testcheck.Must(Counter())(t)
 	advanced := false
 	for range 1000 {
 		next, err := Counter()

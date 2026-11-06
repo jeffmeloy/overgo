@@ -21,10 +21,8 @@ const quantizedLayers = 6
 // bit, what projecting every layer's gradients at the end gives.
 func TestQuantizedBaseHoldsNoFullSizeWeightGradients(t *testing.T) {
 	path := testutil.QuantizedDenseGGUF(t, quantizedLayers)
-	frozen, err := densecausal.LoadGGUFFrozen(path, Adapts(nil))
-	testcheck.NoError(t, err)
-	trainer, err := New(frozen, Config{Rank: 4, Alpha: 8, Seed: 1})
-	testcheck.NoError(t, err)
+	frozen := testcheck.Must(densecausal.LoadGGUFFrozen(path, Adapts(nil)))(t)
+	trainer := testcheck.Must(New(frozen, Config{Rank: 4, Alpha: 8, Seed: 1}))(t)
 	var oneLayer int
 	for name, module := range trainer.Adapter().Modules {
 		if layer, _ := moduleLayer(name); layer == 0 {
@@ -44,10 +42,8 @@ func TestQuantizedBaseHoldsNoFullSizeWeightGradients(t *testing.T) {
 	}
 
 	// The factors are the ones every layer's gradients projected at the end give.
-	second, err := densecausal.LoadGGUFFrozen(path, Adapts(nil))
-	testcheck.NoError(t, err)
-	reference, err := New(second, Config{Rank: 4, Alpha: 8, Seed: 1})
-	testcheck.NoError(t, err)
+	second := testcheck.Must(densecausal.LoadGGUFFrozen(path, Adapts(nil)))(t)
+	reference := testcheck.Must(New(second, Config{Rank: 4, Alpha: 8, Seed: 1}))(t)
 	_, grads, err := second.MaskedLossAndLayerGradsOf(periodic, nil, reference.adapted, nil)
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, projectAll(reference, grads))
@@ -73,10 +69,8 @@ func TestAdapterOnQuantizedBase(t *testing.T) {
 	}
 	config := Config{Rank: 4, Alpha: 8, Seed: 1}
 
-	dense, err := densecausal.LoadGGUF(path)
-	testcheck.NoError(t, err)
-	frozen, err := densecausal.LoadGGUFFrozen(path, Adapts(nil))
-	testcheck.NoError(t, err)
+	dense := testcheck.Must(densecausal.LoadGGUF(path))(t)
+	frozen := testcheck.Must(densecausal.LoadGGUFFrozen(path, Adapts(nil)))(t)
 	if !frozen.Frozen("model.layers.0.self_attn.q_proj.weight") || !frozen.Frozen("model.layers.5.mlp.down_proj.weight") || frozen.Frozen("model.embed_tokens.weight") {
 		t.Fatal("the model froze the wrong weights: want the seven projections of every layer, and nothing else")
 	}
@@ -91,14 +85,10 @@ func TestAdapterOnQuantizedBase(t *testing.T) {
 		t.Fatalf("before an adapter the frozen model's loss is %v, the dense model's %v", got, base)
 	}
 
-	denseTrainer, err := New(dense, config)
-	testcheck.NoError(t, err)
-	frozenTrainer, err := New(frozen, config)
-	testcheck.NoError(t, err)
-	denseLosses, err := denseTrainer.Train(batches, nil, 0.02, 0.9, nil)
-	testcheck.NoError(t, err)
-	frozenLosses, err := frozenTrainer.Train(batches, nil, 0.02, 0.9, nil)
-	testcheck.NoError(t, err)
+	denseTrainer := testcheck.Must(New(dense, config))(t)
+	frozenTrainer := testcheck.Must(New(frozen, config))(t)
+	denseLosses := testcheck.Must(denseTrainer.Train(batches, nil, 0.02, 0.9, nil))(t)
+	frozenLosses := testcheck.Must(frozenTrainer.Train(batches, nil, 0.02, 0.9, nil))(t)
 	if !slices.Equal(denseLosses, frozenLosses) {
 		t.Fatalf("losses differ: dense %v, frozen %v", denseLosses, frozenLosses)
 	}

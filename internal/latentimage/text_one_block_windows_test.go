@@ -19,8 +19,7 @@ import (
 func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	cudatest.Require(t)
 	s, root, catalog := mossSmallEncoder(t, "model-small-v3-cuda.safetensors", "c96f1e0e709c9569840b10356bc55a47fd002585477fbe2e2692c37bb150786b")
-	session, err := graphruntime.NewResidentSession(0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(graphruntime.NewResidentSession(0))(t)
 	defer session.Close(t.Context())
 	conditioner := modelConditioner{catalog: catalog, root: root}
 	var texts []textInput
@@ -45,16 +44,14 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 	}
 	whole := held(func() {
 		for index, text := range texts {
-			hidden, err := conditioner.encode(t.Context(), session, text, embeddings[index], nil)
-			testcheck.NoError(t, err)
+			hidden := testcheck.Must(conditioner.encode(t.Context(), session, text, embeddings[index], nil))(t)
 			if _, unequal, _ := compareMOSSValues(hidden, want[index], mossStageTolerance{}); unequal != 0 {
 				t.Fatalf("prompt %d: the whole encoder differs from its reference in %d values", index, unequal)
 			}
 		}
 	})
 	each := held(func() {
-		hidden, err := conditioner.encodeEach(t.Context(), session, texts, embeddings)
-		testcheck.NoError(t, err)
+		hidden := testcheck.Must(conditioner.encodeEach(t.Context(), session, texts, embeddings))(t)
 		for index := range texts {
 			if _, unequal, _ := compareMOSSValues(hidden[index], want[index], mossStageTolerance{}); unequal != 0 {
 				t.Fatalf("prompt %d: the encoder a block at a time differs from its reference in %d values", index, unequal)
@@ -77,12 +74,10 @@ func TestATextEncoderHoldsOneBlockOnTheCard(t *testing.T) {
 // encoderWeightBytes is what the encoder's blocks from first to end place on the card.
 func encoderWeightBytes(t *testing.T, catalog hfgguf.LanguageCatalog, first, end int) uint64 {
 	t.Helper()
-	p, err := compileModelEncoder(catalog, 1, first, end)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(compileModelEncoder(catalog, 1, first, end))(t)
 	var total uint64
 	for _, node := range p.weights {
-		bytes, err := node.Shape.Bytes(node.Type)
-		testcheck.NoError(t, err)
+		bytes := testcheck.Must(node.Shape.Bytes(node.Type))(t)
 		total += bytes
 	}
 	return total

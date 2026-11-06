@@ -16,33 +16,28 @@ import (
 func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt uint32, payload string) AttemptStimulusBoundary {
 	t.Helper()
 	ctx := t.Context()
-	content, err := AttemptArgumentContent([]byte(payload))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(AttemptArgumentContent([]byte(payload)))(t)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "op")
 	manual := testutil.ArtifactID(t, artifact.KindRecipe, "manual")
 	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "ceiling")
-	effect, err := invocation.NewEffect(invocation.Effect{
+	effect := testcheck.Must(invocation.NewEffect(invocation.Effect{
 		Manual: manual, Arguments: content.Descriptor.ID,
 		Class: invocation.ClassInspection, Known: true,
-	})
-	testcheck.NoError(t, err)
-	effectContent, err := effect.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	effectContent := testcheck.Must(effect.Content())(t)
 	size := content.Descriptor.Size
 	head, _ := store.Head()
-	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
+	selection := testcheck.Must(dataset.SelectInteractions(dataset.InteractionSelectionBounds{
 		MaxTokens: size, MaxBytes: size, MaxDocuments: 1, MaxDepth: 1, MaxResults: 1,
 	}, head, []dataset.InteractionSelectionSource{{
 		Source: content.Descriptor.ID, CausalRoot: operation,
 		Tokens: size, Bytes: size, Documents: 1, Depth: 1,
-	}}, nil)
-	testcheck.NoError(t, err)
-	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
+	}}, nil))(t)
+	boundary := testcheck.Must(PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
 		Operation: operation, Attempt: attempt, Manual: manual,
 		Class: invocation.ClassInspection, Arguments: content.Descriptor.ID,
 		Effect: effect.ID, Ceiling: ceiling, Selection: selection,
-	}, []artifact.Content{content, effectContent})
-	testcheck.NoError(t, err)
+	}, []artifact.Content{content, effectContent}))(t)
 	return boundary
 }
 
@@ -66,8 +61,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	}
 	held := incrementalStimulusBoundary(t, store, 1, `{"turn":1}`)
 	current := incrementalStimulusBoundary(t, store, 2, `{"turn":2}`)
-	delta, err := dataset.SelectIncremental(held.Selection, current.Selection)
-	testcheck.NoError(t, err)
+	delta := testcheck.Must(dataset.SelectIncremental(held.Selection, current.Selection))(t)
 	testcheck.NoError(t, VerifyIncrementalStimulus(held, current, delta))
 	if len(delta.Fresh) != 1 || len(delta.Reused) != 0 {
 		t.Fatalf("distinct turns = %+v", delta)

@@ -21,8 +21,7 @@ import (
 
 func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const rows, classes = 11, 17
 	logits := randSlice(rand.New(rand.NewSource(53)), rows*classes)
@@ -33,8 +32,7 @@ func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	}
 	want := make([]float32, len(logits))
 	wantLoss := hostmath.SoftmaxCrossEntropy(want, logits, targets, rows, classes)
-	logitsPtr, err := AllocResidentF32(worker, len(logits), logits)
-	testcheck.NoError(t, err)
+	logitsPtr := testcheck.Must(AllocResidentF32(worker, len(logits), logits))(t)
 	targetsPtr, err := AllocResidentU32(worker, targetU32)
 	if err != nil {
 		_ = FreeResident(worker, logitsPtr)

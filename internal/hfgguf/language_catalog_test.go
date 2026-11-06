@@ -22,8 +22,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 				continue
 			}
 			data := make([]byte, item.Elements()*2)
-			value, err := safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(data), 0, int64(len(data)))
-			testcheck.NoError(t, err)
+			value := testcheck.Must(safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(data), 0, int64(len(data))))(t)
 			repository.Tensors.Tensors[name] = value
 		}
 		return repository
@@ -60,8 +59,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 			if catalog.Spec.Arithmetic != want {
 				t.Fatal("source arithmetic differs", catalog.Spec.Arithmetic)
 			}
-			encoded, err := json.Marshal(catalog.Spec)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(catalog.Spec))(t)
 			if bytes.Contains(encoded, []byte(model.ArithmeticTransformersBF16)) != (mode == "native") {
 				t.Fatal("serialized import loses source arithmetic")
 			}
@@ -74,8 +72,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 					t.Fatal("default decay transform lost")
 				}
 				for repeat := range 2 {
-					payload, err := catalog.Payload(binding.Target)
-					testcheck.NoError(t, err)
+					payload := testcheck.Must(catalog.Payload(binding.Target))(t)
 					data, err := io.ReadAll(payload.Data)
 					if err != nil || uint64(len(data)) != binding.TargetBytes {
 						t.Fatal("catalog payload", repeat, len(data), err)
@@ -91,8 +88,7 @@ func TestLanguageCatalogNativeArithmetic(t *testing.T) {
 
 func TestLanguageCatalogBindings(t *testing.T) {
 	repository := baseLanguageFixture(t)
-	catalog, err := InspectLanguageModel(repository, LanguageHidden)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(InspectLanguageModel(repository, LanguageHidden))(t)
 	bindings := catalog.Bindings()
 	if len(bindings) != len(catalog.mappings) {
 		t.Fatal("missing materialization bindings")
@@ -106,8 +102,7 @@ func TestLanguageCatalogBindings(t *testing.T) {
 			t.Fatal("missing destination storage")
 		}
 		if len(binding.Transforms) > 0 {
-			encoded, err := json.Marshal(binding.Transforms)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(binding.Transforms))(t)
 			var decoded []TensorTransform
 			testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 			if decoded[0] != mapping.transforms[0] {
@@ -163,12 +158,10 @@ func TestLanguageCatalogOutputContract(t *testing.T) {
 			}
 			reader := &refuseLanguagePayload{}
 			for name, tensor := range repository.Tensors.Tensors {
-				bounded, err := safetensors.NewTensor(name, tensor.DType, tensor.Shape, reader, 0, tensor.Size())
-				testcheck.NoError(t, err)
+				bounded := testcheck.Must(safetensors.NewTensor(name, tensor.DType, tensor.Shape, reader, 0, tensor.Size()))(t)
 				repository.Tensors.Tensors[name] = bounded
 			}
-			hidden, err := InspectLanguageModel(repository, LanguageHidden)
-			testcheck.NoError(t, err)
+			hidden := testcheck.Must(InspectLanguageModel(repository, LanguageHidden))(t)
 			if hidden.Output != LanguageHidden || hidden.Weights.Output != nil || hidden.Spec.NextNPredictLayers != 0 {
 				t.Fatal("hidden-state catalog contains prediction topology")
 			}
@@ -190,8 +183,7 @@ func TestLanguageCatalogOutputContract(t *testing.T) {
 				}
 			} else {
 				testcheck.NoError(t, err)
-				old, err := ValidateRepository(repository)
-				testcheck.NoError(t, err)
+				old := testcheck.Must(ValidateRepository(repository))(t)
 				if prediction.Spec.BlockCount != old.BlockCount || prediction.Spec.NextNPredictLayers != old.NextNPredictLayers {
 					t.Fatal("prediction topology changed")
 				}

@@ -35,8 +35,7 @@ func ropeDefaultFixture(t *testing.T, extra ...gguf.Metadata) *gguf.File {
 	path := filepath.Join(t.TempDir(), "mmproj.gguf")
 	tensors := []gguf.TensorData{testutil.GGUFTensorF32("v.patch_embd.weight", []uint64{4, 4}, 1)}
 	testcheck.NoError(t, gguf.WriteFileExclusive(path, append(metadata, extra...), tensors, gguf.WriteOptions{}))
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	t.Cleanup(func() { _ = file.Close() })
 	return file
 }

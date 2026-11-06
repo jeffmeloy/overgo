@@ -125,8 +125,7 @@ func (fixture *protocolFixture) Close() error {
 // one, cancellation included, the gate and run are published with the run
 // binding the observation; when one case is answered wrongly nothing is.
 func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
-	document, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "protocol_acceptance.json"))
-	testcheck.NoError(t, err)
+	document := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "protocol_acceptance.json")))(t)
 	for _, wrong := range []string{"", "43"} {
 		t.Run("wrong="+wrong, func(t *testing.T) {
 			ctx := t.Context()
@@ -134,8 +133,7 @@ func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}
-			candidate, err := prepareExactCandidate(ctx, store, testutil.HermeticLlamaGGUF(t, servedContext), modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-			testcheck.NoError(t, err)
+			candidate := testcheck.Must(prepareExactCandidate(ctx, store, testutil.HermeticLlamaGGUF(t, servedContext), modelintake.SessionOverride{}, recipe.ResidencyHybridNative))(t)
 			head, sequence := store.Head()
 			model := &protocolFixture{wrong: wrong}
 			verification, err := acceptProtocol(ctx, store, candidate.Definition, candidate.Resolved.Document.ID, strings.Repeat("a", 40), string(document),

@@ -48,27 +48,24 @@ func (f *instructionChatFixture) ScoreContinuations(context.Context, string, []s
 // prompt.
 func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileInstructionRules(instructionRulesSuite{
+	compiled := testcheck.Must(compileInstructionRules(instructionRulesSuite{
 		Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
 		Cases: []instructionRulesCase{{
 			Name: "uppercase", Prompt: "Reply in uppercase.", MaxTokens: 8,
 			Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}},
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
 	}
-	plan, err := bindInstructionRules(compiled, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(bindInstructionRules(compiled, authorities))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	chat := &instructionChatFixture{answer: "HELLO"}
-	report, err := evaluateInstructionRules(t.Context(), store, chat, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateInstructionRules(t.Context(), store, chat, compiled, plan))(t)
 	if len(chat.prompts) != 1 || chat.prompts[0] != "<user>Reply in uppercase.<model>" {
 		t.Fatalf("shaped prompts = %q", chat.prompts)
 	}
@@ -79,8 +76,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	// two protocols' records never collide; the raw generator's raw
 	// prompt is the pinned oracle parity test's path.
 	authorities.Execution.Prompting = PromptingRawCompletion
-	rawPlan, err := bindInstructionRules(compiled, authorities)
-	testcheck.NoError(t, err)
+	rawPlan := testcheck.Must(bindInstructionRules(compiled, authorities))(t)
 	if rawPlan.identity == plan.identity {
 		t.Fatal("the raw and chat-template plans share an identity")
 	}

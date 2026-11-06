@@ -18,13 +18,11 @@ func TestDPOTraceBindsMeasuredObservations(t *testing.T) {
 		PolicyMargin: 1, ReferenceMargin: 0.5, RelativeMargin: 0.5,
 		ChosenTokens: 2, RejectedTokens: 3, LearningRate: 0.01, GradientL2: 2, UpdateL2: 0.1,
 	}
-	trace, err := NewTrainingTrace(
+	trace := testcheck.Must(NewTrainingTrace(
 		id(artifact.KindRun, "run"), id(artifact.KindRecipe, "recipe"), id(artifact.KindDataset, "dataset"),
 		id(artifact.KindModel, "policy"), id(artifact.KindModel, "reference"), nil, []trainingprogram.DPOObservation{observation}, nil,
-	)
-	testcheck.NoError(t, err)
-	content, err := trace.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	content := testcheck.Must(trace.Content())(t)
 	parsed, err := trainingTraceCodec.Parse(content.Data)
 	if err != nil || parsed.ID != trace.ID || len(parsed.DPO) != 1 || parsed.DPO[0] != observation || len(trace.Lineage()) != 5 {
 		t.Fatalf("parsed=%+v lineage=%+v err=%v", parsed, trace.Lineage(), err)
@@ -42,8 +40,7 @@ func TestDPOTraceRejectsInventedReward(t *testing.T) {
 		"objective": trainingprogram.ObjectiveDPO,
 		"dpo":       []map[string]any{{"step": 1, "reward": 1}},
 	}
-	data, err := json.Marshal(raw)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(raw))(t)
 	if _, err := trainingTraceCodec.Parse(data); err == nil {
 		t.Fatal("invented reward field accepted")
 	}
@@ -57,12 +54,11 @@ func TestGRPOTraceBindsEvaluatorEvidence(t *testing.T) {
 		GroupSize: 2, CompletionTokens: 2, Evaluator: evaluator,
 		LearningRate: 0.01, GradientL2: 2, UpdateL2: 0.1,
 	}
-	trace, err := NewTrainingTrace(
+	trace := testcheck.Must(NewTrainingTrace(
 		id(artifact.KindRun, "run"), id(artifact.KindRecipe, "recipe"), id(artifact.KindDataset, "dataset"),
 		id(artifact.KindModel, "policy"), artifact.ID{}, []artifact.ID{evaluator}, nil,
 		[]trainingprogram.GRPOObservation{observation},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if trace.Objective != trainingprogram.ObjectiveGRPO || len(trace.GRPO) != 1 || len(trace.Lineage()) != 5 {
 		t.Fatalf("trace=%+v lineage=%+v", trace, trace.Lineage())
 	}

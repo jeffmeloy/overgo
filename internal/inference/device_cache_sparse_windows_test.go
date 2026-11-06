@@ -31,14 +31,12 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 	r := fixtureRunner(spec, model.Weights{Layers: []model.LayerWeights{{}}})
 	r.program.Decode.Session = modelrecipe.DecodeSessionCapacity
 	var err error
-	r.cuda, err = executor.New(0)
-	testcheck.NoError(t, err)
+	r.cuda = testcheck.Must(executor.New(0))(t)
 	defer r.cuda.Close()
 	_, schema, err := r.cacheSchema(0, 2)
 	testcheck.NoError(t, err)
 	filled := func(shape tensor.Shape, value float32) reference.Value {
-		elements, err := shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(shape.Elements())(t)
 		result := reference.Value{Shape: shape, Data: make([]float32, elements)}
 		for i := range result.Data {
 			result.Data[i] = value
@@ -49,8 +47,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 	schema.RangeStates(func(name model.CacheStateName, state model.CacheState[model.CacheValueSchema]) {
 		expected.Layers[0].States[name] = LayerState{Mode: state.Mode, Value: filled(state.Value.Shape, 3)}
 	})
-	past, err := r.uploadDeviceCache(t.Context(), expected)
-	testcheck.NoError(t, err)
+	past := testcheck.Must(r.uploadDeviceCache(t.Context(), expected))(t)
 	defer func() {
 		if past != nil {
 			if err := past.Release(context.Background()); err != nil {
@@ -60,8 +57,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 	}()
 	check := func(cache *deviceKVCache, want *KVCache) {
 		t.Helper()
-		got, err := r.downloadDeviceCache(t.Context(), cache)
-		testcheck.NoError(t, err)
+		got := testcheck.Must(r.downloadDeviceCache(t.Context(), cache))(t)
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("active cache differs: got=%+v want=%+v", got, want)
 		}
@@ -77,8 +73,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		builder.SetCacheAppendPlan(appendPlan.CacheAppendPlan)
 		feeds := make(map[*tensor.Tensor]reference.Value)
 		var bindings tensor.InputBindings[driver.DevicePtr]
-		input, err := r.deviceBatchLayerCacheInputs(builder, "", 0, past, feeds, &bindings)
-		testcheck.NoError(t, err)
+		input := testcheck.Must(r.deviceBatchLayerCacheInputs(builder, "", 0, past, feeds, &bindings))(t)
 		add := func(name string, node *tensor.Tensor) *tensor.Tensor {
 			shape, _ := tensor.WithTrailingExtent(node.Shape, 1)
 			next := builder.Input(name, dtype.F32, shape)
@@ -98,12 +93,10 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		graph.logits = builder.Input("logits", dtype.F32, tensor.MustShape(1))
 		feeds[graph.logits] = filled(graph.logits.Shape, 0)
 		testcheck.NoError(t, builder.Err())
-		execution, err := executor.CompileIndexed(decodeGraphOutputs(graph, deviceOutputPlan{})...)
-		testcheck.NoError(t, err)
+		execution := testcheck.Must(executor.CompileIndexed(decodeGraphOutputs(graph, deviceOutputPlan{})...))(t)
 		testcheck.NoError(t, execution.Inputs.Bind(bindings))
 		graphs := []deviceBatchGraph{graph}
-		plans, err := r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends)
-		testcheck.NoError(t, err)
+		plans := testcheck.Must(r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends))(t)
 		before := past.storage.refs
 		targets, storages, err := r.prepareDeviceCacheTargets(t.Context(), execution.Graph, execution.Inputs, graphs, appends, plans)
 		testcheck.NoError(t, err)
@@ -128,8 +121,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 			return nil
 		}
 		testcheck.NoError(t, err)
-		next, err := r.assembleDeviceBatchCaches(ctx, retained, storages, graphs, appends, plans, nil, nil, deviceOutputPlan{})
-		testcheck.NoError(t, err)
+		next := testcheck.Must(r.assembleDeviceBatchCaches(ctx, retained, storages, graphs, appends, plans, nil, nil, deviceOutputPlan{}))(t)
 		return next[0]
 	}
 	for total := uint32(3); total <= 6; total++ {

@@ -34,16 +34,13 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 	contents := map[string]string{"a/x.go": "package a\n", "kernels/k.cu": "__global__ void k() {}\n"}
 	first, second := t.TempDir(), t.TempDir()
 	firstFiles, secondFiles := write(first, contents), write(second, contents)
-	firstDigest, err := digestFiles(first, firstFiles)
-	testcheck.NoError(t, err)
-	secondDigest, err := digestFiles(second, []string{secondFiles[1], secondFiles[0]})
-	testcheck.NoError(t, err)
+	firstDigest := testcheck.Must(digestFiles(first, firstFiles))(t)
+	secondDigest := testcheck.Must(digestFiles(second, []string{secondFiles[1], secondFiles[0]}))(t)
 	if firstDigest != secondDigest || len(firstDigest) != 64 {
 		t.Fatalf("digests differ across roots: %s vs %s", firstDigest, secondDigest)
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(first, "a/x.go"), []byte("package a // changed\n"), 0o644))
-	changed, err := digestFiles(first, firstFiles)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(digestFiles(first, firstFiles))(t)
 	if changed == firstDigest {
 		t.Fatal("a changed file left the digest unchanged")
 	}
@@ -53,8 +50,7 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 // and is stable within a process.
 func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 	ctx := t.Context()
-	first, err := Digest(ctx, "../..")
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Digest(ctx, "../.."))(t)
 	second, err := Digest(ctx, "../..")
 	if err != nil || first != second || len(first) != 64 {
 		t.Fatalf("surface = %q, %q, %v", first, second, err)
@@ -73,12 +69,9 @@ func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 // fails, so a rename cannot silently empty it: rename the row with the
 // package, or delete the row with it.
 func TestSurfaceInvariants(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	module, err := modulePath(root)
-	testcheck.NoError(t, err)
-	packages, err := Packages(t.Context(), root)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	module := testcheck.Must(modulePath(root))(t)
+	packages := testcheck.Must(Packages(t.Context(), root))(t)
 	surface := map[string]bool{}
 	for _, pkg := range packages {
 		surface[pkg.ImportPath] = true
@@ -126,8 +119,7 @@ func TestSurfaceCoversEmbeddedInputsAndModules(t *testing.T) {
 	write("kernels/manifest.json", "{}")
 	write("kernels/cuda/ops.cu", "")
 	ctx := t.Context()
-	before, err := computeSurface(ctx, root)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(computeSurface(ctx, root))(t)
 	write("internal/inference/profile.json", `{"heads":4}`)
 	after, err := computeSurface(ctx, root)
 	if err != nil || after == before {

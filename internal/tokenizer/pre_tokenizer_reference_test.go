@@ -32,8 +32,7 @@ func TestPreTokenizerCutsAsTheModelsOwnTokenizerDoes(t *testing.T) {
 		t.Fatalf("no rule's pieces are on file (%v); write them with %s", err, preTokenizerPiecesScript)
 	}
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference struct {
 			Rule  string `json:"rule"`
 			Cases []struct {

@@ -14,8 +14,7 @@ import (
 // and the manifest name the same modules.
 func TestBuildFlagsMatchTheManifest(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "kernels", "manifest.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "kernels", "manifest.json")))(t)
 	type recorded struct {
 		Source        string   `json:"source"`
 		CompilerFlags []string `json:"compilerFlags"`
@@ -49,8 +48,7 @@ func TestNormalizePTXRewritesLineEnds(t *testing.T) {
 	asset := filepath.Join(t.TempDir(), "kernel.ptx")
 	testcheck.NoError(t, os.WriteFile(asset, []byte("first\r\nsecond\r\n"), 0o644))
 	testcheck.NoError(t, normalizePTX(asset))
-	payload, err := os.ReadFile(asset)
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(os.ReadFile(asset))(t)
 	if string(payload) != "first\nsecond\n" {
 		t.Fatalf("payload = %q, want Unix line ends", payload)
 	}

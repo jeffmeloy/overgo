@@ -25,8 +25,7 @@ import (
 // earlier request's cache, or keeps its rows' streams for the drafter, sums otherwise (TestFlashNextDecodeRoundIsStratas).
 func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model, draft := roots.ResolveModelPath(strataRoundModel), roots.ResolveModelPath(strataDraftModel)
 	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draft, StrataRound: true}, recipe.ResidencyHybridNative)
 	if err != nil {
@@ -40,9 +39,8 @@ func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 	none := 0.0
 	runner.strataTestShare = &none
 	runner.qsaStreamedContext = strataRoundBenchContext
-	prompt, err := runner.FormatChatWithOptions([]ChatMessage{{Role: ChatRoleUser, Content: "Explain how a refrigerator keeps food cold."}},
-		ChatFormatOptions{AddGenerationPrompt: true})
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(runner.FormatChatWithOptions([]ChatMessage{{Role: ChatRoleUser, Content: "Explain how a refrigerator keeps food cold."}},
+		ChatFormatOptions{AddGenerationPrompt: true}))(t)
 	const generated = 48
 	width := strataRoundStreams * strataRoundEmbedding
 	// decode reads the prompt afresh and decodes it through windows the drafts give, nil for plain decoding, returning
@@ -60,8 +58,7 @@ func TestFlashNextWindowRowsAreTheSingleTokenSteps(t *testing.T) {
 		if _, err := runner.yieldPromptCaches(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
-		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		testcheck.NoError(t, err)
+		greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, ContinueAfterEOG: true, PlainDecode: drafts == nil, StrataRound: true,
 		})

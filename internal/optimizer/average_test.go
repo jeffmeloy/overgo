@@ -40,8 +40,7 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 		sequence[index] = math.Sin(float64(index)) + 0.1*float64(index)
 	}
 	for _, decay := range []float64{0.99, 0.5, 0.1} {
-		average, err := NewAverage([]float32{2, -1}, decay)
-		testcheck.NoError(t, err)
+		average := testcheck.Must(NewAverage([]float32{2, -1}, decay))(t)
 		for _, weight := range sequence {
 			testcheck.NoError(t, average.Update([]float32{float32(weight), float32(-weight)}))
 		}
@@ -58,8 +57,7 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 			t.Errorf("decay %v: %d updates counted, want %d", decay, average.Updates(), len(sequence))
 		}
 	}
-	constant, err := NewAverage([]float32{3}, 0.99)
-	testcheck.NoError(t, err)
+	constant := testcheck.Must(NewAverage([]float32{3}, 0.99))(t)
 	for range 25 {
 		testcheck.NoError(t, constant.Update([]float32{3}))
 	}
@@ -72,8 +70,7 @@ func TestWeightAverageEqualsItsClosedForm(t *testing.T) {
 // way to the weights, as the warm-up promises, where the bare decay of 0.99 would
 // leave it nearly where it began.
 func TestWeightAverageWarmsUp(t *testing.T) {
-	average, err := NewAverage([]float32{0}, 0.99)
-	testcheck.NoError(t, err)
+	average := testcheck.Must(NewAverage([]float32{0}, 0.99))(t)
 	testcheck.NoError(t, average.Update([]float32{1}))
 	if got := average.Values()[0]; math.Abs(float64(got)-9.0/11) > 1e-6 {
 		t.Fatalf("after one update the average is %v, want 9/11 (decay 2/11)", got)
@@ -89,8 +86,7 @@ func TestWeightAverageRefusesWhatItCannotAverage(t *testing.T) {
 		}
 	}
 	start := []float32{1, 2}
-	average, err := NewAverage(start, 0.9)
-	testcheck.NoError(t, err)
+	average := testcheck.Must(NewAverage(start, 0.9))(t)
 	if err := average.Update([]float32{1}); err == nil {
 		t.Error("weights of another length were accepted")
 	}
@@ -110,18 +106,15 @@ func TestWeightAverageResumesWhereItStopped(t *testing.T) {
 	for index := range sequence {
 		sequence[index] = []float32{float32(math.Sin(float64(index))), float32(index) / 7}
 	}
-	whole, err := NewAverage([]float32{1, -1}, decay)
-	testcheck.NoError(t, err)
+	whole := testcheck.Must(NewAverage([]float32{1, -1}, decay))(t)
 	for _, weights := range sequence {
 		testcheck.NoError(t, whole.Update(weights))
 	}
-	first, err := NewAverage([]float32{1, -1}, decay)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewAverage([]float32{1, -1}, decay))(t)
 	for _, weights := range sequence[:8] {
 		testcheck.NoError(t, first.Update(weights))
 	}
-	resumed, err := RestoreAverage(append([]float32(nil), first.Values()...), first.Updates(), first.Decay())
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(RestoreAverage(append([]float32(nil), first.Values()...), first.Updates(), first.Decay()))(t)
 	for _, weights := range sequence[8:] {
 		testcheck.NoError(t, resumed.Update(weights))
 	}

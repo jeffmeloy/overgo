@@ -32,8 +32,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	}
 
 	storeRoot := t.TempDir()
-	store, err := Create(storeRoot)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(storeRoot))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "causality/corpus", Artifacts: descriptors, Causality: links,
 		Aliases: []artifact.AliasBinding{{Name: "causality/live", Target: evaluation}},
@@ -47,8 +46,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	}
 	testcheck.NoError(t, store.Close())
 
-	checkpointed, err := OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
+	checkpointed := testcheck.Must(OpenReadOnly(storeRoot))(t)
 	if !checkpointed.SnapshotReplay().Loaded {
 		t.Fatal("causality projection did not load from its anchored checkpoint set")
 	}
@@ -62,20 +60,17 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	testcheck.NoError(t, checkpointed.Close())
 	// The live set follows causal roots, subjects and motivations from the
 	// aliased evaluation: every execution but the unreferenced replay.
-	writable, err := Create(storeRoot)
-	testcheck.NoError(t, err)
+	writable := testcheck.Must(Create(storeRoot))(t)
 	releaseReport, err := Release(ctx, writable, nil, RetentionPolicy{}, releaseEverything)
 	if closeErr := writable.Close(); err != nil || closeErr != nil || releaseReport.Retained != len(all)-1 {
 		t.Fatalf("release report = (%+v, %v, %v)", releaseReport, err, closeErr)
 	}
-	rebuilt, err := OpenReadOnly(rebuiltRoot)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(OpenReadOnly(rebuiltRoot))(t)
 	defer rebuilt.Close()
 	rebuiltHead, rebuiltSequence := rebuilt.Head()
 	assertCausalityProjection(t, rebuilt, rebuiltHead, rebuiltSequence, root, motivation, attempt, retry, replay, evaluation)
 
-	refusal, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	refusal := testcheck.Must(Open(t.TempDir()))(t)
 	defer refusal.Close()
 	if _, err := refusal.Commit(ctx, artifact.Batch{
 		Key: "causality/missing-root", Artifacts: []artifact.Descriptor{{ID: attempt}},

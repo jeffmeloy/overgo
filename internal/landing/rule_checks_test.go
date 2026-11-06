@@ -38,8 +38,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 	root := filepath.Join("..", "..")
 	read := func(path string) string {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(path))))(t)
 		return string(data)
 	}
 	tests := map[string]string{}
@@ -49,8 +48,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 			files, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(directory), "*_test.go"))
 			var all strings.Builder
 			for _, file := range files {
-				data, err := os.ReadFile(file)
-				testcheck.NoError(t, err)
+				data := testcheck.Must(os.ReadFile(file))(t)
 				all.Write(data)
 			}
 			source = all.String()
@@ -106,8 +104,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 // The section is what the system leaves to a model, read at a glance.
 func TestAJudgementLineSaysWhyNoCodeHoldsIt(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "skill.md")))(t)
 	section, judged := "", 0
 	for number, line := range strings.Split(string(data), "\n") {
 		if strings.HasPrefix(line, "#") {
@@ -149,8 +146,7 @@ var unsoundCitations = []struct{ rule, test string }{
 // citation in general, so this holds the ones found.
 func TestNoRuleCitesACheckThatDoesNotProveIt(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "skill.md")))(t)
 	for number, line := range strings.Split(string(data), "\n") {
 		rule, cited, citing := strings.Cut(strings.TrimPrefix(line, ruleLine.FindString(line)), "(check: ")
 		if !ruleLine.MatchString(line) || !citing {
@@ -179,8 +175,7 @@ var history = regexp.MustCompile(`\b(\d{4}-\d{2}-\d{2}|[0-9a-f]{9,40})\b`)
 // lines.
 func TestTheDoctrineHoldsItsOwnForm(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "skill.md")))(t)
 	stated := map[string]int{}
 	for number, line := range strings.Split(string(data), "\n") {
 		if !ruleLine.MatchString(line) {
@@ -223,8 +218,7 @@ func TestDoctrineHoldsNoRetiredClaim(t *testing.T) {
 	for _, retired := range retiredClaims {
 		text, read := texts[retired.source]
 		if !read {
-			data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(retired.source)))
-			testcheck.NoError(t, err)
+			data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(retired.source))))(t)
 			text = string(data)
 			if retired.source == "docs/plan.json" {
 				var document struct {

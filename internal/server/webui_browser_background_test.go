@@ -190,17 +190,15 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	// A different operation completes while the user navigates and composes.
 	finishWork := make(chan struct{})
 	outputBytes := []byte("Completed background output")
-	outputID, err := artifact.IdentifyBytes(artifact.KindFile, outputBytes)
-	testcheck.NoError(t, err)
-	work, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: registeredRecipe}, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
+	outputID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, outputBytes))(t)
+	work := testcheck.Must(handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: registeredRecipe}, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
 		select {
 		case <-finishWork:
 			return operation.Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
 		case <-ctx.Done():
 			return operation.Completion{Run: runID}, ctx.Err()
 		}
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer handler.operations.Cancel(work)
 	check(`(() => {overgo.api.post=async function(path,body,options){if(path==='/generation/run')return {operation:` + strconv.Quote(work.String()) + `};return backgroundPost.call(this,path,body,options);};return true;})()`)
 	say(t, ctx, browser, "Continue in background")
@@ -235,8 +233,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
   overgo.api.get=backgroundGet;location.hash='chat';return true;
 })()`)
 	settle(`!!document.querySelector('#panel-chat.active .composer')`)
-	external, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	external := testcheck.Must(overgodb.Create(root))(t)
 	_, err = artifact.CommitBatch(ctx, external, artifact.Batch{Key: "background/external", Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: outputID, Size: uint64(len(outputBytes)), MediaType: "text/plain"}, Data: outputBytes}}})
 	if err != nil {
 		external.Close()

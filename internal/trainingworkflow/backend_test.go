@@ -52,8 +52,7 @@ func TestDeviceRunRefusesWhatOnlyTheHostTrains(t *testing.T) {
 		return []float64{1}, 0, densecausal.TrainState{}, nil
 	}
 	callback := func(int, densecausal.TrainState, *optimizer.Average) error { return nil }
-	average, err := optimizer.NewAverage([]float32{1, 2}, 0.9)
-	testcheck.NoError(t, err)
+	average := testcheck.Must(optimizer.NewAverage([]float32{1, 2}, 0.9))(t)
 	for name, test := range map[string]struct {
 		options densecausal.TrainOptions
 		refused bool

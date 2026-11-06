@@ -79,9 +79,8 @@ func TestArrowStreamRefusesOutsideSubset(t *testing.T) {
 func TestArrowBenchmarkImport(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	path := filepath.Join("testdata", "mmlu-dev.arrow")
-	digest, err := HashFile(path)
-	testcheck.NoError(t, err)
-	imported, err := ImportBenchmark(t.Context(), store, path, BenchmarkImportSpec{
+	digest := testcheck.Must(HashFile(path))(t)
+	imported := testcheck.Must(ImportBenchmark(t.Context(), store, path, BenchmarkImportSpec{
 		Source: "cais/mmlu:abstract_algebra", Revision: "0.0.0", SHA256: digest,
 		Split: "dev", Format: BenchmarkFormatArrow, Conversion: "lm-eval/mmlu/v1",
 		Fields: []FieldBinding{
@@ -89,8 +88,7 @@ func TestArrowBenchmarkImport(t *testing.T) {
 			{Target: "choices", Source: "choices"},
 			{Target: "answer", Source: "answer"},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if imported.Count != 5 || len(imported.Records) != 5 {
 		t.Fatalf("imported = %+v, want 5 records", imported)
 	}

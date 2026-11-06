@@ -429,10 +429,8 @@ const checkoutRoot = "../.."
 func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
 	t.Helper()
 	const root = checkoutRoot
-	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
-	testcheck.NoError(t, err)
-	outside, err := outsideMethods(t.Context(), root)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(root, "cmd", "internal"))(t)
+	outside := testcheck.Must(outsideMethods(t.Context(), root))(t)
 	return snapshot, outside
 }
 
@@ -440,8 +438,7 @@ func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
 //   - a list out of byte order, or one that repeats a line, is refused
 func keptList(t *testing.T, name string) []string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("testdata", name))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("testdata", name)))(t)
 	var kept []string
 	for line := range strings.Lines(string(data)) {
 		if line = strings.TrimSpace(line); line != "" {
@@ -670,8 +667,7 @@ func groupFigures(groups []sortGroup, held map[string][]string, lines map[string
 // recordGroups reads the groups of sortRecord from the checkout.
 func recordGroups(t *testing.T) []sortGroup {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(sortRecord)))
-	testcheck.NoError(t, err)
+	text := testcheck.Must(os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(sortRecord))))(t)
 	groups, err := sortGroups(string(text))
 	if err != nil {
 		t.Fatalf("%s: %v", sortRecord, err)
@@ -842,14 +838,11 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 // surfaceDirectories returns the package directories of the inference surface, as inferencesurface.Packages lists them.
 func surfaceDirectories(t *testing.T) map[string]bool {
 	t.Helper()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	packages, err := inferencesurface.Packages(t.Context(), root)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	packages := testcheck.Must(inferencesurface.Packages(t.Context(), root))(t)
 	inside := map[string]bool{}
 	for _, pkg := range packages {
-		directory, err := filepath.Rel(root, pkg.Dir)
-		testcheck.NoError(t, err)
+		directory := testcheck.Must(filepath.Rel(root, pkg.Dir))(t)
 		inside[filepath.ToSlash(directory)] = true
 	}
 	return inside

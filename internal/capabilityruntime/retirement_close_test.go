@@ -83,8 +83,7 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			director, err := NewComponentSessionDirector[*gatedModel]("test", "host", 1)
-			testcheck.NoError(t, err)
+			director := testcheck.Must(NewComponentSessionDirector[*gatedModel]("test", "host", 1))(t)
 			component := func(label string) modelrecipe.ComponentSession {
 				return modelrecipe.ComponentSession{
 					Identity: testutil.ArtifactID(t, artifact.KindProfile, label+"-resources"),
@@ -93,8 +92,7 @@ func TestBlockedCloseHoldsCapacityOnEveryRetirementPath(t *testing.T) {
 				}
 			}
 			first := newGatedModel()
-			held, err := director.LeaseComponent(ctx, component("first"), func(context.Context) (*gatedModel, error) { return first, nil })
-			testcheck.NoError(t, err)
+			held := testcheck.Must(director.LeaseComponent(ctx, component("first"), func(context.Context) (*gatedModel, error) { return first, nil }))(t)
 			second, third := newGatedModel(), newGatedModel()
 			close(second.gate)
 			close(third.gate)

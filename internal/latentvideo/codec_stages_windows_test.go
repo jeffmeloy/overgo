@@ -28,13 +28,11 @@ const (
 func TestAVideoStageLeavesNoScratchForTheNext(t *testing.T) {
 	cudatest.Require(t)
 	dir := wanModelDir(t)
-	profile, err := ResolveProfile(dir)
-	testcheck.NoError(t, err)
-	generator, err := NewGenerator(GeneratorConfig{
+	profile := testcheck.Must(ResolveProfile(dir))(t)
+	generator := testcheck.Must(NewGenerator(GeneratorConfig{
 		ModelDirectory: dir, Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Frames: stageClipFrames, Width: stageClipSide, Height: stageClipSide,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer generator.Close()
 	condition, initial := make([]float32, generator.ContextElements()), make([]float32, generator.Geometry().Elements())
 	for index := range condition {
@@ -53,8 +51,7 @@ func TestAVideoStageLeavesNoScratchForTheNext(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		metrics, err := generator.denoiser.cuda.Metrics(t.Context())
-		testcheck.NoError(t, err)
+		metrics := testcheck.Must(generator.denoiser.cuda.Metrics(t.Context()))(t)
 		if metrics.ArenaCommittedBytes != 0 || metrics.PoolRetainedBytes != 0 || len(generator.decoder.buffers) != 0 {
 			t.Fatalf("between requests the denoiser holds a %d-byte arena and %d idle bytes, and the autoencoder %d workspaces",
 				metrics.ArenaCommittedBytes, metrics.PoolRetainedBytes, len(generator.decoder.buffers))

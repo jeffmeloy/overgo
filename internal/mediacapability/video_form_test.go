@@ -29,8 +29,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 		Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
 		Seed:   7, SourceArtifact: testutil.ArtifactID(t, artifact.KindFile, "source clip"),
 	}
-	raw, err := json.Marshal(clip)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(clip))(t)
 	resolved := latentvideo.ReferenceEditRequest{
 		Condition: latentvideo.ReferenceEditCondition{
 			TextContext: []float32{0.5}, FramesPerChunk: 3, LocalAttention: 6,
@@ -56,8 +55,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 		return capabilityruntime.Measured{Output: "edited clip", Input: kept}, nil
 	}
 	serve := resolveEditForm(resolve, text, value)
-	output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(raw))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(raw)))(t)
 	measured, ok := output.(capabilityruntime.Measured)
 	if !ok || measured.Output != "edited clip" || passed != "" {
 		t.Fatalf("output = %#v with %q passed on as text, want the director's measured edit of the value", output, passed)
@@ -68,8 +66,7 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 		t.Fatalf("the run keeps %.120q (retained %t, schema %q), want the clip form %s",
 			request, retained, measured.Input.Descriptor.Schema, raw)
 	}
-	whole, err := json.Marshal(resolved)
-	testcheck.NoError(t, err)
+	whole := testcheck.Must(json.Marshal(resolved))(t)
 	if output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(whole)); err != nil || output != "edited from text" || passed != string(whole) {
 		t.Fatalf("a resolved request gave %v (%v), want it passed on as its text", output, err)
 	}

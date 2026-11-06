@@ -18,13 +18,11 @@ func TestMarinCandidateAdmissionRequiresGapCostBenefitAndFalsifier(t *testing.T)
 		Mechanism: id(artifact.KindRecipe, "existing-routing"), Owner: id(artifact.KindEvidence, "existing-owner"),
 		Gap: id(artifact.KindEvidence, "no-gap"), Falsifier: id(artifact.KindRecipe, "owner-audit"), GapState: MechanismGapClosed,
 	}
-	census, err := CompileMechanismCensus([]MechanismAssessment{open, closed})
-	testcheck.NoError(t, err)
+	census := testcheck.Must(CompileMechanismCensus([]MechanismAssessment{open, closed}))(t)
 	provenance := id(artifact.KindEvidence, "provenance")
 	cost := id(artifact.KindEvidence, "cost")
 	benefit := id(artifact.KindEvidence, "benefit")
-	candidate, err := CompileMechanismCandidate(census, provenance, open.Mechanism, cost, benefit)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(CompileMechanismCandidate(census, provenance, open.Mechanism, cost, benefit))(t)
 	parents := make(map[artifact.ID]bool)
 	for _, edge := range candidate.Lineage() {
 		parents[edge.Parent] = true

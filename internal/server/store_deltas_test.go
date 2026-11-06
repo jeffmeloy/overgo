@@ -29,8 +29,7 @@ func TestADeltaEnvelopeNamesTheDeltaItCarries(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	read := func(path string) storeDeltasResponse {

@@ -302,16 +302,13 @@ func newRecipeLifecycle(t *testing.T) *recipeLifecycle {
 	modelPath := filepath.Join(root, "model.safetensors")
 	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
 	for index := range lifecycleRecipes {
-		id, err := BootstrapRecipe(ctx, lifecycle.store, modelPath, fmt.Appendf(nil, "the dataset of objective %d", index), TokenContract)
-		testcheck.NoError(t, err)
-		definition, err := recipe.RequireDefinition(ctx, lifecycle.store, id)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(BootstrapRecipe(ctx, lifecycle.store, modelPath, fmt.Appendf(nil, "the dataset of objective %d", index), TokenContract))(t)
+		definition := testcheck.Must(recipe.RequireDefinition(ctx, lifecycle.store, id))(t)
 		lifecycle.recipes, lifecycle.model = append(lifecycle.recipes, definition), definition.Model
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "eligibility", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	lifecycle.environment = environment.ID
 	lifecycle.commit(environment.Batch("eligibility/environment"))
 	return lifecycle
@@ -718,16 +715,14 @@ func TestObserverReportsActualActivation(t *testing.T) {
 		status string
 	}{{0, 0, "active"}, {1, 1, "active"}, {0, 1, "inactive"}} {
 		t.Run(step.status+recipeName(step.recipe), func(t *testing.T) {
-			output, err := os.CreateTemp(t.TempDir(), "verification")
-			testcheck.NoError(t, err)
+			output := testcheck.Must(os.CreateTemp(t.TempDir(), "verification"))(t)
 			defer output.Close()
 			previous := os.Stdout
 			os.Stdout = output
 			t.Cleanup(func() { os.Stdout = previous })
 			lifecycle.session(step.recipe, nil)
 			os.Stdout = previous
-			data, err := os.ReadFile(output.Name())
-			testcheck.NoError(t, err)
+			data := testcheck.Must(os.ReadFile(output.Name()))(t)
 			want := fmt.Sprintf("training recipe verified and %s: %s", step.status, lifecycle.recipes[step.recipe].ID)
 			if !strings.Contains(string(data), want) {
 				t.Fatalf("verification says %q, want %q", data, want)

@@ -21,25 +21,21 @@ func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 
 	base := publishOfflineModel(t, store, "base", offlineTensorWidth, false)
 	trained := publishOfflineModel(t, store, "trained", offlineTensorWidth, false)
-	passthrough, err := CompileOfflineArtifactPlan(ctx, store, OfflineArtifactExactPassthrough,
-		[]OfflineArtifactInput{{Definition: base, Coefficient: 1}})
-	testcheck.NoError(t, err)
+	passthrough := testcheck.Must(CompileOfflineArtifactPlan(ctx, store, OfflineArtifactExactPassthrough,
+		[]OfflineArtifactInput{{Definition: base, Coefficient: 1}}))(t)
 	if passthrough.Operator != OfflineArtifactExactPassthrough || len(passthrough.Inputs) != tensor.SingletonExtent ||
 		passthrough.ID.Kind() != artifact.KindRecipe || passthrough.Inputs[0].Definition != base {
 		t.Fatalf("passthrough plan = %+v", passthrough)
 	}
 
-	arithmetic, err := CompileOfflineArtifactPlan(ctx, store, OfflineArtifactTaskArithmetic,
-		[]OfflineArtifactInput{{Definition: base, Coefficient: 0.5}, {Definition: trained, Coefficient: 0.5}})
-	testcheck.NoError(t, err)
-	content, err := arithmetic.Content()
-	testcheck.NoError(t, err)
+	arithmetic := testcheck.Must(CompileOfflineArtifactPlan(ctx, store, OfflineArtifactTaskArithmetic,
+		[]OfflineArtifactInput{{Definition: base, Coefficient: 0.5}, {Definition: trained, Coefficient: 0.5}}))(t)
+	content := testcheck.Must(arithmetic.Content())(t)
 	if bytes := string(content.Data); strings.Contains(bytes, "bridge") || strings.Contains(bytes, "contract") ||
 		strings.Contains(bytes, "injection") || strings.Contains(bytes, "activation") {
 		t.Fatalf("offline plan leaked representation-runtime authority: %s", bytes)
 	}
-	batch, err := arithmetic.Batch("composition/offline/test")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(arithmetic.Batch("composition/offline/test"))(t)
 	expectedParents := map[artifact.ID]bool{}
 	for _, input := range arithmetic.Inputs {
 		expectedParents[input.Model], expectedParents[input.Definition] = true, true
@@ -84,24 +80,21 @@ func publishOfflineModel(
 ) artifact.ID {
 	t.Helper()
 	weight := testutil.ArtifactID(t, artifact.KindTensorSet, "offline-weights-"+label)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weight,
-	}})
-	testcheck.NoError(t, err)
-	tensors, err := modelartifact.NewTensorInventoryDocument(
+	}}))(t)
+	tensors := testcheck.Must(modelartifact.NewTensorInventoryDocument(
 		manifest.ID, modelartifact.TensorFormatSafetensors,
 		[]modelartifact.TensorFact{{
 			Name: "token_embd.weight", Shape: []uint64{width, width}, Storage: "f32",
 			Bytes: width * width * offlineFloatBytes,
 		}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	profile, found := model.LookupArchitecture("llama")
 	if !found {
 		t.Fatal("llama profile is absent")
 	}
-	profileDocument, err := modelrecipe.NewProfileDocument(profile)
-	testcheck.NoError(t, err)
+	profileDocument := testcheck.Must(modelrecipe.NewProfileDocument(profile))(t)
 	spec := model.Spec{
 		CommonSpec: model.CommonSpec{
 			Architecture: "llama", BlockCount: 1, ContextLength: 128,
@@ -111,15 +104,12 @@ func publishOfflineModel(
 			HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10_000,
 		},
 	}
-	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, tensors, spec)
-	testcheck.NoError(t, err)
-	resolved, err := document.Resolve(profileDocument, tensors)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(modelrecipe.NewModelDefinitionDocument(profileDocument, tensors, spec))(t)
+	resolved := testcheck.Must(document.Resolve(profileDocument, tensors))(t)
 	inventory := modelartifact.Inventory{
 		Manifest: manifest, TensorInventory: tensors, Components: []artifact.Descriptor{{ID: weight}},
 	}
-	batch, err := resolved.Batch("composition/offline/fixture/"+label, inventory)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(resolved.Batch("composition/offline/fixture/"+label, inventory))(t)
 	if removeDefinitionInventoryLineage {
 		filtered := batch.Lineage[:0]
 		for _, edge := range batch.Lineage {

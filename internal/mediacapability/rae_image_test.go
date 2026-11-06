@@ -53,8 +53,7 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 	fixtures := filepath.Join(root, "fixtures", "rae")
 	var reference raeGeneration
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(fixtures, "generation.json"), &reference))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	directory := roots.ResolveModelPath("RAE-collections")
 	collection, held, err := rae.ResolveCollection(directory)
 	if err != nil || !held {
@@ -66,18 +65,15 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 	testskip.Short(t, "samples with the collection's DiT and decodes with its 1.7 GB decoder")
 	store := overgodbtest.Open(t, t.TempDir())
 	capability := Catalog[recipe.TaskImageGen]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
 	definition, _, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if entry := program.Stages()[0].Module.ID; entry != modelrecipe.ModuleRAEImagePrepare {
 		t.Fatalf("the collection compiles to entry module %s", entry)
 	}
 	generate := func(request rae.Request) (latentimage.EncodedImage, error) {
-		raw, err := json.Marshal(request)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(request))(t)
 		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(raw))
 		if err != nil {
 			return latentimage.EncodedImage{}, err
@@ -88,13 +84,10 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 		}
 		return image, nil
 	}
-	image, err := generate(rae.Request{Class: reference.Label, Seed: reference.Seed, Steps: reference.Steps})
-	testcheck.NoError(t, err)
+	image := testcheck.Must(generate(rae.Request{Class: reference.Label, Seed: reference.Seed, Steps: reference.Steps}))(t)
 	channels, height, width := reference.Image.Shape[0], reference.Image.Shape[1], reference.Image.Shape[2]
-	golden, err := fixtureasset.LoadF32(fixtures, reference.Image.File, reference.Image.SHA256, channels*height*width)
-	testcheck.NoError(t, err)
-	decoded, err := png.Decode(bytes.NewReader(image.Data))
-	testcheck.NoError(t, err)
+	golden := testcheck.Must(fixtureasset.LoadF32(fixtures, reference.Image.File, reference.Image.SHA256, channels*height*width))(t)
+	decoded := testcheck.Must(png.Decode(bytes.NewReader(image.Data)))(t)
 	if bounds := decoded.Bounds(); bounds.Dx() != width || bounds.Dy() != height || image.Channels != channels {
 		t.Fatalf("generated a %dx%d image of %d channels, the reference is %dx%d of %d", bounds.Dx(), bounds.Dy(), image.Channels, width, height, channels)
 	}

@@ -63,13 +63,11 @@ func TestTier0ChainViability(t *testing.T) {
 		Windows: windows,
 	}
 	started := time.Now()
-	result, err := trainingworkflow.RunChainViability(store, config)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(trainingworkflow.RunChainViability(store, config))(t)
 	if len(result.Outcomes) != len(windows) {
 		t.Fatalf("outcomes = %d, want one per window", len(result.Outcomes))
 	}
-	record, err := trainingworkflow.RecordChainViability(store, config, result)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(trainingworkflow.RecordChainViability(store, config, result))(t)
 	if record.Outcome != runrecord.OutcomeSucceeded && record.Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("generation record outcome = %q", record.Outcome)
 	}

@@ -68,26 +68,6 @@
       ]
     },
     {
-      "id": "compact-tests",
-      "title": "Shrink the test code",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "store-helper folds the tests' throwaway store openings into internal/overgodbtest, whose Open, Create and OpenReadOnly the gate counts as production, being test support."
-      },
-      "steps": [
-        {
-          "id": "call-checks",
-          "title": "A test takes a call's value and checks its error in one expression",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestATestTakesACallsValueInOneExpression$'",
-          "rationale": "compact-tests/statement-folds measured the module's tests' repeated runs of statements and found idioms rather than copied logic, the most common a call's value taken and its error checked in two lines, about 8,700 sites.\nChange: a value-then-check pair, v, err := f() followed by testcheck.NoError(t, err), says it in one expression, v := testcheck.Must(f())(t), wherever err is not read again, by a one-shot rewrite over the type-checked syntax kept out of the tree; the owner chose the rewrite for less test code over the more familiar two-line form. TestATestTakesACallsValueInOneExpression counts the pairs of the module's tests, read from their syntax, and holds them to what stays: pairs whose err is read again, those of files a claim or a pinned record binds, and those of the tests whose change runs the device lane in full.\nServes: development velocity and test-code size.\nDisappears: about 8,700 lines of error checks.\nEvidence: test-code nodes on the gate's line.\nBatch: host lane, with the device packages whose tests it touches in the device lane, leaving the files whose change runs it in full."
-        }
-      ]
-    },
-    {
       "id": "empty-added-token",
       "title": "Refuse an empty added token before hfbpe splits text on it",
       "owner": "master-lead",

@@ -96,8 +96,7 @@ func TestLoopDriverCycle(t *testing.T) {
 			func(*fakeWorld, Step, string) string { return "oracle NOT satisfied" },
 		},
 	}
-	outcome, err = Run(stuck, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10})
-	testcheck.NoError(t, err)
+	outcome = testcheck.Must(Run(stuck, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10}))(t)
 	if outcome.Reason != ReasonParked || len(stuck.parked) != 1 ||
 		!strings.Contains(stuck.parked[0], "oracle NOT satisfied") {
 		t.Fatalf("stuck step not parked with evidence: %+v %v", outcome, stuck.parked)
@@ -110,8 +109,7 @@ func TestLoopDriverCycle(t *testing.T) {
 			func(*fakeWorld, Step, string) string { return "still failing" },
 		},
 	}
-	outcome, err = Run(budget, Config{MaxAttemptsPerStep: 100, MaxInvocations: 1})
-	testcheck.NoError(t, err)
+	outcome = testcheck.Must(Run(budget, Config{MaxAttemptsPerStep: 100, MaxInvocations: 1}))(t)
 	if outcome.Reason != ReasonBudget || outcome.Invocations != 1 {
 		t.Fatalf("budget stop = %+v", outcome)
 	}
@@ -182,8 +180,7 @@ func TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt(t *testing.T) {
 			return ""
 		}},
 	}}
-	outcome, err := Run(world, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10})
-	testcheck.NoError(t, err)
+	outcome := testcheck.Must(Run(world, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10}))(t)
 	if outcome.Reason != ReasonParked || !slices.Equal(outcome.Parked, []string{"failing/do"}) || len(world.parked) != 1 {
 		t.Fatalf("outcome = %+v, parked %v; want one row parked once", outcome, world.parked)
 	}

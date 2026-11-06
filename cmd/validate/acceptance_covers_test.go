@@ -22,14 +22,12 @@ func TestAcceptanceCoversARecipeReplacedForItsSession(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "acceptance-covers")
 	testutil.PublishArtifact(t, store, model)
-	accepted, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, model)
-	testcheck.NoError(t, err)
+	accepted := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, model))(t)
 	variant := func(change func(*recipe.Node)) recipe.Definition {
 		t.Helper()
 		nodes := slices.Clone(accepted.Nodes)
 		change(&nodes[0])
-		value, err := recipe.NewDefinitionWithDependencies(accepted.Task, accepted.Dependencies, nodes, accepted.Edges, accepted.Inputs, accepted.Outputs)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(recipe.NewDefinitionWithDependencies(accepted.Task, accepted.Dependencies, nodes, accepted.Edges, accepted.Inputs, accepted.Outputs))(t)
 		return value
 	}
 	session := variant(func(node *recipe.Node) { node.Session = recipe.SessionRequest })

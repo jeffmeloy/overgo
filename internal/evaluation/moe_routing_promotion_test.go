@@ -15,7 +15,7 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 	seed, code, environment := id(artifact.KindEvidence, "seed"), id(artifact.KindEvidence, "code"), id(artifact.KindEvidence, "environment")
 	checkpoint, evaluator := id(artifact.KindCheckpoint, "checkpoint"), id(artifact.KindProfile, "evaluator")
 	candidate := id(artifact.KindRecipe, "quantile candidate")
-	baseline, err := moeRoutingBaselineCodec.New(moeRoutingBaselineMatrix{
+	baseline := testcheck.Must(moeRoutingBaselineCodec.New(moeRoutingBaselineMatrix{
 		Version: artifact.InitialDocumentVersion,
 		moeRoutingPairedAuthorities: moeRoutingPairedAuthorities{
 			Model: model, Dataset: dataset, Split: split, DataOrder: id(artifact.KindEvidence, "order"), Seed: seed,
@@ -28,14 +28,13 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 			{Kind: moeRoutingStaticBias, Policy: id(artifact.KindRecipe, "static policy"), Recipe: id(artifact.KindRecipe, "static recipe")},
 			{Kind: moeRoutingQuantileBias, Policy: id(artifact.KindRecipe, "quantile policy"), Recipe: candidate},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	segment := func(name string, admitted bool) moeRoutingShiftSegment {
 		return moeRoutingShiftSegment{Stratum: id(artifact.KindDatasetShard, name), Evaluation: id(artifact.KindEvidence, name+" evaluation"), Admitted: admitted}
 	}
 	transitionA, transitionB := segment("transition a", true), segment("transition b", true)
 	transitionA.BiasSource, transitionB.BiasSource = artifact.IDPointer(transitionA.Stratum), artifact.IDPointer(transitionB.Stratum)
-	shift, err := moeRoutingShiftCodec.New(moeRoutingShiftEvidence{
+	shift := testcheck.Must(moeRoutingShiftCodec.New(moeRoutingShiftEvidence{
 		Version: artifact.InitialDocumentVersion, BaselineMatrix: baseline.ID,
 		Cases: []moeRoutingShiftCase{
 			{Kind: moeRoutingHomogeneous, AggregateEvaluation: id(artifact.KindEvidence, "homogeneous"), AggregateAdmitted: true, Segments: []moeRoutingShiftSegment{segment("homogeneous segment", true)}},
@@ -43,22 +42,19 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 			{Kind: moeRoutingImbalanced, AggregateEvaluation: id(artifact.KindEvidence, "imbalanced"), AggregateAdmitted: true, Segments: []moeRoutingShiftSegment{segment("imbalanced a", true), segment("imbalanced b", true)}},
 			{Kind: moeRoutingTransition, AggregateEvaluation: id(artifact.KindEvidence, "transition"), AggregateAdmitted: true, Segments: []moeRoutingShiftSegment{transitionA, transitionB}},
 		},
-	})
-	testcheck.NoError(t, err)
-	capacity, err := moeCapacityPairCodec.New(moeCapacityPair{
+	}))(t)
+	capacity := testcheck.Must(moeCapacityPairCodec.New(moeCapacityPair{
 		Version: artifact.InitialDocumentVersion, Model: model, Dataset: dataset, Split: split, Checkpoint: checkpoint,
 		Seed: seed, Code: code, Environment: environment, Evaluator: evaluator,
 		Constrained: moeCapacityEndpoint{Run: id(artifact.KindRun, "constrained"), Policy: candidate, Evaluation: id(artifact.KindEvidence, "constrained evaluation"), Dropped: 1, Total: 10, Admitted: true},
 		Dropless:    moeCapacityEndpoint{Run: id(artifact.KindRun, "dropless"), Policy: id(artifact.KindRecipe, "dropless policy"), Evaluation: id(artifact.KindEvidence, "dropless evaluation"), Total: 10, Admitted: true},
-	})
-	testcheck.NoError(t, err)
-	policy, err := moeRoutingPromotionPolicyCodec.New(moeRoutingPromotionPolicy{
+	}))(t)
+	policy := testcheck.Must(moeRoutingPromotionPolicyCodec.New(moeRoutingPromotionPolicy{
 		Version:          artifact.InitialDocumentVersion,
 		QualityEvaluator: id(artifact.KindProfile, "quality evaluator"), StabilityEvaluator: id(artifact.KindProfile, "stability evaluator"),
 		UtilizationEvaluator: id(artifact.KindProfile, "utilization evaluator"), DropEvaluator: id(artifact.KindProfile, "drop evaluator"),
 		CostEvaluator: id(artifact.KindProfile, "cost evaluator"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(moeRoutingPromotionPolicyLineage(policy)) != 5 {
 		t.Fatal("promotion policy omits an evaluator authority")
 	}
@@ -84,8 +80,7 @@ func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) 
 		}
 	}
 	hidden.HiddenStratumFailure = true
-	hidden, err = moeRoutingShiftCodec.New(hidden)
-	testcheck.NoError(t, err)
+	hidden = testcheck.Must(moeRoutingShiftCodec.New(hidden))(t)
 	if _, err := buildMoERoutingPromotion(policy, baseline, hidden, capacity, candidate, comparisons); err == nil {
 		t.Fatal("hidden stratum regression promoted")
 	}

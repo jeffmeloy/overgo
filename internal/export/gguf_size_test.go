@@ -15,8 +15,7 @@ import (
 // fileBytes is the size of a file on disk.
 func fileBytes(t *testing.T, file string) uint64 {
 	t.Helper()
-	info, err := os.Stat(file)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(os.Stat(file))(t)
 	return uint64(info.Size())
 }
 
@@ -38,8 +37,7 @@ func TestSizesAreTheBytesWritten(t *testing.T) {
 		if err != nil {
 			t.Fatalf("the size of a %s export: %v", leg.typeName, err)
 		}
-		file, err := GGUF(ctx, leg.source, root, leg.typeName, leg.typeName)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(GGUF(ctx, leg.source, root, leg.typeName, leg.typeName))(t)
 		if wrote, source := fileBytes(t, file), fileBytes(t, leg.source); size != wrote || size == source {
 			t.Fatalf("a %s export was sized at %d bytes and wrote %d, from a source of %d", leg.typeName, size, wrote, source)
 		}
@@ -49,8 +47,7 @@ func TestSizesAreTheBytesWritten(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the size of a merge: %v", err)
 	}
-	file, err := MergeGGUF(ctx, hermetic, tuned, scales, root, "merged")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(MergeGGUF(ctx, hermetic, tuned, scales, root, "merged"))(t)
 	if wrote := fileBytes(t, file); size != wrote {
 		t.Fatalf("a merge was sized at %d bytes and wrote %d", size, wrote)
 	}

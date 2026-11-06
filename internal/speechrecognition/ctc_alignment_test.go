@@ -15,8 +15,7 @@ import (
 )
 
 func TestCTCAlignmentOracle(t *testing.T) {
-	data, err := os.ReadFile("testdata/ctc_alignment.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/ctc_alignment.json"))(t)
 	var fixture struct {
 		Commit string
 		Cases  []struct {

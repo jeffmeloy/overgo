@@ -54,13 +54,11 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 				input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(tc.ropeDim), FrequencyBase: float32(tc.theta), FrequencyScale: 1})
 
 			testcheck.NoError(t, builder.Err())
-			inValue, err := NewValue(input.Shape, append([]float32(nil), data...))
-			testcheck.NoError(t, err)
-			results, err := Execute(
+			inValue := testcheck.Must(NewValue(input.Shape, append([]float32(nil), data...)))(t)
+			results := testcheck.Must(Execute(
 				[]*tensor.Tensor{output},
 				map[*tensor.Tensor]Value{input: inValue},
-			)
-			testcheck.NoError(t, err)
+			))(t)
 			serving := results[output].Data
 
 			// TRAINING: hostmath rotate-half over the first RopeWidth dims.

@@ -18,8 +18,7 @@ func TestOfflineArtifactGenerationRepeatedSeeds(t *testing.T) {
 	t.Parallel()
 	evidence := offlinePromotionEvidence(t, false)
 	policy := offlinePromotionPolicy(t)
-	promotion, err := PromoteOfflineArtifactGeneration(evidence, policy)
-	testcheck.NoError(t, err)
+	promotion := testcheck.Must(PromoteOfflineArtifactGeneration(evidence, policy))(t)
 	if promotion.ExecutionPlan != evidence.ExecutionPlan || promotion.GenerationEvidence != evidence.ID ||
 		promotion.DistinctSeeds != policy.MinimumDistinctSeeds || promotion.RunCount != uint32(len(evidence.Trials)) {
 		t.Fatalf("offline generation promotion = %+v", promotion)
@@ -35,18 +34,15 @@ func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
 	}
 	insufficient := offlinePromotionEvidence(t, false)
 	insufficient.Trials = insufficient.Trials[:tensor.PairedExtent]
-	data, err := json.Marshal(insufficient)
-	testcheck.NoError(t, err)
-	insufficient.ID, err = artifact.IdentifyBytes(artifact.KindEvidence, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(insufficient))(t)
+	insufficient.ID = testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, data))(t)
 	if _, err := PromoteOfflineArtifactGeneration(insufficient, policy); err == nil {
 		t.Fatal("insufficient seed coverage promoted")
 	}
-	strict, err := NewOfflineArtifactGenerationPolicy(
+	strict := testcheck.Must(NewOfflineArtifactGenerationPolicy(
 		policy.MinimumDistinctSeeds, policy.RunsPerSeed, 1, policy.MaximumPeakHostBytes,
 		"strict measured latency envelope", "re-evaluate after hardware or runtime changes",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := PromoteOfflineArtifactGeneration(offlinePromotionEvidence(t, false), strict); err == nil {
 		t.Fatal("resource regression promoted")
 	}
@@ -54,12 +50,11 @@ func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
 
 func offlinePromotionPolicy(t *testing.T) offlineArtifactGenerationPolicy {
 	t.Helper()
-	policy, err := NewOfflineArtifactGenerationPolicy(
+	policy := testcheck.Must(NewOfflineArtifactGenerationPolicy(
 		2, 2, 1_000, 2_000,
 		"two repeated seeds bound deterministic generation and measured host resources",
 		"re-evaluate when generation, hardware, or the execution recipe changes",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return policy
 }
 
@@ -86,8 +81,7 @@ func offlinePromotionEvidence(t *testing.T, unstable bool) composition.OfflineAr
 		offlinePromotionTrial(t, 29, second, "c"),
 		offlinePromotionTrial(t, 29, second, "d"),
 	}
-	evidence, err := composition.ValidateOfflineArtifactGeneration(plan, directory, model, trials)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(composition.ValidateOfflineArtifactGeneration(plan, directory, model, trials))(t)
 	return evidence
 }
 
@@ -103,8 +97,7 @@ func offlinePromotionTrial(t *testing.T, seed uint64, output artifact.ID, suffix
 
 func offlinePromotionPlan(t *testing.T, model artifact.ID) composition.OfflineTensorExecutionPlan {
 	t.Helper()
-	bytes, err := safetensors.TensorBytes("F32", []uint64{2})
-	testcheck.NoError(t, err)
+	bytes := testcheck.Must(safetensors.TensorBytes("F32", []uint64{2}))(t)
 	plan := composition.OfflineTensorExecutionPlan{
 		Version:        artifact.InitialDocumentVersion,
 		ArtifactPlan:   testutil.ArtifactID(t, artifact.KindRecipe, "offline promotion artifact plan"),
@@ -125,10 +118,8 @@ func offlinePromotionPlan(t *testing.T, model artifact.ID) composition.OfflineTe
 		Shards:            []composition.OfflineTensorShard{{Index: 0, Bytes: bytes, Tensors: []string{"weight"}}},
 		PeakResidentBytes: bytes,
 	}
-	data, err := json.Marshal(plan)
-	testcheck.NoError(t, err)
-	plan.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(plan))(t)
+	plan.ID = testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, data))(t)
 	testcheck.NoError(t, plan.ValidateIdentity())
 	return plan
 }

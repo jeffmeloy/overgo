@@ -69,13 +69,10 @@ type videoAutoencoderReference struct {
 // autoencoder in directory is served from, its recipe the catalog's.
 func servedReconstruction(t *testing.T, directory string) servedPictures {
 	t.Helper()
-	resolved, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	resolved := testcheck.Must(Catalog[recipe.TaskReconstruction].Resolve(t.Context(), directory))(t)
 	modelID := resolved.Inventory.Manifest.ID
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
 	return servedPictures{store: store, directory: directory, execution: modelrecipetest.CandidateExecution(t, store, program)}
@@ -100,25 +97,20 @@ func TestVideoAutoencoderRoundTripMatchesItsOwnCode(t *testing.T) {
 	}
 	read := func(tensor roundTripTensor) (image.Image, []byte) {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File)))
-		testcheck.NoError(t, err)
-		picture, err := png.Decode(bytes.NewReader(data))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File))))(t)
+		picture := testcheck.Must(png.Decode(bytes.NewReader(data)))(t)
 		return picture, data
 	}
 	source, sourceBytes := read(reference.Picture)
 	want, _ := read(reference.Image)
 	autoencoder := servedReconstruction(t, directory)
-	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: sourceBytes})
-	testcheck.NoError(t, err)
-	output, err := Catalog[recipe.TaskReconstruction].Execute(t.Context(), autoencoder.store, directory, autoencoder.execution, string(request))
-	testcheck.NoError(t, err)
+	request := testcheck.Must(json.Marshal(latentvideo.ReconstructionRequest{Image: sourceBytes}))(t)
+	output := testcheck.Must(Catalog[recipe.TaskReconstruction].Execute(t.Context(), autoencoder.store, directory, autoencoder.execution, string(request)))(t)
 	reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 	if !ok {
 		t.Fatalf("reconstruction output type=%T", output)
 	}
-	served, err := png.Decode(bytes.NewReader(reconstruction.Data))
-	testcheck.NoError(t, err)
+	served := testcheck.Must(png.Decode(bytes.NewReader(reconstruction.Data)))(t)
 	if served.Bounds() != source.Bounds() || want.Bounds() != source.Bounds() {
 		t.Fatalf("the frame is %v, the served one %v and the reference's %v", source.Bounds(), served.Bounds(), want.Bounds())
 	}

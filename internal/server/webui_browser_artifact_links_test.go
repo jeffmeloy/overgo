@@ -25,7 +25,6 @@ func TestWebUIBrowserArtifactLinks(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "artifact links run through cmd/webui-lane")
 	store := overgodbtest.Open(t, t.TempDir())
-	var err error
 	ids := make([]artifact.ID, 2)
 	contents := make([]artifact.Content, 2)
 	for index, shade := range []uint8{40, 200} {
@@ -33,8 +32,7 @@ func TestWebUIBrowserArtifactLinks(t *testing.T) {
 		picture.SetGray(0, 0, color.Gray{Y: shade})
 		var encoded bytes.Buffer
 		testcheck.NoError(t, png.Encode(&encoded, picture))
-		ids[index], err = artifact.IdentifyBytes(artifact.KindOutput, encoded.Bytes())
-		testcheck.NoError(t, err)
+		ids[index] = testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, encoded.Bytes()))(t)
 		contents[index] = artifact.Content{Descriptor: artifact.Descriptor{ID: ids[index], Size: uint64(encoded.Len()), MediaType: "image/png"}, Data: encoded.Bytes()}
 	}
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "server/artifact-links", Contents: contents}); err != nil {

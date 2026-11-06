@@ -27,13 +27,11 @@ func TestAgentSimpleCreate(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	defer handler.Close()
 
 	refused := serveTestRequest(handler, http.MethodPost, "/agents/create",

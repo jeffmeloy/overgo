@@ -41,29 +41,24 @@ func TestImageAttentionRecipePinsConfig(t *testing.T) {
 	}
 	declare := func(policy, digest string) modelartifact.ModelConfigDocument {
 		t.Helper()
-		config, err := modelartifact.NewModelConfigDocument(model, nil,
+		config := testcheck.Must(modelartifact.NewModelConfigDocument(model, nil,
 			&modelartifact.GenerationEssentials{ImageAttention: policy},
-			[]modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat(digest, 64)}})
-		testcheck.NoError(t, err)
-		content, err := config.Content()
-		testcheck.NoError(t, err)
+			[]modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat(digest, 64)}}))(t)
+		content := testcheck.Must(config.Content())(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: config.ID.String(), Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
 		return config
 	}
 	causal := declare("causal", "a")
-	profile, err := base.BindModelConfig(causal)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(base.BindModelConfig(causal))(t)
 	definitionFor := func(profile MediaPreprocessProfile, modelID artifact.ID) recipe.Definition {
 		t.Helper()
-		content, err := profile.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(profile.Content())(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: profile.ID.String(), Contents: []artifact.Content{content}}); err != nil && err != artifact.ErrNoChange {
 			t.Fatal(err)
 		}
-		definition, err := modelrecipe.ProjectionDefinition(modelID, projectorID, profile.ID, recipe.DataImage)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.ProjectionDefinition(modelID, projectorID, profile.ID, recipe.DataImage))(t)
 		return definition
 	}
 	definition := definitionFor(profile, model)
@@ -87,8 +82,7 @@ func TestImageAttentionRecipePinsConfig(t *testing.T) {
 			changed := profile
 			changed.ID = artifact.ID{}
 			test.change(&changed)
-			changed, err := mediaPreprocessProfileCodec.New(changed)
-			testcheck.NoError(t, err)
+			changed = testcheck.Must(mediaPreprocessProfileCodec.New(changed))(t)
 			if _, err := ResolvePreprocessProfile(t.Context(), store, definitionFor(changed, model), &base); err == nil {
 				t.Fatal("contradictory binding accepted")
 			}
@@ -123,8 +117,7 @@ func TestAudioProcessorProfileIdentity(t *testing.T) {
 	if err != nil || !found {
 		t.Fatal("legacy raster profile missing")
 	}
-	content, err := legacy.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(legacy.Content())(t)
 	if strings.Contains(string(content.Data), "audio_attention") {
 		t.Fatal("audio extension rewrote legacy raster profile bytes")
 	}

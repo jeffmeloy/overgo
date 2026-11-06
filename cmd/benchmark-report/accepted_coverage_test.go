@@ -51,16 +51,14 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
 	}
-	data, err := os.ReadFile(smokeOraclePath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(smokeOraclePath))(t)
 	var declarations []smokeProtocol
 	testcheck.NoError(t, json.Unmarshal(data, &declarations))
 	declared := map[artifact.ID]smokeProtocol{}
 	for _, declaration := range declarations {
 		declared[declaration.Model] = declaration
 	}
-	root, err := dataroot.StoreRoot("")
-	testcheck.NoError(t, err)
+	root := testcheck.Must(dataroot.StoreRoot(""))(t)
 	store := overgodbtest.OpenReadOnly(t, root)
 	ctx := t.Context()
 	names, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
@@ -68,8 +66,7 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 		t.Fatalf("%s carries no declared denominator", mmluProSuite)
 	}
 	index := evaluation.LatestEvidence(ctx, store, names, 0)
-	entries, err := discovery.ServableWithMemo(ctx, store, 100000, discovery.LoadMemo(ctx, store))
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(discovery.ServableWithMemo(ctx, store, 100000, discovery.LoadMemo(ctx, store)))(t)
 	covered := 0
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" || entry.Trained {

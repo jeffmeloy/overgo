@@ -16,26 +16,23 @@ func graftFixtureModels(t *testing.T) (*Model, *Model) {
 		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
 		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
 	})
-	target, err := NewMixtureModel(targetWeights, targetShapes, 2, 8, 10000, 1e-6, MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	target := testcheck.Must(NewMixtureModel(targetWeights, targetShapes, 2, 8, 10000, 1e-6, MoERouterPolicy{}, 0))(t)
 	donorWeights, donorShapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 32, Hidden: 12, Heads: 2, HeadDim: 6,
 		KVHeads: 2, Intermediate: 24, Layers: 1, Seed: 2,
 	})
-	donor, err := NewMixtureModel(donorWeights, donorShapes, 2, 6, 10000, 1e-6, MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	donor := testcheck.Must(NewMixtureModel(donorWeights, donorShapes, 2, 6, 10000, 1e-6, MoERouterPolicy{}, 0))(t)
 	return target, donor
 }
 
 func fixtureGraft(t *testing.T, target, donor *Model, seed int64) *Graft {
 	t.Helper()
-	graft, err := NewGraft(target, 0,
+	graft := testcheck.Must(NewGraft(target, 0,
 		donor.Weights["model.layers.0.mlp.gate_proj.weight"],
 		donor.Weights["model.layers.0.mlp.up_proj.weight"],
 		donor.Weights["model.layers.0.mlp.down_proj.weight"],
 		donor.Dims.Hidden, donor.Dims.Intermediate, seed,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return graft
 }
 
@@ -49,8 +46,7 @@ func TestGraftZeroUpIsExactNoOp(t *testing.T) {
 	tokens := []int{3, 1, 4, 1, 5, 9, 2, 6}
 	base, _, _, err := target.LossAndGrads(tokens)
 	testcheck.NoError(t, err)
-	grafted, err := target.GraftLoss(graft, tokens)
-	testcheck.NoError(t, err)
+	grafted := testcheck.Must(target.GraftLoss(graft, tokens))(t)
 	if base != grafted {
 		t.Fatalf("zero-Up graft loss %v differs from target loss %v", grafted, base)
 	}
@@ -72,17 +68,14 @@ func TestGraftBridgeGradientsMatchFiniteDifference(t *testing.T) {
 		BridgeDownName: make([]float32, len(graft.Down)),
 		BridgeUpName:   make([]float32, len(graft.Up)),
 	}
-	_, err := target.GraftLossAndBridgeGrads(graft, tokens, bridge)
-	testcheck.NoError(t, err)
+	testcheck.Must(target.GraftLossAndBridgeGrads(graft, tokens, bridge))(t)
 	const h = 1e-3
 	probe := func(matrix []float32, index int) float64 {
 		original := matrix[index]
 		matrix[index] = original + h
-		plus, err := target.GraftLoss(graft, tokens)
-		testcheck.NoError(t, err)
+		plus := testcheck.Must(target.GraftLoss(graft, tokens))(t)
 		matrix[index] = original - h
-		minus, err := target.GraftLoss(graft, tokens)
-		testcheck.NoError(t, err)
+		minus := testcheck.Must(target.GraftLoss(graft, tokens))(t)
 		matrix[index] = original
 		return (plus - minus) / (2 * h)
 	}
@@ -115,8 +108,7 @@ func TestTrainBridgeReducesTrainingLoss(t *testing.T) {
 	frozenProbe := append([]float32(nil), target.Weights["model.layers.0.mlp.gate_proj.weight"]...)
 	donorProbe := append([]float32(nil), graft.DonorGate...)
 	batches := [][]int{{3, 1, 4, 1, 5, 9, 2, 6}, {2, 7, 1, 8, 2, 8, 1, 8}}
-	losses, err := target.TrainBridge(graft, batches, 0.1, 0.9, 12)
-	testcheck.NoError(t, err)
+	losses := testcheck.Must(target.TrainBridge(graft, batches, 0.1, 0.9, 12))(t)
 	// Batches alternate, so progress is same-batch: step 10 vs step 0.
 	if len(losses) != 12 || !(losses[10] < losses[0]) {
 		t.Fatalf("bridge training did not reduce loss: %v", losses)
@@ -142,7 +134,6 @@ func TestTrainedBridgeCheckpointRoundTripIsBitExact(t *testing.T) {
 	if _, err := target.TrainBridge(graft, [][]int{{3, 1, 4, 1, 5, 9, 2, 6}}, 0.1, 0.9, 2); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, graft.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, graft.OptimizerPlan()))(t)
 	checkpointtest.RequireRoundTrip(t, program, graft, map[string][]float32{BridgeDownName: graft.Down, BridgeUpName: graft.Up})
 }

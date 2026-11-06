@@ -21,21 +21,17 @@ func TestTransducerCapturePublication(t *testing.T) {
 	// Synthetic publication evidence only: this test does not claim ASR parity.
 	election := qualificationElection(t)
 	store := overgodbtest.Open(t, t.TempDir())
-	batch, err := election.Batch("transducer-capture-test/model")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(election.Batch("transducer-capture-test/model"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
 	tensorPath := filepath.Join(dir, "tensors.safetensors")
 	testcheck.NoError(t, safetensors.Save(tensorPath, map[string][]float32{"probe": {1}}, map[string][]int{"probe": {1}}, nil))
-	tensorBytes, err := os.ReadFile(tensorPath)
-	testcheck.NoError(t, err)
-	tensorID, err := artifact.IdentifyBytes(artifact.KindFile, tensorBytes)
-	testcheck.NoError(t, err)
+	tensorBytes := testcheck.Must(os.ReadFile(tensorPath))(t)
+	tensorID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, tensorBytes))(t)
 	source := []byte("# synthetic publication contract fixture\n")
-	sourceID, err := artifact.IdentifyBytes(artifact.KindFile, source)
-	testcheck.NoError(t, err)
+	sourceID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, source))(t)
 	sourcePath, reportPath := filepath.Join(dir, "source.py"), filepath.Join(dir, "capture.json")
 	testcheck.NoError(t, os.WriteFile(sourcePath, source, 0o600))
 	var capture transducerCapture
@@ -53,8 +49,7 @@ func TestTransducerCapturePublication(t *testing.T) {
 		testutil.WriteJSON(t, reportPath, c)
 	}
 	writeReport(capture)
-	golden, err := PublishTransducerCapture(t.Context(), store, reportPath, sourcePath, tensorPath)
-	testcheck.NoError(t, err)
+	golden := testcheck.Must(PublishTransducerCapture(t.Context(), store, reportPath, sourcePath, tensorPath))(t)
 	if _, err := artifact.RequireTypedContent(t.Context(), store, golden); err != nil {
 		t.Fatal(err)
 	}

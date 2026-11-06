@@ -62,8 +62,7 @@ func (*servedFixture) TokenizeSamplingText(text string) ([]tokenizer.TokenID, er
 // a span the fixture takes is one the stopwatch can time, and returns it.
 func tick(t *testing.T, since time.Duration) time.Duration {
 	for {
-		now, err := processmeasure.Counter()
-		testcheck.NoError(t, err)
+		now := testcheck.Must(processmeasure.Counter())(t)
 		if now > since {
 			return now
 		}
@@ -113,8 +112,7 @@ func (*servedFixture) RuntimePolicy() modelrecipe.RuntimePolicy {
 // newest first.
 func servingAttempts(t *testing.T, directory string) []runrecord.ServingObservation {
 	t.Helper()
-	reader, err := overgodb.OpenReadOnly(directory)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(overgodb.OpenReadOnly(directory))(t)
 	defer reader.Close()
 	var observed []runrecord.ServingObservation
 	if _, err := overgodb.VisitDecodedDocuments(t.Context(), reader, overgodb.DocumentQuery{
@@ -139,38 +137,30 @@ func measuredFixture(t *testing.T) (directory, path string, model *servedFixture
 	ctx := t.Context()
 	path = testutil.HermeticLlamaGGUF(t, servedContext)
 	directory = t.TempDir()
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(directory))(t)
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative))(t)
 	cases := []evaluation.ExactCase{
 		{Name: "dna", Prompt: "<dna>ATGGCG", Text: servedOutput, MaxTokens: len(servedOutput), PromptTokens: servedPromptTokens, GeneratedTokens: len(servedOutput)},
 		{Name: "text", Prompt: "The capital of France is", Text: servedOutput, MaxTokens: len(servedOutput), PromptTokens: servedPromptTokens, GeneratedTokens: len(servedOutput)},
 	}
-	exact, err := evaluation.CompileExact(evaluation.ExactSuite{Schema: "test/v1", Source: "measured request", Cases: cases})
-	testcheck.NoError(t, err)
-	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-	testcheck.NoError(t, err)
-	batch, err := environment.Batch("fixture/environment")
-	testcheck.NoError(t, err)
+	exact := testcheck.Must(evaluation.CompileExact(evaluation.ExactSuite{Schema: "test/v1", Source: "measured request", Cases: cases}))(t)
+	environment := testcheck.Must(runrecord.CurrentEnvironment("cuda:0", "cuda"))(t)
+	batch := testcheck.Must(environment.Batch("fixture/environment"))(t)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
 	revision := strings.Repeat("a", 40)
-	plan, err := evaluation.BindExact(exact, evaluation.ExactAuthorities{
+	plan := testcheck.Must(evaluation.BindExact(exact, evaluation.ExactAuthorities{
 		ModelDefinition: candidate.Resolved.Document.ID, RuntimeRecipe: candidate.Definition.ID, CodeCommit: revision,
 		Environment: environment.ID, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	model = &servedFixture{t: t}
-	report, err := evaluation.EvaluateExactSharded(ctx, store, model, exact, plan, nil)
-	testcheck.NoError(t, err)
-	verification, err := modelintake.PublishVerification(ctx, store, candidate.Definition, revision, time.Millisecond, "cuda:0", "cuda",
-		fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", plan.Identity(), report, len(cases)))
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluation.EvaluateExactSharded(ctx, store, model, exact, plan, nil))(t)
+	verification := testcheck.Must(modelintake.PublishVerification(ctx, store, candidate.Definition, revision, time.Millisecond, "cuda:0", "cuda",
+		fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", plan.Identity(), report, len(cases))))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, "recorded and replayed"))
 	testcheck.NoError(t, store.Close())
 	return directory, path, model, candidate.Definition.ID, cases[0]

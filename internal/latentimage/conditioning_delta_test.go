@@ -19,8 +19,7 @@ import (
 func conditioningDeltaGolden(t *testing.T, file, digest string, run graphruntime.Runner) {
 	t.Helper()
 	mossFixtureBytes(t, file, digest)
-	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	testcheck.NoError(t, err)
+	s := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file)))(t)
 	defer s.Close()
 	var cases []string
 	for name := range s.Tensors {
@@ -89,10 +88,8 @@ func conditioningDeltaGolden(t *testing.T, file, digest string, run graphruntime
 				}
 				out := b.GatedDeltaNetChunked(nodes[0], nodes[1], nodes[2], nodes[3], nodes[4], nodes[5], repeat)
 				testcheck.NoError(t, b.Err())
-				got, err := run([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
-				again, err := run([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
+				again := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
 				actual := got[out].Data
 				for i, v := range actual {
 					if math.Float32bits(v) != math.Float32bits(again[out].Data[i]) {

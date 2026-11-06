@@ -46,8 +46,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus))(t)
 	var records []dataset.Record
 	for index := range uint64(documents) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
@@ -62,10 +61,8 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 		"halves": {{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}},
 		"thirds": {{Name: "heldout", Weight: 1}, {Name: "train", Weight: 2}},
 	} {
-		split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, weights)
-		testcheck.NoError(t, err)
-		batch, err := split.PublicationBatch("test-split-"+name, nil)
-		testcheck.NoError(t, err)
+		split := testcheck.Must(dataset.BuildGroupSplit(registered.Dataset, records, 17, weights))(t)
+		batch := testcheck.Must(split.PublicationBatch("test-split-"+name, nil))(t)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -77,24 +74,21 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 				partners[name] = membership.ID
 			}
 		}
-		objectives[name], err = trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+		objectives[name] = testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 			Name: "texts-" + name, Kind: trainingprogram.ObjectiveTokenPrediction, Signature: textSignature,
 			Dataset: registered.Dataset, Split: training, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
 			Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
 			Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 			Authority: trainingprogram.ObjectiveDeclared,
-		})
-		testcheck.NoError(t, err)
-		content, err := objectives[name].Content()
-		testcheck.NoError(t, err)
+		}))(t)
+		content := testcheck.Must(objectives[name].Content())(t)
 		registration := artifact.Batch{
 			Key: "test-objective-" + name, Contents: []artifact.Content{content},
 			Aliases: []artifact.AliasBinding{{Name: "objective.registered.texts-" + name, Target: objectives[name].ID}},
 		}
 		referenced := []artifact.ID{derived(artifact.KindProfile, "processor"), derived(artifact.KindProfile, "loss"), derived(artifact.KindProfile, "evaluation"), derived(artifact.KindEvidence, "note")}
 		for _, policy := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
-			id, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+policy))
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+policy)))(t)
 			referenced = append(referenced, id)
 		}
 		for _, id := range referenced {
@@ -130,14 +124,12 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	if err != nil || !found || json.Unmarshal(content.Data, &verdict) != nil || verdict.Trained != result.Trained {
 		t.Fatalf("verdict %s = (%+v, found %t, %v), want it to bind the trained checkpoint %s", result.Verdict, verdict, found, err, result.Trained)
 	}
-	directory, err := artifact.AvailablePath(ctx, store, verdict.Trained, artifact.LocationDirectory)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(artifact.AvailablePath(ctx, store, verdict.Trained, artifact.LocationDirectory))(t)
 	checkpoint, err := trainingprogram.LoadCheckpoint(directory)
 	if err != nil || checkpoint.ID() != verdict.Trained {
 		t.Fatalf("the bound checkpoint reloads as (%s, %v), want %s", checkpoint.ID(), err, verdict.Trained)
 	}
-	file, err := gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel)))(t)
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	weights, manifestErr := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
 	if closeErr := file.Close(); err != nil || closeErr != nil || manifestErr != nil || weights.ID != checkpoint.Weights {
@@ -149,10 +141,8 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	}
 
 	objective := objectives["halves"]
-	tokenizer, err := loadTrainableTokenizer(base)
-	testcheck.NoError(t, err)
-	baseModel, err := loadTrainableModel(base)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(loadTrainableTokenizer(base))(t)
+	baseModel := testcheck.Must(loadTrainableModel(base))(t)
 	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, baseModel.Dims.ContextLength, false, 0)
 	if err != nil || data.Heldout != verdict.Inputs {
 		t.Fatalf("held-out inputs read again = (%s, %v), want the bound %s", data.Heldout, err, verdict.Inputs)
@@ -171,20 +161,17 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	if err != nil || plan.ID() != verdict.Plan {
 		t.Fatalf("plan recompiled = (%s, %v), want %s", plan.ID(), err, verdict.Plan)
 	}
-	trained, err := loadTrainableModel(directory)
-	testcheck.NoError(t, err)
+	trained := testcheck.Must(loadTrainableModel(directory))(t)
 	score := func(model *densecausal.Model) evaluation.HeldoutReport {
 		t.Helper()
 		var observations []evaluation.HeldoutObservation
 		for _, target := range cases {
 			example := data.Examples[target.Record]
 			example.Record = target.Record
-			prediction, err := nextTokens(model, example, nil)
-			testcheck.NoError(t, err)
+			prediction := testcheck.Must(nextTokens(model, example, nil))(t)
 			observations = append(observations, evaluation.HeldoutObservation{Record: target.Record, Values: prediction.Values})
 		}
-		report, err := plan.Score(observations)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(plan.Score(observations))(t)
 		return report
 	}
 	baseline, candidate := score(baseModel), score(trained)

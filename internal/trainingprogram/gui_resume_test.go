@@ -16,17 +16,15 @@ import (
 
 func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
-	optimizerPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
-	program, err := CompileTrainingProgram(ProgramSpec{
+	optimizerPlan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}}))(t)
+	program := testcheck.Must(CompileTrainingProgram(ProgramSpec{
 		Objective: ObjectiveTokenPrediction,
 		Operators: []OperatorSpec{
 			{ID: "forward", Phase: PhaseForward}, {ID: "backward", Phase: PhaseBackward}, {ID: "optimize", Phase: PhaseOptimize},
 		},
 		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  optimizerPlan,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	modelID := id(artifact.KindModel, "resume-model")
 	datasetID := id(artifact.KindDataset, "resume-dataset")
 	splitID := id(artifact.KindDatasetShard, "resume-split")
@@ -34,10 +32,8 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	processorID := id(artifact.KindProfile, "resume-processor")
 	projectorID := id(artifact.KindProjector, "resume-projector")
 	codecID := id(artifact.KindProfile, "resume-codec")
-	config, err := BuiltinOptimizerPolicy().Config(optimizerPlan.ParameterCount())
-	testcheck.NoError(t, err)
-	state, err := hostoptimizer.New([]float32{1}, []float32{0}, optimizerPlan, config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(BuiltinOptimizerPolicy().Config(optimizerPlan.ParameterCount()))(t)
+	state := testcheck.Must(hostoptimizer.New([]float32{1}, []float32{0}, optimizerPlan, config))(t)
 	algorithmID := id(artifact.KindProfile, "resume-rng")
 	routerPolicy := id(artifact.KindRecipe, "router-policy")
 	routerState := RouterControllerState{Policy: routerPolicy, Stratum: splitID, Layer: 3, NextBias: []float32{-0.25, 0.25}}
@@ -53,8 +49,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 		Lineage:           []LineageParent{{Artifact: modelID, Relation: artifact.RelationTrainedFrom}},
 		RouterControllers: []RouterControllerState{routerState},
 	})
-	encoded, err := os.ReadFile(filepath.Join(directory, CheckpointFilename))
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile(filepath.Join(directory, CheckpointFilename)))(t)
 	restored, err := ParseCheckpoint(encoded)
 	if err != nil || restored.ID() != checkpoint.ID() || len(restored.RouterControllers) != 1 ||
 		!slices.Equal(restored.RouterControllers[0].NextBias, routerState.NextBias) || len(restored.ArtifactLineage()) != 3 {
@@ -75,7 +70,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	}
 	checkpointID := checkpoint.ID()
 	profile := func(value string) artifact.ID { return id(artifact.KindProfile, value) }
-	plan, err := CompileTrainingRunPlan(RunSpec{
+	plan := testcheck.Must(CompileTrainingRunPlan(RunSpec{
 		Recipe: id(artifact.KindRecipe, "resume-recipe"), Initial: InitialStateSpec{Checkpoint: checkpointID},
 		Dataset: datasetID, Split: splitID,
 		Signature: recipecontract.ModalitySignature{
@@ -87,8 +82,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 			Memory: profile("memory"), Optimizer: BuiltinOptimizerPolicy().ID,
 			Checkpoint: profile("checkpoint"), Evaluation: profile("evaluation"), Promotion: profile("promotion"),
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authority := ResumeAuthority{
 		Model: modelID, Stream: checkpoint.Stream, OptimizerPlan: optimizerPlan.Identity(),
 		RouterControllers: []RouterControllerAuthority{{Policy: routerPolicy, Stratum: splitID, Layer: 3, Experts: 2}},

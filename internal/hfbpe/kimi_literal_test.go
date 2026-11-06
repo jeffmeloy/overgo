@@ -13,8 +13,7 @@ import (
 )
 
 func TestKimiLiteralControlText(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_k3_literal_reference.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "kimi_k3_literal_reference.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "60f04dde1eef39a86ad68058d05b829ae7f063b9bafe4fa24560f550a2643f9c" {
 		t.Fatalf("Kimi literal reference projection changed: %s", got)
 	}
@@ -43,16 +42,14 @@ func TestKimiLiteralControlText(t *testing.T) {
 		map[string]any{"type": "Split", "pattern": map[string]string{"Regex": reference.Pattern}, "behavior": "Isolated", "invert": false},
 		map[string]any{"type": "ByteLevel", "add_prefix_space": false, "trim_offsets": true, "use_regex": false},
 	}}
-	source, err := json.Marshal(map[string]any{
+	source := testcheck.Must(json.Marshal(map[string]any{
 		"normalizer": nil, "pre_tokenizer": pre, "decoder": map[string]any{"type": "ByteLevel"},
 		"model":        map[string]any{"type": "BPE", "ignore_merges": true, "merges": []string{}, "vocab": reference.Vocab},
 		"added_tokens": reference.AddedTokens,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	dir := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), source, 0600))
-	encoder, err := Load(dir)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(Load(dir))(t)
 	if got, err := encoder.encode(reference.LiteralText, false); err != nil || !slices.Equal(got, reference.LiteralIDs) {
 		t.Errorf("literal Encode = %v, %v; want %v", got, err, reference.LiteralIDs)
 	}

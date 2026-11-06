@@ -53,16 +53,14 @@ func hostAttention(q, k, v []float32, seq, hd int, scale float64) (p []float32, 
 
 func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const seq, headDim = 8, 6
 	scale := 1 / math.Sqrt(float64(headDim))
 	rng := rand.New(rand.NewSource(47))
 	q, k, v, dOut := randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim), randSlice(rng, seq*headDim)
 	probability, _ := hostAttention(q, k, v, seq, headDim, scale)
-	want, err := AttentionCoreBackward(worker, q, k, v, probability, dOut, seq, headDim, scale)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(AttentionCoreBackward(worker, q, k, v, probability, dOut, seq, headDim, scale))(t)
 	var pointers []driver.DevicePtr
 	allocate := residentAllocation(t, worker, &pointers)
 	defer func() {
@@ -99,8 +97,7 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 // (dQ/dK/dV) against float64 central finite differences of L = sum(dOut ⊙ out).
 func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, hd = 6, 4
@@ -112,8 +109,7 @@ func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 	dOut := randSlice(rng, seq*hd)
 
 	p, _ := hostAttention(q, k, v, seq, hd, scale)
-	grads, err := AttentionCoreBackward(worker, q, k, v, p, dOut, seq, hd, scale)
-	testcheck.NoError(t, err)
+	grads := testcheck.Must(AttentionCoreBackward(worker, q, k, v, p, dOut, seq, hd, scale))(t)
 
 	loss := func() float64 {
 		_, out := hostAttention(q, k, v, seq, hd, scale)

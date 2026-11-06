@@ -76,8 +76,7 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	if err != nil || added != 4 {
 		t.Fatalf("proposed %d rows, %v; want four", added, err)
 	}
-	document, err := plan.Load(improver.plan)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(plan.Load(improver.plan))(t)
 	var decline string
 	for _, gap := range published.Gaps(&baseline) {
 		if gap.Restore {
@@ -242,8 +241,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 		t.Error("measured in a cycle checkout another cycle holds or a run left a change in")
 		return nil
 	}
-	held, err := processlock.Acquire(filepath.Join(repository, processlock.StateDirectory, cycleLock), cycleLockMode)
-	testcheck.NoError(t, err)
+	held := testcheck.Must(processlock.Acquire(filepath.Join(repository, processlock.StateDirectory, cycleLock), cycleLockMode))(t)
 	if _, err := loop.Improve(improver); !errors.Is(err, processlock.ErrBusy) {
 		t.Fatalf("a cycle checkout another cycle holds gave %v; want a refusal", err)
 	}

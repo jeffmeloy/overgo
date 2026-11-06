@@ -16,8 +16,7 @@ import (
 // and the historical /app.html address serves the same shell as /.
 func TestWebUIOneShell(t *testing.T) {
 	t.Parallel()
-	declaration, err := parseWorkspaceManifest()
-	testcheck.NoError(t, err)
+	declaration := testcheck.Must(parseWorkspaceManifest())(t)
 	for _, tab := range declaration.Tabs {
 		module := "mod/" + tab.module() + ".js"
 		if _, err := fs.Stat(webuiFS, module); err != nil {
@@ -46,8 +45,7 @@ func TestWebUIDevelopmentDirectory(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!DOCTYPE html><title>dev shell</title>"), 0o644))
-	handler, err := New(Config{WebUIDir: dir}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{WebUIDir: dir}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	response := serveTestRequest(handler, http.MethodGet, "/", "")
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "dev shell") {

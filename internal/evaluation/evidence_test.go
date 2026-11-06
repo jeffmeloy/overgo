@@ -23,33 +23,26 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	exact, plan := ledgerFixture(t, "evidence environment")
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil))(t)
 	metrics := []runrecord.Metric{{Name: exactMetricName, Value: 1, Direction: runrecord.DirectionMaximize}}
-	policy, err := newAcceptancePolicy(metrics)
-	testcheck.NoError(t, err)
-	evaluator, err := NewEvaluator(plan.identity, policy)
-	testcheck.NoError(t, err)
-	run, err := runrecord.NewBoundRun(
+	policy := testcheck.Must(newAcceptancePolicy(metrics))(t)
+	evaluator := testcheck.Must(NewEvaluator(plan.identity, policy))(t)
+	run := testcheck.Must(runrecord.NewBoundRun(
 		plan.body.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.identity}, []artifact.ID{report}, "",
 		plan.body.CodeCommit, plan.body.Environment, 10,
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: 10}},
-	)
-	testcheck.NoError(t, err)
-	record, err := runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, plan.body.Dataset, metrics)
-	testcheck.NoError(t, err)
+	))(t)
+	record := testcheck.Must(runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, plan.body.Dataset, metrics))(t)
 	for _, publication := range []struct {
 		key      string
 		document evidenceBatchDocument
 	}{{"run", run}, {"evaluation", record}} {
-		batch, err := publication.document.Batch("evaluation/evidence-test/" + publication.key)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(publication.document.Batch("evaluation/evidence-test/" + publication.key))(t)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	evidence, err := PublishEvaluationEvidence(ctx, store, plan, policy, evaluator, report, run, record)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(PublishEvaluationEvidence(ctx, store, plan, policy, evaluator, report, run, record))(t)
 	verified, err := RequireEvaluationEvidence(ctx, store, evidence.ID)
 	// The document names its run and its evaluation record, and is read with their phases and metrics.
 	if err != nil || verified.ID != evidence.ID || !slices.Equal(verified.Phases, run.Phases) || !slices.Equal(verified.Metrics, record.Metrics) {
@@ -58,12 +51,10 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	forged := evaluationEvidenceCodec.Clone(evidence)
 	forged.ID = artifact.ID{}
 	forged.CodeCommit = "fedcba9876543210fedcba9876543210fedcba98"
-	forged, err = evaluationEvidenceCodec.New(forged)
-	testcheck.NoError(t, err)
-	forgedBatch, err := evaluationEvidenceCodec.Batch(
+	forged = testcheck.Must(evaluationEvidenceCodec.New(forged))(t)
+	forgedBatch := testcheck.Must(evaluationEvidenceCodec.Batch(
 		"evaluation/evidence-test/forged-bypass", forged, forged.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, forgedBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -82,18 +73,15 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil || len(parents) < len(stored.Shards)+10 {
 		t.Fatalf("evidence lineage=%+v err=%v", parents, err)
 	}
-	wrong, err := newAcceptancePolicy([]runrecord.Metric{{
+	wrong := testcheck.Must(newAcceptancePolicy([]runrecord.Metric{{
 		Name: "other", Direction: runrecord.DirectionMaximize,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := PublishEvaluationEvidence(ctx, store, plan, wrong, evaluator, report, run, record); err == nil {
 		t.Fatal("accepted evaluation outside suite policy")
 	}
 
-	planContent, err := plan.Content()
-	testcheck.NoError(t, err)
-	evidenceContent, err := evidence.Content()
-	testcheck.NoError(t, err)
+	planContent := testcheck.Must(plan.Content())(t)
+	evidenceContent := testcheck.Must(evidence.Content())(t)
 	for name, fixture := range map[string]struct {
 		content   artifact.Content
 		normalize func([]byte) ([]byte, error)
@@ -117,8 +105,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 			var foreign map[string]any
 			testcheck.NoError(t, json.Unmarshal(fixture.content.Data, &foreign))
 			foreign["external_id"] = "foreign-authority"
-			injected, err := json.Marshal(foreign)
-			testcheck.NoError(t, err)
+			injected := testcheck.Must(json.Marshal(foreign))(t)
 			if _, err := fixture.normalize(injected); err == nil {
 				t.Fatal("foreign authority field accepted")
 			}

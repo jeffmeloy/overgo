@@ -29,12 +29,9 @@ func TestRealSupernovaForecastStream(t *testing.T) {
 	}
 	record := leadingRecords(t, datasetPath, 1)[0]
 	datasetID := identifyDataset(t, datasetPath)
-	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(datasetID.String()+"/heldout"))
-	testcheck.NoError(t, err)
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon))
-	testcheck.NoError(t, err)
-	processor, err := LightCurveProcessor(model.Dims.PatchLen, model.Dims.Horizon)
-	testcheck.NoError(t, err)
+	splitID := testcheck.Must(artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(datasetID.String()+"/heldout")))(t)
+	processorID := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon)))(t)
+	processor := testcheck.Must(LightCurveProcessor(model.Dims.PatchLen, model.Dims.Horizon))(t)
 	authority := trainingdata.Authority{
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
 		Signature: recipecontract.ModalitySignature{
@@ -42,21 +39,16 @@ func TestRealSupernovaForecastStream(t *testing.T) {
 			Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
 		},
 	}
-	materialized, err := trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
+	materialized := testcheck.Must(trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityTimeSeries}, Process: processor,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer materialized.Close()
-	stream, err := trainingdata.NewStream(materialized, nil)
-	testcheck.NoError(t, err)
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
-	testcheck.NoError(t, err)
-	batch, err := batcher.Next(context.Background())
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingdata.NewStream(materialized, nil))(t)
+	batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1}))(t)
+	batch := testcheck.Must(batcher.Next(context.Background()))(t)
 	input, target, err := TrainingPair(batch.Examples[0])
 	testcheck.NoError(t, err)
-	forecast, err := model.Forecast(input)
-	testcheck.NoError(t, err)
+	forecast := testcheck.Must(model.Forecast(input))(t)
 	if len(forecast) != model.Dims.Horizon*model.Dims.Quantiles || len(target) == 0 || len(target) > model.Dims.Horizon {
 		t.Fatalf("forecast/target geometry=%d/%d", len(forecast), len(target))
 	}
@@ -91,16 +83,13 @@ func identifyDataset(t *testing.T, path string) artifact.ID {
 
 func supernovaDataset(t *testing.T, split string) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	defer store.Close()
 	id, found, err := store.ResolveAlias(t.Context(), "dataset.registered.supernova-timeseries")
 	if err != nil || !found {
 		t.Fatalf("Supernova dataset registration unavailable: found=%t, error=%v", found, err)
 	}
-	directory, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationDirectory)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(artifact.AvailablePath(t.Context(), store, id, artifact.LocationDirectory))(t)
 	return filepath.Join(directory, split+".jsonl")
 }

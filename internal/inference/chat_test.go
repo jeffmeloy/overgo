@@ -76,8 +76,7 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 		assistant.ToolCalls[0].Function.Arguments != `{"city":"Paris"}` {
 		t.Fatalf("assistant message = %+v", assistant)
 	}
-	encoded, err := json.Marshal(assistant)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(assistant))(t)
 	if !strings.Contains(string(encoded), `"content":null`) {
 		t.Fatalf("encoded assistant tool call = %s", encoded)
 	}
@@ -106,11 +105,10 @@ func TestChatMessageDecodesToolCallsAndToolResult(t *testing.T) {
 
 func TestFormatChatML(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{vocab: chatTestVocab(t)}}
-	prompt, err := runner.FormatChat([]ChatMessage{
+	prompt := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<|im_start|>system\nBe concise.<|im_end|>\n" +
 		"<|im_start|>user\nHello<|im_end|>\n" +
 		"<|im_start|>assistant\n"
@@ -165,11 +163,10 @@ func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) 
 			AddBOS: true,
 		}},
 	}
-	got, err := runner.FormatChat([]ChatMessage{
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "rules"},
 		{Role: "user", Content: "hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "[system]rules</s>[user]hello</s>[assistant]"
 	if got != want {
 		t.Fatalf("Jinja prompt = %q, want %q", got, want)
@@ -192,8 +189,7 @@ func TestFormatJinjaChatSupportsPinnedRuntimeExtensions(t *testing.T) {
 			`{% if index == 2 %}{% set ns.hit = true %}{% endif %}`+
 			`{% endfor %}{{ ns.hit }}`,
 	)
-	got, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}}))(t)
 	if got != "10:True" {
 		t.Fatalf("extension prompt = %q, want %q", got, "10:True")
 	}
@@ -207,11 +203,10 @@ func TestFormatJinjaChatSupportsPinnedRuntimeExtensions(t *testing.T) {
 
 func TestFormatChatTemplateTimeMatchesPinnedDirectives(t *testing.T) {
 	value := time.Date(2026, time.August, 2, 17, 4, 5, 0, time.FixedZone("EDT", -4*60*60))
-	got, err := formatChatTemplateTime(
+	got := testcheck.Must(formatChatTemplateTime(
 		value,
 		"%a|%A|%b|%B|%c|%d|%e|%H|%I|%j|%m|%M|%p|%S|%u|%w|%x|%X|%y|%Y|%z|%Z|%%",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := "Sun|Sunday|Aug|August|Sun Aug 02 17:04:05 2026|02| 2|17|05|214|08|04|PM|05|7|0|08/02/26|17:04:05|26|2026|-0400|EDT|%"
 	if got != want {
 		t.Fatalf("strftime_now = %q, want %q", got, want)
@@ -227,7 +222,7 @@ func TestFormatJinjaChatSuppliesToolsAndToolCalls(t *testing.T) {
 		`{%- for call in message.tool_calls %}[{{ call.id }}:{{ call.function.name }}({{ call.function.arguments }})]{%- endfor %};{%- endfor %}` +
 		`thinking={{ enable_thinking }};generate={{ add_generation_prompt }}`
 	runner := jinjaChatTestRunner(t, template)
-	got, err := runner.FormatChatWithOptions(
+	got := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "user", Content: "weather?"},
 			{
@@ -257,8 +252,7 @@ func TestFormatJinjaChatSuppliesToolsAndToolCalls(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      false,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	// The call's arguments reach a template as the mapping they hold, and a
 	// mapping printed bare is printed as Python prints a dict.
 	want := `weather={"type": "object"};user:weather?;assistant:[call_1:weather({'city': 'Paris'})];tool:sunny;thinking=False;generate=True`
@@ -284,20 +278,18 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 			Data: `tool={{ tools[0].function.name }}`,
 		},
 	})
-	plain, err := runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}})
-	testcheck.NoError(t, err)
+	plain := testcheck.Must(runner.FormatChat([]ChatMessage{{Role: "user", Content: "hi"}}))(t)
 	if plain != "default" {
 		t.Fatalf("plain prompt = %q", plain)
 	}
-	withTool, err := runner.FormatChatWithOptions(
+	withTool := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{{Role: "user", Content: "hi"}},
 		ChatFormatOptions{
 			Tools:               []ChatTool{toolWeatherDefinition()},
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if withTool != "tool=weather" {
 		t.Fatalf("tool-use prompt = %q", withTool)
 	}
@@ -399,8 +391,7 @@ func TestFormatGemmaChatMatchesPinnedOracle(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := runner.FormatChat(test.messages)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(runner.FormatChat(test.messages))(t)
 			if got != test.want {
 				t.Fatalf("Gemma prompt = %q, want %q", got, test.want)
 			}
@@ -426,13 +417,12 @@ func TestFormatGemmaChatRejectsRolesAndBoundaryInjection(t *testing.T) {
 
 func TestFormatLlama3ChatMatchesPinnedTemplateVector(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{vocab: llama3ChatTestVocab(t)}}
-	prompt, err := runner.FormatChat([]ChatMessage{
+	prompt := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "You are a helpful assistant"},
 		{Role: "user", Content: "Hello"},
 		{Role: "assistant", Content: "Hi there"},
 		{Role: "user", Content: "Who are you"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<|start_header_id|>system<|end_header_id|>\n\n" +
 		"You are a helpful assistant<|eot_id|>" +
 		"<|start_header_id|>user<|end_header_id|>\n\nHello<|eot_id|>" +
@@ -496,8 +486,7 @@ func chatTestVocab(t *testing.T) *tokenizer.Vocab {
 			},
 		},
 	}}
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	return vocab
 }
 
@@ -567,8 +556,7 @@ func gemmaChatTestVocab(t *testing.T) *tokenizer.Vocab {
 			},
 		},
 	}}
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	return vocab
 }
 
@@ -624,7 +612,6 @@ func llama3ChatTestVocab(t *testing.T) *tokenizer.Vocab {
 			},
 		},
 	}}
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	return vocab
 }

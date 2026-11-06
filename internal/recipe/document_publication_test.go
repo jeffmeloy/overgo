@@ -15,14 +15,12 @@ import (
 func TestCanonicalDocumentPublicationOwners(t *testing.T) {
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "publication-subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "publication-derivation")
-	decision, err := NewDecision(
+	decision := testcheck.Must(NewDecision(
 		subject, DecisionRefused, EvidenceParity, "publication owner check",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
 		[]artifact.ID{derivation},
-	)
-	testcheck.NoError(t, err)
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	content := testcheck.Must(decision.Content())(t)
 	if content.Descriptor.ID != decision.ID {
 		t.Fatalf("content identity %s differs from document %s", content.Descriptor.ID, decision.ID)
 	}

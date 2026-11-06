@@ -132,8 +132,7 @@ func hostWeightedStep(model *densecausal.Model, groups [][]densecausal.WeightedS
 func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	answers := []string{"cc", "d", "cab"}
 	root, request := orderedRewardFixture(t, answers...)
-	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(loadTrainableTokenizer(request.ModelDirectory))(t)
 	loaded := func(directory string) *densecausal.Model {
 		t.Helper()
 		return testcheck.Must(loadTrainableModel(directory))(t)
@@ -142,18 +141,15 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	// difference of the logarithms of the probabilities it gives them after the prompt.
 	margin := func(model *densecausal.Model) float64 {
 		t.Helper()
-		prompt, err := tokens.encode(orderedPrompt)
-		testcheck.NoError(t, err)
+		prompt := testcheck.Must(tokens.encode(orderedPrompt))(t)
 		var standing []float64
 		for _, answer := range []string{answers[0], answers[len(answers)-1]} {
-			ids, err := tokens.encode(orderedPrompt + answer)
-			testcheck.NoError(t, err)
+			ids := testcheck.Must(tokens.encode(orderedPrompt + answer))(t)
 			completion := make([]bool, len(ids))
 			for token := len(prompt); token < len(ids); token++ {
 				completion[token] = true
 			}
-			score, err := model.SequenceLogProb(trainingdata.PreferenceSequence{Tokens: ids, Completion: completion})
-			testcheck.NoError(t, err)
+			score := testcheck.Must(model.SequenceLogProb(trainingdata.PreferenceSequence{Tokens: ids, Completion: completion}))(t)
 			standing = append(standing, score.LogProbability)
 		}
 		return standing[0] - standing[1]
@@ -162,8 +158,7 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	run := func(request Request, name string, steps int) (Result, *densecausal.Model) {
 		t.Helper()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(root, name)
-		result, err := Execute(t.Context(), request)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(Execute(t.Context(), request))(t)
 		return result, loaded(request.OutputDirectory)
 	}
 	// The step teaches what the rewards say.
@@ -226,10 +221,8 @@ func TestRewardSessionsTrainThroughTheWeightedStepAlone(t *testing.T) {
 			t.Fatalf("a reward session %s, not held to the host = backend %q, checkpoint %s; %s holds %s at step %d (%v); want the device's session and its checkpoint published after one step",
 				session.name, result.Backend, result.Checkpoint.ID(), stepped.OutputDirectory, published.ID(), published.Optimizer.Step, err)
 		}
-		began, err := loadTrainableModel(stepped.ModelDirectory)
-		testcheck.NoError(t, err)
-		ended, err := loadTrainableModel(stepped.OutputDirectory)
-		testcheck.NoError(t, err)
+		began := testcheck.Must(loadTrainableModel(stepped.ModelDirectory))(t)
+		ended := testcheck.Must(loadTrainableModel(stepped.OutputDirectory))(t)
 		moved := false
 		for name, values := range began.Weights {
 			moved = moved || !slices.Equal(values, ended.Weights[name])

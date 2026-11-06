@@ -16,8 +16,7 @@ import (
 func TestWeightsIdentityDigestsThroughTheMemo(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(path, []byte("weights fixture bytes"), 0o644))
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	want, _, err := artifact.Identify(artifact.KindModel, file)
 	file.Close()
 	testcheck.NoError(t, err)
@@ -51,16 +50,14 @@ func TestWeightsIdentityReusesPersistedTensorDigest(t *testing.T) {
 	}
 	testcheck.NoError(t, PublishMemo(t.Context(), store, memo))
 	loaded := LoadMemo(t.Context(), store)
-	want, err := artifact.IdentifyBytes(artifact.KindModel, payload)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, payload))(t)
 	got, err := WeightsIdentity(path, loaded)
 	if err != nil || got != want || loaded.dirty || len(loaded.entries) != 1 {
 		t.Fatalf("persisted tensor digest was not reused: got=%s want=%s dirty=%v entries=%d error=%v", got, want, loaded.dirty, len(loaded.entries), err)
 	}
 	payload = append(payload, " changed"...)
 	testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
-	want, err = artifact.IdentifyBytes(artifact.KindModel, payload)
-	testcheck.NoError(t, err)
+	want = testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, payload))(t)
 	got, err = WeightsIdentity(path, loaded)
 	if err != nil || got != want || !loaded.dirty {
 		t.Fatalf("changed bytes reused a stale digest: got=%s want=%s dirty=%v error=%v", got, want, loaded.dirty, err)

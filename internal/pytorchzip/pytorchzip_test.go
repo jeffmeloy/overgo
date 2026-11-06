@@ -85,13 +85,11 @@ func syntheticCheckpoint(t *testing.T, values []float32) (string, []byte) {
 	}
 	var archive bytes.Buffer
 	zw := zip.NewWriter(&archive)
-	pkl, err := zw.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate})
-	testcheck.NoError(t, err)
+	pkl := testcheck.Must(zw.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate}))(t)
 	if _, err := pkl.Write(w.buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
-	storage, err := zw.CreateHeader(&zip.FileHeader{Name: "archive/data/0", Method: zip.Store})
-	testcheck.NoError(t, err)
+	storage := testcheck.Must(zw.CreateHeader(&zip.FileHeader{Name: "archive/data/0", Method: zip.Store}))(t)
 	if _, err := storage.Write(body); err != nil {
 		t.Fatal(err)
 	}
@@ -104,8 +102,7 @@ func syntheticCheckpoint(t *testing.T, values []float32) (string, []byte) {
 func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	path, pickle := syntheticCheckpoint(t, values)
-	catalog, err := ReadCatalog(path)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(ReadCatalog(path))(t)
 	metas := catalog.Tensors
 	if len(metas) != 1 || metas[0].Name != "w" || metas[0].DType != "BFloat16Storage" || metas[0].Numel != 6 {
 		t.Fatalf("metas=%+v", metas)
@@ -113,13 +110,10 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	if enabled, ok := catalog.Scalars["enabled"].(bool); !ok || !enabled {
 		t.Fatalf("scalars=%v", catalog.Scalars)
 	}
-	bindings, err := CompileBindings(metas, []string{"w"})
-	testcheck.NoError(t, err)
-	reader, err := Open(path)
-	testcheck.NoError(t, err)
+	bindings := testcheck.Must(CompileBindings(metas, []string{"w"}))(t)
+	reader := testcheck.Must(Open(path))(t)
 	defer reader.Close()
-	got, err := reader.ReadBinding(bindings[0])
-	testcheck.NoError(t, err)
+	got := testcheck.Must(reader.ReadBinding(bindings[0]))(t)
 	for i, want := range values {
 		if got[i] != want { // all values BF16-exact by construction
 			t.Fatalf("value[%d]=%g want %g", i, got[i], want)
@@ -128,8 +122,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	// As stored: the same values unwidened, into the caller's storage when it
 	// is long enough.
 	kept := make([]uint16, len(values)+1)
-	stored, err := reader.ReadBF16(bindings[0], kept)
-	testcheck.NoError(t, err)
+	stored := testcheck.Must(reader.ReadBF16(bindings[0], kept))(t)
 	if len(stored) != len(values) || &stored[0] != &kept[0] {
 		t.Fatalf("%d stored values in storage of the reader's own, want %d in the caller's", len(stored), len(values))
 	}
@@ -138,8 +131,7 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 			t.Fatalf("stored[%d]=%#04x want %#04x", i, stored[i], dtype.Float32ToBF16(want))
 		}
 	}
-	rows, err := reader.ReadTensorRows(bindings[0], []int{1, 0}, 3)
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(reader.ReadTensorRows(bindings[0], []int{1, 0}, 3))(t)
 	wantRows := []float32{255, -0.375, 8, -2.5, 0, 1.25}
 	for i, want := range wantRows {
 		if rows[i] != want {
@@ -160,16 +152,14 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	record := func(path string) string {
 		t.Helper()
-		admission, err := Admit(path, nil)
-		testcheck.NoError(t, err)
+		admission := testcheck.Must(Admit(path, nil))(t)
 		testcheck.NoError(t, admission.File.Close())
 		return admission.Identity
 	}
 	first, _ := syntheticCheckpoint(t, values)
 	again, _ := syntheticCheckpoint(t, values)
 	other, _ := syntheticCheckpoint(t, []float32{-2.5, 0, 1.25, 255, -0.375, 4})
-	raw, err := os.ReadFile(first)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(first))(t)
 	if info, err := os.Stat(other); err != nil || info.Size() != int64(len(raw)) {
 		t.Fatalf("the checkpoint of another value is not the length of the first: %v", err)
 	}
@@ -177,8 +167,7 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 		t.Fatalf("the same values written again have the first's record: %t; another value has it too: %t", record(again) == record(first), record(other) == record(first))
 	}
 
-	admitted, err := Admit(first, nil)
-	testcheck.NoError(t, err)
+	admitted := testcheck.Must(Admit(first, nil))(t)
 	if admitted.Immutable {
 		writer, err := os.OpenFile(first, os.O_WRONLY, 0)
 		if err == nil {
@@ -203,15 +192,11 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	}
 	binary.LittleEndian.PutUint16(raw[at:], dtype.Float32ToBF16(4))
 	testcheck.NoError(t, os.WriteFile(first, raw, 0o644))
-	catalog, err := ReadCatalog(first)
-	testcheck.NoError(t, err)
-	bindings, err := CompileBindings(catalog.Tensors, []string{"w"})
-	testcheck.NoError(t, err)
-	reader, err := Open(first)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(ReadCatalog(first))(t)
+	bindings := testcheck.Must(CompileBindings(catalog.Tensors, []string{"w"}))(t)
+	reader := testcheck.Must(Open(first))(t)
 	defer reader.Close()
-	got, err := reader.ReadBinding(bindings[0])
-	testcheck.NoError(t, err)
+	got := testcheck.Must(reader.ReadBinding(bindings[0]))(t)
 	if record(first) == record(again) || got[len(got)-1] != 4 {
 		t.Fatalf("a value changed in place: the record moved: %t, and the reader gives %g; want changed payload identity and 4 read", record(first) != record(again), got[len(got)-1])
 	}
@@ -230,19 +215,15 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 func TestCompressedStorageRefused(t *testing.T) {
 	values := []float32{1, 2, 3, 4, 5, 6}
 	path, _ := syntheticCheckpoint(t, values)
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	// Rebuild with a DEFLATED storage entry: reader must refuse (offset reads
 	// require stored bodies).
 	var archive bytes.Buffer
-	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
-	testcheck.NoError(t, err)
+	zr := testcheck.Must(zip.NewReader(bytes.NewReader(raw), int64(len(raw))))(t)
 	zw := zip.NewWriter(&archive)
 	for _, f := range zr.File {
-		rc, err := f.Open()
-		testcheck.NoError(t, err)
-		dst, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Deflate})
-		testcheck.NoError(t, err)
+		rc := testcheck.Must(f.Open())(t)
+		dst := testcheck.Must(zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Deflate}))(t)
 		if _, err := io.Copy(dst, rc); err != nil {
 			t.Fatal(err)
 		}

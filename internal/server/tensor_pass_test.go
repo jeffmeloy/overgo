@@ -13,11 +13,9 @@ import (
 
 func tensorFixtureInventory(t *testing.T, path string) modelartifact.TensorInventoryDocument {
 	t.Helper()
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromGGUF(file, artifact.KindModel))(t)
 	return inventory.TensorInventory
 }
 
@@ -53,8 +51,7 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 	if inventories != 1 {
 		t.Fatalf("two requests for one model file built %d inventories", inventories)
 	}
-	parents, err := store.Parents(t.Context(), inventory.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), inventory.ID))(t)
 	linked := false
 	for _, parent := range parents {
 		linked = linked || parent.Parent == inventory.Owner
@@ -63,8 +60,7 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 		t.Fatalf("the published inventory names no link to its model: %+v", parents)
 	}
 
-	closed, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	closed := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	failing := newTestHandlerForRepository(t, closed, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
 	defer failing.Close()
 	testcheck.NoError(t, closed.Close())

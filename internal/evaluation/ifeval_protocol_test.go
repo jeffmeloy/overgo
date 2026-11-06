@@ -25,8 +25,7 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 	if len(suite.Cases) != 1 || suite.Cases[0].MaxTokens != 1280 || len(suite.Cases[0].Rules) != 1 {
 		t.Fatalf("native cap and instruction denominator: %+v", suite.Cases)
 	}
-	compiled, err := compileInstructionRules(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(compileInstructionRules(suite))(t)
 	// Captured strict/loose answers from the pinned native QuotationChecker.
 	for _, c := range []struct {
 		response      string
@@ -57,8 +56,7 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 		{Name: "startend:quotation/close", Kind: ruleSuffix, Values: []string{`"`}},
 	}
 	for _, old := range []instructionRulesSuite{oldCap, oldRules} {
-		prior, err := compileInstructionRules(old)
-		testcheck.NoError(t, err)
+		prior := testcheck.Must(compileInstructionRules(old))(t)
 		if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 			t.Fatal("protocol/scorer correction reused old evaluator lineage")
 		}

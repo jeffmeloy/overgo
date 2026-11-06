@@ -35,7 +35,7 @@ func boundaryVocab(t *testing.T, mergedCue bool) *tokenizer.Vocab {
 	types[0] = int32(tokenizer.TokenUnknown)
 	types[1] = int32(tokenizer.TokenControl)
 	types[2] = int32(tokenizer.TokenControl)
-	vocab, err := tokenizer.Load(&gguf.File{Metadata: []gguf.Metadata{
+	vocab := testcheck.Must(tokenizer.Load(&gguf.File{Metadata: []gguf.Metadata{
 		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
 		testutil.GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
 		testutil.GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
@@ -45,8 +45,7 @@ func boundaryVocab(t *testing.T, mergedCue bool) *tokenizer.Vocab {
 		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
 		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, scores),
 		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	return vocab
 }
 

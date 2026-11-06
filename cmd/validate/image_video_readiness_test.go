@@ -134,17 +134,13 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 		testskip.NotApplicable(t, "readiness applies to the image_video_gen campaign")
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	// The gate verifies an immutable candidate checkout while explicitly
 	// binding external data to the original worktree through OVERGO_DATA_ROOT.
-	dataRoot, err := gitauthority.RepositoryRoot(t.Context(), os.Getenv(dataroot.Env))
-	testcheck.NoError(t, err)
-	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots)
-	testcheck.NoError(t, err)
+	dataRoot := testcheck.Must(gitauthority.RepositoryRoot(t.Context(), os.Getenv(dataroot.Env)))(t)
+	identity := testcheck.Must(checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots))(t)
 	testcheck.NoError(t, kernel.ValidateAssets())
-	ffmpeg, err := media.ResolveFFmpeg("")
-	testcheck.NoError(t, err)
+	ffmpeg := testcheck.Must(media.ResolveFFmpeg(""))(t)
 	t.Logf("private store=%s imported head=%s sequence=%d; models=%s datasets=%s checkpoints=%s; FFmpeg=%s; no model execution", roots.Store, identity.Head, identity.Sequence, roots.Models, roots.Datasets, roots.Checkpoints, ffmpeg)
 }
 
@@ -161,8 +157,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	if _, err := source.Backup(t.Context(), roots.Store); err != nil {
 		t.Fatal(err)
 	}
-	identity, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(checkImageVideoWorktreeReadiness(t.Context(), root, roots))(t)
 	for _, field := range []string{"store", "models", "datasets", "checkpoints"} {
 		t.Run("missing-"+field, func(t *testing.T) {
 			bad := roots
@@ -205,8 +200,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		}
 	})
 	t.Run("local-append", func(t *testing.T) {
-		local, err := overgodb.Create(roots.Store)
-		testcheck.NoError(t, err)
+		local := testcheck.Must(overgodb.Create(roots.Store))(t)
 		_, commitErr := local.Commit(t.Context(), artifact.Batch{Key: "readiness/local", Aliases: []artifact.AliasBinding{{Name: "readiness/local", Target: content.Descriptor.ID}}})
 		testcheck.NoError(t, errors.Join(commitErr, local.Close()))
 		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err != nil {

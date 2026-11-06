@@ -28,26 +28,20 @@ import (
 // 44a5922da8725064fe6028c157d53c003b1fbc2147f88b29d0762c5b0dcc556c.
 func TestProjectionExecutionE4B(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	var paths []string
 	for _, reference := range []string{
 		"tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",
 		"tensor-set:sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e",
 	} {
-		id, err := artifact.ParseID(reference)
-		testcheck.NoError(t, err)
-		path, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(reference))(t)
+		path := testcheck.Must(artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile))(t)
 		paths = append(paths, path)
 	}
-	candidate, err := modelintake.PrepareProjectionCandidate(t.Context(), store, paths[0], paths[1])
-	testcheck.NoError(t, err)
-	language, err := modelintake.PrepareInferenceCandidate(t.Context(), store, paths[0], modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	testcheck.NoError(t, err)
-	projection, err := projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(modelintake.PrepareProjectionCandidate(t.Context(), store, paths[0], paths[1]))(t)
+	language := testcheck.Must(modelintake.PrepareInferenceCandidate(t.Context(), store, paths[0], modelintake.SessionOverride{}, recipe.ResidencyHybridNative))(t)
+	projection := testcheck.Must(projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor}))(t)
 	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
 		runner, err := openExactCandidate(ctx, store, paths[0], language)
 		if err != nil {
@@ -65,13 +59,10 @@ func TestProjectionExecutionE4B(t *testing.T) {
 		}
 	}()
 	file := projectionFile{Kind: "image", Path: testutil.FixturePath(t, "e4b_vision", "gemma4_mm_image.png")}
-	file.Artifact, err = artifact.ParseID("file:sha256:996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
-	testcheck.NoError(t, err)
+	file.Artifact = testcheck.Must(artifact.ParseID("file:sha256:996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e"))(t)
 	input := projectionInput{Kind: "image", Files: []projectionFile{file}, Text: []string{"", "What is in this image? One word."}}
-	raw, err := json.Marshal(input)
-	testcheck.NoError(t, err)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(input))(t)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	var output strings.Builder
 	promptTokens := 0
 	ids, _, err := runtime.Generate(t.Context(), string(raw), inference.GenerateOptions{MaxNewTokens: 16, Sampler: greedy, DeviceGreedy: true,

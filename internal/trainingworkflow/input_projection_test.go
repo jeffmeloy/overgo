@@ -18,12 +18,9 @@ import (
 func TestInputProjectionResumeRefusals(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(4)
-	testcheck.NoError(t, err)
-	adapter, err := adaptertrain.NewLinearCTC(adaptertrain.LinearCTCSpec{OutputWeight: []float32{1, 0, 0, 1, -1, -1}, Width: 2, Vocabulary: 3, MaxFrames: 3, MaxTargets: 1, Blank: 0, MemoryBytes: 1 << 20, Optimizer: config})
-	testcheck.NoError(t, err)
-	execution, err := adapter.Bind(t.Context())
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(4))(t)
+	adapter := testcheck.Must(adaptertrain.NewLinearCTC(adaptertrain.LinearCTCSpec{OutputWeight: []float32{1, 0, 0, 1, -1, -1}, Width: 2, Vocabulary: 3, MaxFrames: 3, MaxTargets: 1, Blank: 0, MemoryBytes: 1 << 20, Optimizer: config}))(t)
+	execution := testcheck.Must(adapter.Bind(t.Context()))(t)
 	example := adaptertrain.LinearCTCExample{Hidden: []float32{1, 0, 0, 1, 1, 1}, Targets: []int{1}, Frames: 3}
 	testcheck.NoError(t, execution.Run(&example))
 	binding := adaptertrain.InputProjectionBinding{BaseRecipe: id(artifact.KindRecipe, "base"), TargetTransform: profile("transform")}
@@ -32,24 +29,20 @@ func TestInputProjectionResumeRefusals(t *testing.T) {
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityAudio}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
 		Policies: trainingprogram.PolicySpec{Objective: profile("ctc"), Precision: profile("precision"), Placement: profile("placement"), Memory: profile("memory"),
 			Optimizer: trainingprogram.BuiltinOptimizerPolicy().ID, Checkpoint: profile("checkpoint"), Evaluation: profile("evaluation"), Promotion: profile("promotion")}, Program: adapter.Program()}
-	plan, err := trainingprogram.CompileTrainingRunPlan(runSpec)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(trainingprogram.CompileTrainingRunPlan(runSpec))(t)
 	spec := trainingprogram.CheckpointSpec{RunPlan: plan.ID(), Program: adapter.Program().ID(), Model: runSpec.Initial.Model, Dataset: runSpec.Dataset, Split: runSpec.Split,
 		Processors: plan.Processors(), Stream: trainingprogram.DatasetState{Identity: profile("stream"), Position: 1},
 		RNG: []trainingprogram.RNGState{{Name: "augmentation", Algorithm: profile("none")}, {Name: "data", Algorithm: profile("sampler"), Counter: 1}}}
 	directory := filepath.Join(t.TempDir(), "checkpoint")
-	checkpoint, err := PublishInputProjection(directory, adapter, binding, spec)
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(PublishInputProjection(directory, adapter, binding, spec))(t)
 	if _, err := PublishInputProjection(directory, adapter, binding, spec); err == nil {
 		t.Fatal("existing checkpoint overwritten")
 	}
 	runSpec.Initial = trainingprogram.InitialStateSpec{Checkpoint: checkpoint.ID()}
-	plan, err = trainingprogram.CompileTrainingRunPlan(runSpec)
-	testcheck.NoError(t, err)
+	plan = testcheck.Must(trainingprogram.CompileTrainingRunPlan(runSpec))(t)
 	authority := trainingprogram.ResumeAuthority{Model: spec.Model, Stream: spec.Stream, OptimizerPlan: adapter.Program().OptimizerIdentity()}
 	beforeWeights := adapter.WeightSnapshot()
-	beforeState, err := adapter.OptimizerSnapshot()
-	testcheck.NoError(t, err)
+	beforeState := testcheck.Must(adapter.OptimizerSnapshot())(t)
 	for _, name := range []string{"base", "transform", "model", "stream-identity", "stream-position", "optimizer", "rng-missing", "rng-counter", "weights-only"} {
 		t.Run(name, func(t *testing.T) {
 			candidateBinding, candidateAuthority, path := binding, authority, directory

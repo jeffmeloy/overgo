@@ -19,16 +19,14 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 	}}
-	top, err := insertItem(base, "new", "do the thing", "", "", "go test ./...")
-	testcheck.NoError(t, err)
+	top := testcheck.Must(insertItem(base, "new", "do the thing", "", "", "go test ./..."))(t)
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
 	if it, st, ok := plan.Current(top, worklease.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
-	mid, err := insertItem(base, "x", "t", "", "b", "")
-	testcheck.NoError(t, err)
+	mid := testcheck.Must(insertItem(base, "x", "t", "", "b", ""))(t)
 	if mid.Items[1].ID != "x" {
 		t.Fatalf("insert -before b should land at index 1, got %s", mid.Items[1].ID)
 	}
@@ -124,8 +122,7 @@ func TestEnforceSetVerify(t *testing.T) {
 	base := plan.Plan{Items: []plan.Item{
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s1", Status: "open"}, {ID: "s2", Status: "open"}}},
 	}}
-	got, err := assignVerify(base, "a", "s2", "  go test ./x  ")
-	testcheck.NoError(t, err)
+	got := testcheck.Must(assignVerify(base, "a", "s2", "  go test ./x  "))(t)
 	if got.Items[0].Steps[1].Verify != "go test ./x" {
 		t.Fatalf("verify not set/trimmed: %q", got.Items[0].Steps[1].Verify)
 	}

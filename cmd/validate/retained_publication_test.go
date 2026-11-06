@@ -33,8 +33,7 @@ func retainedPublicationFixtures(t *testing.T) []retainedPublicationFixture {
 	if len(fixtures) == 0 {
 		t.Fatal("retained publication denominator is empty")
 	}
-	paths, err := filepath.Glob(filepath.Join(testutil.RepoRoot(t), "docs/verification/*-retained.json"))
-	testcheck.NoError(t, err)
+	paths := testcheck.Must(filepath.Glob(filepath.Join(testutil.RepoRoot(t), "docs/verification/*-retained.json")))(t)
 	declared := map[string]bool{}
 	for _, path := range paths {
 		declared[filepath.Base(path)] = true
@@ -94,8 +93,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 		}
 		return record, err
 	}
-	record, err := check(spec)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(check(spec))(t)
 	for _, mutate := range []func(*verificationSpecification){
 		func(s *verificationSpecification) { s.Claims = s.Claims[1:] },
 		func(s *verificationSpecification) { s.Claims = append(s.Claims, s.Claims[0]) },
@@ -114,10 +112,8 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 			t.Fatal("incomplete, duplicate or changed claim received publication credit")
 		}
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(retainedReferenceStore(roots.Store)))(t)
 	defer store.Close()
 	for _, id := range append(slices.Clone(fixture.Preserve), record.ID) {
 		if _, err := artifact.RequireTypedContent(t.Context(), store, id); err != nil {
@@ -166,8 +162,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 
 	// Tiny fixture exercises the real publisher without copying model or response data.
 	fixtureRoot := t.TempDir()
-	fixtureStore, err := overgodb.Create(fixtureRoot)
-	testcheck.NoError(t, err)
+	fixtureStore := testcheck.Must(overgodb.Create(fixtureRoot))(t)
 	seed := artifact.Batch{Key: "publication-fixture"}
 	seedIDs := append(slices.Clone(refs), record.Model)
 	for _, claim := range record.Claims {
@@ -180,16 +175,14 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 		seed.Artifacts = append(seed.Artifacts, artifact.Descriptor{ID: id})
 	}
 	for _, id := range record.Supersedes {
-		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, id))(t)
 		seed.Contents = append(seed.Contents, content)
 	}
 	_, seedErr := fixtureStore.Commit(t.Context(), seed)
 	testcheck.NoError(t, errors.Join(seedErr, fixtureStore.Close()))
 	head := func() artifact.CommitID {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(fixtureRoot)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(fixtureRoot))(t)
 		defer store.Close()
 		id, _ := store.Head()
 		return id

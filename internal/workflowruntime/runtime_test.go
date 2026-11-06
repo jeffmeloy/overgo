@@ -67,8 +67,7 @@ func TestCancellationWhileWaitingForStageLock(t *testing.T) {
 	if started || !errors.Is(err, context.Canceled) || len(executor.slots) != 0 {
 		t.Fatalf("canceled waiter: started=%t occupied=%d error=%v", started, len(executor.slots), err)
 	}
-	recovered, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	recovered := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, recovered, false)
 	result, err := recovered.ExecuteProgram(t.Context(), key, operation, nil, program, inputs)
 	if err != nil || result.Run.Outcome != runrecord.OutcomeSucceeded {
@@ -80,8 +79,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
 	const key = "runtime/success"
@@ -89,8 +87,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	inputs := map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 	}
-	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs))(t)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("result = %+v", result)
 	}
@@ -116,8 +113,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, runtime, true)
 	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", runtimeExecutionID(t, program, "runtime/failure"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
@@ -154,8 +150,7 @@ func TestRuntimeResultDoesNotClaimRefusedRunPublication(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	refusal := errors.New("fixture run publication refused")
 	repository := &runPublicationRepository{Repository: store, refusal: refusal}
-	runtime, err := NewForProgram(repository, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(repository, program))(t)
 	registerGenerationAdapters(t, runtime, false)
 	const key = "runtime/publication-refusal"
 	operation := runtimeExecutionID(t, program, key)
@@ -183,8 +178,7 @@ func TestRuntimeResultDoesNotClaimRefusedRunPublication(t *testing.T) {
 func TestRuntimePublishesCancelledRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, runtime, false)
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
@@ -204,8 +198,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/restart")
-	first, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, first, true)
 	prompt := fixtureContent(t, artifact.KindFile, "restart")
 	inputs := map[recipe.PortName]Value{
@@ -214,8 +207,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	if _, err := first.ExecuteProgram(ctx, "runtime/restart", operation, nil, program, inputs); err == nil {
 		t.Fatal("interrupted workflow succeeded")
 	}
-	second, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewForProgram(store, program))(t)
 	tokenizeRuns := 0
 	if err := second.Register(workflowrecipe.ModuleTokenize, AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
 		tokenizeRuns++
@@ -246,8 +238,7 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/drift")
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, runtime, true)
 	if _, err := runtime.ExecuteProgram(ctx, "runtime/drift", operation, nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
@@ -256,14 +247,11 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 	}
 	definition := program.Definition()
 	definition.Dependencies[0].Artifact = testutil.ArtifactID(t, artifact.KindModel, "replacement-model")
-	drifted, err := recipe.NewDefinitionWithDependencies(
+	drifted := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
-	)
-	testcheck.NoError(t, err)
-	driftedProgram, err := recipe.CompileProgram(drifted, workflowrecipe.Catalog())
-	testcheck.NoError(t, err)
-	driftedRuntime, err := NewForProgram(store, driftedProgram)
-	testcheck.NoError(t, err)
+	))(t)
+	driftedProgram := testcheck.Must(recipe.CompileProgram(drifted, workflowrecipe.Catalog()))(t)
+	driftedRuntime := testcheck.Must(NewForProgram(store, driftedProgram))(t)
 	registerGenerationAdapters(t, driftedRuntime, false)
 	if _, err := driftedRuntime.ExecuteProgram(ctx, "runtime/drift", operation, nil, driftedProgram, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
@@ -276,7 +264,7 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	store, _ := runtimeFixture(t)
 	defer store.Close()
 	batch := recipe.Node{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining,
 		[]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: testutil.ArtifactID(t, artifact.KindModel, "training-model")},
@@ -284,12 +272,9 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 		},
 		[]recipe.Node{batch}, nil, nil,
 		[]recipe.Output{{Name: "batch", Data: recipe.DataBatch, Source: recipe.Endpoint{Node: batch.ID, Port: "batch"}}},
-	)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
-	testcheck.NoError(t, err)
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	))(t)
+	program := testcheck.Must(recipe.CompileProgram(definition, workflowrecipe.Catalog()))(t)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
 		t.Fatal("orchestration-only program executed")
 	}
@@ -298,12 +283,9 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
-	foreign, err := recipe.NewCatalog(workflowrecipe.Catalog().Modules()...)
-	testcheck.NoError(t, err)
-	program, err = recipe.CompileProgram(program.Definition(), foreign)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
+	foreign := testcheck.Must(recipe.NewCatalog(workflowrecipe.Catalog().Modules()...))(t)
+	program = testcheck.Must(recipe.CompileProgram(program.Definition(), foreign))(t)
 	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
 		t.Fatal("program compiled by another catalog accepted")
 	}
@@ -311,8 +293,7 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 
 func runtimeExecutionID(t testing.TB, program recipe.Program, key string) artifact.ID {
 	t.Helper()
-	id, err := ExecutionID(program.Definition().ID, key)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(ExecutionID(program.Definition().ID, key))(t)
 	return id
 }
 
@@ -344,8 +325,7 @@ func TestValidateOutputsAllowsAbsentOptionalPort(t *testing.T) {
 
 func runtimeFixture(t *testing.T) (*overgodb.Store, recipe.Program) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
 	if _, err := store.Commit(t.Context(), artifact.Batch{

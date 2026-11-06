@@ -38,11 +38,10 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
 	expectedObservations := []struct{}{{}}
-	input, err := json.Marshal(map[string]any{
+	input := testcheck.Must(json.Marshal(map[string]any{
 		"dataset": dataset, "output": "trained", "steps": len(expectedObservations),
 		"objective_scale": 0.1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
 	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
 		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
@@ -122,8 +121,7 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 			// Assignment follows the groups and seed alone, so the held-out
 			// pairs are known before the dataset they split is written.
 			partitions := []dataset.SplitPartition{{Name: heldoutPartition, Weight: 1}, {Name: trainPartition, Weight: 1}}
-			assigned, err := dataset.BuildGroupSplit(testutil.ArtifactID(t, artifact.KindDataset, "unwritten"), records, splitSeed, partitions)
-			testcheck.NoError(t, err)
+			assigned := testcheck.Must(dataset.BuildGroupSplit(testutil.ArtifactID(t, artifact.KindDataset, "unwritten"), records, splitSeed, partitions))(t)
 			heldout := map[string]bool{}
 			for _, membership := range assigned.Memberships {
 				for _, record := range membership.Records {
@@ -136,14 +134,11 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 				if heldout[record.ID] {
 					chosen, rejected = test.chosen, test.rejected
 				}
-				line, err := json.Marshal(map[string]string{"id": record.ID, "group": record.Group, "prompt": prompts[index], "chosen": chosen, "rejected": rejected})
-				testcheck.NoError(t, err)
+				line := testcheck.Must(json.Marshal(map[string]string{"id": record.ID, "group": record.Group, "prompt": prompts[index], "chosen": chosen, "rejected": rejected}))(t)
 				lines.Write(append(line, '\n'))
 			}
-			source, err := artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes())
-			testcheck.NoError(t, err)
-			split, err := dataset.BuildGroupSplit(source, records, splitSeed, partitions)
-			testcheck.NoError(t, err)
+			source := testcheck.Must(artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes()))(t)
+			split := testcheck.Must(dataset.BuildGroupSplit(source, records, splitSeed, partitions))(t)
 			var training artifact.ID
 			for _, membership := range split.Memberships {
 				if membership.Partition == trainPartition {
@@ -157,8 +152,7 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 			}) {
 				t.Fatalf("capabilities=%+v err=%v, want the DPO loss modes offered", capabilities, err)
 			}
-			input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1, "preference_mode": test.mode})
-			testcheck.NoError(t, err)
+			input := testcheck.Must(json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1, "preference_mode": test.mode}))(t)
 			completion, err := fixture.workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
 			if err != nil || len(completion.Outputs) != 4 || completion.Outputs[3].Kind() != artifact.KindEvaluation {
 				t.Fatalf("completion=%+v err=%v, want a checkpoint, trace, decision and held-out verdict", completion, err)
@@ -200,10 +194,9 @@ func TestPreferenceWorkspaceRefusesModesItDoesNotOffer(t *testing.T) {
 	}) {
 		t.Fatalf("capabilities=%+v err=%v, want KTO not offered", capabilities, err)
 	}
-	input, err := json.Marshal(map[string]any{
+	input := testcheck.Must(json.Marshal(map[string]any{
 		"dataset": fixture.dataset, "output": "trained", "steps": 1, "objective_scale": 0.1, "preference_mode": trainingprogram.PreferenceKTO,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := fixture.workspace.ExecuteWorkflow(t.Context(), WorkflowTraining, capabilities[0], input, testReporter{}); err == nil {
 		t.Fatal("the workspace ran a mode it does not offer")
 	}
@@ -261,14 +254,11 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	testcheck.NoError(t, os.MkdirAll(roots.Datasets, 0o755))
 	datasetPath := filepath.Join(roots.Datasets, "preference.jsonl")
 	testcheck.NoError(t, os.WriteFile(datasetPath, datasetData, 0o600))
-	dataset, err := artifact.IdentifyBytes(artifact.KindDataset, datasetData)
-	testcheck.NoError(t, err)
-	trainingSplit, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...))
-	testcheck.NoError(t, err)
+	dataset := testcheck.Must(artifact.IdentifyBytes(artifact.KindDataset, datasetData))(t)
+	trainingSplit := testcheck.Must(artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...)))(t)
 	metric := trainingprogram.MetricTokenAccuracy
 	if split != nil {
-		batch, err := split.PublicationBatch("fixture/training-workspace/split", nil)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(split.PublicationBatch("fixture/training-workspace/split", nil))(t)
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: dataset, Size: uint64(len(datasetData))})
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
@@ -293,7 +283,7 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	optimizerPolicy := trainingprogram.BuiltinOptimizerPolicy()
 	policies.Optimizer = optimizerPolicy.ID
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "dpo objective evidence")
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "dpo", Kind: trainingprogram.ObjectiveDPO,
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
@@ -303,13 +293,10 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 		Loss: testutil.ArtifactID(t, artifact.KindProfile, "dpo loss"), Evaluation: evaluation,
 		Metric: metric, Evidence: []artifact.ID{evidence},
 		Authority: trainingprogram.ObjectiveApproved,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	policies.Objective = objective.ID
-	objectiveContent, err := objective.Content()
-	testcheck.NoError(t, err)
-	optimizerContent, err := optimizerPolicy.Content()
-	testcheck.NoError(t, err)
+	objectiveContent := testcheck.Must(objective.Content())(t)
+	optimizerContent := testcheck.Must(optimizerPolicy.Content())(t)
 	authorities := []artifact.ID{
 		processor, objective.Loss, evidence, policies.Precision, policies.Placement,
 		policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
@@ -336,19 +323,16 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipetest.DPODefinition(append([]recipe.Dependency{
+	definition := testcheck.Must(modelrecipetest.DPODefinition(append([]recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: policy},
 		{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
-	}, modelrecipetest.PolicyDependencies(policies)...))
-	testcheck.NoError(t, err)
+	}, modelrecipetest.PolicyDependencies(policies)...)))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/training-workspace/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/training-workspace/verification", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/training-workspace/verification", definition.ID))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "native DPO fixture"))
-	workspace, err := NewTrainingWorkspace(ctx, store, roots, policy, nil)
-	testcheck.NoError(t, err)
+	workspace := testcheck.Must(NewTrainingWorkspace(ctx, store, roots, policy, nil))(t)
 	return dpoTrainingFixture{store: store, roots: roots, workspace: workspace, definition: definition, dataset: dataset, policy: policy, reference: reference}
 }
 
@@ -378,16 +362,14 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 				dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyModel, Slot: 1, Artifact: reference})
 				artifacts = append(artifacts, artifact.Descriptor{ID: reference})
 			}
-			definition, err := trainingWorkspaceAdmissionDefinition(test.objective, dependencies)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(trainingWorkspaceAdmissionDefinition(test.objective, dependencies))(t)
 			if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/training-admission/artifacts", Artifacts: artifacts}); err != nil {
 				t.Fatal(err)
 			}
 			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/training-admission/candidate", definition); err != nil {
 				t.Fatal(err)
 			}
-			verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/training-admission/verification", definition.ID)
-			testcheck.NoError(t, err)
+			verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/training-admission/verification", definition.ID))(t)
 			testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training admission fixture"))
 			model := testutil.ArtifactID(t, artifact.KindModel, test.name+" absent model")
 			if test.registered {
@@ -400,8 +382,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 			if !test.admitted {
 				return
 			}
-			capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
-			testcheck.NoError(t, err)
+			capabilities := testcheck.Must(workspace.WorkflowCapabilities(ctx, WorkflowTraining))(t)
 			found := false
 			for _, capability := range capabilities {
 				found = found || capability.Task == recipe.TaskTraining && capability.Recipe == definition.ID
@@ -422,8 +403,7 @@ func writeWorkspaceModel(t *testing.T, directory string, weights map[string][]fl
 	tokenizer := `{"model":{"type":"BPE","vocab":{"a":1,"b":2,"c":3,"d":4},"merges":[]}}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(tokenizer), 0o600))
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
 	testcheck.NoError(t, file.Close())
 	if identifyErr != nil {

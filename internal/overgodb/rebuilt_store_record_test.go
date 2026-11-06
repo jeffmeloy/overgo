@@ -40,8 +40,7 @@ import (
 func TestRebuiltStoreRecordIsWhole(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
-	raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", "rebuilt-store.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", "rebuilt-store.txt")))(t)
 	number := func(what, text string) int64 {
 		t.Helper()
 		value, err := strconv.ParseInt(text, 10, 64)
@@ -233,8 +232,7 @@ func TestRebuiltStoreRecordIsWhole(t *testing.T) {
 	}
 
 	// The closing: the censuses' figures, and the estimate as its record closes.
-	earlier, err := os.ReadFile(filepath.Join(root, "docs", "verification", "checkpoint-families.txt"))
-	testcheck.NoError(t, err)
+	earlier := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", "checkpoint-families.txt")))(t)
 	estimated := func(name string) int64 {
 		t.Helper()
 		found := regexp.MustCompile(`(?m)^` + name + `: ([0-9]+)\r?$`).FindSubmatch(earlier)

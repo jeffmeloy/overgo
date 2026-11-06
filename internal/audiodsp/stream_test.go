@@ -21,10 +21,8 @@ func streamConfig() FrontendConfig {
 
 func TestStreamFrontendChunkRestart(t *testing.T) {
 	c := streamConfig()
-	offline, err := NewFrontend(c, 1<<20)
-	testcheck.NoError(t, err)
-	stream, err := NewStreamFrontend(c, 1<<20)
-	testcheck.NoError(t, err)
+	offline := testcheck.Must(NewFrontend(c, 1<<20))(t)
+	stream := testcheck.Must(NewStreamFrontend(c, 1<<20))(t)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4, 2, 1, 0}
 	var whole Workspace
 	want, count, err := offline.Process(t.Context(), [][]float32{samples}, c.SampleRate, &whole, ProcessOptions{})
@@ -35,8 +33,7 @@ func TestStreamFrontendChunkRestart(t *testing.T) {
 		var got []float32
 		for start := 0; start < len(samples); start += chunk {
 			end := min(start+chunk, len(samples))
-			encoded, err := json.Marshal(state)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(state))(t)
 			var restart StreamState
 			testcheck.NoError(t, json.Unmarshal(encoded, &restart))
 			before := slices.Clone(restart.Tail)
@@ -102,8 +99,7 @@ func TestStreamFrontendRefusals(t *testing.T) {
 			}
 		})
 	}
-	p, err := NewStreamFrontend(c, 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewStreamFrontend(c, 1<<20))(t)
 	for _, state := range []StreamState{{Samples: 1}, {Frames: 1}, {Tail: []float32{1}}, {Samples: 1, Tail: []float32{float32(math.NaN())}}, {Final: true}} {
 		var w StreamWorkspace
 		if _, _, _, err := p.Process(t.Context(), []float32{1}, c.SampleRate, state, false, &w); err == nil {
@@ -137,10 +133,8 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 			c.Condition = nil
 			coefficient := .97
 			c.WaveformPreemphasis, c.MaskIncompleteHop = &coefficient, mask
-			offline, err := NewFrontend(c, 1<<20)
-			testcheck.NoError(t, err)
-			stream, err := NewStreamFrontend(c, 1<<20)
-			testcheck.NoError(t, err)
+			offline := testcheck.Must(NewFrontend(c, 1<<20))(t)
+			stream := testcheck.Must(NewStreamFrontend(c, 1<<20))(t)
 			var empty StreamWorkspace
 			features, frames, state, err := stream.Process(t.Context(), nil, c.SampleRate, StreamState{}, true, &empty)
 			if err != nil || len(features) != 0 || frames != 0 || state.Samples != 0 || state.Frames != 0 || len(state.Tail) != 0 || !state.Final {
@@ -167,8 +161,7 @@ func TestStreamFrontendCenteredRestart(t *testing.T) {
 						var got []float32
 						for start := 0; start < length; start += chunk {
 							end := min(start+chunk, length)
-							encoded, err := json.Marshal(state)
-							testcheck.NoError(t, err)
+							encoded := testcheck.Must(json.Marshal(state))(t)
 							var restored StreamState
 							testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 							var w StreamWorkspace

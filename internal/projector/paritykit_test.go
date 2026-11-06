@@ -15,12 +15,10 @@ import (
 func parityRunners[T Projector](t *testing.T, path string, options OpenOptions) (T, T) {
 	t.Helper()
 	options.CUDA = false
-	cpu, err := openImageProjectorAs[T](path, options)
-	testcheck.NoError(t, err)
+	cpu := testcheck.Must(openImageProjectorAs[T](path, options))(t)
 	t.Cleanup(func() { _ = cpu.Close() })
 	options.CUDA = true
-	cuda, err := openImageProjectorAs[T](path, options)
-	testcheck.NoError(t, err)
+	cuda := testcheck.Must(openImageProjectorAs[T](path, options))(t)
 	t.Cleanup(func() { _ = cuda.Close() })
 	return cpu, cuda
 }
@@ -46,10 +44,8 @@ func referenceParityCase[T interface {
 }](t *testing.T, name, path string, input image.Image, tolerance float32) {
 	t.Helper()
 	cpu, cuda := parityRunners[T](t, path, OpenOptions{})
-	want, err := cpu.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
-	got, err := cuda.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(cpu.EncodeImage(t.Context(), input))(t)
+	got := testcheck.Must(cuda.EncodeImage(t.Context(), input))(t)
 	compareFloat32Tolerance(t, name, got.Data, want.Data, tolerance)
 }
 
@@ -65,15 +61,11 @@ func qwenImageVideoParityCase[T interface {
 		return color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha}
 	})
 	options := mediaPixelBudget{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
-	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
-	testcheck.NoError(t, err)
-	gotImage, err := cuda.EncodeImage(t.Context(), input, options)
-	testcheck.NoError(t, err)
+	wantImage := testcheck.Must(cpu.EncodeImage(t.Context(), input, options))(t)
+	gotImage := testcheck.Must(cuda.EncodeImage(t.Context(), input, options))(t)
 	compareFloat32Tolerance(t, name+" image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
 	frames := []image.Image{input, input, input, input}
-	wantVideo, err := cpu.EncodeFrames(t.Context(), frames, options)
-	testcheck.NoError(t, err)
-	gotVideo, err := cuda.EncodeFrames(t.Context(), frames, options)
-	testcheck.NoError(t, err)
+	wantVideo := testcheck.Must(cpu.EncodeFrames(t.Context(), frames, options))(t)
+	gotVideo := testcheck.Must(cuda.EncodeFrames(t.Context(), frames, options))(t)
 	compareFloat32Tolerance(t, name+" video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data, 2e-3)
 }

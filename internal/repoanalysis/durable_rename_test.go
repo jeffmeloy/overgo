@@ -67,15 +67,13 @@ func TestEveryDurableRenameGoesThroughItsOwner(t *testing.T) {
 // internal/fsatomic, whatever name the file gives the os package.
 func renameSites(t *testing.T, root string) map[string]int {
 	t.Helper()
-	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(root, "internal", "cmd"))(t)
 	sites := map[string]int{}
 	for _, file := range snapshot.Files {
 		if file.Test || strings.HasPrefix(file.Path, "internal/fsatomic/") {
 			continue
 		}
-		syntax, err := file.Syntax()
-		testcheck.NoError(t, err)
+		syntax := testcheck.Must(file.Syntax())(t)
 		local := ""
 		for _, spec := range syntax.Imports {
 			if path, _ := strconv.Unquote(spec.Path.Value); path == "os" {

@@ -38,11 +38,9 @@ func TestGGUFInventoryUsesPhysicalContent(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	opened, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(gguf.Open(path))(t)
 	defer opened.Close()
-	inventory, err := FromGGUF(opened, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(opened, artifact.KindModel))(t)
 	if len(inventory.Components) != 1 || len(inventory.Manifest.Components) != 1 ||
 		inventory.Manifest.Components[0].Role != artifact.ComponentWeights {
 		t.Fatalf("inventory = %+v", inventory)
@@ -59,16 +57,12 @@ func TestGGUFInventoryUsesPhysicalContent(t *testing.T) {
 func TestHFInventoryIsRelocationStable(t *testing.T) {
 	first := writeHFRepository(t)
 	second := writeHFRepository(t)
-	firstRepository, err := hfrepo.Open(first)
-	testcheck.NoError(t, err)
+	firstRepository := testcheck.Must(hfrepo.Open(first))(t)
 	defer firstRepository.Close()
-	secondRepository, err := hfrepo.Open(second)
-	testcheck.NoError(t, err)
+	secondRepository := testcheck.Must(hfrepo.Open(second))(t)
 	defer secondRepository.Close()
-	firstInventory, err := FromHFRepository(firstRepository)
-	testcheck.NoError(t, err)
-	secondInventory, err := FromHFRepository(secondRepository)
-	testcheck.NoError(t, err)
+	firstInventory := testcheck.Must(FromHFRepository(firstRepository))(t)
+	secondInventory := testcheck.Must(FromHFRepository(secondRepository))(t)
 	if firstInventory.Manifest.ID != secondInventory.Manifest.ID {
 		t.Fatalf("relocated identities differ: %s != %s", firstInventory.Manifest.ID, secondInventory.Manifest.ID)
 	}
@@ -78,8 +72,7 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 	if len(firstInventory.Components) != 3 || len(firstInventory.Locations) != 4 {
 		t.Fatalf("components/locations = %d/%d", len(firstInventory.Components), len(firstInventory.Locations))
 	}
-	batch, err := firstInventory.Batch("fixture/hf/import")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(firstInventory.Batch("fixture/hf/import"))(t)
 	if len(batch.Manifests) != 1 || len(batch.Contents) != 1 || len(batch.Lineage) != 1 ||
 		len(batch.Locations) != len(firstInventory.Locations) {
 		t.Fatalf("batch = %+v", batch)
@@ -100,16 +93,13 @@ func TestHFShardedInventoryUsesOrderedLogicalSlots(t *testing.T) {
 	shards := []string{"model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"}
 	writeSafetensor(t, filepath.Join(directory, shards[0]), "first")
 	writeSafetensor(t, filepath.Join(directory, shards[1]), "second")
-	index, err := json.Marshal(map[string]any{
+	index := testcheck.Must(json.Marshal(map[string]any{
 		"weight_map": map[string]string{"first": shards[0], "second": shards[1]},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors.index.json"), index, 0o600))
-	repository, err := hfrepo.Open(directory)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(hfrepo.Open(directory))(t)
 	defer repository.Close()
-	inventory, err := FromHFRepository(repository)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromHFRepository(repository))(t)
 	var weights []artifact.Component
 	for _, component := range inventory.Manifest.Components {
 		if component.Role == artifact.ComponentWeightsShard {
@@ -184,11 +174,9 @@ func writeSplitGGUFFixture(t *testing.T) string {
 func TestFromGGUFClaimedTakesFreshClaimsWithoutReadingTheFile(t *testing.T) {
 	for name, path := range map[string]string{"single": writeGGUFFixture(t), "split": writeSplitGGUFFixture(t)} {
 		t.Run(name, func(t *testing.T) {
-			file, err := gguf.Open(path)
-			testcheck.NoError(t, err)
+			file := testcheck.Must(gguf.Open(path))(t)
 			defer file.Close()
-			hashed, err := FromGGUF(file, artifact.KindModel)
-			testcheck.NoError(t, err)
+			hashed := testcheck.Must(FromGGUF(file, artifact.KindModel))(t)
 			truth := map[string]artifact.Descriptor{}
 			for index, location := range hashed.Locations[:len(hashed.Components)] {
 				truth[location.Value] = hashed.Components[index]
@@ -260,11 +248,9 @@ func TestFromGGUFClaimedTakesFreshClaimsWithoutReadingTheFile(t *testing.T) {
 // a claim for the wrong number of shards, and a changed file.
 func TestVerifyClaimsHashesEveryShard(t *testing.T) {
 	path := writeSplitGGUFFixture(t)
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	inventory, err := FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(file, artifact.KindModel))(t)
 	var claims []artifact.ID
 	for _, component := range inventory.Components {
 		claims = append(claims, component.ID)
@@ -278,8 +264,7 @@ func TestVerifyClaimsHashesEveryShard(t *testing.T) {
 		t.Fatalf("verified swapped claims: %v", err)
 	}
 	second := file.SourcePaths()[1]
-	data, err := os.ReadFile(second)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(second))(t)
 	data[len(data)-1] ^= 1
 	testcheck.NoError(t, os.WriteFile(second, data, 0o600))
 	if err := VerifyClaims(file, claims); !errors.Is(err, artifact.ErrContentMismatch) {

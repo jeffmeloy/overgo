@@ -18,10 +18,9 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Create(root)
 	testcheck.NoError(t, err)
-	payload, err := (artifact.DocumentContract{
+	payload := testcheck.Must((artifact.DocumentContract{
 		Kind: artifact.KindFile, MediaType: "application/octet-stream", Schema: "overgo/webhook-payload/v1",
-	}).ContentBytes(bytes.Repeat([]byte("webhook-payload"), 512))
-	testcheck.NoError(t, err)
+	}).ContentBytes(bytes.Repeat([]byte("webhook-payload"), 512)))(t)
 	records := make([]artifact.Content, 2)
 	for index := range records {
 		records[index], err = artifact.JSONContent(
@@ -96,8 +95,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	}
 	assertBlobBytes(t, store, payload.Descriptor.ID, payload.Data)
 	testcheck.NoError(t, store.Close())
-	store, err = overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(root))(t)
 	defer store.Close()
 	bound, found, err = store.ResolveAlias(ctx, alias)
 	if err != nil || !found || bound != records[winner].Descriptor.ID {

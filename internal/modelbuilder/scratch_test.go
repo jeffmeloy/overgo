@@ -21,13 +21,11 @@ func TestScratchWorkflowSelection(t *testing.T) {
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
-	profile, err := scratchmodel.ResolveActiveDerivationProfile(t.Context(), store)
-	testcheck.NoError(t, err)
-	want, err := artifact.JSONID(artifact.KindRecipe, struct {
+	profile := testcheck.Must(scratchmodel.ResolveActiveDerivationProfile(t.Context(), store))(t)
+	want := testcheck.Must(artifact.JSONID(artifact.KindRecipe, struct {
 		Runtime string      `json:"runtime"`
 		Profile artifact.ID `json:"profile"`
-	}{"scratch-model-builder/v1", profile.ID})
-	testcheck.NoError(t, err)
+	}{"scratch-model-builder/v1", profile.ID}))(t)
 	got, err := ScratchWorkflowSelection(t.Context(), store)
 	if err != nil || got != want {
 		t.Fatalf("selection identity changed: %s != %s, %v", got, want, err)
@@ -45,13 +43,11 @@ func TestScratchBuilderPublishesCampaign(t *testing.T) {
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	session, err := NewScratchSession(ctx, ScratchRequest{
+	session := testcheck.Must(NewScratchSession(ctx, ScratchRequest{
 		Repository: store, Documents: []string{"abcd", "bcda", "cdab", "dabc"}, Seed: 1, Steps: 1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "scratch-builder-operation")
-	result, err := workflowruntime.ExecuteModelBuild(ctx, store, operation, session)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(workflowruntime.ExecuteModelBuild(ctx, store, operation, session))(t)
 	if result.DerivationProfile.Kind() != artifact.KindProfile {
 		t.Fatal("model build omitted derivation profile authority")
 	}

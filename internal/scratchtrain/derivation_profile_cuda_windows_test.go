@@ -27,8 +27,7 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	// one.
 	incumbent.Epsilon = candidate.Epsilon * 1e6
 	var err error
-	incumbent, err = scratchmodel.NewDerivationProfile(incumbent)
-	testcheck.NoError(t, err)
+	incumbent = testcheck.Must(scratchmodel.NewDerivationProfile(incumbent))(t)
 
 	facts := scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: 100}
 	incumbentLoss, incumbentModel, _, err := trainProfile(facts, incumbent)
@@ -42,23 +41,19 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	promotionSplit := profileArtifact(t, artifact.KindDatasetShard, "profile-promotion")
 	code := profileArtifact(t, artifact.KindEvidence, "profile-code")
 	proposer := profileArtifact(t, artifact.KindEvidence, "profile-proposer")
-	proposal, err := trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
+	proposal := testcheck.Must(trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
 		Kind: trainingprogram.ImprovementDerivationProfile, ParentModel: incumbentModel,
 		Incumbent: incumbent.ID, Candidate: candidate.ID, Dataset: construction.Dataset(), DevelopmentSplit: construction.SplitID(),
 		Recipe: construction.Program().ID(), Code: code, Proposer: proposer,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	evaluator := profileArtifact(t, artifact.KindEvidence, "profile-evaluator")
 	authority := profileArtifact(t, artifact.KindEvidence, "profile-authority")
-	admission, err := runrecord.AdmitImprovement(proposal, authority, evaluator, promotionSplit)
-	testcheck.NoError(t, err)
-	run, err := runrecord.NewRun(construction.Program().ID(), runrecord.OutcomeSucceeded,
-		[]artifact.ID{candidateModel, construction.Dataset(), promotionSplit, code, admission.ID}, []artifact.ID{candidateModel}, "")
-	testcheck.NoError(t, err)
-	evaluation, err := runrecord.NewEvaluation(construction.Program().ID(), run.ID, construction.Dataset(), []runrecord.Metric{{
+	admission := testcheck.Must(runrecord.AdmitImprovement(proposal, authority, evaluator, promotionSplit))(t)
+	run := testcheck.Must(runrecord.NewRun(construction.Program().ID(), runrecord.OutcomeSucceeded,
+		[]artifact.ID{candidateModel, construction.Dataset(), promotionSplit, code, admission.ID}, []artifact.ID{candidateModel}, ""))(t)
+	evaluation := testcheck.Must(runrecord.NewEvaluation(construction.Program().ID(), run.ID, construction.Dataset(), []runrecord.Metric{{
 		Name: "causal-loss", Value: candidateLoss, Direction: runrecord.DirectionMinimize,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	decision, err := runrecord.DecideImprovement(admission, candidateModel, run, evaluation,
 		profileArtifact(t, artifact.KindEvidence, "profile-decider"), runrecord.ImprovementPromote)
 	if err != nil || decision.State != runrecord.ImprovementPromote || decision.Rollback != incumbentModel {
@@ -109,7 +104,6 @@ func trainProfile(facts scratchmodel.CorpusFacts, profile scratchmodel.Derivatio
 
 func profileArtifact(t *testing.T, kind artifact.Kind, label string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, fmt.Appendf(nil, "%s/%s", t.Name(), label))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(kind, fmt.Appendf(nil, "%s/%s", t.Name(), label)))(t)
 	return id
 }

@@ -60,8 +60,7 @@ func (workspace *nativeMediaWorkspace) ExecuteWorkflow(
 func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte, []byte) {
 	t.Helper()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	image, audio := []byte("image-output"), tinyPCM16WAV()
 	imageID := testutil.ArtifactBytesID(t, artifact.KindOutput, image)
 	audioID := testutil.ArtifactBytesID(t, artifact.KindOutput, audio)
@@ -101,8 +100,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 			recipe.TaskSpeech:   {Run: audioRun, Outputs: []artifact.ID{audioID}},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: workspace}, workspace))(t)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -242,8 +240,7 @@ func TestMediaRequestResolvesItsCapabilityOnce(t *testing.T) {
 		return mediacapability.Controls(entry, directory)
 	}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, controls, mediacapability.OutputContent), 16)
-	handler, err := New(Config{Repository: store, Workflows: WorkflowWorkspaceSet{workspace}}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: WorkflowWorkspaceSet{workspace}}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodPost, "/v1/images/generations", `{"class":1,"seed":7}`)
 	if response.Code != http.StatusOK {

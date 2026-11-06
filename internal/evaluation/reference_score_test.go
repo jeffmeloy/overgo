@@ -12,8 +12,7 @@ import (
 func TestReferenceScoresDeclareMergeAndLoad(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	model, err := artifact.NewID(artifact.KindModel, sha256.Sum256([]byte("reference model")))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.NewID(artifact.KindModel, sha256.Sum256([]byte("reference model"))))(t)
 	ctx := t.Context()
 	if references, err := LoadReferenceScores(ctx, store, model); err != nil || len(references) != 0 {
 		t.Fatalf("undeclared model = %v, %v", references, err)

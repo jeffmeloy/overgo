@@ -34,8 +34,7 @@ func TestScorecardReadingStatesItsStanding(t *testing.T) {
 		if entry.Test == "" {
 			continue
 		}
-		files, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(entry.Package), "*_test.go"))
-		testcheck.NoError(t, err)
+		files := testcheck.Must(filepath.Glob(filepath.Join(root, filepath.FromSlash(entry.Package), "*_test.go")))(t)
 		if !slices.ContainsFunc(files, func(file string) bool {
 			source, err := os.ReadFile(file)
 			return err == nil && strings.Contains(string(source), "\nfunc "+entry.Test+"(t *testing.T)")

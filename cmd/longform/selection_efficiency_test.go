@@ -21,25 +21,20 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 	repository := t.TempDir()
 	store := overgodbtest.Create(t, repository)
 	r := guardResult(t)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: r.Inputs.Model}})
-	testcheck.NoError(t, err)
-	info, err := os.Stat(r.ModelPath)
-	testcheck.NoError(t, err)
-	_, err = store.Commit(t.Context(), artifact.Batch{Key: "guard/selected-model",
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: r.Inputs.Model}}))(t)
+	info := testcheck.Must(os.Stat(r.ModelPath))(t)
+	testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "guard/selected-model",
 		Artifacts: []artifact.Descriptor{{ID: r.Inputs.Model, Size: uint64(info.Size())}}, Manifests: []artifact.Manifest{manifest},
 		Locations: []artifact.LocationEvent{{Action: artifact.LocationAdd, Location: artifact.Location{Artifact: r.Inputs.Model, Kind: artifact.LocationFile, Value: r.ModelPath}}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testutil.PublishArtifact(t, store, r.Program.Profile)
 	testutil.PublishArtifact(t, store, r.Program.Definition)
-	definition, err := modelrecipe.InferenceWithModelDefinition(manifest.ID, r.Program.Profile, r.Program.Definition,
-		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(manifest.ID, r.Program.Profile, r.Program.Definition,
+		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference))(t)
 	testcheck.NoError(t, modelrecipetest.PublishActivation(t.Context(), store, "guard/activation", definition))
 	r.Program.Model, r.Program.Recipe = manifest.ID, definition.ID
 	r.Program.Placement, r.Program.Residency = recipe.PlacementHost, recipe.ResidencyHostReference
-	accepted, err := longform.Publish(t.Context(), store, r.Inputs.Model, r)
-	testcheck.NoError(t, err)
+	accepted := testcheck.Must(longform.Publish(t.Context(), store, r.Inputs.Model, r))(t)
 	opts := options{Repository: repository, Models: []string{r.ModelPath}}
 	historyReads := 0
 	readHistory := func() map[string]evaluation.BenchmarkSummary {
@@ -71,10 +66,9 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 		t.Fatalf("runtime policy = %t, %v", found, err)
 	}
 	wrong := testutil.ArtifactID(t, artifact.KindProfile, "wrong-selected-policy")
-	_, err = store.Commit(t.Context(), artifact.Batch{Key: "guard/drifted-policy", Artifacts: []artifact.Descriptor{{ID: wrong}},
+	testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "guard/drifted-policy", Artifacts: []artifact.Descriptor{{ID: wrong}},
 		Aliases: []artifact.AliasBinding{{Name: "runtime-policy/v2/" + definition.ID.String(), Target: wrong, Previous: &policy.ID}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := readTargets(t.Context(), store, opts, readHistory); err == nil {
 		t.Fatal("changed selected active policy accepted")
 	}

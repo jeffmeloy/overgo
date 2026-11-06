@@ -12,8 +12,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteImageProfileFixture(t, dir)
 
-	profile, err := ResolveProfile(dir)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(ResolveProfile(dir))(t)
 	if profile.Sampling.DefaultSteps != 8 || profile.Sampling.TrainTimesteps != 1000 ||
 		profile.Sampling.dynamicShiftMu(profile.Sampling.MaxImageSequence, false) != 1.15 ||
 		profile.Prompt.MaxTokens != 512 || profile.Prompt.PadToken != "<|endoftext|>" {

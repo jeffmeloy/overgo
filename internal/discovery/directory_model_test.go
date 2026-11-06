@@ -21,8 +21,7 @@ import (
 func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 	t.Parallel()
 	directory := testutil.Qwen35Directory(t)
-	file, err := gguf.Open(directory)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(directory))(t)
 	inventory, _, err := modelartifact.FromGGUFClaimed(file, artifact.KindModel, nil)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)

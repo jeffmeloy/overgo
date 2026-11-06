@@ -34,10 +34,9 @@ func TestCrossDomainTrialMaterializesThroughOnePublicationOwner(t *testing.T) {
 
 	counting := &repositorytest.CountingRepository{Repository: fixture.store}
 	outputRoot := filepath.Join(t.TempDir(), "materialized")
-	result, err := MaterializeCandidateTrial(
+	result := testcheck.Must(MaterializeCandidateTrial(
 		t.Context(), counting, fixture.decision.ID, outputRoot,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if counting.Commits != 1 || !result.Commit.Valid() {
 		t.Fatalf("materialization commits = %d, commit = %s", counting.Commits, result.Commit)
 	}
@@ -56,10 +55,9 @@ func TestCrossDomainTrialMaterializesThroughOnePublicationOwner(t *testing.T) {
 		t.Fatalf("materialization with another typed producer: %v", err)
 	}
 	retry := &repositorytest.CountingRepository{Repository: fixture.store}
-	recovered, err := MaterializeCandidateTrial(
+	recovered := testcheck.Must(MaterializeCandidateTrial(
 		t.Context(), retry, fixture.decision.ID, outputRoot,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if retry.Commits != 0 || !recovered.Recovered || recovered.Commit.Valid() ||
 		recovered.Materialization.ID != result.Materialization.ID ||
 		len(recovered.Directories) != len(result.Directories) {
@@ -67,13 +65,11 @@ func TestCrossDomainTrialMaterializesThroughOnePublicationOwner(t *testing.T) {
 	}
 
 	testcheck.NoError(t, fixture.store.Close())
-	reopened, err := overgodb.Create(fixture.storeRoot)
-	testcheck.NoError(t, err)
+	reopened := testcheck.Must(overgodb.Create(fixture.storeRoot))(t)
 	fixture.store = reopened
-	loaded, err := RequireCandidateMaterialization(
+	loaded := testcheck.Must(RequireCandidateMaterialization(
 		t.Context(), reopened, result.Materialization.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if loaded.ID != result.Materialization.ID || loaded.Decision != fixture.decision.ID ||
 		loaded.Trial != fixture.compiled.Trial.ID || len(loaded.Arms) != 2 {
 		t.Fatalf("cold materialization = %+v", loaded)
@@ -98,17 +94,14 @@ func addCandidateMaterializationProducer(
 ) {
 	t.Helper()
 	arm := result.Materialization.Arms[0]
-	run, err := runrecord.RequireExactRun(t.Context(), repository, arm.Run)
-	testcheck.NoError(t, err)
+	run := testcheck.Must(runrecord.RequireExactRun(t.Context(), repository, arm.Run))(t)
 	duration := run.MeasuredNS + 1
-	producer, err := runrecord.NewBoundRun(
+	producer := testcheck.Must(runrecord.NewBoundRun(
 		run.Recipe, runrecord.OutcomeSucceeded, run.Inputs, run.Outputs, "",
 		run.CodeCommit, run.Environment, duration,
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseBuild, DurationNS: duration}},
-	)
-	testcheck.NoError(t, err)
-	batch, err := producer.Batch("fixture/candidate-materialization/additional-producer")
-	testcheck.NoError(t, err)
+	))(t)
+	batch := testcheck.Must(producer.Batch("fixture/candidate-materialization/additional-producer"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), repository, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -123,23 +116,21 @@ func TestPrototypeMaterializationClosure(t *testing.T) {
 		testcheck.NoError(t, os.MkdirAll(root, 0o755))
 		realization := fixture.compiled.Components[0].Realization
 		destination := filepath.Join(root, realization.DigestHex())
-		writer, err := safetensors.NewStreamingWriter(destination, safetensors.StreamingPlan{
+		writer := testcheck.Must(safetensors.NewStreamingWriter(destination, safetensors.StreamingPlan{
 			Shards: []safetensors.StreamingShardSpec{{
 				Name: "model.safetensors",
 				Tensors: []safetensors.StreamingTensorSpec{{
 					Name: "weight", DType: "F32", Shape: []uint64{2},
 				}},
 			}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		poison := make([]byte, 8)
 		binary.LittleEndian.PutUint32(poison[0:], math.Float32bits(99))
 		binary.LittleEndian.PutUint32(poison[4:], math.Float32bits(101))
 		testcheck.NoError(t, writer.WriteTensor("weight", uint64(len(poison)), bytes.NewReader(poison)))
-		result, err := MaterializeCandidateTrial(
+		result := testcheck.Must(MaterializeCandidateTrial(
 			t.Context(), fixture.store, fixture.decision.ID, root,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if got := readCandidateMaterializationTensor(
 			t, result.Directories[realization], "weight",
 		); !slices.Equal(got, []float32{6, 12}) {
@@ -151,20 +142,18 @@ func TestPrototypeMaterializationClosure(t *testing.T) {
 		fixture := newCandidateMaterializationFixture(t)
 		t.Cleanup(func() { _ = fixture.store.Close() })
 		useMaterializationCodeCommit(t, materializationCodeCommit)
-		result, err := MaterializeCandidateTrial(
+		result := testcheck.Must(MaterializeCandidateTrial(
 			t.Context(), fixture.store, fixture.decision.ID, filepath.Join(t.TempDir(), "lineage"),
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		var primary modelrecipe.CandidateMaterializedArm
 		for _, arm := range result.Materialization.Arms {
 			if !arm.Ablation.Valid() {
 				primary = arm
 			}
 		}
-		plan, err := composition.LoadOfflineTensorExecutionPlan(
+		plan := testcheck.Must(composition.LoadOfflineTensorExecutionPlan(
 			t.Context(), fixture.store, primary.Realization,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		foreign, _, _ := publishCandidateMaterializationSource(
 			t, fixture.store, "foreign-lineage", []float32{7, 9},
 		)
@@ -249,12 +238,10 @@ func TestPrototypeMaterializationClosure(t *testing.T) {
 		fixture := newCandidateMaterializationFixture(t)
 		t.Cleanup(func() { _ = fixture.store.Close() })
 		useMaterializationCodeCommit(t, materializationCodeCommit)
-		charge, err := runrecord.NewBudgetCharge(
+		charge := testcheck.Must(runrecord.NewBudgetCharge(
 			fixture.resources.ID, 1, fixture.decision.ID, "concurrent resource use",
-		)
-		testcheck.NoError(t, err)
-		batch, err := charge.Batch("fixture/candidate-materialization/stale-budget")
-		testcheck.NoError(t, err)
+		))(t)
+		batch := testcheck.Must(charge.Batch("fixture/candidate-materialization/stale-budget"))(t)
 		if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -274,10 +261,9 @@ func TestPrototypeMaterializationClosure(t *testing.T) {
 		t.Cleanup(func() { _ = fixture.store.Close() })
 		useMaterializationCodeCommit(t, materializationCodeCommit)
 		stop := candidateTypedDocument(t, artifact.KindEvidence, "materialization operator stop", "materialization-stop")
-		head, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
+		head := testcheck.Must(artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 			Key: "fixture/candidate-materialization/operator-stop", Contents: []artifact.Content{stop},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		facts := fixture.decisionFacts
 		facts.Head, facts.OperatorStop = head, stop.Descriptor.ID
 		stopped := publishCandidateMaterializationDecision(t, fixture.store, facts)
@@ -330,8 +316,7 @@ type candidateMaterializationFixture struct {
 func newCandidateMaterializationFixture(t *testing.T) candidateMaterializationFixture {
 	t.Helper()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	base, _, baseDirectory := publishCandidateMaterializationSource(t, store, "base", []float32{2, 4})
 	delta, _, _ := publishCandidateMaterializationSource(t, store, "delta", []float32{10, 20})
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
@@ -576,14 +561,12 @@ func publishCandidateMaterializationSource(
 	); err != nil {
 		t.Fatal(err)
 	}
-	inventory, err := modelartifact.FromSafetensorsPath(directory)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromSafetensorsPath(directory))(t)
 	profile, found := model.LookupArchitecture("llama")
 	if !found {
 		t.Fatal("llama profile is absent")
 	}
-	profileDocument, err := modelrecipe.NewProfileDocument(profile)
-	testcheck.NoError(t, err)
+	profileDocument := testcheck.Must(modelrecipe.NewProfileDocument(profile))(t)
 	spec := model.Spec{
 		CommonSpec: model.CommonSpec{
 			Architecture: "llama", BlockCount: 1, ContextLength: 128,
@@ -593,23 +576,18 @@ func publishCandidateMaterializationSource(
 			HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10_000,
 		},
 	}
-	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	testcheck.NoError(t, err)
-	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	testcheck.NoError(t, err)
-	batch, err := resolved.Batch("fixture/candidate-materialization/source/"+label, inventory)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec))(t)
+	resolved := testcheck.Must(document.Resolve(profileDocument, inventory.TensorInventory))(t)
+	batch := testcheck.Must(resolved.Batch("fixture/candidate-materialization/source/"+label, inventory))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	storedDirectory, err := artifact.AvailablePath(
+	storedDirectory := testcheck.Must(artifact.AvailablePath(
 		t.Context(), store, inventory.Manifest.ID, artifact.LocationDirectory,
-	)
-	testcheck.NoError(t, err)
-	storedWeight, err := artifact.AvailablePath(
+	))(t)
+	storedWeight := testcheck.Must(artifact.AvailablePath(
 		t.Context(), store, inventory.Components[0].ID, artifact.LocationFile,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	absDirectory, _ := filepath.Abs(directory)
 	absWeight, _ := filepath.Abs(weightPath)
 	if filepath.Clean(storedDirectory) != filepath.Clean(absDirectory) ||
@@ -625,15 +603,12 @@ func publishCandidateMaterializationDecision(
 	facts runrecord.DriverDecisionFacts,
 ) runrecord.DriverDecision {
 	t.Helper()
-	decision, err := runrecord.NewDriverDecision(t.Context(), store, facts)
-	testcheck.NoError(t, err)
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	decision := testcheck.Must(runrecord.NewDriverDecision(t.Context(), store, facts))(t)
+	content := testcheck.Must(decision.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/candidate-materialization/decision/"+decision.ID.DigestHex(),
 		[]artifact.Content{content}, decision.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	testcheck.NoError(t, runrecord.BindCausality(&batch, decision.ID, &facts.Causal))
 	expected := facts.Head
 	batch.ExpectedHead = &expected
@@ -669,8 +644,7 @@ func assertCandidateMaterializationBuildClosure(
 		if !found {
 			t.Fatalf("directory for realization %s is absent", arm.Realization)
 		}
-		locations, err := reader.Locations(t.Context(), arm.Model)
-		testcheck.NoError(t, err)
+		locations := testcheck.Must(reader.Locations(t.Context(), arm.Model))(t)
 		locationFound := slices.ContainsFunc(locations, func(location artifact.Location) bool {
 			return location.Kind == artifact.LocationDirectory &&
 				filepath.Clean(location.Value) == filepath.Clean(directory)
@@ -681,34 +655,29 @@ func assertCandidateMaterializationBuildClosure(
 		if got := readCandidateMaterializationTensor(t, directory, "weight"); !slices.Equal(got, want) {
 			t.Fatalf("materialized weight = %v, want %v", got, want)
 		}
-		definition, err := modelrecipe.ResolveModelDefinition(t.Context(), reader, arm.ModelDefinition)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.ResolveModelDefinition(t.Context(), reader, arm.ModelDefinition))(t)
 		if definition.Document.Model != arm.Model || definition.Tensors.ID != arm.TensorInventory ||
 			len(definition.Tensors.Tensors) != 1 || definition.Tensors.Tensors[0].Name != "weight" ||
 			!slices.Equal(definition.Tensors.Tensors[0].Shape, []uint64{2}) ||
 			definition.Tensors.Tensors[0].Bytes != 8 {
 			t.Fatalf("materialized model definition = %+v", definition)
 		}
-		output, err := composition.RequireOfflineArtifactOutput(t.Context(), reader, arm.Output)
-		testcheck.NoError(t, err)
+		output := testcheck.Must(composition.RequireOfflineArtifactOutput(t.Context(), reader, arm.Output))(t)
 		if output.ExecutionPlan != arm.Realization || output.Model != arm.Model ||
 			output.TensorInventory != arm.TensorInventory || output.ModelDefinition != arm.ModelDefinition ||
 			output.TensorBytes != arm.TensorBytes || output.StoredBytes != arm.StoredBytes {
 			t.Fatalf("materialized output = %+v, arm = %+v", output, arm)
 		}
-		observation, err := composition.RequireOfflineArtifactObservation(
+		observation := testcheck.Must(composition.RequireOfflineArtifactObservation(
 			t.Context(), reader, arm.Observation,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if observation.ExecutionPlan != arm.Realization || observation.Output != arm.Output ||
 			observation.Run != arm.Run || observation.Model != arm.Model ||
 			observation.PeakResidentBytes != arm.PeakResidentBytes {
 			t.Fatalf("materialized observation = %+v, arm = %+v", observation, arm)
 		}
-		plan, err := composition.LoadOfflineTensorExecutionPlan(t.Context(), reader, arm.Realization)
-		testcheck.NoError(t, err)
-		run, err := runrecord.RequireExactRun(t.Context(), reader, arm.Run)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(composition.LoadOfflineTensorExecutionPlan(t.Context(), reader, arm.Realization))(t)
+		run := testcheck.Must(runrecord.RequireExactRun(t.Context(), reader, arm.Run))(t)
 		if run.Recipe != plan.ArtifactPlan || run.Outcome != runrecord.OutcomeSucceeded ||
 			run.CodeCommit != materializationCodeCommit || run.Environment != result.Materialization.Environment ||
 			!slices.Contains(run.Inputs, arm.Realization) || !slices.Contains(run.Outputs, arm.Output) ||
@@ -734,8 +703,7 @@ func assertCandidateMaterializationBuildClosure(
 
 func readCandidateMaterializationTensor(t *testing.T, directory, name string) []float32 {
 	t.Helper()
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	defer source.Close()
 	view, found := source.Tensors[name]
 	if !found {

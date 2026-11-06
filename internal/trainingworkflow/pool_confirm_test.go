@@ -38,10 +38,8 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 	}
 	text := registerScoredText(t, documents, trainingprogram.MetricTokenAccuracy, scored)
 	ctx := t.Context()
-	weights, err := IdentifyModelWeights(text.model)
-	testcheck.NoError(t, err)
-	base, err := identifyAndRecordWeights(ctx, text.store, weights)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(IdentifyModelWeights(text.model))(t)
+	base := testcheck.Must(identifyAndRecordWeights(ctx, text.store, weights))(t)
 	derived := derivedIdentity(t, "overgo/pool-confirm-test/")
 	over := func(objective trainingprogram.ObjectiveDocument, fixedFor artifact.ID) evaluation.HeldoutPoolRequest {
 		return evaluation.HeldoutPoolRequest{
@@ -55,8 +53,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 		t.Fatalf("a pool over records every verdict read = %v, want it refused", err)
 	}
 	publish := func(fixedFor artifact.ID) evaluation.HeldoutPool {
-		pool, err := evaluation.BuildHeldoutPool(ctx, text.store, over(text.objective, fixedFor))
-		testcheck.NoError(t, err)
+		pool := testcheck.Must(evaluation.BuildHeldoutPool(ctx, text.store, over(text.objective, fixedFor)))(t)
 		if _, err := artifact.Publish(ctx, text.store, pool.Batch); err != nil {
 			t.Fatal(err)
 		}
@@ -82,8 +79,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 	if _, err := RunTextHeldout(ctx, text.store, proof); err == nil || !strings.Contains(err.Error(), "name no pool") {
 		t.Fatalf("a proof run that names a pool = %v, want it refused", err)
 	}
-	result, err := RunTextHeldout(ctx, text.store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(RunTextHeldout(ctx, text.store, request))(t)
 	if result.Verdict.Valid() || result.Reads != 0 {
 		t.Fatalf("a confirmed run published verdict %s and charged %d reads of the objective's records", result.Verdict, result.Reads)
 	}
@@ -94,8 +90,7 @@ func TestAPoolConfirmsAnObjectiveRun(t *testing.T) {
 	if result.ConfirmationsLeft != acceptance.Confirmations-1 {
 		t.Fatalf("%d confirmations left of %d", result.ConfirmationsLeft, acceptance.Confirmations)
 	}
-	grant, err := runrecord.NewBudget("confirmation", pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID)
-	testcheck.NoError(t, err)
+	grant := testcheck.Must(runrecord.NewBudget("confirmation", pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID))(t)
 	if _, charges, err := runrecord.BudgetCharges(ctx, text.store, grant.ID); err != nil || len(charges) != 1 {
 		t.Fatalf("the pool was charged %d confirmations (%v), want the one", len(charges), err)
 	}

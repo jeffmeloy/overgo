@@ -50,12 +50,10 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 
 	foreignMechanism := testutil.ArtifactID(t, artifact.KindRecipe, "foreign-mechanism")
 	foreignSource := testutil.ArtifactID(t, artifact.KindEvidence, "foreign-benefit-source")
-	foreignBenefit, err := trainingprogram.NewMechanismEvidence(
+	foreignBenefit := testcheck.Must(trainingprogram.NewMechanismEvidence(
 		trainingprogram.MechanismEvidenceBenefit, foreignMechanism, foreignSource,
-	)
-	testcheck.NoError(t, err)
-	foreignContent, err := foreignBenefit.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	foreignContent := testcheck.Must(foreignBenefit.Content())(t)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 		Key: "fixture/mechanism-admission/foreign-benefit",
 		Artifacts: []artifact.Descriptor{
@@ -65,10 +63,9 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	unrelated, err := trainingprogram.CompileMechanismCandidate(
+	unrelated := testcheck.Must(trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, foreignBenefit.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, unrelated, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -76,12 +73,10 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	}
 
 	wrongRoleSource := testutil.ArtifactID(t, artifact.KindEvidence, "wrong-role-source")
-	wrongRole, err := trainingprogram.NewMechanismEvidence(
+	wrongRole := testcheck.Must(trainingprogram.NewMechanismEvidence(
 		trainingprogram.MechanismEvidenceCostBound, fixture.mechanism, wrongRoleSource,
-	)
-	testcheck.NoError(t, err)
-	wrongRoleContent, err := wrongRole.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	wrongRoleContent := testcheck.Must(wrongRole.Content())(t)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 		Key:       "fixture/mechanism-admission/wrong-role",
 		Artifacts: []artifact.Descriptor{{ID: wrongRoleSource}},
@@ -89,10 +84,9 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	wrongRoleCandidate, err := trainingprogram.CompileMechanismCandidate(
+	wrongRoleCandidate := testcheck.Must(trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, wrongRole.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, wrongRoleCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -106,10 +100,9 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	descriptorCandidate, err := trainingprogram.CompileMechanismCandidate(
+	descriptorCandidate := testcheck.Must(trainingprogram.CompileMechanismCandidate(
 		fixture.census, fixture.provenance.ID, fixture.mechanism, fixture.cost.ID, descriptorOnly,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, descriptorCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
@@ -123,8 +116,7 @@ func newMechanismAdmissionFixture(t *testing.T) mechanismAdmissionFixture {
 	mechanism := id(artifact.KindRecipe, "quantile-router")
 	claim := func(role trainingprogram.MechanismEvidenceRole, sourceKind artifact.Kind, name string) trainingprogram.MechanismEvidence {
 		t.Helper()
-		value, err := trainingprogram.NewMechanismEvidence(role, mechanism, id(sourceKind, name+"-source"))
-		testcheck.NoError(t, err)
+		value := testcheck.Must(trainingprogram.NewMechanismEvidence(role, mechanism, id(sourceKind, name+"-source")))(t)
 		return value
 	}
 	gap := claim(trainingprogram.MechanismEvidenceGap, artifact.KindEvidence, "gap")
@@ -135,26 +127,21 @@ func newMechanismAdmissionFixture(t *testing.T) mechanismAdmissionFixture {
 		Mechanism: mechanism, Owner: id(artifact.KindEvidence, "router-owner"),
 		Gap: gap.ID, Falsifier: falsifier.ID, GapState: trainingprogram.MechanismGapOpen,
 	}
-	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
-	provenance, err := NewExternalMechanismProvenance(
+	census := testcheck.Must(trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment}))(t)
+	provenance := testcheck.Must(NewExternalMechanismProvenance(
 		census, "local/marin", "b352a9e5d49eede33f08e0ab8df1e786425c2db5", id(artifact.KindEvidence, "license"),
 		[]ExternalMechanismSource{{Mechanism: mechanism, Paths: []string{"experiments/grug/moe/model.py"}}},
-	)
-	testcheck.NoError(t, err)
-	candidate, err := trainingprogram.CompileMechanismCandidate(census, provenance.ID, mechanism, cost.ID, benefit.ID)
-	testcheck.NoError(t, err)
-	binding, err := NewAdmissionBinding(AdmissionBinding{
+	))(t)
+	candidate := testcheck.Must(trainingprogram.CompileMechanismCandidate(census, provenance.ID, mechanism, cost.ID, benefit.ID))(t)
+	binding := testcheck.Must(NewAdmissionBinding(AdmissionBinding{
 		Generation:   0,
 		Proposer:     AuthorityDomain{Name: "mechanism-proposer", Identity: id(artifact.KindEvidence, "proposer")},
 		Evaluator:    AuthorityDomain{Name: "mechanism-evaluator", Identity: id(artifact.KindEvidence, "evaluator")},
 		Decider:      AuthorityDomain{Name: "mechanism-decider", Identity: id(artifact.KindEvidence, "decider")},
 		SealedInputs: id(artifact.KindDataset, "sealed-inputs"),
 		CleanWorker:  id(artifact.KindEvidence, "clean-worker"),
-	})
-	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	}))(t)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	claims := []trainingprogram.MechanismEvidence{gap, falsifier, cost, benefit}
 	contents := make([]artifact.Content, 0, len(claims)+3)
 	lineage := make([]artifact.Lineage, 0, len(claims)*2+len(census.Lineage())+len(provenance.Lineage()))

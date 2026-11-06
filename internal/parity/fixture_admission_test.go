@@ -35,8 +35,7 @@ func TestParityFixtureAdmission(t *testing.T) {
 	// Its script SHA256 is b6be54f74aa55c2767bf46c37efbb9fda96a915589e4d2269b60030553.
 	// This pins an independent reference, not Overgo real-model parity.
 	realPath := filepath.Join("testdata", "olmoe_real_reference.json")
-	real, err := fixtureBytes(realPath, "8f8f3140615b0033dd3d31624bab979b0737b91cda0300a64756bd039a459037")
-	testcheck.NoError(t, err)
+	real := testcheck.Must(fixtureBytes(realPath, "8f8f3140615b0033dd3d31624bab979b0737b91cda0300a64756bd039a459037"))(t)
 	var reference struct {
 		PromptIDs []int `json:"prompt_ids"`
 		FullIDs   []int `json:"full_ids"`

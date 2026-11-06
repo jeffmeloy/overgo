@@ -34,16 +34,13 @@ func (stub *agentRetrievalRuntimeStub) RankPair(context.Context, string, string)
 func (stub *agentRetrievalRuntimeStub) SupportsRank() bool { return stub.rankSupported }
 
 func TestAgentRetrievalProviderUsesRuntimeRankCapability(t *testing.T) {
-	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	testcheck.NoError(t, err)
-	policy, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy"))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("model")))(t)
+	policy := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy")))(t)
 	runtime := &agentRetrievalRuntimeStub{
 		rankSupported: true,
 		rank:          inference.RankResult{Scores: []float32{0.75}},
 	}
-	provider, err := newAgentRetrievalProvider(runtime, model, policy)
-	testcheck.NoError(t, err)
+	provider := testcheck.Must(newAgentRetrievalProvider(runtime, model, policy))(t)
 	if provider.ModelIdentity() != model || provider.PolicyIdentity() != policy {
 		t.Fatalf("provider identity = (%s, %s)", provider.ModelIdentity(), provider.PolicyIdentity())
 	}
@@ -54,15 +51,12 @@ func TestAgentRetrievalProviderUsesRuntimeRankCapability(t *testing.T) {
 }
 
 func TestAgentRetrievalProviderUsesExistingNormalizedEmbeddingFallback(t *testing.T) {
-	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	testcheck.NoError(t, err)
-	policy, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy"))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("model")))(t)
+	policy := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("runtime-policy")))(t)
 	runtime := &agentRetrievalRuntimeStub{embeddings: map[string][]float32{
 		"query": {1, 0}, "document": {0.6, 0.8},
 	}}
-	provider, err := newAgentRetrievalProvider(runtime, model, policy)
-	testcheck.NoError(t, err)
+	provider := testcheck.Must(newAgentRetrievalProvider(runtime, model, policy))(t)
 	score, err := provider.Score(t.Context(), "query", "document")
 	if err != nil || math.Abs(score-0.6) > 1e-6 || runtime.rankCalled {
 		t.Fatalf("embedding fallback score = (%f, %v, rank-called=%v)", score, err, runtime.rankCalled)

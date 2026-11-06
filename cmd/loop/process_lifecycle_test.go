@@ -10,8 +10,7 @@ import (
 // TestExternalProcessLifecycle proves loop tool invocations ride the
 // shared process supervisor end to end.
 func TestExternalProcessLifecycle(t *testing.T) {
-	out, err := runTool("go", "version")
-	testcheck.NoError(t, err)
+	out := testcheck.Must(runTool("go", "version"))(t)
 	if !strings.Contains(out, "go version") {
 		t.Fatalf("tool output = %q", out)
 	}

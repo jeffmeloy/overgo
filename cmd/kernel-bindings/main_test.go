@@ -9,19 +9,14 @@ import (
 )
 
 func TestGeneratedBindingsMatchManifest(t *testing.T) {
-	document, err := os.ReadFile("../../kernels/manifest.json")
-	testcheck.NoError(t, err)
-	want, err := generateBindings(document)
-	testcheck.NoError(t, err)
-	got, err := os.ReadFile("../../internal/cuda/executor/kernel_bindings_generated.go")
-	testcheck.NoError(t, err)
+	document := testcheck.Must(os.ReadFile("../../kernels/manifest.json"))(t)
+	want := testcheck.Must(generateBindings(document))(t)
+	got := testcheck.Must(os.ReadFile("../../internal/cuda/executor/kernel_bindings_generated.go"))(t)
 	if string(got) != string(want) {
 		t.Fatal("CUDA kernel bindings are stale; run go generate ./internal/cuda/executor")
 	}
-	kernelWant, err := generateKernelManifest(document)
-	testcheck.NoError(t, err)
-	kernelGot, err := os.ReadFile("../../internal/cuda/kernel/manifest_generated.go")
-	testcheck.NoError(t, err)
+	kernelWant := testcheck.Must(generateKernelManifest(document))(t)
+	kernelGot := testcheck.Must(os.ReadFile("../../internal/cuda/kernel/manifest_generated.go"))(t)
 	if string(kernelGot) != string(kernelWant) {
 		t.Fatal("CUDA kernel manifest constants are stale; run go generate ./internal/cuda/executor")
 	}
@@ -38,10 +33,8 @@ func TestBindingsRecordArgumentWidths(t *testing.T) {
 	if _, err := parameterWidth(".opaque"); err == nil {
 		t.Fatal("a parameter of no known width was accepted")
 	}
-	document, err := os.ReadFile("../../kernels/manifest.json")
-	testcheck.NoError(t, err)
-	generated, err := generateBindings(document)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(os.ReadFile("../../kernels/manifest.json"))(t)
+	generated := testcheck.Must(generateBindings(document))(t)
 	if !strings.Contains(string(generated), "var kernelFunctionArgumentWidths = [...][]uint16{") {
 		t.Fatal("the bindings record no widths")
 	}

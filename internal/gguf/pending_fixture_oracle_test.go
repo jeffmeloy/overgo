@@ -19,15 +19,13 @@ import (
 
 func TestPendingFixtureTinyOracles(t *testing.T) {
 	root := filepath.Join("..", "parity", "testdata")
-	raw, err := os.ReadFile(filepath.Join(root, "olmoe_tiny.gguf"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "olmoe_tiny.gguf")))(t)
 	const pinnedSHA = "191e65fe8477cd1e50a9d14ee832aa6bf10b39980b61189831f2f44f2a05a5d1"
 	actual := sha256.Sum256(raw)
 	if hex.EncodeToString(actual[:]) != pinnedSHA {
 		t.Fatalf("tiny GGUF source changed: %x", actual)
 	}
-	manifestBytes, err := os.ReadFile(filepath.Join(root, "olmoe_tiny.json"))
-	testcheck.NoError(t, err)
+	manifestBytes := testcheck.Must(os.ReadFile(filepath.Join(root, "olmoe_tiny.json")))(t)
 	var oracle struct {
 		Format       string `json:"format"`
 		Architecture string `json:"architecture"`
@@ -43,8 +41,7 @@ func TestPendingFixtureTinyOracles(t *testing.T) {
 	if oracle.Format != "GGUF-v3-independent-python" || oracle.Architecture != "olmoe" || oracle.SHA256 != pinnedSHA {
 		t.Fatalf("unexpected independent fixture provenance: %+v", oracle)
 	}
-	file, err := gguf.Parse(bytes.NewReader(raw), uint64(len(raw)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(raw), uint64(len(raw)), gguf.DefaultOptions()))(t)
 	var rewritten bytes.Buffer
 	if err := file.WriteTo(&rewritten, gguf.WriteOptions{}); err != nil || !bytes.Equal(rewritten.Bytes(), raw) {
 		t.Fatalf("Go GGUF writer differs from the independent Python wire fixture: %v", err)

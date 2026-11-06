@@ -12,10 +12,8 @@ import (
 
 func TestFirstASRArtifactElection(t *testing.T) {
 	t.Parallel()
-	encoded, err := os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json"))
-	testcheck.NoError(t, err)
-	election, err := NormalizeElection(encoded)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json")))(t)
+	election := testcheck.Must(NormalizeElection(encoded))(t)
 	if got, want := election.ID.String(), "evidence:sha256:ea234b4a2df12eb45c6487146a8d88ec11b492ce829b4f5568aab4b2a5e33f91"; got != want {
 		t.Fatalf("election identity = %s, want %s", got, want)
 	}
@@ -31,8 +29,7 @@ func TestFirstASRArtifactElection(t *testing.T) {
 		t.Fatalf("summary = %+v", summary)
 	}
 
-	batch, err := election.Batch("audio/oracle/granite-speech-5")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(election.Batch("audio/oracle/granite-speech-5"))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)

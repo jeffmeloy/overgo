@@ -41,17 +41,14 @@ func TestServingGoldenRegression(t *testing.T) {
 	if len(golden.Cases) == 0 {
 		t.Fatal("serving golden has no cases")
 	}
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modeltest.Directory(t, "Qwen3.5-4B-f16.gguf"), recipe.PlacementHybrid,
 		modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceF32,
-	)
-	testcheck.NoError(t, err)
-	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	testcheck.NoError(t, err)
+	))(t)
+	runner := testcheck.Must(OpenWithProgram(t.Context(), &loaded, OpenOptions{}))(t)
 	defer runner.Close()
 	for _, testCase := range golden.Cases {
-		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		testcheck.NoError(t, err)
+		greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens:   len(testCase.GeneratedIDs),
 			Sampler:        greedy,

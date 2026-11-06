@@ -43,10 +43,8 @@ func importFixture(t *testing.T) string {
 
 func TestDeterministicComponentImportDescription(t *testing.T) {
 	firstRoot, secondRoot := importFixture(t), importFixture(t)
-	first, err := InspectImport(t.Context(), firstRoot, hfgguf.LanguageHidden)
-	testcheck.NoError(t, err)
-	second, err := InspectImport(t.Context(), secondRoot, hfgguf.LanguageHidden)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(InspectImport(t.Context(), firstRoot, hfgguf.LanguageHidden))(t)
+	second := testcheck.Must(InspectImport(t.Context(), secondRoot, hfgguf.LanguageHidden))(t)
 	if first.Content.Descriptor.ID != second.Content.Descriptor.ID || !bytes.Equal(first.Content.Data, second.Content.Data) {
 		t.Fatal("relocation changes description identity")
 	}
@@ -76,8 +74,7 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 	if err != nil || len(parents) == 0 {
 		t.Fatalf("profile derivation was not retained: %v", err)
 	}
-	changed, err := InspectImport(t.Context(), firstRoot, hfgguf.LanguageTokens)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(InspectImport(t.Context(), firstRoot, hfgguf.LanguageTokens))(t)
 	if changed.Content.Descriptor.ID == first.Content.Descriptor.ID {
 		t.Fatal("output contract change reused identity")
 	}
@@ -87,8 +84,7 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 		t.Fatalf("cancel = %v", err)
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(secondRoot, "config.json"), []byte(`{"model_type":"unknown","architectures":["RemoteModel"]}`), 0600))
-	unknown, err := InspectImport(t.Context(), secondRoot, hfgguf.LanguageHidden)
-	testcheck.NoError(t, err)
+	unknown := testcheck.Must(InspectImport(t.Context(), secondRoot, hfgguf.LanguageHidden))(t)
 	body = importDescription{}
 	testcheck.NoError(t, json.Unmarshal(unknown.Content.Data, &body))
 	if body.Components[0].Unsupported == "" || len(body.Components[0].Bindings) != 0 {
@@ -109,8 +105,7 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 		}
 		index := `{"_class_name":"FixturePipeline","encoder_b":["transformers","LlamaForCausalLM"],"encoder_a":["transformers","LlamaForCausalLM"]}`
 		testcheck.NoError(t, os.WriteFile(filepath.Join(pipeline, "model_index.json"), []byte(index), 0600))
-		inspection, err := InspectImport(t.Context(), pipeline, hfgguf.LanguageHidden)
-		testcheck.NoError(t, err)
+		inspection := testcheck.Must(InspectImport(t.Context(), pipeline, hfgguf.LanguageHidden))(t)
 		testcheck.NoError(t, RegisterImport(t.Context(), store, inspection))
 		results := make(chan ImportInspection, 3)
 		failures := make(chan error, 3)
@@ -144,8 +139,7 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 			testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
 			testcheck.NoError(t, os.WriteFile(path, []byte(content), 0600))
 		}
-		inspection, err := InspectImport(t.Context(), pipeline, "")
-		testcheck.NoError(t, err)
+		inspection := testcheck.Must(InspectImport(t.Context(), pipeline, ""))(t)
 		var body importDescription
 		testcheck.NoError(t, json.Unmarshal(inspection.Content.Data, &body))
 		if len(body.Components) != 3 {
@@ -163,22 +157,18 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 			t.Fatal("scheduler declaration lost")
 		}
 		testcheck.NoError(t, os.WriteFile(filepath.Join(pipeline, "scheduler", "scheduler_config.json"), []byte(`{"_class_name":"RemoteScheduler","shift":3,"num_train_timesteps":1000}`), 0600))
-		changed, err := InspectImport(t.Context(), pipeline, "")
-		testcheck.NoError(t, err)
+		changed := testcheck.Must(InspectImport(t.Context(), pipeline, ""))(t)
 		if changed.Content.Descriptor.ID == inspection.Content.Descriptor.ID {
 			t.Fatal("scheduler policy change reused identity")
 		}
 	})
 	t.Run("GGUF", func(t *testing.T) {
 		path := testutil.QuantizedDenseGGUF(t, 1)
-		original, err := InspectImport(t.Context(), path, hfgguf.LanguageTokens)
-		testcheck.NoError(t, err)
-		encoded, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		original := testcheck.Must(InspectImport(t.Context(), path, hfgguf.LanguageTokens))(t)
+		encoded := testcheck.Must(os.ReadFile(path))(t)
 		copyPath := filepath.Join(t.TempDir(), "relocated.gguf")
 		testcheck.NoError(t, os.WriteFile(copyPath, encoded, 0600))
-		relocated, err := InspectImport(t.Context(), copyPath, hfgguf.LanguageTokens)
-		testcheck.NoError(t, err)
+		relocated := testcheck.Must(InspectImport(t.Context(), copyPath, hfgguf.LanguageTokens))(t)
 		if original.Content.Descriptor.ID != relocated.Content.Descriptor.ID {
 			t.Fatal("GGUF relocation changed description")
 		}

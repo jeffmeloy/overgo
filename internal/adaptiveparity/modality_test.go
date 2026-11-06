@@ -26,15 +26,12 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		{modelrecipe.ModuleRoutedImagePrepare, profileID, []recipecontract.Modality{recipecontract.ModalityText}},
 	}
 	for _, test := range tests {
-		definition, err := modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile)
-		testcheck.NoError(t, err)
-		before, err := compileModalitySignature(definition)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile))(t)
+		before := testcheck.Must(compileModalitySignature(definition))(t)
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
-		after, err := compileModalitySignature(definition)
-		testcheck.NoError(t, err)
+		after := testcheck.Must(compileModalitySignature(definition))(t)
 		if !slices.Equal(before.Inputs, test.want) || !slices.Equal(after.Inputs, test.want) || !slices.Equal(before.Outputs, after.Outputs) {
 			t.Fatalf("modality before=%+v after=%+v want inputs=%v", before, after, test.want)
 		}
@@ -55,15 +52,12 @@ func TestTypedVideoRecipeSelectsSemanticsWithoutPlacement(t *testing.T) {
 		{modelrecipe.ReferenceVideoEditDefinition, []recipecontract.Modality{recipecontract.ModalityText, recipecontract.ModalityVideo}},
 	}
 	for _, test := range tests {
-		definition, err := test.define(modelID, profileID)
-		testcheck.NoError(t, err)
-		before, err := compileModalitySignature(definition)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(test.define(modelID, profileID))(t)
+		before := testcheck.Must(compileModalitySignature(definition))(t)
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
-		after, err := compileModalitySignature(definition)
-		testcheck.NoError(t, err)
+		after := testcheck.Must(compileModalitySignature(definition))(t)
 		if !slices.Equal(before.Inputs, test.want) || !slices.Equal(after.Inputs, test.want) || !slices.Equal(before.Outputs, []recipecontract.Modality{recipecontract.ModalityVideo}) || !slices.Equal(before.Outputs, after.Outputs) {
 			t.Fatalf("modality before=%+v after=%+v want inputs=%v", before, after, test.want)
 		}

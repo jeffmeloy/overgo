@@ -53,8 +53,7 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 		suite.Cases = append(suite.Cases, MultipleChoiceCase{Name: fmt.Sprintf("case-%02d", index), Prompt: prompt, Candidates: []string{" A", " B"}, Answer: index % 2})
 		scores[prompt] = []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}
 	}
-	source, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(json.Marshal(suite))(t)
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "carry model"),
 		Definition: planID(t, artifact.KindModelDefinition, "carry definition"),
@@ -65,8 +64,7 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 	}
 	platform := func(backend, driver string) runrecord.Environment {
 		t.Helper()
-		value, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: backend, Driver: driver})
-		testcheck.NoError(t, err)
+		value := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: backend, Driver: driver}))(t)
 		return value
 	}
 	device, other, hosted := platform("fixture", "fixture"), platform("fixture", "other"), platform(runrecord.BackendRemote, "fixture")
@@ -80,15 +78,12 @@ func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 	evaluate := func(commit string, environment runrecord.Environment, told bool) (CampaignResult, CompiledSuite, int) {
 		t.Helper()
 		tally := &choiceTally{scores: scores}
-		campaign, err := newCampaign(store, tally, identity, environment, strings.Repeat(commit, 40), LifecycleIsolated)
-		testcheck.NoError(t, err)
+		campaign := testcheck.Must(newCampaign(store, tally, identity, environment, strings.Repeat(commit, 40), LifecycleIsolated))(t)
 		if told {
 			campaign.answeredBy(reflect.TypeFor[carriedModel]().PkgPath(), build)
 		}
-		compiled, err := CompileSuite(source, campaign.Authorities())
-		testcheck.NoError(t, err)
-		result, err := campaign.Evaluate(ctx, compiled)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
+		result := testcheck.Must(campaign.Evaluate(ctx, compiled))(t)
 		return result, compiled, len(tally.asked)
 	}
 

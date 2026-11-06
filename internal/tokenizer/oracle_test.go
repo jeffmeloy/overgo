@@ -24,15 +24,11 @@ func TestUpstreamTokenizerCorpus(t *testing.T) {
 	for _, name := range []string{"qwen2", "qwen35", "deepseek-llm", "gpt-2", "llama-spm", "llama-bpe", "bert-bge"} {
 		t.Run(name, func(t *testing.T) {
 			modelPath := filepath.Join(source, "models", "ggml-vocab-"+name+".gguf")
-			file, err := gguf.Open(modelPath)
-			testcheck.NoError(t, err)
+			file := testcheck.Must(gguf.Open(modelPath))(t)
 			defer file.Close()
-			vocab, err := Load(file)
-			testcheck.NoError(t, err)
-			inputData, err := os.ReadFile(modelPath + ".inp")
-			testcheck.NoError(t, err)
-			expected, err := readExpectedTokenIDs(modelPath + ".out")
-			testcheck.NoError(t, err)
+			vocab := testcheck.Must(Load(file))(t)
+			inputData := testcheck.Must(os.ReadFile(modelPath + ".inp"))(t)
+			expected := testcheck.Must(readExpectedTokenIDs(modelPath + ".out"))(t)
 			// oracle: C++ text-mode file; Normalize its Windows CRLF
 			// representation to bytes observed by std::ifstream
 			inputText := strings.ReplaceAll(string(inputData), "\r\n", "\n")

@@ -27,8 +27,7 @@ func tifaFile(t *testing.T, captions int) string {
 	rows = append(rows,
 		tifaRow{ID: "coco_bad", Caption: "bad", Question: "answer not offered?", Choices: []string{"yes", "no"}, Answer: "maybe"},
 		tifaRow{ID: "coco_bad", Caption: "bad", Question: "one choice?", Choices: []string{"yes"}, Answer: "yes"})
-	data, err := json.Marshal(rows)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(rows))(t)
 	path := filepath.Join(t.TempDir(), "questions.json")
 	testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 	return path
@@ -42,8 +41,7 @@ func tifaFile(t *testing.T, captions int) string {
 func TestTIFAQuestionsAskAboutThePictureOfEachCaption(t *testing.T) {
 	t.Parallel()
 	path := tifaFile(t, 8)
-	items, err := PickTIFA(path, 3, 17)
-	testcheck.NoError(t, err)
+	items := testcheck.Must(PickTIFA(path, 3, 17))(t)
 	again, _ := PickTIFA(path, 3, 17)
 	if len(items) != 3 || fmt.Sprint(items) != fmt.Sprint(again) {
 		t.Fatalf("the same seed picked %v and then %v", items, again)
@@ -55,8 +53,7 @@ func TestTIFAQuestionsAskAboutThePictureOfEachCaption(t *testing.T) {
 		}
 		images[item.ID] = strings.Repeat("a", 64) + imageExtension
 	}
-	suite, err := BuildTIFAQuestions(items, images, "judge-a")
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildTIFAQuestions(items, images, "judge-a"))(t)
 	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != 6 {
 		t.Fatalf("suite = %d cases judged by %q (%v), want 6 cases judged by judge-a that compile", len(suite.Cases), suite.Judge, err)
 	}
@@ -92,14 +89,12 @@ func TestAJudgedSuiteIsAnsweredOnlyByItsJudge(t *testing.T) {
 		Kind: GeneratedAnswerKind, Schema: "fixture/v1", Source: "fixture", Judge: "judge-a", Transforms: []string{TransformTrimSpace},
 		Cases: []GeneratedAnswerCase{{Name: "case", Prompt: "prompt", MaxTokens: 1, Answers: []string{"A"}}},
 	}
-	compiled, err := CompileGeneratedAnswer(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindGeneratedAnswer(compiled, ExactAuthorities{
+	compiled := testcheck.Must(CompileGeneratedAnswer(suite))(t)
+	plan := testcheck.Must(bindGeneratedAnswer(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	answers := exactGenerator{pieces: []string{"A"}}

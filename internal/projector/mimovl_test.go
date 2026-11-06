@@ -13,11 +13,9 @@ import (
 )
 
 func TestMiMoVLRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4))))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(4, 4)) || !slices.Equal(output.Embeddings.Data, make([]float32, 16)) {
 		t.Fatalf("output = shape %v values %v", output.Embeddings.Shape, output.Embeddings.Data)
 	}
@@ -31,14 +29,12 @@ func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
 }
 
 func TestMiMoVLPromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{}))(t)
 	defer runner.Close()
 	tok := &recordingPromptTokenizer{pad: qwen3VLImagePad}
-	prompt, err := testSession(t, runner).BuildImagePrompt(
+	prompt := testcheck.Must(testSession(t, runner).BuildImagePrompt(
 		t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<|im_start|>system\n"+miMoVLSystemPrompt+"<|im_end|>") ||
 		!strings.Contains(tok.texts[0], "<|vision_start|>"+strings.Repeat(qwen3VLImagePad, 4)+"<|vision_end|>") {
 		t.Fatalf("prompt text = %q", tok.texts)
@@ -72,10 +68,8 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 51), G: uint8(y * 47), B: uint8((x + y) * 29), A: fixtureOpaqueAlpha})
 		}
 	}
-	want, err := cpu.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
-	got, err := cuda.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(cpu.EncodeImage(t.Context(), input))(t)
+	got := testcheck.Must(cuda.EncodeImage(t.Context(), input))(t)
 	compareFloat32Tolerance(t, "MiMo-VL", got.Embeddings.Data, want.Embeddings.Data, 3e-3)
 }
 

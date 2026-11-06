@@ -28,11 +28,10 @@ func TestTrainingHealthClassifiersArePhaseAwareRobustAndReopenable(t *testing.T)
 	nonfinite.Observed = true
 	regression := fact(healthClassifierSustainedRegression, "regression")
 	regression.Observed, regression.Finite, regression.RobustRegression = true, true, true
-	classification, err := healthClassificationCodec.New(healthClassification{
+	classification := testcheck.Must(healthClassificationCodec.New(healthClassification{
 		Version: artifact.InitialDocumentVersion, Run: id(artifact.KindRun, "run"), HealthEvidence: id(artifact.KindEvidence, "health"),
 		Policy: id(artifact.KindProfile, "classifier policy"), Facts: []healthClassifierFact{regression, nonfinite, absent, stall},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := healthClassificationCodec.Content(classification)
 	if err != nil || content.Descriptor.ID != classification.ID || len(healthClassificationLineage(classification)) != 34 {
 		t.Fatalf("health classification = (%+v, %v)", classification, err)

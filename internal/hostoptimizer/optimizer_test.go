@@ -34,8 +34,7 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 		{Name: "matrix", Start: 0, End: MatrixElements, Rows: matrixRows, Cols: matrixCols},
 		{Name: "vector", Start: MatrixElements, End: parameterCount, Rows: 1, Cols: vectorCols},
 	}
-	plan, err := CompilePlan(parameterCount, specs)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompilePlan(parameterCount, specs))(t)
 	if plan.ParameterCount() != parameterCount || plan.GroupCount() != len(specs) {
 		t.Fatalf("plan dimensions = (%d,%d), want (%d,%d)", plan.ParameterCount(), plan.GroupCount(), parameterCount, len(specs))
 	}
@@ -44,14 +43,12 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 	if matrix.Rows != matrixRows || matrix.Cols != matrixCols || vector.Rows != 1 || vector.Cols != vectorCols {
 		t.Fatalf("compiled geometry = %dx%d / %dx%d", matrix.Rows, matrix.Cols, vector.Rows, vector.Cols)
 	}
-	duplicate, err := CompilePlan(parameterCount, specs)
-	testcheck.NoError(t, err)
+	duplicate := testcheck.Must(CompilePlan(parameterCount, specs))(t)
 	if plan.Identity() == "" || plan.Identity() != duplicate.Identity() {
 		t.Fatal("equivalent plans lack a stable identity")
 	}
 	specs[1].Frozen = true
-	frozen, err := CompilePlan(parameterCount, specs)
-	testcheck.NoError(t, err)
+	frozen := testcheck.Must(CompilePlan(parameterCount, specs))(t)
 	if frozen.Identity() == plan.Identity() {
 		t.Fatal("frozen policy is absent from plan identity")
 	}
@@ -63,17 +60,15 @@ func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
 		{Name: "vector", Start: 4, End: 7, Rows: 3, Cols: 1},
 		{Name: "scalar", Start: 7, End: 8, Rows: 1, Cols: 1},
 	}
-	plan, err := CompilePlan(8, specs)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompilePlan(8, specs))(t)
 	weights := []float32{1, 2, 3, 4, 5, 6, 7, 8}
 	before := append([]float32(nil), weights...)
 	gradients := []float32{1, -2, 3, -4, 2, -3, 4, -5}
-	muon, err := New(weights, gradients, plan, Config{
+	muon := testcheck.Must(New(weights, gradients, plan, Config{
 		BaseLearningRate: 0.01,
 		Momentum:         0.9,
 		Schedule:         ScheduleConstant,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if muon.scratch.input != nil {
 		t.Fatal("constructor allocated step scratch")
 	}
@@ -262,14 +257,12 @@ func TestStateRestoresExactContinuation(t *testing.T) {
 
 func mustPlan(t *testing.T, parameterCount int, specs []GroupSpec) Plan {
 	t.Helper()
-	plan, err := CompilePlan(parameterCount, specs)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompilePlan(parameterCount, specs))(t)
 	return plan
 }
 
 func mustOptimizer(t *testing.T, weights, gradients []float32, plan Plan, config Config) *Optimizer {
 	t.Helper()
-	optimizer, err := New(weights, gradients, plan, config)
-	testcheck.NoError(t, err)
+	optimizer := testcheck.Must(New(weights, gradients, plan, config))(t)
 	return optimizer
 }

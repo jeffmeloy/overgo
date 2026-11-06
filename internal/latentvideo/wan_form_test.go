@@ -55,8 +55,7 @@ func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 // prompt request carries no context, sample or noise keys, so the run
 // record stays the typed request the page composed.
 func TestWanPromptFormMarshalsWithoutTensors(t *testing.T) {
-	encoded, err := json.Marshal(WanRequest{Prompt: "a fox", Seed: 31, Steps: 2})
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(WanRequest{Prompt: "a fox", Seed: 31, Steps: 2}))(t)
 	for _, absent := range []string{"cond_context", "uncond_context", "initial_sample", "noise"} {
 		if strings.Contains(string(encoded), absent) {
 			t.Errorf("prompt form carries %s: %s", absent, encoded)

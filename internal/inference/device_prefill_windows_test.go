@@ -28,23 +28,18 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			testcheck.NoError(t, err)
 			defer runner.Close()
 			ctx := t.Context()
-			plan, err := compileDeviceOutputPlan(deviceOutputGreedy, 0, runner.spec.VocabularySize)
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(compileDeviceOutputPlan(deviceOutputGreedy, 0, runner.spec.VocabularySize))(t)
 			tokens := []tokenizer.TokenID{1, 4, 5, 6, 7}
-			whole, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan)
-			testcheck.NoError(t, err)
+			whole := testcheck.Must(runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan))(t)
 			defer whole[0].Release(context.Background())
 			// A prompt's read appends at most the runner's chunk bound a chunk: three chunks launch more than one, to
 			// the same state.
 			launches := func(chunk int) (*deviceKVCache, uint64) {
 				t.Helper()
 				runner.promptChunkTokens = chunk
-				before, err := runner.DeviceExecutionStats(ctx)
-				testcheck.NoError(t, err)
-				read, err := runner.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan)
-				testcheck.NoError(t, err)
-				after, err := runner.DeviceExecutionStats(ctx)
-				testcheck.NoError(t, err)
+				before := testcheck.Must(runner.DeviceExecutionStats(ctx))(t)
+				read := testcheck.Must(runner.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan))(t)
+				after := testcheck.Must(runner.DeviceExecutionStats(ctx))(t)
 				return read[0], after.KernelLaunches + after.GraphLaunches - before.KernelLaunches - before.GraphLaunches
 			}
 			split, chunked := launches(2)
@@ -54,10 +49,8 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 				if left.Tokens != right.Tokens || left.Position != right.Position {
 					t.Fatalf("cache positions differ: %d/%d and %d/%d", left.Tokens, left.Position, right.Tokens, right.Position)
 				}
-				l, err := runner.downloadDeviceCache(ctx, left)
-				testcheck.NoError(t, err)
-				r, err := runner.downloadDeviceCache(ctx, right)
-				testcheck.NoError(t, err)
+				l := testcheck.Must(runner.downloadDeviceCache(ctx, left))(t)
+				r := testcheck.Must(runner.downloadDeviceCache(ctx, right))(t)
 				for i, layer := range l.Layers {
 					pairs := [][2]reference.Value{{layer.Key, r.Layers[i].Key}, {layer.Value, r.Layers[i].Value}}
 					for name, state := range layer.States {
@@ -83,13 +76,11 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			// A prompt read in chunks sizes its storage for the whole prompt at its first chunk, and a later chunk
 			// writes into it rather than into a new storage beside it.
 			reserve := uint32(len(tokens))
-			first, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[:2], Reserve: reserve}}, plan)
-			testcheck.NoError(t, err)
+			first := testcheck.Must(runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[:2], Reserve: reserve}}, plan))(t)
 			defer first[0].Release(context.Background())
 			prefix := *first[0]
 			prefix.Selection = executor.DeviceValue{}
-			second, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[2:4], Past: &prefix, Reserve: reserve}}, plan)
-			testcheck.NoError(t, err)
+			second := testcheck.Must(runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[2:4], Past: &prefix, Reserve: reserve}}, plan))(t)
 			defer second[0].Release(context.Background())
 			if first[0].storedCapacity() < reserve || second[0].storage != first[0].storage {
 				t.Fatalf("the first chunk holds %d tokens and the second chunk shares its storage: %t", first[0].storedCapacity(), second[0].storage == first[0].storage)
@@ -108,8 +99,7 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			}
 			var continued [2]*deviceKVCache
 			for i, past := range []*deviceKVCache{split, whole[0]} {
-				continued[i], err = runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{3}, past, nil)
-				testcheck.NoError(t, err)
+				continued[i] = testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{3}, past, nil))(t)
 				defer continued[i].Release(context.Background())
 			}
 			compare(continued[0], continued[1])

@@ -68,8 +68,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 	testskip.Short(t, "media protocol reads retained private-store outputs")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_protocol.json")
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(data))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &protocol))
@@ -78,8 +77,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 	if protocol.Version != artifact.InitialDocumentVersion || protocol.Census != inventory.Census {
 		t.Fatal("protocol inventory identity differs")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	coverage := map[artifact.ID]int{}
 	for _, cell := range inventory.Cells {
@@ -98,8 +96,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 		if value.Model != cell.Model || value.Task != cell.Task {
 			t.Fatal("case model/task differs")
 		}
-		run, err := runrecord.RequireRun(t.Context(), store, value.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireRun(t.Context(), store, value.Run))(t)
 		testcheck.NoError(t, checkImageVideoCaseRun(value, run))
 		for _, input := range value.Inputs {
 			if _, found, err := artifact.ReadContent(t.Context(), store, input); err != nil || !found {
@@ -174,8 +171,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 			var changed map[string]any
 			testcheck.NoError(t, json.Unmarshal(data, &changed))
 			delete(changed, field)
-			encoded, err := json.Marshal(changed)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(changed))(t)
 			if checkImageVideoProtocolIdentity(encoded) == nil {
 				t.Fatal("changed frozen protocol accepted")
 			}

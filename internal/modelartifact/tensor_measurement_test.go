@@ -24,21 +24,17 @@ func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 	opened := openGGUF(t, []gguf.TensorData{{
 		Name: "weight", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(values),
 	}})
-	inventory, err := FromGGUF(opened, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromGGUF(opened, artifact.KindModel))(t)
 	policy := MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1024}
-	first, err := MeasureGGUF(inventory.TensorInventory, opened, policy)
-	testcheck.NoError(t, err)
-	second, err := MeasureGGUF(inventory.TensorInventory, opened, policy)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(MeasureGGUF(inventory.TensorInventory, opened, policy))(t)
+	second := testcheck.Must(MeasureGGUF(inventory.TensorInventory, opened, policy))(t)
 	measurement := first.Measurements[0]
 	if first.ID != second.ID || first.ReadBytes != 1024 || measurement.Samples != 256 ||
 		measurement.Elements != 512 || float64(measurement.Samples)/float64(measurement.Elements) != 0.5 ||
 		measurement.InterquartileRange <= 0 {
 		t.Fatalf("GGUF measurement = %+v", first)
 	}
-	content, err := first.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(first.Content())(t)
 	parsed, err := tensorMeasurementCodec.Parse(content.Data)
 	if err != nil || parsed.ID != first.ID {
 		t.Fatalf("measurement round trip = (%+v, %v)", parsed, err)
@@ -58,16 +54,13 @@ func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 		data = append(data, scalar[:]...)
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.safetensors"), data, 0o600))
-	repository, err := hfrepo.Open(directory)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(hfrepo.Open(directory))(t)
 	defer repository.Close()
-	inventory, err := FromHFRepository(repository)
-	testcheck.NoError(t, err)
-	document, err := MeasureSafetensors(
+	inventory := testcheck.Must(FromHFRepository(repository))(t)
+	document := testcheck.Must(MeasureSafetensors(
 		inventory.TensorInventory, repository.Tensors,
 		MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1024},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if document.ReadBytes != 1024 || math.Abs(document.Measurements[0].Median-255) > 1 {
 		t.Fatalf("Safetensors measurement = %+v", document)
 	}

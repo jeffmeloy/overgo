@@ -24,8 +24,7 @@ func TestTranscriptionCaptureDeclaration(t *testing.T) {
 	base, _, err := modelrecipe.SpeechComponents(fixture.workspace.program.Definition())
 	testcheck.NoError(t, err)
 	id, _ := base.PrimaryDependency(recipe.DependencyProfile)
-	contract, err := modelrecipe.RequireAudioContract(t.Context(), fixture.workspace.store, id)
-	testcheck.NoError(t, err)
+	contract := testcheck.Must(modelrecipe.RequireAudioContract(t.Context(), fixture.workspace.store, id))(t)
 	if control.Audio == nil || control.Audio.Format != contract.Format || control.Audio.MaximumSamples != fixture.workspace.policy.Inspection.MaximumSamples || control.Audio.MaximumEncodedBytes != fixture.workspace.policy.Inspection.MaximumEncodedBytes {
 		t.Fatalf("capture differs from recipe admission: %+v", control.Audio)
 	}

@@ -26,8 +26,7 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	var out bytes.Buffer
 	echo := shellCommand(t, "echo supervised")
 	echo.Stdout = &out
-	completed, err := Start(ctx, echo)
-	testcheck.NoError(t, err)
+	completed := testcheck.Must(Start(ctx, echo))(t)
 	receipt, err := completed.Wait(ctx)
 	if err != nil || receipt.ExitCode != 0 || receipt.TreeTerminated {
 		t.Fatalf("completed receipt = (%+v, %v)", receipt, err)
@@ -39,16 +38,14 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	announced := WatchLine(nil, grandchildAnnouncement)
 	spawn := grandchildCommand(t)
 	spawn.Stdout = announced
-	tree, err := Start(ctx, spawn)
-	testcheck.NoError(t, err)
+	tree := testcheck.Must(Start(ctx, spawn))(t)
 	// The shell announces its child's pid once that child runs.
 	grandchild, err := strconv.Atoi(strings.TrimSpace(<-announced.Line()))
 	if err != nil || grandchild <= 0 || !ProcessAlive(grandchild) {
 		t.Fatalf("grandchild announcement: pid %d, %v", grandchild, err)
 	}
 	testcheck.NoError(t, tree.Terminate())
-	receipt, err = tree.Wait(ctx)
-	testcheck.NoError(t, err)
+	receipt = testcheck.Must(tree.Wait(ctx))(t)
 	if !receipt.TreeTerminated {
 		t.Fatalf("termination not receipted: %+v", receipt)
 	}
@@ -60,8 +57,7 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	// that has not exited; the tree is terminated and the receipt kept.
 	bounded, cancel := context.WithCancelCause(ctx)
 	cancel(errors.New("the caller ended the wait"))
-	long, err := Start(ctx, sleepCommand(t))
-	testcheck.NoError(t, err)
+	long := testcheck.Must(Start(ctx, sleepCommand(t)))(t)
 	receipt, err = long.Wait(bounded)
 	if err == nil {
 		t.Fatal("cancellation reported success")
@@ -79,8 +75,7 @@ func TestIsolatedModelProcess(t *testing.T) {
 
 func TestWrappedErrorClassification(t *testing.T) {
 	command := shellCommand(t, "exit 7")
-	supervised, err := Start(t.Context(), command)
-	testcheck.NoError(t, err)
+	supervised := testcheck.Must(Start(t.Context(), command))(t)
 	receipt, err := supervised.Wait(t.Context())
 	if err != nil {
 		t.Fatalf("nonzero process was treated as supervisor failure: %v", err)
@@ -91,8 +86,7 @@ func TestWrappedErrorClassification(t *testing.T) {
 }
 
 func TestSupervisorRetainsMeasurementFailure(t *testing.T) {
-	supervised, err := Start(t.Context(), shellCommand(t, "echo retained"))
-	testcheck.NoError(t, err)
+	supervised := testcheck.Must(Start(t.Context(), shellCommand(t, "echo retained")))(t)
 	// Invalidate only this process's clock; no global counter hook or sleep.
 	supervised.clock = processmeasure.Stopwatch{}
 	receipt, firstErr := supervised.Wait(t.Context())

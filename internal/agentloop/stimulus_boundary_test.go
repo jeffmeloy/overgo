@@ -17,8 +17,7 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
-	operation, err := MutationReceiptOperation("stimulus-session-step-1")
-	testcheck.NoError(t, err)
+	operation := testcheck.Must(MutationReceiptOperation("stimulus-session-step-1"))(t)
 	boundary, found, err := runrecord.ResolveAttemptStimulus(ctx, store, operation, 1)
 	if err != nil || !found {
 		t.Fatalf("attempt boundary = (%+v, %t, %v)", boundary, found, err)

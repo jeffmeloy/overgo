@@ -31,15 +31,11 @@ type deviceStores struct {
 
 func newDeviceStores(t *testing.T) deviceStores {
 	t.Helper()
-	worker, err := device.New(modelTestDeviceOrdinal)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(modelTestDeviceOrdinal))(t)
 	t.Cleanup(func() { _ = worker.Close() })
-	raw, err := NewDeviceWeights(worker)
-	testcheck.NoError(t, err)
-	f32, err := NewDeviceConvertedWeights(worker, dtype.F32)
-	testcheck.NoError(t, err)
-	bf16, err := NewDeviceConvertedWeights(worker, dtype.BF16)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(NewDeviceWeights(worker))(t)
+	f32 := testcheck.Must(NewDeviceConvertedWeights(worker, dtype.F32))(t)
+	bf16 := testcheck.Must(NewDeviceConvertedWeights(worker, dtype.BF16))(t)
 	return deviceStores{worker: worker, stores: stores{raw: raw, f32: f32, bf16: bf16}}
 }
 
@@ -61,8 +57,7 @@ func (d deviceStores) download(t *testing.T, value DeviceTensor) []byte {
 
 func (d deviceStores) currentBytes(t *testing.T) uint64 {
 	t.Helper()
-	stats, err := d.worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	stats := testcheck.Must(d.worker.MemoryStats(t.Context()))(t)
 	return stats.CurrentBytes
 }
 
@@ -119,13 +114,11 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	if path == "" {
 		testskip.NotApplicable(t, "set "+loadGGUFEnvironment+" to a small GGUF path")
 	}
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	var claim []artifact.ID
 	for _, source := range file.SourcePaths() {
-		held, err := os.Open(source)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(os.Open(source))(t)
 		id, _, identifyErr := artifact.Identify(artifact.KindTensorSet, held)
 		testcheck.NoError(t, errors.Join(identifyErr, held.Close()))
 		claim = append(claim, id)
@@ -142,8 +135,7 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 		}
 	}
 
-	wrong, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("not this model"))
-	testcheck.NoError(t, err)
+	wrong := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, []byte("not this model")))(t)
 	refused := newDeviceStores(t)
 	baseline := refused.currentBytes(t)
 	loader := NewLoader(file)
@@ -173,8 +165,7 @@ func TestLoaderRealModelResidentBytesMatchTheFile(t *testing.T) {
 	}
 	for _, info := range converted {
 		value, found := loaded.f32.Lookup(info.Name)
-		host, err := model.LoadHostTensor(context.Background(), file, info)
-		testcheck.NoError(t, err)
+		host := testcheck.Must(model.LoadHostTensor(context.Background(), file, info))(t)
 		want := loaded.f32.encode(host.Data, len(host.Data)*4)
 		if !found || !bytes.Equal(loaded.download(t, value), want) {
 			t.Fatalf("converted tensor %q on the device differs from the file's values (found %t)", info.Name, found)

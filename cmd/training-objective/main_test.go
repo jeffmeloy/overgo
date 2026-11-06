@@ -45,27 +45,22 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
-	document, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(trainingprogram.LoadObjective(ctx, store, objectiveID))(t)
 	if document.Kind != trainingprogram.ObjectiveFlowMatching || document.Authority != trainingprogram.ObjectiveDeclared {
 		t.Fatalf("objective = %+v", document.ObjectiveSpec)
 	}
-	plan, err := optimizer.CompilePlan(4, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2}})
-	testcheck.NoError(t, err)
-	program, err := trainingprogram.CompileObjectiveProgram(
+	plan := testcheck.Must(optimizer.CompilePlan(4, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2}}))(t)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(
 		trainingprogram.ObjectiveFlowMatching,
 		[]trainingprogram.ParameterSpec{{Name: "weight", Rows: 2, Cols: 2, Trainable: true}},
 		plan,
-	)
-	testcheck.NoError(t, err)
-	compiled, err := trainingprogram.CompileTrainingObjectiveMatrix(ctx, store,
-		[]artifact.ID{objectiveID}, []trainingprogram.TrainingProgram{program})
-	testcheck.NoError(t, err)
+	))(t)
+	compiled := testcheck.Must(trainingprogram.CompileTrainingObjectiveMatrix(ctx, store,
+		[]artifact.ID{objectiveID}, []trainingprogram.TrainingProgram{program}))(t)
 	if len(compiled) != 1 || compiled[0].Disposition != trainingprogram.ObjectiveProgramCompiled {
 		t.Fatalf("compiled rows = %+v, want the flow-matching program bound", compiled)
 	}
-	matrix, err := trainingprogram.CompileObjectiveMatrix(ctx, store, []artifact.ID{objectiveID})
-	testcheck.NoError(t, err)
+	matrix := testcheck.Must(trainingprogram.CompileObjectiveMatrix(ctx, store, []artifact.ID{objectiveID}))(t)
 	trainable := false
 	for _, row := range matrix {
 		if row.Signature.Inputs[0] == recipecontract.ModalityText && row.Signature.Outputs[0] == recipecontract.ModalityVideo {
@@ -152,8 +147,7 @@ func TestPublishObjectiveBindsTrainingMembership(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	testcheck.NoError(t, err)
+	objective := testcheck.Must(trainingprogram.LoadObjective(ctx, store, objectiveID))(t)
 	training, found, err := dataset.LoadMembership(ctx, store, objective.Split)
 	if err != nil || !found || training.Partition != trainPartition || training.Source != objective.Dataset {
 		t.Fatalf("objective split = (%+v, %t, %v), want the committed train membership of its dataset", training, found, err)
@@ -181,8 +175,7 @@ const clipCorpusFiles = 12
 func registerClipCorpus(t *testing.T) string {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	corpus := t.TempDir()
 	for index := range clipCorpusFiles - 1 {
 		// Distinct bytes per clip: identical files deduplicate to one record.
@@ -233,8 +226,7 @@ func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
 	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
-	testcheck.NoError(t, err)
+	objective := testcheck.Must(trainingprogram.LoadObjective(ctx, store, objectiveID))(t)
 	training, found, err := dataset.LoadMembership(ctx, store, objective.Split)
 	if err != nil || !found {
 		t.Fatalf("training membership = (%t, %v)", found, err)
@@ -259,8 +251,7 @@ func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
 
 func mustChildren(t *testing.T, store *overgodb.Store, id artifact.ID) []artifact.ID {
 	t.Helper()
-	lineage, err := store.Children(t.Context(), id)
-	testcheck.NoError(t, err)
+	lineage := testcheck.Must(store.Children(t.Context(), id))(t)
 	var children []artifact.ID
 	for _, edge := range lineage {
 		children = append(children, edge.Child)

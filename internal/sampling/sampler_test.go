@@ -9,10 +9,8 @@ import (
 )
 
 func TestGreedyAndTieBreak(t *testing.T) {
-	sampler, err := New(Config{})
-	testcheck.NoError(t, err)
-	id, err := sampler.Sample([]float32{1, 3, 3, 2})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(Config{}))(t)
+	id := testcheck.Must(sampler.Sample([]float32{1, 3, 3, 2}))(t)
 	if id != 1 {
 		t.Fatalf("greedy ID = %d, want 1", id)
 	}
@@ -24,10 +22,8 @@ func TestGreedyAndTieBreak(t *testing.T) {
 // keeps the best candidate, never a draw from the whole distribution.
 func TestZeroTemperatureStaysGreedyOffTheRawPath(t *testing.T) {
 	for seed := range int64(64) {
-		sampler, err := New(Config{Seed: seed, LogitBiases: []LogitBias{{Token: 0, Bias: 0}}})
-		testcheck.NoError(t, err)
-		id, err := sampler.Sample([]float32{1, 5, 2})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(New(Config{Seed: seed, LogitBiases: []LogitBias{{Token: 0, Bias: 0}}}))(t)
+		id := testcheck.Must(sampler.Sample([]float32{1, 5, 2}))(t)
 		if id != 1 {
 			t.Fatalf("seed %d chose %d, want the argmax 1", seed, id)
 		}
@@ -35,8 +31,7 @@ func TestZeroTemperatureStaysGreedyOffTheRawPath(t *testing.T) {
 }
 
 func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
-	greedy, err := New(Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(New(Config{Temperature: 0}))(t)
 	if !greedy.IsRawGreedy() {
 		t.Fatal("plain greedy sampler was not recognized")
 	}
@@ -62,11 +57,10 @@ func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
 }
 
 func TestTopKOneIsGreedy(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1, TopK: 1, TopP: 1, Seed: 7,
 		Samplers: []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for range 20 {
 		id, sampleErr := sampler.Sample([]float32{1, 5, 3})
 		if sampleErr != nil {
@@ -94,10 +88,8 @@ func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
 				Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
 				Samplers: chain.order, RepeatPenalty: 1, TopNSigma: chain.sigma,
 			}
-			full, err := New(config)
-			testcheck.NoError(t, err)
-			bounded, err := New(config)
-			testcheck.NoError(t, err)
+			full := testcheck.Must(New(config))(t)
+			bounded := testcheck.Must(New(config))(t)
 			if limit, ok := bounded.BoundedTopK(); !ok || limit != config.TopK {
 				t.Fatalf("bounded top-K = %d, %v", limit, ok)
 			}
@@ -140,8 +132,7 @@ func TestBoundedTopKRejectsPrefixTransforms(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			sampler, err := New(config)
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(New(config))(t)
 			if limit, ok := sampler.BoundedTopK(); ok || limit != 0 {
 				t.Fatalf("unsafe bounded top-K = %d, %v", limit, ok)
 			}
@@ -154,10 +145,8 @@ func TestSamplingIsSeedDeterministic(t *testing.T) {
 	second, _ := New(Config{Temperature: 0.8, TopK: 3, TopP: 0.9, Seed: 42})
 	logits := []float32{1, 2, 3, 4, 5}
 	for index := range 100 {
-		a, err := first.Sample(logits)
-		testcheck.NoError(t, err)
-		b, err := second.Sample(logits)
-		testcheck.NoError(t, err)
+		a := testcheck.Must(first.Sample(logits))(t)
+		b := testcheck.Must(second.Sample(logits))(t)
 		if a != b {
 			t.Fatalf("sample %d differs: %d and %d", index, a, b)
 		}
@@ -177,10 +166,8 @@ func TestExtendedSamplingIsSeedDeterministic(t *testing.T) {
 		FrequencyPenalty: 0.1,
 		Seed:             42,
 	}
-	first, err := New(config)
-	testcheck.NoError(t, err)
-	second, err := New(config)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(config))(t)
+	second := testcheck.Must(New(config))(t)
 	logits := []float32{1, 2, 3, 4, 5}
 	history := []int{4, 4, 3}
 	for index := range 100 {
@@ -200,8 +187,7 @@ func TestExtendedSamplingIsSeedDeterministic(t *testing.T) {
 }
 
 func TestTopPRestrictsTail(t *testing.T) {
-	sampler, err := New(Config{Temperature: 0.1, TopP: 0.5, Seed: 9})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(Config{Temperature: 0.1, TopP: 0.5, Seed: 9}))(t)
 	for range 20 {
 		id, sampleErr := sampler.Sample([]float32{10, 1, 0})
 		if sampleErr != nil {
@@ -214,14 +200,13 @@ func TestTopPRestrictsTail(t *testing.T) {
 }
 
 func TestMinPRestrictsRelativeTail(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1,
 		TopP:        1,
 		MinP:        0.5,
 		Seed:        9,
 		Samplers:    []SamplerStage{SamplerMinP, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for range 20 {
 		id, sampleErr := sampler.Sample([]float32{0, -1, -2})
 		if sampleErr != nil {
@@ -234,14 +219,13 @@ func TestMinPRestrictsRelativeTail(t *testing.T) {
 }
 
 func TestTypicalPRestrictsAtypicalTail(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1,
 		TopP:        1,
 		TypicalP:    0.5,
 		Seed:        3,
 		Samplers:    []SamplerStage{SamplerTypicalP, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for range 20 {
 		id, sampleErr := sampler.Sample([]float32{3, 0, 0})
 		if sampleErr != nil {
@@ -254,42 +238,36 @@ func TestTypicalPRestrictsAtypicalTail(t *testing.T) {
 }
 
 func TestRepeatPenaltyChangesGreedyChoice(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		RepeatLastN: -1, RepeatPenalty: 2,
 		Samplers: []SamplerStage{SamplerPenalties, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
-	id, err := sampler.SampleWithHistory([]float32{10, 9}, []int{0})
-	testcheck.NoError(t, err)
+	}))(t)
+	id := testcheck.Must(sampler.SampleWithHistory([]float32{10, 9}, []int{0}))(t)
 	if id != 1 {
 		t.Fatalf("penalized greedy ID = %d, want 1", id)
 	}
 }
 
 func TestPresenceAndFrequencyPenalties(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		RepeatLastN:      -1,
 		RepeatPenalty:    1,
 		PresencePenalty:  1,
 		FrequencyPenalty: 2,
 		Samplers:         []SamplerStage{SamplerPenalties, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
-	id, err := sampler.SampleWithHistory([]float32{10, 7}, []int{0, 0})
-	testcheck.NoError(t, err)
+	}))(t)
+	id := testcheck.Must(sampler.SampleWithHistory([]float32{10, 7}, []int{0, 0}))(t)
 	if id != 1 {
 		t.Fatalf("presence/frequency penalized ID = %d, want 1", id)
 	}
 }
 
 func TestRepeatWindowUsesOnlySuffix(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		RepeatLastN: 1, RepeatPenalty: 2,
 		Samplers: []SamplerStage{SamplerPenalties, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
-	id, err := sampler.SampleWithHistory([]float32{10, 9}, []int{0, 1})
-	testcheck.NoError(t, err)
+	}))(t)
+	id := testcheck.Must(sampler.SampleWithHistory([]float32{10, 9}, []int{0, 1}))(t)
 	if id != 0 {
 		t.Fatalf("suffix-window greedy ID = %d, want 0", id)
 	}
@@ -313,10 +291,8 @@ func TestSamplerStageOrderChangesCandidateSet(t *testing.T) {
 		SamplerPenalties,
 		SamplerTemperature,
 	}
-	first, err := New(penaltiesFirst)
-	testcheck.NoError(t, err)
-	second, err := New(topKFirst)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(penaltiesFirst))(t)
+	second := testcheck.Must(New(topKFirst))(t)
 	logits := []float32{3, 2, 1}
 	history := []int{0}
 	if id, sampleErr := first.SampleWithHistory(logits, history); sampleErr != nil || id != 1 {
@@ -328,8 +304,7 @@ func TestSamplerStageOrderChangesCandidateSet(t *testing.T) {
 }
 
 func TestParseSamplerOrderAndRejectUnknown(t *testing.T) {
-	order, err := ParseSamplerOrder("top_k;penalties;top_k;temperature")
-	testcheck.NoError(t, err)
+	order := testcheck.Must(ParseSamplerOrder("top_k;penalties;top_k;temperature"))(t)
 	want := []SamplerStage{
 		SamplerTopK,
 		SamplerPenalties,
@@ -391,16 +366,14 @@ func TestTopNSigmaMatchesPinnedUpstreamVectors(t *testing.T) {
 		{n: 3, want: []float64{0.1, 0.2, 0.3, 0.4}},
 	}
 	for _, test := range cases {
-		sampler, err := New(Config{TopNSigma: test.n})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(New(Config{TopNSigma: test.n}))(t)
 		candidates := probabilityCandidates([]float64{0.1, 0.2, 0.3, 0.4})
-		candidates, err = sampler.applySamplerStage(
+		candidates = testcheck.Must(sampler.applySamplerStage(
 			candidates,
 			len(candidates),
 			nil,
 			SamplerTopNSigma,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		got := normalizedCandidateProbabilities(t, candidates, 4)
 		for index := range test.want {
 			if math.Abs(got[index]-test.want[index]) > 1e-5 {
@@ -421,19 +394,17 @@ func TestXTCMatchesPinnedUpstreamVectors(t *testing.T) {
 		{threshold: 0.39, want: []float64{0.4, 0.3, 0.2, 0.1}},
 	}
 	for _, test := range cases {
-		sampler, err := New(Config{
+		sampler := testcheck.Must(New(Config{
 			XTCProbability: 1,
 			XTCThreshold:   test.threshold,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		candidates := probabilityCandidates([]float64{0.4, 0.3, 0.2, 0.1})
-		candidates, err = sampler.applySamplerStage(
+		candidates = testcheck.Must(sampler.applySamplerStage(
 			candidates,
 			len(candidates),
 			nil,
 			SamplerXTC,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		got := normalizedCandidateProbabilities(t, candidates, 4)
 		for index := range test.want {
 			if math.Abs(got[index]-test.want[index]) > 1e-5 {
@@ -444,12 +415,10 @@ func TestXTCMatchesPinnedUpstreamVectors(t *testing.T) {
 }
 
 func TestMinKeepRetainsProbabilityFilterFloor(t *testing.T) {
-	sampler, err := New(Config{TopP: 0.01, MinP: 0.9, MinKeep: 2})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(Config{TopP: 0.01, MinP: 0.9, MinKeep: 2}))(t)
 	candidates := probabilityCandidates([]float64{0.7, 0.2, 0.09, 0.01})
 	for _, stage := range []SamplerStage{SamplerTopP, SamplerMinP} {
-		candidates, err = sampler.applySamplerStage(candidates, 4, nil, stage)
-		testcheck.NoError(t, err)
+		candidates = testcheck.Must(sampler.applySamplerStage(candidates, 4, nil, stage))(t)
 		if len(candidates) != 2 {
 			t.Fatalf("%s retained %d candidates, want 2", stage, len(candidates))
 		}
@@ -458,20 +427,18 @@ func TestMinKeepRetainsProbabilityFilterFloor(t *testing.T) {
 }
 
 func TestDynamicTemperatureMatchesPinnedFormula(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature:      0.8,
 		DynatempRange:    0.4,
 		DynatempExponent: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	candidates := probabilityCandidates([]float64{0.1, 0.2, 0.3, 0.4})
-	candidates, err = sampler.applySamplerStage(
+	candidates = testcheck.Must(sampler.applySamplerStage(
 		candidates,
 		len(candidates),
 		nil,
 		SamplerTemperature,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	got := normalizedCandidateProbabilities(t, candidates, 4)
 	want := []float64{
 		0.10798992400900212,
@@ -487,19 +454,17 @@ func TestDynamicTemperatureMatchesPinnedFormula(t *testing.T) {
 }
 
 func TestZeroDynamicRangeUsesFixedTemperature(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature:      1,
 		DynatempExponent: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	candidates := probabilityCandidates([]float64{0.1, 0.2, 0.3, 0.4})
-	candidates, err = sampler.applySamplerStage(
+	candidates = testcheck.Must(sampler.applySamplerStage(
 		candidates,
 		len(candidates),
 		nil,
 		SamplerTemperature,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	got := normalizedCandidateProbabilities(t, candidates, 4)
 	want := []float64{0.1, 0.2, 0.3, 0.4}
 	for index := range want {
@@ -513,20 +478,18 @@ func TestAdaptivePFavorsTargetProbability(t *testing.T) {
 	const runs = 100
 	selectedTarget := 0
 	for seed := range runs {
-		sampler, err := New(Config{
+		sampler := testcheck.Must(New(Config{
 			AdaptiveTarget: 0.25,
 			AdaptiveDecay:  0.9,
 			Seed:           int64(seed),
 			Samplers:       []SamplerStage{SamplerAdaptiveP},
-		})
-		testcheck.NoError(t, err)
-		id, err := sampler.Sample([]float32{
+		}))(t)
+		id := testcheck.Must(sampler.Sample([]float32{
 			float32(math.Log(0.6)),
 			float32(math.Log(0.25)),
 			float32(math.Log(0.1)),
 			float32(math.Log(0.05)),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if id == 1 {
 			selectedTarget++
 		}
@@ -537,7 +500,7 @@ func TestAdaptivePFavorsTargetProbability(t *testing.T) {
 }
 
 func TestAdaptivePIsTerminalRegardlessOfListedPosition(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		TopK:           1,
 		AdaptiveTarget: 0.25,
 		AdaptiveDecay:  0.9,
@@ -545,11 +508,9 @@ func TestAdaptivePIsTerminalRegardlessOfListedPosition(t *testing.T) {
 			SamplerAdaptiveP,
 			SamplerTopK,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for range 10 {
-		id, err := sampler.Sample([]float32{4, 3, 2})
-		testcheck.NoError(t, err)
+		id := testcheck.Must(sampler.Sample([]float32{4, 3, 2}))(t)
 		if id != 0 {
 			t.Fatalf("terminal adaptive-p bypassed later top-k: ID %d", id)
 		}
@@ -557,15 +518,13 @@ func TestAdaptivePIsTerminalRegardlessOfListedPosition(t *testing.T) {
 }
 
 func TestLogitBiasAdjustsAndBansTokens(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		LogitBiases: []LogitBias{
 			{Token: 1, Bias: 3},
 			{Token: 2, Bias: float32(math.Inf(-1))},
 		},
-	})
-	testcheck.NoError(t, err)
-	id, err := sampler.Sample([]float32{2, 0, 100})
-	testcheck.NoError(t, err)
+	}))(t)
+	id := testcheck.Must(sampler.Sample([]float32{2, 0, 100}))(t)
 	if id != 1 {
 		t.Fatalf("biased greedy ID = %d, want 1", id)
 	}
@@ -593,8 +552,7 @@ func normalizedCandidateProbabilities(
 	vocabularySize int,
 ) []float64 {
 	t.Helper()
-	total, err := candidateProbabilities(candidates)
-	testcheck.NoError(t, err)
+	total := testcheck.Must(candidateProbabilities(candidates))(t)
 	result := make([]float64, vocabularySize)
 	for _, item := range candidates {
 		result[item.id] = item.probability / total
@@ -646,15 +604,13 @@ func TestSamplerBlocksSlidingWindowNgram(t *testing.T) {
 		Temperature: 0, NoRepeatNgramSize: 3, NgramWindow: 6,
 		Samplers: []SamplerStage{SamplerTemperature},
 	}
-	sampler, err := New(base)
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(base))(t)
 	logits := []float32{8, 7, 6, 5, 10}
 	if token, sampleErr := sampler.SampleWithHistory(logits, []int{1, 2, 3, 4, 2, 3}); sampleErr != nil || token != 0 {
 		t.Fatalf("blocked sample = %d, %v; want 0", token, sampleErr)
 	}
 	base.NgramWindow = 2
-	sampler, err = New(base)
-	testcheck.NoError(t, err)
+	sampler = testcheck.Must(New(base))(t)
 	if token, sampleErr := sampler.SampleWithHistory(logits, []int{1, 2, 3, 4, 2, 3}); sampleErr != nil || token != 4 {
 		t.Fatalf("windowed sample = %d, %v; want 4", token, sampleErr)
 	}
@@ -677,10 +633,8 @@ func TestMirostatV1IsDeterministicAndAdaptive(t *testing.T) {
 		MirostatEta: 0.2,
 		Seed:        23,
 	}
-	first, err := New(config)
-	testcheck.NoError(t, err)
-	second, err := New(config)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(config))(t)
+	second := testcheck.Must(New(config))(t)
 	logits := make([]float32, 64)
 	for index := range logits {
 		logits[index] = float32(-1.5 * math.Log(float64(index+1)))
@@ -712,10 +666,8 @@ func TestMirostatV2IsDeterministicAndAdaptive(t *testing.T) {
 		MirostatEta: 0.5,
 		Seed:        17,
 	}
-	first, err := New(config)
-	testcheck.NoError(t, err)
-	second, err := New(config)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(config))(t)
+	second := testcheck.Must(New(config))(t)
 	logits := []float32{5, 4, 3, 2}
 	initialMu := first.mu
 	for index := range 50 {
@@ -737,54 +689,47 @@ func TestMirostatV2IsDeterministicAndAdaptive(t *testing.T) {
 }
 
 func TestMirostatResetRestoresState(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1,
 		Mirostat:    2,
 		MirostatTau: 2,
 		MirostatEta: 0.5,
 		Seed:        9,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	logits := []float32{3, 2, 1}
-	first, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(sampler.Sample(logits))(t)
 	sampler.Reset()
 	if sampler.mu != 4 {
 		t.Fatalf("reset mu = %v, want 4", sampler.mu)
 	}
-	repeated, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	repeated := testcheck.Must(sampler.Sample(logits))(t)
 	if repeated != first {
 		t.Fatalf("reset sample = %d, want first sample %d", repeated, first)
 	}
 }
 
 func TestDRYPenalizesExtendedSequence(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		DryMultiplier:    1,
 		DryBase:          2,
 		DryAllowedLength: 2,
 		DryPenaltyLastN:  -1,
-	})
-	testcheck.NoError(t, err)
-	id, err := sampler.SampleWithHistory(
+	}))(t)
+	id := testcheck.Must(sampler.SampleWithHistory(
 		[]float32{10, 9, 0},
 		[]int{0, 1, 2, 0, 1, 2},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if id != 1 {
 		t.Fatalf("DRY greedy ID = %d, want 1", id)
 	}
 }
 
 func TestDRYDisabledLeavesGreedyChoice(t *testing.T) {
-	sampler, err := New(Config{})
-	testcheck.NoError(t, err)
-	id, err := sampler.SampleWithHistory(
+	sampler := testcheck.Must(New(Config{}))(t)
+	id := testcheck.Must(sampler.SampleWithHistory(
 		[]float32{10, 9, 0},
 		[]int{0, 1, 2, 0, 1, 2},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if id != 0 {
 		t.Fatalf("disabled DRY greedy ID = %d, want 0", id)
 	}
@@ -798,21 +743,17 @@ func TestDRYSingleTokenBreakerMatchesPinnedUpstreamBehavior(t *testing.T) {
 		DryPenaltyLastN:  6,
 		Samplers:         []SamplerStage{SamplerDry, SamplerTemperature},
 	}
-	withoutBreaker, err := New(base)
-	testcheck.NoError(t, err)
+	withoutBreaker := testcheck.Must(New(base))(t)
 	logits := []float32{0, 0, 9, 10, 0}
 	history := []int{0, 1, 3, 4, 0, 1}
-	id, err := withoutBreaker.SampleWithHistory(logits, history)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(withoutBreaker.SampleWithHistory(logits, history))(t)
 	if id != 2 {
 		t.Fatalf("DRY without breaker ID = %d, want 2", id)
 	}
 
 	base.DryBreakers = [][]int{{3}}
-	withBreaker, err := New(base)
-	testcheck.NoError(t, err)
-	id, err = withBreaker.SampleWithHistory(logits, history)
-	testcheck.NoError(t, err)
+	withBreaker := testcheck.Must(New(base))(t)
+	id = testcheck.Must(withBreaker.SampleWithHistory(logits, history))(t)
 	if id != 3 {
 		t.Fatalf("DRY single-token breaker ID = %d, want 3", id)
 	}
@@ -820,8 +761,7 @@ func TestDRYSingleTokenBreakerMatchesPinnedUpstreamBehavior(t *testing.T) {
 
 func TestDRYBreakerConfigurationIsImmutable(t *testing.T) {
 	breakers := [][]int{{3, 4}}
-	sampler, err := New(Config{DryBreakers: breakers})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(Config{DryBreakers: breakers}))(t)
 	breakers[0][0] = 9
 	config := sampler.Config()
 	if config.DryBreakers[0][0] != 3 {
@@ -834,13 +774,12 @@ func TestDRYBreakerConfigurationIsImmutable(t *testing.T) {
 }
 
 func TestDRYMatchesPinnedUpstreamCoreCase(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		DryMultiplier:    1,
 		DryBase:          1.1,
 		DryAllowedLength: 2,
 		DryPenaltyLastN:  5,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	logits := []float32{0, 0, 0, 0}
 	sampler.applyDry(logits, []int{0, 1, 2, 0, 1})
 	want := []float32{0, 0, -1, 0}
@@ -852,37 +791,30 @@ func TestDRYMatchesPinnedUpstreamCoreCase(t *testing.T) {
 }
 
 func TestChoiceGrammarConstrainsGreedyAndSampling(t *testing.T) {
-	grammar, err := NewChoiceGrammar(
+	grammar := testcheck.Must(NewChoiceGrammar(
 		[][]int{{2, 4}, {3, 1}},
 		[]int{5},
 		6,
-	)
-	testcheck.NoError(t, err)
-	sampler, err := New(Config{Temperature: 1, TopP: 1, TopK: 1, Grammar: grammar})
-	testcheck.NoError(t, err)
+	))(t)
+	sampler := testcheck.Must(New(Config{Temperature: 1, TopP: 1, TopK: 1, Grammar: grammar}))(t)
 	logits := []float32{100, 90, 1, 2, 80, 70}
-	first, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(sampler.Sample(logits))(t)
 	if first != 3 {
 		t.Fatalf("grammar first token = %d, want 3", first)
 	}
-	second, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(sampler.Sample(logits))(t)
 	if second != 1 {
 		t.Fatalf("grammar second token = %d, want 1", second)
 	}
-	terminal, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	terminal := testcheck.Must(sampler.Sample(logits))(t)
 	if terminal != 5 {
 		t.Fatalf("grammar terminal token = %d, want EOS 5", terminal)
 	}
 }
 
 func TestChoiceGrammarResetAndConfigurationIsolation(t *testing.T) {
-	grammar, err := NewChoiceGrammar([][]int{{1, 2}}, []int{3}, 4)
-	testcheck.NoError(t, err)
-	sampler, err := New(Config{Grammar: grammar})
-	testcheck.NoError(t, err)
+	grammar := testcheck.Must(NewChoiceGrammar([][]int{{1, 2}}, []int{3}, 4))(t)
+	sampler := testcheck.Must(New(Config{Grammar: grammar}))(t)
 	grammar.Transitions[0][1] = -1
 	if token, sampleErr := sampler.Sample([]float32{9, 1, 8, 7}); sampleErr != nil || token != 1 {
 		t.Fatalf("isolated grammar sample = %d, %v", token, sampleErr)
@@ -900,46 +832,38 @@ func TestChoiceGrammarResetAndConfigurationIsolation(t *testing.T) {
 }
 
 func TestGBNFGrammarConstrainsTokensAndEOS(t *testing.T) {
-	grammar, err := newGBNFGrammar(
+	grammar := testcheck.Must(newGBNFGrammar(
 		`root ::= "a" ("b" | "c")`,
 		"root",
 		bytePieces("a", "b", "c", "", "x", "ab"),
 		[]int{3},
-	)
-	testcheck.NoError(t, err)
-	sampler, err := New(Config{GBNF: grammar})
-	testcheck.NoError(t, err)
+	))(t)
+	sampler := testcheck.Must(New(Config{GBNF: grammar}))(t)
 	logits := []float32{10, 30, 20, 100, 90, 5}
-	first, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(sampler.Sample(logits))(t)
 	if first != 0 {
 		t.Fatalf("GBNF first token = %d, want 0", first)
 	}
-	second, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(sampler.Sample(logits))(t)
 	if second != 1 {
 		t.Fatalf("GBNF second token = %d, want 1", second)
 	}
-	terminal, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	terminal := testcheck.Must(sampler.Sample(logits))(t)
 	if terminal != 3 {
 		t.Fatalf("GBNF terminal token = %d, want EOS 3", terminal)
 	}
 
 	sampler.Reset()
 	logits[5] = 40
-	combined, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	combined := testcheck.Must(sampler.Sample(logits))(t)
 	if combined != 5 {
 		t.Fatalf("GBNF combined token = %d, want 5", combined)
 	}
 }
 
 func TestTokenGrammarAndGBNFAreMutuallyExclusive(t *testing.T) {
-	tokenGrammar, err := NewChoiceGrammar([][]int{{0}}, []int{1}, 2)
-	testcheck.NoError(t, err)
-	gbnf, err := newGBNFGrammar(`root ::= "a"`, "root", bytePieces("a", ""), []int{1})
-	testcheck.NoError(t, err)
+	tokenGrammar := testcheck.Must(NewChoiceGrammar([][]int{{0}}, []int{1}, 2))(t)
+	gbnf := testcheck.Must(newGBNFGrammar(`root ::= "a"`, "root", bytePieces("a", ""), []int{1}))(t)
 	if _, err := New(Config{Grammar: tokenGrammar, GBNF: gbnf}); err == nil {
 		t.Fatal("sampler accepted token grammar and GBNF together")
 	}
@@ -971,10 +895,8 @@ func TestAFewProbabilitiesAreTheFirstOfAll(t *testing.T) {
 	}
 	sample := func(limit int) SampleProbabilityResult {
 		t.Helper()
-		sampler, err := New(Config{Temperature: 1, Seed: 11})
-		testcheck.NoError(t, err)
-		result, err := sampler.SampleWithHistoryProbabilities(slices.Clone(logits), nil, limit)
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(New(Config{Temperature: 1, Seed: 11}))(t)
+		result := testcheck.Must(sampler.SampleWithHistoryProbabilities(slices.Clone(logits), nil, limit))(t)
 		return result
 	}
 	all := sample(vocabulary)
@@ -1004,20 +926,18 @@ func TestAFewProbabilitiesAreTheFirstOfAll(t *testing.T) {
 }
 
 func TestPostSamplingProbabilitiesReflectFilteredCandidates(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1,
 		TopK:        2,
 		TopP:        1,
 		Seed:        7,
 		Samplers:    []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
-	result, err := sampler.SampleWithHistoryProbabilities(
+	}))(t)
+	result := testcheck.Must(sampler.SampleWithHistoryProbabilities(
 		[]float32{3, 2, 1},
 		nil,
 		3,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(result.Top) != 2 ||
 		result.Top[0].ID != 0 ||
 		result.Top[1].ID != 1 ||
@@ -1040,14 +960,12 @@ func TestPostSamplingProbabilitiesReflectFilteredCandidates(t *testing.T) {
 		t.Fatalf("selected token %d missing from %+v", result.Token, result.Top)
 	}
 
-	greedy, err := New(Config{Temperature: 0})
-	testcheck.NoError(t, err)
-	greedyResult, err := greedy.SampleWithHistoryProbabilities(
+	greedy := testcheck.Must(New(Config{Temperature: 0}))(t)
+	greedyResult := testcheck.Must(greedy.SampleWithHistoryProbabilities(
 		[]float32{1, 4, 3},
 		nil,
 		3,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if greedyResult.Token != 1 ||
 		greedyResult.SelectedProbability != 1 ||
 		len(greedyResult.Top) != 1 ||

@@ -39,14 +39,11 @@ func TestOperationRunsOnFromAnEarlierFormReceipt(t *testing.T) {
 			Inputs: []runrecord.StageBinding{{Port: "tokens"}}},
 	} {
 		written.Recipe, written.Operation, written.Attempt = definition.ID, operation, 1
-		receipt, err := runrecord.NewStageReceipt(written)
-		testcheck.NoError(t, err)
-		data, err := json.Marshal(receipt)
-		testcheck.NoError(t, err)
-		content, err := artifact.DocumentContract{
+		receipt := testcheck.Must(runrecord.NewStageReceipt(written))(t)
+		data := testcheck.Must(json.Marshal(receipt))(t)
+		content := testcheck.Must(artifact.DocumentContract{
 			Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: earlierStageReceiptSchema,
-		}.ContentBytes(data)
-		testcheck.NoError(t, err)
+		}.ContentBytes(data))(t)
 		if content.Descriptor.ID != receipt.ID {
 			t.Fatalf("the %s receipt's bytes are %s, the receipt %s; the fixture must write a receipt's own bytes", written.Node, content.Descriptor.ID, receipt.ID)
 		}
@@ -59,8 +56,7 @@ func TestOperationRunsOnFromAnEarlierFormReceipt(t *testing.T) {
 		earlier[written.Node] = receipt.ID
 	}
 
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	registerGenerationAdapters(t, runtime, false)
 	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},

@@ -100,8 +100,7 @@ type mossTrainingReading struct {
 func TestMOSSRetainedEvidence(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	t.Run("complete", func(t *testing.T) {
 		t.Parallel()
@@ -151,8 +150,7 @@ func checkMOSSTraining(t *testing.T, root string, roots dataroot.Roots, store *o
 	if record.BeatsBase != (adapted < base) {
 		t.Fatalf("the record says beats_base %t on %.6f against %.6f", record.BeatsBase, adapted, base)
 	}
-	observation, err := runrecord.RequireServingObservation(ctx, store, record.Observation)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(runrecord.RequireServingObservation(ctx, store, record.Observation))(t)
 	if observation.Task != recipe.TaskTraining || observation.Outcome != runrecord.OutcomeSucceeded || observation.Model != record.Model || observation.Recipe != record.Recipe || !observation.Environment.Valid() {
 		t.Fatalf("session %+v does not record this run", observation)
 	}
@@ -165,8 +163,7 @@ func checkMOSSTraining(t *testing.T, root string, roots dataroot.Roots, store *o
 	checkMOSSClaim(t, ctx, root, record, observation)
 	for _, sample := range record.Samples {
 		for _, want := range []string{sample.Base, sample.Trained} {
-			data, err := os.ReadFile(filepath.Join(filepath.Dir(roots.Datasets), filepath.FromSlash(record.SampleRoot), want+".png"))
-			testcheck.NoError(t, err)
+			data := testcheck.Must(os.ReadFile(filepath.Join(filepath.Dir(roots.Datasets), filepath.FromSlash(record.SampleRoot), want+".png")))(t)
 			if digest := sha256.Sum256(data); hex.EncodeToString(digest[:]) != want {
 				t.Fatalf("sample %s holds other bytes", want)
 			}
@@ -190,8 +187,7 @@ func checkMOSSClaim(t *testing.T, ctx context.Context, root string, record mossT
 	if specification.Model != record.Model || len(specification.Claims) != 1 || !slices.Contains(specification.EvidenceFiles, mossTrainingRecord) {
 		t.Fatalf("specification %+v does not rest on this run", specification)
 	}
-	evidence, err := artifact.IdentifyFile(artifact.KindEvidence, filepath.Join(root, mossTrainingRecord))
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(artifact.IdentifyFile(artifact.KindEvidence, filepath.Join(root, mossTrainingRecord)))(t)
 	claim := specification.Claims[0]
 	if claim.Commit != record.Commit || claim.SpanSteps != record.Run.Steps || claim.WallNS != observation.MeasuredNS || claim.PeakDeviceBytes != observation.Resources.PeakDeviceBytes || !slices.Contains(claim.Evidence, evidence) {
 		t.Fatalf("claim %+v does not state the run: steps %d, wall %d, peak %d, evidence %s", claim, record.Run.Steps, observation.MeasuredNS, observation.Resources.PeakDeviceBytes, evidence)
@@ -202,8 +198,7 @@ func checkMOSSClaim(t *testing.T, ctx context.Context, root string, record mossT
 // videos its pictures came from.
 func mossManifestSources(t *testing.T, roots dataroot.Roots, manifest mossManifest) map[string]bool {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(roots.Datasets, filepath.FromSlash(manifest.Path)))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(roots.Datasets, filepath.FromSlash(manifest.Path))))(t)
 	if digest := sha256.Sum256(data); hex.EncodeToString(digest[:]) != manifest.SHA256 {
 		t.Fatalf("manifest %s holds other bytes", manifest.Path)
 	}
@@ -258,21 +253,18 @@ func checkMOSSParity(t *testing.T, ctx context.Context, root string, roots datar
 	if _, err := gitauthority.Query(ctx, root, "cat-file", "-e", record.Commit+"^{commit}"); err != nil {
 		t.Fatalf("commit %s: %v", record.Commit, err)
 	}
-	contract, err := os.ReadFile(filepath.Join(root, "fixtures", "moss", "oracle-contract.json"))
-	testcheck.NoError(t, err)
+	contract := testcheck.Must(os.ReadFile(filepath.Join(root, "fixtures", "moss", "oracle-contract.json")))(t)
 	if digest := sha256.Sum256(contract); hex.EncodeToString(digest[:]) != record.Contract {
 		t.Fatal("the oracle contract moved since these cases were compared")
 	}
 	data := filepath.Dir(roots.Datasets)
 	shapes, seeds, languages, negatives, layouts := map[[2]int]bool{}, map[int64]bool{}, map[bool]bool{}, 0, 0
 	for _, want := range record.Cases {
-		oracle, err := artifact.IdentifyFile(artifact.KindTensorSet, filepath.Join(data, filepath.FromSlash(record.Oracles), want.Name, "full_reference.safetensors"))
-		testcheck.NoError(t, err)
+		oracle := testcheck.Must(artifact.IdentifyFile(artifact.KindTensorSet, filepath.Join(data, filepath.FromSlash(record.Oracles), want.Name, "full_reference.safetensors")))(t)
 		if oracle != want.Oracle {
 			t.Fatalf("%s: the oracle is %s, the record says %s", want.Name, oracle, want.Oracle)
 		}
-		raw, err := os.ReadFile(filepath.Join(data, filepath.FromSlash(record.ReportRoot), want.Report))
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(filepath.Join(data, filepath.FromSlash(record.ReportRoot), want.Report)))(t)
 		boundaries, worst, images := 0, 0.0, map[artifact.ID]int{}
 		for line := range strings.SplitSeq(strings.TrimSpace(string(raw)), "\n") {
 			var entry struct {
@@ -418,8 +410,7 @@ func checkMOSSComplete(t *testing.T, root string, roots dataroot.Roots, store *o
 	}
 	var resources mossResourceRecord
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mossResourceRecordPath), &resources))
-	page, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(mossPage)))
-	testcheck.NoError(t, err)
+	page := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(mossPage))))(t)
 	figures := []string{fmt.Sprintf("%.4f", training.BaseMean), fmt.Sprintf("%.4f", training.TrainedMean), fmt.Sprintf("%.1f s", resources.Native.Largest.WallSeconds)}
 	for index, native := range resources.Native.Requests {
 		figures = append(figures, fmt.Sprintf("%.1f s", native.WallSeconds), fmt.Sprintf("%.1f s", resources.Upstream.Requests[index].WallSeconds))

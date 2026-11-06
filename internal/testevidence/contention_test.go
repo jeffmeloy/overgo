@@ -25,16 +25,14 @@ func TestGoTestJSONReportNamesRefusedResourceClaims(t *testing.T) {
 		"    trainer_test.go:10: processcontrol: "+processcontrol.ErrResourceBusy.Error()+": \"GPU-1\"\n",
 		"    trainer_test.go:20: processcontrol: "+processcontrol.ErrResourceBusy.Error()+": \"GPU-1\"\n",
 	)
-	report, err := GoTestJSONReport(refused)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(GoTestJSONReport(refused))(t)
 	if !slices.Equal(report.Contended, []string{"x"}) || !report.ContentionOnly() {
 		t.Fatalf("refused claims = contended %v, contention only %t; report %+v", report.Contended, report.ContentionOnly(), report)
 	}
 	mixed := refused + "{\"Action\":\"run\",\"Package\":\"y\",\"Test\":\"TestC\"}\n" +
 		"{\"Action\":\"output\",\"Package\":\"y\",\"Test\":\"TestC\",\"Output\":\"    other_test.go:5: wrong value\\n\"}\n" +
 		"{\"Action\":\"fail\",\"Package\":\"y\",\"Test\":\"TestC\"}\n"
-	report, err = GoTestJSONReport(mixed)
-	testcheck.NoError(t, err)
+	report = testcheck.Must(GoTestJSONReport(mixed))(t)
 	if !slices.Equal(report.Contended, []string{"x"}) || report.ContentionOnly() {
 		t.Fatalf("a real failure beside the refusals counted as contention only: %+v", report)
 	}

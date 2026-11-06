@@ -35,8 +35,7 @@ import (
 // answers with the same picture.
 func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	directory := roots.ResolveModelPath("RAE-collections")
 	collection, held, err := rae.ResolveCollection(directory)
 	if err != nil || !held {
@@ -47,15 +46,13 @@ func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 	}
 	testskip.Short(t, "loads the collection's 1.7 GB decoder")
 	capability := Catalog[recipe.TaskReconstruction]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
 	if files := len(source.Inventory.Manifest.Components); files != 5 || source.Define == nil {
 		t.Fatalf("the pair resolves to %d files, want its decoder, statistics and the encoder's three", files)
 	}
 	definition, _, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	if stage := program.Stages()[0]; stage.Module.ID != modelrecipe.ModuleReconstructRepresentation || definition.Nodes[0].Placement != recipe.PlacementHost {
 		t.Fatalf("the pair compiles to entry module %s placed on %s", stage.Module.ID, definition.Nodes[0].Placement)
 	}
@@ -74,12 +71,10 @@ func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 	}
 	var encoded bytes.Buffer
 	testcheck.NoError(t, png.Encode(&encoded, picture))
-	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()})
-	testcheck.NoError(t, err)
+	request := testcheck.Must(json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()}))(t)
 	reconstruct := func() latentimage.EncodedImage {
 		t.Helper()
-		output, err := capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request))
-		testcheck.NoError(t, err)
+		output := testcheck.Must(capability.Execute(t.Context(), store, directory, modelrecipe.CapabilityEvidenceSelection{Program: program}, string(request)))(t)
 		reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 		if !ok {
 			t.Fatalf("reconstruction output is %T", capabilityruntime.Unwrap(output))
@@ -87,8 +82,7 @@ func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 		return reconstruction
 	}
 	first := reconstruct()
-	decoded, err := png.Decode(bytes.NewReader(first.Data))
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(png.Decode(bytes.NewReader(first.Data)))(t)
 	if first.Height != side || first.Width != side || decoded.Bounds() != picture.Bounds() {
 		t.Fatalf("the picture came back as %dx%d, PNG %v", first.Height, first.Width, decoded.Bounds())
 	}

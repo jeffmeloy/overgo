@@ -21,8 +21,7 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 	mechanism := id(artifact.KindRecipe, "mechanism")
 	claim := func(role trainingprogram.MechanismEvidenceRole, sourceKind artifact.Kind, name string) trainingprogram.MechanismEvidence {
 		t.Helper()
-		value, err := trainingprogram.NewMechanismEvidence(role, mechanism, id(sourceKind, name+"-source"))
-		testcheck.NoError(t, err)
+		value := testcheck.Must(trainingprogram.NewMechanismEvidence(role, mechanism, id(sourceKind, name+"-source")))(t)
 		return value
 	}
 	gap := claim(trainingprogram.MechanismEvidenceGap, artifact.KindEvidence, "gap")
@@ -33,15 +32,13 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		Mechanism: mechanism, Owner: id(artifact.KindEvidence, "owner"),
 		Gap: gap.ID, Falsifier: falsifier.ID, GapState: trainingprogram.MechanismGapOpen,
 	}
-	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
+	census := testcheck.Must(trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment}))(t)
 	license := id(artifact.KindEvidence, "license")
-	provenance, err := runrecord.NewExternalMechanismProvenance(
+	provenance := testcheck.Must(runrecord.NewExternalMechanismProvenance(
 		census, "local/marin", "b352a9e5d49eede33f08e0ab8df1e786425c2db5", license,
 		[]runrecord.ExternalMechanismSource{{Mechanism: assessment.Mechanism, Paths: []string{"experiments/grug/moe/model.py"}}},
-	)
-	testcheck.NoError(t, err)
-	binding, err := runrecord.NewAdmissionBinding(runrecord.AdmissionBinding{
+	))(t)
+	binding := testcheck.Must(runrecord.NewAdmissionBinding(runrecord.AdmissionBinding{
 		Generation: 0,
 		Proposer: runrecord.AuthorityDomain{
 			Name: "mechanism-proposer", Identity: id(artifact.KindEvidence, "proposer"),
@@ -54,21 +51,18 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		},
 		SealedInputs: id(artifact.KindDataset, "sealed-inputs"),
 		CleanWorker:  id(artifact.KindEvidence, "clean-worker"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	specification := mechanismCandidateSpecification{
 		Assessments: []trainingprogram.MechanismAssessment{assessment}, Provenance: provenance.ID,
 		Mechanism: assessment.Mechanism, CostBound: cost.ID, Benefit: benefit.ID,
 		Authority: binding.ID,
 	}
-	data, err := json.Marshal(specification)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(specification))(t)
 	root := t.TempDir()
 	input := filepath.Join(root, "candidate.json")
 	testcheck.NoError(t, os.WriteFile(input, data, 0o600))
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	descriptors := []artifact.Descriptor{
 		{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: license},
 		{ID: binding.Proposer.Identity}, {ID: binding.Evaluator.Identity}, {ID: binding.Decider.Identity},
@@ -86,12 +80,9 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		lineage = append(lineage, evidence.Lineage()...)
 		descriptors = append(descriptors, artifact.Descriptor{ID: evidence.Source})
 	}
-	censusContent, err := census.Content()
-	testcheck.NoError(t, err)
-	provenanceContent, err := provenance.Content()
-	testcheck.NoError(t, err)
-	bindingContent, err := binding.Content()
-	testcheck.NoError(t, err)
+	censusContent := testcheck.Must(census.Content())(t)
+	provenanceContent := testcheck.Must(provenance.Content())(t)
+	bindingContent := testcheck.Must(binding.Content())(t)
 	contents = append(contents, censusContent, provenanceContent, bindingContent)
 	lineage = append(lineage, census.Lineage()...)
 	lineage = append(lineage, provenance.Lineage()...)
@@ -108,16 +99,13 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		t.Fatalf("output = %q", output.String())
 	}
 
-	store, err = overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(storePath))(t)
 	foreignMechanism := id(artifact.KindRecipe, "foreign-mechanism")
 	foreignSource := id(artifact.KindEvidence, "foreign-benefit-source")
-	foreignBenefit, err := trainingprogram.NewMechanismEvidence(
+	foreignBenefit := testcheck.Must(trainingprogram.NewMechanismEvidence(
 		trainingprogram.MechanismEvidenceBenefit, foreignMechanism, foreignSource,
-	)
-	testcheck.NoError(t, err)
-	foreignContent, err := foreignBenefit.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	foreignContent := testcheck.Must(foreignBenefit.Content())(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/mechanism-admission/foreign-benefit",
 		Artifacts: []artifact.Descriptor{
@@ -129,8 +117,7 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 	}
 	testcheck.NoError(t, store.Close())
 	specification.Benefit = foreignBenefit.ID
-	data, err = json.Marshal(specification)
-	testcheck.NoError(t, err)
+	data = testcheck.Must(json.Marshal(specification))(t)
 	testcheck.NoError(t, os.WriteFile(input, data, 0o600))
 	if err := run([]string{"-mechanism", input, "-record", storePath}, &bytes.Buffer{}); err == nil {
 		t.Fatal("command admitted benefit evidence for a foreign mechanism")

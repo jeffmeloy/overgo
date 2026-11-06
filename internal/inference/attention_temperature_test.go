@@ -79,7 +79,7 @@ func TestBindLayerSideInputs(t *testing.T) {
 	skip := builder.Input("skip", dtype.F32, tensor.MustShape(2, 3))
 	perLayer := builder.Input("per_layer", dtype.F32, tensor.MustShape(2, 3))
 	blocks := builder.Input("blocks", dtype.F32, tensor.MustShape(3))
-	bound, err := bindLayerSideInputs(
+	bound := testcheck.Must(bindLayerSideInputs(
 		builder,
 		model.Spec{CommonSpec: model.CommonSpec{Architecture: "deepseek4"}},
 		[]uint32{4, 9},
@@ -90,8 +90,7 @@ func TestBindLayerSideInputs(t *testing.T) {
 		feeds,
 		&weights,
 		layerSideInputs{embeddingSkip: skip, perLayerInput: perLayer, attentionBlock: blocks},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if weights.EmbeddingSkip != skip || weights.PerLayerInput != perLayer ||
 		weights.AttentionBlockIDs != blocks || bound.currentPositions == nil {
 		t.Fatalf("bound side inputs = %+v, weights = %+v", bound, weights)

@@ -68,10 +68,8 @@ func testConditioningAttentionGolden(t *testing.T, file, digest string, count in
 			if b.Err() != nil {
 				t.Fatal(b.Err())
 			}
-			got, err := run([]*tensor.Tensor{out}, feeds)
-			testcheck.NoError(t, err)
-			again, err := run([]*tensor.Tensor{out}, feeds)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
+			again := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
 			want := refinementValues(t, s, name+".output")
 			if len(got[out].Data) != len(want) {
 				t.Fatal("output length")

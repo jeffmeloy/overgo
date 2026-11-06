@@ -70,7 +70,7 @@ func TestInteractionTraceToolExchangesRequireBijection(t *testing.T) {
 func TestInteractionEfficiencyBaseline(t *testing.T) {
 	result := testutil.ArtifactBytesID(t, artifact.KindRun, []byte("trace-result"))
 	evidence := testutil.ArtifactBytesID(t, artifact.KindEvidence, []byte("trace-evidence"))
-	trace, err := NewEfficiencyTrace(EfficiencyTrace{
+	trace := testcheck.Must(NewEfficiencyTrace(EfficiencyTrace{
 		Surface: SurfaceStorage,
 		Task:    "scale-corpus session",
 		Work: InteractionWork{
@@ -78,12 +78,9 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 			ReturnedFacts: 64, Bytes: 4096, Failures: 1,
 		},
 		Result: result, Evidence: evidence,
-	})
-	testcheck.NoError(t, err)
-	content, err := trace.Content()
-	testcheck.NoError(t, err)
-	parsed, err := ParseEfficiencyTrace(content.Data)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(trace.Content())(t)
+	parsed := testcheck.Must(ParseEfficiencyTrace(content.Data))(t)
 	if parsed.ID != trace.ID || parsed.Work != trace.Work || parsed.Surface != trace.Surface {
 		t.Fatalf("round trip drifted: %+v vs %+v", parsed, trace)
 	}

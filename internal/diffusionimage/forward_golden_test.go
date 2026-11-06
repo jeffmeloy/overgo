@@ -233,8 +233,7 @@ func TestProjectionLeafOpsMatchTorch(t *testing.T) {
 func TestTinyModelForwardMatchesTorch(t *testing.T) {
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
-	got, err := m.Forward(fx.X, fx.B, fx.H, fx.W)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(m.Forward(fx.X, fx.B, fx.H, fx.W))(t)
 	requireWithin(t, "tiny forward", got, fx.Y, tolLoose)
 	// Trace twin must match the serving forward exactly.
 	traced, _, err := m.forward(fx.X, fx.B, fx.H, fx.W, true)

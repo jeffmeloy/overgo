@@ -12,8 +12,7 @@ import (
 func TestDeterministicImportAcrossFamilies(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteImageInventoryFixture(t, root)
-	inspection, err := InspectImport(t.Context(), root, "")
-	testcheck.NoError(t, err)
+	inspection := testcheck.Must(InspectImport(t.Context(), root, ""))(t)
 	var description importDescription
 	testcheck.NoError(t, json.Unmarshal(inspection.Content.Data, &description))
 	if description.Qualification != "structural-only" || len(description.Components) != 5 || len(inspection.Inventory.TensorInventory.Tensors) != 4 {
@@ -38,8 +37,7 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 			}
 		}
 	}
-	gguf, err := InspectImport(t.Context(), testutil.HermeticLlamaGGUF(t, 16), "")
-	testcheck.NoError(t, err)
+	gguf := testcheck.Must(InspectImport(t.Context(), testutil.HermeticLlamaGGUF(t, 16), ""))(t)
 	description = importDescription{}
 	testcheck.NoError(t, json.Unmarshal(gguf.Content.Data, &description))
 	if len(description.Components) != 1 || description.Components[0].Unsupported != "" || len(description.Components[0].Operations) == 0 {

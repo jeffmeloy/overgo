@@ -12,7 +12,7 @@ import (
 
 func TestRepresentationBridgePromotion(t *testing.T) {
 	promoter := RepresentationBridgePromoter{}
-	policy, err := NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
+	policy := testcheck.Must(NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
 		Direction:                 runrecord.DirectionMaximize,
 		MinimumSeeds:              3,
 		MinimumHeldOutGain:        0.05,
@@ -21,8 +21,7 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		MaximumSeedSpread:         0.05,
 		MaximumLatencyIncrease:    0.2,
 		MaximumDeviceByteIncrease: 64,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	request := RepresentationBridgePromotion{
 		Bridge:         testutil.ArtifactID(t, artifact.KindAdapter, "trained representation bridge"),
 		SourceModel:    testutil.ArtifactID(t, artifact.KindModel, "audio source model"),
@@ -38,16 +37,14 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 			{Seed: 23, BridgeScore: 0.82, CheapBaselineScore: 0.76, DroppedSourceScore: 0.63, ShuffledSourceScore: 0.65, RegressionBaselineScore: 0.91, RegressionCandidateScore: 0.90, BaselineLatencyNS: 100, ComposedLatencyNS: 108, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
 		},
 	}
-	promotion, err := promoter.Evaluate(policy, request)
-	testcheck.NoError(t, err)
+	promotion := testcheck.Must(promoter.Evaluate(policy, request))(t)
 	if promotion.ID.Kind() != artifact.KindEvidence || promotion.Trials[0].Seed != 11 ||
 		promotion.WorstHeldOutGain < policy.MinimumHeldOutGain ||
 		promotion.WorstSourceDependence < policy.MinimumSourceDependence ||
 		promotion.WorstRegression > policy.MaximumRegression || promotion.PolicyID != policy.ID {
 		t.Fatalf("promotion evidence = %+v", promotion)
 	}
-	content, err := promotion.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(promotion.Content())(t)
 	parsed, err := promoter.Parse(content.Data)
 	if err != nil || parsed.ID != promotion.ID || len(parsed.Lineage()) != len(promotion.Lineage()) {
 		t.Fatalf("promotion round trip: parsed=%+v err=%v", parsed, err)

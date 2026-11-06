@@ -44,8 +44,7 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 	t.Run("flow matching, text to video", func(t *testing.T) {
 		identities := overgodbtest.Create(t, filepath.Join(t.TempDir(), "identities"))
 		recipeOf := func(contract trainingworkflow.RecipeContract) artifact.ID {
-			id, err := trainingworkflow.BootstrapRecipe(t.Context(), identities, weights, []byte(routeFixtureDataset), contract)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(trainingworkflow.BootstrapRecipe(t.Context(), identities, weights, []byte(routeFixtureDataset), contract))(t)
 			return id
 		}
 		flow := recipeOf(generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityVideo, trainingprogram.MetricVideoPSNRUnit))

@@ -17,8 +17,7 @@ func TestSnapshotProvenance(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(source), 0600))
 	}
 	paths := []string{"b.go", "./a.go", "a.go", "missing.go", "notes.md"}
-	snapshot, err := LoadGo(root, paths)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(LoadGo(root, paths))(t)
 	if len(snapshot.Files) != 2 || snapshot.Files[0].Path != "a.go" || snapshot.Files[1].Path != "b.go" || paths[0] != "b.go" {
 		t.Fatalf("source membership/order changed: %+v", snapshot)
 	}

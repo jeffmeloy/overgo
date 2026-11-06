@@ -10,15 +10,12 @@ import (
 func TestCatalogSnapshotSearchIsCanonicalAndBounded(t *testing.T) {
 	weather := catalogSearchManual(t, "weather.forecast", "Forecast weather by place.", "place")
 	repository := catalogSearchManual(t, "repo.search", "Search source code.", "pattern")
-	first, err := NewCatalogSnapshot([]Manual{weather, repository})
-	testcheck.NoError(t, err)
-	second, err := NewCatalogSnapshot([]Manual{repository, weather})
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewCatalogSnapshot([]Manual{weather, repository}))(t)
+	second := testcheck.Must(NewCatalogSnapshot([]Manual{repository, weather}))(t)
 	if first.ID != second.ID || first.Entries[0].Name != "repo.search" {
 		t.Fatalf("catalogs differ: %+v %+v", first, second)
 	}
-	results, err := first.Search("weather place", 1)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(first.Search("weather place", 1))(t)
 	if len(results) != 1 || results[0].Manual != weather.ID || results[0].Score != catalogNameTermWeight+catalogFieldTermWeight {
 		t.Fatalf("results = %+v", results)
 	}
@@ -34,10 +31,8 @@ func TestCatalogSnapshotSearchIsCanonicalAndBounded(t *testing.T) {
 func TestCatalogSnapshotSearchTieOrderIsStable(t *testing.T) {
 	alpha := catalogSearchManual(t, "alpha.probe", "Inspect target state.", "target")
 	beta := catalogSearchManual(t, "beta.probe", "Inspect target state.", "target")
-	snapshot, err := NewCatalogSnapshot([]Manual{beta, alpha})
-	testcheck.NoError(t, err)
-	results, err := snapshot.Search("target", 2)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(NewCatalogSnapshot([]Manual{beta, alpha}))(t)
+	results := testcheck.Must(snapshot.Search("target", 2))(t)
 	if len(results) != 2 || results[0].Name != "alpha.probe" || results[1].Name != "beta.probe" {
 		t.Fatalf("tie order = %+v", results)
 	}
@@ -56,11 +51,10 @@ func TestCatalogSnapshotSearchTieOrderIsStable(t *testing.T) {
 
 func catalogSearchManual(t *testing.T, name, description, field string) Manual {
 	t.Helper()
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: name, Description: description, Effect: EffectInspection,
 		Arguments: []Field{{Name: field, Kind: FieldString, Required: true}},
 		Transport: Transport{Kind: TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return manual
 }

@@ -27,28 +27,23 @@ func smallHybrid() StackConfig {
 // schedule, so parity is tight).
 func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
-	host, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	streamed, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
-	testcheck.NoError(t, err)
+	host := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	streamed := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	hostTraj := testcheck.Must(host.TrainHost(testSteps, ocfg, TrainingOptions{}))(t)
 	observed := 0
-	streamedTraj, err := streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
+	streamedTraj := testcheck.Must(streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
 			t.Fatalf("observer saw step %d, want %d", step, observed)
 		}
 		observed++
 		return nil
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if observed != testSteps {
 		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
 	}
@@ -75,28 +70,23 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 // tolerance is exact: bitwise-equal losses.
 func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
-	fullSlab, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	layered, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	fullTraj, err := fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{})
-	testcheck.NoError(t, err)
+	fullSlab := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	layered := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	fullTraj := testcheck.Must(fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{}))(t)
 	observed := 0
-	layerTraj, err := layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
+	layerTraj := testcheck.Must(layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
 			t.Fatalf("observer saw step %d, want %d", step, observed)
 		}
 		observed++
 		return nil
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if observed != testSteps {
 		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
 	}
@@ -125,27 +115,21 @@ func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 // TestHybridTrainDeviceResidentMatchesHost verifies trajectory and residency parity.
 func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	cfg := smallHybrid()
 	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
 
-	host, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	dev, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	dev := testcheck.Must(BuildModel(cfg, testSeed))(t)
 	t.Logf("resident matrix params=%d  host-Sign vector params=%d", host.MatrixParamCount(), host.VectorParamCount())
 
-	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
-	testcheck.NoError(t, err)
-	before, err := worker.ExecutionStats(t.Context())
-	testcheck.NoError(t, err)
+	hostTraj := testcheck.Must(host.TrainHost(testSteps, ocfg, TrainingOptions{}))(t)
+	before := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
 	devTraj, acc, err := dev.TrainDeviceResident(worker, testSteps, ocfg, TrainingOptions{})
 	testcheck.NoError(t, err)
-	after, err := worker.ExecutionStats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(worker.ExecutionStats(t.Context()))(t)
 	// This fixed eight-step fixture used 432384/299680 bytes and 932 stream
 	// synchronizations at d16441de. Require the measured MLP/cache reduction;
 	// hand-maintained residency flags are not proof of actual driver work.

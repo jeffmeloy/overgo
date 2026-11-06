@@ -91,15 +91,11 @@ func TestServedGenerationMatchesTheModelsOwnClip(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-own-generation")
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/own-generation", Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, wan)}}, Contents: []artifact.Content{profileContent},
@@ -108,13 +104,11 @@ func TestServedGenerationMatchesTheModelsOwnClip(t *testing.T) {
 	}
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	for _, clip := range own.Clips {
-		raw, err := json.Marshal(latentvideo.WanRequest{
+		raw := testcheck.Must(json.Marshal(latentvideo.WanRequest{
 			Prompt: clip.Prompt, Seed: uint64(clip.Seed), Frames: clip.Frames, Width: own.Width, Height: own.Height,
 			Steps: own.Steps, Shift: own.Shift, GuideScale: clip.GuideScale,
-		})
-		testcheck.NoError(t, err)
-		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, wan, execution, string(raw))
-		testcheck.NoError(t, err)
+		}))(t)
+		output := testcheck.Must(mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, wan, execution, string(raw)))(t)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("a served clip is %T", capabilityruntime.Unwrap(output))

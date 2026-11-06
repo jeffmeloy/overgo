@@ -70,8 +70,7 @@ func TestQuantizedBaseAdapterRunMatchesTheDenseRun(t *testing.T) {
 	}
 	// The quantized run's model holds the projections as the base stores them: its trained shard
 	// holds none of them, and its frozen shard is the base's own bytes.
-	entries, err := os.ReadDir(filepath.Join(text.root, "quantized-gguf"))
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(filepath.Join(text.root, "quantized-gguf")))(t)
 	var names []string
 	for _, entry := range entries {
 		names = append(names, entry.Name())
@@ -104,11 +103,9 @@ func TestQuantizedBaseOfALlamaPublishesTheBaseAsStored(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	original, err := gguf.Open(base)
-	testcheck.NoError(t, err)
+	original := testcheck.Must(gguf.Open(base))(t)
 	defer original.Close()
-	published, err := gguf.Open(filepath.Join(output, trainingprogram.CheckpointModel))
-	testcheck.NoError(t, err)
+	published := testcheck.Must(gguf.Open(filepath.Join(output, trainingprogram.CheckpointModel)))(t)
 	defer published.Close()
 	for _, info := range original.Tensors {
 		baseInfo, baseData := readStored(t, original, info.Name)

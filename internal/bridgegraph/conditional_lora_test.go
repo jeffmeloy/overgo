@@ -25,18 +25,16 @@ func TestConditionalLoRAScale(t *testing.T) {
 		Source: source.ID, Target: target.ID, Operator: OperatorConditionalLoRA,
 		LoRARank: 1, ScaleLimit: 0.5,
 	}
-	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	testcheck.NoError(t, err)
+	program := testcheck.Must((Compiler{}).Compile(definition, sourceContent, targetContent))(t)
 	builder := tensor.NewBuilder()
 	condition := builder.Input("condition", dtype.F32, tensor.MustShape(2, 2))
 	targetInput := builder.Input("target", dtype.F32, tensor.MustShape(3, 2))
 	conditioner := builder.Input("conditioner", dtype.F32, tensor.MustShape(2, 1))
 	a := builder.Input("a", dtype.F32, tensor.MustShape(3, 1))
 	b := builder.Input("b", dtype.F32, tensor.MustShape(1, 3))
-	output, err := program.BuildConditionalLoRA(builder, condition, targetInput, ConditionalLoRAWeights{
+	output := testcheck.Must(program.BuildConditionalLoRA(builder, condition, targetInput, ConditionalLoRAWeights{
 		Conditioner: conditioner, A: a, B: b,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	ops := make([]tensor.Op, 0, len(builder.Nodes()))
 	for _, node := range builder.Nodes() {
 		ops = append(ops, node.Op)
@@ -51,8 +49,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 		b:           inferenceValue(t, b.Shape, []float32{1, 2, 3}),
 	}
 	baseFeeds[condition] = inferenceValue(t, condition.Shape, []float32{100, 100, -100, -100})
-	conditioned, err := reference.Execute([]*tensor.Tensor{output}, baseFeeds)
-	testcheck.NoError(t, err)
+	conditioned := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, baseFeeds))(t)
 	want := []float32{2.5, 4, 5.5, -0.5, -2, -3.5}
 	for index, value := range conditioned[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -60,8 +57,7 @@ func TestConditionalLoRAScale(t *testing.T) {
 		}
 	}
 	baseFeeds[condition] = reference.ZeroValue(condition.Shape)
-	identity, err := reference.Execute([]*tensor.Tensor{output}, baseFeeds)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, baseFeeds))(t)
 	if !slices.Equal(identity[output].Data, baseFeeds[targetInput].Data) {
 		t.Fatalf("zero-conditioned LoRA changed target: %v", identity[output].Data)
 	}

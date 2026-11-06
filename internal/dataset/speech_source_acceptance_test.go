@@ -44,16 +44,13 @@ func testSpeechReferenceRejections(t *testing.T) {
 		Parquet string `json:"parquet_base64"`
 	}
 	testcheck.NoError(t, json.Unmarshal(speechNullableGolden, &fixture))
-	encoded, err := base64.StdEncoding.DecodeString(fixture.Parquet)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(base64.StdEncoding.DecodeString(fixture.Parquet))(t)
 	root := t.TempDir()
 	path := filepath.Join(root, "nullable.parquet")
 	testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
-	registered, err := dataset.RegisterDirectoryDataset(t.Context(), store, "nullable", root)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDataset(t.Context(), store, "nullable", root))(t)
 	spec := dataset.SpeechMaterializationSpec{Source: registered.Dataset, AudioColumn: "audio.bytes", TargetColumn: "text"}
 	result, err := dataset.MaterializeSpeechDataset(t.Context(), store, root, spec, uint64(len(encoded)))
 	if err != nil || result.Rows != 6 || result.Records != 3 || result.Rejected != 3 || result.Shards != 1 {
@@ -95,16 +92,13 @@ func testSpeechReferenceRejections(t *testing.T) {
 }
 
 func testSpeechSignalAdmission(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 	var policy dataset.AudioInspectionPolicy
 	testcheck.NoError(t, json.Unmarshal(speechInspectionPolicy, &policy))
-	source, err := dataset.NewAudioPayloadReader(policy.MaximumEncodedBytes)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(dataset.NewAudioPayloadReader(policy.MaximumEncodedBytes))(t)
 	defer source.Close()
-	processor, err := trainingdata.AudioTextProcessor(store, source, policy)
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(trainingdata.AudioTextProcessor(store, source, policy))(t)
 	accepted, rejected := 0, 0
 	for _, tc := range []struct {
 		name   string
@@ -124,17 +118,13 @@ func testSpeechSignalAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			origin := dataset.AudioPayloadOrigin{Container: id}
-			data, err := json.Marshal(dataset.SpeechRecord{Audio: id, Origin: origin, Target: "isolated target"})
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(dataset.SpeechRecord{Audio: id, Origin: origin, Target: "isolated target"}))(t)
 			profile, _ := artifact.JSONID(artifact.KindProfile, policy)
 			authority := trainingdata.Authority{Dataset: testutil.ArtifactID(t, artifact.KindDataset, tc.name), Split: testutil.ArtifactID(t, artifact.KindDatasetShard, tc.name), Processors: []artifact.ID{profile}, Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityAudio}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}}}
-			materialized, err := trainingdata.MaterializeRecords(authority, profile, []trainingdata.RawRecord{{ID: tc.name, Data: data}}, trainingdata.ProcessorBinding{Artifact: profile, Modalities: []recipecontract.Modality{recipecontract.ModalityAudio, recipecontract.ModalityText}, Process: processor})
-			testcheck.NoError(t, err)
+			materialized := testcheck.Must(trainingdata.MaterializeRecords(authority, profile, []trainingdata.RawRecord{{ID: tc.name, Data: data}}, trainingdata.ProcessorBinding{Artifact: profile, Modalities: []recipecontract.Modality{recipecontract.ModalityAudio, recipecontract.ModalityText}, Process: processor}))(t)
 			defer materialized.Close()
-			stream, err := trainingdata.NewStream(materialized, nil)
-			testcheck.NoError(t, err)
-			batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, DecodeWorkers: 1})
-			testcheck.NoError(t, err)
+			stream := testcheck.Must(trainingdata.NewStream(materialized, nil))(t)
+			batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, DecodeWorkers: 1}))(t)
 			before := stream.Snapshot()
 			result, err := batcher.Next(t.Context())
 			if tc.accept {

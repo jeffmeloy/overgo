@@ -26,8 +26,7 @@ func TestImageComponentIdentityExcludesSiblingLayout(t *testing.T) {
 	source := modelrecipe.GenerationSourceProfile{Prepare: modelrecipe.ModuleLatentImagePrepare}
 	decoder := func(components []artifact.Component) artifact.ID {
 		t.Helper()
-		parent, err := artifact.NewManifest(artifact.KindModel, components)
-		testcheck.NoError(t, err)
+		parent := testcheck.Must(artifact.NewManifest(artifact.KindModel, components))(t)
 		before := slices.Clone(parent.Components)
 		bindings, _, err := latentImageComponentBindings(source, modelartifact.Inventory{Manifest: parent})
 		testcheck.NoError(t, err)

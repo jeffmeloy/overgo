@@ -16,8 +16,7 @@ func TestCodecRoundTrip(t *testing.T) {
 	encoder.I32(-9)
 	encoder.F64(2.5)
 	encoder.String32("state")
-	data, err := encoder.Data()
-	testcheck.NoError(t, err)
+	data := testcheck.Must(encoder.Data())(t)
 	decoder := NewDecoder(data, 64)
 	if string(decoder.Raw(8)) != "MAGIC001" || decoder.U32() != 7 || decoder.U64() != 11 || decoder.F32() != 1.5 ||
 		decoder.I32() != -9 || decoder.F64() != 2.5 || decoder.String32(8) != "state" {
@@ -42,8 +41,7 @@ func TestCodecBounds(t *testing.T) {
 	}
 	stringEncoder := NewEncoder(16)
 	stringEncoder.String32("state")
-	data, err := stringEncoder.Data()
-	testcheck.NoError(t, err)
+	data := testcheck.Must(stringEncoder.Data())(t)
 	stringDecoder := NewDecoder(data, 16)
 	if got := stringDecoder.String32(4); got != "" || !errors.Is(stringDecoder.Err(), ErrLimit) {
 		t.Fatalf("limited string = %q, error = %v", got, stringDecoder.Err())

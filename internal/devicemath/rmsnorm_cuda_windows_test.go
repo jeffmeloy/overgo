@@ -17,8 +17,7 @@ import (
 // hostmath.RMSNormInto (the forward the device layer forward must reproduce).
 func TestRMSNormForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, d = 24, 64
@@ -27,8 +26,7 @@ func TestRMSNormForwardMatchesHost(t *testing.T) {
 	x := randSlice(rng, rows*d)
 	weight := randSlice(rng, d)
 
-	got, err := RMSNormForward(worker, x, weight, rows, d, eps)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(RMSNormForward(worker, x, weight, rows, d, eps))(t)
 	want := make([]float32, rows*d)
 	hostmath.RMSNormInto(want, x, weight, rows, d, eps)
 
@@ -67,8 +65,7 @@ func rmsNormLossF64(x, weight, dy []float32, rows, d int, eps float64) float64 {
 // gradient dscale) against float64 central finite differences of L = sum(dy ⊙ y).
 func TestRMSNormBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, d = 8, 16

@@ -95,14 +95,12 @@ func TestAnAttemptCarriesItsModelsState(t *testing.T) {
 	if !id.Valid() {
 		t.Fatalf("the attempt did not record: %d failures", handler.observationErrors.Load())
 	}
-	observation, err := runrecord.RequireServingObservation(t.Context(), store, id)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(runrecord.RequireServingObservation(t.Context(), store, id))(t)
 	if observation.Verification != string(modelrecipe.StateNotVerified) {
 		t.Fatalf("attempt on a model nothing verified reads %q", observation.Verification)
 	}
 	observation.Verification = ""
-	content, err := json.Marshal(observation)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(json.Marshal(observation))(t)
 	if strings.Contains(string(content), "verification") {
 		t.Fatalf("a record with no state changed its bytes: %s", content)
 	}

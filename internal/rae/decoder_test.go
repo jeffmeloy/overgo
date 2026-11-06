@@ -35,8 +35,7 @@ func loadReference(t *testing.T, directory string, tensor referenceTensor) []flo
 	for _, extent := range tensor.Shape {
 		elements *= extent
 	}
-	values, err := fixtureasset.LoadF32(directory, tensor.File, tensor.SHA256, elements)
-	testcheck.NoError(t, err)
+	values := testcheck.Must(fixtureasset.LoadF32(directory, tensor.File, tensor.SHA256, elements))(t)
 	return values
 }
 

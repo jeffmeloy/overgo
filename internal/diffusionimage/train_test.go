@@ -29,8 +29,7 @@ func TestOTFlowObjectiveMatchesTorch(t *testing.T) {
 	requireWithin(t, "x_t", xT, fx.XT, tolTight)
 	requireWithin(t, "target", target, fx.Target, tolTight)
 	grad := make([]float32, len(fx.Pred))
-	loss, err := ScaledMSELossGradInto(grad, fx.Pred, target, fx.LossScale)
-	testcheck.NoError(t, err)
+	loss := testcheck.Must(ScaledMSELossGradInto(grad, fx.Pred, target, fx.LossScale))(t)
 	t.Logf("ot_flow loss got %.9g want %.9g", loss, fx.Loss)
 	if math.Abs(loss-fx.Loss) > tolTight {
 		t.Fatalf("loss=%g want=%g", loss, fx.Loss)
@@ -64,8 +63,7 @@ func TestTinyModelTrainDescends(t *testing.T) {
 		maxFrac  = 0.85
 	)
 	x, target := fixedFlowPath(t, fx.X, fx.B, sigmaMin)
-	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}))(t)
 	if trainer.Program().Objective() != trainingprogram.ObjectiveFlowMatching {
 		t.Fatalf("trainer objective = %q", trainer.Program().Objective())
 	}
@@ -74,8 +72,7 @@ func TestTinyModelTrainDescends(t *testing.T) {
 	}()
 	losses := make([]float64, 0, steps)
 	for step := range steps {
-		loss, err := trainer.Step(x, target, fx.B, fx.H, fx.W)
-		testcheck.NoError(t, err)
+		loss := testcheck.Must(trainer.Step(x, target, fx.B, fx.H, fx.W))(t)
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("non-finite loss %v at step %d", loss, step)
 		}
@@ -94,10 +91,8 @@ func TestTinyModelTrainDescends(t *testing.T) {
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
 	m := compileTiny(t, fx)
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(m.TrainableParameterCount())
-	testcheck.NoError(t, err)
-	trainer, err := NewTrainer(m, config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(m.TrainableParameterCount()))(t)
+	trainer := testcheck.Must(NewTrainer(m, config))(t)
 	defer trainer.Close()
 	x, target := fixedFlowPath(t, fx.X, fx.B, 0.001)
 	if _, err := trainer.Step(x, target, fx.B, fx.H, fx.W); err != nil {
@@ -117,8 +112,7 @@ func TestRealCheckpointMuonPlanCompiles(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", dir, err)
 	}
-	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: 1e-4, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, optimizer.Config{BaseLearningRate: 1e-4, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}))(t)
 	defer func() {
 		testcheck.NoError(t, trainer.Close())
 	}()

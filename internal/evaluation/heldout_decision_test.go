@@ -65,8 +65,7 @@ func TestConfirmationCountsAChargeThatLandsBetweenItsReadings(t *testing.T) {
 			Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"), Sequence: 8,
 			Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "pool fixture verdict")}, Weights: [poolPartCount]uint64{1, 2, 4, 4},
 		}, confirmations)
-		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID))(t)
 		return store, pool, granted.ID, func() int {
 			t.Helper()
 			budget, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)

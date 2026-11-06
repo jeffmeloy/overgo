@@ -62,8 +62,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.EvalSymlinks(t.TempDir()))(t)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string { return madeFolder(t, at(slash)) }
 	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
@@ -76,8 +75,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 		if !filepath.IsAbs(path) {
 			return path
 		}
-		inside, err := filepath.Rel(root, path)
-		testcheck.NoError(t, err)
+		inside := testcheck.Must(filepath.Rel(root, path))(t)
 		return filepath.ToSlash(inside)
 	}
 	verdicts := func(found []leftover) []string {
@@ -101,8 +99,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	}
 	list := func(t *testing.T, h hygiene) []leftover {
 		t.Helper()
-		found, err := listLeftovers(h, true)
-		testcheck.NoError(t, err)
+		found := testcheck.Must(listLeftovers(h, true))(t)
 		return found
 	}
 
@@ -205,8 +202,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 
 	// The data root: a real store that registers two locations, and what runs left beside it.
 	storePath := folder("data/overgodb-store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	register := func(name string, kind artifact.LocationKind, value string) {
 		t.Helper()
 		id := testutil.ArtifactID(t, artifact.KindTensorSet, name)
@@ -592,8 +588,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 		var output bytes.Buffer
 		testcheck.NoError(t, leftoversCommand(h, false, &output))
 		receipt := filepath.Join(repo, processlock.StateDirectory, "leftovers-"+trunk[:12]+".txt")
-		written, err := os.ReadFile(receipt)
-		testcheck.NoError(t, err)
+		written := testcheck.Must(os.ReadFile(receipt))(t)
 		text, last := output.String(), ""
 		if cut := strings.LastIndex(text, "loop: "); cut >= 0 {
 			text, last = text[:cut], text[cut:]
@@ -674,8 +669,7 @@ func fixtureLink(target, name string) bool {
 func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	t.Parallel()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.EvalSymlinks(t.TempDir()))(t)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string { return madeFolder(t, at(slash)) }
 	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
@@ -748,8 +742,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	// states as sorted lines. Every entry is a child of the folder, and its action is delete.
 	scratch := func(t *testing.T, h hygiene) (map[string]leftover, []string) {
 		t.Helper()
-		found, err := listLeftovers(h, true)
-		testcheck.NoError(t, err)
+		found := testcheck.Must(listLeftovers(h, true))(t)
 		entries, states := map[string]leftover{}, []string{}
 		for _, entry := range found {
 			if entry.place != "tmp" {
@@ -903,8 +896,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 
 	t.Run("with the working plan unreadable every entry but the module's own two files is unknown", func(t *testing.T) {
 		working := filepath.Join(repo, filepath.FromSlash(plan.Path))
-		saved, err := os.ReadFile(working)
-		testcheck.NoError(t, err)
+		saved := testcheck.Must(os.ReadFile(working))(t)
 		testcheck.NoError(t, os.WriteFile(working, []byte("no plan\n"), 0o644))
 		entries, states := scratch(t, h)
 		testcheck.NoError(t, os.WriteFile(working, saved, 0o644))
@@ -944,8 +936,7 @@ type sandbox struct {
 // resolved path.
 func newSandbox(t *testing.T) sandbox {
 	t.Helper()
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.EvalSymlinks(t.TempDir()))(t)
 	return sandbox{t, root}
 }
 
@@ -1158,8 +1149,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	// The data root: a real store that registers a prototype's file inside one experiment's output.
 	storePath := s.folder("data/overgodb-store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	prototype := testutil.ArtifactID(t, artifact.KindTensorSet, "prototype")
 	s.write("data/experiments/pilot/run/reward/weights.bin", "a prototype")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -1181,8 +1171,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	// run that wrote into the experiment's own directory, the directory above its entries; a run
 	// that ended left its lock file in either.
 	for _, output := range []string{"live/run", "rerun"} {
-		going, err := processlock.Acquire(s.at("data/experiments/"+output+"/"+processlock.OutputLock), 0o600)
-		testcheck.NoError(t, err)
+		going := testcheck.Must(processlock.Acquire(s.at("data/experiments/"+output+"/"+processlock.OutputLock), 0o600))(t)
 		defer going.Close()
 	}
 	s.write("data/experiments/idle/run/"+processlock.OutputLock, "")
@@ -1226,8 +1215,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		}
 		return state.String()
 	}
-	locations, err := storeLocations(storePath, 1)
-	testcheck.NoError(t, err)
+	locations := testcheck.Must(storeLocations(storePath, 1))(t)
 	first, registered := s.seen(), gitState()
 	// untouched fails when anything in the sandbox or in git's view of it moved since the walk
 	// given, but for the command's own lock and receipt and the paths excepted.
@@ -1329,8 +1317,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", refused.name, err, lines, refused.want)
 			}
 		}
-		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600))(t)
 		lines, _, err := run(h, "experiment", token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
@@ -1359,8 +1346,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		}
 		left := []string{"data/experiments/kept/runs"}
 		if runtime.GOOS == "windows" {
-			busy, err := os.Open(s.at("data/experiments/busy/weights/step.bin"))
-			testcheck.NoError(t, err)
+			busy := testcheck.Must(os.Open(s.at("data/experiments/busy/weights/step.bin")))(t)
 			defer busy.Close()
 			left = append(left, "data/experiments/busy/weights")
 		}
@@ -1742,8 +1728,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	// under each verb given, and the one line of the branch's removal, as sorted "verb path" pairs.
 	receipted := func(t *testing.T, verbs ...string) {
 		t.Helper()
-		written, err := os.ReadFile(receipt)
-		testcheck.NoError(t, err)
+		written := testcheck.Must(os.ReadFile(receipt))(t)
 		want := []string{"removed " + branch}
 		for _, verb := range verbs {
 			for _, slash := range finished {
@@ -1790,8 +1775,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 
 	t.Run("a clearing that cannot run, or whose remover of directories fails, leaves the commit ready and says why", func(t *testing.T) {
 		testcheck.NoError(t, processlock.EnsureStateDirectory(repo))
-		other, err := processlock.Acquire(s.at(removalState+"/"+removalLock), 0o600)
-		testcheck.NoError(t, err)
+		other := testcheck.Must(processlock.Acquire(s.at(removalState+"/"+removalLock), 0o600))(t)
 		outcome, calls := commit(t, h, "", nil)
 		if closeErr := other.Close(); closeErr != nil || outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "another removal") || !slices.Equal(calls, []string{phaseGate, phaseLanded, clearedCall}) {
 			t.Fatalf("with the removal lock held the commit ended %+v after %v (close: %v), want it ready, saying another removal holds the lock", outcome, calls, closeErr)
@@ -1850,8 +1834,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	})
 
 	t.Run("nothing finished is left, and what a rule keeps is still there", func(t *testing.T) {
-		found, err := listLeftovers(h, true, deletingPlaces()...)
-		testcheck.NoError(t, err)
+		found := testcheck.Must(listLeftovers(h, true, deletingPlaces()...))(t)
 		if at := slices.IndexFunc(found, func(listed leftover) bool { return listed.state == stateFinished }); at >= 0 {
 			t.Errorf("after the commits %s is still listed as finished by the place %s", found[at].path, found[at].place)
 		}
@@ -1925,8 +1908,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 	s.write(copies+"stated"+state+guard.SessionState("s3"), "{}\n")
 	s.landedCopy(repo, copies+"ignored")
 	s.write(copies+"ignored/tmp/probe.txt", "ignored\n")
-	committing, err := authoritylock.Acquire(s.landedCopy(repo, copies+"locked"))
-	testcheck.NoError(t, err)
+	committing := testcheck.Must(authoritylock.Acquire(s.landedCopy(repo, copies+"locked")))(t)
 	defer committing.Close()
 	gitFixture(t, repo, "worktree", "lock", "--reason", "its session keeps it", s.landedCopy(repo, copies+"reserved"))
 	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"fresh"), "master")
@@ -2053,8 +2035,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			}
 		}
 		refused("a token that is not the listing's", "0123456789abcdef", "list it again")
-		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600))(t)
 		refused("the listing's token while another removal holds the lock", token, "another removal")
 		testcheck.NoError(t, held.Close())
 		// A copy the listing showed as finished is written in before the token comes back.
@@ -2098,8 +2079,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		failed(func(string) error { return nil }, "is still there")
 		if runtime.GOOS == "windows" {
 			// A file held open in one copy: Windows refuses the remover that follows no link.
-			busy, err := os.Open(filepath.Join(landed, "source", "tracked.txt"))
-			testcheck.NoError(t, err)
+			busy := testcheck.Must(os.Open(filepath.Join(landed, "source", "tracked.txt")))(t)
 			defer busy.Close()
 			lines := failed(func(path string) error {
 				if path == landed {
@@ -2424,8 +2404,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		pilotShard                      = "the shard the pilot's model shares with a served one"
 	)
 	storePath := s.folder("data/overgodb-store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	// The pilot's run: one checkpoint with its model, and prototypes the owner registered by hand,
 	// first one from a folder of its own and two from files beside the checkpoint's own files. A
 	// served model of no run holds the shard the checkpoint's model holds, at a path of its own.
@@ -2489,8 +2468,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		id   artifact.ID
 		name string
 	}{{adopted.own, "model-00001-of-00002.gguf"}, {adopted.shared, "model-00002-of-00002.gguf"}} {
-		data, err := os.ReadFile(s.at(adopted.slash + "/" + shard.name))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(s.at(adopted.slash + "/" + shard.name)))(t)
 		copy := "data/models/adopted-components/" + shard.name
 		s.write(copy, string(data))
 		s.commit(store, artifact.Batch{Key: "withdrawal-fixture/alternative/" + shard.name, Locations: []artifact.LocationEvent{s.location(shard.id, artifact.LocationFile, copy)}})
@@ -2524,8 +2502,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	// read opens the fixture's store for reading alone and hands it to a check.
 	read := func(t *testing.T, check func(store *overgodb.Store)) {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(storePath)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(storePath))(t)
 		defer store.Close()
 		check(store)
 	}
@@ -2534,8 +2511,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		t.Helper()
 		inside := make([]string, len(values))
 		for index, value := range values {
-			relative, err := filepath.Rel(s.root, value)
-			testcheck.NoError(t, err)
+			relative := testcheck.Must(filepath.Rel(s.root, value))(t)
 			inside[index] = filepath.ToSlash(relative)
 		}
 		slices.Sort(inside)
@@ -2545,8 +2521,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	// and the store's head, which every commit moves.
 	registered := func(t *testing.T) (paths []string, head artifact.CommitID) {
 		t.Helper()
-		values, err := storeLocations(storePath, 1)
-		testcheck.NoError(t, err)
+		values := testcheck.Must(storeLocations(storePath, 1))(t)
 		read(t, func(store *overgodb.Store) { head, _ = store.Head() })
 		return slashes(t, values), head
 	}
@@ -2554,8 +2529,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	located := func(t *testing.T, id artifact.ID) (paths []string) {
 		t.Helper()
 		read(t, func(store *overgodb.Store) {
-			locations, err := store.Locations(ctx, id)
-			testcheck.NoError(t, err)
+			locations := testcheck.Must(store.Locations(ctx, id))(t)
 			for _, location := range locations {
 				paths = append(paths, location.Value)
 			}
@@ -2598,8 +2572,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		}
 		// A listing asks the store for no write access: it lists while a writer holds the store's
 		// write lock, the file beside the store that one writer takes at a time.
-		writing, err := processlock.Acquire(storePath+".lock", 0o600)
-		testcheck.NoError(t, err)
+		writing := testcheck.Must(processlock.Acquire(storePath+".lock", 0o600))(t)
 		again, repeated, err := withdraw(pilotRun, "")
 		if closeErr := writing.Close(); err != nil || closeErr != nil || repeated != shown || !slices.Equal(s.verbs(again), want) {
 			t.Fatalf("a second listing, made while a writer held the store, gave the token %q (%v, close: %v), want the first one's %q: nothing changed between them", repeated, err, closeErr, shown)
@@ -2642,8 +2615,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		if err := withdrawRegistrations(blind, s.at(pilotRun), "", &printed); err == nil || !strings.Contains(err.Error(), "git") || strings.Contains(err.Error(), "no committed record") || printed.Len() != 0 {
 			t.Errorf("with the committed records unreadable the command answered %v and printed %q, want it refused with git's own failure and no line", err, printed.String())
 		}
-		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600))(t)
 		lines, _, err := withdraw(pilotRun, token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)

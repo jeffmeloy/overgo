@@ -38,10 +38,8 @@ func TestHeldoutReadingStatesWhatAConstantAnswerScores(t *testing.T) {
 			}
 			cases, observations = append(cases, target), append(observations, observation)
 		}
-		plan, err := CompileHeldoutPlan(table.objective, table.view, cases)
-		testcheck.NoError(t, err)
-		report, err := plan.Score(observations)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(CompileHeldoutPlan(table.objective, table.view, cases))(t)
+		report := testcheck.Must(plan.Score(observations))(t)
 		return report
 	}
 	// Every third record expects bad and the rest good.

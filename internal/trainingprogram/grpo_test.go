@@ -115,15 +115,13 @@ func TestGroupIsWeightedByOrderAlone(t *testing.T) {
 	if _, err := CompileTrainingSessionPlan(spec); err == nil {
 		t.Fatal("a preference session without an objective scale was planned")
 	}
-	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
-	program, err := CompileTrainingProgram(ProgramSpec{
+	plan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "scalar", Start: 0, End: 1, Rows: 1, Cols: 1}}))(t)
+	program := testcheck.Must(CompileTrainingProgram(ProgramSpec{
 		Objective:  ObjectiveGRPO,
 		Operators:  []OperatorSpec{{ID: "forward", Phase: PhaseForward}, {ID: "backward", Phase: PhaseBackward}, {ID: "optimize", Phase: PhaseOptimize}, {ID: "evaluate", Phase: PhaseEvaluate}},
 		Parameters: []ParameterSpec{{Name: "scalar", Rows: 1, Cols: 1, Trainable: true}},
 		Optimizer:  plan,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	// The identity the same program had before the objective named its rule.
 	before, err := artifact.JSONID(artifact.KindRecipe, struct {
 		Objective   ObjectiveKind   `json:"objective"`

@@ -33,8 +33,7 @@ func TestStreamingPassthrough(t *testing.T) {
 				{name: "layer.0", shape: []uint64{uint64(count)}}, {name: "layer.1", shape: []uint64{uint64(count)}},
 			})
 			destination := filepath.Join(t.TempDir(), "output")
-			result, err := ExecuteStreaming(t.Context(), plan, []StreamingSource{{Model: model, Directory: source}}, destination)
-			testcheck.NoError(t, err)
+			result := testcheck.Must(ExecuteStreaming(t.Context(), plan, []StreamingSource{{Model: model, Directory: source}}, destination))(t)
 			wantResident := safetensors.StreamingBufferBytes(uint64(count * binary.Size(float32(0))))
 			if result.TensorCount != len(plan.Operations) || result.PeakResidentBytes != wantResident {
 				t.Fatalf("streaming result = %+v, want %d resident payload bytes", result, wantResident)
@@ -58,11 +57,10 @@ func TestStreamingTaskArithmetic(t *testing.T) {
 	plan := sealStreamingPlan(t, composition.OfflineArtifactTaskArithmetic, models, []float64{0.25, 0.75},
 		[]streamingFixtureTensor{{name: "weight", shape: []uint64{3}}})
 	destination := filepath.Join(t.TempDir(), "output")
-	_, err := ExecuteStreaming(t.Context(), plan, []StreamingSource{
+	testcheck.Must(ExecuteStreaming(t.Context(), plan, []StreamingSource{
 		{Model: models[1], Directory: second},
 		{Model: models[0], Directory: first},
-	}, destination)
-	testcheck.NoError(t, err)
+	}, destination))(t)
 	want := []float32{8, 16, 24}
 	if values := readStreamingTensor(t, destination, "weight"); !slices.Equal(values, want) {
 		t.Fatalf("task arithmetic = %v, want %v", values, want)
@@ -86,8 +84,7 @@ func TestStreamingBoundedResidency(t *testing.T) {
 	}
 	plan := sealStreamingPlan(t, composition.OfflineArtifactTaskArithmetic, models, []float64{0.25, 0.5, 0.25},
 		[]streamingFixtureTensor{{name: "weight", shape: []uint64{2}}})
-	result, err := ExecuteStreaming(t.Context(), plan, sources, filepath.Join(t.TempDir(), "output"))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(ExecuteStreaming(t.Context(), plan, sources, filepath.Join(t.TempDir(), "output")))(t)
 	if result.PeakResidentBytes != plan.PeakResidentBytes || result.PeakResidentBytes != plan.Operations[0].ResidentBytes {
 		t.Fatalf("peak residency = %d, plan = %d", result.PeakResidentBytes, plan.PeakResidentBytes)
 	}
@@ -121,14 +118,10 @@ func TestStreamingRefusesSameGeometrySourceShardByteSubstitution(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "stream shard authority model")
 	authoritative := writeStreamingFixture(t, map[string][]float32{"weight": {1, 2}})
 	substituted := writeStreamingFixture(t, map[string][]float32{"weight": {3, 4}})
-	authoritativeBytes, err := os.ReadFile(filepath.Join(authoritative, streamingSingleShardName))
-	testcheck.NoError(t, err)
-	authoritativeID, err := artifact.IdentifyBytes(artifact.KindTensorSet, authoritativeBytes)
-	testcheck.NoError(t, err)
-	substitutedBytes, err := os.ReadFile(filepath.Join(substituted, streamingSingleShardName))
-	testcheck.NoError(t, err)
-	substitutedID, err := artifact.IdentifyBytes(artifact.KindTensorSet, substitutedBytes)
-	testcheck.NoError(t, err)
+	authoritativeBytes := testcheck.Must(os.ReadFile(filepath.Join(authoritative, streamingSingleShardName)))(t)
+	authoritativeID := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, authoritativeBytes))(t)
+	substitutedBytes := testcheck.Must(os.ReadFile(filepath.Join(substituted, streamingSingleShardName)))(t)
+	substitutedID := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, substitutedBytes))(t)
 	if substitutedID == authoritativeID {
 		t.Fatal("same-geometry substitution retained the authoritative byte identity")
 	}
@@ -175,8 +168,7 @@ func sealStreamingPlan(
 	shard := composition.OfflineTensorShard{Index: uint32(tensor.FirstOffset)}
 	var peak uint64
 	for index, fixture := range tensors {
-		bytes, err := safetensors.TensorBytes("F32", fixture.shape)
-		testcheck.NoError(t, err)
+		bytes := testcheck.Must(safetensors.TensorBytes("F32", fixture.shape))(t)
 		resident := safetensors.StreamingBufferBytes(bytes)
 		if operator == composition.OfflineArtifactTaskArithmetic {
 			resident = bytes * uint64(tensor.PairedExtent)
@@ -205,10 +197,8 @@ func sealStreamingPlan(
 		Operator:       operator, Inputs: inputs, Operations: operations,
 		Shards: []composition.OfflineTensorShard{shard}, PeakResidentBytes: peak,
 	}
-	data, err := json.Marshal(plan)
-	testcheck.NoError(t, err)
-	plan.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(plan))(t)
+	plan.ID = testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, data))(t)
 	testcheck.NoError(t, plan.ValidateIdentity())
 	return plan
 }
@@ -226,8 +216,7 @@ func writeStreamingFixture(t testing.TB, values map[string][]float32) string {
 
 func readStreamingTensor(t *testing.T, directory, name string) []float32 {
 	t.Helper()
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	defer source.Close()
 	tensorView, found := source.Tensors[name]
 	if !found {

@@ -17,7 +17,7 @@ var fixtureContract = ContractRef{
 
 func fixtureManifest(t *testing.T) Manifest {
 	t.Helper()
-	value, err := New(Manifest{
+	value := testcheck.Must(New(Manifest{
 		Version: artifact.InitialDocumentVersion, Release: "fixture",
 		BuildContexts: []BuildContext{{ID: "windows-amd64", GOOS: "windows", GOARCH: "amd64"}},
 		Documents: []Document{{
@@ -31,15 +31,13 @@ func fixtureManifest(t *testing.T) Manifest {
 		Protocols:   []Protocol{{Name: "fixture", Owner: "internal/fixture", Transport: "http", Contracts: []ContractRef{fixtureContract}}},
 		Workspaces:  []Workspace{{Name: "fixture", Path: "internal/server/workspace_manifest.json", ContentID: fixtureDigest}},
 		Authorities: []Authority{{Name: "kernel", Path: "kernels/manifest.json", ContentID: fixtureDigest}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return value
 }
 
 func TestManifestCanonicalRoundTrip(t *testing.T) {
 	manifest := fixtureManifest(t)
-	content, err := manifest.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(manifest.Content())(t)
 	parsed, err := Parse(content.Data)
 	if err != nil || parsed.ID != manifest.ID || !reflect.DeepEqual(parsed.Routes, manifest.Routes) {
 		t.Fatalf("round trip = %+v/%v", parsed, err)
@@ -71,8 +69,7 @@ func TestCompareReportsCurrentSurfaceChangesWithoutTombstones(t *testing.T) {
 	current.Routes = append(current.Routes, Route{
 		Path: "/new", Method: "POST", Authentication: "key", Request: &fixtureContract,
 	})
-	current, err := New(current)
-	testcheck.NoError(t, err)
+	current = testcheck.Must(New(current))(t)
 	changes, err := Compare(previous, current)
 	if err != nil || len(changes) != 1 || changes[0] != (Change{Class: ChangeAdd, Kind: "route", Key: "POST /new"}) {
 		t.Fatalf("changes = %+v/%v", changes, err)

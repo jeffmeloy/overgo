@@ -24,14 +24,12 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 		Rows: 1, Experts: 2, TopK: 1, Selections: []uint32{1}, CombineWeights: []float32{1}, Accepted: []bool{true},
 		Margins: []runrecord.MoERouterMargin{{Observed: true}},
 	}
-	data, err := json.Marshal(fixture)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(fixture))(t)
 	root := t.TempDir()
 	input := filepath.Join(root, "observation.json")
 	testcheck.NoError(t, os.WriteFile(input, data, 0o600))
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	parents := []artifact.Descriptor{
 		{ID: fixture.Run}, {ID: fixture.Model}, {ID: fixture.Dataset}, {ID: fixture.Split},
 		{ID: fixture.Recipe}, {ID: fixture.Code}, {ID: fixture.Checkpoint}, {ID: fixture.Policy},
@@ -45,8 +43,7 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 	if !strings.Contains(output.String(), "rows=1 selections=1") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err = overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(storePath))(t)
 	defer func() { _ = store.Close() }()
 	coverageID, found, err := store.ResolveAlias(t.Context(), runrecord.MoERouterObservationCoverageAlias)
 	if err != nil || !found {
@@ -54,8 +51,7 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 	}
 	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(t.Context(), store, coverageID)
 	testcheck.NoError(t, err)
-	expected, err := runrecord.NewMoERouterObservation(fixture)
-	testcheck.NoError(t, err)
+	expected := testcheck.Must(runrecord.NewMoERouterObservation(fixture))(t)
 	if coverage.ObservationCount != 1 || len(chunk.Observations) != 1 || chunk.Observations[0].ID != expected.ID {
 		t.Fatalf("coverage = %#v chunk = %#v", coverage, chunk)
 	}

@@ -37,16 +37,13 @@ func (g exactGenerator) Generate(_ context.Context, _ string, options inference.
 func TestCompileExactOwnsStableSuite(t *testing.T) {
 	t.Parallel()
 	suite := exactFixture()
-	first, err := CompileExact(suite)
-	testcheck.NoError(t, err)
-	second, err := CompileExact(suite)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(CompileExact(suite))(t)
+	second := testcheck.Must(CompileExact(suite))(t)
 	if first.identity != second.identity {
 		t.Fatalf("identity differs: %s != %s", first.identity, second.identity)
 	}
 	suite.Cases[0].Text = "changed"
-	result, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])
-	testcheck.NoError(t, err)
+	result := testcheck.Must(evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0]))(t)
 	if result.Text != "ok" {
 		t.Fatalf("result = %+v", result)
 	}

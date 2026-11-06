@@ -28,8 +28,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "measured.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("measured memory weights"), 0o644))
-	weights, err := os.Open(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.Open(weightsPath))(t)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
 	testcheck.NoError(t, err)
@@ -38,11 +37,10 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 		data := []byte(document)
 		evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(data))
 		testcheck.NoError(t, err)
-		record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
+		record := testcheck.Must(runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 			Capability: capability, Tier: runrecord.TierCapabilityMeasured, PeakDeviceBytes: peak, WallNS: 1_000_000,
 			Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, data, evidence, weightsPath))
 	}
 	commit("benchmark", 6_000_000_000, `{"device_after_load_bytes":5000000000,"realized_residency":"device-native","device":{"totalMemoryBytes":24000000000},"summary":{"decode_tokens_per_second_p50":40}}`)
@@ -50,8 +48,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 		{"measure":{"prompt_tokens":1024,"memory":{"peakBytes":6100000000}}},
 		{"measure":{"prompt_tokens":4096,"memory":{"peakBytes":6900000000}}},
 		{"measure":{"prompt_tokens":8192}}]}`)
-	registered, err := filepath.Abs(weightsPath)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(filepath.Abs(weightsPath))(t)
 	rows := catalogListing([]discovery.CatalogEntry{
 		{Model: model, Location: registered, Present: true},
 		{Model: model, Location: "C:/models/unmeasured.gguf", Present: true},
@@ -67,8 +64,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 	}
 
 	fixture := newDPOTrainingFixture(t)
-	training, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	training := testcheck.Must(New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{}))(t)
 	defer training.Close()
 	var capabilities []WorkflowCapability
 	listed := serveTestRequest(training, http.MethodGet, "/training/capabilities", "")

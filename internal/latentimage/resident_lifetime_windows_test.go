@@ -51,8 +51,7 @@ func TestResidentDecodeCancellationReusesStorage(t *testing.T) {
 
 func checkDecodeLifetimeFixture(t *testing.T) {
 	t.Helper()
-	runtime, err := graphruntime.NewResidentSession(0)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(graphruntime.NewResidentSession(0))(t)
 	pipeline := &ResidentImagePipeline{runtime: runtime}
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), pipeline))
 	builder := tensor.NewBuilder()
@@ -63,18 +62,16 @@ func checkDecodeLifetimeFixture(t *testing.T) {
 	decoded := builder.Scale(input, 2)
 	compile := func(dynamic []*tensor.Tensor, output *tensor.Tensor) *graphruntime.ResidentProgram {
 		t.Helper()
-		program, err := runtime.Compile(t.Context(), "lifetime fixture", dynamic, output)
-		testcheck.NoError(t, err)
+		program := testcheck.Must(runtime.Compile(t.Context(), "lifetime fixture", dynamic, output))(t)
 		return program
 	}
 	uploader := compile(nil, upload)
 	pipeline.vaeBridge, pipeline.vae = compile([]*tensor.Tensor{input}, bridge), compile([]*tensor.Tensor{input}, decoded)
 	pipeline.vaeOutput = bridge
 	pipeline.VAE = &VAEProgram{Output: decoded, OutH: 1, OutW: 4}
-	initial, err := runtime.Retain(t.Context(), uploader, map[*tensor.Tensor]reference.Value{
+	initial := testcheck.Must(runtime.Retain(t.Context(), uploader, map[*tensor.Tensor]reference.Value{
 		input: {Shape: shape, Data: []float32{1, -2, 0, 0.125}},
-	}, nil)
-	testcheck.NoError(t, err)
+	}, nil))(t)
 	value, ok := initial.Value(upload)
 	if !ok {
 		t.Fatal("fixture upload is unavailable")
@@ -97,20 +94,17 @@ func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 		Prompt: kreaGoldenPrompt,
 		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
 	}
-	generator, err := LoadGenerator(t.Context(), directory, profile, request)
-	testcheck.NoError(t, err)
+	generator := testcheck.Must(LoadGenerator(t.Context(), directory, profile, request))(t)
 	t.Cleanup(testutil.Closer(t, context.WithoutCancel(t.Context()), generator))
 	var library *driver.Library
 	testcheck.NoError(t, generator.pipeline.runtime.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }))
-	session, err := generator.prepare(t.Context(), request)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(generator.prepare(t.Context(), request))(t)
 	if _, err := generator.integrate(t.Context(), session); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("artifact=%s profile=%s request=%+v", directory, profile.ID, request)
 	assertCanceledDecodeStorage(t, generator.pipeline)
-	image, err := generator.decode(t.Context(), session)
-	testcheck.NoError(t, err)
+	image := testcheck.Must(generator.decode(t.Context(), session))(t)
 	if len(image.Data) == 0 {
 		t.Fatal("recovered pipeline published no image")
 	}
@@ -131,14 +125,12 @@ func assertCanceledDecodeStorage(t *testing.T, pipeline *ResidentImagePipeline) 
 	// next check belongs to decoder submission, after the bridge owns a lease.
 	var bridgeChecks atomic.Int64
 	control := lifetimeContext{Context: t.Context(), onCheck: func() { bridgeChecks.Add(1) }}
-	probe, err := pipeline.runtime.Retain(control, pipeline.vaeBridge, nil, []driver.DevicePtr{pipeline.latent.value.Pointer})
-	testcheck.NoError(t, err)
+	probe := testcheck.Must(pipeline.runtime.Retain(control, pipeline.vaeBridge, nil, []driver.DevicePtr{pipeline.latent.value.Pointer}))(t)
 	testcheck.NoError(t, probe.Release(t.Context()))
 	if bridgeChecks.Load() == 0 {
 		t.Fatal("bridge did not exercise cancellation checks")
 	}
-	before, err := pipeline.runtime.Stats(t.Context())
-	testcheck.NoError(t, err)
+	before := testcheck.Must(pipeline.runtime.Stats(t.Context()))(t)
 	for range 3 {
 		ctx, cancel := context.WithCancelCause(t.Context())
 		var checks atomic.Int64
@@ -158,8 +150,7 @@ func assertCanceledDecodeStorage(t *testing.T, pipeline *ResidentImagePipeline) 
 	if height != gotHeight || width != gotWidth || !slices.Equal(got, want) {
 		t.Fatal("canceled decode changed subsequent output")
 	}
-	after, err := pipeline.runtime.Stats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(pipeline.runtime.Stats(t.Context()))(t)
 	t.Logf("decode cancellation: bridge_checks=%d owned_bytes=%d->%d allocations=%d->%d owned_peak=%d->%d",
 		bridgeChecks.Load(), before.Device.CurrentBytes, after.Device.CurrentBytes,
 		before.Device.Allocations, after.Device.Allocations, before.Device.PeakBytes, after.Device.PeakBytes)

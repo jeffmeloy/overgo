@@ -12,11 +12,10 @@ import (
 // duplicate key or name as the reader refuses one.
 func TestCatalogLooksUpWhatItWasGiven(t *testing.T) {
 	t.Parallel()
-	file, err := Catalog(
+	file := testcheck.Must(Catalog(
 		[]Metadata{StringMetadata("general.architecture", "clip"), Uint32Metadata("clip.vision.block_count", 24)},
 		[]TensorInfo{{Name: "v.patch_embd.weight", Type: DTypeF32, Dimensions: 1, Shape: [MaxDimensions]uint64{7}}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	value, found := file.MetadataValue("general.architecture")
 	if !found || value.Data != "clip" {
 		t.Fatalf("architecture = %v, %t", value.Data, found)

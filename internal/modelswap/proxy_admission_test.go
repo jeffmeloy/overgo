@@ -17,8 +17,7 @@ import (
 // passes to the intake and the child.
 func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 	launcher := &upstreamLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	keys := &keyRecorder{}
 	alpha := Servable{Name: "alpha", Location: "alpha.gguf"}
@@ -30,8 +29,7 @@ func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 	body := `{"location":"remote://fake/vendor/model","key":"secret"}`
 	send := func(method, path, host string, headers map[string]string) *http.Response {
 		t.Helper()
-		request, err := http.NewRequest(method, front.URL+path, strings.NewReader(body))
-		testcheck.NoError(t, err)
+		request := testcheck.Must(http.NewRequest(method, front.URL+path, strings.NewReader(body)))(t)
 		request.Header.Set("Content-Type", "application/json")
 		for name, value := range headers {
 			request.Header.Set(name, value)
@@ -39,8 +37,7 @@ func TestModelSwapProxyAdmitsAsTheServerDoes(t *testing.T) {
 		if host != "" {
 			request.Host = host
 		}
-		response, err := front.Client().Do(request)
-		testcheck.NoError(t, err)
+		response := testcheck.Must(front.Client().Do(request))(t)
 		t.Cleanup(func() { response.Body.Close() })
 		return response
 	}

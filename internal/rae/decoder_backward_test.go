@@ -64,16 +64,14 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 	side := d.grid * d.patch
 	pixelWeights := direction(3 * side * side)
 	loss := func() float64 {
-		pixels, err := d.decodeTokens(rows)
-		testcheck.NoError(t, err)
+		pixels := testcheck.Must(d.decodeTokens(rows))(t)
 		var total float64
 		for index, value := range pixels {
 			total += float64(value) * float64(pixelWeights[index])
 		}
 		return total
 	}
-	plain, err := d.decodeTokens(rows)
-	testcheck.NoError(t, err)
+	plain := testcheck.Must(d.decodeTokens(rows))(t)
 	traced, trace, err := d.decodeTraced(rows)
 	testcheck.NoError(t, err)
 	for index, value := range plain {
@@ -82,11 +80,9 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 		}
 	}
 	gradients := d.newGradients()
-	dRows, err := d.backward(trace, pixelWeights, gradients)
-	testcheck.NoError(t, err)
+	dRows := testcheck.Must(d.backward(trace, pixelWeights, gradients))(t)
 	// Without kept gradients the token gradient is the same.
-	bare, err := d.backward(trace, pixelWeights, nil)
-	testcheck.NoError(t, err)
+	bare := testcheck.Must(d.backward(trace, pixelWeights, nil))(t)
 	for index, value := range dRows {
 		if bare[index] != value {
 			t.Fatalf("the token gradient differs when no weight gradient is kept: %v and %v", bare[index], value)

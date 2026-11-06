@@ -35,8 +35,7 @@ func TestCheckpointSetLoadsConcurrently(t *testing.T) {
 	if !loaded {
 		t.Fatalf("complete set refused: %s", reason)
 	}
-	store, err := OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	if head, _ := store.Head(); anchor.head != head || catalogDigest(t, state) != catalogDigest(t, store.state) {
 		t.Fatalf("set anchored at %s answers differently from the store opened at %s", anchor.head, head)
@@ -44,8 +43,7 @@ func TestCheckpointSetLoadsConcurrently(t *testing.T) {
 
 	for _, name := range []string{"commits", "contents"} {
 		path := filepath.Join(directory, name+checkpointExtension)
-		document, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		document := testcheck.Must(os.ReadFile(path))(t)
 		document[len(document)-2] ^= 0xFF
 		testcheck.NoError(t, os.WriteFile(path, document, storeFileMode))
 	}

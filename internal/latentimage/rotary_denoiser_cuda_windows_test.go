@@ -18,8 +18,7 @@ import (
 func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 	cudatest.Require(t)
 	s := denoiserFixture(t)
-	runtime, err := graphruntime.NewResidentSession(0)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(graphruntime.NewResidentSession(0))(t)
 	defer runtime.Close(context.WithoutCancel(t.Context()))
 	for index, length := range []int{4, 2} {
 		for _, variant := range []struct {
@@ -27,11 +26,9 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 			skip []int
 		}{{"all", nil}, {"skip-1", []int{1}}, {"skip-all", []int{0, 1}}} {
 			t.Run(fmt.Sprintf("%d/%s", length, variant.name), func(t *testing.T) {
-				p, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.BF16)
-				testcheck.NoError(t, err)
+				p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, length, variant.skip, dtype.BF16))(t)
 				outputs, named := denoiserOutputs(p)
-				program, err := runtime.Compile(t.Context(), "native complete denoiser", nil, outputs...)
-				testcheck.NoError(t, err)
+				program := testcheck.Must(runtime.Compile(t.Context(), "native complete denoiser", nil, outputs...))(t)
 				defer runtime.Release(context.WithoutCancel(t.Context()), program)
 				feeds := denoiserFeeds(t, p, index, dtype.BF16)
 				for _, node := range p.weightInputs {
@@ -41,10 +38,8 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 					}
 					delete(feeds, node)
 				}
-				got, err := runtime.Execute(t.Context(), program, feeds)
-				testcheck.NoError(t, err)
-				repeat, err := runtime.Execute(t.Context(), program, feeds)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(runtime.Execute(t.Context(), program, feeds))(t)
+				repeat := testcheck.Must(runtime.Execute(t.Context(), program, feeds))(t)
 				prefix := fmt.Sprintf("cuda-bf16.%d.%s.", length, variant.name)
 				for name, node := range named {
 					t.Run(name, func(t *testing.T) {
@@ -64,8 +59,7 @@ func TestMOSSRotaryDenoiserCUDAGolden(t *testing.T) {
 func TestMOSSRotaryDenoiserFinalOutputResidency(t *testing.T) {
 	cudatest.Require(t)
 	oracle := denoiserFixture(t)
-	p, err := compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, []int{0, 1, 1}, dtype.BF16)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(compileRotaryDenoiserProgram(denoiserSpec(), 1e-6, 2, 3, 4, []int{0, 1, 1}, dtype.BF16))(t)
 	feeds := denoiserFeeds(t, p, 0, dtype.BF16)
 	values := map[string][]float32{}
 	shapes := map[string][]int{}
@@ -87,8 +81,7 @@ func TestMOSSRotaryDenoiserFinalOutputResidency(t *testing.T) {
 	var expected uint64
 	for _, node := range p.weightInputs {
 		if _, ok := f.graph.Graph.InputSlot(node); ok {
-			n, err := node.Shape.Bytes(node.Type)
-			testcheck.NoError(t, err)
+			n := testcheck.Must(node.Shape.Bytes(node.Type))(t)
 			expected += n
 		}
 	}

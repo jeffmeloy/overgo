@@ -74,14 +74,12 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 		SetIdentity: func(value *codecFixture, id ID) { value.ID = id },
 	}
 	input := codecFixture{Names: []string{"second", "first"}}
-	document, err := codec.New(input)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(codec.New(input))(t)
 	if input.Names[0] != "second" || !slices.Equal(document.Names, []string{"first", "second"}) {
 		t.Fatalf("input/document names = %v/%v", input.Names, document.Names)
 	}
 	encodeCalls = 0
-	content, err := codec.Content(document)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(codec.Content(document))(t)
 	if encodeCalls != expectedEncodesPerOperation {
 		t.Fatalf("content encoded %d times", encodeCalls)
 	}
@@ -128,8 +126,7 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	if _, err := codec.RequireVerified(t.Context(), documentReader{content: content}, document.ID, nil); err == nil {
 		t.Fatal("nil document verifier accepted")
 	}
-	parent, err := IdentifyBytes(KindEvidence, []byte("codec lineage parent"))
-	testcheck.NoError(t, err)
+	parent := testcheck.Must(IdentifyBytes(KindEvidence, []byte("codec lineage parent")))(t)
 	lineage := DependencyLineage(document.ID, parent)
 	lineageReader := codecLineageReader{
 		documentReader: documentReader{content: content}, parents: lineage, known: map[ID]bool{parent: true},

@@ -15,8 +15,7 @@ const planTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	t.Parallel()
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
 	base := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
@@ -24,8 +23,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := BindExact(exact, base)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BindExact(exact, base))(t)
 	if plan.Identity().Kind() != artifact.KindProfile ||
 		plan.body.Dataset != exact.dataset || plan.body.Split != exact.split ||
 		plan.body.CaseProfile != exact.identity || plan.body.Scorer.Kind() != artifact.KindProfile ||
@@ -40,8 +38,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	variants[3].Environment = planID(t, artifact.KindEvidence, "other-environment")
 	variants[4].Execution.Lifecycle = LifecycleIsolated
 	for index, variant := range variants {
-		other, err := BindExact(exact, variant)
-		testcheck.NoError(t, err)
+		other := testcheck.Must(BindExact(exact, variant))(t)
 		if other.Identity() == plan.Identity() {
 			t.Fatalf("authority %d did not change identity", index)
 		}
@@ -49,17 +46,14 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 
 	changed := exactFixture()
 	changed.Cases[0].Prompt = "other prompt"
-	otherExact, err := CompileExact(changed)
-	testcheck.NoError(t, err)
-	other, err := BindExact(otherExact, base)
-	testcheck.NoError(t, err)
+	otherExact := testcheck.Must(CompileExact(changed))(t)
+	other := testcheck.Must(BindExact(otherExact, base))(t)
 	if other.Identity() == plan.Identity() || other.body.Dataset == plan.body.Dataset ||
 		other.body.Split == plan.body.Split || other.body.CaseProfile == plan.body.CaseProfile {
 		t.Fatal("case, dataset, or split authority did not change identity")
 	}
 
-	content, err := plan.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(plan.Content())(t)
 	parsed, err := ParsePlan(content.Data)
 	if err != nil || parsed.Identity() != plan.Identity() {
 		t.Fatalf("parsed plan = (%s, %v)", parsed.Identity(), err)
@@ -71,8 +65,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	if err != nil || stored.Identity() != plan.Identity() {
 		t.Fatalf("stored plan = (%s, %v)", stored.Identity(), err)
 	}
-	parents, err := store.Parents(t.Context(), plan.Identity())
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), plan.Identity()))(t)
 	for _, expected := range plan.Lineage() {
 		if !slices.Contains(parents, expected) {
 			t.Fatalf("plan lineage omits %+v", expected)
@@ -82,8 +75,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 
 func TestPlanRejectsInvalidEvaluationAuthority(t *testing.T) {
 	t.Parallel()
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
 	valid := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),

@@ -19,10 +19,9 @@ const remoteTestCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_REMOTE_DISCOVERY_TEST_KEY", "")
-	declaration, err := remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
+	declaration := testcheck.Must(remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_REMOTE_DISCOVERY_TEST_KEY", Model: "vendor/model",
-	}, remoteTestCodeCommit)
-	testcheck.NoError(t, err)
+	}, remoteTestCodeCommit))(t)
 	entries, err := Servable(t.Context(), store, 16)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("servable = %+v, %v", entries, err)

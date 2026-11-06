@@ -20,13 +20,11 @@ func TestInventoryResolvesARelativeRoot(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(weights), 0o755))
 	testcheck.NoError(t, os.WriteFile(weights, []byte("weights"), 0o644))
 	t.Chdir(parent)
-	directories, err := modelDirectories([]string{"models"})
-	testcheck.NoError(t, err)
+	directories := testcheck.Must(modelDirectories([]string{"models"}))(t)
 	if len(directories) != 1 || !filepath.IsAbs(directories[0].Path) {
 		t.Fatalf("directories = %+v, want one absolute path", directories)
 	}
-	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("registered"))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("registered")))(t)
 	cells := []ModelValidation{{Model: model, Location: weights}}
 	inventory := buildInventory(directories, cells, nil, "C:/stores/selected")
 	if len(inventory) != 1 || inventory[0].Standing != standingRegistered || len(inventory[0].Models) != 1 {
@@ -41,12 +39,10 @@ func TestInventoryResolvesARelativeRoot(t *testing.T) {
 func TestInventoryNamesTheProvenFile(t *testing.T) {
 	t.Parallel()
 	identify := func(text string) artifact.ID {
-		id, err := artifact.IdentifyBytes(artifact.KindModel, []byte(text))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte(text)))(t)
 		return id
 	}
-	activation, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted"))
-	testcheck.NoError(t, err)
+	activation := testcheck.Must(artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted")))(t)
 	superseded, proven, unproven := identify("superseded"), identify("proven"), identify("unproven")
 	cells := []ModelValidation{
 		{Model: superseded, Location: "C:/models/Model/model-f16.gguf"},

@@ -51,8 +51,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 		writeGeneratorFixture(t, root, name, content)
 		paths = append(paths, name)
 	}
-	snapshot, err := gosyntax.LoadGo(root, paths)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.LoadGo(root, paths))(t)
 	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{}, Packages: map[string]string{},
 	}
@@ -61,8 +60,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 		selection.Packages[name] = "overgo/" + name[:len(name)-len("/artifact.go")]
 	}
 	selection.Packages["internal/example/contracts.go"] = "overgo/internal/example"
-	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
-	testcheck.NoError(t, err)
+	declarations := testcheck.Must(DocumentDeclarations(snapshot, []gosource.BuildSelection{selection}))(t)
 	if len(declarations) != 2 {
 		t.Fatalf("document declarations = %+v", declarations)
 	}
@@ -75,14 +73,10 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 const outputSchemaFixture = "overgo/example/v1"
 
 func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	testcheck.NoError(t, err)
-	selection, err := gosource.HostBuildSelection(root, "./internal/...", "./cmd/...")
-	testcheck.NoError(t, err)
-	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(root, "internal", "cmd"))(t)
+	selection := testcheck.Must(gosource.HostBuildSelection(root, "./internal/...", "./cmd/..."))(t)
+	declarations := testcheck.Must(DocumentDeclarations(snapshot, []gosource.BuildSelection{selection}))(t)
 	want := map[string]bool{
 		"overgo/api-manifest/v1":        false,
 		"overgo/vocabulary-artifact/v1": false,
@@ -113,8 +107,7 @@ import "overgo/internal/artifact"
 func schema() string { return "overgo/example/v1" }
 var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, artifact.JSONMediaType, schema())
 `)
-	snapshot, err := gosyntax.LoadGo(root, []string{name})
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.LoadGo(root, []string{name}))(t)
 	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},

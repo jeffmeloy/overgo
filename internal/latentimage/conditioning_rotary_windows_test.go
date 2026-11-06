@@ -102,14 +102,11 @@ func TestMOSSConditioningRotaryGolden(t *testing.T) {
 				}
 				compare("frequencies", inverse, refinementValues(t, s, name+".inverse"))
 				want := refinementValues(t, s, name+".output")
-				cpu, err := reference.Execute([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
+				cpu := testcheck.Must(reference.Execute([]*tensor.Tensor{out}, feeds))(t)
 				compare("cpu", cpu[out].Data, want)
-				got, err := run([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
 				compare("cuda", got[out].Data, want)
-				again, err := run([]*tensor.Tensor{out}, feeds)
-				testcheck.NoError(t, err)
+				again := testcheck.Must(run([]*tensor.Tensor{out}, feeds))(t)
 				compare("repeat", again[out].Data, got[out].Data)
 			})
 		}

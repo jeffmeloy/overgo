@@ -29,11 +29,10 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	}
 	observe := func(model, recipeID artifact.ID, task recipe.Task, environment, operation artifact.ID) runrecord.ServingObservation {
 		t.Helper()
-		observation, err := runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
+		observation := testcheck.Must(runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
 			Model: model, Recipe: recipeID, Environment: environment, Operation: operation,
 			Task: task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return observation
 	}
 	capability := RemotePeerCapability{
@@ -64,10 +63,8 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	}
 
 	foreignModel := id(artifact.KindModel, "reference-foreign-model")
-	foreignDefinition, err := CapabilityDefinition(recipe.TaskGeneration, foreignModel)
-	testcheck.NoError(t, err)
-	foreignDefinitionContent, err := foreignDefinition.ArtifactContent()
-	testcheck.NoError(t, err)
+	foreignDefinition := testcheck.Must(CapabilityDefinition(recipe.TaskGeneration, foreignModel))(t)
+	foreignDefinitionContent := testcheck.Must(foreignDefinition.ArtifactContent())(t)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{
 		Key: "reference/foreign-definition", Artifacts: []artifact.Descriptor{{ID: foreignModel}},
 		Contents: []artifact.Content{foreignDefinitionContent},
@@ -87,10 +84,8 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	); err == nil {
 		t.Fatal("well-formed foreign recipe definition was admitted for another model")
 	}
-	foreignTaskDefinition, err := CapabilityDefinition(recipe.TaskForecast, fixture.model)
-	testcheck.NoError(t, err)
-	foreignTaskContent, err := foreignTaskDefinition.ArtifactContent()
-	testcheck.NoError(t, err)
+	foreignTaskDefinition := testcheck.Must(CapabilityDefinition(recipe.TaskForecast, fixture.model))(t)
+	foreignTaskContent := testcheck.Must(foreignTaskDefinition.ArtifactContent())(t)
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{
 		Key: "reference/foreign-task-definition", Contents: []artifact.Content{foreignTaskContent},
 	}); err != nil {
@@ -138,15 +133,12 @@ func commitUnboundPeerTestObservation(
 	value runrecord.ServingObservation,
 ) runrecord.ServingObservation {
 	t.Helper()
-	observation, err := runrecord.NewServingObservation(value)
-	testcheck.NoError(t, err)
-	content, err := observation.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
+	content := testcheck.Must(observation.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"test/peer-observation/"+observation.ID.String(),
 		[]artifact.Content{content}, observation.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
 		t.Fatal(err)
 	}

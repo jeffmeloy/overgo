@@ -20,12 +20,10 @@ import (
 func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	content := func(kind artifact.Kind, mediaType, schema string, data []byte) artifact.Content {
 		t.Helper()
-		id, err := artifact.IdentifyBytes(kind, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, data))(t)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: mediaType, Schema: schema}, Data: data}
 	}
 	request := content(artifact.KindFile, artifact.JSONMediaType, "overgo.video-edit-input.v1", []byte(`{"seed":3}`))
@@ -38,10 +36,8 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	}
 	commitRun := func(key string, inputs, outputs []artifact.ID) artifact.ID {
 		t.Helper()
-		run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, outputs, "")
-		testcheck.NoError(t, err)
-		batch, err := run.Batch(key)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, outputs, ""))(t)
+		batch := testcheck.Must(run.Batch(key))(t)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
@@ -50,8 +46,7 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 	producer := commitRun("fixture/lineage/producer", []artifact.ID{request.Descriptor.ID, source.Descriptor.ID}, []artifact.ID{output.Descriptor.ID})
 	consumer := commitRun("fixture/lineage/consumer", []artifact.ID{output.Descriptor.ID}, []artifact.ID{answer.Descriptor.ID})
 	testcheck.NoError(t, store.Close())
-	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	page := serveTestRequest(handler, http.MethodGet, "/artifacts/lineage?id="+output.Descriptor.ID.String(), "")
 	var lineage artifactLineageResponse

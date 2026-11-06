@@ -22,8 +22,7 @@ func TestParseOptionsBounds(t *testing.T) {
 		tokens, runs  int
 		model, prompt string
 	}{4, 3, "model.gguf", "hello"}
-	options, err := parseOptions([]string{"-tokens", "4", "-runs", "3", "-warmup", "0", "model.gguf", "hello"})
-	testcheck.NoError(t, err)
+	options := testcheck.Must(parseOptions([]string{"-tokens", "4", "-runs", "3", "-warmup", "0", "model.gguf", "hello"}))(t)
 	got := struct {
 		tokens, runs  int
 		model, prompt string

@@ -11,11 +11,9 @@ import (
 
 func TestAlignmentTopology(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
-	base, err := TranscriptionDefinition(id(artifact.KindModel, "recognizer"), id(artifact.KindProfile, "format"), id(artifact.KindProfile, "recognition"), id(artifact.KindTokenizer, "tokens"), id(artifact.KindTensorInventory, "tensors"))
-	testcheck.NoError(t, err)
+	base := testcheck.Must(TranscriptionDefinition(id(artifact.KindModel, "recognizer"), id(artifact.KindProfile, "format"), id(artifact.KindProfile, "recognition"), id(artifact.KindTokenizer, "tokens"), id(artifact.KindTensorInventory, "tensors")))(t)
 	profile := id(artifact.KindProfile, "alignment")
-	definition, err := AlignmentDefinition(base, profile)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(AlignmentDefinition(base, profile))(t)
 	if _, err := CompileCapability(definition); err != nil {
 		t.Fatal(err)
 	}
@@ -23,8 +21,7 @@ func TestAlignmentTopology(t *testing.T) {
 	if err != nil || got.ID != base.ID || activity.ID.Valid() {
 		t.Fatalf("components: %+v %+v %v", got, activity, err)
 	}
-	adapted, err := AdaptedTranscriptionDefinition(base, id(artifact.KindCheckpoint, "adapter"))
-	testcheck.NoError(t, err)
+	adapted := testcheck.Must(AdaptedTranscriptionDefinition(base, id(artifact.KindCheckpoint, "adapter")))(t)
 	if _, err := AlignmentDefinition(adapted, profile); err == nil {
 		t.Fatal("adapted alignment admitted")
 	}
@@ -47,11 +44,9 @@ func TestAlignmentTopology(t *testing.T) {
 			}
 		},
 	} {
-		changed, err := AlignmentDefinition(base, profile)
-		testcheck.NoError(t, err)
+		changed := testcheck.Must(AlignmentDefinition(base, profile))(t)
 		mutate(&changed)
-		changed, err = recipe.NewDefinitionWithDependencies(changed.Task, changed.Dependencies, changed.Nodes, changed.Edges, changed.Inputs, changed.Outputs)
-		testcheck.NoError(t, err)
+		changed = testcheck.Must(recipe.NewDefinitionWithDependencies(changed.Task, changed.Dependencies, changed.Nodes, changed.Edges, changed.Inputs, changed.Outputs))(t)
 		if _, _, err := SpeechComponents(changed); err == nil {
 			t.Fatal("altered complete topology admitted")
 		}

@@ -47,8 +47,7 @@ func TestAudioDecodeConsolidationAcceptance(t *testing.T) {
 			t.Fatalf("cancelled output: %v", err)
 		}
 	})
-	flac, err := hex.DecodeString(stereoFLACHex)
-	testcheck.NoError(t, err)
+	flac := testcheck.Must(hex.DecodeString(stereoFLACHex))(t)
 	t.Run("flac-preserves-channels", func(t *testing.T) {
 		audio, status, err := DecodeAudio(t.Context(), flac, 48)
 		if err != nil || status != recipecontract.AudioDecodeComplete || audio.Format.Channels != 2 || len(audio.Samples) != 48 || !slices.Equal(audio.Samples[:6], []float32{0, .5, -.5, .25, .125, -.125}) {

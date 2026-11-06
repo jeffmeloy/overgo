@@ -32,8 +32,7 @@ const (
 // another captures nothing again. Every request decodes the tokens it decodes alone.
 func TestALongReadLeavesADenseRunnerItsDecodeScratch(t *testing.T) {
 	cudatest.Require(t)
-	runner, err := openNativeFixtureRunner(modeltest.Directory(t, "Qwen3.5-9B-Q8_0.gguf"), OpenOptions{DeviceOrdinal: 0})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openNativeFixtureRunner(modeltest.Directory(t, "Qwen3.5-9B-Q8_0.gguf"), OpenOptions{DeviceOrdinal: 0}))(t)
 	defer runner.Close()
 	generate := func(tokens int) ([]tokenizer.TokenID, executor.ExecutionMetrics, uint64) {
 		t.Helper()
@@ -41,12 +40,10 @@ func TestALongReadLeavesADenseRunnerItsDecodeScratch(t *testing.T) {
 		for i := range ids {
 			ids[i] = tokenizer.TokenID(readTokenBase + i%readTokenSpan)
 		}
-		sampler, err := sampling.New(sampling.Config{})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(sampling.Config{}))(t)
 		out, _, err := runner.Generate(t.Context(), "", GenerateOptions{MaxNewTokens: readDecodes, Sampler: sampler, PromptTokenIDs: ids})
 		testcheck.NoError(t, err)
-		metrics, err := runner.cuda.Metrics(t.Context())
-		testcheck.NoError(t, err)
+		metrics := testcheck.Must(runner.cuda.Metrics(t.Context()))(t)
 		return out[len(out)-readDecodes:], metrics, driver.ProcessCurrentBytes()
 	}
 	short, first, firstHeld := generate(shortRead)

@@ -93,8 +93,7 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	if _, err := os.Stat(final); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("shutdown published partial: %v", err)
 	}
-	client, err := hfhub.New(hub.URL, "")
-	testcheck.NoError(t, err)
+	client := testcheck.Must(hfhub.New(hub.URL, ""))(t)
 	if _, err := client.Download(t.Context(), hfhub.DownloadRequest{Kind: hfhub.KindModel, Repository: "acme/tiny", Destination: filepath.Dir(final)}); err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +147,7 @@ func TestDownloadJobCallerBudget(t *testing.T) {
 		t.Fatalf("budget published incomplete bytes: %v", err)
 	}
 	// The retained prefix lives in the destination's sibling bookkeeping directory.
-	partials, err := filepath.Glob(filepath.Join(root, ".tiny.download", "weights.bin.partial-*"))
-	testcheck.NoError(t, err)
+	partials := testcheck.Must(filepath.Glob(filepath.Join(root, ".tiny.download", "weights.bin.partial-*")))(t)
 	retained := false
 	for _, path := range partials {
 		if strings.HasSuffix(path, ".etag") {

@@ -21,8 +21,7 @@ import (
 // the fp64 host oracle across tall/wide/square shapes within tolerance.
 func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	var ops *deviceOps
 	testcheck.NoError(t, worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }))

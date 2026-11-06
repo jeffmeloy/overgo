@@ -32,7 +32,7 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 	rung := func(name string, held bool, detail string) map[string]any {
 		return map[string]any{"name": name, "held": held, "detail": detail}
 	}
-	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
+	catalog := testcheck.Must(json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
 		{
 			"model": manifest.Model.Model, "location": "C:/models/" + health.Model, "present": true, "recipe": "recipe:served",
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:served", "tier": "verified"}},
@@ -55,8 +55,7 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 				rung("trainable", false, "no training activation"),
 			}},
 		},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)

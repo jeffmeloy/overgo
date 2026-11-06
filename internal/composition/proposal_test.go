@@ -17,14 +17,12 @@ import (
 func TestBridgeProposalBlocksWithoutVerifier(t *testing.T) {
 	target := testutil.ArtifactID(t, artifact.KindModel, "proposal-target")
 	donor := testutil.ArtifactID(t, artifact.KindModel, "proposal-donor")
-	ranker, err := TrainProposalRanker(nil, nil, nil)
-	testcheck.NoError(t, err)
+	ranker := testcheck.Must(TrainProposalRanker(nil, nil, nil))(t)
 	candidates := []BridgeCandidate{{Donor: donor, Component: "blk.7.ffn_gate.weight", Distance: 0.125}}
 	verifier := "go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1"
 	blocker := "no recorded experiment evidence; the adapter tier is retired pending per-matrix modulation"
 
-	proposal, err := NewBridgeProposal(target, candidates, ranker, verifier, blocker)
-	testcheck.NoError(t, err)
+	proposal := testcheck.Must(NewBridgeProposal(target, candidates, ranker, verifier, blocker))(t)
 	if proposal.State != ProposalPromotionBlocked || proposal.Blocker != blocker {
 		t.Fatalf("proposal state = %+v, want promotion-blocked with blocker", proposal)
 	}
@@ -49,8 +47,7 @@ func TestBridgeProposalBlocksWithoutVerifier(t *testing.T) {
 		t.Fatal("candidate-free proposal accepted")
 	}
 
-	content, err := proposal.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(proposal.Content())(t)
 	parsed, err := ParseBridgeProposal(content.Data)
 	if err != nil || parsed.ID != proposal.ID || parsed.State != ProposalPromotionBlocked {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)

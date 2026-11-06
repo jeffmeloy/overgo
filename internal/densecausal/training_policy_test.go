@@ -9,8 +9,7 @@ import (
 
 func derivedTestLearningRate(t *testing.T, model *Model) float64 {
 	t.Helper()
-	plan, err := model.TrainingPlan()
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(model.TrainingPlan())(t)
 	// The fixtures train from their random initialization.
 	return trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(plan.ParameterCount())
 }

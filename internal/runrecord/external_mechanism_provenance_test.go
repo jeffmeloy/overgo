@@ -17,16 +17,14 @@ func TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted(t *t
 		Gap: id(artifact.KindEvidence, "router-gap"), Falsifier: id(artifact.KindRecipe, "router-falsifier"),
 		GapState: trainingprogram.MechanismGapOpen,
 	}
-	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
+	census := testcheck.Must(trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment}))(t)
 	source := ExternalMechanismSource{Mechanism: assessment.Mechanism, Paths: []string{
 		"experiments/grug/moe/model.py", "experiments/grug/moe/README.md",
 	}}
 	license := id(artifact.KindEvidence, "apache-2.0-license")
-	provenance, err := NewExternalMechanismProvenance(
+	provenance := testcheck.Must(NewExternalMechanismProvenance(
 		census, "local/marin", "b352a9e5d49eede33f08e0ab8df1e786425c2db5", license, []ExternalMechanismSource{source},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	content, err := provenance.Content()
 	if err != nil || provenance.Transfer != externalMechanismTransfer || !bytes.Contains(content.Data, []byte(`"transfer":"reexpress-overgo-native"`)) {
 		t.Fatalf("provenance = (%q, %v)", provenance.Transfer, err)

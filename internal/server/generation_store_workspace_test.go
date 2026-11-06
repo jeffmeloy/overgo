@@ -63,8 +63,7 @@ func activateModelAt(t *testing.T, store *overgodb.Store, location string, defin
 	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated/"+definition.ID.String(), definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence/"+definition.ID.String(), definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence/"+definition.ID.String(), definition.ID))(t)
 	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active/"+definition.ID.String(), definition, verification,
 		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
 		t.Fatal(err)
@@ -77,13 +76,11 @@ func activateModelAt(t *testing.T, store *overgodb.Store, location string, defin
 func candidateModelAt(t *testing.T, store *overgodb.Store, location string, define func(artifact.ID) (recipe.Definition, error)) (artifact.ID, recipe.Definition) {
 	t.Helper()
 	ctx := t.Context()
-	payload, err := os.ReadFile(location)
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(os.ReadFile(location))(t)
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/generation/model/" + manifest.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len(payload))}},
@@ -94,8 +91,7 @@ func candidateModelAt(t *testing.T, store *overgodb.Store, location string, defi
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := define(manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(define(manifest.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
@@ -206,8 +202,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	}
 
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":7}`), reporter)
-	testcheck.NoError(t, err)
+	completion := testcheck.Must(workspace.ExecuteWorkflow(ctx, workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":7}`), reporter))(t)
 	if !reporter.published || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 1 {
 		t.Fatalf("completion = %+v published=%v", completion, reporter.published)
 	}
@@ -228,13 +223,11 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	}
 	// A submission's sources (a prompt enhancement the page accepted) are
 	// the run's inputs beside the request, so the original stays its source.
-	enhancement, err := artifact.JSONContract(artifact.KindFile, promptEnhancementSchema).ContentBytes([]byte(`{"original":"a square","enhanced":"a red square"}`))
-	testcheck.NoError(t, err)
+	enhancement := testcheck.Must(artifact.JSONContract(artifact.KindFile, promptEnhancementSchema).ContentBytes([]byte(`{"original":"a square","enhanced":"a red square"}`)))(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "fixture/generation/enhancement", Contents: []artifact.Content{enhancement}}); err != nil {
 		t.Fatal(err)
 	}
-	sourced, err := workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":8}`), reporter)
-	testcheck.NoError(t, err)
+	sourced := testcheck.Must(workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), workflowGeneration, capability, json.RawMessage(`{"class":1,"seed":8}`), reporter))(t)
 	run, err := runrecord.RequireRun(ctx, store, sourced.Run)
 	if err != nil || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, enhancement.Descriptor.ID) || slices.Contains(run.Inputs, request.ID) {
 		t.Fatalf("sourced run = %+v, %v", run, err)

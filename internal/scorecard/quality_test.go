@@ -111,10 +111,8 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	}
 	record := func(recipeID, set artifact.ID, metrics []runrecord.Metric) runrecord.Evaluation {
 		t.Helper()
-		evaluated, err := runrecord.NewEvaluation(recipeID, run(set), set, metrics)
-		testcheck.NoError(t, err)
-		batch, err := evaluated.Batch("quality/" + set.String())
-		testcheck.NoError(t, err)
+		evaluated := testcheck.Must(runrecord.NewEvaluation(recipeID, run(set), set, metrics))(t)
+		batch := testcheck.Must(evaluated.Batch("quality/" + set.String()))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -126,7 +124,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	scored := func(recipeID, set artifact.ID, value float64) runrecord.Evaluation {
 		t.Helper()
 		evaluated := record(recipeID, set, accuracy(value))
-		data, err := json.Marshal(evaluation.EvaluationEvidence{
+		data := testcheck.Must(json.Marshal(evaluation.EvaluationEvidence{
 			Version: artifact.InitialDocumentVersion,
 			Plan:    id(artifact.KindProfile, "plan "+set.String()), Acceptance: id(artifact.KindProfile, "acceptance"),
 			Evaluator: id(artifact.KindEvidence, "evaluator"), Report: id(artifact.KindEvaluation, "report "+set.String()),
@@ -135,14 +133,10 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 			Environment: id(artifact.KindEvidence, "environment"), CodeCommit: strings.Repeat("ab", 20),
 			Phases:  []runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: 1}},
 			Metrics: accuracy(value),
-		})
-		testcheck.NoError(t, err)
-		evidence, err := evaluation.ParseEvaluationEvidence(data)
-		testcheck.NoError(t, err)
-		content, err := evidence.Content()
-		testcheck.NoError(t, err)
-		batch, err := artifact.NewDocumentBatch("quality/evidence/"+set.String(), []artifact.Content{content}, nil, nil)
-		testcheck.NoError(t, err)
+		}))(t)
+		evidence := testcheck.Must(evaluation.ParseEvaluationEvidence(data))(t)
+		content := testcheck.Must(evidence.Content())(t)
+		batch := testcheck.Must(artifact.NewDocumentBatch("quality/evidence/"+set.String(), []artifact.Content{content}, nil, nil))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -207,8 +201,7 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	set, split, transcriber := id(artifact.KindDataset, "librispeech"), id(artifact.KindDatasetShard, "test-clean"), id(artifact.KindRecipe, "transcriber")
-	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"}))(t)
 	definition, environment, commit := id(artifact.KindModelDefinition, "transcriber"), platform.ID, strings.Repeat("ab", 20)
 	// The clean group holds two utterances, the other one.
 	cases := []evaluation.TranscriptionCase{
@@ -228,16 +221,14 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 	normalization := []evaluation.TranscriptionNormalization{
 		evaluation.TranscriptionLowercase, evaluation.TranscriptionStripPunctuation, evaluation.TranscriptionCollapseWhitespace,
 	}
-	compiled, err := evaluation.CompileTranscription(evaluation.TranscriptionSuite{
+	compiled := testcheck.Must(evaluation.CompileTranscription(evaluation.TranscriptionSuite{
 		Kind: evaluation.TranscriptionKind, Schema: "fixture/v1", Source: "pinned fixture", Dataset: set, Split: split,
 		Normalization: normalization, Cases: cases,
-	})
-	testcheck.NoError(t, err)
-	plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
+	}))(t)
+	plan := testcheck.Must(evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
 		ModelDefinition: definition, RuntimeRecipe: transcriber, CodeCommit: commit, Environment: environment,
 		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	// score records one run per case that heard its text, then the report
 	// scoring them.
 	score := func(texts ...string) evaluation.TranscriptionReport {
@@ -245,42 +236,34 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 		var predictions []evaluation.TranscriptionPrediction
 		for index, text := range texts {
 			source := cases[index].Source
-			output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema),
-				recipecontract.Transcription{Source: source, Text: text, Language: "en"})
-			testcheck.NoError(t, err)
-			run, err := runrecord.NewBoundRun(transcriber, runrecord.OutcomeSucceeded,
+			output := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema),
+				recipecontract.Transcription{Source: source, Text: text, Language: "en"}))(t)
+			run := testcheck.Must(runrecord.NewBoundRun(transcriber, runrecord.OutcomeSucceeded,
 				[]artifact.ID{set, split, source.Audio, source.Profile}, []artifact.ID{output.Descriptor.ID}, "", commit, environment, 1,
-				[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 1}})
-			testcheck.NoError(t, err)
-			content, err := run.Content()
-			testcheck.NoError(t, err)
-			batch, err := artifact.NewDocumentBatch("quality/transcription/"+run.ID.DigestHex(), []artifact.Content{output, content}, run.Lineage(), nil)
-			testcheck.NoError(t, err)
+				[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 1}}))(t)
+			content := testcheck.Must(run.Content())(t)
+			batch := testcheck.Must(artifact.NewDocumentBatch("quality/transcription/"+run.ID.DigestHex(), []artifact.Content{output, content}, run.Lineage(), nil))(t)
 			if _, err := store.Commit(ctx, batch); err != nil {
 				t.Fatal(err)
 			}
 			predictions = append(predictions, evaluation.TranscriptionPrediction{Name: cases[index].Name, Run: run.ID})
 		}
-		report, err := evaluation.EvaluateTranscription(ctx, store, compiled, plan, predictions)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(evaluation.EvaluateTranscription(ctx, store, compiled, plan, predictions))(t)
 		return report
 	}
 	score("the cat", "on mat", "hello")
 	newest := score("the cat sat", "on a mat", "hello world")
 
-	records, err := heldoutRecords(ctx, store, nil)
-	testcheck.NoError(t, err)
+	records := testcheck.Must(heldoutRecords(ctx, store, nil))(t)
 	cell := records[transcriber].cell(recipe.TaskTranscription)
 	if verdict, _ := holds(metric.Quality, cell, cell); verdict != Unknown || cell.Contract.Comparison.Valid() {
 		t.Fatal("an absent environment document earned a transcription comparison")
 	}
-	batch, err := platform.Batch("quality/transcription/environment")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(platform.Batch("quality/transcription/environment"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	records, err = heldoutRecords(ctx, store, nil)
-	testcheck.NoError(t, err)
+	records = testcheck.Must(heldoutRecords(ctx, store, nil))(t)
 	cell = records[transcriber].cell(recipe.TaskTranscription)
 	if verdict, why := holds(metric.Quality, cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || cell.CodeCommit != commit || cell.Environment != environment {
 		t.Fatalf("fully checked transcription cannot compare: %+v (%s)", cell, why)
@@ -329,8 +312,7 @@ func TestQualityReadsHeldoutVerdicts(t *testing.T) {
 func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheckpoint, wrongModel, unreadableObservation bool) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	// The session trained a head's weights file, which the served model
@@ -342,8 +324,7 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		components[0].Role = artifact.ComponentWeightsShard
 		components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: 1, Name: "classification/frozen", Artifact: id(artifact.KindTensorSet, "frozen")})
 	}
-	directory, err := artifact.NewManifest(artifact.KindModel, components)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(artifact.NewManifest(artifact.KindModel, components))(t)
 	if complete {
 		trainedWeights = directory.ID
 	}
@@ -369,13 +350,11 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 			t.Fatal(err)
 		}
 	}
-	session, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+	session := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 		Model: observedModel, Recipe: training, Environment: environment, Task: recipe.TaskTraining,
 		Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
-	})
-	testcheck.NoError(t, err)
-	observed, err := session.Batch("quality/verdict/session")
-	testcheck.NoError(t, err)
+	}))(t)
+	observed := testcheck.Must(session.Batch("quality/verdict/session"))(t)
 	if _, err := store.Commit(ctx, observed); err != nil {
 		t.Fatal(err)
 	}
@@ -385,13 +364,12 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 	for index := range 12 {
 		rows = append(rows, dataset.Record{ID: fmt.Sprintf("table/%02d", index), Group: fmt.Sprintf("table-%02d", index)})
 	}
-	split, err := dataset.BuildGroupSplit(source, rows, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	testcheck.NoError(t, err)
+	split := testcheck.Must(dataset.BuildGroupSplit(source, rows, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}}))(t)
 	memberships := map[string]dataset.Membership{}
 	for _, membership := range split.Memberships {
 		memberships[membership.Partition] = membership
 	}
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "credit-g", Kind: trainingprogram.ObjectiveTablePrediction,
 		Signature: recipecontract.ModalitySignature{
 			Inputs: []recipecontract.Modality{recipecontract.ModalityTable}, Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
@@ -400,16 +378,13 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		Loss: id(artifact.KindProfile, "loss"), Evaluation: id(artifact.KindProfile, "evaluation"),
 		Metric: trainingprogram.MetricTableAccuracy, Evidence: []artifact.ID{session.ID},
 		Authority: trainingprogram.ObjectiveAdaptive,
-	})
-	testcheck.NoError(t, err)
-	view, err := evaluation.CompileSFTEvaluationView(objective, memberships["train"], memberships["heldout"])
-	testcheck.NoError(t, err)
+	}))(t)
+	view := testcheck.Must(evaluation.CompileSFTEvaluationView(objective, memberships["train"], memberships["heldout"]))(t)
 	var cases []evaluation.HeldoutCase
 	for _, record := range view.Records {
 		cases = append(cases, evaluation.HeldoutCase{Record: record.ID, Label: "good"})
 	}
-	plan, err := evaluation.CompileHeldoutPlan(objective, view, cases)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(evaluation.CompileHeldoutPlan(objective, view, cases))(t)
 	// answer scores a model that labels every held-out row label.
 	answer := func(label string) evaluation.HeldoutReport {
 		t.Helper()
@@ -417,8 +392,7 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		for _, target := range cases {
 			observations = append(observations, evaluation.HeldoutObservation{Record: target.Record, Label: label})
 		}
-		report, err := plan.Score(observations)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(plan.Score(observations))(t)
 		return report
 	}
 	base, trained := answer("bad"), answer("good")
@@ -427,10 +401,8 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		base, trained = trained, base
 		baseValue, trainedValue = trainedValue, baseValue
 	}
-	registration, err := split.PublicationBatch("quality/verdict/registration", nil)
-	testcheck.NoError(t, err)
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
+	registration := testcheck.Must(split.PublicationBatch("quality/verdict/registration", nil))(t)
+	content := testcheck.Must(objective.Content())(t)
 	registration.Contents = append(registration.Contents, content)
 	for _, declared := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: declared})
@@ -445,12 +417,10 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 	if _, err := artifact.Publish(ctx, store, checkpointBatch); err != nil {
 		t.Fatal(err)
 	}
-	verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
+	verdict := testcheck.Must(evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
 		Observation: session.ID, Model: trainedWeights, Inputs: id(artifact.KindProfile, "inputs"), Trained: checkpoint,
-	})
-	testcheck.NoError(t, err)
-	judged, err := evaluation.HeldoutBatch(view, plan, base, trained, verdict)
-	testcheck.NoError(t, err)
+	}))(t)
+	judged := testcheck.Must(evaluation.HeldoutBatch(view, plan, base, trained, verdict))(t)
 	if _, err := artifact.Publish(ctx, store, judged); err != nil {
 		t.Fatal(err)
 	}
@@ -458,20 +428,17 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 	// reconstructed nor attributed to a recipe, and the older verdict above must not stand in for it.
 	var newer artifact.ID
 	if unreadableObservation {
-		lost, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+		lost := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 			Model: observedModel, Recipe: training, Environment: environment, Task: recipe.TaskTraining,
 			Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: 1,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "quality/verdict/lost-session", Artifacts: []artifact.Descriptor{{ID: lost.ID}}}); err != nil {
 			t.Fatal(err)
 		}
-		later, err := evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
+		later := testcheck.Must(evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
 			Observation: lost.ID, Model: trainedWeights, Inputs: id(artifact.KindProfile, "inputs"), Trained: checkpoint,
-		})
-		testcheck.NoError(t, err)
-		again, err := evaluation.HeldoutBatch(view, plan, base, trained, later)
-		testcheck.NoError(t, err)
+		}))(t)
+		again := testcheck.Must(evaluation.HeldoutBatch(view, plan, base, trained, later))(t)
 		if _, err := artifact.Publish(ctx, store, again); err != nil {
 			t.Fatal(err)
 		}
@@ -547,18 +514,15 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) (training
 	t.Helper()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	const parameters = 4
-	plan, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})
-	testcheck.NoError(t, err)
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(parameters)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}}))(t)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(parameters))(t)
 	weights := make([]float32, parameters)
-	muon, err := hostoptimizer.New(weights, slices.Repeat([]float32{1}, parameters), plan, config)
-	testcheck.NoError(t, err)
+	muon := testcheck.Must(hostoptimizer.New(weights, slices.Repeat([]float32{1}, parameters), plan, config))(t)
 	muon.Step()
 	state := muon.Snapshot()
 	rng := id(artifact.KindProfile, "rng")
 	directory := filepath.Join(t.TempDir(), "checkpoint")
-	checkpoint, err := trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
+	checkpoint := testcheck.Must(trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
 		RunPlan: id(artifact.KindRecipe, "run plan"), Program: id(artifact.KindRecipe, "program"), Model: model,
 		Dataset: source, Split: split, Stream: trainingprogram.DatasetState{Identity: id(artifact.KindProfile, "stream"), Position: 1},
 		Optimizer: state, ParameterCount: state.Parameters(),
@@ -567,10 +531,8 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) (training
 		Lineage:    []trainingprogram.LineageParent{{Artifact: model, Relation: artifact.RelationTrainedFrom}},
 	}, func(stage string) error {
 		return optimizer.SavePlanWeights(filepath.Join(stage, trainingprogram.CheckpointWeights), plan, weights)
-	})
-	testcheck.NoError(t, err)
-	batch, err := checkpoint.Batch("quality/verdict/checkpoint", directory)
-	testcheck.NoError(t, err)
+	}))(t)
+	batch := testcheck.Must(checkpoint.Batch("quality/verdict/checkpoint", directory))(t)
 	return checkpoint, batch
 }
 

@@ -21,8 +21,7 @@ func TestCommandRunsSharedModelBuilder(t *testing.T) {
 	if err := run(arguments, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "active derivation profile absent") {
 		t.Fatalf("unseeded model build error = %v", err)
 	}
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}

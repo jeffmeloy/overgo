@@ -46,10 +46,9 @@ func TestReplayDoesNotCrossACodeChange(t *testing.T) {
 			}
 			execute := JSONScalar[scalarRequest, int, int]("scalar", validate, load, bind)
 			if name == "session" {
-				director, err := NewModelSessionDirector[scalarRequest, int, int](
+				director := testcheck.Must(NewModelSessionDirector[scalarRequest, int, int](
 					"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
-				)
-				testcheck.NoError(t, err)
+				))(t)
 				defer director.Close(t.Context())
 				execute = director.Executor()
 			}
@@ -62,8 +61,7 @@ func TestReplayDoesNotCrossACodeChange(t *testing.T) {
 			}{{"commit/first", 1, 1}, {"commit/first", 1, 1}, {"commit/mended", 2, 2}, {"commit/mended", 2, 2}, {"commit/first", 1, 2}} {
 				codeScope, bias = func() string { return step.build }, step.bias
 				loaded, ran := loads.Load(), runs.Load()
-				got, err := execute(t.Context(), store, "model", execution, `{"value":4}`)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(execute(t.Context(), store, "model", execution, `{"value":4}`))(t)
 				measured := got.(Measured)
 				replayed := runs.Load() == ran
 				if measured.Output != 4+step.bias || runs.Load() != step.runs || replayed && (loads.Load() != loaded || len(measured.Phases) != 0 || measured.Load != 0) {

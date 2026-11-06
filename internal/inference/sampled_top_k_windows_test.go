@@ -38,8 +38,7 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 		{"hermetic", hermetic, writeHermeticFlashNextMTPGGUF(t, hermetic, false), false},
 		{"windows", windows, writeFlashNextMTPFixture(t, windows, false, strataFlashNextWindows), true},
 	} {
-		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative))(t)
 		if runner.windowsDecode() != fixture.windows {
 			_ = runner.Close()
 			t.Fatalf("%s: the runner decodes through windows %t", fixture.name, runner.windowsDecode())
@@ -48,8 +47,7 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 		for seed := range int64(seeds) {
 			generate := func(plain, card bool) []tokenizer.TokenID {
 				t.Helper()
-				sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1})
-				testcheck.NoError(t, err)
+				sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed + 1}))(t)
 				rows := 0
 				options := GenerateOptions{
 					MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -90,12 +88,10 @@ func TestCardTopKDrawsAsTheHostSampler(t *testing.T) {
 			t.Helper()
 			config := sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: 3}
 			if grammar != "" {
-				compiled, err := runner.CompileLazyGBNF(grammar, "", nil, []tokenizer.TokenID{trigger})
-				testcheck.NoError(t, err)
+				compiled := testcheck.Must(runner.CompileLazyGBNF(grammar, "", nil, []tokenizer.TokenID{trigger}))(t)
 				config.GBNF = compiled
 			}
-			sampler, err := sampling.New(config)
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(sampling.New(config))(t)
 			rows := 0
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, ContinueAfterEOG: grammar == "",
@@ -168,13 +164,11 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 		{"hermetic", hermetic, writeHermeticFlashNextMTPGGUF(t, hermetic, true)},
 		{"windows", windows, writeFlashNextMTPFixture(t, windows, true, strataFlashNextWindows)},
 	} {
-		runner, err := openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(fixture.trunk, OpenOptions{Draft: fixture.draft}, recipe.ResidencyDeviceNative))(t)
 		text := func(ids []tokenizer.TokenID) string {
 			var joined strings.Builder
 			for _, id := range ids {
-				piece, err := runner.vocab.DecodePiece(id, false)
-				testcheck.NoError(t, err)
+				piece := testcheck.Must(runner.vocab.DecodePiece(id, false))(t)
 				joined.WriteString(piece)
 			}
 			return joined.String()
@@ -184,8 +178,7 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 		// rows.
 		generate := func(seed int64, grammar *sampling.GBNFGrammar, card bool) ([]tokenizer.TokenID, map[int]bool, int) {
 			t.Helper()
-			sampler, err := sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed, GBNF: grammar})
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 1, TopK: 20, TopP: 0.95, Seed: seed, GBNF: grammar}))(t)
 			rows, emitted, kept := 0, 0, map[int]bool{}
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, PromptTokenIDs: prompt, DeviceTopK: card,
@@ -228,8 +221,7 @@ func TestSampledToolRequestTriggersOnAnAcceptedDraft(t *testing.T) {
 				}
 				forced := free[other]
 				compile := func() *sampling.GBNFGrammar {
-					grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil)
-					testcheck.NoError(t, err)
+					grammar := testcheck.Must(runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil))(t)
 					return grammar
 				}
 				whole, _, wholeRows := generate(seed, compile(), false)

@@ -22,10 +22,8 @@ func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component.ID,
 	}})
 	testcheck.NoError(t, err)
-	descriptor, err := manifest.Descriptor()
-	testcheck.NoError(t, err)
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	descriptor := testcheck.Must(manifest.Descriptor())(t)
+	store := testcheck.Must(Create(root))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/recommit/artifacts", Artifacts: []artifact.Descriptor{component, descriptor},
 	}); err != nil {
@@ -52,12 +50,10 @@ func TestManifestAndLocationReplay(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	component := fixtureDescriptor(t, artifact.KindTensorSet, "manifest-weights")
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component.ID,
-	}})
-	testcheck.NoError(t, err)
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	}}))(t)
+	store := testcheck.Must(Create(root))(t)
 	batch := artifact.Batch{
 		Key: "fixture/manifest/v1", Artifacts: []artifact.Descriptor{component},
 		Manifests: []artifact.Manifest{manifest},
@@ -70,8 +66,7 @@ func TestManifestAndLocationReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	got, ok, err := store.Manifest(t.Context(), manifest.ID)
 	if err != nil || !ok || !sameManifest(got, manifest) {
@@ -89,8 +84,7 @@ func TestManifestAndLocationReplay(t *testing.T) {
 
 func TestLocationRemoval(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	descriptor := fixtureDescriptor(t, artifact.KindFile, "located")
 	location := artifact.Location{Artifact: descriptor.ID, Kind: artifact.LocationFile, Value: fixtureManifestLocation}

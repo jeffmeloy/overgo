@@ -16,16 +16,14 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 	for _, cancelWait := range []bool{false, true} {
 		t.Run(map[bool]string{false: "release resumes opening", true: "cancel leaves owner intact"}[cancelWait], func(t *testing.T) {
 			root := t.TempDir()
-			owner, err := Create(root)
-			testcheck.NoError(t, err)
+			owner := testcheck.Must(Create(root))(t)
 			batch := fixtureBatch(t)
 			if _, err := owner.Commit(t.Context(), batch); err != nil {
 				t.Fatal(err)
 			}
 			testcheck.NoError(t, owner.Close())
 			lockPath := writerLockPath(root)
-			lock, err := processlock.Acquire(lockPath, storeFileMode)
-			testcheck.NoError(t, err)
+			lock := testcheck.Must(processlock.Acquire(lockPath, storeFileMode))(t)
 			defer lock.Close()
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(context.Canceled)
@@ -110,8 +108,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
 	batch := fixtureBatch(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
@@ -119,8 +116,7 @@ func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 	}
 	store.tail = 0
 	journal := store.log.file
-	lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
-	testcheck.NoError(t, err)
+	lock := testcheck.Must(processlock.Acquire(writerLockPath(root), storeFileMode))(t)
 	defer lock.Close()
 	for range 2 {
 		testcheck.NoError(t, store.Close())
@@ -133,8 +129,7 @@ func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 		}
 	}
 	testcheck.NoError(t, lock.Close())
-	reader, err := OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(OpenReadOnly(root))(t)
 	defer reader.Close()
 	if _, found, err := reader.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !found {
 		t.Fatalf("closing without a checkpoint lost committed data: %v, %v", found, err)

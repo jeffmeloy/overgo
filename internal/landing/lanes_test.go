@@ -73,8 +73,7 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		"d/d.go":      "package d\n",
 	})
 	candidate := lane{packages: []string{"./a"}, prefixes: []string{"web/"}}
-	reaches, err := discover(repo, candidate)
-	testcheck.NoError(t, err)
+	reaches := testcheck.Must(discover(repo, candidate))(t)
 	for _, change := range []struct {
 		paths []string
 		want  string
@@ -141,8 +140,7 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 			own := lane{name: "tagged", packages: []string{"./a"}, tags: tags}
 			untagged := lane{name: "untagged", packages: own.packages}
 			neighbour := lane{name: "neighbour", packages: []string{"./c"}, tags: tags}
-			reaches, err := discover(repo, own, untagged, neighbour)
-			testcheck.NoError(t, err)
+			reaches := testcheck.Must(discover(repo, own, untagged, neighbour))(t)
 			for _, selection := range []struct {
 				selected lane
 				changed  string
@@ -209,8 +207,7 @@ var (
 // reason in one line.
 func TestReachInvariants(t *testing.T) {
 	t.Parallel()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	repo := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	everyLane := slices.Concat(lanes, cycleLanes)
 	for _, name := range slices.Concat(servingLanes, browserOnlyLanes) {
 		if !slices.ContainsFunc(everyLane, func(candidate lane) bool { return candidate.name == name }) {
@@ -313,10 +310,8 @@ func TestReachInvariants(t *testing.T) {
 		{"internal/rae/autoencoder_test.go", gateLanes, false, "models", "autoencoder parity loads the installed encoder and decoder"},
 		{"internal/seq2seq/upstream_calls_model_test.go", gateLanes, false, "needle-reference", "the needle reference compares 400 cases without selecting training experiments"},
 	}
-	gateReaches, err := discover(repo, lanes...)
-	testcheck.NoError(t, err)
-	cycleReaches, err := discover(repo, cycleLanes...)
-	testcheck.NoError(t, err)
+	gateReaches := testcheck.Must(discover(repo, lanes...))(t)
+	cycleReaches := testcheck.Must(discover(repo, cycleLanes...))(t)
 	reaches := func(candidate lane, paths []string) bool {
 		if slices.ContainsFunc(lanes, func(gate lane) bool { return gate.name == candidate.name }) {
 			return gateReaches(candidate, paths).by != ""
@@ -340,8 +335,7 @@ func TestReachInvariants(t *testing.T) {
 			case row.production:
 				production, listed := productions[candidate.name]
 				if !listed {
-					production, err = gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...)
-					testcheck.NoError(t, err)
+					production = testcheck.Must(gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...))(t)
 					productions[candidate.name] = production
 				}
 				if !production.Files[row.path] {
@@ -370,8 +364,7 @@ func TestCUDATestsNeedALane(t *testing.T) {
 		"internal/quoting/e.go":           gated,
 		"cmd/hostonly/f_test.go":          "package main\n",
 	})
-	uncovered, err := uncoveredCUDATests(repo)
-	testcheck.NoError(t, err)
+	uncovered := testcheck.Must(uncoveredCUDATests(repo))(t)
 	if !slices.Equal(uncovered, []string{"internal/unlaned"}) {
 		t.Fatalf("uncovered CUDA tests = %q, want only internal/unlaned", uncovered)
 	}
@@ -492,8 +485,7 @@ func TestARunnersImportsRunOnlyItsOwnTests(t *testing.T) {
 		"options/options.go": "package options\n\nvar Name = \"lane\"\n",
 	})
 	candidate := lane{packages: []string{"./tests"}, prefixes: []string{"runner/"}}
-	reaches, err := discover(repo, candidate)
-	testcheck.NoError(t, err)
+	reaches := testcheck.Must(discover(repo, candidate))(t)
 	if got := reaches(candidate, []string{"runner/main.go"}).by; got != "runner/main.go" {
 		t.Errorf("a change to the runner's own file reached the lane for %q, want it", got)
 	}

@@ -27,16 +27,14 @@ func TestTransactionWriter(t *testing.T) {
 	for _, cancelGap := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cutover owns the rename gap/cancel=%t", cancelGap), func(t *testing.T) {
 			live, candidate := filepath.Join(t.TempDir(), "live"), filepath.Join(t.TempDir(), "candidate")
-			store, err := Create(live)
-			testcheck.NoError(t, err)
+			store := testcheck.Must(Create(live))(t)
 			batch := fixtureBatch(t)
 			original, err := store.Commit(t.Context(), batch)
 			testcheck.NoError(t, errors.Join(err, store.Close()))
 			if _, err := CloneStore(live, candidate); err != nil {
 				t.Fatal(err)
 			}
-			store, err = Create(candidate)
-			testcheck.NoError(t, err)
+			store = testcheck.Must(Create(candidate))(t)
 			prepared, err := store.Commit(t.Context(), artifact.Batch{Key: "prepared", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "candidate")}})
 			testcheck.NoError(t, errors.Join(err, store.Close()))
 			ctx, cancel := context.WithCancelCause(t.Context())
@@ -74,8 +72,7 @@ func TestTransactionWriter(t *testing.T) {
 			if !observed || cancelGap && (!errors.Is(err, context.Canceled) || path != "") || !cancelGap && (err != nil || path != superseded) {
 				t.Fatalf("cutover observed=%t path=%s error=%v", observed, path, err)
 			}
-			store, err = Create(live)
-			testcheck.NoError(t, err)
+			store = testcheck.Must(Create(live))(t)
 			defer store.Close()
 			want := prepared
 			if cancelGap {
@@ -97,8 +94,7 @@ func TestTransactionWriter(t *testing.T) {
 			} else {
 				want = prepared
 			}
-			reader, err := OpenReadOnly(retained)
-			testcheck.NoError(t, err)
+			reader := testcheck.Must(OpenReadOnly(retained))(t)
 			defer reader.Close()
 			if head, _ := reader.Head(); head != want {
 				t.Fatalf("retained head = %s, want %s", head, want)
@@ -110,8 +106,7 @@ func TestTransactionWriter(t *testing.T) {
 		idle, err := Create(live)
 		testcheck.NoError(t, err)
 		defer idle.Close()
-		original, err := idle.Commit(t.Context(), fixtureBatch(t))
-		testcheck.NoError(t, err)
+		original := testcheck.Must(idle.Commit(t.Context(), fixtureBatch(t)))(t)
 		if _, err := CloneStore(live, candidate); err != nil {
 			t.Fatal(err)
 		}
@@ -135,8 +130,7 @@ func TestTransactionWriter(t *testing.T) {
 		if err := idle.Refresh(t.Context()); err == nil {
 			t.Fatal("displaced view silently refreshed")
 		}
-		reader, err := OpenReadOnly(live)
-		testcheck.NoError(t, err)
+		reader := testcheck.Must(OpenReadOnly(live))(t)
 		defer reader.Close()
 		if head, _ := reader.Head(); head != original {
 			t.Fatalf("displaced write changed live head: %s", head)
@@ -144,14 +138,11 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("backup refreshes a stale source", func(t *testing.T) {
 		root := t.TempDir()
-		source, err := Create(root)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(Create(root))(t)
 		defer source.Close()
-		writer, err := Create(root)
-		testcheck.NoError(t, err)
+		writer := testcheck.Must(Create(root))(t)
 		defer writer.Close()
-		head, err := writer.Commit(t.Context(), fixtureBatch(t))
-		testcheck.NoError(t, err)
+		head := testcheck.Must(writer.Commit(t.Context(), fixtureBatch(t)))(t)
 		destination := filepath.Join(t.TempDir(), "backup")
 		backupReport, err := source.Backup(t.Context(), destination)
 		got, sequence := backupReport.Head, backupReport.Sequence
@@ -161,14 +152,12 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("interrupted rotation refuses mismatched bytes", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		defer store.Close()
 		if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 			t.Fatal(err)
 		}
-		active, err := os.ReadFile(filepath.Join(root, storeFilename))
-		testcheck.NoError(t, err)
+		active := testcheck.Must(os.ReadFile(filepath.Join(root, storeFilename)))(t)
 		if _, err := store.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -185,8 +174,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("measure cold replay and resumed publication", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		defer store.Close()
 		for index := range fixtureWorkerCount {
 			descriptor := fixtureDescriptor(t, artifact.KindOutput, fmt.Sprintf("timing/%d", index))
@@ -195,13 +183,11 @@ func TestTransactionWriter(t *testing.T) {
 			}
 		}
 		started := time.Now()
-		cold, err := Create(root)
-		testcheck.NoError(t, err)
+		cold := testcheck.Must(Create(root))(t)
 		coldWall := time.Since(started)
 		defer cold.Close()
 		started = time.Now()
-		lock, err := processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode)
-		testcheck.NoError(t, err)
+		lock := testcheck.Must(processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode))(t)
 		lockWall := time.Since(started)
 		testcheck.NoError(t, lock.Close())
 		started = time.Now()
@@ -222,8 +208,7 @@ func TestTransactionWriter(t *testing.T) {
 	t.Run("independent processes preserve writes and reject competing aliases", testTransactionProcesses)
 	t.Run("rotation refreshes idle handles even when active size matches", func(t *testing.T) {
 		root := t.TempDir()
-		writer, err := Create(root)
-		testcheck.NoError(t, err)
+		writer := testcheck.Must(Create(root))(t)
 		defer writer.Close()
 		if _, err := writer.Commit(t.Context(), fixtureBatch(t)); err != nil {
 			t.Fatal(err)
@@ -231,11 +216,9 @@ func TestTransactionWriter(t *testing.T) {
 		if _, err := writer.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		idle, err := Create(root)
-		testcheck.NoError(t, err)
+		idle := testcheck.Must(Create(root))(t)
 		defer idle.Close()
-		reader, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		reader := testcheck.Must(OpenReadOnly(root))(t)
 		defer reader.Close()
 		descriptor := fixtureDescriptor(t, artifact.KindOutput, "rotated")
 		if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "rotation", Artifacts: []artifact.Descriptor{descriptor}}); err != nil {
@@ -259,11 +242,9 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("cancel queued transaction without releasing owner", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		defer store.Close()
-		lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
-		testcheck.NoError(t, err)
+		lock := testcheck.Must(processlock.Acquire(writerLockPath(root), storeFileMode))(t)
 		defer lock.Close()
 		ctx, cancel := context.WithCancelCause(t.Context())
 		done := make(chan error, 1)
@@ -289,11 +270,9 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("release refuses an interleaved write", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		defer store.Close()
-		other, err := Create(root)
-		testcheck.NoError(t, err)
+		other := testcheck.Must(Create(root))(t)
 		defer other.Close()
 		first := retentionContent(t, artifact.KindOutput, map[string]any{"release": "first"})
 		second := retentionContent(t, artifact.KindOutput, map[string]any{"release": "second"})
@@ -315,8 +294,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("idle handles refresh before publication", func(t *testing.T) {
 		root := t.TempDir()
-		first, err := Create(root)
-		testcheck.NoError(t, err)
+		first := testcheck.Must(Create(root))(t)
 		defer first.Close()
 		second, err := Create(root)
 		if err != nil {
@@ -324,8 +302,7 @@ func TestTransactionWriter(t *testing.T) {
 		}
 		defer second.Close()
 		batch := fixtureBatch(t)
-		id, err := first.Commit(t.Context(), batch)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(first.Commit(t.Context(), batch))(t)
 		retry, err := second.Commit(t.Context(), batch)
 		if err != nil || retry != id {
 			t.Fatalf("refreshed retry = %s, %v", retry, err)
@@ -373,8 +350,7 @@ func TestTransactionWriterProcess(t *testing.T) {
 	if root == "" {
 		return
 	}
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	encoder, decoder := json.NewEncoder(os.Stdout), json.NewDecoder(os.Stdin)
 	testcheck.NoError(t, encoder.Encode(transactionReply{Result: "ready"}))
 	for {
@@ -385,11 +361,9 @@ func TestTransactionWriterProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 		if request.Action == "tear" {
-			lock, err := processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode)
-			testcheck.NoError(t, err)
+			lock := testcheck.Must(processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode))(t)
 			defer lock.Close()
-			file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_WRONLY|os.O_APPEND, storeFileMode)
-			testcheck.NoError(t, err)
+			file := testcheck.Must(os.OpenFile(filepath.Join(root, storeFilename), os.O_WRONLY|os.O_APPEND, storeFileMode))(t)
 			if _, err := file.Write([]byte("torn")); err != nil {
 				t.Fatal(err)
 			}
@@ -421,11 +395,9 @@ func TestTransactionWriterProcess(t *testing.T) {
 
 func testTransactionProcesses(t *testing.T) {
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	type peer struct {
 		cmd    *exec.Cmd
 		input  *json.Encoder
@@ -434,10 +406,8 @@ func testTransactionProcesses(t *testing.T) {
 	start := func() peer {
 		cmd := exec.CommandContext(t.Context(), executable, "-test.run=^TestTransactionWriterProcess$", "-test.timeout=30s")
 		cmd.Env = append(os.Environ(), "OVERGO_TRANSACTION_TEST_ROOT="+root)
-		input, err := cmd.StdinPipe()
-		testcheck.NoError(t, err)
-		output, err := cmd.StdoutPipe()
-		testcheck.NoError(t, err)
+		input := testcheck.Must(cmd.StdinPipe())(t)
+		output := testcheck.Must(cmd.StdoutPipe())(t)
 		cmd.Stderr = os.Stderr
 		testcheck.NoError(t, cmd.Start())
 		t.Cleanup(testprocess.ChildStopper(input, cmd))

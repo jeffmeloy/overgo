@@ -23,11 +23,9 @@ func TestGeneratedSuiteUsesDeclaredChatPrompt(t *testing.T) {
 				source["equivalence"] = equivalenceLatexSurface
 				source["cases"].([]map[string]any)[0]["group"] = "arithmetic"
 			}
-			raw, err := json.Marshal(source)
-			testcheck.NoError(t, err)
+			raw := testcheck.Must(json.Marshal(source))(t)
 			authorities := ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate}}
-			suite, err := CompileSuite(raw, authorities)
-			testcheck.NoError(t, err)
+			suite := testcheck.Must(CompileSuite(raw, authorities))(t)
 			store := overgodbtest.Open(t, t.TempDir())
 			publishPlanFixtureAuthorities(t, store, suite.plan)
 			chat := &instructionChatFixture{answer: "4"}

@@ -44,10 +44,9 @@ func TestTensorCatalogProgramIsAuthoritative(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), secondTensor) || first.Name != "" || third.Name != "" {
 		t.Fatalf("error/bindings = %v first=%q third=%q", err, first.Name, third.Name)
 	}
-	catalog, err = newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
+	catalog = testcheck.Must(newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
 		{Name: thirdTensor}, {Name: firstTensor}, {Name: secondTensor},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	var firstView, secondView, thirdView *gguf.TensorInfo
 	err = bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensorPointer(firstTensor, &firstView),

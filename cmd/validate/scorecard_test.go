@@ -168,8 +168,7 @@ func scorecardFixture(t *testing.T) string {
 	t.Helper()
 	ctx := t.Context()
 	directory := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(directory))(t)
 	forecastModel := testutil.ArtifactID(t, artifact.KindModel, "scorecard-forecast")
 	imageModel := testutil.ArtifactID(t, artifact.KindModel, "scorecard-image")
 	retired := testutil.ArtifactID(t, artifact.KindRecipe, "scorecard-retired-recipe")
@@ -177,10 +176,8 @@ func scorecardFixture(t *testing.T) string {
 	for _, id := range []artifact.ID{forecastModel, imageModel, retired, environment} {
 		testutil.PublishArtifact(t, store, id)
 	}
-	forecast, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, forecastModel)
-	testcheck.NoError(t, err)
-	image, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, imageModel, artifact.ID{})
-	testcheck.NoError(t, err)
+	forecast := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, forecastModel))(t)
+	image := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, imageModel, artifact.ID{}))(t)
 	for key, definition := range map[string]recipe.Definition{"fixture/forecast": forecast, "fixture/image": image} {
 		testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, key, definition))
 	}

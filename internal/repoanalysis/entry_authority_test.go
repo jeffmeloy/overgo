@@ -30,8 +30,7 @@ func TestEntryAuthorityScriptSuffixIsData(t *testing.T) {
 		{"assembled script invocation", `import "os/exec"; func run(name string) { _ = exec.Command(name+".py").Run() }`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			file, err := parser.ParseFile(token.NewFileSet(), "case.go", "package fixture\n"+tc.source, 0)
-			testcheck.NoError(t, err)
+			file := testcheck.Must(parser.ParseFile(token.NewFileSet(), "case.go", "package fixture\n"+tc.source, 0))(t)
 			if got := rule.Detect(file) > 0; got != tc.refuse {
 				t.Fatalf("script classification=%v, want refusal=%v", got, tc.refuse)
 			}
@@ -68,8 +67,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			}
 			const rogue = "internal/rogue/rogue.go"
 			source := []byte("package rogue\n" + test.source + "\n")
-			snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{rogue: source})
-			testcheck.NoError(t, err)
+			snapshot := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{rogue: source}))(t)
 			if _, err := ValidateEntryAuthorities(snapshot, []EntryAuthorityRule{rule}); err == nil || !strings.Contains(err.Error(), rogue+" bypasses the owner") {
 				t.Fatalf("bypass escaped its domain: %v", err)
 			}
@@ -79,8 +77,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 				t.Fatalf("exact exception refused: %v", err)
 			}
 			for _, replacement := range [][]byte{nil, []byte("package rogue\n")} {
-				clean, err := snapshot.Overlay(map[string][]byte{rogue: replacement})
-				testcheck.NoError(t, err)
+				clean := testcheck.Must(snapshot.Overlay(map[string][]byte{rogue: replacement}))(t)
 				if _, err := ValidateEntryAuthorities(clean, []EntryAuthorityRule{rule}); err == nil || !strings.Contains(err.Error(), "no longer holds a direct site") {
 					t.Fatalf("stale exception admitted: %v", err)
 				}
@@ -88,8 +85,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			// The owner keeps its right to construct its own values.
 			rule.Exceptions = nil
 			if len(rule.OwnerPaths) != 0 {
-				owned, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{path.Join(rule.OwnerPaths[0], "owned.go"): source})
-				testcheck.NoError(t, err)
+				owned := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{path.Join(rule.OwnerPaths[0], "owned.go"): source}))(t)
 				if _, err := ValidateEntryAuthorities(owned, []EntryAuthorityRule{rule}); err != nil {
 					t.Fatalf("owner refused: %v", err)
 				}

@@ -25,8 +25,7 @@ import (
 func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	ctx := t.Context()
 	generator := rand.New(rand.NewSource(11))
 	for index, name := range []string{"catalog-model-alpha", "catalog-model-beta"} {
@@ -47,20 +46,17 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 			})
 		}
 		testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil))
-		inventory, err := modelartifact.NewTensorInventoryDocument(modelID, modelartifact.TensorFormatSafetensors, facts)
-		testcheck.NoError(t, err)
-		measurement, err := modelartifact.MeasureAtLocation(inventory, directory, modelartifact.MeasurementPolicy{
+		inventory := testcheck.Must(modelartifact.NewTensorInventoryDocument(modelID, modelartifact.TensorFormatSafetensors, facts))(t)
+		measurement := testcheck.Must(modelartifact.MeasureAtLocation(inventory, directory, modelartifact.MeasurementPolicy{
 			MaxSamplesPerTensor: 64, MaxReadBytes: 1 << 20,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       fmt.Sprintf("catalog/model/%d", index),
 			Artifacts: []artifact.Descriptor{{ID: modelID}},
 		}); err != nil {
 			t.Fatal(err)
 		}
-		inventoryContent, err := inventory.Content()
-		testcheck.NoError(t, err)
+		inventoryContent := testcheck.Must(inventory.Content())(t)
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:      fmt.Sprintf("catalog/inventory/%d", index),
 			Contents: []artifact.Content{inventoryContent},
@@ -70,16 +66,14 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		batch, err := measurement.Batch(fmt.Sprintf("catalog/measurement/%d", index))
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(measurement.Batch(fmt.Sprintf("catalog/measurement/%d", index)))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	testcheck.NoError(t, store.Close())
 
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors/similar?name=blk.0.attn_q.weight&k=5", "")
 	if response.Code != http.StatusOK {

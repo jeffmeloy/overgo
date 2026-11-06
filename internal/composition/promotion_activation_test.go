@@ -17,8 +17,7 @@ func TestCompositionPromotionActivation(t *testing.T) {
 	if err != nil || policy != authority.PromotionPolicy || authority.Promotion.PolicyID != policy.ID {
 		t.Fatalf("recipe promotion policy = %+v, %v", policy, err)
 	}
-	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/promoted-activate", nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/promoted-activate", nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -35,10 +34,8 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 	ctx := t.Context()
 	candidate := authority.Recipe
 	candidate.Promotion = testutil.ArtifactID(t, artifact.KindEvidence, "missing bridge promotion")
-	candidate, err := composition.NewCompositionRecipe(candidate)
-	testcheck.NoError(t, err)
-	batch, err := candidate.Batch("fixture/composition/unpromoted-recipe")
-	testcheck.NoError(t, err)
+	candidate = testcheck.Must(composition.NewCompositionRecipe(candidate))(t)
+	batch := testcheck.Must(candidate.Batch("fixture/composition/unpromoted-recipe"))(t)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: candidate.Promotion})
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
@@ -48,16 +45,14 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 	}
 	candidate = authority.Recipe
 	candidate.PromotionPolicy = testutil.ArtifactID(t, artifact.KindProfile, "unowned promotion policy")
-	candidate, err = composition.NewCompositionRecipe(candidate)
-	testcheck.NoError(t, err)
+	candidate = testcheck.Must(composition.NewCompositionRecipe(candidate))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/composition/unowned-policy",
 		Artifacts: []artifact.Descriptor{{ID: candidate.PromotionPolicy}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err = candidate.Batch("fixture/composition/unowned-policy-recipe")
-	testcheck.NoError(t, err)
+	batch = testcheck.Must(candidate.Batch("fixture/composition/unowned-policy-recipe"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

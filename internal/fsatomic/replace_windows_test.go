@@ -38,8 +38,7 @@ func TestReplaceSupportsExtendedLengthPath(t *testing.T) {
 	target := filepath.Join(directory, "target")
 	testcheck.NoError(t, os.WriteFile(source, []byte("after"), 0o600))
 	testcheck.NoError(t, Replace(source, target))
-	got, err := os.ReadFile(target)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(os.ReadFile(target))(t)
 	if string(got) != "after" {
 		t.Fatalf("target = %q, want after", got)
 	}

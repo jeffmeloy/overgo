@@ -27,8 +27,7 @@ func TestMOSSConditioningGolden(t *testing.T) {
 		t.Fatal("native prompt fixture coverage")
 	}
 	packed := mossFixtureBytes(t, "tokenizer-source.tar.gz", "d45ccb489f4c3bcd47e23947ffe0fc0536e416cb2931fb40b3df7785850d2865")
-	gz, err := gzip.NewReader(bytes.NewReader(packed))
-	testcheck.NoError(t, err)
+	gz := testcheck.Must(gzip.NewReader(bytes.NewReader(packed)))(t)
 	defer gz.Close()
 	reader := tar.NewReader(gz)
 	root := t.TempDir()
@@ -43,8 +42,7 @@ func TestMOSSConditioningGolden(t *testing.T) {
 		if !found || filepath.Base(header.Name) != header.Name || seen[header.Name] {
 			t.Fatal("unexpected tokenizer source", header.Name)
 		}
-		data, err := io.ReadAll(reader)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(io.ReadAll(reader))(t)
 		if fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
 			t.Fatal("tokenizer source identity differs", header.Name)
 		}
@@ -56,19 +54,15 @@ func TestMOSSConditioningGolden(t *testing.T) {
 	if len(seen) != len(files) {
 		t.Fatal("missing tokenizer sources")
 	}
-	tok, err := hfbpe.Load(root)
-	testcheck.NoError(t, err)
-	template, err := os.ReadFile(filepath.Join(root, "chat_template.jinja"))
-	testcheck.NoError(t, err)
+	tok := testcheck.Must(hfbpe.Load(root))(t)
+	template := testcheck.Must(os.ReadFile(filepath.Join(root, "chat_template.jinja")))(t)
 	policy := textTemplate{ChatTemplate: string(template), EnableThinking: true, MaxTokens: 4096}
 	for name, prompt := range prompts {
 		t.Run(name, func(t *testing.T) {
-			text, err := renderTextInput(tok, prompt, policy)
-			testcheck.NoError(t, err)
+			text := testcheck.Must(renderTextInput(tok, prompt, policy))(t)
 			for suffix, values := range map[string][]int{"input_ids": text.IDs, "attention_mask": maskInts(text.Mask)} {
 				item := source.Tensors[name+"."+suffix]
-				want, err := io.ReadAll(item.Reader())
-				testcheck.NoError(t, err)
+				want := testcheck.Must(io.ReadAll(item.Reader()))(t)
 				if item.DType != "I64" || len(want) != len(values)*8 {
 					t.Fatal("native token shape differs")
 				}

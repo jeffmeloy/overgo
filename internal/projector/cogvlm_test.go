@@ -28,11 +28,9 @@ func (t *cogVLMPromptTokenizer) TokenizeText(text string, addSpecial, _ bool) ([
 }
 
 func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4))))(t)
 	if !output.Shape.Equal(mustShape(4, 6)) {
 		t.Fatalf("output shape = %v", output.Shape)
 	}
@@ -45,12 +43,10 @@ func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
-	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{}))(t)
 	defer runner.Close()
 	tok := &cogVLMPromptTokenizer{}
-	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false)
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false))(t)
 	if tok.text != "Question: beforeafter Answer:" || !strings.HasPrefix(tok.text, "Question:") {
 		t.Fatalf("prompt text = %q", tok.text)
 	}

@@ -14,11 +14,9 @@ import (
 )
 
 func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4))))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(6, 1)) {
 		t.Fatalf("output shape = %v", output.Embeddings.Shape)
 	}
@@ -41,8 +39,7 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 50), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := preprocessLlama4VisionImage(input, tinyLlama4VisionSpec())
-	testcheck.NoError(t, err)
+	processed := testcheck.Must(preprocessLlama4VisionImage(input, tinyLlama4VisionSpec()))(t)
 	if processed.GridW != 2 || processed.GridH != 1 || len(processed.Tiles) != 3 {
 		t.Fatalf("grid=%d,%d tiles=%d", processed.GridW, processed.GridH, len(processed.Tiles))
 	}
@@ -55,15 +52,13 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 }
 
 func TestLlama4MultipleImagePrompt(t *testing.T) {
-	runner, err := openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{}))(t)
 	defer runner.Close()
-	prompt, err := testSession(t, runner).BuildImagesPrompt(
+	prompt := testcheck.Must(testSession(t, runner).BuildImagesPrompt(
 		t.Context(), imagePromptTokenizer{marker: llama4ImagePad, token: 9090},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if prompt.EmbeddingWidth != 6 || len(prompt.Embeddings) != 4*6 || len(prompt.EmbeddingTokenIndices) != 4 {
 		t.Fatalf("embedding contract = width %d values %d indices %d", prompt.EmbeddingWidth, len(prompt.Embeddings), len(prompt.EmbeddingTokenIndices))
 	}
@@ -103,10 +98,8 @@ func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	want, err := cpu.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
-	got, err := cuda.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(cpu.EncodeImage(t.Context(), input))(t)
+	got := testcheck.Must(cuda.EncodeImage(t.Context(), input))(t)
 	compareFloat32Tolerance(t, "Llama-4", got.Embeddings.Data, want.Embeddings.Data, 2e-3)
 }
 

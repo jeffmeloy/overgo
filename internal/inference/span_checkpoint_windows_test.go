@@ -27,8 +27,7 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 	// Serial: the spans share the one CUDA device.
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunnerWithResidency(writeHermeticFlashNextGGUF(t), OpenOptions{}, recipe.ResidencyDeviceNative)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(writeHermeticFlashNextGGUF(t), OpenOptions{}, recipe.ResidencyDeviceNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -37,8 +36,7 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 	ctx := t.Context()
 	span := func(tokens []tokenizer.TokenID, past *deviceKVCache, checkpoints ...uint32) *deviceKVCache {
 		t.Helper()
-		cache, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, past, nil, checkpoints...)
-		testcheck.NoError(t, err)
+		cache := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, past, nil, checkpoints...))(t)
 		t.Cleanup(func() {
 			if err := cache.Release(context.Background()); err != nil {
 				t.Error(err)
@@ -63,10 +61,8 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 			t.Fatalf("%d drafts kept: committed %d tokens at %d with history %v, alone %d at %d with %v", accepted,
 				verified.Tokens, verified.Position, verified.ngramHistory, alone.Tokens, alone.Position, alone.ngramHistory)
 		}
-		committed, err := runner.downloadDeviceCache(ctx, verified)
-		testcheck.NoError(t, err)
-		aloneCache, err := runner.downloadDeviceCache(ctx, alone)
-		testcheck.NoError(t, err)
+		committed := testcheck.Must(runner.downloadDeviceCache(ctx, verified))(t)
+		aloneCache := testcheck.Must(runner.downloadDeviceCache(ctx, alone))(t)
 		for layer, got := range committed.Layers {
 			want := aloneCache.Layers[layer]
 			pairs := map[string][2]reference.Value{"key": {got.Key, want.Key}, "value": {got.Value, want.Value}}

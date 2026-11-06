@@ -60,10 +60,8 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 			value.Task = recipe.TaskInference
 			value.Hardware = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: elapsed}}
 		}
-		observation, err := runrecord.NewServingObservation(value)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("busy/" + observation.ID.String())
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
+		batch := testcheck.Must(observation.Batch("busy/" + observation.ID.String()))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -72,8 +70,7 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	// published is a recipe's first-output cell as a scorecard published now would carry it.
 	published := func(served artifact.ID) Cell {
 		t.Helper()
-		summaries, err := servingByRecipe(ctx, store)
-		testcheck.NoError(t, err)
+		summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 		return firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[served])
 	}
 	// at is a later reading of a published cell: its contract and environment, another value.

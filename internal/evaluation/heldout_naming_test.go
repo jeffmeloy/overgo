@@ -72,8 +72,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	// grantedThen publishes a grant when the fixture has not published it; one it has is no change.
 	grantedThen := func(store *overgodb.Store, unit string, part artifact.ID, issued uint64, authority artifact.ID) runrecord.Budget {
 		t.Helper()
-		granted, err := runrecord.NewBudget(unit, part, issued, authority)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(unit, part, issued, authority))(t)
 		grant, err := granted.Batch("test/granted-before-names/" + granted.ID.String())
 		if err == nil {
 			_, err = artifact.Publish(ctx, store, grant)
@@ -85,12 +84,9 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	chargedThen := func(store *overgodb.Store, unit string, part artifact.ID, issued uint64, authority, owner artifact.ID, purpose string) {
 		t.Helper()
 		granted := grantedThen(store, unit, part, issued, authority)
-		confirmer, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolConfirmer+owner.String()))
-		testcheck.NoError(t, err)
-		charge, err := runrecord.NewBudgetCharge(granted.ID, 1, confirmer, purpose)
-		testcheck.NoError(t, err)
-		batch, err := charge.Batch("test/charged-before-names/" + charge.ID.String())
-		testcheck.NoError(t, err)
+		confirmer := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolConfirmer+owner.String())))(t)
+		charge := testcheck.Must(runrecord.NewBudgetCharge(granted.ID, 1, confirmer, purpose))(t)
+		batch := testcheck.Must(charge.Batch("test/charged-before-names/" + charge.ID.String()))(t)
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: confirmer})
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
@@ -99,8 +95,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	// namedAs reports whether a part now contains exactly the names given.
 	namedAs := func(store *overgodb.Store, part artifact.ID, today []artifact.ID) bool {
 		t.Helper()
-		published, err := partContents(ctx, store, part)
-		testcheck.NoError(t, err)
+		published := testcheck.Must(partContents(ctx, store, part))(t)
 		order := func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) }
 		slices.SortFunc(published, order)
 		today = slices.Clone(today)
@@ -156,8 +151,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	// A part is named whole or not at all. The record one past the inventory's
 	// files stands for a file registered with no digest: the naming reads a
 	// record's content from the same mapping, which has none for either.
-	recorded, err := recordContents(ctx, store, earlier.Partition.Dataset)
-	testcheck.NoError(t, err)
+	recorded := testcheck.Must(recordContents(ctx, store, earlier.Partition.Dataset))(t)
 	promoted, found, err := dataset.LoadMembership(ctx, store, earlier.Partition.Promotion)
 	if err != nil || !found {
 		t.Fatalf("the earlier pool's promotion part is not committed (%v)", err)
@@ -173,10 +167,8 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	// partThen publishes a promotion part of the earlier dataset with no names, and gives the batch that names each of its records a content is recorded for.
 	partThen := func(records ...dataset.Record) (dataset.Membership, artifact.Batch) {
 		t.Helper()
-		part, err := dataset.NewMembership(earlier.Partition.Dataset, 0, PoolParts[poolPromotion], records)
-		testcheck.NoError(t, err)
-		content, err := part.Content()
-		testcheck.NoError(t, err)
+		part := testcheck.Must(dataset.NewMembership(earlier.Partition.Dataset, 0, PoolParts[poolPromotion], records))(t)
+		content := testcheck.Must(part.Content())(t)
 		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "test/part-before-names/" + part.ID.String(), Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{part.Lineage()}}); err != nil {
 			t.Fatal(err)
 		}

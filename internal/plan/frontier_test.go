@@ -29,8 +29,7 @@ func frontierTestPlan() Plan {
 func TestReadyFrontierMembership(t *testing.T) {
 	t.Parallel()
 	document := frontierTestPlan()
-	frontier, err := ReadyFrontier(document)
-	testcheck.NoError(t, err)
+	frontier := testcheck.Must(ReadyFrontier(document))(t)
 	if len(frontier) != 3 || frontier[0].String() != "alpha/one" || frontier[1].String() != "beta/solo" || frontier[2].String() != "beta/after" {
 		t.Fatalf("ready frontier = %v", frontier)
 	}

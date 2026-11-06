@@ -35,13 +35,10 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 		Decision:     id(artifact.KindEvidence, "decision"),
 	}
 
-	record, err := generationCodec.New(withGenerationVersion(valid))
-	testcheck.NoError(t, err)
+	record := testcheck.Must(generationCodec.New(withGenerationVersion(valid)))(t)
 	testcheck.NoError(t, record.ValidateIdentity())
-	content, err := record.Content()
-	testcheck.NoError(t, err)
-	parsed, err := ParseGenerationRecord(content.Data)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(record.Content())(t)
+	parsed := testcheck.Must(ParseGenerationRecord(content.Data))(t)
 	if parsed.ID != record.ID || len(parsed.Parents) != 2 || parsed.Bridge != valid.Bridge ||
 		parsed.Seeds[2] != 13 || parsed.Decision != valid.Decision {
 		t.Fatalf("parsed record differs: %+v", parsed)
@@ -80,8 +77,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "generation/fixture/static", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := record.Batch("generation/fixture/v1")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(record.Batch("generation/fixture/v1"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -132,11 +128,10 @@ func withGenerationVersion(record GenerationRecord) GenerationRecord {
 // not the record's binding.
 func TestGenerationRecordBindsBudget(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
-	grant, err := budgetCodec.New(Budget{
+	grant := testcheck.Must(budgetCodec.New(Budget{
 		Version: artifact.InitialDocumentVersion, Unit: "seeds", Split: id(artifact.KindDatasetShard, "selection"),
 		Issued: 3, Authority: id(artifact.KindEvidence, "authority"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	record := GenerationRecord{
 		Parents:      []artifact.ID{id(artifact.KindModel, "parent")},
 		Child:        id(artifact.KindModel, "child"),
@@ -154,23 +149,20 @@ func TestGenerationRecordBindsBudget(t *testing.T) {
 		Outcome:      OutcomeSucceeded,
 		Decision:     id(artifact.KindEvidence, "decision"),
 	}
-	bound, err := generationCodec.New(withGenerationVersion(record))
-	testcheck.NoError(t, err)
+	bound := testcheck.Must(generationCodec.New(withGenerationVersion(record)))(t)
 	if err := ValidateGenerationBudget(bound, grant); err != nil {
 		t.Fatalf("within-grant consumption refused: %v", err)
 	}
 	over := record
 	over.Seeds = []uint64{7, 11, 13, 17}
-	overBound, err := generationCodec.New(withGenerationVersion(over))
-	testcheck.NoError(t, err)
+	overBound := testcheck.Must(generationCodec.New(withGenerationVersion(over)))(t)
 	if err := ValidateGenerationBudget(overBound, grant); err == nil {
 		t.Fatal("over-grant consumption accepted")
 	}
-	foreign, err := budgetCodec.New(Budget{
+	foreign := testcheck.Must(budgetCodec.New(Budget{
 		Version: artifact.InitialDocumentVersion, Unit: "seeds", Split: record.Split,
 		Issued: 100, Authority: id(artifact.KindEvidence, "other-authority"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if err := ValidateGenerationBudget(bound, foreign); err == nil {
 		t.Fatal("foreign budget document accepted as the record's binding")
 	}

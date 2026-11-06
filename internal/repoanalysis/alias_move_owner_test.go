@@ -22,16 +22,14 @@ import (
 // out four ways is held to being found four times.
 func TestAliasMovesHaveOneOwner(t *testing.T) {
 	t.Parallel()
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd"))(t)
 	handwritten := func(snapshot gosyntax.Snapshot) []string {
 		var sites []string
 		for _, file := range snapshot.Files {
 			if file.Test || path.Dir(file.Path) == "internal/artifact" {
 				continue
 			}
-			syntax, err := file.Syntax()
-			testcheck.NoError(t, err)
+			syntax := testcheck.Must(file.Syntax())(t)
 			bindings := map[string]bool{}
 			report := func(ast.Node) { sites = append(sites, file.Path) }
 			ast.Inspect(syntax, func(node ast.Node) bool {
@@ -96,8 +94,7 @@ func move(name string, target, held artifact.ID, pointer *artifact.ID) artifact.
 	return batch
 }
 `
-	overlaid, err := snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)})
-	testcheck.NoError(t, err)
+	overlaid := testcheck.Must(snapshot.Overlay(map[string][]byte{"internal/rogue/rogue.go": []byte(rogue)}))(t)
 	if sites := handwritten(overlaid); len(sites) != 4 {
 		t.Fatalf("the walk found %v in a package that writes the move out four ways", sites)
 	}

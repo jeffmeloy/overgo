@@ -34,8 +34,7 @@ type linearCTCOracleCase struct {
 
 func linearCTCOracle(t *testing.T) []linearCTCOracleCase {
 	t.Helper()
-	data, err := os.ReadFile("testdata/linear_ctc_oracle.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/linear_ctc_oracle.json"))(t)
 	var fixture struct {
 		Schema          string                `json:"schema"`
 		Revision        string                `json:"torch_revision"`
@@ -75,16 +74,12 @@ func linearCTCSpec(tc linearCTCOracleCase) LinearCTCSpec {
 func TestLinearCTCReference(t *testing.T) {
 	for _, tc := range linearCTCOracle(t) {
 		t.Run(tc.Name, func(t *testing.T) {
-			m, err := NewLinearCTC(linearCTCSpec(tc))
-			testcheck.NoError(t, err)
+			m := testcheck.Must(NewLinearCTC(linearCTCSpec(tc)))(t)
 			copy(m.weights, tc.Projection)
 			frozenWeight, frozenBias := slices.Clone(tc.OutputWeight), slices.Clone(tc.OutputBias)
-			execution, err := m.Bind(t.Context())
-			testcheck.NoError(t, err)
-			gradients, err := execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-			testcheck.NoError(t, err)
-			forward, err := execution.Select(trainingprogram.PhaseForward)
-			testcheck.NoError(t, err)
+			execution := testcheck.Must(m.Bind(t.Context()))(t)
+			gradients := testcheck.Must(execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward))(t)
+			forward := testcheck.Must(execution.Select(trainingprogram.PhaseForward))(t)
 			example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
 			testcheck.NoError(t, gradients.Run(&example))
 			// Reduction-scaled float32 comparison protocol; the independent
@@ -132,8 +127,7 @@ func TestLinearCTCReference(t *testing.T) {
 func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 	tc := linearCTCOracle(t)[0]
 	spec := linearCTCSpec(tc)
-	m, err := NewLinearCTC(spec)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(NewLinearCTC(spec))(t)
 	spec.MemoryBytes = m.StorageBytes()
 	if _, err := NewLinearCTC(spec); err != nil {
 		t.Fatal(err)
@@ -142,12 +136,9 @@ func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 	if _, err := NewLinearCTC(spec); err == nil {
 		t.Fatal("insufficient memory admitted")
 	}
-	execution, err := m.Bind(t.Context())
-	testcheck.NoError(t, err)
-	gradient, err := execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
-	testcheck.NoError(t, err)
-	update, err := execution.Select(trainingprogram.PhaseOptimize)
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(m.Bind(t.Context()))(t)
+	gradient := testcheck.Must(execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward))(t)
+	update := testcheck.Must(execution.Select(trainingprogram.PhaseOptimize))(t)
 	example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
 	if err := update.Run(&example); err == nil {
 		t.Fatal("optimizer accepted an absent gradient phase")
@@ -175,8 +166,7 @@ func TestLinearCTCAdmissionAndPhases(t *testing.T) {
 		t.Fatal("mutable input alias admitted")
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
-	bound, err := m.Bind(ctx)
-	testcheck.NoError(t, err)
+	bound := testcheck.Must(m.Bind(ctx))(t)
 	weights := m.WeightSnapshot()
 	cancel(nil)
 	if err := bound.Run(&example); !errors.Is(err, context.Canceled) || !slices.Equal(weights, m.WeightSnapshot()) {
@@ -214,16 +204,14 @@ func TestLinearCTCRefusals(t *testing.T) {
 	}
 	spec := linearCTCSpec(tc)
 	spec.MaxTargets = spec.MaxFrames
-	m, err := NewLinearCTC(spec)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(NewLinearCTC(spec))(t)
 	if _, err := m.Bind(nil); err == nil {
 		t.Fatal("nil context admitted")
 	}
 	if _, err := (*LinearCTC)(nil).Bind(t.Context()); err == nil {
 		t.Fatal("nil component admitted")
 	}
-	execution, err := m.Bind(t.Context())
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(m.Bind(t.Context()))(t)
 	before := m.WeightSnapshot()
 	for name, change := range map[string]func(*LinearCTCExample){
 		"empty-frames":    func(e *LinearCTCExample) { e.Frames = 0 },

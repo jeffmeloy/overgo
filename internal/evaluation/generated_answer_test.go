@@ -17,8 +17,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 			Name: "answer", Prompt: "prompt", MaxTokens: 1, Answers: []string{"ok"},
 		}},
 	}
-	compiled, err := CompileGeneratedAnswer(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileGeneratedAnswer(suite))(t)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
@@ -26,22 +25,18 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := bindGeneratedAnswer(compiled, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(bindGeneratedAnswer(compiled, authorities))(t)
 	suite.Transforms = []string{TransformTrimSpace}
-	other, err := CompileGeneratedAnswer(suite)
-	testcheck.NoError(t, err)
-	otherPlan, err := bindGeneratedAnswer(other, authorities)
-	testcheck.NoError(t, err)
+	other := testcheck.Must(CompileGeneratedAnswer(suite))(t)
+	otherPlan := testcheck.Must(bindGeneratedAnswer(other, authorities))(t)
 	if plan.Identity() == otherPlan.Identity() {
 		t.Fatal("normalization profile did not change evaluation identity")
 	}
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateGeneratedAnswer(
+	report := testcheck.Must(evaluateGeneratedAnswer(
 		t.Context(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	observation := report.Observations[0]
 	if report.Accuracy != 1 || observation.Raw != " OK " || observation.Scored != "ok" || !observation.Accepted {
 		t.Fatalf("generated-answer report = %+v", report)

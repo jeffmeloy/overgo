@@ -34,16 +34,14 @@ func deviceSegmentTrainers(worker *device.Worker) []segmentTrainer {
 
 func TestHybridOptimizerResumeDevice(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(device.DefaultOrdinal())
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(device.DefaultOrdinal()))(t)
 	defer worker.Close()
 	for index, train := range deviceSegmentTrainers(worker) {
 		t.Logf("backend %d", index)
 		verifyOptimizerResume(t, train)
 		verifyOptimizerStop(t, train)
 	}
-	stats, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	stats := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	if stats.CurrentBytes != 0 {
 		t.Fatalf("retained %d device bytes", stats.CurrentBytes)
 	}

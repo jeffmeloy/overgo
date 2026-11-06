@@ -42,15 +42,13 @@ func (s *musrRetainedScorer) ScoreContinuations(_ context.Context, prompt string
 }
 func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	canonical := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(value string, target any) {
 		t.Helper()
 		id, err := artifact.ParseID(value)
 		testcheck.NoError(t, err)
-		content, err := artifact.RequireTypedContent(t.Context(), canonical, id)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(artifact.RequireTypedContent(t.Context(), canonical, id))(t)
 		if err = json.Unmarshal(content.Data, target); err != nil {
 			t.Fatal(err)
 		}
@@ -73,8 +71,7 @@ func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	read(originalPlanID, &originalPlan)
 	var execution evaluation.ExecutionPolicy
 	read(originalPlan.Execution.String(), &execution)
-	legacy, err := evaluation.CompileMultipleChoice(original)
-	testcheck.NoError(t, err)
+	legacy := testcheck.Must(evaluation.CompileMultipleChoice(original))(t)
 	legacyPlan, err := evaluation.BindMultipleChoice(legacy, evaluation.ExactAuthorities{ModelDefinition: originalPlan.ModelDefinition, RuntimeRecipe: originalPlan.RuntimeRecipe, CodeCommit: originalPlan.CodeCommit, Environment: originalPlan.Environment, Execution: execution})
 	if err != nil || legacyPlan.Identity().String() != originalPlanID {
 		t.Fatalf("original acquisition plan identity changed: %s %v", legacyPlan.Identity(), err)
@@ -150,18 +147,15 @@ func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	if changed != 109 {
 		t.Fatalf("changed selections=%d", changed)
 	}
-	compiled, err := evaluation.CompileGroupedChoice(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(evaluation.CompileGroupedChoice(suite))(t)
 	// The temporary report exercises production scoring; these authorities are test fixtures, not a new model run.
 	authorities := evaluation.ExactAuthorities{ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "MuSR retained-score fixture"), RuntimeRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "MuSR retained-score fixture"), Environment: testutil.ArtifactID(t, artifact.KindEvidence, "MuSR retained-score fixture"), CodeCommit: "0123456789abcdef0123456789abcdef01234567", Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident}}
-	plan, err := evaluation.BindGroupedChoice(compiled, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(evaluation.BindGroupedChoice(compiled, authorities))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err = store.Commit(t.Context(), artifact.Batch{Key: "musr/fixture-authorities", Artifacts: []artifact.Descriptor{{ID: authorities.ModelDefinition}, {ID: authorities.RuntimeRecipe}, {ID: authorities.Environment}}}); err != nil {
 		t.Fatal(err)
 	}
-	report, err := evaluation.EvaluateGroupedChoice(t.Context(), store, scorer, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluation.EvaluateGroupedChoice(t.Context(), store, scorer, compiled, plan))(t)
 	if len(report.Observations) != 756 || len(report.Groups) != 3 || scorer.reads != 756 || report.Accuracy != native.Accuracy {
 		t.Fatalf("reanalysis differs: cases=%d reads=%d accuracy=%g", len(report.Observations), scorer.reads, report.Accuracy)
 	}

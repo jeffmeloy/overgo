@@ -33,33 +33,27 @@ func newAttemptGateChain(
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "attempt-gate-recipe")
 	testutil.PublishArtifact(t, store, recipeID)
 	environmentID := publishGateTestEnvironment(t, ctx, store, "attempt-gate-environment")
-	preparation, err := newGatePreparation(strings.Repeat("a", 64), environmentID, time.Unix(1_000, 2))
-	testcheck.NoError(t, err)
-	preparationContent, err := preparation.Content()
-	testcheck.NoError(t, err)
+	preparation := testcheck.Must(newGatePreparation(strings.Repeat("a", 64), environmentID, time.Unix(1_000, 2)))(t)
+	preparationContent := testcheck.Must(preparation.Content())(t)
 	if len(publishPreparation) == 0 || publishPreparation[0] {
-		preparationBatch, err := artifact.NewDocumentBatch(
+		preparationBatch := testcheck.Must(artifact.NewDocumentBatch(
 			"fixture/attempt-gate/preparation", []artifact.Content{preparationContent}, preparation.Lineage(), nil,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if _, err := store.CommitAs(ctx, gateDoor, preparationBatch); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	gate, err := NewGateRecord(
+	gate := testcheck.Must(NewGateRecord(
 		recipeID, environmentID, fixtureCodeCommit, OutcomeSucceeded, "", 10, steps,
-	)
-	testcheck.NoError(t, err)
-	finalization, err := newGateFinalization(
+	))(t)
+	finalization := testcheck.Must(newGateFinalization(
 		preparation, fixtureCodeCommit, gate.Result.ID, OutcomeSucceeded,
-	)
-	testcheck.NoError(t, err)
-	attempt, err := NewAttemptRecord(AttemptRecord{
+	))(t)
+	attempt := testcheck.Must(NewAttemptRecord(AttemptRecord{
 		PlanItem: "authority", PlanStep: "complete", Result: gate.Result.ID, Recipe: recipeID,
 		CodeCommit: fixtureCodeCommit, Outcome: OutcomeSucceeded, WallNS: 10,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return attemptGateChain{
 		recipe: recipeID, environment: environmentID, preparation: preparation,
 		gate: gate, finalization: finalization, attempt: attempt,
@@ -104,8 +98,7 @@ func commitAttemptGateChain(
 		content, err := chain.attempt.Content()
 		appendDocument(content, chain.attempt.Lineage(), err)
 	}
-	batch, err := artifact.NewDocumentBatch(key, contents, lineage, nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch(key, contents, lineage, nil))(t)
 	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -136,16 +129,13 @@ func TestGateFinalizationForPreparationRejectsConflict(t *testing.T) {
 
 	foreignResult := testutil.ArtifactID(t, artifact.KindEvidence, "conflicting-finalization-result")
 	testutil.PublishArtifact(t, store, foreignResult)
-	conflict, err := newGateFinalization(
+	conflict := testcheck.Must(newGateFinalization(
 		chain.preparation, strings.Repeat("b", 40), foreignResult, OutcomeFailed,
-	)
-	testcheck.NoError(t, err)
-	content, err := conflict.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(
+	))(t)
+	content := testcheck.Must(conflict.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/attempt-gate/conflicting-finalization", []artifact.Content{content}, conflict.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -157,8 +147,7 @@ func TestGateFinalizationForPreparationRejectsConflict(t *testing.T) {
 func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 	verify := "go test ./internal/plan -run '^TestExact$' -count=1"
 	reference := "authority-ratchet/complete.step"
-	evidence, err := formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify))(t)
 	if !strings.HasPrefix(evidence, "completion policy=verify-classifier-v1 plan="+reference+" verify_sha256=") ||
 		!strings.HasSuffix(evidence, " verdict=bitwise-deterministic") {
 		t.Fatalf("completion evidence = %q", evidence)
@@ -201,13 +190,11 @@ func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 func TestCompletionAcceptanceEvidenceReplaysFrozenPolicy(t *testing.T) {
 	reference := "authority-ratchet/frozen-policy"
 	verify := "go test ./internal/plan -run '^TestFutureDeviceMarker$' -count=1"
-	evidence, err := formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(formatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify))(t)
 	simulatedNewerClassifier := func(string) VerdictClass {
 		return VerdictToleranceBounded
 	}
-	v1, err := ClassifyVerifyCommandForPolicy(VerifyPolicyV1, verify)
-	testcheck.NoError(t, err)
+	v1 := testcheck.Must(ClassifyVerifyCommandForPolicy(VerifyPolicyV1, verify))(t)
 	if newer := simulatedNewerClassifier(verify); newer == v1 {
 		t.Fatal("simulated newer classifier did not differ from frozen v1")
 	}

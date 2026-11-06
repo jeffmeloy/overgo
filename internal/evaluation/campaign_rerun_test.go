@@ -26,17 +26,12 @@ func TestEvaluationAtAnUnchangedPlanReusesItsCampaign(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/rerun", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	runtime := &observedRuntime{}
-	campaign, err := newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, LifecycleIsolated)
-	testcheck.NoError(t, err)
-	source, err := json.Marshal(exactFixture())
-	testcheck.NoError(t, err)
-	suite, err := CompileSuite(source, campaign.Authorities())
-	testcheck.NoError(t, err)
-	first, err := campaign.Evaluate(ctx, suite)
-	testcheck.NoError(t, err)
+	campaign := testcheck.Must(newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, LifecycleIsolated))(t)
+	source := testcheck.Must(json.Marshal(exactFixture()))(t)
+	suite := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
+	first := testcheck.Must(campaign.Evaluate(ctx, suite))(t)
 	calls := runtime.generateCalls
 	again, err := campaign.Evaluate(ctx, suite)
 	if err != nil {

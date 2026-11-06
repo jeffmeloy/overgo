@@ -20,14 +20,12 @@ func testTrainingConfig() optimizer.Config {
 
 func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
 	before := trainer.Loss(7)
 	var first, last TrainStepResult
 	for step := range 8 {
-		result, err := trainer.Step()
-		testcheck.NoError(t, err)
+		result := testcheck.Must(trainer.Step())(t)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
 			t.Fatalf("step %d loss non-finite: %+v", step, result)
 		}
@@ -50,8 +48,7 @@ func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 
 func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
 	before := slices.Clone(m.Omega)
 	total := 0
@@ -74,14 +71,12 @@ func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
 // bit for bit as the model fields the forward reads.
 func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
 	if _, err := trainer.Step(); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan()))(t)
 	trained := map[string][]float32{}
 	for _, tensor := range m.trainableLayout() {
 		trained[tensor.name] = *tensor.field
@@ -91,8 +86,7 @@ func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, testTrainingConfig(), 11))(t)
 	defer trainer.Close()
 	trainer.grads[m.tensorName("stray")] = make([]float32, 4)
 	if _, err := trainer.Step(); err == nil || !strings.Contains(err.Error(), "outside the trainable pack") {
@@ -107,8 +101,7 @@ func TestRealArtifactBootstrapTraining(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: Un-0 artifact absent: %v", err)
 	}
-	realTrainer, err := NewTrainer(real, testTrainingConfig(), 202)
-	testcheck.NoError(t, err)
+	realTrainer := testcheck.Must(NewTrainer(real, testTrainingConfig(), 202))(t)
 	defer realTrainer.Close()
 	shipped := realTrainer.Loss(202)
 	if shipped < 15.57-3*1.16 || shipped > 15.57+3*1.16 {
@@ -118,14 +111,12 @@ func TestRealArtifactBootstrapTraining(t *testing.T) {
 
 	const steps = 12
 	scratch := NewBootstrapModel(real.Cfg, 17)
-	trainer, err := NewTrainer(scratch, testTrainingConfig(), 17)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(scratch, testTrainingConfig(), 17))(t)
 	defer trainer.Close()
 	before := trainer.Loss(202)
 	start := time.Now()
 	for step := range steps {
-		result, err := trainer.Step()
-		testcheck.NoError(t, err)
+		result := testcheck.Must(trainer.Step())(t)
 		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) || (step == 0 && result.GradientL2 <= 0) {
 			t.Fatalf("step %d invalid: %+v", step+1, result)
 		}

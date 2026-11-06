@@ -55,8 +55,7 @@ func hostMHA(q, k, v []float32, seq, nh, nkv, hd int, scale float64) (p []float3
 // L = sum(dOut ⊙ out) for Q, K, V.
 func TestMultiHeadAttentionBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 5, 4, 2, 4 // GQA: 4 query heads, 2 KV heads

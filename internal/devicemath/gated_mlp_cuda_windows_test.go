@@ -74,8 +74,7 @@ func hostGatedMLP32(x, wGate, wUp, wDown []float32, rows, d, inter int) (g, a, u
 // three weight matrices.
 func TestGatedMLPBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, d, inter = 4, 5, 6
@@ -87,8 +86,7 @@ func TestGatedMLPBackwardGradCheck(t *testing.T) {
 	dY := randSlice(rng, rows*d)
 
 	g, a, u, h := hostGatedMLP32(x, wGate, wUp, wDown, rows, d, inter)
-	grads, err := GatedMLPBackward(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-	testcheck.NoError(t, err)
+	grads := testcheck.Must(GatedMLPBackward(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter))(t)
 
 	const eps = 1e-2 // large eps ok: float64 reference, low truncation for this smooth map
 	gradCheck := func(name string, param, analytic []float32) float64 {
@@ -171,8 +169,7 @@ func hostGatedMLPT32(x, wGate, wUp, wDown []float32, rows, d, inter int) (g, a, 
 // convention) against float64 finite differences.
 func TestGatedMLPBackwardTGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, d, inter = 4, 5, 6
@@ -184,8 +181,7 @@ func TestGatedMLPBackwardTGradCheck(t *testing.T) {
 	dY := randSlice(rng, rows*d)
 
 	g, a, u, h := hostGatedMLPT32(x, wGate, wUp, wDown, rows, d, inter)
-	grads, err := GatedMLPBackwardT(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-	testcheck.NoError(t, err)
+	grads := testcheck.Must(GatedMLPBackwardT(worker, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter))(t)
 	const eps = 1e-2
 	gradCheck := func(name string, param, analytic []float32) float64 {
 		var maxDiff float64

@@ -57,8 +57,7 @@ type chatTemplateRenders struct {
 // models' own renderings refuse none of these conversations.
 func TestChatTemplatesRenderAsTransformersDoes(t *testing.T) {
 	directory := filepath.Join("testdata", "chat_templates")
-	raw, err := os.ReadFile(filepath.Join(directory, "conversations.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(directory, "conversations.json")))(t)
 	var battery chatTemplateBattery
 	if err := json.Unmarshal(raw, &battery); err != nil || len(battery.Conversations) == 0 {
 		t.Fatalf("the battery holds no conversation: %v", err)
@@ -75,8 +74,7 @@ func TestChatTemplatesRenderAsTransformersDoes(t *testing.T) {
 	for _, path := range templates {
 		base := strings.TrimSuffix(filepath.Base(path), ".jinja")
 		t.Run(base, func(t *testing.T) {
-			source, err := os.ReadFile(path)
-			testcheck.NoError(t, err)
+			source := testcheck.Must(os.ReadFile(path))(t)
 			raw, err := os.ReadFile(filepath.Join(directory, "golden", base+".json"))
 			if err != nil {
 				t.Fatalf("%v; write the goldens with %s", err, chatTemplateRendersScript)
@@ -132,8 +130,7 @@ func TestToolReachesATemplateInTheRequestsKeyOrder(t *testing.T) {
 	var requested ChatTool
 	testcheck.NoError(t, json.Unmarshal([]byte(written), &requested))
 	const parameters = `{"type": "object", "required": ["zeta"], "properties": {"zeta": {"type": "string"}, "alpha": {"type": "integer", "default": 3}}}`
-	made, err := FunctionTool("lookup", "", json.RawMessage(parameters))
-	testcheck.NoError(t, err)
+	made := testcheck.Must(FunctionTool("lookup", "", json.RawMessage(parameters)))(t)
 	built := ChatTool{Type: ChatToolTypeFunction, Function: ChatToolDefinition{Name: "lookup", Parameters: requested.Function.Parameters}}
 	renamed := requested
 	renamed.Function.Name = "search"

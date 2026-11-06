@@ -124,22 +124,19 @@ func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 	const small, sized, smallPeak, sizedPeak = 13_000_000_000, 360_000_000_000, 3 << 30, 12 << 30
 	attempt := func(label string, started int64, took uint64, peak uint64, userSize bool) {
 		t.Helper()
-		observation, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+		observation := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 			Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskVideoGen, Outcome: runrecord.OutcomeSucceeded,
 			StartedUnixNS: started, MeasuredNS: took, Resources: runrecord.ServingResources{PeakDeviceBytes: peak}, UserSize: userSize,
 			Phases: []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: 1}},
-		})
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("video/" + label)
-		testcheck.NoError(t, err)
+		}))(t)
+		batch := testcheck.Must(observation.Batch("video/" + label))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	attempt("small", 1, small, smallPeak, false)
 	attempt("sized", 2, sized, sizedPeak, true)
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.peakDeviceBytes != smallPeak {
 		t.Fatalf("the summary reads %+v, want both attempts and the small request's memory", summary)

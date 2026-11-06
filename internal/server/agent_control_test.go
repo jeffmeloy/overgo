@@ -99,18 +99,16 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	}
 	embedder := agentWorkspaceEmbedder{model: model}
 	reranker := agentWorkspaceReranker{policy: policy}
-	documents, err := dataset.PublishAgentRetrievalSource(
+	documents := testcheck.Must(dataset.PublishAgentRetrievalSource(
 		t.Context(), store, artifact.KindFile,
 		[]dataset.AgentRetrievalDocument{{Text: "cited evidence for retrieval"}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	source := documents[0].Source
-	projection, err := (dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
+	projection := testcheck.Must((dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: documents,
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: agentWorkspaceChunkRunes, CandidateLimit: agentWorkspaceCandidates},
 		Embedder: embedder, RerankPolicy: policy,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	fixture := newAgentWorkspaceFixture(t, store, embedder, reranker)
 	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}))
 	request := marshalTestJSON(t, map[string]any{
@@ -122,8 +120,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		search.Header().Get(agentRetrievalReceiptHeader) == "" || search.Header().Get(agentRetrievalTraceHeader) == "" {
 		t.Fatalf("agent retrieval status=%d body=%s", search.Code, search.Body.String())
 	}
-	receiptID, err := artifact.ParseID(search.Header().Get(agentRetrievalReceiptHeader))
-	testcheck.NoError(t, err)
+	receiptID := testcheck.Must(artifact.ParseID(search.Header().Get(agentRetrievalReceiptHeader)))(t)
 	if _, err := runrecord.RequireConsumedRetrievalReceipt(t.Context(), store, receiptID); err != nil {
 		t.Fatalf("agent retrieval receipt is not replayable: %v", err)
 	}
@@ -167,32 +164,27 @@ func newAgentWorkspaceFixture(
 ) agentWorkspaceFixture {
 	t.Helper()
 	if store == nil {
-		var err error
-		store, err = overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		store = testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	}
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
-	testcheck.NoError(t, err)
+	description := testcheck.Must(generator.RecipeRuntimeDescription(recipe.TaskInference))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/serving-recipe/" + description.Identity.Recipe.String(),
 		Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}, {ID: description.Identity.Model}},
 	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
 	prompt := commitTestBlob(t, store, artifact.KindFile, "agent-workspace-prompt")
 	policy := commitTestBlob(t, store, artifact.KindProfile, "agent-workspace-policy")
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Repository: store,
 		AgentEmbedder: embedder, AgentReranker: reranker,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	return agentWorkspaceFixture{
 		handler: handler, store: store, generator: generator, prompt: prompt, policy: policy, manual: manuals[0].ID,

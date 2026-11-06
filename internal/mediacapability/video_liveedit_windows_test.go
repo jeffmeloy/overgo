@@ -20,8 +20,7 @@ import (
 // too, the one the capability resolves from, so the store can name it.
 func TestLiveEditRecordsItsOwnDirectory(t *testing.T) {
 	t.Parallel()
-	parent, err := pathidentity.Canonical(t.TempDir())
-	testcheck.NoError(t, err)
+	parent := testcheck.Must(pathidentity.Canonical(t.TempDir()))(t)
 	edit, wan := filepath.Join(parent, "LiveEdit"), filepath.Join(parent, "Wan2.1-T2V-1.3B")
 	checkpoint := func(path, value string) {
 		t.Helper()
@@ -37,8 +36,7 @@ func TestLiveEditRecordsItsOwnDirectory(t *testing.T) {
 		map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	source, err := resolveVideoSource(t.Context(), edit)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(resolveVideoSource(t.Context(), edit))(t)
 	model := source.Inventory.Manifest.ID
 	for _, directory := range []string{parent, edit} {
 		want := artifact.Location{Artifact: model, Kind: artifact.LocationDirectory, Value: directory}

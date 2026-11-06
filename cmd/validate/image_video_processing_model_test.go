@@ -105,16 +105,14 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	testskip.Short(t, "retained media processing comparison")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_processing.json")
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoProcessingSHA256))
 	var value mediaProcessingComparison
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &value))
 	if value.Version != artifact.InitialDocumentVersion || value.Rationale == "" || len(value.Quality) == 0 || len(value.Sources) == 0 {
 		t.Fatal("incomplete processing comparison")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -127,12 +125,10 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	protocol := read(value.Protocol)
 	var limits mediaProcessingLimits
 	testcheck.NoError(t, json.Unmarshal(protocol, &limits))
-	current, err := os.ReadFile(filepath.Join(root, "docs/image_video_processing_protocol.json"))
-	testcheck.NoError(t, err)
+	current := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_processing_protocol.json")))(t)
 	var frozen any
 	testcheck.NoError(t, json.Unmarshal(protocol, &frozen))
-	canonical, err := json.Marshal(frozen)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(json.Marshal(frozen))(t)
 	if err := checkMediaProtocolIdentity(current, fmt.Sprintf("%x", sha256.Sum256(canonical))); err != nil {
 		t.Fatalf("processing protocol changed after acquisition: %v", err)
 	}
@@ -143,16 +139,14 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 		read(id)
 	}
 	for _, check := range value.Quality {
-		report, err := testevidence.GoTestJSONReport(string(read(check.Evidence)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(check.Evidence))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 || check.Name == "" || check.Command == "" {
 			t.Fatal("empty processing quality check")
 		}
 	}
 	for _, variant := range []string{"baseline", "candidate", "ablation"} {
-		report, err := testevidence.GoTestJSONReport(string(read(value.Acquisitions[variant])))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(value.Acquisitions[variant]))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 {
 			t.Fatal("empty processing acquisition")
@@ -161,8 +155,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 		if len(rows) != 2 {
 			t.Fatal("missing processing lifetime")
 		}
-		recorded, err := mediaProcessingRecordedRows(read(value.Acquisitions[variant]))
-		testcheck.NoError(t, err)
+		recorded := testcheck.Must(mediaProcessingRecordedRows(read(value.Acquisitions[variant])))(t)
 		if !reflect.DeepEqual(recorded, rows) {
 			t.Fatal("processing observations differ from retained acquisition")
 		}
@@ -174,8 +167,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	}
 	baseline := value.Observations["baseline"]
 	candidate := value.Observations["candidate"]
-	accepted, err := compareMediaProcessing(baseline, candidate, limits)
-	testcheck.NoError(t, err)
+	accepted := testcheck.Must(compareMediaProcessing(baseline, candidate, limits))(t)
 	if value.Decision != "accepted" && value.Decision != "rejected" {
 		t.Fatal("missing processing decision")
 	}

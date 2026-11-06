@@ -30,8 +30,7 @@ func TestLoadGGUFImportanceMatrixNormalizesExpertCounts(t *testing.T) {
 		err = closeErr
 	}
 	testcheck.NoError(t, err)
-	matrix, err := LoadImportanceMatrix(path)
-	testcheck.NoError(t, err)
+	matrix := testcheck.Must(LoadImportanceMatrix(path))(t)
 	if matrix.Legacy || matrix.ChunkCount != 3 || matrix.ChunkSize != 512 ||
 		!reflect.DeepEqual(matrix.Datasets, []string{"fixture"}) {
 		t.Fatalf("metadata = %+v", matrix)
@@ -58,8 +57,7 @@ func TestLoadLegacyImportanceMatrix(t *testing.T) {
 	write(int32(len(dataset)))
 	_, _ = data.WriteString(dataset)
 	testcheck.NoError(t, os.WriteFile(path, data.Bytes(), 0o644))
-	matrix, err := LoadImportanceMatrix(path)
-	testcheck.NoError(t, err)
+	matrix := testcheck.Must(LoadImportanceMatrix(path))(t)
 	if !matrix.Legacy || matrix.ChunkCount != 5 ||
 		!reflect.DeepEqual(matrix.Datasets, []string{dataset}) ||
 		!reflect.DeepEqual(matrix.Entries[name], []float32{1, 2, 3, 4}) {

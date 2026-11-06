@@ -23,8 +23,7 @@ func TestEveryDoctrineSentenceCitesItsCheck(t *testing.T) {
 			files, _ := filepath.Glob(filepath.Join("..", "..", filepath.FromSlash(directory), "*_test.go"))
 			var all strings.Builder
 			for _, file := range files {
-				data, err := os.ReadFile(file)
-				testcheck.NoError(t, err)
+				data := testcheck.Must(os.ReadFile(file))(t)
 				all.Write(data)
 			}
 			source = all.String()

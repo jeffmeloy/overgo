@@ -17,8 +17,7 @@ func cpuJointFixture(t *testing.T) (*Model, *JointTrainer, TrainingExample) {
 	t.Helper()
 	rng := rand.New(rand.NewSource(31))
 	model := tinyJointModel(rng)
-	trainer, err := NewJointTrainer(model, optimizer.Config{Steps: 3, BaseLearningRate: 1e-3, Momentum: 0.95, Schedule: optimizer.ScheduleLinearDecay}, true)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewJointTrainer(model, optimizer.Config{Steps: 3, BaseLearningRate: 1e-3, Momentum: 0.95, Schedule: optimizer.ScheduleLinearDecay}, true))(t)
 	t.Cleanup(func() { _ = trainer.Close() })
 	return model, trainer, TrainingExample{TextIDs: []int{2, 4, 1}, Frames: 2, Seed: 91, Latents: normVec(rng, 2*model.Dims.LatentDim, 0, 1)}
 }
@@ -35,8 +34,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 	model, trainer, example := cpuJointFixture(t)
 	initial := jointWeightSnapshot(model)
 	frozenText, frozenInput := slices.Clone(model.condEmbed), slices.Clone(model.inputLinear)
-	firstLoss, err := trainer.Step(example)
-	testcheck.NoError(t, err)
+	firstLoss := testcheck.Must(trainer.Step(example))(t)
 	after, err := model.LossAndGrads(example.TextIDs, example.Latents, example.Frames, example.Seed, nil)
 	if err != nil || !(after < firstLoss) || maps.EqualFunc(initial, jointWeightSnapshot(model), slices.Equal[[]float32]) {
 		t.Fatalf("CPU update: loss %g -> %g, error=%v", firstLoss, after, err)
@@ -49,8 +47,7 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 	var wantLosses []float64
 	for range 2 {
 		example.Seed++
-		loss, err := trainer.Step(example)
-		testcheck.NoError(t, err)
+		loss := testcheck.Must(trainer.Step(example))(t)
 		wantLosses = append(wantLosses, loss)
 	}
 	for name, values := range trainer.gradients {
@@ -91,16 +88,14 @@ func TestCPUJointTrainerExactResume(t *testing.T) {
 
 func mustJointState(t *testing.T, trainer *JointTrainer) optimizer.State {
 	t.Helper()
-	state, err := trainer.OptimizerSnapshot()
-	testcheck.NoError(t, err)
+	state := testcheck.Must(trainer.OptimizerSnapshot())(t)
 	return state
 }
 
 func TestCPUJointTrainerFailedUpdateRequiresRestore(t *testing.T) {
 	model, _, example := cpuJointFixture(t)
 	// A finite but unrepresentable F32 update exercises post-update refusal.
-	trainer, err := NewJointTrainer(model, optimizer.Config{Steps: 1, BaseLearningRate: math.MaxFloat64, Momentum: 0.95}, true)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewJointTrainer(model, optimizer.Config{Steps: 1, BaseLearningRate: math.MaxFloat64, Momentum: 0.95}, true))(t)
 	t.Cleanup(func() { _ = trainer.Close() })
 	weights, state := jointWeightSnapshot(model), mustJointState(t, trainer)
 	if _, err := trainer.Step(example); err == nil {

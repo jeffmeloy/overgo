@@ -120,8 +120,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 		}
 		content, _, err := artifact.ReadContent(ctx, store, acceptance.Split)
 		testcheck.NoError(t, err)
-		partition, err := runrecord.ParseSplitPartition(content.Data)
-		testcheck.NoError(t, err)
+		partition := testcheck.Must(runrecord.ParseSplitPartition(content.Data))(t)
 		return acceptance, partition
 	}
 	acceptance, partition := publish(request)
@@ -194,8 +193,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	// A confirmation.
 	charged := func(acceptance InstructionAcceptance, partition runrecord.SplitPartition) int {
 		t.Helper()
-		granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID))(t)
 		_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
 		testcheck.NoError(t, err)
 		return len(charges)
@@ -221,31 +219,24 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	miscounted := acceptance
 	miscounted.Groups, miscounted.ID = acceptance.Groups+1, artifact.ID{}
 	// A development part from another split, which holds a prompt of the promotion part.
-	stray, err := dataset.SplitOf(objective.Dataset, request.Seed, []dataset.PartitionRecords{
+	stray := testcheck.Must(dataset.SplitOf(objective.Dataset, request.Seed, []dataset.PartitionRecords{
 		{Name: "development", Records: []dataset.Record{promoted}}, {Name: "rest", Records: []dataset.Record{developed}},
-	})
-	testcheck.NoError(t, err)
-	batch, err := stray.PublicationBatch("instruction-fixture/stray", nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	batch := testcheck.Must(stray.PublicationBatch("instruction-fixture/stray", nil))(t)
 	development := stray.Memberships[slices.IndexFunc(stray.Memberships, func(membership dataset.Membership) bool { return membership.Partition == "development" })]
-	leaking, err := runrecord.NewSplitPartition(objective.Dataset, development.ID, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer)
-	testcheck.NoError(t, err)
+	leaking := testcheck.Must(runrecord.NewSplitPartition(objective.Dataset, development.ID, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer))(t)
 	leaked := acceptance
 	leaked.Split, leaked.ID = leaking.ID, artifact.ID{}
-	part, err := leaking.Batch("instruction-fixture/leaking")
-	testcheck.NoError(t, err)
+	part := testcheck.Must(leaking.Batch("instruction-fixture/leaking"))(t)
 	batch.Contents, batch.Lineage = append(batch.Contents, part.Contents...), append(batch.Lineage, part.Lineage...)
 	for name, tampered := range map[string]*InstructionAcceptance{"miscounted": &miscounted, "leaked": &leaked} {
 		if *tampered, err = instructionAcceptanceCodec.NewInitial(*tampered); err != nil {
 			t.Fatal(err)
 		}
-		part, err := instructionAcceptanceCodec.Batch("instruction-fixture/"+name, *tampered, artifact.DependencyLineage(tampered.ID, tampered.Split), nil)
-		testcheck.NoError(t, err)
+		part := testcheck.Must(instructionAcceptanceCodec.Batch("instruction-fixture/"+name, *tampered, artifact.DependencyLineage(tampered.ID, tampered.Split), nil))(t)
 		// Each is published with the grant an acceptance has, so that it is its own fault it is refused for.
-		granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(tampered.Comparisons)), tampered.ID)
-		testcheck.NoError(t, err)
-		grant, err := granted.Batch("instruction-fixture/" + name)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(tampered.Comparisons)), tampered.ID))(t)
+		grant := testcheck.Must(granted.Batch("instruction-fixture/" + name))(t)
 		batch.Contents, batch.Lineage = append(append(batch.Contents, part.Contents...), grant.Contents...), append(append(batch.Lineage, part.Lineage...), grant.Lineage...)
 	}
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
@@ -278,8 +269,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	// and unread (oneDecision).
 	var gain PoolConfirmation
 	var left uint64
-	issued, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
-	testcheck.NoError(t, err)
+	issued := testcheck.Must(runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID))(t)
 	contested := &overtaken{Repository: store, grant: issued.ID}
 	contested.between = func() {
 		contested.between = nil
@@ -324,8 +314,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	// charged after the first has read the grant's charges and before it reads
 	// what else the prompts have answered. The first counted one left; it reads
 	// again, finds none, and is refused unread (oneDecision).
-	replacement, err := runrecord.NewBudget(poolUnit, same.Promotion, uint64(len(second.Comparisons)), second.ID)
-	testcheck.NoError(t, err)
+	replacement := testcheck.Must(runrecord.NewBudget(poolUnit, same.Promotion, uint64(len(second.Comparisons)), second.ID))(t)
 	skewed := &overtaken{Repository: store, grant: replacement.ID, skip: 1}
 	skewed.between = func() {
 		skewed.between = nil

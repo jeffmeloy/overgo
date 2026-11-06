@@ -25,8 +25,7 @@ func TestRewriteReleasesATensorOnceItIsRead(t *testing.T) {
 	testcheck.NoError(t, err)
 	path := filepath.Join(t.TempDir(), "source.gguf")
 	testcheck.NoError(t, os.WriteFile(path, source.Bytes(), 0o600))
-	file, err := Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(Open(path))(t)
 	defer file.Close()
 	computed := 0
 	reader := &rewriteReader{file: file, tensor: file.Tensors[0], target: DTypeF32, transform: func(TensorInfo, []float32) error {

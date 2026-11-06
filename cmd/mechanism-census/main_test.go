@@ -24,14 +24,12 @@ func TestRunPublishesMechanismCensus(t *testing.T) {
 		Gap: id(artifact.KindEvidence, "gap"), Falsifier: id(artifact.KindRecipe, "falsifier"),
 		GapState: trainingprogram.MechanismGapOpen,
 	}
-	specification, err := json.Marshal(censusSpecification{Assessments: []trainingprogram.MechanismAssessment{assessment}})
-	testcheck.NoError(t, err)
+	specification := testcheck.Must(json.Marshal(censusSpecification{Assessments: []trainingprogram.MechanismAssessment{assessment}}))(t)
 	root := t.TempDir()
 	input := filepath.Join(root, "census.json")
 	testcheck.NoError(t, os.WriteFile(input, specification, 0o600))
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	parents := []artifact.Descriptor{{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}}
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/mechanism-census/parents", Artifacts: parents}); err != nil {
 		t.Fatal(err)
@@ -42,8 +40,7 @@ func TestRunPublishesMechanismCensus(t *testing.T) {
 	if !strings.Contains(output.String(), "assessments=1 open=1 closed=0") {
 		t.Fatalf("output = %q", output.String())
 	}
-	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
-	testcheck.NoError(t, err)
+	census := testcheck.Must(trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment}))(t)
 	store = overgodbtest.OpenReadOnly(t, storePath)
 	if _, found, err := artifact.ReadContent(t.Context(), store, census.ID()); err != nil || !found {
 		t.Fatalf("published census = (%t, %v)", found, err)
@@ -58,18 +55,16 @@ func TestRunPublishesExternalMechanismProvenance(t *testing.T) {
 		GapState: trainingprogram.MechanismGapOpen,
 	}
 	license := id(artifact.KindEvidence, "license")
-	specification, err := json.Marshal(provenanceSpecification{
+	specification := testcheck.Must(json.Marshal(provenanceSpecification{
 		Assessments: []trainingprogram.MechanismAssessment{assessment}, Repository: "local/marin",
 		Commit: "b352a9e5d49eede33f08e0ab8df1e786425c2db5", License: license,
 		Sources: []runrecord.ExternalMechanismSource{{Mechanism: assessment.Mechanism, Paths: []string{"experiments/grug/moe/model.py"}}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	root := t.TempDir()
 	input := filepath.Join(root, "provenance.json")
 	testcheck.NoError(t, os.WriteFile(input, specification, 0o600))
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	parents := []artifact.Descriptor{
 		{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}, {ID: license},
 	}
@@ -93,14 +88,12 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 		{Role: trainingprogram.MechanismEvidenceCostBound, Source: id(artifact.KindEvidence, "cost-source")},
 		{Role: trainingprogram.MechanismEvidenceBenefit, Source: id(artifact.KindEvidence, "benefit-source")},
 	}
-	data, err := json.Marshal(evidenceSpecification{Mechanism: mechanism, Sources: sources})
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(evidenceSpecification{Mechanism: mechanism, Sources: sources}))(t)
 	root := t.TempDir()
 	input := filepath.Join(root, "evidence.json")
 	testcheck.NoError(t, os.WriteFile(input, data, 0o600))
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	descriptors := []artifact.Descriptor{{ID: mechanism}}
 	for _, source := range sources {
 		descriptors = append(descriptors, artifact.Descriptor{ID: source.Source})
@@ -118,8 +111,7 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 	}
 	store = overgodbtest.OpenReadOnly(t, storePath)
 	for _, source := range sources {
-		want, err := trainingprogram.NewMechanismEvidence(source.Role, mechanism, source.Source)
-		testcheck.NoError(t, err)
+		want := testcheck.Must(trainingprogram.NewMechanismEvidence(source.Role, mechanism, source.Source))(t)
 		got, err := trainingprogram.RequireMechanismEvidence(t.Context(), store, want.ID, source.Role)
 		if err != nil || got != want {
 			t.Fatalf("evidence %s = (%+v, %v), want %+v", source.Role, got, err, want)

@@ -23,8 +23,7 @@ func TestRAEDecoderMatchesReference(t *testing.T) {
 	fixtures := filepath.Join(root, "fixtures", "rae")
 	var reference decoderReference
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(fixtures, "decoder.json"), &reference))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	collection := roots.ResolveModelPath("RAE-collections")
 	encoder := roots.ResolveModelPath("dinov2-with-registers-base")
 	for _, required := range []string{filepath.Join(collection, filepath.FromSlash(reference.Decoder)), filepath.Join(encoder, "preprocessor_config.json")} {
@@ -33,11 +32,9 @@ func TestRAEDecoderMatchesReference(t *testing.T) {
 		}
 	}
 	testskip.Short(t, "loads the 1.7 GB ViT-XL decoder")
-	decoder, err := loadDecoder(filepath.Join(collection, filepath.FromSlash(reference.Decoder)),
-		filepath.Join(collection, filepath.FromSlash(reference.Statistics)), encoder)
-	testcheck.NoError(t, err)
-	got, err := decoder.decode(loadReference(t, fixtures, reference.Latent))
-	testcheck.NoError(t, err)
+	decoder := testcheck.Must(loadDecoder(filepath.Join(collection, filepath.FromSlash(reference.Decoder)),
+		filepath.Join(collection, filepath.FromSlash(reference.Statistics)), encoder))(t)
+	got := testcheck.Must(decoder.decode(loadReference(t, fixtures, reference.Latent)))(t)
 	worst, _ := compareReference(t, got, loadReference(t, fixtures, reference.Image))
 	t.Logf("max |decoded - reference| = %.3g over %d pixels", worst, len(got))
 	if worst > 1e-3 {
@@ -55,8 +52,7 @@ func TestRepresentationAutoencoderGeneration(t *testing.T) {
 	fixtures := filepath.Join(root, "fixtures", "rae")
 	var reference generationReference
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(fixtures, "generation.json"), &reference))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	collection := roots.ResolveModelPath("RAE-collections")
 	encoder := roots.ResolveModelPath("dinov2-with-registers-base")
 	checkpoint := filepath.Join(collection, filepath.FromSlash(reference.Checkpoint))
@@ -67,14 +63,10 @@ func TestRepresentationAutoencoderGeneration(t *testing.T) {
 		}
 	}
 	testskip.Short(t, "loads the 1.7 GB ViT-XL decoder")
-	model, err := loadDiT(checkpoint)
-	testcheck.NoError(t, err)
-	decoder, err := loadDecoder(decoderPath, filepath.Join(collection, filepath.FromSlash(reference.Statistics)), encoder)
-	testcheck.NoError(t, err)
-	latent, err := model.sample(t.Context(), loadReference(t, fixtures, reference.Noise), reference.Label, reference.Steps, 1)
-	testcheck.NoError(t, err)
-	got, err := decoder.decode(latent)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(loadDiT(checkpoint))(t)
+	decoder := testcheck.Must(loadDecoder(decoderPath, filepath.Join(collection, filepath.FromSlash(reference.Statistics)), encoder))(t)
+	latent := testcheck.Must(model.sample(t.Context(), loadReference(t, fixtures, reference.Noise), reference.Label, reference.Steps, 1))(t)
+	got := testcheck.Must(decoder.decode(latent))(t)
 	worst, _ := compareReference(t, got, loadReference(t, fixtures, reference.Image))
 	t.Logf("max |generated - reference| = %.3g over %d pixels", worst, len(got))
 	if worst > 1e-3 {

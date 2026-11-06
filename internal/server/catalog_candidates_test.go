@@ -38,8 +38,7 @@ func TestTheCatalogSaysWhatAnUnactivatedModelRuns(t *testing.T) {
 	})
 	image, _ := candidateModelAt(t, store, weights("image.safetensors"), oscillatorImageDefinition)
 	activated := activateModelAt(t, store, weights("activated.safetensors"), oscillatorImageDefinition)
-	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/catalog/models", "")
 	var catalog struct{ Models []catalogModel }

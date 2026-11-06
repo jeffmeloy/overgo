@@ -16,13 +16,10 @@ func TestComponentImportSourceBinding(t *testing.T) {
 	for _, problem := range []string{"same-size-corruption", "missing-file", "missing-location", "cancelled", "publication-failure"} {
 		t.Run(problem, func(t *testing.T) {
 			root := importFixture(t)
-			inspection, err := InspectImport(t.Context(), root, "")
-			testcheck.NoError(t, err)
+			inspection := testcheck.Must(InspectImport(t.Context(), root, ""))(t)
 			path := filepath.Join(root, "model.safetensors")
-			original, err := os.ReadFile(path)
-			testcheck.NoError(t, err)
-			info, err := os.Stat(path)
-			testcheck.NoError(t, err)
+			original := testcheck.Must(os.ReadFile(path))(t)
+			info := testcheck.Must(os.Stat(path))(t)
 			store := overgodbtest.Open(t, t.TempDir())
 			before, sequence := store.Head()
 			ctx := t.Context()
@@ -72,14 +69,12 @@ func TestComponentImportSourceBinding(t *testing.T) {
 		code := []byte("# retained upstream source\n")
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "upstream.py"), code, 0600))
 		store := overgodbtest.Open(t, t.TempDir())
-		id, err := artifact.IdentifyBytes(artifact.KindFile, code)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, code))(t)
 		original := artifact.Descriptor{ID: id, Size: uint64(len(code)), MediaType: "text/plain"}
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "upstream-source", Artifacts: []artifact.Descriptor{original}}); err != nil {
 			t.Fatal(err)
 		}
-		inspection, err := InspectImport(t.Context(), root, "")
-		testcheck.NoError(t, err)
+		inspection := testcheck.Must(InspectImport(t.Context(), root, ""))(t)
 		testcheck.NoError(t, RegisterImport(t.Context(), store, inspection))
 		retained, found, err := store.Artifact(t.Context(), id)
 		if err != nil || !found || retained != original {

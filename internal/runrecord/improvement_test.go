@@ -19,31 +19,27 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	recipeID := id(artifact.KindRecipe, "recipe")
 	code := id(artifact.KindEvidence, "code")
 	proposer := id(artifact.KindEvidence, "proposer")
-	proposal, err := trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
+	proposal := testcheck.Must(trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
 		Kind: trainingprogram.ImprovementComponentComposition, ParentModel: parent,
 		Incumbent: id(artifact.KindModelDefinition, "current-composition"),
 		Candidate: id(artifact.KindModelDefinition, "composition"), Dataset: dataset,
 		DevelopmentSplit: development, Recipe: recipeID, Code: code, Proposer: proposer,
 		Components: []artifact.ID{id(artifact.KindModel, "component"), id(artifact.KindAdapter, "bridge")},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	evaluator := id(artifact.KindEvidence, "evaluator")
 	authority := id(artifact.KindEvidence, "admission-authority")
-	admission, err := AdmitImprovement(proposal, authority, evaluator, promotion)
-	testcheck.NoError(t, err)
+	admission := testcheck.Must(AdmitImprovement(proposal, authority, evaluator, promotion))(t)
 	child := id(artifact.KindModel, "child")
 	environment := id(artifact.KindEvidence, "environment")
 	output := id(artifact.KindOutput, "prediction")
-	run, err := NewBoundRun(
+	run := testcheck.Must(NewBoundRun(
 		recipeID, OutcomeSucceeded,
 		[]artifact.ID{child, dataset, promotion, code, admission.ID}, []artifact.ID{output},
 		"", fixtureCodeCommit, environment, 100, []PhaseMetric{{Phase: PhaseValidate, DurationNS: 100}},
-	)
-	testcheck.NoError(t, err)
-	evaluation, err := NewEvaluation(recipeID, run.ID, dataset, []Metric{{
+	))(t)
+	evaluation := testcheck.Must(NewEvaluation(recipeID, run.ID, dataset, []Metric{{
 		Name: "quality", Value: 1, Direction: DirectionMaximize,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	decider := id(artifact.KindEvidence, "decider")
 	decision, err := DecideImprovement(admission, child, run, evaluation, decider, ImprovementPromote)
 	if err != nil || decision.Rollback != parent {
@@ -62,8 +58,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 			t.Fatalf("child lineage omits %s", required)
 		}
 	}
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(decision.Content())(t)
 	parsed, err := improvementDecisionCodec.Parse(content.Data)
 	if err != nil || parsed.ID != decision.ID || parsed.Rollback != parent {
 		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.Rollback, err)
@@ -93,8 +88,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		{"fixture/improvement/evaluation", evaluation.Batch},
 		{"fixture/improvement/decision", decision.Batch},
 	} {
-		value, err := batch.build(batch.key)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(batch.build(batch.key))(t)
 		if _, err := store.Commit(ctx, value); err != nil {
 			t.Fatal(err)
 		}

@@ -63,8 +63,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 		HeldOut: tokens[2*retrialWindow : 3*retrialWindow],
 	}
 	started := time.Now()
-	result, err := trainingworkflow.RunGraftViability(config)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(trainingworkflow.RunGraftViability(config))(t)
 	if len(result.Outcomes) != len(retrialSeeds) {
 		t.Fatalf("outcomes = %d, want one per seed", len(result.Outcomes))
 	}
@@ -74,8 +73,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 		}
 	}
 	store := overgodbtest.Open(t, t.TempDir())
-	record, err := trainingworkflow.RecordGraftViability(store, config, result)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(trainingworkflow.RecordGraftViability(store, config, result))(t)
 	if record.Outcome != runrecord.OutcomeSucceeded && record.Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("generation record outcome = %q", record.Outcome)
 	}

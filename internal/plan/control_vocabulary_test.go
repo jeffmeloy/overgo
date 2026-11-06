@@ -32,14 +32,11 @@ func TestLegacyStopKeepsItsIdentity(t *testing.T) {
 	t.Parallel()
 	root, event := stopFixture(t)
 	event.ReasonCode = "user-stop"
-	stop, err := identify(event)
-	testcheck.NoError(t, err)
+	stop := testcheck.Must(identify(event))(t)
 	grant := event
 	grant.Kind, grant.ReasonCode, grant.Detail, grant.Task, grant.Previous = ControlMaintenance, "operator-maintenance", "repair", "row/do", stop.ID
-	issued, err := identify(grant)
-	testcheck.NoError(t, err)
-	data, err := json.MarshalIndent(stopState{Current: event, Maintenance: []ControlEvent{grant}}, "", "  ")
-	testcheck.NoError(t, err)
+	issued := testcheck.Must(identify(grant))(t)
+	data := testcheck.Must(json.MarshalIndent(stopState{Current: event, Maintenance: []ControlEvent{grant}}, "", "  "))(t)
 	testcheck.NoError(t, processlock.EnsureStateDirectory(root))
 	path := filepath.Join(root, processlock.StateDirectory, stopFile)
 	testcheck.NoError(t, os.WriteFile(path, data, stopFileMode))
@@ -64,8 +61,7 @@ func TestLegacyStopKeepsItsIdentity(t *testing.T) {
 	resume := event
 	resume.Kind, resume.ReasonCode, resume.Detail, resume.Previous = ControlResume, ResumeCode, "continue", stop.ID
 	recordStop(t, resume)
-	written, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	written := testcheck.Must(os.ReadFile(path))(t)
 	if strings.Contains(string(written), "user-stop") || !strings.Contains(string(written), `"reason_code": "resume"`) {
 		t.Fatalf("the resume wrote %s, want the current codes alone", written)
 	}

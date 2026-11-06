@@ -21,12 +21,9 @@ const readableContrast = 4.5
 func derivedDesign(t *testing.T) (DesignDocument, []byte) {
 	t.Helper()
 	root := filepath.Join("..", "..")
-	stylesheet, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(StylesheetPath)))
-	testcheck.NoError(t, err)
-	document, err := ParseDesign(string(stylesheet))
-	testcheck.NoError(t, err)
-	encoded, err := EncodeDesign(document)
-	testcheck.NoError(t, err)
+	stylesheet := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(StylesheetPath))))(t)
+	document := testcheck.Must(ParseDesign(string(stylesheet)))(t)
+	encoded := testcheck.Must(EncodeDesign(document))(t)
 	return document, encoded
 }
 
@@ -124,8 +121,7 @@ func scaledProperty(property string) bool {
 
 func stylesheetRules(t *testing.T) []cssRule {
 	t.Helper()
-	stylesheet, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(StylesheetPath)))
-	testcheck.NoError(t, err)
+	stylesheet := testcheck.Must(os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(StylesheetPath))))(t)
 	return parseCSS(string(stylesheet))
 }
 

@@ -28,13 +28,11 @@ func TestRecoverableOperationStatus(t *testing.T) {
 				Subject: recipeID, Reason: "required artifact is unavailable", Evidence: []artifact.ID{runID},
 				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry the exact recipe", Argv: []string{"overgo", workflow.name, "--recipe", recipeID.String()}}},
 			}
-			id, err := manager.Submit(t.Context(), Request{Task: workflow.task, Recipe: recipeID},
+			id := testcheck.Must(manager.Submit(t.Context(), Request{Task: workflow.task, Recipe: recipeID},
 				func(context.Context, Reporter) (Completion, error) {
 					return Completion{Run: runID}, testutil.Recoverable(errors.New("artifact unavailable"), block)
-				})
-			testcheck.NoError(t, err)
-			status, err := manager.Wait(t.Context(), id)
-			testcheck.NoError(t, err)
+				}))(t)
+			status := testcheck.Must(manager.Wait(t.Context(), id))(t)
 			if status.State != StateBlocked || status.Run == nil || *status.Run != runID || status.Recovery == nil ||
 				status.Recovery.Subject != recipeID || status.Recovery.Actions[0].Argv[2] != "--recipe" {
 				t.Fatalf("recoverable status = %+v", status)
@@ -51,16 +49,14 @@ func TestRecoverableOperationStatus(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "subject-bound recovery")
 	other := testutil.ArtifactID(t, artifact.KindRecipe, "different recovery subject")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "mismatched recovery run")
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, Reporter) (Completion, error) {
 			return Completion{Run: runID}, testutil.Recoverable(errors.New("wrong subject"), operatoraction.Block{
 				Subject: other, Reason: "wrong recipe is unavailable", Evidence: []artifact.ID{runID},
 				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry", Argv: []string{"overgo", "train"}}},
 			})
-		})
-	testcheck.NoError(t, err)
-	status, err := manager.Wait(t.Context(), id)
-	testcheck.NoError(t, err)
+		}))(t)
+	status := testcheck.Must(manager.Wait(t.Context(), id))(t)
 	if status.State != StateFailed || status.Recovery != nil {
 		t.Fatalf("cross-subject recovery was advertised: %+v", status)
 	}
@@ -98,11 +94,10 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 		runID := testutil.ArtifactID(t, artifact.KindRun, "atomic terminal run")
 		request := Request{Task: recipe.TaskTraining, Recipe: recipeID}
 		interrupt := make(chan struct{})
-		id, err := manager.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
+		id := testcheck.Must(manager.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
 			<-interrupt
 			return Completion{Run: runID}, errors.New("interrupted")
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		first := waitInBackground(manager, id)
 		synctest.Wait()
 		close(interrupt)
@@ -139,8 +134,7 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 			t.Fatalf("recovered terminal status = %+v with %d more", status, len(terminals))
 		}
 
-		retaining, err := NewManager(1)
-		testcheck.NoError(t, err)
+		retaining := testcheck.Must(NewManager(1))(t)
 		t.Cleanup(retaining.Close)
 		retained := make(chan Status, 2)
 		retaining.Notify(func(event Event) {
@@ -149,11 +143,10 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 			}
 		})
 		complete := make(chan struct{})
-		evicted, err := retaining.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
+		evicted := testcheck.Must(retaining.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
 			<-complete
 			return Completion{Run: runID}, nil
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		attached := waitInBackground(retaining, evicted)
 		synctest.Wait()
 		close(complete)
@@ -193,7 +186,7 @@ func TestBlockedOperationResumesAfterDecision(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "decision run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume exact work", Argv: []string{"overgo", "resume"}}
 	attempts := 0
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, Reporter) (Completion, error) {
 			attempts++
 			if attempts == 1 {
@@ -203,15 +196,12 @@ func TestBlockedOperationResumesAfterDecision(t *testing.T) {
 				})
 			}
 			return Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if status, err := manager.Wait(t.Context(), id); err != nil || status.State != StateBlocked {
 		t.Fatalf("blocked status = (%+v, %v)", status, err)
 	}
-	approval, err := operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{})
-	testcheck.NoError(t, err)
-	decision, err := runrecord.NewHumanDecision(approval, operatoraction.AnswerGrant)
-	testcheck.NoError(t, err)
+	approval := testcheck.Must(operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{}))(t)
+	decision := testcheck.Must(runrecord.NewHumanDecision(approval, operatoraction.AnswerGrant))(t)
 	if _, err := manager.RecoverAfterDecision(t.Context(), decision); err != nil {
 		t.Fatal(err)
 	}

@@ -43,8 +43,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 		t.Error("a session sent away is not told where its data roots come from")
 	}
 	write := sessionCheckout(t)
-	first, err := os.Getwd()
-	testcheck.NoError(t, err)
+	first := testcheck.Must(os.Getwd())(t)
 	// The sessions that implement here have landed here; one that has not takes no hold
 	// (TestOnlyAnImplementingSessionTakesTheHold).
 	recordImplementer("one")
@@ -60,8 +59,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	// test stands in, or nothing when it allows it.
 	refused := func(session, tool, command, path string) string {
 		t.Helper()
-		root, err := os.Getwd()
-		testcheck.NoError(t, err)
+		root := testcheck.Must(os.Getwd())(t)
 		call := guard.ToolCall{ToolName: tool, Session: session}
 		call.ToolInput.Command, call.ToolInput.Path = command, path
 		if path != "" && !filepath.IsAbs(path) {

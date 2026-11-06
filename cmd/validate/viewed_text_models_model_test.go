@@ -22,15 +22,11 @@ import (
 // recipe reads it. Qwen3.5-4B moved on 2026-10-30; Qwen2.5-0.5B, Carbon-500M and MiniCPM5-1B on 2026-10-31.
 func TestEveryViewedTextModelServesFromItsDirectory(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
-	registered, err := registeredCells(t.Context(), store)
-	testcheck.NoError(t, err)
-	converted, err := convertedSources(t.Context(), store)
-	testcheck.NoError(t, err)
-	directories, err := modelDirectories(roots.ModelRoots())
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(registeredCells(t.Context(), store))(t)
+	converted := testcheck.Must(convertedSources(t.Context(), store))(t)
+	directories := testcheck.Must(modelDirectories(roots.ModelRoots()))(t)
 	viewed := 0
 	for _, entry := range buildInventory(directories, registered, converted, roots.Store) {
 		if !hfconvert.Viewed(entry.Directory) {

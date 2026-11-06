@@ -40,8 +40,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		// runtime, where an empty select is one: with every goroutine asleep
 		// the runtime ended the fixture by itself a few milliseconds after
 		// its announcement, and the caller's cancellation had to win that race.
-		connection, err := net.Dial("tcp", os.Getenv(blockedAnnouncement))
-		testcheck.NoError(t, err)
+		connection := testcheck.Must(net.Dial("tcp", os.Getenv(blockedAnnouncement)))(t)
 		_, _ = connection.Read(make([]byte, 1))
 		// The read returns only when the caller is gone.
 		os.Exit(1)
@@ -205,8 +204,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		// The caller ends the run once the fixture announces its block.
 		ended := errors.New("the caller ended the blocked run")
 		ctx, cancel := context.WithCancelCause(t.Context())
-		blocked, err := net.Listen("tcp", "127.0.0.1:0")
-		testcheck.NoError(t, err)
+		blocked := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 		defer blocked.Close()
 		// The fixture's connection is held open until the run has ended: the
 		// fixture lives on its read of it.

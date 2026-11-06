@@ -14,8 +14,7 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	input := func(name string, shape tensor.Shape, fill float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
-		elements, err := shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(shape.Elements())(t)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = fill
@@ -72,10 +71,8 @@ func TestBuildWavTokenizerDecoder(t *testing.T) {
 	}
 	embeddings := input("embeddings", tensor.MustShape(2, 3), 0.5)
 	program := fixtureModelPlan(t, spec, Weights{})
-	output, err := program.SequenceOutput().Build(builder, embeddings, weights)
-	testcheck.NoError(t, err)
-	results, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(program.SequenceOutput().Build(builder, embeddings, weights))(t)
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, feeds))(t)
 	got := results[output]
 	want := []float32{1, 2, 3, 1, 2, 3, 1, 2, 3}
 	if !got.Shape.Equal(tensor.MustShape(3, 3)) || len(got.Data) != len(want) {

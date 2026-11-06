@@ -19,8 +19,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	proposal := id(artifact.KindEvidence, "evaluation-proposal")
 	motivation := id(artifact.KindEvidence, "evaluation-motivation")
-	root, err := runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, proposal, motivation)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, proposal, motivation))(t)
 	value := EvaluationEvidence{
 		Version: artifact.InitialDocumentVersion,
 		Plan:    id(artifact.KindProfile, "plan"), Acceptance: id(artifact.KindProfile, "acceptance"),
@@ -33,14 +32,12 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Metrics: []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}},
 		Causal:  &root,
 	}
-	evidence, err := evaluationEvidenceCodec.New(value)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(evaluationEvidenceCodec.New(value))(t)
 	if evidence.Causal == nil || evidence.Causal.Root != proposal ||
 		len(evidence.Causal.Motivation) != 1 || evidence.Causal.Motivation[0] != motivation {
 		t.Fatalf("evidence left the causal chain: %+v", evidence.Causal)
 	}
-	parsed, err := ParseEvaluationEvidence(mustContent(t, evidence).Data)
-	testcheck.NoError(t, err)
+	parsed := testcheck.Must(ParseEvaluationEvidence(mustContent(t, evidence).Data))(t)
 	if parsed.Causal == nil || parsed.Causal.Root != proposal {
 		t.Fatalf("parsed evidence lost the causal root: %+v", parsed.Causal)
 	}
@@ -55,7 +52,6 @@ func TestRSICausalChainClosure(t *testing.T) {
 
 func mustContent(t *testing.T, evidence EvaluationEvidence) artifact.Content {
 	t.Helper()
-	content, err := evidence.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(evidence.Content())(t)
 	return content
 }

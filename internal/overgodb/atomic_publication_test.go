@@ -16,8 +16,7 @@ import (
 func TestProjectionPublicationIsAtomic(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	base := fixtureBatch(t)
 	if _, err := store.Commit(ctx, base); err != nil {
@@ -25,8 +24,7 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 	}
 
 	payload := []byte("atomic-publication payload")
-	id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, payload))(t)
 	descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "atomic/commit",
@@ -57,12 +55,10 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 
 	// A commit a projection refuses becomes durable nowhere: drive the
 	// coordinator with a content that has no bound locator.
-	journalBefore, err := os.Stat(store.log.file.Name())
-	testcheck.NoError(t, err)
+	journalBefore := testcheck.Must(os.Stat(store.log.file.Name()))(t)
 	digestBefore := catalogDigest(t, store.state)
 	refusedPayload := []byte("refused content")
-	refusedID, err := artifact.IdentifyBytes(artifact.KindRun, refusedPayload)
-	testcheck.NoError(t, err)
+	refusedID := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, refusedPayload))(t)
 	refused := artifact.Batch{Key: "atomic/refused", Artifacts: []artifact.Descriptor{{
 		ID: refusedID, Size: uint64(len(refusedPayload)), MediaType: "text/plain",
 	}}}

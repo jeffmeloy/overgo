@@ -41,8 +41,7 @@ func newSpeechOutputFixture(t *testing.T) (*Handler, *speechOutputFixture) {
 	for index := range 6 {
 		pcm = append(pcm, speechFixtureChunk(index).PCM...)
 	}
-	content, err := speechsynth.WAVContent(speechsynth.Audio{PCM: pcm, SampleRate: 24000, Channels: 1, Complete: true})
-	testcheck.NoError(t, err)
+	content := testcheck.Must(speechsynth.WAVContent(speechsynth.Audio{PCM: pcm, SampleRate: 24000, Channels: 1, Complete: true}))(t)
 	fixture := &speechOutputFixture{generationWorkspaceGenerator: &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-output"),
 		capability: WorkflowCapability{Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-output"), Name: "Speech fixture",
@@ -50,8 +49,7 @@ func newSpeechOutputFixture(t *testing.T) (*Handler, *speechOutputFixture) {
 			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
 		},
 	}, cancelled: make(chan struct{}), released: make(chan struct{}), content: content}
-	handler, err := New(Config{Repository: store, Workflows: fixture}, fixture)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: fixture}, fixture))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	return handler, fixture
 }
@@ -277,8 +275,7 @@ func TestSpeechOutputStream(t *testing.T) {
 			case <-done:
 				t.Fatal("stream ended before chunk")
 			}
-			id, err := artifact.ParseID(response.Header().Get("X-Overgo-Operation"))
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.ParseID(response.Header().Get("X-Overgo-Operation")))(t)
 			if cancellation == "disconnect" {
 				cancel()
 			} else if !handler.operations.Cancel(id) {

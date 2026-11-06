@@ -49,8 +49,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	}
 	var protocol imageVideoResourceProtocol
 	protocolPath := filepath.Join(root, "docs/image_video_resources.json")
-	data, err := os.ReadFile(protocolPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(protocolPath))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoResourceProtocolSHA256))
 	testcheck.NoError(t, jsonfile.DecodeStrict(protocolPath, &protocol))
 	if protocol.Version != artifact.InitialDocumentVersion || protocol.QualityProtocolSHA256 != imageVideoProtocolSHA256 {
@@ -65,8 +64,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 			t.Fatalf("unsupported common metric %s", metric)
 		}
 	}
-	encoded, err := json.Marshal(driver.ExecutionStats{})
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(driver.ExecutionStats{}))(t)
 	var counters map[string]uint64
 	testcheck.NoError(t, json.Unmarshal(encoded, &counters))
 	for _, name := range protocol.DriverCounters {
@@ -82,8 +80,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 			var changed map[string]any
 			testcheck.NoError(t, json.Unmarshal(data, &changed))
 			delete(changed, field)
-			encoded, err := json.Marshal(changed)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(changed))(t)
 			if checkMediaProtocolIdentity(encoded, imageVideoResourceProtocolSHA256) == nil {
 				t.Fatal("incomplete resource protocol accepted")
 			}
@@ -95,8 +92,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Fatal("UNAVAILABLE: this campaign's current hardware discovery requires Windows")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	var stdout, stderr bytes.Buffer
 	command := processcontrol.Command{
 		Path: "powershell.exe", Args: []string{"-NoProfile", "-NonInteractive", "-Command", `$mediaOS=Get-CimInstance Win32_OperatingSystem; $mediaCPU=Get-CimInstance Win32_Processor; $mediaDisk=Get-CimInstance Win32_LogicalDisk | Where-Object DeviceID -eq $env:OVERGO_MEDIA_DISK_ROOT; [ordered]@{host_available_bytes=([uint64]$mediaOS.FreePhysicalMemory*1024);host_total_bytes=([uint64]$mediaOS.TotalVisibleMemorySize*1024);cpu_logical_processors=(($mediaCPU|Measure-Object NumberOfLogicalProcessors -Sum).Sum);cpu_load_percent=(($mediaCPU|Measure-Object LoadPercentage -Average).Average);disk_available_bytes=[uint64]$mediaDisk.FreeSpace}|ConvertTo-Json -Compress`},
@@ -145,8 +141,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "media resources "+label)
 	}
-	fitness, err := runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Workload: id(artifact.KindProfile, "workload"), Attempt: id(artifact.KindRun, "attempt")}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: 1}, {Metric: runrecord.ResourceHostToDeviceBytes, Value: 0}}})
-	testcheck.NoError(t, err)
+	fitness := testcheck.Must(runrecord.NewResourceFitness(runrecord.ResourceFitness{Scope: runrecord.ResourceScope{Surface: runrecord.SurfaceEvaluation, Workload: id(artifact.KindProfile, "workload"), Attempt: id(artifact.KindRun, "attempt")}, Measures: []runrecord.ResourceMeasure{{Metric: runrecord.ResourceWallNS, Value: 1}, {Metric: runrecord.ResourceHostToDeviceBytes, Value: 0}}}))(t)
 	if value, known := fitness.Measure(runrecord.ResourceHostToDeviceBytes); !known || value != 0 {
 		t.Fatal("observed zero transfer lost")
 	}

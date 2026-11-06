@@ -14,14 +14,12 @@ import (
 func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0))(t)
 	defer runner.Close()
-	got, err := runner.FormatChat([]ChatMessage{
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<|im_start|>system\nBe concise.<|im_end|>\n" +
 		"<|im_start|>user\nHello<|im_end|>\n" +
 		"<|im_start|>assistant\n"
@@ -33,10 +31,9 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0))(t)
 	defer runner.Close()
-	got, err := runner.FormatChatWithOptions(
+	got := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "system", Content: "Be concise."},
 			{Role: "user", Content: "Weather in Paris?"},
@@ -59,8 +56,7 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := "<|im_start|>system\nBe concise.\n\n# Tools\n\n" +
 		"You may call one or more functions to assist with the user query.\n\n" +
 		"You are provided with function signatures within <tools></tools> XML tags:\n" +
@@ -76,7 +72,7 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	if got != want {
 		t.Fatalf("native Qwen tool Jinja prompt = %q, want %q", got, want)
 	}
-	got, err = runner.FormatChatWithOptions(
+	got = testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "system", Content: "Be concise."},
 			{Role: "user", Content: "Weather in Paris?"},
@@ -98,8 +94,7 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want = strings.TrimSuffix(want, "<|im_start|>assistant\n") +
 		"<|im_start|>assistant\n" +
 		"<tool_call>\n" +
@@ -116,14 +111,12 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, gemma3Fixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, gemma3Fixture), 0))(t)
 	defer runner.Close()
-	got, err := runner.FormatChat([]ChatMessage{
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<start_of_turn>user\nBe concise.\n\nHello<end_of_turn>\n" +
 		"<start_of_turn>model\n"
 	if got != want {
@@ -134,14 +127,12 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0))(t)
 	defer runner.Close()
-	got, err := runner.FormatChat([]ChatMessage{
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<|im_start|>system\nBe concise.<|im_end|>\n" +
 		"<|im_start|>user\nHello<|im_end|>\n" +
 		"<|im_start|>assistant\n<think>\n"
@@ -153,15 +144,14 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0))(t)
 	defer runner.Close()
 	tool := toolWeatherDefinition()
 	tool.Function.Parameters["properties"].(map[string]any)["city"] = map[string]any{
 		"description": "City name",
 		"type":        "string",
 	}
-	got, err := runner.FormatChatWithOptions(
+	got := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "system", Content: "Be concise."},
 			{Role: "user", Content: "Weather in Paris?"},
@@ -171,13 +161,12 @@ func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := hermesToolOracle(false)
 	if got != want {
 		t.Fatalf("native Qwen3.5 tool Jinja prompt = %q, want %q", got, want)
 	}
-	got, err = runner.FormatChatWithOptions(
+	got = testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "system", Content: "Be concise."},
 			{Role: "user", Content: "Weather in Paris?"},
@@ -199,8 +188,7 @@ func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want = hermesToolOracle(true)
 	if got != want {
 		t.Fatalf(
@@ -214,14 +202,12 @@ func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0))(t)
 	defer runner.Close()
-	got, err := runner.FormatChat([]ChatMessage{
+	got := testcheck.Must(runner.FormatChat([]ChatMessage{
 		{Role: "system", Content: "Be concise."},
 		{Role: "user", Content: "Hello"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := "<|im_start|>system\nBe concise.<|im_end|>\n" +
 		"<|im_start|>user\nHello<|im_end|>\n" +
 		"<|im_start|>assistant\n<think>\n"
@@ -233,15 +219,14 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0))(t)
 	defer runner.Close()
 	tool := toolWeatherDefinition()
 	tool.Function.Parameters["properties"].(map[string]any)["city"] = map[string]any{
 		"description": "City name",
 		"type":        "string",
 	}
-	got, err := runner.FormatChatWithOptions(
+	got := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{
 			{Role: "system", Content: "Be concise."},
 			{Role: "user", Content: "Weather in Paris?"},
@@ -263,8 +248,7 @@ func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 			AddGenerationPrompt: true,
 			EnableThinking:      true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := hermesToolOracle(true)
 	if got != want {
 		t.Fatalf(

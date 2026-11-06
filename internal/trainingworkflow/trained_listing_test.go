@@ -42,15 +42,12 @@ func TestATrainedModelIsListedWhenItsTrainingEnds(t *testing.T) {
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}
-			weights, err := IdentifyModelWeights(model)
-			testcheck.NoError(t, err)
-			recipeID, err := BootstrapTokenRecipe(ctx, store, weights, dataset)
-			testcheck.NoError(t, err)
-			result, err := Execute(ctx, Request{
+			weights := testcheck.Must(IdentifyModelWeights(model))(t)
+			recipeID := testcheck.Must(BootstrapTokenRecipe(ctx, store, weights, dataset))(t)
+			result := testcheck.Must(Execute(ctx, Request{
 				Repository: store, Recipe: recipeID, Observations: store, ModelDirectory: model, DatasetPath: dataset,
 				OutputDirectory: filepath.Join(root, "out"), Steps: 1, MaximumSequence: 8, Host: true,
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			definition, err := recipe.RequireDefinition(ctx, store, result.Candidate)
 			if err != nil {
 				t.Fatalf("the run published no recipe for the model it trained: %v", err)

@@ -64,8 +64,7 @@ func TestProportionalRopeTensor(t *testing.T) {
 		len(tensor.Shape) != 1 || tensor.Shape[0] != 8 {
 		t.Fatalf("tensor = %+v", tensor)
 	}
-	encoded, err := io.ReadAll(tensor.Data)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(io.ReadAll(tensor.Data))(t)
 	for index := range 8 {
 		got := math.Float32frombits(binary.LittleEndian.Uint32(encoded[index*4:]))
 		want := float32(1e30)

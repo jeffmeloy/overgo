@@ -29,10 +29,8 @@ func TestWebUIBrowserPlainSummaries(t *testing.T) {
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: outputID}}}); err != nil {
 		t.Fatal(err)
 	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "")
-	testcheck.NoError(t, err)
-	batch, err := run.Batch("fixture/run")
-	testcheck.NoError(t, err)
+	run := testcheck.Must(runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, ""))(t)
+	batch := testcheck.Must(run.Batch("fixture/run"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

@@ -20,17 +20,14 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 	tc := linearCTCOracle(t)[0]
 	spec := linearCTCSpec(tc)
 	spec.Optimizer.Schedule, spec.Optimizer.Steps = optimizer.ScheduleLinearDecay, 4
-	m, err := NewLinearCTC(spec)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(NewLinearCTC(spec))(t)
 	binding := InputProjectionBinding{
 		BaseRecipe:      testutil.ArtifactID(t, artifact.KindRecipe, "base"),
 		TargetTransform: testutil.ArtifactID(t, artifact.KindProfile, "transform"),
 	}
-	execution, err := m.Bind(t.Context())
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(m.Bind(t.Context()))(t)
 	example := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
-	forward, err := execution.Select(trainingprogram.PhaseForward)
-	testcheck.NoError(t, err)
+	forward := testcheck.Must(execution.Select(trainingprogram.PhaseForward))(t)
 	testcheck.NoError(t, forward.Run(&example))
 	if _, err := m.OptimizerSnapshot(); err == nil {
 		t.Fatal("accepted unfinished forward checkpoint")
@@ -39,12 +36,10 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 		t.Fatal("published unfinished checkpoint")
 	}
 	testcheck.NoError(t, execution.Run(&example))
-	state, err := m.OptimizerSnapshot()
-	testcheck.NoError(t, err)
+	state := testcheck.Must(m.OptimizerSnapshot())(t)
 	directory := t.TempDir()
 	testcheck.NoError(t, m.SaveWeights(directory, binding))
-	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights)))(t)
 	weightsID, _, err := artifact.Identify(artifact.KindTensorSet, file)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatalf("hash %v close %v", err, closeErr)
@@ -53,26 +48,21 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 	if err != nil || !slices.Equal(weights, m.WeightSnapshot()) {
 		t.Fatalf("weights roundtrip: %v", err)
 	}
-	resumed, err := NewLinearCTC(spec)
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(NewLinearCTC(spec))(t)
 	testcheck.NoError(t, resumed.Restore(weights, state))
-	replay, err := resumed.Bind(t.Context())
-	testcheck.NoError(t, err)
+	replay := testcheck.Must(resumed.Bind(t.Context()))(t)
 	for range 2 {
 		replayed := LinearCTCExample{Hidden: tc.Hidden, Targets: tc.Targets, Frames: tc.Frames}
 		testcheck.NoError(t, execution.Run(&example))
 		testcheck.NoError(t, replay.Run(&replayed))
-		left, err := m.OptimizerSnapshot()
-		testcheck.NoError(t, err)
-		right, err := resumed.OptimizerSnapshot()
-		testcheck.NoError(t, err)
+		left := testcheck.Must(m.OptimizerSnapshot())(t)
+		right := testcheck.Must(resumed.OptimizerSnapshot())(t)
 		if example.Loss != replayed.Loss || example.Update != replayed.Update || !reflect.DeepEqual(left, right) || !slices.Equal(m.WeightSnapshot(), resumed.WeightSnapshot()) {
 			t.Fatal("resumed trajectory differs")
 		}
 	}
 	before := resumed.WeightSnapshot()
-	beforeState, err := resumed.OptimizerSnapshot()
-	testcheck.NoError(t, err)
+	beforeState := testcheck.Must(resumed.OptimizerSnapshot())(t)
 	for _, mode := range []string{"weights", "momentum", "configuration", "plan"} {
 		t.Run(mode, func(t *testing.T) {
 			badWeights := slices.Clone(weights)
@@ -100,8 +90,7 @@ func TestInputProjectionCheckpoint(t *testing.T) {
 	for _, mode := range []string{"base", "transform", "digest", "shape", "budget", "missing", "extra", "nonfinite", "placement"} {
 		t.Run(mode, func(t *testing.T) {
 			candidate := t.TempDir()
-			metadata, err := binding.metadata()
-			testcheck.NoError(t, err)
+			metadata := testcheck.Must(binding.metadata())(t)
 			tensors := map[string][]float32{inputProjectionTensor: slices.Clone(weights)}
 			shapes := map[string][]int{inputProjectionTensor: {tc.Width, tc.Width}}
 			wantBinding, wantID, width, budget := binding, weightsID, tc.Width, m.StorageBytes()

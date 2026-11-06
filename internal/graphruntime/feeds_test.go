@@ -27,8 +27,7 @@ func TestFeedsReuseCompiledOutputGraph(t *testing.T) {
 	first, second := builder.Scale(input, 2), builder.Scale(input, 3)
 	feeds := NewFeeds(t.Context(), nil)
 	feeds.SetDevice(input, driver.DevicePtr(1))
-	compiled, err := feeds.compile([]*tensor.Tensor{first})
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(feeds.compile([]*tensor.Tensor{first}))(t)
 	slot, ok := compiled.Graph.InputSlot(input)
 	if !ok || compiled.Inputs.Pointers[slot] != driver.DevicePtr(1) {
 		t.Fatalf("device binding slot=%d found=%t", slot, ok)

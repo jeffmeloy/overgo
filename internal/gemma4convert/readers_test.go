@@ -14,8 +14,7 @@ import (
 )
 
 func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
-	file, err := os.CreateTemp(t.TempDir(), "fp8-*.bin")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.CreateTemp(t.TempDir(), "fp8-*.bin"))(t)
 	defer file.Close()
 	weights := []byte{0x00, 0x01, 0x08, 0x38, 0x40, 0x7e, 0x80, 0xb8}
 	scales := []float32{2, 0.5}
@@ -26,14 +25,10 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 	if _, err := file.Write(append(weights, encodedScales...)); err != nil {
 		t.Fatal(err)
 	}
-	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
-	testcheck.NoError(t, err)
-	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
-	testcheck.NoError(t, err)
-	reader, err := newFP8BF16Reader(weight, scale)
-	testcheck.NoError(t, err)
-	actual, err := io.ReadAll(reader)
-	testcheck.NoError(t, err)
+	weight := testcheck.Must(safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights))))(t)
+	scale := testcheck.Must(safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales))))(t)
+	reader := testcheck.Must(newFP8BF16Reader(weight, scale))(t)
+	actual := testcheck.Must(io.ReadAll(reader))(t)
 	if len(actual) != len(weights)*2 {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(weights)*2)
 	}
@@ -50,8 +45,7 @@ func TestFP8BF16ReaderFoldsRowScales(t *testing.T) {
 // writes the exact resident buffer layout -- all e4m3 weight bytes followed by
 // the per-row F32 scale bytes -- as a raw concatenation with no decode/repack.
 func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
-	file, err := os.CreateTemp(t.TempDir(), "fp8native-*.bin")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.CreateTemp(t.TempDir(), "fp8native-*.bin"))(t)
 	defer file.Close()
 	weights := []byte{0x00, 0x01, 0x08, 0x38, 0x40, 0x7e, 0x80, 0xb8}
 	scales := []float32{2, 0.5}
@@ -62,14 +56,10 @@ func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 	if _, err := file.Write(append(weights, encodedScales...)); err != nil {
 		t.Fatal(err)
 	}
-	weight, err := safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights)))
-	testcheck.NoError(t, err)
-	scale, err := safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales)))
-	testcheck.NoError(t, err)
-	reader, err := newFP8NativeReader(weight, scale)
-	testcheck.NoError(t, err)
-	actual, err := io.ReadAll(reader)
-	testcheck.NoError(t, err)
+	weight := testcheck.Must(safetensors.NewTensor("weight", "F8_E4M3", []uint64{2, 4}, file, 0, int64(len(weights))))(t)
+	scale := testcheck.Must(safetensors.NewTensor("scale", "F32", []uint64{2}, file, int64(len(weights)), int64(len(encodedScales))))(t)
+	reader := testcheck.Must(newFP8NativeReader(weight, scale))(t)
+	actual := testcheck.Must(io.ReadAll(reader))(t)
 	want := append(slices.Clone(weights), encodedScales...)
 	if len(actual) != len(want) {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(want))
@@ -82,8 +72,7 @@ func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 }
 
 func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
-	file, err := os.CreateTemp(t.TempDir(), "position-*.bin")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.CreateTemp(t.TempDir(), "position-*.bin"))(t)
 	defer file.Close()
 	for value := range uint16(8) {
 		var encoded [2]byte
@@ -92,12 +81,9 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	source, err := safetensors.NewTensor("position", "BF16", []uint64{2, 2, 2}, file, 0, 16)
-	testcheck.NoError(t, err)
-	reader, err := newPositionReader(source)
-	testcheck.NoError(t, err)
-	actual, err := io.ReadAll(reader)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.NewTensor("position", "BF16", []uint64{2, 2, 2}, file, 0, 16))(t)
+	reader := testcheck.Must(newPositionReader(source))(t)
+	actual := testcheck.Must(io.ReadAll(reader))(t)
 	want := []uint16{0, 1, 4, 5, 2, 3, 6, 7}
 	for index, expected := range want {
 		got := binary.LittleEndian.Uint16(actual[index*2:])
@@ -108,8 +94,7 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 }
 
 func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
-	file, err := os.CreateTemp(t.TempDir(), "patch-*.bin")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.CreateTemp(t.TempDir(), "patch-*.bin"))(t)
 	defer file.Close()
 	for value := range uint16(12) {
 		var encoded [2]byte
@@ -118,12 +103,9 @@ func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	source, err := safetensors.NewTensor("patch", "BF16", []uint64{2, 6}, file, 0, 24)
-	testcheck.NoError(t, err)
-	reader, err := newPatchPermutationReader(source)
-	testcheck.NoError(t, err)
-	actual, err := io.ReadAll(reader)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.NewTensor("patch", "BF16", []uint64{2, 6}, file, 0, 24))(t)
+	reader := testcheck.Must(newPatchPermutationReader(source))(t)
+	actual := testcheck.Must(io.ReadAll(reader))(t)
 	want := []uint16{0, 3, 1, 4, 2, 5, 6, 9, 7, 10, 8, 11}
 	for index, expected := range want {
 		got := binary.LittleEndian.Uint16(actual[index*2:])

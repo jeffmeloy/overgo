@@ -124,8 +124,7 @@ func openF32FixtureRunner(path string, options OpenOptions) (*Runner, error) {
 func cacheRunnerOpener(t *testing.T, path string) func(f32 bool) *Runner {
 	return func(f32 bool) *Runner {
 		t.Helper()
-		runner, err := openF32FixtureRunner(path, OpenOptions{F32Cache: f32})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{F32Cache: f32}))(t)
 		t.Cleanup(func() { _ = runner.Close() })
 		return runner
 	}

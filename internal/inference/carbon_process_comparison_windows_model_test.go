@@ -40,11 +40,9 @@ var carbonProcessLineMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE[^\r\n]*`)
 
 func TestCarbonColdLifecyclePhases(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	storePath := filepath.Join(t.TempDir(), "repodb")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	if err := servingtest.PublishActiveGGUFWithPolicy(
 		context.Background(), store, modelPath, recipe.PlacementHybrid,
@@ -153,8 +151,7 @@ func carbonCandidatePhaseMedians(t testing.TB, results []testprocess.Result) (ti
 			t.Fatalf("Carbon candidate phase marker is malformed: %s", result.Output)
 		}
 		for field, target := range []*time.Duration{&resolveWalls[index], &openWalls[index], &generationWalls[index]} {
-			value, err := strconv.ParseUint(string(match[field+1]), 10, 64)
-			testcheck.NoError(t, err)
+			value := testcheck.Must(strconv.ParseUint(string(match[field+1]), 10, 64))(t)
 			*target = time.Duration(value)
 		}
 	}
@@ -175,12 +172,9 @@ func carbonProbeMedians(t testing.TB, results []testprocess.Result) (time.Durati
 		if len(match) != 4 {
 			t.Fatalf("Carbon process marker is malformed: %s", result.Output)
 		}
-		wall, err := strconv.ParseUint(string(match[1]), 10, 64)
-		testcheck.NoError(t, err)
-		warm, err := strconv.ParseUint(string(match[2]), 10, 64)
-		testcheck.NoError(t, err)
-		peak, err := strconv.ParseUint(string(match[3]), 10, 64)
-		testcheck.NoError(t, err)
+		wall := testcheck.Must(strconv.ParseUint(string(match[1]), 10, 64))(t)
+		warm := testcheck.Must(strconv.ParseUint(string(match[2]), 10, 64))(t)
+		peak := testcheck.Must(strconv.ParseUint(string(match[3]), 10, 64))(t)
 		walls[index], warms[index], peaks[index] = time.Duration(wall), time.Duration(warm), peak
 	}
 	slices.Sort(walls)

@@ -74,13 +74,10 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
 	path := modeltest.GGUF(t, "qwen3")
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	spec, err := model.ReadSpec(file)
-	testcheck.NoError(t, err)
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(model.ReadSpec(file))(t)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	runner := &Runner{preparedModel: preparedModel{path: path,
 		file:  file,
 		spec:  spec,

@@ -18,8 +18,7 @@ import (
 func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
-	session, err := NewResidentSession(0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewResidentSession(0))(t)
 	defer func() {
 		if err := session.Close(ctx); err != nil {
 			t.Error(err)
@@ -37,10 +36,8 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 		outputs = append(outputs, builder.Add(inputs[index], weights[index]))
 	}
 	testcheck.NoError(t, builder.Err())
-	program, err := session.Compile(ctx, "chunk", nil, outputs...)
-	testcheck.NoError(t, err)
-	before, err := session.Stats(ctx)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(session.Compile(ctx, "chunk", nil, outputs...))(t)
+	before := testcheck.Must(session.Stats(ctx))(t)
 	host := map[*tensor.Tensor]reference.Value{}
 	for index, weight := range weights {
 		values, ones := make([]float32, sizes[index]), make([]float32, sizes[index])
@@ -50,13 +47,11 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 		testcheck.NoError(t, session.BindF32(ctx, program, "chunk", weight, values))
 		host[inputs[index]] = reference.Value{Shape: inputs[index].Shape, Data: ones}
 	}
-	bound, err := session.Stats(ctx)
-	testcheck.NoError(t, err)
+	bound := testcheck.Must(session.Stats(ctx))(t)
 	if made := bound.Device.Allocations - before.Device.Allocations; made != 1 {
 		t.Fatalf("binding three weights made %d allocations, want one", made)
 	}
-	result, err := session.Execute(ctx, program, host)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(session.Execute(ctx, program, host))(t)
 	for index, out := range outputs {
 		got := result[out].Data
 		if want := float32(index + 2); len(got) != int(sizes[index]) || got[0] != want || got[len(got)-1] != want {
@@ -66,8 +61,7 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 	// The run's own execution memory goes first, so what release returns is the weights' alone.
 	testcheck.NoError(t, session.ReleaseStageMemory(ctx))
 	testcheck.NoError(t, session.Release(ctx, program))
-	released, err := session.Stats(ctx)
-	testcheck.NoError(t, err)
+	released := testcheck.Must(session.Stats(ctx))(t)
 	if released.Device.CurrentBytes > before.Device.CurrentBytes || session.StaticBytes() != 0 {
 		t.Fatalf("after release the session holds %d bytes (%d before) and %d static", released.Device.CurrentBytes, before.Device.CurrentBytes, session.StaticBytes())
 	}
@@ -80,8 +74,7 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 func TestAResidentProgramTakesNoMoreThanItsInputs(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
-	session, err := NewResidentSession(0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewResidentSession(0))(t)
 	defer func() {
 		if err := session.Close(ctx); err != nil {
 			t.Error(err)
@@ -95,13 +88,10 @@ func TestAResidentProgramTakesNoMoreThanItsInputs(t *testing.T) {
 		bound := builder.Input("weight", dtype.F32, tensor.MustShape(weight.elements))
 		out := builder.Add(input, bound)
 		testcheck.NoError(t, builder.Err())
-		program, err := session.Compile(ctx, "bytes", nil, out)
-		testcheck.NoError(t, err)
-		before, err := session.Stats(ctx)
-		testcheck.NoError(t, err)
+		program := testcheck.Must(session.Compile(ctx, "bytes", nil, out))(t)
+		before := testcheck.Must(session.Stats(ctx))(t)
 		testcheck.NoError(t, session.BindF32(ctx, program, "bytes", bound, make([]float32, weight.elements)))
-		after, err := session.Stats(ctx)
-		testcheck.NoError(t, err)
+		after := testcheck.Must(session.Stats(ctx))(t)
 		if took := after.Device.CurrentBytes - before.Device.CurrentBytes; took != weight.takes {
 			t.Fatalf("binding a weight of %d bytes took %d bytes of the card, want %d", 4*weight.elements, took, weight.takes)
 		}

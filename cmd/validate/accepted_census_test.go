@@ -27,8 +27,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
 	}
-	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(filepath.Join("..", "..")))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	// The binding file names its own base, the historical census held below
 	// by its producer and counts, so no identity is typed here or by whoever
@@ -44,8 +43,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	} else if !found {
 		t.Skip("integration: the bound producer census document is absent from this store; only the producer's store lineage carries it")
 	}
-	value, err := capabilityCensusCodec.Require(t.Context(), store, id)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(capabilityCensusCodec.Require(t.Context(), store, id))(t)
 	if value.ProducerCommit != "5d55e6108519e7abf35776892b0043cad030027f" || len(value.Models) != 43 || len(value.Verifications) != 51 {
 		t.Fatal("accepted producer, registered denominator or historical record set differs")
 	}
@@ -97,8 +95,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	}
 	t.Logf("census=%s: 43 identities, 26 activated identities, 28 task/recipe pairs in 10 task kinds, 6 unavailable inactive identities, 0 stale activations, 51 historical records; 8 text + 1 DNA inference activations. No model execution, quality promotion or historical evidence reuse was asserted.", id)
 	testcheck.NoError(t, checkCensusDisposition(t.Context(), store, binding))
-	current, err := capabilityCensusCodec.Require(t.Context(), store, binding.Current)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(capabilityCensusCodec.Require(t.Context(), store, binding.Current))(t)
 	testcheck.NoError(t, checkCapabilityCensus(t.Context(), store, current, catalogLimit))
 	for _, invalid := range []acceptedCensus{
 		{Base: id, Current: id, Finding: binding.Finding, Disposition: binding.Disposition},

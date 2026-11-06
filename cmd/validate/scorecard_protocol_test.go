@@ -127,8 +127,7 @@ func TestScorecardSetsASampleAskedAnotherWayBesideItsReading(t *testing.T) {
 		t.Fatalf("a scorecard with no choice reading says %q of a sample", text)
 	}
 
-	held, err := scorecard.ProtocolSamples()
-	testcheck.NoError(t, err)
+	held := testcheck.Must(scorecard.ProtocolSamples())(t)
 	if len(held) == 0 {
 		t.Fatal("the repository holds no sample asked another way")
 	}

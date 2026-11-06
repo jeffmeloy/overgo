@@ -41,8 +41,7 @@ func ditTestConfig() (DenoiserConfig, LatentGeometry, int) {
 
 func TestIndexedMediaProgramBindings(t *testing.T) {
 	config, geometry, _ := ditTestConfig()
-	program, err := CompileDenoiserProgram(config, &DenoiserWeights{}, geometry)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileDenoiserProgram(config, &DenoiserWeights{}, geometry))(t)
 	for _, bindings := range []tensor.WeightBindings{program.contextWeightInputs, program.stepWeightInputs} {
 		first := bindings[0]
 		if bindings.Node(first.Name) != first {
@@ -70,8 +69,7 @@ func ditTestTrainer(t *testing.T) (*ditTrainer, DiTTrainBatch) {
 		}
 		tensors[spec.name] = values
 	}
-	trainer, err := NewDiTTrainer(cfg, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewDiTTrainer(cfg, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	t.Cleanup(func() { trainer.Close() })
 	if len(tensors) != 0 {
 		t.Fatalf("trainer left %d tensors unconsumed", len(tensors))
@@ -144,11 +142,9 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 			}
 		}
 		shift(1)
-		plus, err := trainer.Loss(batch)
-		testcheck.NoError(t, err)
+		plus := testcheck.Must(trainer.Loss(batch))(t)
 		shift(-1)
-		minus, err := trainer.Loss(batch)
-		testcheck.NoError(t, err)
+		minus := testcheck.Must(trainer.Loss(batch))(t)
 		copy(trainer.weights[s.start:s.end], saved)
 		numeric := (plus - minus) / (2 * epsilon)
 		var got float64
@@ -166,18 +162,15 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 // the flow-matching MSE.
 func TestDiTTrainerStepDescends(t *testing.T) {
 	trainer, batch := ditTestTrainer(t)
-	first, err := trainer.Loss(batch)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(trainer.Loss(batch))(t)
 	var last ditTrainStepResult
 	for step := range 5 {
-		last, err = trainer.Step(batch)
-		testcheck.NoError(t, err)
+		last = testcheck.Must(trainer.Step(batch))(t)
 		if last.GradientL2 <= 0 {
 			t.Fatalf("step %d: gradient norm %g", step, last.GradientL2)
 		}
 	}
-	final, err := trainer.Loss(batch)
-	testcheck.NoError(t, err)
+	final := testcheck.Must(trainer.Loss(batch))(t)
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
@@ -191,8 +184,7 @@ func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	if _, err := trainer.Step(batch); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan()))(t)
 	cfg, _, textDim := ditTestConfig()
 	trained := map[string][]float32{}
 	for _, spec := range ditTensorSpecs(cfg, textDim) {
@@ -209,14 +201,10 @@ func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 // same block outputs, same predicted velocity.
 func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
 	trainer, batch := ditTestTrainer(t)
-	text, err := trainer.projectText(batch.RawText, batch.TextTokens)
-	testcheck.NoError(t, err)
-	timeActs, err := trainer.timestepConditioning(batch.Timestep)
-	testcheck.NoError(t, err)
-	retained, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, true)
-	testcheck.NoError(t, err)
-	checkpointed, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, false)
-	testcheck.NoError(t, err)
+	text := testcheck.Must(trainer.projectText(batch.RawText, batch.TextTokens))(t)
+	timeActs := testcheck.Must(trainer.timestepConditioning(batch.Timestep))(t)
+	retained := testcheck.Must(trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, true))(t)
+	checkpointed := testcheck.Must(trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, false))(t)
 	if checkpointed.blocks != nil {
 		t.Fatal("checkpointed forward retained full block activations")
 	}

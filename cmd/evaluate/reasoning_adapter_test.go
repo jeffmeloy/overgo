@@ -15,8 +15,7 @@ func TestReasoningAdapterUsesDeclaredClosure(t *testing.T) {
 	for _, markers := range [][2]string{{"<think>", "</think>"}, {"<|channel>thought", "<channel|>"}} {
 		t.Run(markers[0], func(t *testing.T) {
 			path := testutil.HermeticLlamaGGUFWith(t, 64, gguf.StringMetadata("tokenizer.chat_template", markers[0]+markers[1]))
-			loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHost, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
-			testcheck.NoError(t, err)
+			loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHost, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))(t)
 			runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 			if err != nil {
 				_ = loaded.Close()

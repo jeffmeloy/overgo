@@ -25,8 +25,7 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(fixture.root, lockFilename), nil, storeFileMode))
 	head, sequence := fixture.store.Head()
 	destination := filepath.Join(t.TempDir(), "candidate")
-	report, err := CloneStore(fixture.root, destination)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(CloneStore(fixture.root, destination))(t)
 	if report.LinkedBlobs != 3 || report.CopiedFiles == 0 || report.CopiedBytes == 0 {
 		t.Fatalf("clone report = %+v", report)
 	}
@@ -37,17 +36,14 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 		t.Fatalf("clone carried the lock: %v", err)
 	}
 
-	candidate, err := Create(destination)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(Create(destination))(t)
 	defer candidate.Close()
 	if cloneHead, cloneSequence := candidate.Head(); cloneHead != head || cloneSequence != sequence {
 		t.Fatalf("clone head (%s, %d), want (%s, %d)", cloneHead, cloneSequence, head, sequence)
 	}
 	orphan := fixture.orphan.Descriptor.ID
-	sourceBlob, err := fixture.store.blobs.path(orphan)
-	testcheck.NoError(t, err)
-	cloneBlob, err := candidate.blobs.path(orphan)
-	testcheck.NoError(t, err)
+	sourceBlob := testcheck.Must(fixture.store.blobs.path(orphan))(t)
+	cloneBlob := testcheck.Must(candidate.blobs.path(orphan))(t)
 	sourceInfo, sourceErr := os.Stat(sourceBlob)
 	cloneInfo, cloneErr := os.Stat(cloneBlob)
 	if sourceErr != nil || cloneErr != nil || !os.SameFile(sourceInfo, cloneInfo) {

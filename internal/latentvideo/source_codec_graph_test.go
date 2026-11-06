@@ -41,8 +41,7 @@ func TestVAEEncoderPlanCompilesInventory(t *testing.T) {
 		meta("encoder.head.0.gamma", featureChannels), meta("encoder.head.2.weight", momentChannels, featureChannels, kernelExtent, kernelExtent, kernelExtent), meta("encoder.head.2.bias", momentChannels),
 		meta("conv1.weight", momentChannels, momentChannels, pointExtent, pointExtent, pointExtent), meta("conv1.bias", momentChannels),
 	}
-	plan, err := CompileVAEEncoderPlan(inventory)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileVAEEncoderPlan(inventory))(t)
 	wantPrefixes := []string{"encoder.conv1", "encoder.downsamples.0", "encoder.middle.0", "encoder.head", "conv1"}
 	if plan.InputChannels != inputChannels || plan.LatentChannels != featureChannels || plan.MomentChannels != momentChannels ||
 		plan.UsedTensorCount != len(inventory) || plan.UsedWeightBytes <= 0 ||

@@ -25,8 +25,7 @@ func TestHostDependencySourceSelection(t *testing.T) {
 		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
 		testcheck.NoError(t, os.WriteFile(path, []byte(body), 0600))
 	}
-	selected, err := HostBuildSelection(root, "-deps", "-test", "./client")
-	testcheck.NoError(t, err)
+	selected := testcheck.Must(HostBuildSelection(root, "-deps", "-test", "./client"))(t)
 	if len(selected.Files) != 3 || !selected.Files["reader/reader.go"] || !selected.Files["client/client.go"] || !selected.Files["client/client_test.go"] {
 		t.Fatalf("dependency selection includes foreign tests, inactive sources or generated drivers: %+v", selected)
 	}

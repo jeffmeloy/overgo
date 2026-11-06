@@ -46,14 +46,12 @@ func componentFixture(t *testing.T, store *overgodb.Store, binding componentBind
 	for path, payload := range map[string][]byte{modelPath: modelPayload, componentPath: componentPayload} {
 		testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 	}
-	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	model := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: modelComponent,
-	}})
-	testcheck.NoError(t, err)
-	component, err := artifact.NewManifest(binding.kind, []artifact.Component{{
+	}}))(t)
+	component := testcheck.Must(artifact.NewManifest(binding.kind, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: componentWeights,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	key := "fixture/discovery/" + binding.name + "/" + suffix
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: key,
@@ -69,16 +67,14 @@ func componentFixture(t *testing.T, store *overgodb.Store, binding componentBind
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := binding.define(model.ID, component.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(binding.define(model.ID, component.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, key+"/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := modelrecipe.Transition(ctx, store, key+"/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, key+"/evidence", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, key+"/evidence", definition.ID))(t)
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, key+"/active", definition, verification, recipe.EvidenceVerified, "discovery "+binding.name+" fixture", nil, nil,
 	); err != nil {

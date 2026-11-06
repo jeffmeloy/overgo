@@ -18,16 +18,13 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	mc1, err := CompileMultipleChoice(MultipleChoiceSuite{
+	mc1 := testcheck.Must(CompileMultipleChoice(MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "lm-eval/truthfulqa-mc1/v2.0", Source: "fixture",
 		Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy,
 		Cases: []MultipleChoiceCase{{Name: "breathing", Prompt: prompt, Candidates: []string{" No.", " Yes."}, Answer: 0}},
-	})
-	testcheck.NoError(t, err)
-	mc1Plan, err := BindMultipleChoice(mc1, authorities)
-	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	}))(t)
+	mc1Plan := testcheck.Must(BindMultipleChoice(mc1, authorities))(t)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	publishPlanFixtureAuthorities(t, store, mc1Plan)
 	mc1Report, err := evaluateMultipleChoice(t.Context(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
@@ -36,18 +33,15 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 		t.Fatalf("MC1 report = %+v, %v", mc1Report, err)
 	}
 	testcheck.NoError(t, store.Close())
-	mc2, err := compileProbabilityMass(probabilityMassSuite{
+	mc2 := testcheck.Must(compileProbabilityMass(probabilityMassSuite{
 		Kind: probabilityMassKind, Schema: "lm-eval/truthfulqa-mc2/v3.0", Source: "fixture",
 		Normalization: sequencescore.NormalizationSum,
 		Cases: []probabilityMassCase{{
 			Name: "breathing", Prompt: prompt, Candidates: []string{" No.", " Correct.", " Yes."}, Positive: []bool{true, true, false},
 		}},
-	})
-	testcheck.NoError(t, err)
-	mc2Plan, err := bindProbabilityMass(mc2, authorities)
-	testcheck.NoError(t, err)
-	store, err = overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	}))(t)
+	mc2Plan := testcheck.Must(bindProbabilityMass(mc2, authorities))(t)
+	store = testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	publishPlanFixtureAuthorities(t, store, mc2Plan)
 	mc2Report, err := evaluateProbabilityMass(t.Context(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}},
@@ -56,15 +50,12 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 		t.Fatalf("MC2 report = %+v, %v", mc2Report, err)
 	}
 	testcheck.NoError(t, store.Close())
-	compiledGenerated, err := CompileGeneratedAnswer(GeneratedAnswerSuite{
+	compiledGenerated := testcheck.Must(CompileGeneratedAnswer(GeneratedAnswerSuite{
 		Kind: GeneratedAnswerKind, Schema: "lm-eval/truthfulqa-gen/v3.0", Source: "fixture",
 		Cases: []GeneratedAnswerCase{{Name: "breathing", Prompt: prompt, MaxTokens: 8, Answers: []string{generated}}},
-	})
-	testcheck.NoError(t, err)
-	generatedPlan, err := bindGeneratedAnswer(compiledGenerated, authorities)
-	testcheck.NoError(t, err)
-	store, err = overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	}))(t)
+	generatedPlan := testcheck.Must(bindGeneratedAnswer(compiledGenerated, authorities))(t)
+	store = testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	publishPlanFixtureAuthorities(t, store, generatedPlan)
 	generatedReport, err := evaluateGeneratedAnswer(
 		t.Context(), store, exactGenerator{pieces: []string{generated}}, compiledGenerated, generatedPlan,

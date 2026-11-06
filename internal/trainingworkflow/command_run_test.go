@@ -43,8 +43,7 @@ func TestRewardRunHandsItsStepsToItsStarter(t *testing.T) {
 	t.Setenv(rewardStepsEnvironment, handoff)
 	request.Host, request.Device, request.Observations = false, hostWeightedStep, request.Repository.(artifact.Repository)
 	request.Steps, request.OutputDirectory = 1, filepath.Join(root, "first")
-	result, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(Execute(t.Context(), request))(t)
 	var handed []trainingprogram.GRPOObservation
 	if err := jsonfile.DecodeStrict(handoff, &handed); err != nil || len(handed) != 1 || !reflect.DeepEqual(handed, result.GRPO) {
 		t.Fatalf("the file the run's starter named holds %+v (%v); want the one step the run returned, %+v", handed, err, result.GRPO)

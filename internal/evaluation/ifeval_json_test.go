@@ -40,8 +40,7 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 		t.Fatalf("assemble: dropped=%d err=%v", dropped, err)
 	}
 	suite := assembled.(instructionRulesSuite)
-	compiled, err := compileInstructionRules(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(compileInstructionRules(suite))(t)
 	if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 		t.Fatal("one native instruction must produce one metric entry")
 	}
@@ -55,8 +54,7 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 	priorSuite := suite
 	priorSuite.Cases = slices.Clone(suite.Cases)
 	priorSuite.Cases[0].Rules = []instructionRule{{Name: "detectable_format:json_format", Kind: ruleJSON}}
-	prior, err := compileInstructionRules(priorSuite)
-	testcheck.NoError(t, err)
+	prior := testcheck.Must(compileInstructionRules(priorSuite))(t)
 	if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 		t.Fatal("changed scorer reused the old evaluator identity")
 	}

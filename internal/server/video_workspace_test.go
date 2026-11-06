@@ -16,8 +16,7 @@ import (
 
 func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	video := []byte("mp4-output-bytes")
 	videoID := testutil.ArtifactBytesID(t, artifact.KindOutput, video)
 	generateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "video-generate-recipe")
@@ -44,8 +43,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 			recipe.TaskVideoGen: {Run: generateRun, Outputs: []artifact.ID{videoID}},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: workspace}, workspace))(t)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()

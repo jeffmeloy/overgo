@@ -61,26 +61,21 @@ func TestEncoderBlockMatchesTorchFixture(t *testing.T) {
 		FC2:          encoderMatrix{wide: arithmeticFloat32Sequence(0.08, 0.02, 24)},
 		PosEmbedding: arithmeticFloat32Sequence(0.10, 0.02, 8),
 	}
-	positive, err := representation.RelativePositionBuckets(1, 3, 4, 8, true)
-	testcheck.NoError(t, err)
-	negative, err := representation.RelativePositionBuckets(2, 1, 4, 8, true)
-	testcheck.NoError(t, err)
+	positive := testcheck.Must(representation.RelativePositionBuckets(1, 3, 4, 8, true))(t)
+	negative := testcheck.Must(representation.RelativePositionBuckets(2, 1, 4, 8, true))(t)
 	if got := append(positive, negative[1]); !reflect.DeepEqual(got, []int{0, 3, 3, 1}) {
 		t.Fatalf("relative buckets=%v", got)
 	}
-	buckets, err := representation.RelativePositionBuckets(3, 3, 4, referenceEncoderPolicy.RelativeMaxDistance, true)
-	testcheck.NoError(t, err)
-	got, err := encoderBlockForward(x, []int{1, 1, 0}, buckets, 1, 3, 4, 2, 6, 4, w, 1e-6, false)
-	testcheck.NoError(t, err)
+	buckets := testcheck.Must(representation.RelativePositionBuckets(3, 3, 4, referenceEncoderPolicy.RelativeMaxDistance, true))(t)
+	got := testcheck.Must(encoderBlockForward(x, []int{1, 1, 0}, buckets, 1, 3, 4, 2, 6, 4, w, 1e-6, false))(t)
 	want := []float32{-0.4968312084674835, -0.39273759722709656, -0.2886439859867096, -0.18455031514167786, -0.09616664052009583, 0.008644644170999527, 0.11345595866441727, 0.21826721727848053, 0.3046256899833679, 0.40998393297195435, 0.5153422355651855, 0.6207005977630615}
 	requireFloat32MaxAbs(t, "encoder block", got, want, 2e-6)
 }
 
 func TestCompileEncoderPlanRejectsIncomplete(t *testing.T) {
-	plan, err := CompileEncoderPlan([]pytorchzip.TensorMeta{
+	plan := testcheck.Must(CompileEncoderPlan([]pytorchzip.TensorMeta{
 		{Name: "token_embedding.weight", DType: "BFloat16Storage", Shape: []int64{256384, 4096}, Numel: 256384 * 4096},
-	}, referenceEncoderPolicy)
-	testcheck.NoError(t, err)
+	}, referenceEncoderPolicy))(t)
 	if plan.OK || len(plan.Missing) == 0 {
 		t.Fatalf("expected incomplete plan to fail, got %+v", plan)
 	}
@@ -116,8 +111,7 @@ func writeSyntheticTokenizer(t *testing.T, dir string) {
 			},
 		},
 	}
-	b, err := json.Marshal(raw)
-	testcheck.NoError(t, err)
+	b := testcheck.Must(json.Marshal(raw))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), b, 0o644))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "special_tokens_map.json"), []byte(`{"pad_token":"<pad>","eos_token":"</s>","unk_token":"<unk>"}`), 0o644))
 }
@@ -125,8 +119,7 @@ func writeSyntheticTokenizer(t *testing.T, dir string) {
 func TestFixedUnigramTokenizerSyntheticEncodeWithMask(t *testing.T) {
 	dir := t.TempDir()
 	writeSyntheticTokenizer(t, dir)
-	tok, err := loadFixedUnigramTokenizer(dir, 5)
-	testcheck.NoError(t, err)
+	tok := testcheck.Must(loadFixedUnigramTokenizer(dir, 5))(t)
 	ids, mask, err := tok.EncodeWithMask("  hello   world  ")
 	testcheck.NoError(t, err)
 	if !reflect.DeepEqual(ids, []int{4, 5, 1, 0, 0}) || !reflect.DeepEqual(mask, []int{1, 1, 1, 0, 0}) {

@@ -35,18 +35,16 @@ func launchEvaluationWorkspace(t testing.TB) *evaluationWorkspaceFixture {
 	t.Helper()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "launch-evaluation-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "launch-evaluation-recipe")
-	data, err := json.Marshal(evaluation.ExactSuite{
+	data := testcheck.Must(json.Marshal(evaluation.ExactSuite{
 		Schema: "fixture/v1", Source: "fixture",
 		Cases: []evaluation.ExactCase{{Name: "case", Prompt: "prompt", MaxTokens: 1, Text: "A", PromptTokens: 2, GeneratedTokens: 1}},
-	})
-	testcheck.NoError(t, err)
-	compiled, err := evaluation.CompileSuite(data, evaluation.ExactAuthorities{
+	}))(t)
+	compiled := testcheck.Must(evaluation.CompileSuite(data, evaluation.ExactAuthorities{
 		ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "launch-evaluation-definition"),
 		RuntimeRecipe:   recipeID, CodeCommit: evaluationTestCommit,
 		Environment: testutil.ArtifactID(t, artifact.KindEvidence, "launch-evaluation-environment"),
 		Execution:   evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return &evaluationWorkspaceFixture{
 		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "launch-evaluation-run"),
@@ -72,8 +70,7 @@ func workspaceTabsByID(t testing.TB, handler *Handler) map[string]workspaceTab {
 // launch enabled them, and refuses each with its reason when it did not.
 func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	t.Parallel()
-	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t), Workflows: launchWorkflows(t, WorkflowTraining, workflowModelBuild)}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	enabled := testcheck.Must(New(Config{Evaluation: launchEvaluationWorkspace(t), Workflows: launchWorkflows(t, WorkflowTraining, workflowModelBuild)}, &fakeGenerator{}))(t)
 	defer enabled.Close()
 	tabs := workspaceTabsByID(t, enabled)
 	for _, id := range []string{"training-jobs", "model-builder", "evaluations"} {
@@ -84,8 +81,7 @@ func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	if tabs["export-jobs"].Enabled || tabs["export-jobs"].Refusal == "" {
 		t.Fatalf("workspace the launch did not enable is not refused: %+v", tabs["export-jobs"])
 	}
-	refused, err := New(Config{Workflows: launchWorkflows(t)}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(New(Config{Workflows: launchWorkflows(t)}, &fakeGenerator{}))(t)
 	defer refused.Close()
 	tabs = workspaceTabsByID(t, refused)
 	for _, id := range []string{"training-jobs", "model-builder", "evaluations"} {

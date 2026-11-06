@@ -39,22 +39,16 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 			t.Fatal(err)
 		}
 	}
-	inventory, err := speechsynth.Inventory(directory)
-	testcheck.NoError(t, err)
-	batch, err := inventory.Batch("model")
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(speechsynth.Inventory(directory))(t)
+	batch := testcheck.Must(inventory.Batch("model"))(t)
 	commit(batch)
-	base, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "speech-base", base); err != nil {
 		t.Fatal(err)
 	}
-	model, err := speechsynth.Load(directory)
-	testcheck.NoError(t, err)
-	facts, err := speechTrainingFacts(model)
-	testcheck.NoError(t, err)
-	conditioning, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "fixture/text-bos"), "text-bos")
-	testcheck.NoError(t, err)
+	model := testcheck.Must(speechsynth.Load(directory))(t)
+	facts := testcheck.Must(speechTrainingFacts(model))(t)
+	conditioning := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "fixture/text-bos"), "text-bos"))(t)
 	profile := trainingdata.SpeechLatentProfile{Model: base.Model, Transform: facts[0].Descriptor.ID, Noise: facts[1].Descriptor.ID,
 		Conditioning: conditioning.Descriptor.ID, Width: 2, MaximumFrames: 3, MaximumTextBytes: 64, MaximumEncodedBytes: 2048}
 	for _, component := range inventory.Manifest.Components {
@@ -65,8 +59,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 			profile.Codec = component.Artifact
 		}
 	}
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profileContent := testcheck.Must(profile.Content())(t)
 	commit(artifact.Batch{Key: "processing", Contents: append(facts, conditioning, profileContent)})
 	source := testutil.ArtifactID(t, artifact.KindFile, "independent fixture latent producer")
 	var raw bytes.Buffer
@@ -78,31 +71,22 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 	}
 	path := filepath.Join(root, "targets.jsonl")
 	testcheck.NoError(t, os.WriteFile(path, raw.Bytes(), 0o600))
-	asset, err := artifact.IdentifyBytes(artifact.KindFile, raw.Bytes())
-	testcheck.NoError(t, err)
-	version, err := dataset.NewVersion([]dataset.Asset{{Name: "latents", Artifact: asset, Records: 3}})
-	testcheck.NoError(t, err)
-	training, err := dataset.NewMembership(version.ID, 9, "train", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 0), Group: "one"}, {ID: dataset.RecordID(version.ID, "latents", 1), Group: "two"}})
-	testcheck.NoError(t, err)
-	heldout, err := dataset.NewMembership(version.ID, 9, "heldout", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 2), Group: "three"}})
-	testcheck.NoError(t, err)
-	versionContent, err := version.Content()
-	testcheck.NoError(t, err)
-	trainContent, err := training.Content()
-	testcheck.NoError(t, err)
-	heldContent, err := heldout.Content()
-	testcheck.NoError(t, err)
+	asset := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, raw.Bytes()))(t)
+	version := testcheck.Must(dataset.NewVersion([]dataset.Asset{{Name: "latents", Artifact: asset, Records: 3}}))(t)
+	training := testcheck.Must(dataset.NewMembership(version.ID, 9, "train", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 0), Group: "one"}, {ID: dataset.RecordID(version.ID, "latents", 1), Group: "two"}}))(t)
+	heldout := testcheck.Must(dataset.NewMembership(version.ID, 9, "heldout", []dataset.Record{{ID: dataset.RecordID(version.ID, "latents", 2), Group: "three"}}))(t)
+	versionContent := testcheck.Must(version.Content())(t)
+	trainContent := testcheck.Must(training.Content())(t)
+	heldContent := testcheck.Must(heldout.Content())(t)
 	commit(artifact.Batch{Key: "dataset", Contents: []artifact.Content{versionContent, trainContent, heldContent},
 		Artifacts: []artifact.Descriptor{{ID: asset, Size: uint64(raw.Len())}, {ID: source}},
 		Lineage:   append(version.Lineage(), training.Lineage(), heldout.Lineage()), Locations: []artifact.LocationEvent{{Action: artifact.LocationAdd, Location: artifact.Location{Artifact: asset, Kind: artifact.LocationFile, Value: path}}}})
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{Name: "fixture speech", Kind: trainingprogram.ObjectiveLatentSequence,
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{Name: "fixture speech", Kind: trainingprogram.ObjectiveLatentSequence,
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityAudio}},
 		Dataset:   version.ID, Split: training.ID, Processors: []artifact.ID{profileContent.Descriptor.ID},
 		Loss: testutil.ArtifactID(t, artifact.KindProfile, "loss"), Evaluation: testutil.ArtifactID(t, artifact.KindProfile, "evaluation"), Metric: trainingprogram.MetricAudioSNR,
-		Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "synthetic training fixture; no model quality claim")}, Authority: trainingprogram.ObjectiveApproved})
-	testcheck.NoError(t, err)
-	trainingRecipe, err := BootstrapObjectiveForModel(t.Context(), store, base.Model, objective)
-	testcheck.NoError(t, err)
+		Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "synthetic training fixture; no model quality claim")}, Authority: trainingprogram.ObjectiveApproved}))(t)
+	trainingRecipe := testcheck.Must(BootstrapObjectiveForModel(t.Context(), store, base.Model, objective))(t)
 	return store, Request{Repository: store, Recipe: trainingRecipe, Host: true, Steps: 2, OutputDirectory: filepath.Join(root, "checkpoint"),
 		Speech: &SpeechTrainingSpec{BaseRecipe: base.ID, Profile: profile, MemoryBytes: 4096, Seed: 19, Shuffle: true}}, directory
 }
@@ -110,14 +94,11 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 func TestSpeechDatasetTraining(t *testing.T) {
 	t.Parallel()
 	store, request, _ := speechDatasetFixture(t)
-	whole, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	whole := testcheck.Must(Execute(t.Context(), request))(t)
 	request.Steps, request.OutputDirectory = 1, filepath.Join(t.TempDir(), "first")
-	first, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Execute(t.Context(), request))(t)
 	request.ResumeDirectory, request.OutputDirectory = request.OutputDirectory, filepath.Join(t.TempDir(), "resumed")
-	resumed, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(Execute(t.Context(), request))(t)
 	if whole.Checkpoint.Weights != resumed.Checkpoint.Weights || !reflect.DeepEqual(whole.Checkpoint.Optimizer, resumed.Checkpoint.Optimizer) ||
 		!reflect.DeepEqual(whole.Checkpoint.Stream, resumed.Checkpoint.Stream) || !reflect.DeepEqual(whole.Checkpoint.RNG, resumed.Checkpoint.RNG) ||
 		whole.Losses[0] != first.Losses[0] || whole.Losses[1] != resumed.Losses[0] || resumed.StreamPosition != 2 {
@@ -169,14 +150,12 @@ func TestSpeechDatasetTraining(t *testing.T) {
 func TestSpeechCheckpointPublication(t *testing.T) {
 	t.Parallel()
 	store, request, directory := speechDatasetFixture(t)
-	result, err := Execute(t.Context(), request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(Execute(t.Context(), request))(t)
 	status, found, err := modelrecipe.Status(t.Context(), store, result.Candidate)
 	if err != nil || !found || status != recipe.StatusCandidate {
 		t.Fatalf("publication activated recipe: %s %v", status, err)
 	}
-	definition, err := recipe.RequireDefinition(t.Context(), store, result.Candidate)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, result.Candidate))(t)
 	voiceDirectory := filepath.Join(directory, "embeddings")
 	testcheck.NoError(t, os.Mkdir(voiceDirectory, 0o700))
 	header := []byte(`{"transformer.layers.0.self_attn/cache":{"dtype":"F32","shape":[2,1,1,2,2],"data_offsets":[0,32]},"transformer.layers.0.self_attn/offset":{"dtype":"I64","shape":[1],"data_offsets":[32,40]}}`)
@@ -190,8 +169,7 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 	}
 	read := func(s *speechsynth.Synthesizer) speechsynth.Audio {
 		t.Helper()
-		audio, err := s.Speak(t.Context(), speechsynth.DocumentRequest{Text: "a b.", Voice: "fixture", Seed: 7})
-		testcheck.NoError(t, err)
+		audio := testcheck.Must(s.Speak(t.Context(), speechsynth.DocumentRequest{Text: "a b.", Voice: "fixture", Seed: 7}))(t)
 		return audio
 	}
 	untrained := read(load())
@@ -234,8 +212,7 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 		t.Fatal("resume ignored missing optimizer payload")
 	}
 	weightsPath := filepath.Join(request.OutputDirectory, trainingprogram.CheckpointWeights)
-	weights, err := os.ReadFile(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.ReadFile(weightsPath))(t)
 	weights[len(weights)-1] ^= 1
 	testcheck.NoError(t, os.WriteFile(weightsPath, weights, 0o600))
 	if err := load().RestoreRecipe(t.Context(), store, definition); err == nil {
@@ -265,11 +242,9 @@ func TestSpeechDatasetCommand(t *testing.T) {
 	store, request, _ := speechDatasetFixture(t)
 	storePath := filepath.Join(filepath.Dir(request.OutputDirectory), "store")
 	manifest := filepath.Join(filepath.Dir(request.OutputDirectory), "training.json")
-	data, err := json.Marshal(request.Speech)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(request.Speech))(t)
 	testcheck.NoError(t, os.WriteFile(manifest, data, 0o600))
-	definition, err := recipe.RequireDefinition(t.Context(), store, request.Recipe)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, request.Recipe))(t)
 	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
 	const alias = "objective.fixture.speech"
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "speech-command-objective", Aliases: []artifact.AliasBinding{{Name: alias, Target: objective}}}); err != nil {

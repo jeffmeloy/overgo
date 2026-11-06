@@ -211,8 +211,7 @@ func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
 	if !slices.Equal(packed, want) || gh != 1 || gw != 1 {
 		t.Fatalf("packed=%v grid=%dx%d, want=%v grid=1x1", packed, gh, gw, want)
 	}
-	back, err := media.UnpackPlanar(packed, c, gh, gw, patch, media.PatchChannelsLast)
-	testcheck.NoError(t, err)
+	back := testcheck.Must(media.UnpackPlanar(packed, c, gh, gw, patch, media.PatchChannelsLast))(t)
 	if !slices.Equal(back, planar) {
 		t.Fatalf("round trip=%v, want=%v", back, planar)
 	}

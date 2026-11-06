@@ -12,8 +12,7 @@ func TestRepositoryContract(t *testing.T) {
 	t.Parallel()
 	repositorytest.Run(t, func(t *testing.T) artifact.Repository {
 		t.Helper()
-		store, err := Open(t.TempDir())
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Open(t.TempDir()))(t)
 		return store
 	})
 }

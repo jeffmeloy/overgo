@@ -257,8 +257,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	const steps = 14
-	runner, err := openF32FixtureRunner(writeHermeticFlashNextGGUF(t), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(writeHermeticFlashNextGGUF(t), OpenOptions{}))(t)
 	defer runner.Close()
 	ctx := t.Context()
 	runner.mu.Lock()

@@ -25,8 +25,7 @@ func TestPromptAlreadyEncodedIsNotEncodedAgain(t *testing.T) {
 	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
 	testcheck.NoError(t, err)
-	encoder, err := promptEncoderFor(spec)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(promptEncoderFor(spec))(t)
 	passes := func() int {
 		encoder.mu.Lock()
 		defer encoder.mu.Unlock()
@@ -39,16 +38,13 @@ func TestPromptAlreadyEncodedIsNotEncodedAgain(t *testing.T) {
 		"rain begins on the reeds, held for this test",
 	}
 	before := passes()
-	first, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
-	testcheck.NoError(t, err)
-	again, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes))(t)
+	again := testcheck.Must(textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes))(t)
 	if passes() != before+1 || first.Encoder.Layers == 0 || again.Encoder.Layers != 0 || !slices.Equal(first.Context, again.Context) {
 		t.Fatalf("a prompt conditioned twice made %d passes (the first through %d blocks, the second %d) and gave the same context: %t",
 			passes()-before, first.Encoder.Layers, again.Encoder.Layers, slices.Equal(first.Context, again.Context))
 	}
-	together, err := textConditioningsWithWeights(t.Context(), spec, weights, sourceBytes, prompts...)
-	testcheck.NoError(t, err)
+	together := testcheck.Must(textConditioningsWithWeights(t.Context(), spec, weights, sourceBytes, prompts...))(t)
 	if passes() != before+2 || !slices.Equal(together[0].Context, first.Context) {
 		t.Fatalf("three prompts, one of them kept, made %d passes more", passes()-before-1)
 	}

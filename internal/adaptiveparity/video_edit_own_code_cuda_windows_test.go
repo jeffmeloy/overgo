@@ -85,8 +85,7 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "fixtures", "liveedit", "own_edit.json"), &own); err != nil {
 		t.Fatalf("the model's own edit is absent (%v); write it with %s", err, ownEditScript)
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	required := []string{checkpoint, latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint}
 	for _, clip := range own.Clips {
 		required = append(required, filepath.Join(roots.Datasets, "VidGen", clip.Name+".mp4"))
@@ -124,8 +123,7 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 				}
 			}
 		}
-		content, err := latentvideo.SourceFramesContent(source)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(latentvideo.SourceFramesContent(source))(t)
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/own-edit/" + clip.Name, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -154,15 +152,11 @@ func TestServedEditMatchesTheModelsOwnEdit(t *testing.T) {
 // returns the edited clip.
 func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(latentvideo.ReferenceEditRequest) latentvideo.EncodedVideo) {
 	t.Helper()
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, edit)}}, Contents: []artifact.Content{profileContent},
@@ -171,10 +165,8 @@ func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(la
 	}
 	return store, func(form latentvideo.ReferenceEditRequest) latentvideo.EncodedVideo {
 		t.Helper()
-		request, err := json.Marshal(form)
-		testcheck.NoError(t, err)
-		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request))
-		testcheck.NoError(t, err)
+		request := testcheck.Must(json.Marshal(form))(t)
+		output := testcheck.Must(mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request)))(t)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("a served edit is %T", output)
@@ -209,18 +201,15 @@ func directoryExtent(t *testing.T, directory string) uint64 {
 func servedSquareMeans(t *testing.T, video latentvideo.EncodedVideo, side int) [][]float64 {
 	t.Helper()
 	if video.MediaType == media.MP4MediaType {
-		ffmpeg, err := media.FFmpeg()
-		testcheck.NoError(t, err)
-		decoded, err := media.DecodeEncodedVideo(t.Context(), video.Data, ffmpeg, float64(video.FPS), video.Frames)
-		testcheck.NoError(t, err)
+		ffmpeg := testcheck.Must(media.FFmpeg())(t)
+		decoded := testcheck.Must(media.DecodeEncodedVideo(t.Context(), video.Data, ffmpeg, float64(video.FPS), video.Frames))(t)
 		means := make([][]float64, len(decoded))
 		for frame, picture := range decoded {
 			means[frame] = squareMeans(picture, side)
 		}
 		return means
 	}
-	animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-	testcheck.NoError(t, err)
+	animation := testcheck.Must(gif.DecodeAll(bytes.NewReader(video.Data)))(t)
 	canvas := image.NewRGBA(image.Rect(0, 0, video.Width, video.Height))
 	means := make([][]float64, len(animation.Image))
 	for frame, paletted := range animation.Image {

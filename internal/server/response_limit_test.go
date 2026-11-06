@@ -37,8 +37,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 					if tc.stop != "" {
 						input["stop"] = tc.stop
 					}
-					body, err := json.Marshal(input)
-					testcheck.NoError(t, err)
+					body := testcheck.Must(json.Marshal(input))(t)
 					response := serveTestRequest(handler, http.MethodPost, "/v1/responses", string(body))
 					if response.Code != http.StatusOK {
 						t.Fatalf("response: %d %s", response.Code, response.Body)

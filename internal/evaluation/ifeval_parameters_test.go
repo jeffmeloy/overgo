@@ -19,8 +19,7 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		legacy := json.RawMessage(`{"kind":"instruction-rules","schema":"legacy","source":"fixture","cases":[{"name":"one","prompt":"Count cats.","max_tokens":1,"rules":[{"name":"cats","kind":"substring-count","values":["cat"],"count":{"relation":"at-least","value":2}}]}]}`)
 		var suite instructionRulesSuite
 		testcheck.NoError(t, json.Unmarshal(legacy, &suite))
-		compiled, err := compileInstructionRules(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(suite))(t)
 		identity, err := artifact.JSONID(artifact.KindProfile, legacy)
 		if err != nil || identity != compiled.identity {
 			t.Fatal("omitted loose operands changed legacy identity")
@@ -44,8 +43,7 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		if !ok || len(rules) != 1 {
 			t.Fatalf("case %d not mapped", index)
 		}
-		rule, err := compileInstructionRule(rules[0])
-		testcheck.NoError(t, err)
+		rule := testcheck.Must(compileInstructionRule(rules[0]))(t)
 		strict, loose, err := evaluateInstructionViews(c.Response, []compiledInstructionRule{rule})
 		testcheck.NoError(t, err)
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
@@ -59,8 +57,7 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		strict, loose := makeRule("a"), makeRule("b")
 		strict.Loose = &loose
 		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "resolved-views", Source: "fixture", Cases: []instructionRulesCase{{Name: "one", Prompt: "Count letters.", MaxTokens: 1, Rules: []instructionRule{strict}}}}
-		compiled, err := compileInstructionRules(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(suite))(t)
 		loose.Values[0] = "c"
 		loose.Count.Value = 4
 		gotStrict, gotLoose, err := evaluateInstructionViews("aa", compiled.rules[0])

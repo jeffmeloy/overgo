@@ -35,22 +35,18 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 
-	scorerID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+scorerDir))
-	testcheck.NoError(t, err)
-	drafterID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+drafterDir))
-	testcheck.NoError(t, err)
+	scorerID := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+scorerDir)))(t)
+	drafterID := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+drafterDir)))(t)
 	chainProgram, _, err := trainingworkflow.ChainPrograms(scorerID, drafterID)
 	testcheck.NoError(t, err)
-	decomposition, err := modelartifact.NewComponentDecomposition(scorerID, "qwen2", "text",
-		[]modelartifact.TensorFact{{Name: "blk.0.attn_q.weight", Shape: []uint64{896, 896}, Storage: "bf16"}})
-	testcheck.NoError(t, err)
-	composed, err := composition.NewComposedModel(composition.ComposedModelDocument{
+	decomposition := testcheck.Must(modelartifact.NewComponentDecomposition(scorerID, "qwen2", "text",
+		[]modelartifact.TensorFact{{Name: "blk.0.attn_q.weight", Shape: []uint64{896, 896}, Storage: "bf16"}}))(t)
+	composed := testcheck.Must(composition.NewComposedModel(composition.ComposedModelDocument{
 		Architecture: "qwen2",
 		Recipe:       chainProgram.Definition().ID,
 		Parents:      []artifact.ID{scorerID, drafterID},
 		Components:   []artifact.ID{decomposition.ID},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	replay, err := composition.NewComposedModel(composition.ComposedModelDocument{
 		Architecture: "qwen2",
 		Recipe:       chainProgram.Definition().ID,
@@ -68,10 +64,8 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 		t.Fatal("unregistered architecture accepted")
 	}
 
-	recipeContent, err := chainProgram.Definition().ArtifactContent()
-	testcheck.NoError(t, err)
-	decompositionContent, err := decomposition.Content()
-	testcheck.NoError(t, err)
+	recipeContent := testcheck.Must(chainProgram.Definition().ArtifactContent())(t)
+	decompositionContent := testcheck.Must(decomposition.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "composed/inputs",
 		Artifacts: []artifact.Descriptor{{ID: scorerID}, {ID: drafterID}},
@@ -79,13 +73,11 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := composed.Batch("composed/" + composed.ID.String())
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(composed.Batch("composed/" + composed.ID.String()))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(ctx, composed.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(ctx, composed.ID))(t)
 	resolved := map[artifact.ID]bool{}
 	for _, parent := range parents {
 		resolved[parent.Parent] = true
@@ -108,12 +100,11 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	// through the generic runtime; the run's chain recipe identity must be
 	// exactly the composed artifact's recipe reference.
 	tokens := qwenAdaptiveProfileTokens
-	result, err := trainingworkflow.RunChainViability(store, trainingworkflow.ChainConfig{
+	result := testcheck.Must(trainingworkflow.RunChainViability(store, trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: 64, Draft: 8, Target: 32,
 		Windows: [][]int{tokens[:104]},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if result.ChainRecipe != parsed.Recipe {
 		t.Fatalf("execution recipe %s differs from the composed reference %s", result.ChainRecipe, parsed.Recipe)
 	}

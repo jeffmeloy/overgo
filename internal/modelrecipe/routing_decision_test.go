@@ -42,8 +42,7 @@ func TestRecipeRoutingDecisionContract(t *testing.T) {
 		Selected:   cheap.Recipe,
 		Derivation: RoutingDerivationCheapestEligible,
 	}
-	decision, err := NewRecipeRoutingDecision(template)
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(NewRecipeRoutingDecision(template))(t)
 	if !decision.ID.Valid() || decision.ID.Kind() != artifact.KindEvidence {
 		t.Fatalf("decision identity = %s", decision.ID)
 	}
@@ -58,8 +57,7 @@ func TestRecipeRoutingDecisionContract(t *testing.T) {
 		t.Fatalf("candidate order changed the identity: (%s, %v)", identical.ID, err)
 	}
 
-	batch, err := decision.Batch("routing/decision/" + decision.ID.String())
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(decision.Batch("routing/decision/" + decision.ID.String()))(t)
 	parsed, err := ParseRecipeRoutingDecision(batch.Contents[0].Data)
 	if err != nil || parsed.ID != decision.ID || parsed.Selected != decision.Selected {
 		t.Fatalf("parsed decision = (%s, %v)", parsed.ID, err)
@@ -125,8 +123,7 @@ func TestRecipeRoutingDecisionContract(t *testing.T) {
 
 	weak := routingCandidateFixture(t, "routing-weak", 512)
 	weak.Quality = 0.4
-	derived, err := DeriveRecipeRoutingDecision(template.Signal, []RoutingCandidate{costly, weak, cheap})
-	testcheck.NoError(t, err)
+	derived := testcheck.Must(DeriveRecipeRoutingDecision(template.Signal, []RoutingCandidate{costly, weak, cheap}))(t)
 	if derived.Selected != cheap.Recipe || derived.Derivation != RoutingDerivationCheapestEligible {
 		t.Fatalf("derivation selected %s: cheapest below threshold must not win", derived.Selected)
 	}

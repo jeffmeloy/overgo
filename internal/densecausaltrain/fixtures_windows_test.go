@@ -40,8 +40,7 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 		slices.Reverse(head)
 		weights[headName], shapes[headName] = head, slices.Clone(shapes[embeddingName])
 	}
-	m, err := densecausal.NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, densecausal.MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(densecausal.NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, densecausal.MoERouterPolicy{}, 0))(t)
 	return m
 }
 
@@ -49,8 +48,7 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 // parameter count; the fixtures train from their random initialization.
 func derivedTestLearningRate(t *testing.T, model *densecausal.Model) float64 {
 	t.Helper()
-	plan, err := model.TrainingPlan()
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(model.TrainingPlan())(t)
 	return trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(plan.ParameterCount())
 }
 
@@ -99,8 +97,7 @@ func modelFromGolden(t *testing.T, g *qwen2Golden) *densecausal.Model {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	m, err := densecausal.NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, densecausal.MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(densecausal.NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, densecausal.MoERouterPolicy{}, 0))(t)
 	if !m.Dims.AttnBias {
 		t.Fatal("qwen2 golden must derive AttnBias=true")
 	}

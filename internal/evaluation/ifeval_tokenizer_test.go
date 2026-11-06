@@ -19,8 +19,7 @@ import (
 // the cycle's.
 func TestIFEvalTokenizerRefusals(t *testing.T) {
 	t.Parallel()
-	tokenizer, err := compiledIFEvalTokenizer()
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(compiledIFEvalTokenizer())(t)
 	t.Run("profile identity and unresolved operands", func(t *testing.T) {
 		for _, data := range [][]byte{nil, bytes.Replace(ifevalNLTKProfile, []byte("3.9.2"), []byte("3.9.1"), 1)} {
 			if _, err := loadIFEvalTokenizer(data); err == nil {
@@ -37,20 +36,16 @@ func TestIFEvalTokenizerRefusals(t *testing.T) {
 	})
 	t.Run("tokenizer errors refuse evaluation publication", func(t *testing.T) {
 		broken := *tokenizer
-		broken.period, err = regexp2.Compile(`(?:^){100}`, regexp2.OptionMaxBacktrackingStackSize(32))
-		testcheck.NoError(t, err)
-		rule, err := compileInstructionRule(instructionRule{Name: "sentences", Kind: ifevalSentences, Count: &countRule{Relation: relationAtLeast, Value: 1}})
-		testcheck.NoError(t, err)
+		broken.period = testcheck.Must(regexp2.Compile(`(?:^){100}`, regexp2.OptionMaxBacktrackingStackSize(32)))(t)
+		rule := testcheck.Must(compileInstructionRule(instructionRule{Name: "sentences", Kind: ifevalSentences, Count: &countRule{Relation: relationAtLeast, Value: 1}}))(t)
 		rule.tokenizer = &broken
 		strict, loose, err := evaluateInstructionViews("x", []compiledInstructionRule{rule})
 		if !errors.Is(err, regexp2.ErrBacktrackingStackLimit) || strict != nil || loose != nil {
 			t.Fatalf("tokenizer error became a verdict: %v %v %v", strict, loose, err)
 		}
-		compiled, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "tokenizer-error", Source: "fixture", Cases: []instructionRulesCase{{Name: "sentence", Prompt: "Write a sentence.", MaxTokens: 1, Rules: []instructionRule{rule.source}}}})
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "tokenizer-error", Source: "fixture", Cases: []instructionRulesCase{{Name: "sentence", Prompt: "Write a sentence.", MaxTokens: 1, Rules: []instructionRule{rule.source}}}}))(t)
 		compiled.rules[0][0].tokenizer = &broken
-		plan, err := bindInstructionRules(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(bindInstructionRules(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}))(t)
 		local := overgodbtest.Open(t, t.TempDir())
 		publishPlanFixtureAuthorities(t, local, plan)
 		report, err := evaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"x"}}, compiled, plan)

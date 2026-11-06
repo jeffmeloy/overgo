@@ -35,7 +35,6 @@ func heldFile(checkout *sliceFixture, name string) string {
 // packageSnapshot is a syntax snapshot of one package file, internal/p/p.go, holding source.
 func packageSnapshot(t *testing.T, source string) gosyntax.Snapshot {
 	t.Helper()
-	result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
-	testcheck.NoError(t, err)
+	result := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)}))(t)
 	return result
 }

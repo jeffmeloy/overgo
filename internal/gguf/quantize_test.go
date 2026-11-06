@@ -54,30 +54,27 @@ func TestQuantizeToConvertsMatricesAndPreservesOtherTensors(t *testing.T) {
 		WriteOptions{},
 	)
 	testcheck.NoError(t, err)
-	source, err := Parse(
+	source := testcheck.Must(Parse(
 		bytes.NewReader(sourceData.Bytes()),
 		uint64(sourceData.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 
 	var outputData bytes.Buffer
-	report, err := source.QuantizeTo(
+	report := testcheck.Must(source.QuantizeTo(
 		&outputData,
 		DTypeQ4_0,
 		QuantizeOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if report.Converted != 1 || report.Preserved != 2 ||
 		report.InputBytes != 402 || report.OutputBytes != 182 {
 		t.Fatalf("report = %#v", report)
 	}
-	output, err := Parse(
+	output := testcheck.Must(Parse(
 		bytes.NewReader(outputData.Bytes()),
 		uint64(outputData.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	fileType, ok := output.MetadataValue("general.file_type")
 	if !ok || fileType.Type != ValueTypeUint32 || fileType.Data != uint32(2) {
 		t.Fatalf("general.file_type = %#v, present=%v", fileType, ok)
@@ -90,8 +87,7 @@ func TestQuantizeToConvertsMatricesAndPreservesOtherTensors(t *testing.T) {
 		t.Fatal("split metadata was retained")
 	}
 
-	wantMatrix, err := quant.Quantize(DTypeQ4_0, matrixValues)
-	testcheck.NoError(t, err)
+	wantMatrix := testcheck.Must(quant.Quantize(DTypeQ4_0, matrixValues))(t)
 	assertTensorData(t, output, "matrix.weight", DTypeQ4_0, wantMatrix)
 	assertTensorData(t, output, "matrix.bias", DTypeF32, vectorData)
 	assertTensorData(t, output, "already.weight", DTypeQ4_0, alreadyQuantized)
@@ -100,8 +96,7 @@ func TestQuantizeToConvertsMatricesAndPreservesOtherTensors(t *testing.T) {
 func TestQuantizeToStreamsRequantization(t *testing.T) {
 	const elements = 256 * 2049
 	values := quantizeFixtureValues(elements)
-	sourceTensor, err := quant.Quantize(DTypeQ8_0, values)
-	testcheck.NoError(t, err)
+	sourceTensor := testcheck.Must(quant.Quantize(DTypeQ8_0, values))(t)
 	var sourceData bytes.Buffer
 	if err := Write(
 		&sourceData,
@@ -116,37 +111,32 @@ func TestQuantizeToStreamsRequantization(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	source, err := Parse(
+	source := testcheck.Must(Parse(
 		bytes.NewReader(sourceData.Bytes()),
 		uint64(sourceData.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 
 	var outputData bytes.Buffer
-	report, err := source.QuantizeTo(
+	report := testcheck.Must(source.QuantizeTo(
 		&outputData,
 		DTypeQ5_1,
 		QuantizeOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if report.Converted != 1 {
 		t.Fatalf("report = %#v", report)
 	}
-	output, err := Parse(
+	output := testcheck.Must(Parse(
 		bytes.NewReader(outputData.Bytes()),
 		uint64(outputData.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
-	dequantized, err := quant.Dequantize(
+	))(t)
+	dequantized := testcheck.Must(quant.Dequantize(
 		DTypeQ8_0,
 		sourceTensor,
 		elements,
-	)
-	testcheck.NoError(t, err)
-	want, err := quant.Quantize(DTypeQ5_1, dequantized)
-	testcheck.NoError(t, err)
+	))(t)
+	want := testcheck.Must(quant.Quantize(DTypeQ5_1, dequantized))(t)
 	assertTensorData(t, output, "large.weight", DTypeQ5_1, want)
 }
 
@@ -174,28 +164,24 @@ func TestQuantizeToMapsExpertImportanceAndWritesProvenance(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	source, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions()))(t)
 	var outputData bytes.Buffer
-	report, err := source.QuantizeTo(&outputData, DTypeIQ2XXS, QuantizeOptions{
+	report := testcheck.Must(source.QuantizeTo(&outputData, DTypeIQ2XXS, QuantizeOptions{
 		Importance:           map[string][]float32{name: importance},
 		ImportanceFile:       "fixture-imatrix.gguf",
 		ImportanceDatasets:   []string{"fixture", "ignored"},
 		ImportanceChunkCount: 7,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if report.Converted != 1 || report.Preserved != 0 {
 		t.Fatalf("report = %#v", report)
 	}
-	output, err := Parse(bytes.NewReader(outputData.Bytes()), uint64(outputData.Len()), DefaultOptions())
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Parse(bytes.NewReader(outputData.Bytes()), uint64(outputData.Len()), DefaultOptions()))(t)
 	expanded := make([]float32, len(values))
 	for row := range 4 {
 		expert := row / 2
 		copy(expanded[row*256:(row+1)*256], importance[expert*256:(expert+1)*256])
 	}
-	want, err := quant.QuantizeWeighted(DTypeIQ2XXS, values, expanded)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(quant.QuantizeWeighted(DTypeIQ2XXS, values, expanded))(t)
 	assertTensorData(t, output, name, DTypeIQ2XXS, want)
 	for key, expected := range map[string]any{
 		"quantize.imatrix.file":          "fixture-imatrix.gguf",
@@ -221,8 +207,7 @@ func TestQuantizeToRequiresImportanceExceptOptionalWeights(t *testing.T) {
 			}}, WriteOptions{}); err != nil {
 				t.Fatal(err)
 			}
-			source, err := Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions())
-			testcheck.NoError(t, err)
+			source := testcheck.Must(Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), DefaultOptions()))(t)
 			var output bytes.Buffer
 			report, err := source.QuantizeTo(&output, DTypeIQ1S, QuantizeOptions{})
 			optional := optionalImportanceTensor(name)
@@ -256,12 +241,11 @@ func TestQuantizeToRejectsForcedMisalignedTarget(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	source, err := Parse(
+	source := testcheck.Must(Parse(
 		bytes.NewReader(encoded.Bytes()),
 		uint64(encoded.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := source.QuantizeTo(
 		&bytes.Buffer{},
 		DTypeQ4_0,

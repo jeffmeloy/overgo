@@ -20,13 +20,11 @@ func TestSmallContentIsInline(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	sized := func(size int, fill byte) artifact.Content {
 		t.Helper()
 		data := bytes.Repeat([]byte{fill}, size)
-		id, err := artifact.IdentifyBytes(artifact.KindOutput, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, data))(t)
 		return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(size), MediaType: "text/plain"}, Data: data}
 	}
 	small, large := sized(inlineContentLimit-1, 's'), sized(inlineContentLimit, 'l')
@@ -34,8 +32,7 @@ func TestSmallContentIsInline(t *testing.T) {
 		t.Fatal(err)
 	}
 	for content, wantBlob := range map[*artifact.Content]bool{&small: false, &large: true} {
-		path, err := store.blobs.path(content.Descriptor.ID)
-		testcheck.NoError(t, err)
+		path := testcheck.Must(store.blobs.path(content.Descriptor.ID))(t)
 		if _, statErr := os.Stat(path); (statErr == nil) != wantBlob {
 			t.Fatalf("content of %d bytes: blob file present=%v, want %v", content.Descriptor.Size, statErr == nil, wantBlob)
 		}
@@ -58,8 +55,7 @@ func TestSmallContentIsInline(t *testing.T) {
 	for _, derived := range []string{snapshotDirectory, checkpointDirectory} {
 		testcheck.NoError(t, os.RemoveAll(filepath.Join(root, derived)))
 	}
-	store, err = Create(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(Create(root))(t)
 	defer store.Close()
 	read(store, "after a reopen by full replay")
 

@@ -162,10 +162,8 @@ func readmeModelFindings(root string, carried []string) ([]string, error) {
 func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	carried, err := TrackedDocuments(t.Context(), root)
-	testcheck.NoError(t, err)
-	findings, err := readmeModelFindings(root, carried)
-	testcheck.NoError(t, err)
+	carried := testcheck.Must(TrackedDocuments(t.Context(), root))(t)
+	findings := testcheck.Must(readmeModelFindings(root, carried))(t)
 	for _, finding := range findings {
 		t.Error(finding)
 	}
@@ -197,8 +195,7 @@ func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 				testcheck.NoError(t, os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), data, 0o644))
 			}
 			// The fixture's git carries its named pictures; the hidden one is on disk under an ignore rule.
-			findings, err := readmeModelFindings(root, []string{named, misnamed})
-			testcheck.NoError(t, err)
+			findings := testcheck.Must(readmeModelFindings(root, []string{named, misnamed}))(t)
 			joined := strings.Join(findings, "\n")
 			if (test.want == "") != (joined == "") || !strings.Contains(joined, test.want) {
 				t.Fatalf("want a finding of %q, got %q", test.want, joined)

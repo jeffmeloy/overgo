@@ -13,11 +13,9 @@ func TestTextTransform(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	var identities []artifact.ID
 	for _, lowercase := range []bool{false, true} {
-		transform, err := NewTextTransform(lowercase)
-		testcheck.NoError(t, err)
+		transform := testcheck.Must(NewTextTransform(lowercase))(t)
 		identities = append(identities, transform.ID)
-		content, err := transform.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(transform.Content())(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: transform.ID.String(), Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}

@@ -49,18 +49,15 @@ func TestDescriptionMatchingScoresTheShareOfDescriptionsThatMatchTheirClip(t *te
 		{Name: "bear", Prompt: "p", MaxTokens: 8, Candidates: candidates, Answer: 0},
 		{Name: "motorcycle", Prompt: "p", MaxTokens: 8, Candidates: candidates, Answer: 1},
 	}}
-	compiled, err := compileDescriptionMatching(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindDescriptionMatching(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileDescriptionMatching(suite))(t)
+	plan := testcheck.Must(bindDescriptionMatching(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateDescriptionMatching(t.Context(), store, textGenerator("A white polar bear walking on the snow"), compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateDescriptionMatching(t.Context(), store, textGenerator("A white polar bear walking on the snow"), compiled, plan))(t)
 	if report.Accuracy != 0.5 || !report.Observations[0].Accepted || report.Observations[1].Accepted || report.Observations[1].Chosen != 0 {
 		t.Fatalf("report = %+v, want the bear case right and the motorcycle case matched to the bear", report)
 	}
@@ -86,10 +83,8 @@ func TestDescriptionMatchingScoresTheShareOfDescriptionsThatMatchTheirClip(t *te
 func TestFrameDescriptionMatchingAsksOfTheVideoSuitesClips(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 4, 6)
-	video, err := BuildCaptionMatching(spec)
-	testcheck.NoError(t, err)
-	frames, err := BuildFrameDescriptionMatching(spec)
-	testcheck.NoError(t, err)
+	video := testcheck.Must(BuildCaptionMatching(spec))(t)
+	frames := testcheck.Must(BuildFrameDescriptionMatching(spec))(t)
 	if _, err := compileDescriptionMatching(frames); err != nil {
 		t.Fatalf("the frame suite does not compile: %v", err)
 	}

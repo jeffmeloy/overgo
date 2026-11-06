@@ -35,17 +35,15 @@ func (r *mediaInputRuntime) ProducingRun() artifact.ID { return r.producer }
 func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	runtime := &mediaInputRuntime{producer: planID(t, artifact.KindRun, "answer producer")}
-	campaign, err := NewCampaign(store, runtime, modelrecipe.ProgramIdentity{
+	campaign := testcheck.Must(NewCampaign(store, runtime, modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "candidate"),
 		Definition: planID(t, artifact.KindModelDefinition, "candidate definition"),
 		Recipe:     planID(t, artifact.KindRecipe, "candidate recipe"),
-	}, environment, planTestCommit)
-	testcheck.NoError(t, err)
+	}, environment, planTestCommit))(t)
 	base := MediaInput{
 		Content:  planID(t, artifact.KindOutput, "pixels"),
 		Runtime:  MediaRuntime{Model: planID(t, artifact.KindModel, "judge"), Recipe: planID(t, artifact.KindRecipe, "judge recipe")},
@@ -63,10 +61,8 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	compile := func(input MediaInput, value GeneratedAnswerSuite) (CompiledSuite, artifact.ID, artifact.ID) {
 		t.Helper()
 		runtime.input, runtime.resolves = input, 0
-		data, err := json.Marshal(value)
-		testcheck.NoError(t, err)
-		compiled, err := campaign.CompileSuite(t.Context(), data)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(value))(t)
+		compiled := testcheck.Must(campaign.CompileSuite(t.Context(), data))(t)
 		if runtime.resolves != 1 {
 			t.Fatalf("one shared input resolved %d times", runtime.resolves)
 		}
@@ -80,10 +76,8 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 		for i, testCase := range bound.Cases {
 			asked[i] = testCase.Prompt
 		}
-		observed, err := compiled.plan.observed(asked)
-		testcheck.NoError(t, err)
-		method, err := compiled.plan.comparisonIdentity()
-		testcheck.NoError(t, err)
+		observed := testcheck.Must(compiled.plan.observed(asked))(t)
+		method := testcheck.Must(compiled.plan.comparisonIdentity())(t)
 		return compiled, method, observed
 	}
 	for _, generated := range []bool{false, true} {
@@ -158,8 +152,7 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "media fixture producers", Artifacts: []artifact.Descriptor{{ID: campaign.identity.Model}, {ID: base.Producer}, {ID: runtime.producer}}}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := campaign.Evaluate(t.Context(), current)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(campaign.Evaluate(t.Context(), current))(t)
 	record, err := runrecord.RequireEvaluation(t.Context(), store, result.Evaluation)
 	if err != nil || !recordExecution(t.Context(), store, record).ExecutionKnown {
 		t.Fatalf("bound media is unknown: %v", err)
@@ -174,18 +167,14 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 		t.Fatalf("original answer producer absent: %v", err)
 	}
 	value.Judge = runtime.Judge()
-	data, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	legacy, err := CompileSuite(data, campaign.Authorities())
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(value))(t)
+	legacy := testcheck.Must(CompileSuite(data, campaign.Authorities()))(t)
 	calls := runtime.generateCalls
 	if _, err := campaign.Evaluate(t.Context(), legacy); err == nil || runtime.generateCalls != calls {
 		t.Fatal("unbound media executed")
 	}
-	oldResult, err := executeSuite(t.Context(), store, runtime, legacy)
-	testcheck.NoError(t, err)
-	retained, err := campaign.finishEvaluation(t.Context(), legacy, oldResult, nil, 1)
-	testcheck.NoError(t, err)
+	oldResult := testcheck.Must(executeSuite(t.Context(), store, runtime, legacy))(t)
+	retained := testcheck.Must(campaign.finishEvaluation(t.Context(), legacy, oldResult, nil, 1))(t)
 	oldRecord, err := runrecord.RequireEvaluation(t.Context(), store, retained.Evaluation)
 	if err != nil || recordExecution(t.Context(), store, oldRecord).ExecutionKnown {
 		t.Fatalf("legacy media qualified: %v", err)

@@ -52,11 +52,10 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	}
 	downloads := filepath.Join(t.TempDir(), "downloads")
 	testcheck.NoError(t, os.MkdirAll(downloads, 0o755))
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: downloads,
-	}, GenerationRefused{Reason: idleRefusal})
-	testcheck.NoError(t, err)
+	}, GenerationRefused{Reason: idleRefusal}))(t)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()

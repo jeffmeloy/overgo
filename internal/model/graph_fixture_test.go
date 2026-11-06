@@ -9,8 +9,7 @@ import (
 
 func fixtureModelPlan(t *testing.T, spec Spec, weights Weights) ModelPlan {
 	t.Helper()
-	plan, err := compileFixtureModelPlan(spec, weights)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(compileFixtureModelPlan(spec, weights))(t)
 	return plan
 }
 
@@ -30,22 +29,19 @@ func fixtureProjection(
 	operands ProjectionOperands,
 ) ProjectionResult {
 	t.Helper()
-	result, err := plan.Projection(role).Build(builder, operands)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(plan.Projection(role).Build(builder, operands))(t)
 	return result
 }
 
 func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) LayerPlan {
 	t.Helper()
-	plan, err := fixtureModelPlan(t, spec, weights).Layer(uint32(layer))
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(fixtureModelPlan(t, spec, weights).Layer(uint32(layer)))(t)
 	return plan
 }
 
 func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
 	t.Helper()
-	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(uint32(layer))
-	testcheck.NoError(t, err)
+	program := testcheck.Must(fixtureModelPlan(t, spec, weights).LayerProgram(uint32(layer)))(t)
 	return program
 }
 
@@ -56,8 +52,7 @@ func fixtureDraftProgram(
 	head uint32,
 ) CompiledLayerProgram {
 	t.Helper()
-	draft, err := fixtureModelPlan(t, spec, weights).DraftProgram(head)
-	testcheck.NoError(t, err)
+	draft := testcheck.Must(fixtureModelPlan(t, spec, weights).DraftProgram(head))(t)
 	return draft
 }
 

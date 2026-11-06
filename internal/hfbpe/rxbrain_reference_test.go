@@ -41,8 +41,7 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 	}
 	projection := readRxFixture(t, "rxbrain-tokenizer-projection.json", projectionSHA)
 	modelDir := modeltest.Directory(t, "Hy-Embodied-RxBrain-1.0")
-	full, err := os.ReadFile(filepath.Join(modelDir, "tokenizer.json"))
-	testcheck.NoError(t, err)
+	full := testcheck.Must(os.ReadFile(filepath.Join(modelDir, "tokenizer.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(full)); got != sourceSHA {
 		t.Fatalf("RxBrain tokenizer source drifted: %s", got)
 	}
@@ -55,8 +54,7 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 		t.Run(artifact.name, func(t *testing.T) {
 			dir := t.TempDir()
 			testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), artifact.raw, 0600))
-			encoder, err := Load(dir)
-			testcheck.NoError(t, err)
+			encoder := testcheck.Must(Load(dir))(t)
 			for index, tc := range reference.Cases {
 				if artifact.name == "projection" {
 					parts := encoder.preTokenize(tc.Text)
@@ -86,8 +84,7 @@ func TestRxBrainDeclaredPipelineReference(t *testing.T) {
 
 func readRxFixture(t *testing.T, name, digest string) []byte {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("testdata", name))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", name)))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != digest {
 		t.Fatalf("%s digest changed: %s", name, got)
 	}

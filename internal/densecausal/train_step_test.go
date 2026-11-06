@@ -33,8 +33,7 @@ const stepRate = 1e-3
 // runs one full-parameter backward on a fixed token batch, applies one SGD
 // step to EVERY parameter, and asserts the loss on the same batch decreased.
 func runRealArtifactStep(t *testing.T, name string) {
-	m, err := Load(artifactDir(t, name))
-	testcheck.NoError(t, err)
+	m := testcheck.Must(Load(artifactDir(t, name)))(t)
 	t.Logf("dims %+v", m.Dims)
 	// Fixed token ids (< vocab); no tokenizer dependency for the step gate.
 	tokens := []int{1, 4171, 322, 995, 1063, 88, 421, 9822, 15000, 273, 66, 1523, 7, 2094, 511, 2}

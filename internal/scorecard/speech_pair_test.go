@@ -32,8 +32,7 @@ func TestSpeechReadingsAreEachModelsOwn(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	set, split := id(artifact.KindDataset, "utterances"), id(artifact.KindDatasetShard, "heldout")
-	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"}))(t)
 	commit := strings.Repeat("ab", 20)
 	cases := []evaluation.TranscriptionCase{
 		{Name: "a", Group: "heldout", Reference: "the cat sat"},
@@ -48,16 +47,14 @@ func TestSpeechReadingsAreEachModelsOwn(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "speech-pair/authorities", Artifacts: authorities}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := platform.Batch("speech-pair/environment")
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(platform.Batch("speech-pair/environment"))(t)
 	if _, err := store.Commit(ctx, environment); err != nil {
 		t.Fatal(err)
 	}
-	compiled, err := evaluation.CompileTranscription(evaluation.TranscriptionSuite{
+	compiled := testcheck.Must(evaluation.CompileTranscription(evaluation.TranscriptionSuite{
 		Kind: evaluation.TranscriptionKind, Schema: "fixture/v1", Source: "pinned fixture", Dataset: set, Split: split,
 		Normalization: []evaluation.TranscriptionNormalization{evaluation.TranscriptionLowercase}, Cases: cases,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	// recognize runs one recognizer over the utterances, hearing texts, and
 	// returns its recipe, its report and the transcripts it recorded.
 	recognize := func(name string, texts ...string) (artifact.ID, evaluation.TranscriptionReport, []artifact.ID) {
@@ -66,34 +63,28 @@ func TestSpeechReadingsAreEachModelsOwn(t *testing.T) {
 		if _, err := store.Commit(ctx, artifact.Batch{Key: "speech-pair/" + name, Artifacts: []artifact.Descriptor{{ID: recognizer}, {ID: definition}}}); err != nil {
 			t.Fatal(err)
 		}
-		plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
+		plan := testcheck.Must(evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
 			ModelDefinition: definition, RuntimeRecipe: recognizer, CodeCommit: commit, Environment: platform.ID,
 			Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		var predictions []evaluation.TranscriptionPrediction
 		var transcripts []artifact.ID
 		for index, text := range texts {
 			source := cases[index].Source
-			output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema),
-				recipecontract.Transcription{Source: source, Text: text, Language: "en"})
-			testcheck.NoError(t, err)
-			run, err := runrecord.NewBoundRun(recognizer, runrecord.OutcomeSucceeded,
+			output := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema),
+				recipecontract.Transcription{Source: source, Text: text, Language: "en"}))(t)
+			run := testcheck.Must(runrecord.NewBoundRun(recognizer, runrecord.OutcomeSucceeded,
 				[]artifact.ID{set, split, source.Audio, source.Profile}, []artifact.ID{output.Descriptor.ID}, "", commit, platform.ID, 1,
-				[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 1}})
-			testcheck.NoError(t, err)
-			content, err := run.Content()
-			testcheck.NoError(t, err)
-			batch, err := artifact.NewDocumentBatch("speech-pair/"+run.ID.DigestHex(), []artifact.Content{output, content}, run.Lineage(), nil)
-			testcheck.NoError(t, err)
+				[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 1}}))(t)
+			content := testcheck.Must(run.Content())(t)
+			batch := testcheck.Must(artifact.NewDocumentBatch("speech-pair/"+run.ID.DigestHex(), []artifact.Content{output, content}, run.Lineage(), nil))(t)
 			if _, err := store.Commit(ctx, batch); err != nil {
 				t.Fatal(err)
 			}
 			predictions = append(predictions, evaluation.TranscriptionPrediction{Name: cases[index].Name, Run: run.ID})
 			transcripts = append(transcripts, output.Descriptor.ID)
 		}
-		report, err := evaluation.EvaluateTranscription(ctx, store, compiled, plan, predictions)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(evaluation.EvaluateTranscription(ctx, store, compiled, plan, predictions))(t)
 		return recognizer, report, transcripts
 	}
 	// Each misses one word of six, the first in the first utterance and the
@@ -101,8 +92,7 @@ func TestSpeechReadingsAreEachModelsOwn(t *testing.T) {
 	first, firstReport, firstTranscripts := recognize("first recognizer", "the cat", "on the mat")
 	second, secondReport, secondTranscripts := recognize("second recognizer", "the cat sat", "on mat")
 
-	records, err := heldoutRecords(ctx, store, nil)
-	testcheck.NoError(t, err)
+	records := testcheck.Must(heldoutRecords(ctx, store, nil))(t)
 	one, other := records[first].cell(recipe.TaskTranscription), records[second].cell(recipe.TaskTranscription)
 	if !one.Measured() || !other.Measured() || one.Value != 1.0/6 || other.Value != one.Value {
 		t.Fatalf("the two recognizers read %+v and %+v, want the same word error rate of one word in six", one, other)

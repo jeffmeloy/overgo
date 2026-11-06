@@ -13,10 +13,8 @@ import (
 func TestAbsentGradientKeepsItsTensorOnTheDevice(t *testing.T) {
 	cudatest.Require(t)
 	tensors := map[string][]float32{"absent": {1, 1, 1, 1}, "present": {1, 1, 1, 1}}
-	pack, err := NewTensorPack(tensors, absentGeometry)
-	testcheck.NoError(t, err)
-	stepper, err := pack.NewStepper(Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant})
-	testcheck.NoError(t, err)
+	pack := testcheck.Must(NewTensorPack(tensors, absentGeometry))(t)
+	stepper := testcheck.Must(pack.NewStepper(Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant}))(t)
 	defer stepper.Close()
 	stepAbsentGradient(t, tensors, pack, func() {
 		testcheck.NoError(t, stepper.Step())

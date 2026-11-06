@@ -26,8 +26,7 @@ func TestRoutingDecisionContract(t *testing.T) {
 		Disposition: RouteDecisionRequired, Winner: second.Selection,
 	}
 
-	decision, err := NewRoutingDecision(base)
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(NewRoutingDecision(base))(t)
 	if decision.Disposition != RouteSelected || decision.Winner != first.Selection {
 		t.Fatalf("decision = (%s, %s), want derived winner %s", decision.Disposition, decision.Winner, first.Selection)
 	}
@@ -36,8 +35,7 @@ func TestRoutingDecisionContract(t *testing.T) {
 	}
 	reversed := base
 	reversed.Candidates = []RoutingCandidateObservation{first, second}
-	canonical, err := NewRoutingDecision(reversed)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(NewRoutingDecision(reversed))(t)
 	if canonical.ID != decision.ID || canonical.ValidateIdentity() != nil {
 		t.Fatalf("canonical decision = %s, validation %v; want stable identity %s", canonical.ID, canonical.ValidateIdentity(), decision.ID)
 	}

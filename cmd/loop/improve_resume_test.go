@@ -121,8 +121,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 	t.Parallel()
 	digest := func(cell string) string {
 		t.Helper()
-		value, err := obligationsDigest([]byte(`{"run":[{"model":"m","kind":"training","validation":"training-proof","recipe":"r1"` + cell + `}],"background":[]}`))
-		testcheck.NoError(t, err)
+		value := testcheck.Must(obligationsDigest([]byte(`{"run":[{"model":"m","kind":"training","validation":"training-proof","recipe":"r1"` + cell + `}],"background":[]}`)))(t)
 		return value
 	}
 	base := digest("")
@@ -181,8 +180,7 @@ func TestObligationsDigestIgnoresWhatARunChanges(t *testing.T) {
 	t.Parallel()
 	digest := func(plan string) string {
 		t.Helper()
-		value, err := obligationsDigest([]byte(plan))
-		testcheck.NoError(t, err)
+		value := testcheck.Must(obligationsDigest([]byte(plan)))(t)
 		return value
 	}
 	base := digest(`{"run":[{"model":"m","kind":"inference","validation":"guard","recipe":"r1","cost_ns":5,"replay":"x"}],"background":[]}`)

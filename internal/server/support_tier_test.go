@@ -29,22 +29,19 @@ func TestModelSupportTier(t *testing.T) {
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "guarded.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("support tier weights"), 0o644))
-	weights, err := os.Open(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.Open(weightsPath))(t)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
 	testcheck.NoError(t, err)
 	evidenceData := []byte(`{"commit":"0123456789abcdef0123","surface":"feedfacecafebeef0011","verdict":{"passed":true},"output":"long text"}`)
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
 	testcheck.NoError(t, err)
-	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
+	record := testcheck.Must(runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "long-form", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
-	registered, err := filepath.Abs(weightsPath)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(filepath.Abs(weightsPath))(t)
 	index := handler.catalogEvidence(ctx, nil)
 	guard, found := index.GuardsByLocation[registered]
 	if !found || !guard.Verdict.Passed || guard.Commit != "0123456789abcdef0123" || guard.Surface != "feedfacecafebeef0011" || guard.Record != record.ID {
@@ -108,22 +105,19 @@ func TestUnreadableGuardEvidenceIsNoGuard(t *testing.T) {
 	store := handler.config.Repository
 	weightsPath := filepath.Join(t.TempDir(), "unreadable.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("unreadable guard weights"), 0o644))
-	weights, err := os.Open(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.Open(weightsPath))(t)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
 	testcheck.NoError(t, err)
 	evidenceData := []byte("the long-form record is not a document")
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
 	testcheck.NoError(t, err)
-	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
+	record := testcheck.Must(runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "long-form", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
-	registered, err := filepath.Abs(weightsPath)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(filepath.Abs(weightsPath))(t)
 	if guard, found := handler.catalogEvidence(ctx, nil).GuardsByLocation[registered]; found {
 		t.Fatalf("unreadable evidence became a guard: %+v", guard)
 	}

@@ -17,8 +17,7 @@ func TestBuildReusesExpiredAllocation(t *testing.T) {
 	scale := builder.Scale(add, 2)
 	output := builder.SiLU(scale)
 	testcheck.NoError(t, builder.Err())
-	plan, err := BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil))(t)
 	if plan.ArenaSize != 32 {
 		t.Fatalf("arena size = %d, want 32", plan.ArenaSize)
 	}
@@ -38,8 +37,7 @@ func TestBuildKeepsOutputLive(t *testing.T) {
 	first := builder.Scale(input, 2)
 	second := builder.Scale(first, 3)
 	testcheck.NoError(t, builder.Err())
-	plan, err := BuildWithRewrites([]*tensor.Tensor{first, second}, 16, nil, nil)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BuildWithRewrites([]*tensor.Tensor{first, second}, 16, nil, nil))(t)
 	if plan.Allocations[first].Offset == plan.Allocations[second].Offset {
 		t.Fatal("two live outputs share an allocation")
 	}
@@ -55,8 +53,7 @@ func TestBuildAliasesReshapeStorageAndLifetime(t *testing.T) {
 	view := builder.Reshape(computed, 2, fixtureWidth/2)
 	output := builder.Scale(view, 2)
 	testcheck.NoError(t, builder.Err())
-	plan, err := BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil))(t)
 	if plan.Allocations[computed].Offset != plan.Allocations[view].Offset {
 		t.Fatalf("reshape storage differs: computed=%+v view=%+v", plan.Allocations[computed], plan.Allocations[view])
 	}
@@ -74,12 +71,11 @@ func TestBuildWithDependenciesExtendsProducerLifetime(t *testing.T) {
 	overwriteCandidate := builder.Scale(input, 3)
 	consumer := builder.Multiply(intermediate, overwriteCandidate)
 	testcheck.NoError(t, builder.Err())
-	plan, err := BuildWithRewrites(
+	plan := testcheck.Must(BuildWithRewrites(
 		[]*tensor.Tensor{consumer}, 16,
 		map[*tensor.Tensor][]*tensor.Tensor{consumer: {producer}},
 		nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if plan.Allocations[producer].Last < plan.Allocations[consumer].First {
 		t.Fatalf("producer expired before rewritten consumer: %+v", plan.Allocations[producer])
 	}
@@ -96,13 +92,12 @@ func TestBuildWithRewritesAliasesViewsAndOmitsFusedNodes(t *testing.T) {
 	view := builder.FlatSlice(producer, 2, 4)
 	eliminated := builder.SiLU(view)
 	output := builder.Scale(eliminated, 3)
-	plan, err := BuildWithRewrites(
+	plan := testcheck.Must(BuildWithRewrites(
 		[]*tensor.Tensor{output},
 		16,
 		map[*tensor.Tensor][]*tensor.Tensor{output: {view}},
 		map[*tensor.Tensor]struct{}{eliminated: {}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, allocated := plan.Allocations[eliminated]; allocated {
 		t.Fatal("eliminated tensor received arena storage")
 	}

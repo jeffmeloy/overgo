@@ -24,13 +24,11 @@ import (
 func TestLazyGrammarDecodesGreedilyUntilItsTrigger(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{}))(t)
 	defer runner.Close()
 	const generated = 8
 	prompt := []tokenizer.TokenID{1, 4, 5}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	oracle, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt,
 	})
@@ -47,10 +45,8 @@ func TestLazyGrammarDecodesGreedilyUntilItsTrigger(t *testing.T) {
 			forced = 2
 		}
 		for _, speculate := range []bool{true, false} {
-			grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]>+", trigger, forced), "", nil, []tokenizer.TokenID{trigger})
-			testcheck.NoError(t, err)
-			sampler, err := sampling.New(sampling.Config{Temperature: 0, GBNF: grammar})
-			testcheck.NoError(t, err)
+			grammar := testcheck.Must(runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]>+", trigger, forced), "", nil, []tokenizer.TokenID{trigger}))(t)
+			sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 0, GBNF: grammar}))(t)
 			if !sampler.GreedyUntilTrigger() || sampler.IsRawGreedy() {
 				t.Fatal("a greedy sampler with a lazy grammar does not decode greedily until its trigger")
 			}
@@ -81,13 +77,11 @@ func TestLazyGrammarTriggersOnAnAcceptedDraft(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	trunk := writeHermeticFlashNextGGUF(t)
-	runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, true)}, recipe.ResidencyDeviceF32)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, true)}, recipe.ResidencyDeviceF32))(t)
 	defer runner.Close()
 	const generated = 24
 	prompt := []tokenizer.TokenID{4, 9, 17}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	oracle, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true, PlainDecode: true,
 	})
@@ -96,8 +90,7 @@ func TestLazyGrammarTriggersOnAnAcceptedDraft(t *testing.T) {
 	text := func(ids []tokenizer.TokenID) string {
 		var joined strings.Builder
 		for _, id := range ids {
-			piece, err := runner.vocab.DecodePiece(id, false)
-			testcheck.NoError(t, err)
+			piece := testcheck.Must(runner.vocab.DecodePiece(id, false))(t)
 			joined.WriteString(piece)
 		}
 		return joined.String()
@@ -113,12 +106,10 @@ func TestLazyGrammarTriggersOnAnAcceptedDraft(t *testing.T) {
 		}
 		// A token of the answer's own other than greedy's next one.
 		forced := answer[slices.IndexFunc(answer, func(id tokenizer.TokenID) bool { return id != answer[at+1] })]
-		grammar, err := runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil)
-		testcheck.NoError(t, err)
+		grammar := testcheck.Must(runner.CompileLazyGBNF(fmt.Sprintf("root ::= <[%d]> <[%d]> <[%d]>+", repeated, repeated, forced), "", []string{pattern}, nil))(t)
 		// The sampler on the host, which reads every token's logits, is the reference.
 		decode := func(device bool, onDraft func(int, int)) []tokenizer.TokenID {
-			sampler, err := sampling.New(sampling.Config{Temperature: 0, GBNF: grammar})
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 0, GBNF: grammar}))(t)
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 				MaxNewTokens: generated, Sampler: sampler, DeviceGreedy: device, PlainDecode: !device, PromptTokenIDs: prompt,
 				OnToken: func(TokenEvent) error { return nil }, OnDraftSpan: onDraft,

@@ -23,10 +23,8 @@ import (
 // route refuses with the reason.
 func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 	t.Parallel()
-	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("idle-model"))
-	testcheck.NoError(t, err)
-	served, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("idle-recipe"))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("idle-model")))(t)
+	served := testcheck.Must(artifact.IdentifyBytes(artifact.KindRecipe, []byte("idle-recipe")))(t)
 	shell := &IdleShell{Catalog: func(context.Context) ([]discovery.CatalogEntry, bool, error) {
 		return []discovery.CatalogEntry{{Model: model, Location: "C:/models/idle.gguf", Present: true,
 			Capabilities: []discovery.Capability{{Task: recipe.TaskInference, Recipe: served, Tier: "verified"}}}}, true, nil
@@ -217,8 +215,7 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 
 func post(t *testing.T, url, body string) *http.Response {
 	t.Helper()
-	response, err := http.Post(url, "application/json", strings.NewReader(body))
-	testcheck.NoError(t, err)
+	response := testcheck.Must(http.Post(url, "application/json", strings.NewReader(body)))(t)
 	t.Cleanup(func() { response.Body.Close() })
 	return response
 }
@@ -233,8 +230,7 @@ func decodeResponse(t *testing.T, response *http.Response, into any) {
 
 func get(t *testing.T, url string) *http.Response {
 	t.Helper()
-	response, err := http.Get(url)
-	testcheck.NoError(t, err)
+	response := testcheck.Must(http.Get(url))(t)
 	t.Cleanup(func() { response.Body.Close() })
 	return response
 }

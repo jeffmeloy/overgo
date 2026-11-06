@@ -48,8 +48,7 @@ func TestLoRAScalingVariantsTrainEndToEnd(t *testing.T) {
 			t.Fatalf("%s: verdict content = (found %t, %v)", variant.name, found, err)
 		}
 		t.Logf("%s: held-out token accuracy %.4f -> %.4f", variant.name, verdict.BaselineValue, verdict.CandidateValue)
-		adapter, err := peft.Load(filepath.Join(output, LoRAAdapterDirectory))
-		testcheck.NoError(t, err)
+		adapter := testcheck.Must(peft.Load(filepath.Join(output, LoRAAdapterDirectory)))(t)
 		if adapter.Config.RSLoRA != variant.rs || adapter.Config.Alpha != variant.alpha {
 			t.Errorf("%s: adapter is rslora=%t at alpha %v, want rslora=%t at alpha %v", variant.name, adapter.Config.RSLoRA, adapter.Config.Alpha, variant.rs, variant.alpha)
 		}

@@ -20,15 +20,12 @@ func generateCapacityPagingRepro(
 	t *testing.T, path string, session modelrecipe.DecodeSessionPolicy,
 ) []tokenizer.TokenID {
 	t.Helper()
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		path, recipe.PlacementHybrid, session, recipe.ResidencyDeviceF32,
-	)
-	testcheck.NoError(t, err)
-	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-	testcheck.NoError(t, err)
+	))(t)
+	runner := testcheck.Must(OpenWithProgram(t.Context(), &loaded, OpenOptions{}))(t)
 	defer runner.Close()
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	if !greedy.IsRawGreedy() {
 		t.Fatal("sampler is not raw greedy")
 	}

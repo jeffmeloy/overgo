@@ -22,15 +22,13 @@ func TestPersistentLoopStop(t *testing.T) {
 		t.Fatal("absent stop paused loop")
 	}
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "requested", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
-	stopped, err := plan.RecordStop(t.Context(), event)
-	testcheck.NoError(t, err)
+	stopped := testcheck.Must(plan.RecordStop(t.Context(), event))(t)
 	if world.Paused() {
 		t.Fatal("interactive scope stopped unattended work")
 	}
 	event.Previous = stopped.ID
 	event.Mode = plan.ExecutionAll
-	stopped, err = plan.RecordStop(t.Context(), event)
-	testcheck.NoError(t, err)
+	stopped = testcheck.Must(plan.RecordStop(t.Context(), event))(t)
 	if !world.Paused() {
 		t.Fatal("running loop missed new operator stop")
 	}

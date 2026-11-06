@@ -30,8 +30,7 @@ func TestMOSSConditioningMathGolden(t *testing.T) {
 func conditioningMathGolden(t *testing.T, file, digest string, cases int) {
 	t.Helper()
 	mossFixtureBytes(t, file, digest)
-	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
-	testcheck.NoError(t, err)
+	s := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file)))(t)
 	defer s.Close()
 	run, _, close := cudaVAERunner(t)
 	defer close()
@@ -78,10 +77,8 @@ func conditioningMathGolden(t *testing.T, file, digest string, cases int) {
 			for _, n := range outputs {
 				nodes = append(nodes, n)
 			}
-			got, err := run(nodes, feeds)
-			testcheck.NoError(t, err)
-			again, err := run(nodes, feeds)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(run(nodes, feeds))(t)
+			again := testcheck.Must(run(nodes, feeds))(t)
 			for label, node := range outputs {
 				want := refinementValues(t, s, name+"."+label)
 				actual := got[node].Data

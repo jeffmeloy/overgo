@@ -14,13 +14,10 @@ func TestCausalContextLink(t *testing.T) {
 	id := func(label string) artifact.ID { return testutil.ArtifactID(t, artifact.KindEvidence, label) }
 	rootID, subject := id("causal-link-root"), id("causal-link-subject")
 	motivationA, motivationB := id("causal-link-motivation-a"), id("causal-link-motivation-b")
-	root, err := NewCausalRoot(TriggerWebhook, rootID, motivationB, motivationA)
-	testcheck.NoError(t, err)
-	context, err := root.Derive(TriggerRecovery, subject)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(NewCausalRoot(TriggerWebhook, rootID, motivationB, motivationA))(t)
+	context := testcheck.Must(root.Derive(TriggerRecovery, subject))(t)
 	execution := id("causal-link-execution")
-	link, err := context.Link(execution)
-	testcheck.NoError(t, err)
+	link := testcheck.Must(context.Link(execution))(t)
 	want := artifact.CausalLink{
 		Execution: execution, Root: rootID, Trigger: string(TriggerRecovery),
 		Subject: subject, Motivation: []artifact.ID{motivationA, motivationB},
@@ -90,10 +87,8 @@ func TestCausalContextIdentityAndValidation(t *testing.T) {
 	}
 
 	// A retry of a retry counts ordinals under one root.
-	retry, err := root.Derive(TriggerRetry, id("attempt-0"))
-	testcheck.NoError(t, err)
-	secondRetry, err := retry.Derive(TriggerRetry, id("attempt-1"))
-	testcheck.NoError(t, err)
+	retry := testcheck.Must(root.Derive(TriggerRetry, id("attempt-0")))(t)
+	secondRetry := testcheck.Must(retry.Derive(TriggerRetry, id("attempt-1")))(t)
 	if retry.RetryOrdinal != 1 || secondRetry.RetryOrdinal != 2 {
 		t.Fatalf("retry ordinals = %d then %d", retry.RetryOrdinal, secondRetry.RetryOrdinal)
 	}

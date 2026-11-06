@@ -35,8 +35,7 @@ func TestSeededNoiseMatchesReference(t *testing.T) {
 	var reference generationReference
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(fixtures, "generation.json"), &reference))
 	want := loadReference(t, fixtures, reference.Noise)
-	got, err := torchrng.CPUNormal(int64(reference.Seed), len(want))
-	testcheck.NoError(t, err)
+	got := testcheck.Must(torchrng.CPUNormal(int64(reference.Seed), len(want)))(t)
 	worst, scale := compareReference(t, got, want)
 	t.Logf("max |drawn - reference| = %.3g against a largest reference value of %.3g", worst, scale)
 	if worst > 1e-6*scale {

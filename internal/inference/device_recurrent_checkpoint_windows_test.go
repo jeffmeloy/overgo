@@ -117,12 +117,10 @@ func writeQwen35Fixture(t *testing.T, g qwen35Geometry, last string, context uin
 		}
 		data := testutil.GGUFTensorF32(name, shape, seed)
 		seed++
-		raw, err := io.ReadAll(data.Data)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(io.ReadAll(data.Data))(t)
 		values := make([]float32, len(raw)/4)
 		testcheck.NoError(t, binary.Read(bytes.NewReader(raw), binary.LittleEndian, values))
-		quantized, err := quant.Quantize(g.gates, values)
-		testcheck.NoError(t, err)
+		quantized := testcheck.Must(quant.Quantize(g.gates, values))(t)
 		tensors = append(tensors, gguf.TensorData{Name: name, Shape: shape, Type: g.gates, Data: bytes.NewReader(quantized)})
 	}
 	for _, block := range []string{"blk.0.", "blk.1.", "blk.2."} {
@@ -181,8 +179,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticQwen35GGUF(t)
-	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{}))(t)
 	defer runner.Close()
 	ctx := t.Context()
 	runner.mu.Lock()
@@ -192,25 +189,22 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	}
 
 	// Boundary: committed prefix with live recurrent state.
-	boundary, err := runner.forwardDeviceCachedModeLocked(
+	boundary := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer release(boundary)
 
 	// Draft span from the boundary, twice: identical selections prove the
 	// append is a pure function of the boundary state.
-	first, err := runner.forwardDeviceCachedModeLocked(
+	first := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	firstSelected := append([]tokenizer.TokenID(nil), first.SpanSelected...)
 	// Reject the draft: roll back by releasing the speculative cache.
 	release(first)
-	second, err := runner.forwardDeviceCachedModeLocked(
+	second := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer release(second)
 	if len(firstSelected) != 2 || len(second.SpanSelected) != 2 {
 		t.Fatalf("span selections = %v/%v", firstSelected, second.SpanSelected)
@@ -227,15 +221,13 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// A different continuation from the same boundary must match a fresh
 	// decode of the full history — the boundary state survived both
 	// speculative appends unchanged.
-	alternative, err := runner.forwardDeviceCachedModeLocked(
+	alternative := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer release(alternative)
-	fresh, err := runner.forwardDeviceCachedModeLocked(
+	fresh := testcheck.Must(runner.forwardDeviceCachedModeLocked(
 		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer release(fresh)
 	if len(alternative.SpanSelected) != 1 || len(fresh.SpanSelected) != 3 {
 		t.Fatalf("selections = %v/%v", alternative.SpanSelected, fresh.SpanSelected)

@@ -22,8 +22,7 @@ func TestPlaceRowsGathersRowsInTheirOrder(t *testing.T) {
 	weights := newStores(device).raw
 	head, _ := file.Tensor("head")
 	rows := []uint32{count - 1, 3, placeRowsChunk, 3, placeRowsChunk - 1, 0}
-	placed, err := weights.PlaceRows(t.Context(), file, head, "draft.head", rows)
-	testcheck.NoError(t, err)
+	placed := testcheck.Must(weights.PlaceRows(t.Context(), file, head, "draft.head", rows))(t)
 	rowBytes := head.Size / count
 	if placed.Type != dtype.Q8_0 || placed.Shape[0] != width || placed.Shape[1] != uint64(len(rows)) || placed.Size != uint64(len(rows))*rowBytes {
 		t.Fatalf("placed %v %v of %d bytes", placed.Type, placed.Shape, placed.Size)

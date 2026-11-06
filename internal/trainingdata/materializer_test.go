@@ -28,19 +28,17 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(secondPath, []byte("alpha\ngamma\n"), 0o644))
 	firstID, firstDescriptor := identifyFile(t, firstPath)
 	secondID, secondDescriptor := identifyFile(t, secondPath)
-	version, err := dataset.NewVersion([]dataset.Asset{
+	version := testcheck.Must(dataset.NewVersion([]dataset.Asset{
 		{Name: "first", Artifact: firstID, Records: 2},
 		{Name: "second", Artifact: secondID, Records: 2},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	records := []dataset.Record{
 		{ID: recordID(version.ID, "first", 0), Group: "all"},
 		{ID: recordID(version.ID, "first", 1), Group: "all"},
 		{ID: recordID(version.ID, "second", 0), Group: "all"},
 		{ID: recordID(version.ID, "second", 1), Group: "all"},
 	}
-	plan, err := dataset.BuildGroupSplit(version.ID, records, 7, []dataset.SplitPartition{{Name: "train", Weight: 4}, {Name: "validation", Weight: 1}})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(dataset.BuildGroupSplit(version.ID, records, 7, []dataset.SplitPartition{{Name: "train", Weight: 4}, {Name: "validation", Weight: 1}}))(t)
 	var membership dataset.Membership
 	for _, candidate := range plan.Memberships {
 		if len(candidate.Records) != 0 {
@@ -51,10 +49,8 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 		t.Fatal("nonempty membership absent")
 	}
 	store := overgodbtest.Create(t, filepath.Join(root, "store"))
-	batch, err := plan.PublicationBatch("split", nil)
-	testcheck.NoError(t, err)
-	content, err := version.Content()
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(plan.PublicationBatch("split", nil))(t)
+	content := testcheck.Must(version.Content())(t)
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, version.Lineage()...)
 	batch.Artifacts = append(batch.Artifacts, firstDescriptor, secondDescriptor)
@@ -66,21 +62,17 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 	processor := profileID(t, "text-lines")
-	materialized, err := Materialize(ctx, store, Authority{
+	materialized := testcheck.Must(Materialize(ctx, store, Authority{
 		Dataset: version.ID, Split: membership.ID, Processors: []artifact.ID{processor}, Seed: 11,
 		Signature: textSignature(),
-	}, []ProcessorBinding{{Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: Passthrough(RoleInput, recipecontract.ModalityText, "utf-8")}})
-	testcheck.NoError(t, err)
+	}, []ProcessorBinding{{Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: Passthrough(RoleInput, recipecontract.ModalityText, "utf-8")}}))(t)
 	defer materialized.Close()
 	if materialized.Records() != 3 {
 		t.Fatalf("records=%d, want 3 after exact dedup", materialized.Records())
 	}
-	stream, err := NewStream(materialized, nil)
-	testcheck.NoError(t, err)
-	batcher, err := NewBatcher(stream, BatchPolicy{Examples: 3, MicrobatchExamples: 2, DecodeWorkers: 3})
-	testcheck.NoError(t, err)
-	decoded, err := batcher.Next(ctx)
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(NewStream(materialized, nil))(t)
+	batcher := testcheck.Must(NewBatcher(stream, BatchPolicy{Examples: 3, MicrobatchExamples: 2, DecodeWorkers: 3}))(t)
+	decoded := testcheck.Must(batcher.Next(ctx))(t)
 	got := make([]string, len(decoded.Examples))
 	for index, example := range decoded.Examples {
 		got[index] = string(example.Values[0].Data)
@@ -107,8 +99,7 @@ func TestWeightedStreamResumeAndPacking(t *testing.T) {
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
 	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "split")
 	authority := Authority{Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processor}, Seed: 5, Signature: textSignature()}
-	identity, err := identifyAuthority(authority)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(identifyAuthority(authority))(t)
 	makeRecord := func(id, data string) recordRef {
 		raw := []byte(data)
 		return recordRef{id: id, group: id, processor: processor, length: int64(len(raw)), digest: sha256Sum(raw), inline: raw}
@@ -124,24 +115,17 @@ func TestWeightedStreamResumeAndPacking(t *testing.T) {
 			{identity: "light", weight: 1, records: []recordRef{makeRecord("l0", "cc")}},
 		},
 	}
-	stream, err := NewStream(d, nil)
-	testcheck.NoError(t, err)
-	batcher, err := NewBatcher(stream, BatchPolicy{Examples: 4, MicrobatchExamples: 2, DecodeWorkers: 2, MaxBytes: 8})
-	testcheck.NoError(t, err)
-	first, err := batcher.Next(t.Context())
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(NewStream(d, nil))(t)
+	batcher := testcheck.Must(NewBatcher(stream, BatchPolicy{Examples: 4, MicrobatchExamples: 2, DecodeWorkers: 2, MaxBytes: 8}))(t)
+	first := testcheck.Must(batcher.Next(t.Context()))(t)
 	if len(first.Examples) != 2 {
 		t.Fatalf("packed examples=%d, want 2", len(first.Examples))
 	}
 	state := first.State
-	want, err := batcher.Next(t.Context())
-	testcheck.NoError(t, err)
-	resumed, err := NewStream(d, &state)
-	testcheck.NoError(t, err)
-	resumedBatcher, err := NewBatcher(resumed, BatchPolicy{Examples: 4, MicrobatchExamples: 2, DecodeWorkers: 1, MaxBytes: 8})
-	testcheck.NoError(t, err)
-	got, err := resumedBatcher.Next(t.Context())
-	testcheck.NoError(t, err)
+	want := testcheck.Must(batcher.Next(t.Context()))(t)
+	resumed := testcheck.Must(NewStream(d, &state))(t)
+	resumedBatcher := testcheck.Must(NewBatcher(resumed, BatchPolicy{Examples: 4, MicrobatchExamples: 2, DecodeWorkers: 1, MaxBytes: 8}))(t)
+	got := testcheck.Must(resumedBatcher.Next(t.Context()))(t)
 	if !reflect.DeepEqual(got.Examples, want.Examples) || got.State != want.State {
 		t.Fatalf("resumed batch differs\ngot=%+v\nwant=%+v", got, want)
 	}
@@ -181,18 +165,15 @@ func TestBatcherRestoresStreamAfterDecodeFailure(t *testing.T) {
 		Processors: []artifact.ID{processor},
 		Signature:  textSignature(),
 	}
-	d, err := MaterializeDocuments(authority, processor, []string{"first", "second"}, ProcessorBinding{
+	d := testcheck.Must(MaterializeDocuments(authority, processor, []string{"first", "second"}, ProcessorBinding{
 		Artifact:   processor,
 		Modalities: []recipecontract.Modality{recipecontract.ModalityText},
 		Process: func(context.Context, RawRecord) (Example, error) {
 			return Example{}, errors.New("decode failed")
 		},
-	})
-	testcheck.NoError(t, err)
-	stream, err := NewStream(d, nil)
-	testcheck.NoError(t, err)
-	batcher, err := NewBatcher(stream, BatchPolicy{Examples: 2, DecodeWorkers: 2})
-	testcheck.NoError(t, err)
+	}))(t)
+	stream := testcheck.Must(NewStream(d, nil))(t)
+	batcher := testcheck.Must(NewBatcher(stream, BatchPolicy{Examples: 2, DecodeWorkers: 2}))(t)
 	before := stream.Snapshot()
 	if _, err := batcher.Next(t.Context()); err == nil {
 		t.Fatal("expected decode failure")
@@ -204,8 +185,7 @@ func TestBatcherRestoresStreamAfterDecodeFailure(t *testing.T) {
 
 func identifyFile(t *testing.T, path string) (artifact.ID, artifact.Descriptor) {
 	t.Helper()
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	defer file.Close()
 	id, size, err := artifact.Identify(artifact.KindFile, file)
 	testcheck.NoError(t, err)

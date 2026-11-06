@@ -50,8 +50,7 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	)
 	open := func() *Runner {
 		t.Helper()
-		runner, err := openF32FixtureRunner(path, OpenOptions{})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{}))(t)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)
@@ -85,8 +84,7 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	}()
 	step := func(runner *Runner, tokens []tokenizer.TokenID, past **deviceKVCache) {
 		t.Helper()
-		next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokens, *past, nil)
-		testcheck.NoError(t, err)
+		next := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokens, *past, nil))(t)
 		testcheck.NoError(t, (*past).Release(ctx))
 		*past = next
 	}
@@ -158,9 +156,8 @@ func TestQSACellsHoldOneCapacity(t *testing.T) {
 	trunk := writeFlashNextFixture(t, strataFlashNext)
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
 	testcheck.NoError(t, err)
-	runner, err := openFixtureRunnerWithResidency(trunk,
-		OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, false, strataFlashNext), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(trunk,
+		OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, false, strataFlashNext), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -227,11 +224,9 @@ func TestQSACellsHoldOneCapacity(t *testing.T) {
 func TestQSABranchReadsOnFromAHeldBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
-	runner, err := openFixtureRunnerWithResidency(writeFlashNextFixture(t, strataFlashNextWindows), OpenOptions{PromptCacheEntries: 1},
-		recipe.ResidencyDeviceNative)
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(writeFlashNextFixture(t, strataFlashNextWindows), OpenOptions{PromptCacheEntries: 1},
+		recipe.ResidencyDeviceNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)

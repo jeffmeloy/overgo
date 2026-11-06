@@ -22,20 +22,16 @@ import (
 func TestBankTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	rng := rand.New(rand.NewSource(20260930))
 	weights, input, memory, rows, slots := newFastWeightBankFixture(rng, false)
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(len(weights.FWA) + len(weights.FWB) + len(weights.FWO) + len(weights.NormWeight))
-	testcheck.NoError(t, err)
-	trainer, err := weights.NewTrainer(config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(len(weights.FWA) + len(weights.FWB) + len(weights.FWO) + len(weights.NormWeight)))(t)
+	trainer := testcheck.Must(weights.NewTrainer(config))(t)
 	defer trainer.Close()
 	example := BankTrainingExample{Input: input, Memory: memory, Target: randSlice(rng, len(input), 1), Rows: rows, Slots: slots}
-	before, err := trainer.Loss(example)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(trainer.Loss(example))(t)
 	result, err := trainer.Step(example)
 	if err != nil || result.Loss != before || !(result.GradientL2 > 0) {
 		t.Fatalf("step = %+v (%v), want the loss before it (%g) and a gradient", result, err, before)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan()))(t)
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"bank.fw_a": weights.FWA, "bank.fw_b": weights.FWB, "bank.fw_o": weights.FWO, "bank.norm": weights.NormWeight,
 	})
@@ -46,8 +42,7 @@ func TestBankTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 // builds its bank's trainer and steps it on bank training examples.
 func TestBankTrainerHasAUserPath(t *testing.T) {
 	directory := filepath.Join("..", "..", "cmd", "train")
-	entries, err := os.ReadDir(directory)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(directory))(t)
 	files := token.NewFileSet()
 	routes := map[string]string{}
 	reaching := map[string]bool{}
@@ -56,8 +51,7 @@ func TestBankTrainerHasAUserPath(t *testing.T) {
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		parsed, err := parser.ParseFile(files, filepath.Join(directory, name), nil, 0)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(parser.ParseFile(files, filepath.Join(directory, name), nil, 0))(t)
 		imports := false
 		for _, spec := range parsed.Imports {
 			imports = imports || spec.Path.Value == strconv.Quote("overgo/internal/thoughtbank")
@@ -68,8 +62,7 @@ func TestBankTrainerHasAUserPath(t *testing.T) {
 				if len(node.Names) == 1 && node.Names[0].Name == "trainRoutes" && len(node.Values) == 1 {
 					for _, element := range node.Values[0].(*ast.CompositeLit).Elts {
 						pair := element.(*ast.KeyValueExpr)
-						route, err := strconv.Unquote(pair.Key.(*ast.BasicLit).Value)
-						testcheck.NoError(t, err)
+						route := testcheck.Must(strconv.Unquote(pair.Key.(*ast.BasicLit).Value))(t)
 						routes[pair.Value.(*ast.Ident).Name] = route
 					}
 				}

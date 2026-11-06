@@ -59,14 +59,11 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	cudatest.Require(t)
 	cudatest.RequireProbe(t)
 	root := testutil.RepoRoot(t)
-	commit, err := gitauthority.Query(t.Context(), root, "rev-parse", "HEAD")
-	testcheck.NoError(t, err)
-	library, err := driver.Open()
-	testcheck.NoError(t, err)
+	commit := testcheck.Must(gitauthority.Query(t.Context(), root, "rev-parse", "HEAD"))(t)
+	library := testcheck.Must(driver.Open())(t)
 	defer library.Close()
 	testcheck.NoError(t, library.Init())
-	device, err := library.DeviceInfo(0)
-	testcheck.NoError(t, err)
+	device := testcheck.Must(library.DeviceInfo(0))(t)
 	record := stagePeaksRecord{Commit: strings.TrimSpace(string(commit)), Device: device.Name, Protocol: stagePeaksProtocol}
 	// read serves one request under a ledger that reads the device, and keeps what each part held.
 	read := func(family, label string, request any, served servedPictures, service capabilityruntime.Executor) {
@@ -125,8 +122,7 @@ func TestMediaStagePeaksAreRecorded(t *testing.T) {
 	width, height, err := latentvideo.EditSourceSize(modeltest.Directory(t, "LiveEdit"))
 	testcheck.NoError(t, err)
 	edits := serveEdits(t, "liveedit-stage-peaks", stripedClip(stagePeaksClipFrames, height, width))
-	editor, err := editSessions()
-	testcheck.NoError(t, err)
+	editor := testcheck.Must(editSessions())(t)
 	read("liveedit", "81 frames", latentvideo.ReferenceEditRequest{Prompt: stagePeaksEdit, Seed: 1, SourceArtifact: edits.clip},
 		servedPictures{store: edits.store, directory: edits.directory, execution: edits.execution}, editExecutor(editor, nil))
 	closed(editor)
@@ -144,15 +140,11 @@ func servedClips(t *testing.T) servedPictures {
 	if _, err := os.Stat(latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-stage-peaks")
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, wan)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/wan-stage-peaks", Contents: []artifact.Content{profileContent}}); err != nil {
@@ -164,8 +156,7 @@ func servedClips(t *testing.T) servedPictures {
 // wanService makes a director of Wan sessions of its own, closed when the test ends at the latest.
 func wanService(t *testing.T) *wanDirector {
 	t.Helper()
-	director, err := wanSessions()
-	testcheck.NoError(t, err)
+	director := testcheck.Must(wanSessions())(t)
 	t.Cleanup(func() {
 		if err := director.Close(context.Background()); err != nil {
 			t.Error(err)
@@ -182,7 +173,6 @@ func roundTripFrame(t *testing.T) []byte {
 	if err := jsonfile.DecodeStrict(filepath.Join(fixtures, "vae_round_trip.json"), &reference); err != nil {
 		t.Fatalf("the reference round trip is absent (%v); write it with %s", err, videoAutoencoderScript)
 	}
-	frame, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(reference.Picture.File)))
-	testcheck.NoError(t, err)
+	frame := testcheck.Must(os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(reference.Picture.File))))(t)
 	return frame
 }

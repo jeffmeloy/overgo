@@ -18,22 +18,20 @@ import (
 // publishes through the campaign ledger.
 func TestSequenceScoringPerplexity(t *testing.T) {
 	t.Parallel()
-	compiled, err := compileSequenceScoring(sequenceScoringSuite{
+	compiled := testcheck.Must(compileSequenceScoring(sequenceScoringSuite{
 		Kind: sequenceScoringKind, Schema: "carbon/dna-heldout/v1", Source: "store/dna",
 		Cases: []sequenceScoringCase{
 			{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"},
 			{Name: "seq-2", Group: "mrna_evo2", Text: "TTGGCCAA"},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := bindSequenceScoring(compiled, authorities)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(bindSequenceScoring(compiled, authorities))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 
@@ -42,8 +40,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 	scorer := &sequenceFixtureScorer{scores: []sequencescore.Score{
 		{LogProbability: -4, Tokens: 4}, {LogProbability: -8, Tokens: 4},
 	}}
-	report, err := evaluateSequenceScoring(t.Context(), store, scorer, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateSequenceScoring(t.Context(), store, scorer, compiled, plan))(t)
 	if report.TokensScored != 8 || math.Abs(report.MeanNLLPerToken-1.5) > 1e-12 ||
 		math.Abs(report.Perplexity-math.Exp(1.5)) > 1e-9 {
 		t.Fatalf("report = %+v", report)

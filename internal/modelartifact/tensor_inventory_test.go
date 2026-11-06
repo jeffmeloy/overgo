@@ -16,17 +16,13 @@ import (
 
 func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "tensor-inventory-model")
-	document, err := NewTensorInventoryDocument(modelID, TensorFormatSafetensors, []TensorFact{
+	document := testcheck.Must(NewTensorInventoryDocument(modelID, TensorFormatSafetensors, []TensorFact{
 		{Name: "matrix", Shape: []uint64{2, 3}, Storage: "bf16", Bytes: 12},
 		{Name: "scalar", Shape: []uint64{}, Storage: "f32", Bytes: 4},
-	})
-	testcheck.NoError(t, err)
-	content, err := document.Content()
-	testcheck.NoError(t, err)
-	parsed, err := tensorInventoryCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
-	parsedContent, err := parsed.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(document.Content())(t)
+	parsed := testcheck.Must(tensorInventoryCodec.Parse(content.Data))(t)
+	parsedContent := testcheck.Must(parsed.Content())(t)
 	if parsed.ID != document.ID || !bytes.Equal(parsedContent.Data, content.Data) {
 		t.Fatal("tensor inventory round trip drifted")
 	}
@@ -55,10 +51,9 @@ func TestTensorInventoryDocumentRejectsInvalidFacts(t *testing.T) {
 
 func TestPyTorchTensorInventoryDocument(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "pytorch-inventory-model")
-	document, err := NewTensorInventoryDocument(modelID, TensorFormatPyTorch, []TensorFact{
+	document := testcheck.Must(NewTensorInventoryDocument(modelID, TensorFormatPyTorch, []TensorFact{
 		{Name: "weights/embed", Shape: []uint64{16, 8}, Storage: "bf16", Bytes: 256},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if document.Format != TensorFormatPyTorch {
 		t.Fatalf("format = %s", document.Format)
 	}
@@ -66,23 +61,20 @@ func TestPyTorchTensorInventoryDocument(t *testing.T) {
 
 func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
 	owner := testutil.ArtifactID(t, artifact.KindProjector, "tensor-inventory-projector")
-	document, err := NewTensorInventoryDocument(owner, TensorFormatGGUF, []TensorFact{{
+	document := testcheck.Must(NewTensorInventoryDocument(owner, TensorFormatGGUF, []TensorFact{{
 		Name: "projection.weight", Shape: []uint64{2, 2}, Storage: "f32", Bytes: 16,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if document.Owner != owner || document.Version != TensorInventoryVersion {
 		t.Fatalf("inventory owner/version = %s/%d", document.Owner, document.Version)
 	}
-	content, err := document.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(document.Content())(t)
 	store := overgodbtest.Open(t, t.TempDir())
-	_, err = store.Commit(t.Context(), artifact.Batch{
+	testcheck.Must(store.Commit(t.Context(), artifact.Batch{
 		Key: "test/projector-inventory", Artifacts: []artifact.Descriptor{{ID: owner}},
 		Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{{
 			Child: document.ID, Parent: owner, Relation: artifact.RelationDerivedFrom,
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	loaded, found, err := LoadTensorInventory(t.Context(), store, owner)
 	if err != nil || !found || loaded.ID != document.ID {
 		t.Fatalf("loaded projector inventory = (%s, %t, %v)", loaded.ID, found, err)

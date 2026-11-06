@@ -47,15 +47,13 @@ func TestDeferredExactRuntime(t *testing.T) {
 	for _, outcome := range []string{"pass", "mismatch", "partial"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()
-			store, err := overgodb.Create(root)
-			testcheck.NoError(t, err)
+			store := testcheck.Must(overgodb.Create(root))(t)
 			t.Cleanup(func() { store.Close() })
 			suite := evaluation.ExactSuite{Schema: "test/v1", Source: "deferred-acquisition", Cases: []evaluation.ExactCase{
 				{Name: "first", Prompt: "first", Text: "ok", MaxTokens: 1, PromptTokens: 1, GeneratedTokens: 1},
 				{Name: "second", Prompt: "second", Text: "ok", MaxTokens: 1, PromptTokens: 1, GeneratedTokens: 1},
 			}}
-			exact, err := evaluation.CompileExact(suite)
-			testcheck.NoError(t, err)
+			exact := testcheck.Must(evaluation.CompileExact(suite))(t)
 			authority := evaluation.ExactAuthorities{
 				ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "model"),
 				RuntimeRecipe:   testutil.ArtifactID(t, artifact.KindRecipe, "runtime"),
@@ -64,8 +62,7 @@ func TestDeferredExactRuntime(t *testing.T) {
 			}
 			bind := func(authority evaluation.ExactAuthorities) evaluation.Plan {
 				t.Helper()
-				plan, err := evaluation.BindExact(exact, authority)
-				testcheck.NoError(t, err)
+				plan := testcheck.Must(evaluation.BindExact(exact, authority))(t)
 				if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/" + plan.Identity().String(), Artifacts: []artifact.Descriptor{{ID: authority.ModelDefinition}, {ID: authority.RuntimeRecipe}, {ID: authority.Environment}}}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 					t.Fatal(err)
 				}
@@ -95,8 +92,7 @@ func TestDeferredExactRuntime(t *testing.T) {
 				t.Fatalf("first lifetime opens=%d closes=%d", opens, fixture.closes)
 			}
 			testcheck.NoError(t, store.Close())
-			store, err = overgodb.Create(root)
-			testcheck.NoError(t, err)
+			store = testcheck.Must(overgodb.Create(root))(t)
 			beforeCalls, beforeOpens := fixture.calls, opens
 			runtime = makeRuntime()
 			replayed, err := evaluation.EvaluateExactSharded(t.Context(), store, runtime, exact, plan, nil)
@@ -163,31 +159,26 @@ func testExactTerminalReplay(t *testing.T) {
 	for _, outcome := range []string{"pass", "mismatch", "cleanup failure", "unpublished", "missing ledger"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()
-			store, err := overgodb.Create(root)
-			testcheck.NoError(t, err)
+			store := testcheck.Must(overgodb.Create(root))(t)
 			t.Cleanup(func() { store.Close() })
 			model := testutil.ArtifactID(t, artifact.KindModel, "terminal fixture")
 			modelDefinition := testutil.ArtifactID(t, artifact.KindModelDefinition, "terminal model")
 			testutil.PublishArtifact(t, store, model)
 			testutil.PublishArtifact(t, store, modelDefinition)
-			definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, model)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, model))(t)
 			if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "fixture/terminal", definition); err != nil {
 				t.Fatal(err)
 			}
 			suite := evaluation.ExactSuite{Schema: "test/v1", Source: "terminal replay", Cases: []evaluation.ExactCase{
 				{Name: "case", Prompt: "prompt", Text: "ok", MaxTokens: 1, PromptTokens: 1, GeneratedTokens: 1},
 			}}
-			exact, err := evaluation.CompileExact(suite)
-			testcheck.NoError(t, err)
-			environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-			testcheck.NoError(t, err)
+			exact := testcheck.Must(evaluation.CompileExact(suite))(t)
+			environment := testcheck.Must(runrecord.CurrentEnvironment("cuda:0", "cuda"))(t)
 			revision := strings.Repeat("a", 40)
-			plan, err := evaluation.BindExact(exact, evaluation.ExactAuthorities{
+			plan := testcheck.Must(evaluation.BindExact(exact, evaluation.ExactAuthorities{
 				ModelDefinition: modelDefinition, RuntimeRecipe: definition.ID, Environment: environment.ID,
 				CodeCommit: revision, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			fixture := &deferredExactFixture{text: "ok"}
 			if outcome == "mismatch" {
 				fixture.text = "no"
@@ -203,10 +194,8 @@ func testExactTerminalReplay(t *testing.T) {
 				}
 			}
 			if outcome == "unpublished" {
-				content, err := environment.Content()
-				testcheck.NoError(t, err)
-				batch, err := artifact.NewDocumentBatch("fixture/environment", []artifact.Content{content}, nil, nil)
-				testcheck.NoError(t, err)
+				content := testcheck.Must(environment.Content())(t)
+				batch := testcheck.Must(artifact.NewDocumentBatch("fixture/environment", []artifact.Content{content}, nil, nil))(t)
 				if _, err := store.Commit(t.Context(), batch); err != nil {
 					t.Fatal(err)
 				}
@@ -246,8 +235,7 @@ func testExactTerminalReplay(t *testing.T) {
 			}
 			head, sequence := store.Head()
 			testcheck.NoError(t, store.Close())
-			store, err = overgodb.Create(root)
-			testcheck.NoError(t, err)
+			store = testcheck.Must(overgodb.Create(root))(t)
 			replayed, err := verifyExactRuntime(t.Context(), store, definition, revision, suite, exact, modelDefinition, makeRuntime())
 			if (err != nil) != wantFailure {
 				t.Fatalf("replayed verification: %v", err)
@@ -295,8 +283,7 @@ func TestProjectionVerificationRequiresExecution(t *testing.T) {
 		{Kind: "mixed", Files: []projectionFile{file, audio}, Text: []string{"", "", "transcribe"}},
 	}
 	encode := func(input projectionInput) string {
-		data, err := json.Marshal(input)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(input))(t)
 		return string(data)
 	}
 	var suite evaluation.ExactSuite

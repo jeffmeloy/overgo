@@ -34,14 +34,12 @@ func TestCandidateRecipeDerivationUsesSharedSpine(t *testing.T) {
 		Placement: recipe.PlacementHost, Session: recipe.SessionCapacity,
 		Residency: recipe.ResidencyHostReference, Tasks: []recipe.Task{recipe.TaskForecast},
 	}
-	first, err := DeriveCandidateRecipes(
+	first := testcheck.Must(DeriveCandidateRecipes(
 		t.Context(), fixture.store, fixture.materialization.ID, policy,
-	)
-	testcheck.NoError(t, err)
-	second, err := DeriveCandidateRecipes(
+	))(t)
+	second := testcheck.Must(DeriveCandidateRecipes(
 		t.Context(), fixture.store, fixture.materialization.ID, policy,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	after, _ := fixture.store.Head()
 	if before != after {
 		t.Fatalf("read-only derivation changed HEAD: %s -> %s", before, after)
@@ -126,8 +124,7 @@ func assertCandidateRecipeDependencies(
 func newCandidateRecipeDerivationFixture(t *testing.T) candidateRecipeDerivationFixture {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	primary := derivationResolvedDefinition(t, "candidate-recipe-primary")
 	ablated := derivationResolvedDefinition(t, "candidate-recipe-ablation")
 	publishDerivationResolvedDefinition(t, store, primary, "primary")
@@ -326,10 +323,8 @@ func publishDerivationResolvedDefinition(
 	t.Helper()
 	profileContents, profileLineage, err := ProfilePublicationFacts(resolved.Profile)
 	testcheck.NoError(t, err)
-	tensorContent, err := resolved.Tensors.Content()
-	testcheck.NoError(t, err)
-	definitionContent, err := resolved.Document.Content()
-	testcheck.NoError(t, err)
+	tensorContent := testcheck.Must(resolved.Tensors.Content())(t)
+	definitionContent := testcheck.Must(resolved.Document.Content())(t)
 	lineage := append(slices.Clone(profileLineage), resolved.Tensors.Lineage()...)
 	lineage = append(lineage, resolved.Document.Lineage()...)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{

@@ -42,8 +42,7 @@ func TestRendersAsPythonJinjaDoes(t *testing.T) {
 	if err := json.Unmarshal(raw, &document); err != nil || len(document.Cases) == 0 {
 		t.Fatalf("no case is on file: %v", err)
 	}
-	decoded, err := DecodeJSON(document.Context)
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(DecodeJSON(document.Context))(t)
 	object, isObject := decoded.(*Dict)
 	if !isObject {
 		t.Fatal("the context is not an object")
@@ -101,8 +100,7 @@ func TestDecodeJSONRefusesWhatIsNotOneValue(t *testing.T) {
 		}
 	}
 	valid := "{\"z\": [" + strconv.Itoa(math.MaxInt) + ", " + strconv.Itoa(math.MinInt) + ", null, 1.25], \"a\": true}"
-	value, err := DecodeJSON([]byte(valid))
-	testcheck.NoError(t, err)
+	value := testcheck.Must(DecodeJSON([]byte(valid)))(t)
 	got, err := filterToJSON(value, nil, nil)
 	if err != nil || got != valid {
 		t.Fatalf("ordered boundary round trip = %v, %v; want %s", got, err, valid)

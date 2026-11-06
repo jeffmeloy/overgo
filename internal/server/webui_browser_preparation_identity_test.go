@@ -21,13 +21,11 @@ func TestBrowserJourneyPreparation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	t.Cleanup(func() { store.Close() })
 	payload := []byte("lane fixture weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}})
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}}))(t)
 	path := filepath.Join(t.TempDir(), "weights.bin")
 	testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -37,15 +35,13 @@ func TestBrowserJourneyPreparation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID))(t)
 	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "lane-fixture/active", definition))
 	testcheck.NoError(t, store.Close())
 	if servable, multimodal, err := smallestServables(ctx, root); err != nil || len(servable) != 0 || len(multimodal) != 0 {
 		t.Fatalf("non-inference selection = %v, %v, %v", servable, multimodal, err)
 	}
-	store, err = overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Create(root))(t)
 	before, bound, err := artifact.ResolveAlias(ctx, store, discovery.IdentityEvidenceAlias)
 	if err != nil || !bound {
 		t.Fatalf("preparation did not persist identities: %v, %v", bound, err)

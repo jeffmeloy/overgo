@@ -13,16 +13,13 @@ import (
 
 func TestPromptMeasurementClock(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 16)
-	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHostReference))(t)
 	defer runner.Close()
-	sampler, err := sampling.New(sampling.Config{})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(sampling.New(sampling.Config{}))(t)
 	for _, cached := range []bool{false, true} {
 		var measured PromptEvaluation
 		calls := 0
-		before, err := processmeasure.Counter()
-		testcheck.NoError(t, err)
+		before := testcheck.Must(processmeasure.Counter())(t)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{PromptTokenIDs: []tokenizer.TokenID{1, 4}, MaxNewTokens: 2, ContinueAfterEOG: true, CachePrompt: cached, Sampler: sampler, OnPromptEvaluated: func(value PromptEvaluation) { measured = value; calls++ }})
 		after, clockErr := processmeasure.Counter()
 		if err != nil || clockErr != nil {

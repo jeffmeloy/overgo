@@ -76,8 +76,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 			workflowExport:   testutil.ArtifactID(t, artifact.KindRun, "export-run"),
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	for _, kind := range []WorkflowKind{WorkflowTraining, workflowExport} {
 		capability := generator.capabilities[kind]

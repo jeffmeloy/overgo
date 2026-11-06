@@ -18,14 +18,12 @@ func TestWriteReplacesExistingFile(t *testing.T) {
 	if !errors.Is(err, failed) {
 		t.Fatalf("write error = %v, want %v", err, failed)
 	}
-	got, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(os.ReadFile(path))(t)
 	if string(got) != string(original) {
 		t.Fatalf("failed replacement changed target: got %q want %q", got, original)
 	}
 	testcheck.NoError(t, Write(path, []byte("after"), 0o600))
-	got, err = os.ReadFile(path)
-	testcheck.NoError(t, err)
+	got = testcheck.Must(os.ReadFile(path))(t)
 	if string(got) != "after" {
 		t.Fatalf("replacement = %q, want after", got)
 	}

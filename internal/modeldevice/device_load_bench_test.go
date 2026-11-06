@@ -167,8 +167,7 @@ func TestLoaderStructureBenchmark(t *testing.T) {
 	const measuredUploadGBps = 8.5
 	uploadGBps := benchRate(t, benchUploadEnvironment, measuredUploadGBps)
 	allocLatency := time.Duration(benchRate(t, benchAllocEnvironment, 0) * float64(time.Microsecond))
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	var raw, converted []gguf.TensorInfo
 	var rawBytes uint64
@@ -221,8 +220,7 @@ func TestLoaderStructureBenchmark(t *testing.T) {
 	hashed := phase("whole-file hash (artifact.Identify)", func() {
 		claim = nil
 		for _, source := range file.SourcePaths() {
-			held, err := os.Open(source)
-			testcheck.NoError(t, err)
+			held := testcheck.Must(os.Open(source))(t)
 			id, _, err := artifact.Identify(artifact.KindTensorSet, held)
 			_ = held.Close()
 			testcheck.NoError(t, err)

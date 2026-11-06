@@ -14,8 +14,7 @@ func TestDecisionBindsExactAction(t *testing.T) {
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "operation")
 	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	action := operatoraction.Action{Code: "publish", Summary: "Publish output", Argv: []string{"overgo", "publish", "--recipe", recipe.String()}}
-	request, err := operatoraction.NewApprovalRequest(operation, recipe, action, artifact.ID{})
-	testcheck.NoError(t, err)
+	request := testcheck.Must(operatoraction.NewApprovalRequest(operation, recipe, action, artifact.ID{}))(t)
 	if !request.Binds(action) {
 		t.Fatal("exact action was not bound")
 	}

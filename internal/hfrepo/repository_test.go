@@ -22,8 +22,7 @@ func TestOpenReadsIdentityCompanionsAndTensors(t *testing.T) {
 	writeFile(t, filepath.Join(directory, "chat_template.jinja"), `{{ messages }}`)
 	writeSingleTensor(t, filepath.Join(directory, "model.safetensors"))
 
-	repository, err := Open(directory)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(Open(directory))(t)
 	defer repository.Close()
 	if repository.Identity.ModelType != "unified" || repository.Identity.TextModelType != "decoder" ||
 		len(repository.Identity.Architectures) != 1 || repository.Identity.Architectures[0] != "UnifiedForGeneration" {
@@ -46,8 +45,7 @@ func TestOpenRejectsTrailingConfig(t *testing.T) {
 func TestInspectIdentityAllowsPipelineOnlyArtifact(t *testing.T) {
 	directory := t.TempDir()
 	writeFile(t, filepath.Join(directory, "model_index.json"), `{"_class_name":"ImagePipeline","scheduler":["module","Scheduler"]}`)
-	identity, err := InspectIdentity(directory)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(InspectIdentity(directory))(t)
 	if identity.Pipeline != "ImagePipeline" || identity.ModelType != "" || len(identity.Architectures) != 0 {
 		t.Fatalf("identity = %+v", identity)
 	}

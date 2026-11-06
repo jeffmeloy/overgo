@@ -32,15 +32,13 @@ var regexOwners = map[string]string{
 // longer uses regexp is stale.
 func TestNoRegexParsesStructuredData(t *testing.T) {
 	t.Parallel()
-	snapshot, err := gosyntax.DiscoverGo("../..", "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo("../..", "internal", "cmd"))(t)
 	importing := map[string]bool{}
 	for _, file := range snapshot.Files {
 		if file.Test {
 			continue
 		}
-		syntax, err := file.Syntax()
-		testcheck.NoError(t, err)
+		syntax := testcheck.Must(file.Syntax())(t)
 		for _, spec := range syntax.Imports {
 			if path, _ := strconv.Unquote(spec.Path.Value); path == "regexp" {
 				importing[file.Path] = true

@@ -20,8 +20,7 @@ func hostSiLU(x float64) float64 { return x / (1 + math.Exp(-x)) }
 // a = silu(gate) and hMLP = a*up matching the fp64 reference.
 func TestSiLUGateForwardMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const n = 256
@@ -54,8 +53,7 @@ func TestSiLUGateForwardMatchesHost(t *testing.T) {
 // so the FD carries O(eps^2) truncation; the tolerance covers that plus fp32.
 func TestSiLUBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const n = 64
@@ -63,8 +61,7 @@ func TestSiLUBackwardGradCheck(t *testing.T) {
 	x := randSlice(rng, n)
 	dy := randSlice(rng, n)
 
-	dx, err := SiLUBackward(worker, x, dy)
-	testcheck.NoError(t, err)
+	dx := testcheck.Must(SiLUBackward(worker, x, dy))(t)
 
 	loss := func() float64 {
 		var l float64

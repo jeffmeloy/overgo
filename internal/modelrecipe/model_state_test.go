@@ -29,11 +29,9 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 	t.Run("nothing recorded", func(t *testing.T) {
 		t.Parallel()
 		store := open(t)
-		file, err := gguf.Open(path)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(gguf.Open(path))(t)
 		defer file.Close()
-		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-		testcheck.NoError(t, err)
+		inventory := testcheck.Must(modelartifact.FromGGUF(file, artifact.KindModel))(t)
 		if _, state := read(t, store, inventory.Manifest.ID); state != (ModelState{Verification: StateNotVerified}) {
 			t.Fatalf("state = %+v", state)
 		}
@@ -66,10 +64,9 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		inventory, resolved := publishProgramFacts(t, store, path)
 		earlier := testutil.ArtifactID(t, artifact.KindProfile, "a profile an earlier build compiled")
 		testutil.PublishArtifact(t, store, earlier)
-		definition, err := InferenceWithModelDefinition(
+		definition := testcheck.Must(InferenceWithModelDefinition(
 			inventory.Manifest.ID, earlier, resolved.Document.ID, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		activateProgram(t, store, definition)
 		activation, state := read(t, store, inventory.Manifest.ID)
 		if state.Verification != StateOutOfDate || state.Reason == "" || activation.Definition.ID != definition.ID {
@@ -82,10 +79,9 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		inventory, _ := publishProgramFacts(t, store, path)
 		contract := testutil.ArtifactID(t, artifact.KindProfile, "a contract no build compiles")
 		testutil.PublishArtifact(t, store, contract)
-		definition, err := inference([]recipe.Dependency{
+		definition := testcheck.Must(inference([]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: inventory.Manifest.ID}, {Role: recipe.DependencyProfile, Artifact: contract},
-		}, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative)
-		testcheck.NoError(t, err)
+		}, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative))(t)
 		activateProgram(t, store, definition)
 		if _, state := read(t, store, inventory.Manifest.ID); state.Verification != StateVerified {
 			t.Fatalf("state = %+v", state)
@@ -99,10 +95,9 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 		if _, _, err := PublishCandidate(t.Context(), store, "fixture/state/unactivated", definition); err != nil {
 			t.Fatal(err)
 		}
-		batch, err := artifact.NewDocumentBatch("fixture/state/alias", nil, nil, []artifact.AliasBinding{
+		batch := testcheck.Must(artifact.NewDocumentBatch("fixture/state/alias", nil, nil, []artifact.AliasBinding{
 			{Name: activeAlias(definition.Model, definition.Task), Target: definition.ID},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}

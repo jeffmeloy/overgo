@@ -16,17 +16,15 @@ import (
 func TestTrainingStepsReachTheEventHub(t *testing.T) {
 	t.Parallel()
 	fixture := newDPOTrainingFixture(t)
-	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	events, unsubscribe, err := handler.events.subscribe(1024)
 	testcheck.NoError(t, err)
 	defer unsubscribe()
 	const steps = 3
-	body, err := json.Marshal(map[string]any{"task": "training", "recipe": fixture.definition.ID, "input": map[string]any{
+	body := testcheck.Must(json.Marshal(map[string]any{"task": "training", "recipe": fixture.definition.ID, "input": map[string]any{
 		"dataset": fixture.dataset, "output": "live", "steps": steps, "objective_scale": 0.1,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if started := serveTestRequest(handler, http.MethodPost, "/training/run", string(body)); started.Code != http.StatusAccepted {
 		t.Fatalf("training run status=%d body=%s", started.Code, started.Body.String())
 	}

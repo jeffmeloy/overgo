@@ -19,13 +19,11 @@ import (
 // this checkout's models root names another home, and a name joined to that
 // root found nothing. A name nothing registers resolves to nothing.
 func TestRegisteredModelResolvesThroughTheStore(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
 		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
-	directory, err := registeredDirectory(t.Context(), roots.Store, "FireRedVAD")
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(registeredDirectory(t.Context(), roots.Store, "FireRedVAD"))(t)
 	if directory == "" {
 		testskip.NotApplicable(t, "FireRedVAD is not registered in this store")
 	}

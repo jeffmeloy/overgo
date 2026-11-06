@@ -20,8 +20,7 @@ func TestDispatchVisitsPrerequisitesFirst(t *testing.T) {
 		}},
 		{ID: "selection", Status: StatusOpen, Steps: []Step{{ID: "source-binding", Status: StatusOpen, Verify: "go test ./x"}}},
 	}}
-	ordered, err := dispatchPriority(document, worklease.UnassignedRole)
-	testcheck.NoError(t, err)
+	ordered := testcheck.Must(dispatchPriority(document, worklease.UnassignedRole))(t)
 	want := []Ref{{Item: "publication", Step: "measure"}, {Item: "selection", Step: "source-binding"}, {Item: "publication", Step: "tooling"}}
 	if !slices.Equal(ordered, want) {
 		t.Fatalf("priority = %v, want %v", ordered, want)

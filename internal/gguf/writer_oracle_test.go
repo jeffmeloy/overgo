@@ -89,12 +89,11 @@ func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	source, err := Parse(
+	source := testcheck.Must(Parse(
 		bytes.NewReader(sourceData.Bytes()),
 		uint64(sourceData.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	var outputData bytes.Buffer
 	if _, err := source.QuantizeTo(
 		&outputData,
@@ -156,8 +155,7 @@ func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pinned llama-gguf-split rejected Go shards: %v\n%s", err, output)
 	}
-	merged, err := Open(mergedPath)
-	testcheck.NoError(t, err)
+	merged := testcheck.Must(Open(mergedPath))(t)
 	defer merged.Close()
 	if len(merged.Tensors) != len(tensors) {
 		t.Fatalf("upstream merged %d tensors, want %d", len(merged.Tensors), len(tensors))

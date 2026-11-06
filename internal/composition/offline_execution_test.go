@@ -28,8 +28,7 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 	tensorBytes := offlineTensorWidth * offlineTensorWidth * offlineFloatBytes
 	policy := publishOfflineTensorPolicy(t, store, tensorBytes*uint64(tensor.PairedExtent), tensorBytes)
 
-	execution, err := CompileOfflineTensorExecutionPlan(ctx, store, artifactPlan, policy)
-	testcheck.NoError(t, err)
+	execution := testcheck.Must(CompileOfflineTensorExecutionPlan(ctx, store, artifactPlan, policy))(t)
 	if execution.Operator != OfflineArtifactTaskArithmetic || execution.ArtifactPlan != artifactPlan.ID ||
 		execution.ResourcePolicy != policy.ID || execution.PeakResidentBytes != tensorBytes*uint64(tensor.PairedExtent) ||
 		len(execution.Operations) != tensor.SingletonExtent || len(execution.Shards) != tensor.SingletonExtent {
@@ -42,8 +41,7 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 		len(operation.SourceBytes) != tensor.PairedExtent {
 		t.Fatalf("operation = %+v", operation)
 	}
-	batch, err := execution.Batch("composition/offline/execution")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(execution.Batch("composition/offline/execution"))(t)
 	if len(batch.Contents) != tensor.SingletonExtent || len(batch.Lineage) < tensor.PairedExtent {
 		t.Fatalf("execution publication = contents %d lineage %d", len(batch.Contents), len(batch.Lineage))
 	}
@@ -61,8 +59,7 @@ func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
 			})
 			tensorBytes := width * width * offlineFloatBytes
 			policy := publishOfflineTensorPolicy(t, store, safetensors.StreamingBufferBytes(tensorBytes), tensorBytes)
-			execution, err := CompileOfflineTensorExecutionPlan(t.Context(), store, artifactPlan, policy)
-			testcheck.NoError(t, err)
+			execution := testcheck.Must(CompileOfflineTensorExecutionPlan(t.Context(), store, artifactPlan, policy))(t)
 			operation := execution.Operations[tensor.FirstOffset]
 			if execution.PeakResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) || operation.ResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) ||
 				execution.Shards[tensor.FirstOffset].Bytes != tensorBytes {
@@ -108,10 +105,8 @@ func publishOfflineArtifactPlan(
 	inputs []OfflineArtifactInput,
 ) OfflineArtifactPlan {
 	t.Helper()
-	plan, err := CompileOfflineArtifactPlan(t.Context(), store, operator, inputs)
-	testcheck.NoError(t, err)
-	batch, err := plan.Batch("composition/offline/artifact-plan")
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileOfflineArtifactPlan(t.Context(), store, operator, inputs))(t)
+	batch := testcheck.Must(plan.Batch("composition/offline/artifact-plan"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
@@ -124,14 +119,12 @@ func publishOfflineTensorPolicy(
 	maxResidentBytes, maxShardBytes uint64,
 ) OfflineTensorResourcePolicy {
 	t.Helper()
-	policy, err := NewOfflineTensorResourcePolicy(
+	policy := testcheck.Must(NewOfflineTensorResourcePolicy(
 		recipe.PlacementHost, maxResidentBytes, maxShardBytes,
 		"bounded by the selected host-memory resource decision",
 		"recompile when the selected memory budget or artifact inventory changes",
-	)
-	testcheck.NoError(t, err)
-	batch, err := policy.Batch("composition/offline/resource-policy")
-	testcheck.NoError(t, err)
+	))(t)
+	batch := testcheck.Must(policy.Batch("composition/offline/resource-policy"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

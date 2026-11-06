@@ -21,13 +21,11 @@ import (
 
 func testProvider(t *testing.T, endpoint string) (remoteprovider.Provider, recipe.Definition) {
 	t.Helper()
-	provider, err := remoteprovider.New(remoteprovider.Provider{
+	provider := testcheck.Must(remoteprovider.New(remoteprovider.Provider{
 		Name: "fake", Endpoint: endpoint + "/api/v1/", KeyEnvironment: "OVERGO_REMOTE_RELAY_TEST_KEY", Model: "fake/model", ContextLength: 4096,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "remote-relay-model")
-	definition, err := modelrecipe.RemoteInferenceDefinition(modelID, provider.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.RemoteInferenceDefinition(modelID, provider.ID))(t)
 	return provider, definition
 }
 
@@ -40,13 +38,11 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 	server, received := relaytest.Serve(t, "/api/v1", "test-key", []string{"Hel", "lo", " world"})
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "test-key")
 	provider, definition := testProvider(t, server.URL)
-	generator, err := New(provider, definition, server.Client())
-	testcheck.NoError(t, err)
-	prompt, err := generator.FormatChat([]inference.ChatMessage{
+	generator := testcheck.Must(New(provider, definition, server.Client()))(t)
+	prompt := testcheck.Must(generator.FormatChat([]inference.ChatMessage{
 		{Role: inference.ChatRoleSystem, Content: "be brief"},
 		{Role: inference.ChatRoleUser, Content: "hello?"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	var pieces []string
 	var usage inference.Usage
 	_, text, err := generator.Generate(t.Context(), prompt, inference.GenerateOptions{
@@ -99,8 +95,7 @@ func TestGeneratorRefusesTruncatedCancelledAndErroredStreams(t *testing.T) {
 		t.Helper()
 		server, _ := relaytest.ServeBehaviour(t, "/api/v1", "test-key", []string{"par", "tial"}, nil, behaviour)
 		provider, definition := testProvider(t, server.URL)
-		generator, err := New(provider, definition, server.Client())
-		testcheck.NoError(t, err)
+		generator := testcheck.Must(New(provider, definition, server.Client()))(t)
 		return generator
 	}
 	t.Run("truncated", func(t *testing.T) {
@@ -138,8 +133,7 @@ func TestGeneratorRefusesTruncatedCancelledAndErroredStreams(t *testing.T) {
 		}))
 		defer server.Close()
 		provider, definition := testProvider(t, server.URL)
-		generator, err := New(provider, definition, server.Client())
-		testcheck.NoError(t, err)
+		generator := testcheck.Must(New(provider, definition, server.Client()))(t)
 		if _, text, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err != nil || text != "done" {
 			t.Fatalf("finished stream = %q, %v", text, err)
 		}
@@ -159,8 +153,7 @@ func TestGeneratorRefusesWithoutKeyAndReportsProviderErrors(t *testing.T) {
 		t.Fatalf("keyless relay error = %v", err)
 	}
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "wrong-key")
-	generator, err := New(provider, definition, server.Client())
-	testcheck.NoError(t, err)
+	generator := testcheck.Must(New(provider, definition, server.Client()))(t)
 	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil ||
 		!strings.Contains(err.Error(), "401") || !strings.Contains(err.Error(), "missing key") {
 		t.Fatalf("provider error = %v", err)
@@ -174,8 +167,7 @@ func TestGeneratorUsesUpdatedKey(t *testing.T) {
 	server, _ := relaytest.Serve(t, "/api/v1", "updated-key", []string{"updated"})
 	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "old-key")
 	provider, definition := testProvider(t, server.URL)
-	generator, err := New(provider, definition, server.Client())
-	testcheck.NoError(t, err)
+	generator := testcheck.Must(New(provider, definition, server.Client()))(t)
 	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil {
 		t.Fatal("old key unexpectedly accepted")
 	}

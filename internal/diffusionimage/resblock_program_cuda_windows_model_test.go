@@ -29,16 +29,12 @@ func TestRealResBlockCUDAParity(t *testing.T) {
 	if !ok {
 		t.Fatal("first encoder block is not residual")
 	}
-	program, err := compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width))(t)
 	want := block.forward(model, input, 1, model.Cfg.BaseChannels, height, width)
-	referenceOutput, err := program.execute(context.Background(), nil, input)
-	testcheck.NoError(t, err)
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	referenceOutput := testcheck.Must(program.execute(context.Background(), nil, input))(t)
+	device := testcheck.Must(executor.New(0))(t)
 	defer device.Close()
-	deviceOutput, err := program.execute(context.Background(), device, input)
-	testcheck.NoError(t, err)
+	deviceOutput := testcheck.Must(program.execute(context.Background(), device, input))(t)
 	referenceDiff := testutil.MaxAbsDiff(referenceOutput, want)
 	deviceDiff := testutil.MaxAbsDiff(deviceOutput, want)
 	for index, value := range deviceOutput {

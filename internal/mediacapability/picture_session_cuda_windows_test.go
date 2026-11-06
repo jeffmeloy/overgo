@@ -36,15 +36,11 @@ func servePictures(t *testing.T, name string) servedPictures {
 	t.Helper()
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "Krea-2-Turbo")
-	profile, err := latentimage.ResolveProfile(directory)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentimage.ResolveProfile(directory))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, directory)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/" + name, Contents: []artifact.Content{profileContent}}); err != nil {
@@ -59,8 +55,7 @@ func servePictures(t *testing.T, name string) servedPictures {
 // the device together.
 func pictureService(t *testing.T) *pictureDirector {
 	t.Helper()
-	director, err := pictureSessions()
-	testcheck.NoError(t, err)
+	director := testcheck.Must(pictureSessions())(t)
 	t.Cleanup(testutil.Closer(t, context.Background(), director))
 	return director
 }
@@ -69,8 +64,7 @@ func pictureService(t *testing.T) *pictureDirector {
 // the test varies.
 func (servedPictures) request(t *testing.T, prompt string, seed int64) string {
 	t.Helper()
-	raw, err := json.Marshal(latentimage.Request{Prompt: prompt, Width: 256, Height: 256, Steps: 8, Seed: seed, DynamicShiftMu: 1.15})
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(latentimage.Request{Prompt: prompt, Width: 256, Height: 256, Steps: 8, Seed: seed, DynamicShiftMu: 1.15}))(t)
 	return string(raw)
 }
 
@@ -78,8 +72,7 @@ func (servedPictures) request(t *testing.T, prompt string, seed int64) string {
 // picture it made.
 func (pictures servedPictures) serve(ctx context.Context, t *testing.T, service capabilityruntime.Executor, prompt string, seed int64) (capabilityruntime.Measured, latentimage.EncodedImage) {
 	t.Helper()
-	output, err := service(ctx, pictures.store, pictures.directory, pictures.execution, pictures.request(t, prompt, seed))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(service(ctx, pictures.store, pictures.directory, pictures.execution, pictures.request(t, prompt, seed)))(t)
 	measured, _ := output.(capabilityruntime.Measured)
 	picture, ok := measured.Output.(latentimage.EncodedImage)
 	if !ok {

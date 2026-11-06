@@ -12,8 +12,7 @@ import (
 // reachedByNothing lists the keys of the functions and methods of the module at root that no command and no test reaches.
 func reachedByNothing(t *testing.T, root string, outside map[string]bool) []string {
 	t.Helper()
-	reach, err := reachTypes(t.Context(), root, outside, true)
-	testcheck.NoError(t, err)
+	reach := testcheck.Must(reachTypes(t.Context(), root, outside, true))(t)
 	var nothing []string
 	for _, function := range reach.functions {
 		if !reach.entered[function.at] {
@@ -44,8 +43,7 @@ func TestNoDeclarationIsReachedByNothing(t *testing.T) {
 		t.Errorf("a function a test calls, and one test support calls for a test, are reached, and one nothing calls is not: reached by nothing = %q, want only Idle", got)
 	}
 
-	outside, err := outsideMethods(t.Context(), checkoutRoot)
-	testcheck.NoError(t, err)
+	outside := testcheck.Must(outsideMethods(t.Context(), checkoutRoot))(t)
 	nothing := reachedByNothing(t, checkoutRoot, outside)
 	kept, classOf, err := sortedEntries(keptList(t, unreachedList))
 	if err != nil {

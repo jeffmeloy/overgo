@@ -26,25 +26,21 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 		return gosyntax.File{}
 	}
 
-	base, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
+	base := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"a/a.go": []byte("package a\nimport \"time\"\nfunc A() { time.Sleep(2 * time.Second) }\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 
 	// Shared parse: one parse per file serves repeated consumers.
-	firstA, err := fileByPath(base, "a/a.go").Syntax()
-	testcheck.NoError(t, err)
+	firstA := testcheck.Must(fileByPath(base, "a/a.go").Syntax())(t)
 	if secondA, _ := fileByPath(base, "a/a.go").Syntax(); firstA != secondA {
 		t.Fatal("a file parsed twice for two consumers")
 	}
-	baseB, err := fileByPath(base, "b/b.go").Syntax()
-	testcheck.NoError(t, err)
+	baseB := testcheck.Must(fileByPath(base, "b/b.go").Syntax())(t)
 
 	// Rule-specific invalidation: change only a/a.go. The unchanged file keeps
 	// its cached parse; the changed file re-parses and carries the edit.
-	candidate, err := base.Overlay(map[string][]byte{"a/a.go": []byte("package a\nfunc A() {}\n")})
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(base.Overlay(map[string][]byte{"a/a.go": []byte("package a\nfunc A() {}\n")}))(t)
 	if candidateB, _ := fileByPath(candidate, "b/b.go").Syntax(); baseB != candidateB {
 		t.Fatal("unchanged file re-parsed under the overlay")
 	}
@@ -53,10 +49,8 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 	}
 
 	// A real census reuses the shared parses and reflects only the change.
-	baseTimers, err := FixedTimerCensus(base)
-	testcheck.NoError(t, err)
-	candidateTimers, err := FixedTimerCensus(candidate)
-	testcheck.NoError(t, err)
+	baseTimers := testcheck.Must(FixedTimerCensus(base))(t)
+	candidateTimers := testcheck.Must(FixedTimerCensus(candidate))(t)
 	if len(baseTimers) == 0 {
 		t.Fatal("seeded fixed timer not detected in the base census")
 	}
@@ -65,13 +59,11 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 	}
 
 	// Incremental analysis equals a full analysis of the same content.
-	full, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
+	full := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"a/a.go": []byte("package a\nfunc A() {}\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
-	})
-	testcheck.NoError(t, err)
-	fullTimers, err := FixedTimerCensus(full)
-	testcheck.NoError(t, err)
+	}))(t)
+	fullTimers := testcheck.Must(FixedTimerCensus(full))(t)
 	if len(fullTimers) != len(candidateTimers) {
 		t.Fatalf("incremental census %d differs from a full analysis %d", len(candidateTimers), len(fullTimers))
 	}

@@ -30,8 +30,7 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		command.Env = append(os.Environ(), admissionProbeEnvironment+"="+name, "OVERGO_DEVICE_LANE_EXCLUSIVE_HOLD=1")
 		input, err := command.StdinPipe()
 		testcheck.NoError(t, err)
-		output, err := command.StdoutPipe()
-		testcheck.NoError(t, err)
+		output := testcheck.Must(command.StdoutPipe())(t)
 		testcheck.NoError(t, command.Start())
 		t.Cleanup(testprocess.ChildStopper(input, command))
 		if line, err := bufio.NewReader(output).ReadString('\n'); err != nil || strings.TrimSpace(line) != "probe: admitted" {
@@ -52,8 +51,7 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		}
 	})
 	name := "device-lane-command/" + filepath.Base(t.TempDir())
-	release, err := processcontrol.ShareResource(name)
-	testcheck.NoError(t, err)
+	release := testcheck.Must(processcontrol.ShareResource(name))(t)
 	defer release()
 	ctx := t.Context()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
@@ -131,8 +129,7 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 		}
 		return func() error { released++; return nil }, nil
 	}
-	release, err := holdSharedLease(t.Context(), &output, "GPU-test", deviceAdmissionBudget, share)
-	testcheck.NoError(t, err)
+	release := testcheck.Must(holdSharedLease(t.Context(), &output, "GPU-test", deviceAdmissionBudget, share))(t)
 	if err := release(); err != nil || released != 1 || refusals != 2 {
 		t.Fatalf("release = %v, released %d, refusals %d", err, released, refusals)
 	}
@@ -231,8 +228,7 @@ func TestDeviceLaneMeasurementRunsOutsideSharedLease(t *testing.T) {
 		t.Fatalf("probe reported nothing: %s", output)
 		return ""
 	}
-	release, err := holdSharedLease(t.Context(), &bytes.Buffer{}, name, deviceAdmissionBudget, func() (func() error, error) { return processcontrol.ShareResource(name) })
-	testcheck.NoError(t, err)
+	release := testcheck.Must(holdSharedLease(t.Context(), &bytes.Buffer{}, name, deviceAdmissionBudget, func() (func() error, error) { return processcontrol.ShareResource(name) }))(t)
 	if verdict := probe(); verdict != "probe: busy" {
 		t.Fatalf("exclusive claim beneath the lane's shared lease = %q, want contention", verdict)
 	}
@@ -249,8 +245,7 @@ func TestDeviceLaneMeasurementRunsOutsideSharedLease(t *testing.T) {
 		"func TestDeviceMeasured(t *testing.T) {\n\tif cudatest.MeasurementProcess(t, 0) {\n\t\treturn\n\t}\n}\n"
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "pkg_test.go"), []byte(source), 0o644))
 	step := deviceTestStep("./pkg")
-	names, err := measurementTests(root, step)
-	testcheck.NoError(t, err)
+	names := testcheck.Must(measurementTests(root, step))(t)
 	if !slices.Equal(names, []string{"TestDeviceMeasured", "TestMeasured"}) {
 		t.Fatalf("measurement tests = %v", names)
 	}
@@ -281,8 +276,7 @@ func TestDeviceLaneStepsExitWithTheirOwnStatus(t *testing.T) {
 	if command, err := executableStep(t.Context(), testutil.RepoRoot(t), buildDir, test); err != nil || !slices.Equal(command, test) {
 		t.Fatalf("go test step = %v, %v; want it unchanged", command, err)
 	}
-	command, err := executableStep(t.Context(), testutil.RepoRoot(t), buildDir, []string{"go", "run", "./cmd/cuda-info"})
-	testcheck.NoError(t, err)
+	command := testcheck.Must(executableStep(t.Context(), testutil.RepoRoot(t), buildDir, []string{"go", "run", "./cmd/cuda-info"}))(t)
 	if len(command) != 1 || !strings.HasPrefix(command[0], buildDir) {
 		t.Fatalf("go run step = %v, want one binary under %s", command, buildDir)
 	}

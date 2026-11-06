@@ -46,8 +46,7 @@ var modelsReportRender = sync.OnceValues(func() (modelsReport, error) {
 // renderedModelsReport is the report a reader renders now.
 func renderedModelsReport(t *testing.T) modelsReport {
 	t.Helper()
-	report, err := modelsReportRender()
-	testcheck.NoError(t, err)
+	report := testcheck.Must(modelsReportRender())(t)
 	return report
 }
 
@@ -93,8 +92,7 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 		t.Fatal("malformed external oracle accepted")
 	}
 	testcheck.NoError(t, os.Remove(malformed))
-	data, err := generateModelsReport(root, nil)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(generateModelsReport(root, nil))(t)
 	var report modelsReport
 	testcheck.NoError(t, json.Unmarshal(data, &report))
 	alpha, ok := report.Prototypes["zeta"].Models["Alpha-1B"]
@@ -118,8 +116,7 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 			{"capability": "inference", "tier": "real-artifact-smoke", "commit": commit, "evidence": []string{proof.String()}},
 		},
 	})
-	data, err = generateModelsReport(root, nil)
-	testcheck.NoError(t, err)
+	data = testcheck.Must(generateModelsReport(root, nil))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &report))
 	models := report.Prototypes["zeta"].Models
 	if len(models) != 2 {
@@ -138,7 +135,6 @@ func writeSpecification(t *testing.T, root, name string, document map[string]any
 	t.Helper()
 	directory := filepath.Join(root, "docs", "verification")
 	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
-	data, err := json.Marshal(document)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(document))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o600))
 }

@@ -12,8 +12,7 @@ import (
 // containment and its stdout returns as the strict-JSON result.
 func TestExternalProcessLifecycle(t *testing.T) {
 	manual := Manual{Name: "go-version", Transport: Transport{Program: "go", Args: []string{"version"}}}
-	result, err := argvAdapter{}.invoke(t.Context(), manual, nil)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(argvAdapter{}.invoke(t.Context(), manual, nil))(t)
 	if !strings.Contains(string(result), "go version") {
 		t.Fatalf("tool result = %s", result)
 	}

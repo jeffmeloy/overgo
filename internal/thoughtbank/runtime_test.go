@@ -27,14 +27,12 @@ func fixtureGenerator(t *testing.T) (*Generator, int) {
 	for index := range fixture.vocab {
 		vocabulary[string(rune('a'+index))] = index
 	}
-	body, err := json.Marshal(map[string]any{
+	body := testcheck.Must(json.Marshal(map[string]any{
 		"added_tokens": []any{}, "model": map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []any{}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	directory := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), body, 0o600))
-	tokenizer, err := hfbpe.Load(directory)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(hfbpe.Load(directory))(t)
 	return &Generator{weights: weights, config: ArchConfig{MemDim: fixture.memDim}, tokenizer: tokenizer}, fixture.vocab
 }
 
@@ -45,8 +43,7 @@ func fixtureGenerator(t *testing.T) (*Generator, int) {
 func TestGeneratorReportsTheTokensItDecoded(t *testing.T) {
 	generator, _ := fixtureGenerator(t)
 	for _, bound := range []int{5, 2} {
-		generation, err := generator.Generate(textgeneration.Request{Text: "cab", MaxTokens: bound})
-		testcheck.NoError(t, err)
+		generation := testcheck.Must(generator.Generate(textgeneration.Request{Text: "cab", MaxTokens: bound}))(t)
 		if len(generation.Tokens) != bound || generator.OutputTokens() != uint64(bound) {
 			t.Fatalf("generator reports %d tokens after generating %v under a bound of %d; want the %d it decoded",
 				generator.OutputTokens(), generation.Tokens, bound, bound)

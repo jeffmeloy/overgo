@@ -17,8 +17,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
 	const height, width = 16, 16
-	encoder, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels))(t)
 	frame := make([]float32, 3*height*width)
 	for index := range frame {
 		frame[index] = float32(index%17)/17*2 - 1
@@ -26,15 +25,13 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	for ordinal := range 4 {
 		testcheck.NoError(t, encoder.Add(ordinal, frame, height, width))
 	}
-	video, err := encoder.Finish()
-	testcheck.NoError(t, err)
+	video := testcheck.Must(encoder.Finish())(t)
 	if len(video.Data) == 0 || video.Frames != 4 {
 		t.Fatalf("encoded video = frames %d bytes %d", video.Frames, len(video.Data))
 	}
 
 	// FFmpeg starts at the first frame, so the abandoned encoder takes one.
-	abandoned, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
-	testcheck.NoError(t, err)
+	abandoned := testcheck.Must(NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels))(t)
 	testcheck.NoError(t, abandoned.Add(0, frame, height, width))
 	if err := abandoned.Close(); err == nil {
 		// Termination reports through the receipt; Close may surface the

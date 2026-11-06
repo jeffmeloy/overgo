@@ -50,21 +50,17 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 		if _, err := store.Commit(ctx, artifact.Batch{Key: "training-evidence/" + label + "/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: checkpoint}}}); err != nil {
 			t.Fatal(err)
 		}
-		run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{checkpoint}, "")
-		testcheck.NoError(t, err)
-		batch, err := run.Batch("training-evidence/" + label + "/run")
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{checkpoint}, ""))(t)
+		batch := testcheck.Must(run.Batch("training-evidence/" + label + "/run"))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
-		trace, err := json.Marshal(struct {
+		trace := testcheck.Must(json.Marshal(struct {
 			Run       artifact.ID                   `json:"run"`
 			Objective string                        `json:"objective"`
 			DPO       []trainingEvidenceObservation `json:"dpo"`
-		}{run.ID, "dpo", observations})
-		testcheck.NoError(t, err)
-		traceID, err := artifact.IdentifyBytes(artifact.KindEvidence, trace)
-		testcheck.NoError(t, err)
+		}{run.ID, "dpo", observations}))(t)
+		traceID := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, trace))(t)
 		descriptor := artifact.Descriptor{ID: traceID, Size: uint64(len(trace)), MediaType: "application/json"}
 		if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 			Key: "training-evidence/" + label + "/trace", Contents: []artifact.Content{{Descriptor: descriptor, Data: trace}},
@@ -86,10 +82,8 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 	handler := newTestHandlerForRepository(t, store, &fakeGenerator{})
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
+	browser := testcheck.Must(webuilane.Open(ctx, path, server.URL))(t)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := browserSettle(t, ctx, browser)

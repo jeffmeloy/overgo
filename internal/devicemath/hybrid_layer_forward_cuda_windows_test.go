@@ -21,8 +21,7 @@ import (
 // output is compared to the host golden `out` to the kernel-parity class.
 func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	// Parity class of the sibling backward test (same configs, same fp32 attention

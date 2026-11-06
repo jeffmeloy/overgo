@@ -32,8 +32,7 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	plan.Suites = cycleSuites()
 	declined := testutil.ArtifactID(t, artifact.KindModel, "Qwen3.5-9B")
 	named := func(cell ModelValidation) bool { return cell.Model == declined }
-	only, err := plan.OnlyModel("Qwen3.5-9B", named)
-	testcheck.NoError(t, err)
+	only := testcheck.Must(plan.OnlyModel("Qwen3.5-9B", named))(t)
 	if len(only.Suites) != 0 {
 		t.Errorf("one model's measurement runs %d lanes, want none", len(only.Suites))
 	}
@@ -56,13 +55,10 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	// The command takes -model beside -run, or alone for the plan, and reaches the selection: a store that holds no
 	// cell of the model refuses it by name.
 	storePath := t.TempDir()
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
-	served, err := modelNamed(t.Context(), store, "Bonsai-27B.gguf", servingValidation)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
+	served := testcheck.Must(modelNamed(t.Context(), store, "Bonsai-27B.gguf", servingValidation))(t)
 	testcheck.NoError(t, store.Close())
-	one, err := plan.OnlyModel("Bonsai-27B serving", served)
-	testcheck.NoError(t, err)
+	one := testcheck.Must(plan.OnlyModel("Bonsai-27B serving", served))(t)
 	if kept := append(append(one.Run, one.Background...), one.OperatorOwned...); len(kept) != 1 || kept[0].ModelName != "Bonsai-27B.gguf" || kept[0].Validation != servingValidation {
 		t.Errorf("one validation of one model kept %v, want its serving cell alone", kept)
 	}

@@ -18,8 +18,7 @@ func TestPromptTokenIDsPreservesExactSequence(t *testing.T) {
 		},
 	}}}
 	input := []tokenizer.TokenID{2, 1, 0}
-	ids, err := runner.promptTokenIDs("ignored", GenerateOptions{PromptTokenIDs: input})
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(runner.promptTokenIDs("ignored", GenerateOptions{PromptTokenIDs: input}))(t)
 	if !slices.Equal(ids, input) {
 		t.Fatalf("ids = %v", ids)
 	}

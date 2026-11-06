@@ -21,8 +21,7 @@ import (
 // durable evidence citing the candidate.
 func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "candidate-closure-model")
-	candidate, err := CapabilityDefinition(recipe.TaskForecast, modelID)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(CapabilityDefinition(recipe.TaskForecast, modelID))(t)
 	runnable := ValidateCandidateRecipe(candidate)
 	if !runnable.Runnable || len(runnable.Refusals) != 0 || runnable.Definition != candidate.ID {
 		t.Fatalf("registered candidate closure = %+v", runnable)
@@ -42,8 +41,7 @@ func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 
 	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
-	definitionContent, err := Content(candidate)
-	testcheck.NoError(t, err)
+	definitionContent := testcheck.Must(Content(candidate))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "closure/candidate", Contents: []artifact.Content{definitionContent},
 	}); err != nil {
@@ -59,14 +57,12 @@ func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 }
 
 func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing.T) {
-	modelContent, err := artifact.JSONContent(artifact.DocumentContract{
+	modelContent := testcheck.Must(artifact.JSONContent(artifact.DocumentContract{
 		Kind: artifact.KindModel, MediaType: "application/vnd.overgo.test-model+json", Schema: "overgo/test-model/v1",
 	}, struct {
 		Name string `json:"name"`
-	}{Name: "candidate-capability-model"})
-	testcheck.NoError(t, err)
-	definition, err := CapabilityDefinition(recipe.TaskForecast, modelContent.Descriptor.ID)
-	testcheck.NoError(t, err)
+	}{Name: "candidate-capability-model"}))(t)
+	definition := testcheck.Must(CapabilityDefinition(recipe.TaskForecast, modelContent.Descriptor.ID))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "candidate/capability-model", Contents: []artifact.Content{modelContent},
@@ -93,10 +89,9 @@ func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing
 			dependencies = append(dependencies, recipe.Dependency{
 				Role: capability.role, Slot: uint32(slot), Artifact: missing,
 			})
-			candidate, err := recipe.NewDefinitionWithDependencies(
+			candidate := testcheck.Must(recipe.NewDefinitionWithDependencies(
 				definition.Task, dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
-			)
-			testcheck.NoError(t, err)
+			))(t)
 			closure := ValidateStoredCandidateRecipe(t.Context(), store, candidate)
 			if closure.Runnable || len(closure.Refusals) == 0 {
 				t.Fatalf("unknown %s validated: %+v", capability.name, closure)

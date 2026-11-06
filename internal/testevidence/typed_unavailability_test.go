@@ -26,8 +26,7 @@ func TestVerifyReadsTypedUnavailability(t *testing.T) {
 		{"skip", "fixture present\n", false},
 		{"fail", "fixture present\n", false},
 	} {
-		report, err := readGoTestJSON(strings.NewReader(stream(tc.action, tc.output)), false, false, 0, nil, nil)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(readGoTestJSON(strings.NewReader(stream(tc.action, tc.output)), false, false, 0, nil, nil))(t)
 		if credited := RequireComplete(report) == nil && report.PackagePassed("example"); credited != tc.credited {
 			t.Fatalf("%s printing %q credited=%t, want %t: %+v", tc.action, tc.output, credited, tc.credited, report)
 		}

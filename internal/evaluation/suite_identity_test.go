@@ -133,8 +133,7 @@ func TestSuiteKindsBindTheirPinnedIdentities(t *testing.T) {
 			continue
 		}
 		plan := suite.Plan()
-		comparison, err := plan.comparisonIdentity()
-		testcheck.NoError(t, err)
+		comparison := testcheck.Must(plan.comparisonIdentity())(t)
 		bound := [6]string{}
 		for index, id := range [6]fmt.Stringer{plan.Identity(), comparison, plan.body.Dataset, plan.body.Split, plan.body.CaseProfile, plan.body.Scorer} {
 			bound[index] = id.String()

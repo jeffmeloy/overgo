@@ -21,8 +21,7 @@ func TestCompiledTranscriptionRecipeLoads(t *testing.T) {
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	ctx := t.Context()
 	policy := fixture.workspace.policy
-	definition, err := recipe.RequireDefinition(ctx, fixture.store, policy.Recipe)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(ctx, fixture.store, policy.Recipe))(t)
 	if _, _, err := modelrecipe.SpeechComponents(definition); err != nil {
 		t.Fatalf("the speech runtime refuses the compiled recipe: %v", err)
 	}

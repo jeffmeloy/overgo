@@ -17,8 +17,7 @@ func TestMemoReusesOnlyUnchangedFiles(t *testing.T) {
 	memo := NewMemo()
 	path := filepath.Join(t.TempDir(), "weights.bin")
 	testcheck.NoError(t, os.WriteFile(path, []byte("original bytes"), 0o644))
-	info, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	info := testcheck.Must(os.Stat(path))(t)
 	identity := fileIdentity{size: 14, present: true}
 	memo.record("key", info, identity)
 	remembered, ok := memo.lookup("key", info)
@@ -28,8 +27,7 @@ func TestMemoReusesOnlyUnchangedFiles(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(path, []byte("changed content!!"), 0o644))
 	future := time.Now().Add(2 * time.Second)
 	testcheck.NoError(t, os.Chtimes(path, future, future))
-	changed, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(os.Stat(path))(t)
 	if _, ok := memo.lookup("key", changed); ok {
 		t.Fatal("changed file served a stale digest")
 	}
@@ -46,10 +44,8 @@ func TestMemoReusesOnlyUnchangedFiles(t *testing.T) {
 func TestMemoClaimNamesTheRememberedIdentityWithoutReadingTheFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(path, []byte("original bytes"), 0o644))
-	info, err := os.Stat(path)
-	testcheck.NoError(t, err)
-	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("original bytes"))
-	testcheck.NoError(t, err)
+	info := testcheck.Must(os.Stat(path))(t)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, []byte("original bytes")))(t)
 	memo := NewMemo()
 	if _, _, ok := memo.Claim(path); ok {
 		t.Fatal("an empty memo made a claim")

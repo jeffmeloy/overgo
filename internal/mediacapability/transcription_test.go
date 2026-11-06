@@ -32,8 +32,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			directory := speechCheckpoint(t, modelType)
-			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
-			testcheck.NoError(t, err)
+			source := testcheck.Must(Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory))(t)
 			definition, facts, err := source.Define(source.Inventory.Manifest.ID)
 			testcheck.NoError(t, err)
 			if _, _, err := modelrecipe.SpeechComponents(definition); err != nil {
@@ -46,8 +45,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 					model, inventory, source.Inventory.Manifest.ID, source.Inventory.TensorInventory.ID)
 			}
 			store := overgodbtest.Open(t, t.TempDir())
-			registration, err := source.Inventory.Batch("transcription/registration")
-			testcheck.NoError(t, err)
+			registration := testcheck.Must(source.Inventory.Batch("transcription/registration"))(t)
 			registration.Contents = append(registration.Contents, facts...)
 			if _, err := artifact.Publish(ctx, store, registration); err != nil {
 				t.Fatal(err)
@@ -55,8 +53,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "transcription/candidate", definition); err != nil {
 				t.Fatal(err)
 			}
-			program, err := modelrecipe.CompileCapability(definition)
-			testcheck.NoError(t, err)
+			program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 			if _, err := modelrecipe.CompileCandidateExecution(ctx, store, program); err != nil {
 				t.Fatalf("recipe verify cannot plan the candidate's execution: %v", err)
 			}
@@ -84,16 +81,14 @@ func TestWholeClipTranscriptionServesTheResidentRecipe(t *testing.T) {
 		t.Run(modelType, func(t *testing.T) {
 			t.Parallel()
 			directory := speechCheckpoint(t, modelType)
-			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
-			testcheck.NoError(t, err)
+			source := testcheck.Must(Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory))(t)
 			definition, _, err := source.Define(source.Inventory.Manifest.ID)
 			testcheck.NoError(t, err)
 			var dependencies [5]artifact.ID
 			for index, role := range []recipe.DependencyRole{recipe.DependencyModel, recipe.DependencyProfile, recipe.DependencyProcessorProfile, recipe.DependencyTokenizer, recipe.DependencyTensorInventory} {
 				dependencies[index], _ = definition.PrimaryDependency(role)
 			}
-			host, err := modelrecipe.TranscriptionDefinition(dependencies[0], dependencies[1], dependencies[2], dependencies[3], dependencies[4])
-			testcheck.NoError(t, err)
+			host := testcheck.Must(modelrecipe.TranscriptionDefinition(dependencies[0], dependencies[1], dependencies[2], dependencies[3], dependencies[4]))(t)
 			served := host
 			if placement == recipe.PlacementHybrid {
 				if served, err = modelrecipe.DeviceTranscriptionDefinition(host); err != nil {

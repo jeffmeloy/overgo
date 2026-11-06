@@ -13,14 +13,12 @@ import (
 
 func TestCompositeGenerationSurfaceParity(t *testing.T) {
 	store, authority := productionCompositionFixture(t, true)
-	runtime, err := OpenProductionComposition(
+	runtime := testcheck.Must(OpenProductionComposition(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, compositionRuntimeResourcesFixture(t, authority),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	publishCompositeGenerationPromotion(t, store, runtime.plan)
-	direct, err := runtime.PromotedGeneration(t.Context(), store)
-	testcheck.NoError(t, err)
+	direct := testcheck.Must(runtime.PromotedGeneration(t.Context(), store))(t)
 	surface, err := ResolveCompositeGenerationSurface(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
@@ -64,7 +62,7 @@ func publishCompositeGenerationPromotion(
 	t.Helper()
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	output := id(artifact.KindOutput, "surface output")
-	evidence, err := (composition.CompositeGenerationCUDAAuthority{}).New(composition.CompositeGenerationCUDAEvidence{
+	evidence := testcheck.Must((composition.CompositeGenerationCUDAAuthority{}).New(composition.CompositeGenerationCUDAEvidence{
 		SourceModel: plan.SourceModel, TargetModel: plan.TargetModel,
 		CompositionRecipe: plan.CompositionRecipe, TargetBaselineRecipe: id(artifact.KindRecipe, "surface baseline"),
 		ExecutionPlan: plan.ID, Promotion: plan.Promotion, Bridge: plan.BridgeWeights[0],
@@ -75,24 +73,17 @@ func publishCompositeGenerationPromotion(
 		ComposedObservation: id(artifact.KindEvidence, "surface composed observation"),
 		Device:              id(artifact.KindEvidence, "surface device"), BridgeExecution: id(artifact.KindEvidence, "surface bridge execution"),
 		ExactOutputParity: true,
-	})
-	testcheck.NoError(t, err)
-	promotion, err := (composition.CompositeGenerationPromotionAuthority{}).Promote(plan, evidence)
-	testcheck.NoError(t, err)
-	planContent, err := plan.Content()
-	testcheck.NoError(t, err)
-	evidenceContent, err := evidence.Content()
-	testcheck.NoError(t, err)
-	promotionContent, err := promotion.Content()
-	testcheck.NoError(t, err)
-	alias, err := composition.CompositeGenerationPromotionAlias(plan.SourceModel, plan.TargetModel, plan.Task)
-	testcheck.NoError(t, err)
+	}))(t)
+	promotion := testcheck.Must((composition.CompositeGenerationPromotionAuthority{}).Promote(plan, evidence))(t)
+	planContent := testcheck.Must(plan.Content())(t)
+	evidenceContent := testcheck.Must(evidence.Content())(t)
+	promotionContent := testcheck.Must(promotion.Content())(t)
+	alias := testcheck.Must(composition.CompositeGenerationPromotionAlias(plan.SourceModel, plan.TargetModel, plan.Task))(t)
 	lineage := append(append(plan.Lineage(), evidence.Lineage()...), promotion.Lineage()...)
-	batch, err := artifact.NewDocumentBatch(
+	batch := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/composite-generation/surface", []artifact.Content{planContent, evidenceContent, promotionContent},
 		lineage, []artifact.AliasBinding{{Name: alias, Target: promotion.ID}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	seen := make(map[artifact.ID]bool)
 	for _, edge := range lineage {
 		if seen[edge.Parent] {

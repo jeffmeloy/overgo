@@ -28,8 +28,7 @@ func TestConverterNamesASplittingRuleByTheFileThatHoldsIt(t *testing.T) {
 		t.Fatalf("no rule's tokenizer is on file: %v", err)
 	}
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference struct {
 			Rule         string          `json:"rule"`
 			PreTokenizer json.RawMessage `json:"pre_tokenizer"`
@@ -69,8 +68,7 @@ func declaration(t *testing.T, steps ...map[string]any) json.RawMessage {
 	if len(steps) == 1 {
 		value = steps[0]
 	}
-	encoded, err := json.Marshal(value)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(value))(t)
 	return encoded
 }
 
@@ -90,8 +88,7 @@ func declaration(t *testing.T, steps ...map[string]any) json.RawMessage {
 // a declaration that is not a Sequence.
 func TestConverterRefusesADeclarationItsRuleDoesNotCut(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "fixtures", "pre_tokenizer", "deepseek-v3.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "fixtures", "pre_tokenizer", "deepseek-v3.json")))(t)
 	var reference struct {
 		PreTokenizer json.RawMessage `json:"pre_tokenizer"`
 	}

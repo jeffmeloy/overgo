@@ -25,61 +25,51 @@ func TestExperimentLifecycleIsIdempotentAndRecoverable(t *testing.T) {
 	now := time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC)
 	expiry := func(d time.Duration) string { return now.Add(d).Format(time.RFC3339Nano) }
 
-	proposed, err := NewExperimentLifecycle(ExperimentLifecycle{
+	proposed := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentProposed, Experiment: experiment, Evidence: evidence("proposal"),
-	}, nil)
-	testcheck.NoError(t, err)
+	}, nil))(t)
 	replayed, err := NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentProposed, Experiment: experiment, Evidence: evidence("proposal"),
 	}, nil)
 	if err != nil || replayed.ID != proposed.ID {
 		t.Fatalf("replayed proposal = (%v, %v), want identical identity %v", replayed.ID, err, proposed.ID)
 	}
-	admitted, err := NewExperimentLifecycle(ExperimentLifecycle{
+	admitted := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentAdmitted, Experiment: experiment, Evidence: evidence("admission"),
-	}, &proposed)
-	testcheck.NoError(t, err)
-	leased, err := NewExperimentLifecycle(ExperimentLifecycle{
+	}, &proposed))(t)
+	leased := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentLeased, Experiment: experiment, Evidence: evidence("lease"),
 		HeartbeatExpiry: expiry(-2 * time.Minute),
-	}, &admitted)
-	testcheck.NoError(t, err)
+	}, &admitted))(t)
 
-	status, err := ReconcileExperiment([]ExperimentLifecycle{proposed, admitted, leased, leased}, now)
-	testcheck.NoError(t, err)
+	status := testcheck.Must(ReconcileExperiment([]ExperimentLifecycle{proposed, admitted, leased, leased}, now))(t)
 	if status.Tip.ID != leased.ID || !status.Expired || status.NextRetry != 1 {
 		t.Fatalf("expired lease reconciles to %+v, want recoverable at retry 1", status)
 	}
 
-	recovered, err := NewExperimentLifecycle(ExperimentLifecycle{
+	recovered := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentLeased, Experiment: experiment, Evidence: evidence("lease-retry"),
 		Retry: 1, HeartbeatExpiry: expiry(time.Hour), Checkpoint: &checkpoint,
-	}, &leased)
-	testcheck.NoError(t, err)
-	running, err := NewExperimentLifecycle(ExperimentLifecycle{
+	}, &leased))(t)
+	running := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentRunning, Experiment: experiment, Evidence: evidence("run"),
 		Retry: 1, HeartbeatExpiry: expiry(time.Hour), Checkpoint: &checkpoint,
-	}, &recovered)
-	testcheck.NoError(t, err)
-	evaluated, err := NewExperimentLifecycle(ExperimentLifecycle{
+	}, &recovered))(t)
+	evaluated := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentEvaluated, Experiment: experiment, Evidence: evidence("verdict"), Retry: 1,
-	}, &running)
-	testcheck.NoError(t, err)
-	refused, err := NewExperimentLifecycle(ExperimentLifecycle{
+	}, &running))(t)
+	refused := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentRefused, Experiment: experiment, Evidence: evidence("refusal"), Retry: 1,
-	}, &evaluated)
-	testcheck.NoError(t, err)
+	}, &evaluated))(t)
 	chain := []ExperimentLifecycle{proposed, admitted, leased, recovered, running, evaluated, refused}
-	status, err = ReconcileExperiment(chain, now)
-	testcheck.NoError(t, err)
+	status = testcheck.Must(ReconcileExperiment(chain, now))(t)
 	if status.Tip.ID != refused.ID || status.Expired {
 		t.Fatalf("terminal chain reconciles to %+v, want refused tip", status)
 	}
 	if status.Tip.Retry != 1 || running.Checkpoint == nil || *running.Checkpoint != checkpoint {
 		t.Fatal("recovery lost the retry identity or checkpoint")
 	}
-	roundtrip, err := refused.Content()
-	testcheck.NoError(t, err)
+	roundtrip := testcheck.Must(refused.Content())(t)
 	parsed, err := ParseExperimentLifecycle(roundtrip.Data)
 	if err != nil || parsed.ID != refused.ID || parsed.Prior == nil || *parsed.Prior != evaluated.ID {
 		t.Fatalf("lifecycle roundtrip = (%+v, %v)", parsed, err)
@@ -108,10 +98,9 @@ func TestExperimentLifecycleIsIdempotentAndRecoverable(t *testing.T) {
 		t.Fatal("lease without heartbeat expiry accepted")
 	}
 
-	fork, err := NewExperimentLifecycle(ExperimentLifecycle{
+	fork := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentContained, Experiment: experiment, Evidence: evidence("containment"), Retry: 1,
-	}, &running)
-	testcheck.NoError(t, err)
+	}, &running))(t)
 	if _, err := ReconcileExperiment(append(chain, fork), now); err == nil {
 		t.Fatal("diverged chain reconciled without error")
 	}
@@ -120,10 +109,9 @@ func TestExperimentLifecycleIsIdempotentAndRecoverable(t *testing.T) {
 	if err != nil || status.Tip.ID != fork.ID {
 		t.Fatalf("containment chain = (%+v, %v)", status, err)
 	}
-	rolledBack, err := NewExperimentLifecycle(ExperimentLifecycle{
+	rolledBack := testcheck.Must(NewExperimentLifecycle(ExperimentLifecycle{
 		State: ExperimentRolledBack, Experiment: experiment, Evidence: evidence("rollback"), Retry: 1,
-	}, &fork)
-	testcheck.NoError(t, err)
+	}, &fork))(t)
 	status, err = ReconcileExperiment(append(contained, rolledBack), now)
 	if err != nil || status.Tip.State != ExperimentRolledBack {
 		t.Fatalf("rollback chain = (%+v, %v)", status, err)

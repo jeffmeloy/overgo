@@ -25,11 +25,10 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 	generate := func(t testing.TB) {
 		t.Helper()
 		var frames [][]float32
-		result, err := runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, _, _ int) error {
+		result := testcheck.Must(runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, _, _ int) error {
 			frames = append(frames, append([]float32(nil), frame...))
 			return nil
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if len(frames) != runtime.sourcePlan.Source.Frames || hashReferenceEditValues(result.Latent) != liveEditDeviceLatentOracle || hashReferenceEditFrames(frames) != liveEditDeviceFrameOracle {
 			t.Fatal("recovery changed the native latent or decoded frames")
 		}

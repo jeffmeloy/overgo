@@ -15,14 +15,13 @@ func TestDPOPreferenceBatchCompilesExactPrefixAndMasks(t *testing.T) {
 		{Role: RoleRejected, Data: []byte{1, 2, 4}, Completion: []bool{false, false, true}},
 	}}
 	identity := testutil.ArtifactID(t, artifact.KindProfile, "preference-stream")
-	batch, err := CompilePreferenceBatch(Batch{Examples: []Example{example}, State: StreamState{Identity: identity, Position: 1}}, func(value Value) ([]int, error) {
+	batch := testcheck.Must(CompilePreferenceBatch(Batch{Examples: []Example{example}, State: StreamState{Identity: identity, Position: 1}}, func(value Value) ([]int, error) {
 		result := make([]int, len(value.Data))
 		for index, token := range value.Data {
 			result[index] = int(token)
 		}
 		return result, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(batch.Pairs) != 1 || batch.State.Identity != identity || batch.Pairs[0].SharedPrefix != 2 ||
 		!batch.Pairs[0].Chosen.Completion[2] || !batch.Pairs[0].Rejected.Completion[2] {
 		t.Fatalf("compiled batch=%+v", batch)
@@ -42,8 +41,7 @@ func TestUnpairedBatchSplicesEachPromptWithTheNextCompletion(t *testing.T) {
 		for index := prompt; index < len(mask); index++ {
 			mask[index] = true
 		}
-		result, err := TokenValue(role, tokens, mask)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(TokenValue(role, tokens, mask))(t)
 		return result
 	}
 	examples := []Example{
@@ -51,8 +49,7 @@ func TestUnpairedBatchSplicesEachPromptWithTheNextCompletion(t *testing.T) {
 		{ID: "b", Values: []Value{value(RoleRejected, []int{3, 8, 9}, 1)}},
 		{ID: "c", Values: []Value{value(RoleChosen, []int{4, 5, 6, 10}, 3)}},
 	}
-	batch, err := CompileUnpairedBatch(Batch{Examples: examples, State: StreamState{Identity: identity, Position: 3}}, TokenIDs)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(CompileUnpairedBatch(Batch{Examples: examples, State: StreamState{Identity: identity, Position: 3}}, TokenIDs))(t)
 	want := []PreferenceSequence{
 		{Tokens: []int{1, 2, 8, 9}, Completion: []bool{false, false, true, true}},
 		{Tokens: []int{3, 10}, Completion: []bool{false, true}},

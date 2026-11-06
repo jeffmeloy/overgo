@@ -12,8 +12,7 @@ import (
 func TestRateReadsThePlansParameterCount(t *testing.T) {
 	t.Parallel()
 	const plan, tolerance, measured = 494032768, 1e-3, 6.078e-06
-	config, err := BuiltinOptimizerPolicy().Config(plan)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(BuiltinOptimizerPolicy().Config(plan))(t)
 	if math.Abs(config.BaseLearningRate-measured) > measured*tolerance {
 		t.Fatalf("the plan's rate = %g, want the %g that was judged", config.BaseLearningRate, measured)
 	}

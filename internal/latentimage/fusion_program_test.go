@@ -13,11 +13,10 @@ import (
 )
 
 func TestFusionProgramMasksTextPadding(t *testing.T) {
-	program, err := CompileFusionProgram(
+	program := testcheck.Must(CompileFusionProgram(
 		syntheticSpec(), 1e-5,
 		[]bool{true, false, true}, dtype.F32,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if program.keyBias == nil || len(program.keyData) != 3 || program.keyData[1] != padKeyBias {
 		t.Fatalf("key bias = %v", program.keyData)
 	}

@@ -17,13 +17,11 @@ import (
 func TestCompositeGenerationParity(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	// Promotion trials are fixtures; keep their publications out of live authority.
 	directory := t.TempDir()
 	roots.Store = filepath.Join(directory, "store")
-	data, err := json.Marshal(roots)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(roots))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, dataroot.ConfigFile), data, 0o600))
 	t.Setenv(dataroot.Env, directory)
 	testcheck.NoError(t, runCompositeGeneration(root))

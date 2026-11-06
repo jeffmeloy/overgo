@@ -61,8 +61,7 @@ func TestMOSSGenerationProgress(t *testing.T) {
 		t.Fatal("active capability", capabilities, err)
 	}
 	reporter := &generationTextReporter{}
-	_, err = fixture.workspace.ExecuteWorkflow(t.Context(), workflowGeneration, capabilities[0], json.RawMessage(`{"prompt":"cube","width":32,"height":48}`), reporter)
-	testcheck.NoError(t, err)
+	testcheck.Must(fixture.workspace.ExecuteWorkflow(t.Context(), workflowGeneration, capabilities[0], json.RawMessage(`{"prompt":"cube","width":32,"height":48}`), reporter))(t)
 	want := []string{"Loading model", "Processing prompt", "Generating image", "Decoding image"}
 	if !reflect.DeepEqual(reporter.texts, want) {
 		t.Fatalf("progress=%q want=%q", reporter.texts, want)

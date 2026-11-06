@@ -12,12 +12,11 @@ import (
 // incomplete groups are absent rather than half-bound, ambiguous bindings are
 // refused by name, and lookups outside the index report absent.
 func TestOrganCatalogIndexesComponents(t *testing.T) {
-	catalog, err := CompileCatalog([]string{
+	catalog := testcheck.Must(CompileCatalog([]string{
 		"model.layers.0.mlp.gate_proj.weight", "model.layers.0.mlp.up_proj.weight", "model.layers.0.mlp.down_proj.weight",
 		"model.layers.1.mlp.gate_proj.weight", "model.layers.1.mlp.up_proj.weight", "model.layers.1.mlp.down_proj.weight",
 		"model.layers.0.self_attn.q_proj.weight", "model.embed_tokens.weight", "model.norm.weight",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if catalog.MLPCount() != 2 {
 		t.Fatalf("MLPCount = %d, want 2", catalog.MLPCount())
 	}
@@ -28,11 +27,10 @@ func TestOrganCatalogIndexesComponents(t *testing.T) {
 		t.Fatalf("indexed component = (%+v, %v)", component, ok)
 	}
 
-	gguf, err := CompileCatalog([]string{
+	gguf := testcheck.Must(CompileCatalog([]string{
 		"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight", "blk.0.ffn_down.weight",
 		"blk.0.attn_q.weight", "token_embd.weight",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	component, ok = gguf.MLP(0)
 	if !ok || component.Gate != "blk.0.ffn_gate.weight" || component.Down != "blk.0.ffn_down.weight" {
 		t.Fatalf("GGUF component = (%+v, %v)", component, ok)
@@ -55,8 +53,7 @@ func TestOrganCatalogIndexesComponents(t *testing.T) {
 		t.Fatalf("numeric ordering broken: ordinal2=%s ordinal10=%s", second.Gate, tenth.Gate)
 	}
 
-	incomplete, err := CompileCatalog([]string{"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight"})
-	testcheck.NoError(t, err)
+	incomplete := testcheck.Must(CompileCatalog([]string{"blk.0.ffn_gate.weight", "blk.0.ffn_up.weight"}))(t)
 	if incomplete.MLPCount() != 0 {
 		t.Fatal("incomplete triple compiled as a component")
 	}

@@ -40,13 +40,10 @@ func servingObservationFixture(t *testing.T) ServingObservation {
 func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	fixture := servingObservationFixture(t)
 	fixture.Version = artifact.InitialDocumentVersion
-	observation, err := servingObservationCodec.New(fixture)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(servingObservationCodec.New(fixture))(t)
 	testcheck.NoError(t, observation.ValidateIdentity())
-	content, err := observation.Content()
-	testcheck.NoError(t, err)
-	parsed, err := servingObservationCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(observation.Content())(t)
+	parsed := testcheck.Must(servingObservationCodec.Parse(content.Data))(t)
 	if parsed.ID != observation.ID || parsed.Usage != fixture.Usage || parsed.Resources != fixture.Resources ||
 		!slices.Equal(parsed.Phases, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 11}, {Phase: PhasePrefill, DurationNS: 7}}) ||
 		!slices.Equal(parsed.Hardware, fixture.Hardware) {
@@ -62,17 +59,15 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "serving/fixture/authorities", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := observation.Batch("serving/fixture/observation")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(observation.Batch("serving/fixture/observation"))(t)
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(t.Context(), overgodb.Query{
+	result := testcheck.Must(store.Query(t.Context(), overgodb.Query{
 		Artifact: &fixture.Model, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: ServingObservationMediaType, Schema: ServingObservationSchema, MaxResults: 8,
 		Projection: overgodb.ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Artifacts) != 1 || result.Artifacts[0].ID != observation.ID || result.Truncated {
 		t.Fatalf("indexed serving query = %+v", result)
 	}
@@ -171,22 +166,18 @@ func TestOperationBoundServingObservationRequiresCurrentAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	current, err := PublishServingObservation(ctx, store, fixture)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(PublishServingObservation(ctx, store, fixture))(t)
 	if required, err := RequireServingAttemptObservation(ctx, store, current.ID); err != nil || required.ID != current.ID {
 		t.Fatalf("current operation-bound observation = (%s, %v)", required.ID, err)
 	}
 
 	foreign := fixture
 	foreign.MeasuredNS++
-	foreign, err = NewServingObservation(foreign)
-	testcheck.NoError(t, err)
-	foreignContent, err := foreign.Content()
-	testcheck.NoError(t, err)
-	foreignBatch, err := artifact.NewDocumentBatch(
+	foreign = testcheck.Must(NewServingObservation(foreign))(t)
+	foreignContent := testcheck.Must(foreign.Content())(t)
+	foreignBatch := testcheck.Must(artifact.NewDocumentBatch(
 		"serving/operation-bound/foreign", []artifact.Content{foreignContent}, foreign.Lineage(), nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(ctx, store, foreignBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -200,10 +191,8 @@ func TestOperationBoundServingObservationRequiresCurrentAlias(t *testing.T) {
 	unbound := fixture
 	unbound.Operation = artifact.ID{}
 	unbound.MeasuredNS += 2
-	unbound, err = NewServingObservation(unbound)
-	testcheck.NoError(t, err)
-	unboundBatch, err := unbound.Batch("serving/operation-bound/unbound")
-	testcheck.NoError(t, err)
+	unbound = testcheck.Must(NewServingObservation(unbound))(t)
+	unboundBatch := testcheck.Must(unbound.Batch("serving/operation-bound/unbound"))(t)
 	if _, err := artifact.CommitBatch(ctx, store, unboundBatch); err != nil {
 		t.Fatal(err)
 	}

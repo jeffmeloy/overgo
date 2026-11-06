@@ -23,8 +23,7 @@ import (
 // executor still moves the surface.
 func TestStoreEditLeavesTheSurfaceUnchanged(t *testing.T) {
 	ctx := t.Context()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	moves, err := Moves(ctx, root, []string{"internal/overgodb/store.go", "internal/runrecord/run.go"})
 	if err != nil || len(moves) != 0 {
 		t.Fatalf("a store or record edit moved the surface: %v %v", moves, err)

@@ -21,8 +21,7 @@ import (
 )
 
 func TestArgvOutputLimit(t *testing.T) {
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	for _, mode := range []string{"finite", "continuing-tree", "valid"} {
 		t.Run(mode, func(t *testing.T) {

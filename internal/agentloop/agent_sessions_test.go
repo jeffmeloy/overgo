@@ -83,22 +83,19 @@ func newAgentWorld(t *testing.T) *agentWorld {
 	})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	inspect, err := agenttool.NewManual(agenttool.Manual{
+	inspect := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "session.read", Description: "Read state for the session.", Effect: agenttool.EffectInspection,
 		Arguments: []agenttool.Field{{Name: "step", Kind: agenttool.FieldInteger}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/read"},
-	})
-	testcheck.NoError(t, err)
-	mutate, err := agenttool.NewManual(agenttool.Manual{
+	}))(t)
+	mutate := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "session.write", Description: "Change state for the session.", Effect: agenttool.EffectMutation,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/write"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{inspect, mutate}); err != nil {
 		t.Fatal(err)
 	}
-	coordinator, err := New(store, agenttool.NewOperatorExecutor(), Identity{Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond")}, 1000)
-	testcheck.NoError(t, err)
+	coordinator := testcheck.Must(New(store, agenttool.NewOperatorExecutor(), Identity{Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond")}, 1000))(t)
 	world.coordinator = coordinator
 	return world
 }

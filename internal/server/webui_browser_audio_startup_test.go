@@ -21,8 +21,7 @@ func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) 
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "cold-speech-recipe"), Name: "Local speech (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}}, Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}, Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}, {Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}}},
 	}}}
 	// Only workflows: this fixture has no loaded text model or model properties.
-	handler, err := New(Config{Repository: store, RuntimePolicy: testRuntimePolicy(), Workflows: generator}, GenerationRefused{Reason: "No chat model is loaded"})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, RuntimePolicy: testRuntimePolicy(), Workflows: generator}, GenerationRefused{Reason: "No chat model is loaded"}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	return &IdleShell{Repository: store, Workbench: handler}, generator
 }

@@ -20,11 +20,9 @@ import (
 // precondition's answer on every route it guards.
 func TestServerRouteTableIsTheOnlyDispatcher(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	dir := filepath.Join(root, "internal", "server")
-	entries, err := os.ReadDir(dir)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(dir))(t)
 	idleDispatch := map[string]bool{"idle_shell.go": true, "library_workspace.go": true, "http_helpers.go": true}
 	files := token.NewFileSet()
 	switches := 0
@@ -33,8 +31,7 @@ func TestServerRouteTableIsTheOnlyDispatcher(t *testing.T) {
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		parsed, err := parser.ParseFile(files, filepath.Join(dir, name), nil, 0)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(parser.ParseFile(files, filepath.Join(dir, name), nil, 0))(t)
 		methodChecks := 0
 		ast.Inspect(parsed, func(node ast.Node) bool {
 			switch node := node.(type) {

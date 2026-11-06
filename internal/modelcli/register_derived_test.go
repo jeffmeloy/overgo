@@ -22,13 +22,10 @@ func TestAServedOpenRegistersWhatItsRecordsNeed(t *testing.T) {
 	root := t.TempDir()
 	storeRoot, path := filepath.Join(root, "store"), filepath.Join(root, "model.gguf")
 	writeServingFixture(t, path, 300)
-	created, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
+	created := testcheck.Must(overgodb.Create(storeRoot))(t)
 	testcheck.NoError(t, created.Close())
-	reader, err := overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
-	loaded, err := modelrecipe.ResolveClaimedGGUF(t.Context(), reader, path, nil)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(overgodb.OpenReadOnly(storeRoot))(t)
+	loaded := testcheck.Must(modelrecipe.ResolveClaimedGGUF(t.Context(), reader, path, nil))(t)
 	derivation, derived := loaded.Derived()
 	testcheck.NoError(t, loaded.Close())
 	testcheck.NoError(t, reader.Close())
@@ -48,15 +45,13 @@ func TestAServedOpenRegistersWhatItsRecordsNeed(t *testing.T) {
 	if err != nil || state.Verification != modelrecipe.StateNotVerified {
 		t.Fatalf("registering a run verified it: %+v, %v", state, err)
 	}
-	canonical, err := pathidentity.Canonical(path)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(pathidentity.Canonical(path))(t)
 	memo := discovery.LoadMemo(t.Context(), store)
 	claimed, size, remembered := memo.Claim(canonical)
 	if !remembered || claimed != derivation.Inventory.Components[0].ID || size != derivation.Inventory.Components[0].Size {
 		t.Fatalf("claim = %v, %d, %t, want the open's identity", claimed, size, remembered)
 	}
-	again, err := modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, memo.Claim)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, memo.Claim))(t)
 	defer again.Close()
 	if identity, err := again.Identity(); err != nil || identity.Model != derivation.Inventory.Manifest.ID {
 		t.Fatalf("the next open resolved %+v, %v", identity, err)

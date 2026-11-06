@@ -25,8 +25,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 		observed = append(observed, pkg+" passed="+map[bool]string{true: "true", false: "false"}[passed])
 		return nil
 	}
-	report, err := readGoTestJSON(strings.NewReader(stream(skipEvent("example", "TestElsewhere", testskip.KindInapplicable))), false, false, 0, observe, nil)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(readGoTestJSON(strings.NewReader(stream(skipEvent("example", "TestElsewhere", testskip.KindInapplicable))), false, false, 0, observe, nil))(t)
 	if report.PassedPackages != 1 || report.PassedTests != 1 || len(report.ClassifiedSkipped) != 1 || len(report.Skipped) != 0 {
 		t.Fatalf("declared exclusion report = %+v", report)
 	}
@@ -37,8 +36,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 		t.Fatalf("a declared exclusion is not complete: %v", err)
 	}
 	observed = nil
-	report, err = readGoTestJSON(strings.NewReader(stream(packageEvent("output", "example", "TestElsewhere", "integration: needs a device"))), false, false, 0, observe, nil)
-	testcheck.NoError(t, err)
+	report = testcheck.Must(readGoTestJSON(strings.NewReader(stream(packageEvent("output", "example", "TestElsewhere", "integration: needs a device"))), false, false, 0, observe, nil))(t)
 	if len(report.Skipped) != 1 || len(report.ClassifiedSkipped) != 0 || len(observed) != 0 {
 		t.Fatalf("unowned skip report = %+v observed = %v", report, observed)
 	}

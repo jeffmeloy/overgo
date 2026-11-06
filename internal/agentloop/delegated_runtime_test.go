@@ -21,31 +21,26 @@ import (
 func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	manual, err := agenttool.NewManual(agenttool.Manual{
+	manual := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "repo.read", Description: "Read repository state.",
 		Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
-	snapshot, err := agenttool.NewCatalogSnapshot([]agenttool.Manual{manual})
-	testcheck.NoError(t, err)
-	snapshotContent, err := snapshot.ArtifactContent()
-	testcheck.NoError(t, err)
+	}))(t)
+	snapshot := testcheck.Must(agenttool.NewCatalogSnapshot([]agenttool.Manual{manual}))(t)
+	snapshotContent := testcheck.Must(snapshot.ArtifactContent())(t)
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{manual}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := artifact.NewDocumentBatch("delegated-runtime-fixture", []artifact.Content{snapshotContent}, nil, nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch("delegated-runtime-fixture", []artifact.Content{snapshotContent}, nil, nil))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
-	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
+	worker := testcheck.Must(recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: "worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "prompt"),
 		ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model-recipe"),
 		ToolManuals: []artifact.ID{manual.ID},
 		Policies:    []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")},
-	})
-	testcheck.NoError(t, err)
-	task, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
+	}))(t)
+	task := testcheck.Must(recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Inspect and report.", Scope: []string{"internal"},
 		AllowedEffects: []string{"inspection"},
 		Acceptance: []recipe.AcceptanceCriterion{
@@ -55,20 +50,17 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Verification:    []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "gate")},
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"drift"},
-	})
-	testcheck.NoError(t, err)
-	invocation, err := recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
+	}))(t)
+	invocation := testcheck.Must(recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
 		Task: task.ID, Worker: worker.ID,
 		Grant:           recipe.AgentCapabilityGrant{Manuals: []artifact.ID{manual.ID}, AllowedEffects: []string{"inspection"}, ReadOnly: true},
 		StartingContext: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "context")},
 		Scheduler:       recipe.AgentSchedulerPolicy{MaxSteps: 4, MaxParallel: 1, Preemptible: true},
 		Catalog:         snapshot.ID, Model: testutil.ArtifactID(t, artifact.KindModel, "model"),
-	})
-	testcheck.NoError(t, err)
-	runtime, err := NewDelegatedCapabilityRuntime(
+	}))(t)
+	runtime := testcheck.Must(NewDelegatedCapabilityRuntime(
 		ctx, store, agenttool.NewOperatorExecutor(), invocation, worker, task, "agent", t.TempDir(),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if runtime.Coordinator == nil || runtime.Checkpoints == nil ||
 		len(runtime.Compiled.Manuals) != 1 || runtime.Compiled.Manuals[0].ID != manual.ID {
 		t.Fatalf("runtime join = %+v", runtime)
@@ -91,23 +83,20 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 	}
 
 	admission := GrantEffectAdmission(invocation.Grant)
-	inspect, err := agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{}`), nil)
-	testcheck.NoError(t, err)
+	inspect := testcheck.Must(agenttool.DeriveInvocationEffect(manual, json.RawMessage(`{}`), nil))(t)
 	if err := admission(inspect); err != nil {
 		t.Fatalf("granted inspection refused: %v", err)
 	}
-	mutation, err := agenttool.NewManual(agenttool.Manual{
+	mutation := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "repo.write", Description: "Write state.",
 		Effect: agenttool.EffectMutation, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
-	mutate, err := agenttool.DeriveInvocationEffect(mutation, json.RawMessage(`{}`), nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	mutate := testcheck.Must(agenttool.DeriveInvocationEffect(mutation, json.RawMessage(`{}`), nil))(t)
 	if err := admission(mutate); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("read-only grant admitted mutation: %v", err)
 	}
 
-	wrongTask, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
+	wrongTask := testcheck.Must(recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: worker.ID, Objective: "Different task.", Scope: []string{"internal"},
 		AllowedEffects: []string{"inspection"},
 		Acceptance: []recipe.AcceptanceCriterion{
@@ -116,8 +105,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		Verification:    []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "gate")},
 		Budget:          testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"drift"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := NewDelegatedCapabilityRuntime(
 		ctx, store, agenttool.NewOperatorExecutor(), invocation, worker, wrongTask, "agent", t.TempDir(),
 	); err == nil {

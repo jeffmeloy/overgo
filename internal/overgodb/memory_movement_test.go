@@ -19,8 +19,7 @@ import (
 // consumers that need the bytes.
 func TestMemoryMovementTraceReduction(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	ctx := t.Context()
 	contract := ProjectionContractVersion()
@@ -33,10 +32,9 @@ func TestMemoryMovementTraceReduction(t *testing.T) {
 	anchorHead, anchorSequence := store.Head()
 
 	payload := bytes.Repeat([]byte{0x6d}, 1<<20)
-	content, err := artifact.DocumentContract{
+	content := testcheck.Must(artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: "application/octet-stream", Schema: "overgo/movement-blob/v1",
-	}.ContentBytes(payload)
-	testcheck.NoError(t, err)
+	}.ContentBytes(payload))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "movement/blob", Contents: []artifact.Content{content},
 	}); err != nil {

@@ -18,19 +18,15 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 		Normalization: "sum", Aggregation: AggregationAccuracy,
 		Cases: []MultipleChoiceCase{{Name: "case", Prompt: "Q: one\nA:", Candidates: []string{" A", " B"}, Answer: 1}},
 	}
-	compiled, err := CompileMultipleChoice(suite)
-	testcheck.NoError(t, err)
-	rawPlan, err := BindMultipleChoice(compiled, raw)
-	testcheck.NoError(t, err)
-	templatedPlan, err := BindMultipleChoice(compiled, templated)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
+	rawPlan := testcheck.Must(BindMultipleChoice(compiled, raw))(t)
+	templatedPlan := testcheck.Must(BindMultipleChoice(compiled, templated))(t)
 	if rawPlan.Identity() == templatedPlan.Identity() || rawPlan.Execution() == templatedPlan.Execution() {
 		t.Fatal("prompting protocol did not change the plan identity")
 	}
 	// Hosted chat: its own execution policy and scorer authority (the
 	// opener rides the user message), distinct from the templated plan.
-	hostedPlan, err := BindMultipleChoice(compiled, hosted)
-	testcheck.NoError(t, err)
+	hostedPlan := testcheck.Must(BindMultipleChoice(compiled, hosted))(t)
 	if hostedPlan.Identity() == templatedPlan.Identity() || hostedPlan.Execution() == templatedPlan.Execution() || hostedPlan.Identity() == rawPlan.Identity() {
 		t.Fatal("hosted prompting did not change the plan identity")
 	}

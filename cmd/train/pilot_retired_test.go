@@ -17,11 +17,10 @@ func TestTheRewardPilotIsRetired(t *testing.T) {
 	t.Parallel()
 	for _, retired := range []string{"pilot", "keep-checkpoints"} {
 		var refusal bytes.Buffer
-		receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
+		receipt := testcheck.Must(processcontrol.Run(t.Context(), processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-" + retired, "evidence"}, Stderr: &refusal,
 			Env: append(os.Environ(), commandChildEnvironment+"="+childStandIn),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if receipt.ExitCode == 0 || !strings.Contains(refusal.String(), "flag provided but not defined: -"+retired) {
 			t.Errorf("train -%s ended with status %d and %q; want it refused as a flag train does not have", retired, receipt.ExitCode, refusal.String())
 		}

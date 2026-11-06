@@ -17,8 +17,7 @@ import (
 // independently asserts the Han/Latin token counts; the pinned vocabulary
 // supplies exact IDs. This tiny fixture does not establish real Kimi IDs.
 func TestKimiTinyIgnoreMerges(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "kimi_tiny.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "kimi_tiny.json")))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "99b5ff4e6cc9f14bcdc9c4e1d854c35d4afc087af8e825f3264b1ebbc10132eb" {
 		t.Fatalf("Kimi source fixture changed: %s", got)
 	}
@@ -26,8 +25,7 @@ func TestKimiTinyIgnoreMerges(t *testing.T) {
 		t.Helper()
 		dir := t.TempDir()
 		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), source, 0600))
-		encoder, err := Load(dir)
-		testcheck.NoError(t, err)
+		encoder := testcheck.Must(Load(dir))(t)
 		return encoder
 	}
 	encoder := load(raw)

@@ -168,8 +168,7 @@ func TestIntegerDictionaryChargesItsDecimalText(t *testing.T) {
 	var integers []byte
 	var text int64
 	for _, decimal := range want {
-		value, err := strconv.ParseInt(decimal, 10, 64)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(strconv.ParseInt(decimal, 10, 64))(t)
 		integers = binary.LittleEndian.AppendUint64(integers, uint64(value))
 		text += int64(len(decimal))
 	}

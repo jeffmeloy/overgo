@@ -33,7 +33,7 @@ func hubTestServer(t *testing.T, weights []byte) *httptest.Server {
 
 func hubTestHandler(t *testing.T, endpoint, downloadRoot string) *Handler {
 	t.Helper()
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
 		DefaultTemperature: testNeutralTemperature,
@@ -41,8 +41,7 @@ func hubTestHandler(t *testing.T, endpoint, downloadRoot string) *Handler {
 		Analysis:           testAnalysisPolicy,
 		HubEndpoint:        endpoint,
 		HubDownloadRoot:    downloadRoot,
-	}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	}, &fakeGenerator{}))(t)
 	return handler
 }
 

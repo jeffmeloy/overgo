@@ -14,21 +14,17 @@ import (
 func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	const fixtureSigma = 0.9
 	spec := syntheticSpec()
-	denoiser, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
-	testcheck.NoError(t, err)
-	program, err := compileTimestepProgram(spec, dtype.F32, fixtureTimestepProgram(spec))
-	testcheck.NoError(t, err)
-	sinusoid, err := program.sinusoid(fixtureSigma)
-	testcheck.NoError(t, err)
+	denoiser := testcheck.Must(NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec)))(t)
+	program := testcheck.Must(compileTimestepProgram(spec, dtype.F32, fixtureTimestepProgram(spec)))(t)
+	sinusoid := testcheck.Must(program.sinusoid(fixtureSigma))(t)
 	feeds := make(map[*tensor.Tensor]reference.Value, len(program.weightInputs)+1)
 	feeds[program.Input] = reference.Value{Shape: program.Input.Shape, Data: sinusoid}
 	for _, node := range program.weightInputs {
 		feeds[node] = reference.Value{Shape: node.Shape, Data: denoiser.w(node.Name)}
 	}
-	results, err := reference.Execute(
+	results := testcheck.Must(reference.Execute(
 		[]*tensor.Tensor{program.Embedding, program.Modulation}, feeds,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	wantEmbedding, wantModulation, err := denoiser.timestepConditioning(fixtureSigma)
 	testcheck.NoError(t, err)
 	assertFloat64Near(t, results[program.Embedding].Data, wantEmbedding)

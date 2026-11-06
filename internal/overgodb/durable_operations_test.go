@@ -83,10 +83,8 @@ func runCrashHarness(t *testing.T, harnesses ...string) {
 // rewrites, and the go test overlay that puts them in place of the originals, and returns the overlay's path.
 func crashOverlay(t *testing.T) string {
 	t.Helper()
-	directory, err := os.Getwd()
-	testcheck.NoError(t, err)
-	entries, err := os.ReadDir(directory)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(os.Getwd())(t)
+	entries := testcheck.Must(os.ReadDir(directory))(t)
 	out := t.TempDir()
 	replace := map[string]string{}
 	for _, entry := range entries {
@@ -95,8 +93,7 @@ func crashOverlay(t *testing.T) string {
 			continue
 		}
 		files := token.NewFileSet()
-		file, err := parser.ParseFile(files, filepath.Join(directory, name), nil, parser.ParseComments)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(parser.ParseFile(files, filepath.Join(directory, name), nil, parser.ParseComments))(t)
 		if !rewriteDurableCalls(file) {
 			continue
 		}
@@ -110,8 +107,7 @@ func crashOverlay(t *testing.T) string {
 	if len(replace) == 0 {
 		t.Fatal("no production file of the package makes a durable call")
 	}
-	document, err := json.Marshal(map[string]any{"Replace": replace})
-	testcheck.NoError(t, err)
+	document := testcheck.Must(json.Marshal(map[string]any{"Replace": replace}))(t)
 	overlay := filepath.Join(out, "overlay.json")
 	testcheck.NoError(t, os.WriteFile(overlay, document, storeFileMode))
 	return overlay

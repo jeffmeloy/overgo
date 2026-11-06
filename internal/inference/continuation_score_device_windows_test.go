@@ -24,8 +24,7 @@ func openHermeticScoringRunner(t *testing.T) *Runner {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
-	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{}))(t)
 	t.Cleanup(func() { _ = runner.Close() })
 	if !runner.hasPreloadedWeights() || !runner.forwardProgram().PersistentDeviceCache() {
 		t.Fatal("fixture runner does not hold a resident device cache")
@@ -39,10 +38,8 @@ func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
 	continuations := [][]tokenizer.TokenID{{6}, {7, 4}, {5, 6, 7}, {2}}
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
-	host, err := runner.scoreContinuationsHostLocked(t.Context(), prompt, continuations)
-	testcheck.NoError(t, err)
-	device, err := runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(runner.scoreContinuationsHostLocked(t.Context(), prompt, continuations))(t)
+	device := testcheck.Must(runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations))(t)
 	if len(host) != len(continuations) || len(device) != len(continuations) {
 		t.Fatalf("score counts = %d/%d", len(host), len(device))
 	}
@@ -58,8 +55,7 @@ func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
 	}
 	// A second scoring of the same prompt must not read the first one's
 	// candidate positions: the prompt cache is released and rebuilt.
-	again, err := runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations))(t)
 	for index := range continuations {
 		if again[index] != device[index] {
 			t.Fatalf("candidate %d rescored %+v, first %+v", index, again[index], device[index])

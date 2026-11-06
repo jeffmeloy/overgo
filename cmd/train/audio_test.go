@@ -13,8 +13,7 @@ import (
 )
 
 func TestAudioTrainingContract(t *testing.T) {
-	id, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("audio training admission fixture"))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRecipe, []byte("audio training admission fixture")))(t)
 	for _, tc := range []struct {
 		name, manifest, refusal string
 		arguments               []string

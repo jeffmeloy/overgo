@@ -22,8 +22,7 @@ func TestGateCheckpointOutcome(t *testing.T) {
 		{Name: "build", Phase: PhaseBuild, Outcome: StepSucceeded, DurationNS: 1},
 		{Name: "acceptance-producer", Phase: PhaseTest, Outcome: StepReused, DurationNS: 1},
 	}
-	record, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, steps)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, steps))(t)
 	if record.Result.Outcome != outcomeCheckpoint || record.Run.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint outcome lost: %+v", record.Result)
 	}
@@ -34,10 +33,8 @@ func TestGateCheckpointOutcome(t *testing.T) {
 	if _, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, failed); err == nil {
 		t.Fatal("checkpoint gate accepted a failed step")
 	}
-	preparation, err := newGatePreparation(strings.Repeat("a", 64), environment, time.Unix(100, 0))
-	testcheck.NoError(t, err)
-	finalized, err := newGateFinalization(preparation, commit, record.Result.ID, outcomeCheckpoint)
-	testcheck.NoError(t, err)
+	preparation := testcheck.Must(newGatePreparation(strings.Repeat("a", 64), environment, time.Unix(100, 0)))(t)
+	finalized := testcheck.Must(newGateFinalization(preparation, commit, record.Result.ID, outcomeCheckpoint))(t)
 	if finalized.State != gateFinalized || finalized.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint finalization: %+v", finalized)
 	}

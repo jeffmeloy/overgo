@@ -54,8 +54,7 @@ func TestCheckoutRootsUnionDocumentsAndCommitMessages(t *testing.T) {
 	testcheck.NoError(t, err)
 	var want []artifact.ID
 	for _, text := range []string{receipt, model, preparation} {
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(text))(t)
 		want = append(want, id)
 	}
 	slices.SortFunc(want, artifact.CompareID)

@@ -51,12 +51,10 @@ func (r cellsRuntime) ShapeChatPrompt(prompt string) (string, error) {
 func TestAttentionCellsHoldHeldOut(t *testing.T) {
 	// Serial: both paths share the one card and each model is loaded alone.
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	parts := map[string]prompting{"bbh": PromptingRawCompletion, "ifeval": PromptingChatTemplate}
 	suites := map[string]CompiledSuite{}
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 	for family, asked := range parts {
 		authorities := ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "gemma-4-12b"), RuntimeRecipe: planID(t, artifact.KindRecipe, "gemma-4-12b"),
@@ -78,8 +76,7 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 		t.Run(filepath.Base(name), func(t *testing.T) {
 			right := map[bool]map[string]map[string]bool{}
 			for _, f32 := range []bool{false, true} {
-				runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32})
-				testcheck.NoError(t, err)
+				runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{F32Cache: f32}))(t)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)
@@ -115,14 +112,11 @@ func TestAttentionCellsHoldHeldOut(t *testing.T) {
 // right: a grouped choice's selected candidate its answer, an instruction prompt's every rule followed strictly.
 func answerCells(t *testing.T, suite CompiledSuite, runtime Runtime) map[string]bool {
 	t.Helper()
-	answers, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	answers := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer answers.Close()
 	publishPlanFixtureAuthorities(t, answers, suite.plan)
-	result, err := suite.execute(context.WithoutCancel(t.Context()), answers, runtime)
-	testcheck.NoError(t, err)
-	content, err := artifact.RequireTypedContent(t.Context(), answers, result.Report)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(suite.execute(context.WithoutCancel(t.Context()), answers, runtime))(t)
+	content := testcheck.Must(artifact.RequireTypedContent(t.Context(), answers, result.Report))(t)
 	var report struct {
 		Observations []struct {
 			Name     string

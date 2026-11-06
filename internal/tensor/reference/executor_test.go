@@ -29,10 +29,8 @@ func TestRoPEMultiNativePairing(t *testing.T) {
 			RotaryDimensions: uint32(len(data)), FrequencyBase: 10000, FrequencyScale: 1,
 		})
 		testcheck.NoError(t, builder.Err())
-		value, err := NewValue(input.Shape, inputData)
-		testcheck.NoError(t, err)
-		results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewValue(input.Shape, inputData))(t)
+		results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value}))(t)
 		for index, actual := range results[output].Data {
 			if math.Abs(float64(actual-expected[index])) > 1e-6 {
 				t.Fatalf("native rotary channel %d: got %g, want %g", index, actual, expected[index])
@@ -59,8 +57,7 @@ func TestExecuteOperationRefusesInvalidAttributes(t *testing.T) {
 func TestBorrowedValueValidatesShapeWithoutCopy(t *testing.T) {
 	shape := tensor.MustShape(2)
 	data := []float32{1, 2}
-	value, err := BorrowedValue(shape, data)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(BorrowedValue(shape, data))(t)
 	data[0] = 3
 	if value.Data[0] != 3 {
 		t.Fatal("borrowed value did not retain caller storage")
@@ -79,8 +76,7 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	testcheck.NoError(t, builder.Err())
 	leftValue, _ := NewValue(shape, []float32{1, 2, 3, 4, -1, -2, -3, -4})
 	rightValue, _ := NewValue(shape, []float32{1, 1, 1, 1, 1, 1, 1, 1})
-	program, err := Compile(output)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(Compile(output))(t)
 	inputs := program.NewInputs()
 	if err := inputs.Bind(tensor.InputBindings[Value]{
 		{Node: left, Value: leftValue},
@@ -88,8 +84,7 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	results, err := program.Execute(inputs, program.NewWorkspace())
-	testcheck.NoError(t, err)
+	results := testcheck.Must(program.Execute(inputs, program.NewWorkspace()))(t)
 	got := results[output]
 	for row := range 2 {
 		var sum float32
@@ -107,11 +102,10 @@ func TestExecuteReLUSquared(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
 	output := builder.ReLUSquared(input)
 	value, _ := NewValue(input.Shape, []float32{-2, -0.5, 0, 1.5, 3})
-	results, err := Execute(
+	results := testcheck.Must(Execute(
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]Value{input: value},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := []float32{0, 0, 0, 2.25, 9}
 	for index := range want {
 		if results[output].Data[index] != want[index] {
@@ -131,8 +125,7 @@ func TestExecuteGELUErf(t *testing.T) {
 	output := builder.GELUErf(input)
 	values := []float32{-2, -0.5, 0, 1.5, 3}
 	value, _ := NewValue(input.Shape, values)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value}))(t)
 	for index, item := range results[output].Data {
 		want := float32(0.5 * float64(values[index]) * (1 + math.Erf(float64(values[index])/math.Sqrt2)))
 		if math.Abs(float64(item-want)) > 1e-7 {
@@ -146,8 +139,7 @@ func TestExecuteClamp(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
 	output := builder.Clamp(input, -1, 2)
 	value, _ := NewValue(input.Shape, []float32{-3, -1, 0.5, 2, 4})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value}))(t)
 	want := []float32{-1, -1, 0.5, 2, 2}
 	for index, item := range results[output].Data {
 		if item != want[index] {
@@ -162,8 +154,7 @@ func TestExecuteBF16Round(t *testing.T) {
 	output := builder.BF16Round(input)
 	values := []float32{1, 1.00390625, 1.01171875, -1.01171875, float32(math.Inf(1)), float32(math.NaN())}
 	value, _ := NewValue(input.Shape, values)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value}))(t)
 	want := []float32{1, 1, 1.015625, -1.015625, float32(math.Inf(1)), values[5]}
 	for index, item := range results[output].Data {
 		if math.Float32bits(item) != math.Float32bits(want[index]) {
@@ -177,8 +168,7 @@ func TestExecuteXIELU(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(5))
 	output := builder.XIELU(input, 0.8, 0.2, 0.5, -0.1)
 	value, _ := NewValue(input.Shape, []float32{-2, -0.5, 0, 1.5, 3})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value}))(t)
 	want := []float32{
 		(float32(math.Expm1(-2))+2)*0.8 - 1,
 		(float32(math.Expm1(-0.5))+0.5)*0.8 - 0.25,
@@ -205,12 +195,11 @@ func TestExecuteAffineLayerNorm(t *testing.T) {
 	})
 	weightValue, _ := NewValue(weight.Shape, []float32{1, 2, 3, 4})
 	biasValue, _ := NewValue(bias.Shape, []float32{0.5, -0.5, 1, -1})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  inputValue,
 		weight: weightValue,
 		bias:   biasValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for row := range 2 {
 		values := results[output].Data[row*4 : row*4+4]
 		for column, value := range values {
@@ -235,11 +224,10 @@ func TestExecuteSigmoidSoftplusAndL2Norm(t *testing.T) {
 	normalized := builder.L2Norm(builder.Add(sigmoid, softplus), 1e-6)
 	testcheck.NoError(t, builder.Err())
 	value, _ := NewValue(input.Shape, []float32{-100, 0, 100, -2, 1, 3})
-	results, err := Execute(
+	results := testcheck.Must(Execute(
 		[]*tensor.Tensor{sigmoid, softplus, normalized},
 		map[*tensor.Tensor]Value{input: value},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if results[sigmoid].Data[0] != 0 || results[sigmoid].Data[1] != 0.5 ||
 		results[softplus].Data[2] != 100 {
 		t.Fatalf("unexpected sigmoid/softplus values: %v %v", results[sigmoid].Data, results[softplus].Data)
@@ -260,10 +248,9 @@ func TestExecuteAtan(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(3))
 	output := builder.Atan(input)
 	testcheck.NoError(t, builder.Err())
-	values, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	values := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{-1, 0, 1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{-math.Pi / 4, 0, math.Pi / 4}
 	for index := range want {
 		if diff := math.Abs(float64(values[output].Data[index] - want[index])); diff > 1e-7 {
@@ -280,11 +267,10 @@ func TestExecuteRoPENormalWithFrequencyFactors(t *testing.T) {
 	testcheck.NoError(t, builder.Err())
 	inputValue, _ := NewValue(input.Shape, []float32{1, 0, 1, 0})
 	factorValue, _ := NewValue(factors.Shape, []float32{1, 2})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:   inputValue,
 		factors: factorValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{
 		float32(math.Cos(2)),
 		float32(math.Sin(2)),
@@ -312,11 +298,10 @@ func TestExecuteSSMConv(t *testing.T) {
 		1, 0, -1,
 		0.1, 0.2, 0.3,
 	})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:   inputValue,
 		weights: weightValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{-2, 14, -2, 20, -2, 26}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -342,8 +327,7 @@ func TestExecuteSSMScan(t *testing.T) {
 	feeds[a], _ = NewValue(a.Shape, []float32{0})
 	feeds[beta], _ = NewValue(beta.Shape, []float32{1, 0, 0, 1})
 	feeds[c], _ = NewValue(c.Shape, []float32{1, 1, 2, -1})
-	results, err := Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 	logTwo := float32(math.Log(2))
 	want := []float32{3 + 2*logTwo, logTwo, 1 + 2*logTwo, 2 + 3*logTwo}
 	for index, value := range results[output].Data {
@@ -369,11 +353,10 @@ func TestExecuteGatedDeltaNet(t *testing.T) {
 	gateValue, _ := NewValue(gate.Shape, []float32{0, 0})
 	betaValue, _ := NewValue(beta.Shape, []float32{1, 1})
 	stateValue, _ := NewValue(state.Shape, []float32{0, 0, 0, 0})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		q: qValue, k: kValue, v: vValue, gate: gateValue,
 		beta: betaValue, state: stateValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	rootTwo := float32(math.Sqrt(2))
 	want := []float32{
 		rootTwo, 3 / rootTwo,
@@ -403,8 +386,7 @@ func TestExecuteGatedLinearAttention(t *testing.T) {
 		decay:      {Shape: shape, Data: []float32{0.5, 0.25, 0.5, 0.5}},
 		state:      {Shape: state.Shape, Data: make([]float32, 4)},
 	}
-	results, err := Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 	want := []float32{34.5, 46, 4.5, 7, 1.75, 2.75, 3, 4}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -431,8 +413,7 @@ func TestExecuteRWKV6(t *testing.T) {
 		decay:      {Shape: shape, Data: []float32{0.5, 0.25, 0.5, 0.5}},
 		state:      {Shape: state.Shape, Data: make([]float32, 4)},
 	}
-	results, err := Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 	want := []float32{16.5, 22, 10.25, 14.5, 3.5, 6, 4, 6}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -454,7 +435,7 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 	bVector := builder.Input("b", dtype.F32, shape)
 	state := builder.Input("state", dtype.F32, tensor.MustShape(2, 2, 1, 1))
 	packed := builder.WKV7(receptance, decay, key, value, a, bVector, state)
-	results, err := Execute([]*tensor.Tensor{reduced, packed}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{reduced, packed}, map[*tensor.Tensor]Value{
 		rows:       {Shape: rows.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
 		receptance: {Shape: shape, Data: []float32{5, 6}},
 		decay:      {Shape: shape, Data: []float32{0.5, 0.25}},
@@ -463,8 +444,7 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 		a:          {Shape: shape, Data: []float32{0.1, 0.2}},
 		bVector:    {Shape: shape, Data: []float32{0.3, 0.4}},
 		state:      {Shape: state.Shape, Data: []float32{1, 2, 3, 4}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for index, want := range []float32{6, 15} {
 		if results[reduced].Data[index] != want {
 			t.Fatalf("SumRows output[%d] = %v, want %v", index, results[reduced].Data[index], want)
@@ -491,7 +471,7 @@ func TestExecuteSparsePrimitives(t *testing.T) {
 	attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, false, 0)
 	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute(
+	results := testcheck.Must(Execute(
 		[]*tensor.Tensor{transformed, indices, gathered, attention, causalAttention},
 		map[*tensor.Tensor]Value{
 			input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4, 4, 3, 2, 1}},
@@ -500,8 +480,7 @@ func TestExecuteSparsePrimitives(t *testing.T) {
 			key:   {Shape: key.Shape, Data: []float32{0, 1, 2, 3}},
 			value: {Shape: value.Shape, Data: []float32{10, 20, 30, 40}},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	for name, test := range map[string]struct {
 		got  []float32
 		want []float32
@@ -559,11 +538,10 @@ func TestExecuteGatedDeltaNetRepeatInterleave(t *testing.T) {
 	gateValue, _ := NewValue(gate.Shape, make([]float32, 4))
 	betaValue, _ := NewValue(beta.Shape, []float32{1, 1, 1, 1})
 	stateValue, _ := NewValue(state.Shape, make([]float32, 16))
-	results, err := Execute([]*tensor.Tensor{cyclic, interleaved}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{cyclic, interleaved}, map[*tensor.Tensor]Value{
 		q: qValue, k: kValue, v: vValue, gate: gateValue,
 		beta: betaValue, state: stateValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	scale := float32(1 / math.Sqrt(2))
 	for index, want := range []float32{scale, scale, scale, scale, 0, 0, 0, 0} {
 		if got := results[interleaved].Data[index]; math.Abs(float64(got-want)) > 1e-6 {
@@ -592,11 +570,10 @@ func TestExecuteQwen35LayoutOperations(t *testing.T) {
 	stateValue, _ := NewValue(state.Shape, []float32{
 		-1, -2, -3, -4, -5, -6, -7, -8,
 	})
-	results, err := Execute(
+	results := testcheck.Must(Execute(
 		[]*tensor.Tensor{query, gate, transposed, convInput, slice},
 		map[*tensor.Tensor]Value{input: inputValue, state: stateValue},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	assertEqual := func(name string, got, want []float32) {
 		t.Helper()
 		if len(got) != len(want) {
@@ -630,10 +607,9 @@ func TestExecuteAttentionALiBiMatchesLlamaSlope(t *testing.T) {
 	queryValue, _ := NewValue(query.Shape, []float32{0})
 	keyValue, _ := NewValue(key.Shape, []float32{0, 0})
 	valueValue, _ := NewValue(value.Shape, []float32{1, 3})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: queryValue, key: keyValue, value: valueValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	older := math.Exp(-0.25) // one-token distance times the single-head 2^-2 slope
 	want := float32((older + 3) / (older + 1))
 	if got := results[output].Data[0]; math.Abs(float64(got-want)) > 1e-6 {
@@ -651,18 +627,16 @@ func TestExecuteMoETopKNormalization(t *testing.T) {
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	testcheck.NoError(t, builder.Err())
 	values := func(shape tensor.Shape, data []float32) Value {
-		value, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewValue(shape, data))(t)
 		return value
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  values(input.Shape, []float32{1, 0}),
 		router: values(router.Shape, []float32{1, 0, 0, 0}),
 		gate:   values(gate.Shape, []float32{1, 0, 2, 0}),
 		up:     values(up.Shape, []float32{1, 0, 1, 0}),
 		down:   values(down.Shape, []float32{1, 2, 3, 4}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	p0 := math.Exp(1) / (math.Exp(1) + 1)
 	p1 := 1 - p0
 	wantActivation0 := 1 / (1 + math.Exp(-1))
@@ -687,17 +661,15 @@ func TestExecuteUngatedMoE(t *testing.T) {
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	testcheck.NoError(t, builder.Err())
 	values := func(shape tensor.Shape, data []float32) Value {
-		value, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewValue(shape, data))(t)
 		return value
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  values(input.Shape, []float32{1, 0}),
 		router: values(router.Shape, []float32{1, 0, 0, 0}),
 		up:     values(up.Shape, []float32{1, 0, 2, 0}),
 		down:   values(down.Shape, []float32{1, 2, 3, 4}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	p0 := math.Exp(1) / (math.Exp(1) + 1)
 	p1 := 1 - p0
 	wantActivation0 := 1 / (1 + math.Exp(-1))
@@ -723,18 +695,16 @@ func TestExecuteUngatedMoEWithSelectionBias(t *testing.T) {
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	testcheck.NoError(t, builder.Err())
 	values := func(shape tensor.Shape, data []float32) Value {
-		value, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewValue(shape, data))(t)
 		return value
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  values(input.Shape, []float32{1, 0}),
 		router: values(router.Shape, []float32{1, 0, 0, 0}),
 		up:     values(up.Shape, []float32{1, 0, 2, 0}),
 		down:   values(down.Shape, []float32{1, 2, 3, 4}),
 		bias:   values(bias.Shape, []float32{-1, 1}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	activation := 2 / (1 + math.Exp(-2))
 	want := []float32{float32(3 * activation), float32(4 * activation)}
 	for index, got := range results[output].Data {
@@ -757,19 +727,17 @@ func TestExecuteReLUMoEWithRouterInput(t *testing.T) {
 
 	testcheck.NoError(t, builder.Err())
 	values := func(shape tensor.Shape, data []float32) Value {
-		value, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewValue(shape, data))(t)
 		return value
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:       values(input.Shape, []float32{-2, 1}),
 		routerInput: values(routerInput.Shape, []float32{1, 0}),
 		router:      values(router.Shape, []float32{1, 0, 0, 0}),
 		gate:        values(gate.Shape, []float32{0, 1, 0, 0}),
 		up:          values(up.Shape, []float32{0, 2, 0, 0}),
 		down:        values(down.Shape, []float32{3, 4, 0, 0}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{6, 8}
 	for index, got := range results[output].Data {
 		if math.Abs(float64(got-want[index])) > 1e-6 {
@@ -790,19 +758,17 @@ func TestExecuteGroupedMoEWithRouterInput(t *testing.T) {
 		input, router, up, down, tensor.MoEOptions{RouterInput: routerInput, Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 2})
 
 	value := func(shape tensor.Shape, data []float32) Value {
-		result, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(NewValue(shape, data))(t)
 		return result
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:       value(input.Shape, []float32{1, 2}),
 		routerInput: value(routerInput.Shape, []float32{1, 0}),
 		router:      value(router.Shape, []float32{0, 0, 1, 0, 3, 0, 2, 0}),
 		gate:        value(gate.Shape, []float32{1, 0, 2, 0}),
 		up:          value(up.Shape, []float32{0, 1, 0, 2}),
 		down:        value(down.Shape, []float32{3, 4, 5, 6}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	activation := float32(2 / (1 + math.Exp(-2)))
 	want := []float32{20 * activation, 24 * activation}
 	for index, got := range results[output].Data {
@@ -821,18 +787,16 @@ func TestExecuteGELUMoE(t *testing.T) {
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 1))
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
 	value := func(shape tensor.Shape, data []float32) Value {
-		result, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(NewValue(shape, data))(t)
 		return result
 	}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  value(input.Shape, []float32{1, 2}),
 		router: value(router.Shape, []float32{0, 0}),
 		gate:   value(gate.Shape, []float32{1, 0}),
 		up:     value(up.Shape, []float32{0, 1}),
 		down:   value(down.Shape, []float32{3, 4}),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	gateDot := float16Round(1)
 	wantActivation := float16Round(float32(hostmath.GELUTanh(float64(gateDot)))) * 2
 	want := []float32{3 * wantActivation, 4 * wantActivation}
@@ -855,8 +819,7 @@ func TestExecuteGELUMoEExpertScale(t *testing.T) {
 		input, router, up, down, tensor.MoEOptions{RouterInput: input, Gate: gate, ExpertScale: scale, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationGELU, ExpertIndexDivisor: 1})
 
 	makeValue := func(shape tensor.Shape, data []float32) Value {
-		result, err := NewValue(shape, data)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(NewValue(shape, data))(t)
 		return result
 	}
 	feeds := map[*tensor.Tensor]Value{
@@ -867,8 +830,7 @@ func TestExecuteGELUMoEExpertScale(t *testing.T) {
 		down:   makeValue(down.Shape, []float32{3}),
 		scale:  makeValue(scale.Shape, []float32{2}),
 	}
-	results, err := Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 	gelu := moeGELU(1)
 	want := float32(6 * gelu)
 	if got := results[output].Data[0]; math.Abs(float64(got-want)) > 1e-6 {
@@ -906,10 +868,8 @@ func TestExecuteRoPEMulti(t *testing.T) {
 			for i := range data {
 				data[i] = float32(i+1) / float32(len(data))
 			}
-			inputValue, err := NewValue(input.Shape, data)
-			testcheck.NoError(t, err)
-			results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue})
-			testcheck.NoError(t, err)
+			inputValue := testcheck.Must(NewValue(input.Shape, data))(t)
+			results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue}))(t)
 			want := append([]float32(nil), data...)
 			for token := range positions[0] {
 				for pair, axis := range tc.axes {
@@ -943,11 +903,10 @@ func TestExecuteMulMatGGMLSemantics(t *testing.T) {
 		1, 0, 0,
 		0, 1, 0,
 	})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		left:  leftValue,
 		right: rightValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{1, 4, 2, 5}
 	got := results[output].Data
 	for i := range want {
@@ -972,12 +931,11 @@ func TestExecuteEmbeddingWeightedNormAndSwiGLU(t *testing.T) {
 	})
 	weightValue, _ := NewValue(weight.Shape, []float32{1, 2, 3, 4})
 	upValue, _ := NewValue(up.Shape, []float32{1, 1, 1, 1, 2, 2, 2, 2})
-	results, err := Execute([]*tensor.Tensor{embedding, output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{embedding, output}, map[*tensor.Tensor]Value{
 		table:  tableValue,
 		weight: weightValue,
 		up:     upValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	wantEmbedding := []float32{9, 10, 11, 12, 1, 2, 3, 4}
 	for i, want := range wantEmbedding {
 		if results[embedding].Data[i] != want {
@@ -998,8 +956,7 @@ func TestExecuteRoPENeoX(t *testing.T) {
 		1, 2, 3, 4,
 		1, 2, 3, 4,
 	})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue}))(t)
 	got := results[output].Data
 	for i, want := range []float32{1, 2, 3, 4} {
 		if got[i] != want {
@@ -1025,13 +982,11 @@ func TestExecuteRoPENormal(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 1, 2))
 	output := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: []uint32{0, 1}, RotaryDimensions: 4, FrequencyBase: 10000, FrequencyScale: 1})
-	feed, err := NewValue(input.Shape, []float32{
+	feed := testcheck.Must(NewValue(input.Shape, []float32{
 		1, 2, 3, 4,
 		1, 2, 3, 4,
-	})
-	testcheck.NoError(t, err)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: feed})
-	testcheck.NoError(t, err)
+	}))(t)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: feed}))(t)
 	got := results[output].Data
 	want := []float32{
 		1, 2, 3, 4,
@@ -1054,8 +1009,7 @@ func TestExecuteYaRNRoPEAppliesMagnitudeAndFrequencyBlend(t *testing.T) {
 	})
 	linear := builder.RoPEWithOptions(input, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: []uint32{17}, RotaryDimensions: 4, FrequencyBase: 10_000, FrequencyScale: 0.25})
 	feed, _ := NewValue(input.Shape, []float32{1, 2, 3, 4})
-	results, err := Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{yarn, linear}, map[*tensor.Tensor]Value{input: feed}))(t)
 	var differs bool
 	for index, value := range results[yarn].Data {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
@@ -1078,12 +1032,11 @@ func TestExecuteCausalGroupedQueryAttention(t *testing.T) {
 	queryValue, _ := NewValue(query.Shape, make([]float32, 8))
 	keyValue, _ := NewValue(key.Shape, make([]float32, 4))
 	valueValue, _ := NewValue(value.Shape, []float32{1, 2, 3, 4})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: queryValue,
 		key:   keyValue,
 		value: valueValue,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{
 		1, 2, 1, 2,
 		2, 3, 2, 3,
@@ -1106,13 +1059,12 @@ func TestExecuteWindowAttentionWithBidirectionalBlocks(t *testing.T) {
 		query, key, value, tensor.AttentionOptions{BlockIDs: blocks, Scale: 1, Causal: true, QueryStart: 0, Window: 3})
 
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query:  {Shape: shape, Data: make([]float32, 5)},
 		key:    {Shape: shape, Data: make([]float32, 5)},
 		value:  {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
 		blocks: {Shape: blocks.Shape, Data: []float32{-1, 0, 0, -1, -1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{1, 7.0 / 3, 7.0 / 3, 14.0 / 3, 28.0 / 3}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -1128,13 +1080,12 @@ func TestExecuteAttentionSinksAddHiddenLogit(t *testing.T) {
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, Causal: false, QueryStart: 0})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: query.Shape, Data: []float32{0}},
 		key:   {Shape: key.Shape, Data: []float32{0, 0}},
 		value: {Shape: value.Shape, Data: []float32{2, 4}},
 		sinks: {Shape: sinks.Shape, Data: []float32{float32(math.Log(2))}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if difference := math.Abs(float64(results[output].Data[0] - 1.5)); difference > 1e-6 {
 		t.Fatalf("sink attention = %v, want 1.5", results[output].Data[0])
 	}
@@ -1144,10 +1095,9 @@ func TestExecuteRepeatHeads(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1, 2))
 	output := builder.RepeatHeads(input, 3)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{1, 2, 1, 2, 1, 2, 3, 4, 3, 4, 3, 4}
 	for index := range want {
 		if results[output].Data[index] != want[index] {
@@ -1165,15 +1115,14 @@ func TestExecuteSigmoidMoEUsesBiasOnlyForSelection(t *testing.T) {
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(2))
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: bias, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
 		gate:   {Shape: gate.Shape, Data: []float32{1, 2}},
 		up:     {Shape: up.Shape, Data: []float32{1, 1}},
 		down:   {Shape: down.Shape, Data: []float32{1, 3}},
 		bias:   {Shape: bias.Shape, Data: []float32{-1, 1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := float32(6 / (1 + math.Exp(-2)))
 	if difference := math.Abs(float64(results[output].Data[0] - want)); difference > 1e-6 {
 		t.Fatalf("sigmoid MoE output = %v, want %v", results[output].Data[0], want)
@@ -1188,14 +1137,13 @@ func TestExecuteLimitedSigmoidMoE(t *testing.T) {
 	up := builder.Input("up", dtype.F32, tensor.MustShape(1, 1, 1))
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 1))
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{2}},
 		router: {Shape: router.Shape, Data: []float32{0}},
 		gate:   {Shape: gate.Shape, Data: []float32{1}},
 		up:     {Shape: up.Shape, Data: []float32{2}},
 		down:   {Shape: down.Shape, Data: []float32{1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if difference := math.Abs(float64(results[output].Data[0] - 1)); difference > 1e-6 {
 		t.Fatalf("limited sigmoid MoE output = %v, want 1", results[output].Data[0])
 	}
@@ -1211,15 +1159,14 @@ func TestExecuteFusedGateUpMoEMatchesSeparate(t *testing.T) {
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 1, 2))
 	separate := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1})
 	fused := builder.MoEWithOptions(input, router, gateUp, down, tensor.MoEOptions{SelectionBias: nil, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSigmoid, Activation: tensor.MoEActivationSiLU, FusedGateUp: true, ExpertIndexDivisor: 1})
-	results, err := Execute([]*tensor.Tensor{separate, fused}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{separate, fused}, map[*tensor.Tensor]Value{
 		input:  {Shape: input.Shape, Data: []float32{1}},
 		router: {Shape: router.Shape, Data: []float32{2, 1}},
 		gate:   {Shape: gate.Shape, Data: []float32{1, 2}},
 		up:     {Shape: up.Shape, Data: []float32{3, 4}},
 		gateUp: {Shape: gateUp.Shape, Data: []float32{1, 3, 2, 4}},
 		down:   {Shape: down.Shape, Data: []float32{1, 3}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if difference := math.Abs(float64(results[separate].Data[0] - results[fused].Data[0])); difference > 1e-6 {
 		t.Fatalf("fused MoE output = %v, separate = %v", results[fused].Data[0], results[separate].Data[0])
 	}
@@ -1232,12 +1179,11 @@ func TestExecuteSoftcappedAttention(t *testing.T) {
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 2))
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Softcap: 2, Causal: false, QueryStart: 0})
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: query.Shape, Data: []float32{1}},
 		key:   {Shape: key.Shape, Data: []float32{10, -10}},
 		value: {Shape: value.Shape, Data: []float32{1, 3}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	capped := 2 * math.Tanh(5)
 	want := float32((math.Exp(capped) + 3*math.Exp(-capped)) /
 		(math.Exp(capped) + math.Exp(-capped)))
@@ -1262,14 +1208,13 @@ func TestExecuteCachedAttentionAndConcat(t *testing.T) {
 	zeroNewKey, _ := NewValue(newKey.Shape, make([]float32, 2))
 	pastValueData, _ := NewValue(pastValue.Shape, []float32{1, 2, 3, 4})
 	newValueData, _ := NewValue(newValue.Shape, []float32{5, 6})
-	results, err := Execute([]*tensor.Tensor{key, value, output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{key, value, output}, map[*tensor.Tensor]Value{
 		query:     zeroQuery,
 		pastKey:   zeroPastKey,
 		newKey:    zeroNewKey,
 		pastValue: pastValueData,
 		newValue:  newValueData,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if got := results[key].Shape.Dims[2]; got != 3 {
 		t.Fatalf("cached key token count = %d, want 3", got)
 	}
@@ -1299,14 +1244,13 @@ func TestExecuteBatchedCachedAttentionAndMiddleConcat(t *testing.T) {
 	value := builder.Concat(pastValue, newValue, 2)
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: pastTokens})
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute([]*tensor.Tensor{value, output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{value, output}, map[*tensor.Tensor]Value{
 		query:     {Shape: query.Shape, Data: make([]float32, sequences)},
 		pastKey:   {Shape: pastKey.Shape, Data: make([]float32, pastTokens*sequences)},
 		newKey:    {Shape: newKey.Shape, Data: make([]float32, newTokens*sequences)},
 		pastValue: {Shape: pastValue.Shape, Data: []float32{1, 3, 10, 30}},
 		newValue:  {Shape: newValue.Shape, Data: []float32{5, 50}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	wantCache := []float32{1, 3, 5, 10, 30, 50}
 	if !slices.Equal(results[value].Data, wantCache) {
 		t.Fatalf("batched cache = %v, want %v", results[value].Data, wantCache)
@@ -1325,12 +1269,11 @@ func TestExecuteSymmetricWindowAttention(t *testing.T) {
 	value := builder.Input("value", dtype.F32, shape)
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, SymmetricWindow: true, Window: 4})
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: []float32{0, 0, 0, 0, 0}},
 		key:   {Shape: shape, Data: []float32{0, 0, 0, 0, 0}},
 		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{7.0 / 3, 15.0 / 4, 31.0 / 5, 30.0 / 4, 28.0 / 3}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -1351,13 +1294,12 @@ func TestExecuteSymmetricWindowAttentionWithSinks(t *testing.T) {
 	value := builder.Input("value", dtype.F32, shape)
 	sinks := builder.Input("sinks", dtype.F32, tensor.MustShape(1))
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Sinks: sinks, Scale: 1, SymmetricWindow: true, Window: 4})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 5)},
 		key:   {Shape: shape, Data: make([]float32, 5)},
 		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16}},
 		sinks: {Shape: sinks.Shape, Data: []float32{0}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{7.0 / 4, 15.0 / 5, 31.0 / 6, 30.0 / 5, 28.0 / 4}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -1373,12 +1315,11 @@ func TestExecuteChunkedWindowAttention(t *testing.T) {
 	key := builder.Input("key", dtype.F32, shape)
 	value := builder.Input("value", dtype.F32, shape)
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 1, Causal: true, ChunkedWindow: true, QueryStart: 0, Window: 4})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: shape, Data: make([]float32, 6)},
 		key:   {Shape: shape, Data: make([]float32, 6)},
 		value: {Shape: shape, Data: []float32{1, 2, 4, 8, 16, 32}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{1, 1.5, 7.0 / 3, 15.0 / 4, 16, 24}
 	for index, value := range results[output].Data {
 		if math.Abs(float64(value-want[index])) > 1e-6 {
@@ -1403,7 +1344,7 @@ func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	downBias := builder.Input("down_bias", dtype.F32, tensor.MustShape(2, 2))
 	output := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, Biases: &tensor.MoEBiases{Router: routerBias, Gate: gateBias, Up: upBias, Down: downBias}, TopK: 2, Scale: 1, Routing: tensor.MoERoutingSelectedSoftmax, Activation: tensor.MoEActivationSwiGLUOAI, ExpertIndexDivisor: 1})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input:      {Shape: input.Shape, Data: []float32{1, 2}},
 		router:     {Shape: router.Shape, Data: make([]float32, 4)},
 		routerBias: {Shape: routerBias.Shape, Data: []float32{0, float32(math.Log(3))}},
@@ -1413,8 +1354,7 @@ func TestExecuteOpenAIMoEUsesSelectedSoftmaxAndBiases(t *testing.T) {
 		upBias:     {Shape: upBias.Shape, Data: []float32{0, 1}},
 		down:       {Shape: down.Shape, Data: []float32{1, 0, 0, 1}},
 		downBias:   {Shape: downBias.Shape, Data: []float32{0, 1, 2, 0}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	activation0 := 1 / (1 + math.Exp(-1.702))
 	activation1 := 2 / (1 + math.Exp(-3.404)) * 2
 	want := []float64{0.25*activation0 + 0.75*2, 0.25 + 0.75*activation1}
@@ -1442,13 +1382,12 @@ func TestExecuteDeepSeek4RawAttention(t *testing.T) {
 			Positions: []uint32{0}, Window: 4, Heads: 1, RotaryDimensions: 2,
 			FrequencyBase: 10000, FrequencyScale: 1, AttentionFactor: 1, NormEpsilon: 1e-5,
 		})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query:     {Shape: query.Shape, Data: []float32{1, 0}},
 		cache:     {Shape: cache.Shape, Data: []float32{3, 4}},
 		positions: {Shape: positions.Shape, Data: []float32{0}},
 		sinks:     {Shape: sinks.Shape, Data: []float32{-100}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for index, want := range []float32{3, 4} {
 		if difference := math.Abs(float64(results[output].Data[index] - want)); difference > 1e-6 {
 			t.Fatalf("DeepSeek 4 raw attention[%d] = %v, want %v", index, results[output].Data[index], want)
@@ -1472,15 +1411,14 @@ func TestExecuteDeepSeek4RawAttentionHonorsPositionGaps(t *testing.T) {
 		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
 	withoutOld := builder.CompressedAttention(query, cacheWithoutOld, positionsWithoutOld, sinks,
 		nil, nil, nil, nil, nil, nil, nil, nil, attributes)
-	results, err := Execute([]*tensor.Tensor{withGap, withoutOld}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{withGap, withoutOld}, map[*tensor.Tensor]Value{
 		query:               {Shape: query.Shape, Data: []float32{0, 0}},
 		sinks:               {Shape: sinks.Shape, Data: []float32{-100}},
 		cacheWithGap:        {Shape: cacheWithGap.Shape, Data: []float32{100, 25, 2, 1, 4, 3}},
 		positionsWithGap:    {Shape: positionsWithGap.Shape, Data: []float32{0, 2, 3}},
 		cacheWithoutOld:     {Shape: cacheWithoutOld.Shape, Data: []float32{2, 1, 4, 3}},
 		positionsWithoutOld: {Shape: positionsWithoutOld.Shape, Data: []float32{2, 3}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for index, want := range results[withoutOld].Data {
 		if difference := math.Abs(float64(results[withGap].Data[index] - want)); difference > 1e-6 {
 			t.Fatalf("DeepSeek 4 gapped attention[%d] = %v, want %v", index, results[withGap].Data[index], want)
@@ -1494,8 +1432,7 @@ func TestDeepSeek4CompressedBlocksSkipIncompletePositionGroup(t *testing.T) {
 	score := Value{Shape: shape, Data: make([]float32, 8)}
 	norm := Value{Shape: tensor.MustShape(1), Data: []float32{1}}
 	attributes := tensor.CompressedAttentionAttributes{RotaryDimensions: 0, NormEpsilon: 1e-5}
-	blocks, err := compressedAttentionBlocks(kv, score, norm, 4, 1, []uint32{0, 1, 3, 4}, attributes)
-	testcheck.NoError(t, err)
+	blocks := testcheck.Must(compressedAttentionBlocks(kv, score, norm, 4, 1, []uint32{0, 1, 3, 4}, attributes))(t)
 	if len(blocks) != 0 {
 		t.Fatalf("incomplete DeepSeek 4 compressed blocks = %d", len(blocks))
 	}
@@ -1567,8 +1504,7 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				feeds[indexerScore] = Value{Shape: indexerScore.Shape, Data: make([]float32, len(compressorData))}
 				feeds[indexerNorm] = Value{Shape: indexerNorm.Shape, Data: []float32{1, 1}}
 			}
-			results, err := Execute([]*tensor.Tensor{output}, feeds)
-			testcheck.NoError(t, err)
+			results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 			compressed := 2 / math.Sqrt(2+1e-5)
 			want := []float64{
 				(1 + compressed*math.Cos(float64(position))) / 2,
@@ -1597,14 +1533,13 @@ func TestExecuteDeepSeek4HCAndFixedRouting(t *testing.T) {
 	down := builder.Input("down", dtype.F32, tensor.MustShape(1, 2, 2))
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(1, 1))
 	moe := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{Gate: gate, SelectionBias: nil, SelectedExperts: selected, TopK: 1, NormalizeTopKProb: true, Scale: 1, Routing: tensor.MoERoutingSqrtSoftplus, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1, SwiGLUClamp: 1})
-	results, err := Execute([]*tensor.Tensor{head, moe}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{head, moe}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{2, 4}},
 		fn:    {Shape: fn.Shape, Data: make([]float32, 8)}, scale: {Shape: scale.Shape, Data: []float32{0}},
 		base: {Shape: base.Shape, Data: []float32{0, 0}}, router: {Shape: router.Shape, Data: make([]float32, 4)},
 		gate: {Shape: gate.Shape, Data: []float32{0, 0, 2, 0}}, up: {Shape: up.Shape, Data: []float32{0, 0, 1, 0}},
 		down: {Shape: down.Shape, Data: []float32{0, 0, 3, 0}}, selected: {Shape: selected.Shape, Data: []float32{1}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for index, want := range []float32{2.000004, 4.000008} {
 		if difference := math.Abs(float64(results[head].Data[index] - want)); difference > 1e-5 {
 			t.Fatalf("DeepSeek 4 HC head[%d] = %v, want %v", index, results[head].Data[index], want)
@@ -1624,13 +1559,12 @@ func TestExecuteAttentionWithT5RelativeBias(t *testing.T) {
 	bias := builder.Input("bias", dtype.F32, tensor.MustShape(1, 4))
 	output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Bias: bias, Scale: 1, RelativeBidirectional: true})
 	zeroShape := tensor.MustShape(1, 1, 2)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: zeroShape, Data: []float32{0, 0}},
 		key:   {Shape: zeroShape, Data: []float32{0, 0}},
 		value: {Shape: zeroShape, Data: []float32{1, 3}},
 		bias:  {Shape: tensor.MustShape(1, 4), Data: []float32{0, 0, 0, 10}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	got := results[output].Data
 	if math.Abs(float64(got[0]-2.9999092)) > 1e-5 ||
 		math.Abs(float64(got[1]-2)) > 1e-5 {
@@ -1651,10 +1585,9 @@ func TestExecuteReLU(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4))
 	output := builder.ReLU(input)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		input: {Shape: input.Shape, Data: []float32{-2, 0, 1.5, 3}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{0, 0, 1.5, 3}
 	if !reflect.DeepEqual(results[output].Data, want) {
 		t.Fatalf("ReLU = %v, want %v", results[output].Data, want)
@@ -1679,8 +1612,7 @@ func TestExecuteSameConv1DAndGroupNorm(t *testing.T) {
 		normWeight: {Shape: normWeight.Shape, Data: []float32{1, 1, 1, 1}},
 		normBias:   {Shape: normBias.Shape, Data: make([]float32, 4)},
 	}
-	results, err := Execute([]*tensor.Tensor{convolution, normalized}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{convolution, normalized}, feeds))(t)
 	if !reflect.DeepEqual(results[convolution].Data, []float32{7, 13, 11}) {
 		t.Fatalf("same Conv1D = %v, want [7 13 11]", results[convolution].Data)
 	}
@@ -1697,11 +1629,10 @@ func TestExecuteGroupedMulMat(t *testing.T) {
 	left := builder.Input("left", dtype.F32, tensor.MustShape(2, 2, 2))
 	right := builder.Input("right", dtype.F32, tensor.MustShape(2, 2, 2))
 	output := builder.GroupedMulMat(left, right)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		left:  {Shape: left.Shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
 		right: {Shape: right.Shape, Data: []float32{1, 1, 2, 1, 1, 2, 2, 2}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{3, 7, 16, 22, 5, 11, 22, 30}
 	if !reflect.DeepEqual(results[output].Data, want) {
 		t.Fatalf("grouped matmul = %v, want %v", results[output].Data, want)
@@ -1728,15 +1659,14 @@ func TestExecuteLoRAProjectionAndEmbedding(t *testing.T) {
 	projected := builder.MulMat(projection, input)
 	embedded := builder.GetRows(table, []uint32{1})
 	testcheck.NoError(t, builder.Err())
-	results, err := Execute(
+	results := testcheck.Must(Execute(
 		[]*tensor.Tensor{projected, embedded},
 		map[*tensor.Tensor]Value{
 			projection: {Shape: projection.Shape, Data: []float32{1, 0, 0, 1}},
 			input:      {Shape: input.Shape, Data: []float32{1, 2}},
 			table:      {Shape: table.Shape, Data: []float32{1, 2, 3, 4, 5, 6}},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if got, want := results[projected].Data, []float32{17, 22}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("projection = %v, want %v", got, want)
 	}
@@ -1757,11 +1687,10 @@ func TestExecuteGroupedLoRAProjection(t *testing.T) {
 	experts := builder.Input("experts", dtype.F32, tensor.MustShape(2, 1, 2))
 	input := builder.Input("input", dtype.F32, tensor.MustShape(2, 2, 1))
 	output := builder.GroupedMulMat(experts, input)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		experts: {Shape: experts.Shape, Data: []float32{1, 0, 0, 1}},
 		input:   {Shape: input.Shape, Data: []float32{2, 3, 4, 5}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if got, want := results[output].Data, []float32{9.5, 21}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("grouped output = %v, want %v", got, want)
 	}
@@ -1796,8 +1725,7 @@ func TestExecuteLoRAFusedMoE(t *testing.T) {
 		up:     {Shape: up.Shape, Data: []float32{0, 0}},
 		down:   {Shape: down.Shape, Data: []float32{1, 2}},
 	}
-	results, err := Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, feeds))(t)
 	activated := float32(7 / (1 + math.Exp(-1)))
 	want := []float32{activated, 2 * activated}
 	for index, got := range results[output].Data {
@@ -1820,12 +1748,11 @@ func TestExecuteIndexerScore(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 1, 3))
 	weights := builder.Input("weights", dtype.F32, tensor.MustShape(2, 2))
 	output := builder.IndexerScore(query, key, weights, 0.5, 1)
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query:   {Shape: query.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
 		key:     {Shape: key.Shape, Data: []float32{1, 0, 0, 1, 1, 1}},
 		weights: {Shape: weights.Shape, Data: []float32{2, 1, 1, 3}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{1, 0.5, float32(math.Inf(-1)), 0.5, 2, 1}
 	if !reflect.DeepEqual(results[output].Data, want) {
 		t.Fatalf("indexer score = %v, want %v", results[output].Data, want)
@@ -1838,8 +1765,7 @@ func TestExecuteWindowPartition2DRoundTrip(t *testing.T) {
 	partitioned := builder.WindowPartition2D(input, 2)
 	output := builder.WindowUnpartition2D(partitioned, 3, 2)
 	value := Value{Shape: input.Shape, Data: []float32{1, 2, 3, 4, 5, 6}}
-	results, err := Execute([]*tensor.Tensor{partitioned, output}, map[*tensor.Tensor]Value{input: value})
-	testcheck.NoError(t, err)
+	results := testcheck.Must(Execute([]*tensor.Tensor{partitioned, output}, map[*tensor.Tensor]Value{input: value}))(t)
 	wantPartition := []float32{1, 2, 4, 5, 3, 0, 6, 0}
 	if !reflect.DeepEqual(results[partitioned].Data, wantPartition) {
 		t.Fatalf("partition = %v, want %v", results[partitioned].Data, wantPartition)
@@ -1858,13 +1784,12 @@ func TestExecuteSAMAttentionUniform(t *testing.T) {
 	relativeH := builder.Input("relative_h", dtype.F32, tensor.MustShape(1, 3))
 	output := builder.SAMAttention(query, key, value, relativeW, relativeH, 1, 1, 2)
 	zero := []float32{0, 0, 0, 0, 0, 0, 0, 0}
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
+	results := testcheck.Must(Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
 		query: {Shape: query.Shape, Data: zero}, key: {Shape: key.Shape, Data: zero},
 		value:     {Shape: value.Shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
 		relativeW: {Shape: relativeW.Shape, Data: []float32{0, 0, 0}},
 		relativeH: {Shape: relativeH.Shape, Data: []float32{0, 0, 0}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{2.5, 2.5, 2.5, 2.5, 6.5, 6.5, 6.5, 6.5}
 	if !reflect.DeepEqual(results[output].Data, want) {
 		t.Fatalf("SAM attention = %v, want %v", results[output].Data, want)

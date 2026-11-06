@@ -27,8 +27,7 @@ func (c *cancelAfterRefresh) Err() error {
 
 func TestCatalogCanceledMemoLoadRetries(t *testing.T) {
 	root := t.TempDir()
-	writer, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(overgodb.Create(root))(t)
 	testcheck.NoError(t, writer.Close())
 	reader := overgodbtest.OpenReadOnly(t, root)
 	resolver := CatalogResolver{Store: reader, Limit: 100}

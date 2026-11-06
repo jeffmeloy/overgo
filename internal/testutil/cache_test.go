@@ -28,8 +28,7 @@ func TestSuitesStayOutOfTheRepositoryDirectory(t *testing.T) {
 		}
 		for _, file := range files {
 			fileSet := token.NewFileSet()
-			syntax, err := parser.ParseFile(fileSet, file, nil, 0)
-			testcheck.NoError(t, err)
+			syntax := testcheck.Must(parser.ParseFile(fileSet, file, nil, 0))(t)
 			for _, position := range chdirsOutsideTemporary(syntax) {
 				t.Errorf("%s: a directory change leaves the test's temporary directories; pass the path to the code under test instead", fileSet.Position(position))
 			}

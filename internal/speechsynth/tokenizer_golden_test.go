@@ -41,8 +41,7 @@ func fixtureUnigram(t *testing.T, g8 *g8Golden) *Unigram {
 	for i, p := range g8.Pieces {
 		pieces[i] = Piece{Piece: unquoteEscaped(t, p.Piece), Score: p.Score}
 	}
-	tok, err := tokenizer.NewUnigram(pieces, g8.UnkID)
-	testcheck.NoError(t, err)
+	tok := testcheck.Must(tokenizer.NewUnigram(pieces, g8.UnkID))(t)
 	return tok
 }
 
@@ -107,14 +106,12 @@ func TestTokenizerModelFileMatchesFixture(t *testing.T) {
 			t.Fatalf("piece %d score %g != fixture %g", i, pieces[i].Score, p.Score)
 		}
 	}
-	tok, err := tokenizer.NewUnigram(pieces, unkID)
-	testcheck.NoError(t, err)
+	tok := testcheck.Must(tokenizer.NewUnigram(pieces, unkID))(t)
 	g1 := loadFixture[struct {
 		Text string `json:"text"`
 		IDs  []int  `json:"ids"`
 	}](t, "g1_tokenizer.json")
-	got, err := tok.Encode(g1.Text)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(tok.Encode(g1.Text))(t)
 	if len(got) != len(g1.IDs) {
 		t.Fatalf("g1 via model file: got %v want %v", got, g1.IDs)
 	}

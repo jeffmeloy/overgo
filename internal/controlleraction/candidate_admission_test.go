@@ -32,8 +32,7 @@ func TestCrossDomainCandidateAdmissionUsesOneOwner(t *testing.T) {
 	fixture := newCandidateAdmissionFixture(t)
 	defer fixture.store.Close()
 
-	first, err := CompileTransaction(t.Context(), fixture.store, fixture.action)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(CompileTransaction(t.Context(), fixture.store, fixture.action))(t)
 	second, err := CompileTransaction(t.Context(), fixture.store, fixture.action)
 	if err != nil || len(first.Contents) != 1 || len(second.Contents) != 1 || len(first.Aliases) != 0 {
 		t.Fatalf("candidate admission batches = (%+v, %+v, %v)", first, second, err)
@@ -121,8 +120,7 @@ func TestCrossDomainCandidateAdmissionUsesOneOwner(t *testing.T) {
 			fixture.spec.CostUnit, fixture.spec.Prediction.Cost, fixture.binding.Proposer.Identity),
 	} {
 		t.Run(name, func(t *testing.T) {
-			content, err := budget.Content()
-			testcheck.NoError(t, err)
+			content := testcheck.Must(budget.Content())(t)
 			if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 				Key: "fixture/candidate-admission/budget/" + budget.ID.String(), Contents: []artifact.Content{content},
 				Lineage: budget.Lineage(),
@@ -204,8 +202,7 @@ func TestModelPrototypeAdmissionContract(t *testing.T) {
 func newCandidateAdmissionFixture(t *testing.T) candidateAdmissionFixture {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -366,12 +363,11 @@ func candidateObservedDecision(
 ) candidateDecisionFixture {
 	t.Helper()
 	source := candidateTypedDocument(t, artifact.KindEvidence, label, "candidate-measurement")
-	decision, err := recipe.NewDecision(
+	decision := testcheck.Must(recipe.NewDecision(
 		subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
 		recipe.Decider{CodeCommit: codeCommit, Derivation: binding.Evaluator.Identity},
 		[]artifact.ID{source.Descriptor.ID},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return candidateDecisionFixture{decision: decision, source: source}
 }
 
@@ -384,13 +380,11 @@ func candidateTypedDocument(
 	body := struct {
 		Label string `json:"label"`
 	}{Label: label}
-	id, err := artifact.JSONID(kind, body)
-	testcheck.NoError(t, err)
-	content, err := (artifact.DocumentContract{
+	id := testcheck.Must(artifact.JSONID(kind, body))(t)
+	content := testcheck.Must((artifact.DocumentContract{
 		Kind: kind, MediaType: "application/vnd.overgo.test-" + family + "+json",
 		Schema: "overgo/test-" + family + "/v1",
-	}).ContentJSON(id, body)
-	testcheck.NoError(t, err)
+	}).ContentJSON(id, body))(t)
 	return content
 }
 
@@ -412,8 +406,7 @@ func mustCandidateDocumentContent(t *testing.T, value candidateContentDocument) 
 
 func candidateBudget(t *testing.T, split artifact.ID, unit string, issued uint64, authority artifact.ID) runrecord.Budget {
 	t.Helper()
-	value, err := runrecord.NewBudget(unit, split, issued, authority)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(runrecord.NewBudget(unit, split, issued, authority))(t)
 	return value
 }
 

@@ -54,20 +54,16 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	target := synthesisModelID(t, targetDir)
 	donor := synthesisModelID(t, donorDir)
-	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
-	testcheck.NoError(t, err)
-	proposal, err := composition.NewBridgeProposal(
+	ranker := testcheck.Must(composition.TrainProposalRanker(nil, nil, nil))(t)
+	proposal := testcheck.Must(composition.NewBridgeProposal(
 		target,
 		[]composition.BridgeCandidate{{Donor: donor, Component: "model.layers.14.mlp.gate_proj.weight", Distance: 0.25}},
 		ranker,
 		"go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1",
 		"adapter tier retired; synthesis validates the pipeline, promotion requires the experiment plane",
-	)
-	testcheck.NoError(t, err)
-	proposalContent, err := proposal.Content()
-	testcheck.NoError(t, err)
-	rankerContent, err := ranker.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	proposalContent := testcheck.Must(proposal.Content())(t)
+	rankerContent := testcheck.Must(ranker.Content())(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "synthesis/fixture",
 		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
@@ -81,7 +77,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		Derivation: testutil.ArtifactID(t, artifact.KindEvidence, "synthesis-authority"),
 	}
 	started := time.Now()
-	outcome, err := trainingworkflow.SynthesizeBridge(store, proposal, trainingworkflow.GraftConfig{
+	outcome := testcheck.Must(trainingworkflow.SynthesizeBridge(store, proposal, trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: []int64{7, 11}, Steps: synthesisSteps,
@@ -91,8 +87,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 			tokens[synthesisWindow : 2*synthesisWindow],
 		},
 		HeldOut: tokens[2*synthesisWindow : 3*synthesisWindow],
-	}, decider)
-	testcheck.NoError(t, err)
+	}, decider))(t)
 	verdict := "REFUSE"
 	if outcome.Result.Ship {
 		verdict = "SHIP"
@@ -121,8 +116,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 
 func synthesisModelID(t *testing.T, directory string) artifact.ID {
 	t.Helper()
-	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights)))(t)
 	id, _, err := artifact.Identify(artifact.KindModel, file)
 	if closeErr := file.Close(); err == nil {
 		err = closeErr

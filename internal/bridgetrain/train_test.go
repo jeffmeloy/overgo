@@ -26,19 +26,17 @@ func TestBridgeOnlyTrainingPreservesFrozenModels(t *testing.T) {
 	weights := []float32{1, 2, 3, 4}
 	before := slices.Clone(weights)
 	gradients := []float32{1, -1, 2, -2}
-	plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{{
+	plan := testcheck.Must(optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{{
 		Name: "bridge.first", Start: 0, End: len(weights), Rows: 2, Cols: 2,
-	}})
-	testcheck.NoError(t, err)
-	result, err := (Trainer{}).Step(ctx, Request{
+	}}))(t)
+	result := testcheck.Must((Trainer{}).Step(ctx, Request{
 		Reader: store, Source: sourceID, Target: targetID,
 		Weights: weights, Gradients: gradients, Plan: plan,
 		Config: optimizer.Config{
 			BaseLearningRate: 0.1, Momentum: 0.9, Steps: 1,
 			Schedule: optimizer.ScheduleConstant,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if result.Source.Before != source || result.Source.After != source ||
 		result.Target.Before != target || result.Target.After != target {
 		t.Fatalf("frozen evidence changed: source=%+v target=%+v", result.Source, result.Target)

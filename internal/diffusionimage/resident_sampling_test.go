@@ -34,8 +34,7 @@ func TestHostSamplingCancellationRecovery(t *testing.T) {
 	model := compileTiny(t, fixture)
 	// Two iterations provide a boundary after one completed forward pass.
 	const steps, seed = 2, int64(7)
-	want, err := model.Sample(t.Context(), fixture.B, fixture.H, fixture.W, steps, seed)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(model.Sample(t.Context(), fixture.B, fixture.H, fixture.W, steps, seed))(t)
 	probe := &samplingCancellation{Context: t.Context()}
 	if _, err := model.Sample(probe, fixture.B, fixture.H, fixture.W, 1, seed); err != nil {
 		t.Fatal(err)
@@ -78,11 +77,10 @@ func TestResidentSamplingContractAcceptance(t *testing.T) {
 	v := []float32{-3, 2, 9, -0.125, 4, 11}
 	for _, steps := range []int{1, 3, 8} {
 		dt := float32(1) / float32(steps)
-		result, err := reference.Execute([]*tensor.Tensor{next}, map[*tensor.Tensor]reference.Value{
+		result := testcheck.Must(reference.Execute([]*tensor.Tensor{next}, map[*tensor.Tensor]reference.Value{
 			input: {Shape: shape, Data: x}, velocity: {Shape: shape, Data: v},
 			delta: {Shape: delta.Shape, Data: []float32{dt}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		for index, value := range result[next].Data {
 			if want := x[index] + float32(v[index]*dt); value != want {
 				t.Fatalf("steps=%d element=%d got=%g want=%g", steps, index, value, want)

@@ -74,8 +74,7 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 	}
 
 	for _, changed := range []string{"changed-producing-implementation", ""} {
-		directory, err := tokenCache(cache, changed, first)
-		testcheck.NoError(t, err)
+		directory := testcheck.Must(tokenCache(cache, changed, first))(t)
 		if changed == "" {
 			testcheck.NoError(t, writeTokens(directory, filepath.Join(own, "picture.source"), []float32{9}))
 			if _, found := readTokens(directory, filepath.Join(own, "picture.source"), len(tokens)); found {

@@ -26,8 +26,7 @@ func TestPocketTTSLanguageContract(t *testing.T) {
 	}](t, "german_contract.json")
 	var config artifactConfig
 	testcheck.NoError(t, json.Unmarshal(fixture.Config, &config))
-	dims, err := deriveDims(fixture.Shapes, config)
-	testcheck.NoError(t, err)
+	dims := testcheck.Must(deriveDims(fixture.Shapes, config))(t)
 	directory := t.TempDir()
 	path := filepath.Join(directory, "tokenizer.model")
 	testcheck.NoError(t, os.WriteFile(path, fixture.Tokenizer, 0o600))
@@ -35,8 +34,7 @@ func TestPocketTTSLanguageContract(t *testing.T) {
 	if hex.EncodeToString(sum[:]) != fixture.Identities["tokenizer.model"] {
 		t.Fatal("tokenizer differs from independent package")
 	}
-	tokenizer, err := LoadTokenizer(path)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(LoadTokenizer(path))(t)
 	var policy struct {
 		RemoveSemicolons bool `json:"remove_semicolons"`
 	}

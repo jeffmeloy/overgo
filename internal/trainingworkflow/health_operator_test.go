@@ -25,11 +25,10 @@ func TestHealthEvidenceCannotMutateRunsOutsideLifecycleAuthority(t *testing.T) {
 	facts[1].Observed, facts[1].Advanced = true, true
 	facts[2].Observed, facts[2].Finite = true, true
 	facts[3].Observed, facts[3].Finite = true, true
-	classification, err := healthClassificationCodec.New(healthClassification{
+	classification := testcheck.Must(healthClassificationCodec.New(healthClassification{
 		Version: artifact.InitialDocumentVersion, Run: id(artifact.KindRun, "run"),
 		HealthEvidence: id(artifact.KindEvidence, "health"), Policy: id(artifact.KindProfile, "policy"), Facts: facts,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	advisory, err := buildHealthOperatorDecision(classification, healthOperatorAdvisory, nil)
 	if err != nil || !advisory.AdvisoryOnly || len(healthOperatorDecisionLineage(advisory)) != 4 {
 		t.Fatalf("health advisory = (%+v, %v)", advisory, err)
@@ -38,26 +37,22 @@ func TestHealthEvidenceCannotMutateRunsOutsideLifecycleAuthority(t *testing.T) {
 		t.Fatal("health classification mutated a run without lifecycle authority")
 	}
 	experiment := id(artifact.KindEvidence, "experiment")
-	proposed, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+	proposed := testcheck.Must(runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentProposed, Experiment: experiment, Evidence: id(artifact.KindEvidence, "proposal"),
-	}, nil)
-	testcheck.NoError(t, err)
-	admitted, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+	}, nil))(t)
+	admitted := testcheck.Must(runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentAdmitted, Experiment: experiment, Evidence: id(artifact.KindEvidence, "admission"),
-	}, &proposed)
-	testcheck.NoError(t, err)
-	contained, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+	}, &proposed))(t)
+	contained := testcheck.Must(runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentContained, Experiment: experiment, Evidence: classification.ID,
-	}, &admitted)
-	testcheck.NoError(t, err)
+	}, &admitted))(t)
 	authorized, err := buildHealthOperatorDecision(classification, healthOperatorContainment, &contained)
 	if err != nil || authorized.AdvisoryOnly || authorized.Lifecycle != contained.ID || len(healthOperatorDecisionLineage(authorized)) != 6 {
 		t.Fatalf("authorized containment = (%+v, %v)", authorized, err)
 	}
-	foreign, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+	foreign := testcheck.Must(runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
 		State: runrecord.ExperimentContained, Experiment: experiment, Evidence: id(artifact.KindEvidence, "foreign classification"),
-	}, &admitted)
-	testcheck.NoError(t, err)
+	}, &admitted))(t)
 	if _, err := buildHealthOperatorDecision(classification, healthOperatorContainment, &foreign); err == nil {
 		t.Fatal("foreign lifecycle evidence authorized health mutation")
 	}

@@ -35,8 +35,7 @@ func TestAHybridCheckpointKeepsMatrixMomentumInF32(t *testing.T) {
 	for index := range vector {
 		vector[index] = float64(index+1) / 3
 	}
-	vec, err := optimizer.New(m.vecW, make([]float32, len(m.vecW)), m.vecPlan, cfg)
-	testcheck.NoError(t, err)
+	vec := testcheck.Must(optimizer.New(m.vecW, make([]float32, len(m.vecW)), m.vecPlan, cfg))(t)
 	testcheck.NoError(t, vec.Restore(optimizer.State{PlanIdentity: m.vecPlan.Identity(), Config: cfg, Step: step, Momentum: vector}))
 	var state optimizer.State
 	testcheck.NoError(t, m.checkpointF32(TrainingOptions{Checkpoint: func(s optimizer.State) error { state = s; return nil }}, matrix, step, cfg, vec))

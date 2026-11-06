@@ -25,8 +25,7 @@ func TestDecodeVideoFileFFmpeg(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("create test video: %v: %s", err, output)
 	}
-	frames, err := media.DecodeVideoFile(t.Context(), path, ffmpeg, 2, 3)
-	testcheck.NoError(t, err)
+	frames := testcheck.Must(media.DecodeVideoFile(t.Context(), path, ffmpeg, 2, 3))(t)
 	if len(frames) != 2 {
 		t.Fatalf("decoded frames = %d, want 2", len(frames))
 	}

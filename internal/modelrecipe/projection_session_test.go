@@ -16,14 +16,10 @@ import (
 // artifact's bytes — not the language model's — so a GGUF-plus-mmproj
 // pair compiles a non-empty session policy instead of refusing.
 func TestProjectionSessionPlanBindsProjector(t *testing.T) {
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("language-model"))
-	testcheck.NoError(t, err)
-	projectorID, err := artifact.IdentifyBytes(artifact.KindProjector, []byte("vision-projector"))
-	testcheck.NoError(t, err)
-	definition, err := ProjectionDefinition(modelID, projectorID, artifact.ID{}, recipe.DataImage, recipe.DataVideo)
-	testcheck.NoError(t, err)
-	program, err := CompileCapability(definition)
-	testcheck.NoError(t, err)
+	modelID := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("language-model")))(t)
+	projectorID := testcheck.Must(artifact.IdentifyBytes(artifact.KindProjector, []byte("vision-projector")))(t)
+	definition := testcheck.Must(ProjectionDefinition(modelID, projectorID, artifact.ID{}, recipe.DataImage, recipe.DataVideo))(t)
+	program := testcheck.Must(CompileCapability(definition))(t)
 	const projectorBytes = 931
 	plan, err := CompileComponentSessionPlanWithExtents(
 		t.Context(), program,

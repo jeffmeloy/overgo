@@ -22,8 +22,7 @@ import (
 func TestBatchFillsBareRecord(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	content := retentionContent(t, artifact.KindEvidence, "an environment first declared bare")
 	id := content.Descriptor.ID
 	bareBatch := func(key string) artifact.Batch {
@@ -73,8 +72,7 @@ func TestBatchFillsBareRecord(t *testing.T) {
 	}
 	served(store)
 	testcheck.NoError(t, store.Close())
-	reopened, err := OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	reopened := testcheck.Must(OpenReadOnly(root))(t)
 	defer reopened.Close()
 	served(reopened)
 }

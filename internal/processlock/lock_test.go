@@ -22,8 +22,7 @@ func TestAcquireContextContentionIdentity(t *testing.T) {
 		_ = lock.Close()
 		t.Fatalf("cancelled before acquisition = %v; want the caller's cause without contention", err)
 	}
-	owner, err := Acquire(path, 0o600)
-	testcheck.NoError(t, err)
+	owner := testcheck.Must(Acquire(path, 0o600))(t)
 	defer owner.Close()
 	// A waiter the caller ends carries the caller's cause; the contention
 	// itself is proven beside it by the owner's undisturbed lock.
@@ -54,8 +53,7 @@ func TestAcquireContextContentionIdentity(t *testing.T) {
 
 func TestAcquireIsExclusiveAndReleasedByClose(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "process.lock")
-	first, err := Acquire(path, 0o600)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Acquire(path, 0o600))(t)
 	if second, err := Acquire(path, 0o600); !errors.Is(err, ErrBusy) {
 		_ = second.Close()
 		t.Fatalf("competing acquisition = %v; want OS-proven contention", err)
@@ -85,8 +83,7 @@ func TestAcquireRejectsFalseContention(t *testing.T) {
 func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 	const helperPath = "OVERGO_TEST_LOCK_PROCESS_PATH"
 	if path := os.Getenv(helperPath); path != "" {
-		lock, err := Acquire(path, 0o600)
-		testcheck.NoError(t, err)
+		lock := testcheck.Must(Acquire(path, 0o600))(t)
 		defer lock.Close()
 		fmt.Println("locked")
 		_, _ = io.Copy(io.Discard, os.Stdin)
@@ -95,11 +92,9 @@ func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "process.lock")
 	child := exec.Command(os.Args[0], "-test.run=^TestAcquireReleasedAfterProcessDeath$", "-test.count=1")
 	child.Env = append(os.Environ(), helperPath+"="+path)
-	input, err := child.StdinPipe()
-	testcheck.NoError(t, err)
+	input := testcheck.Must(child.StdinPipe())(t)
 	defer input.Close()
-	output, err := child.StdoutPipe()
-	testcheck.NoError(t, err)
+	output := testcheck.Must(child.StdoutPipe())(t)
 	child.Stderr = os.Stderr
 	testcheck.NoError(t, child.Start())
 	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
@@ -136,8 +131,7 @@ func TestAcquireCancellationReleaseRace(t *testing.T) {
 	for _, order := range []string{"cancel-first", "release-first", "concurrent"} {
 		t.Run(order, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "process.lock")
-			owner, err := Acquire(path, 0o600)
-			testcheck.NoError(t, err)
+			owner := testcheck.Must(Acquire(path, 0o600))(t)
 			defer owner.Close()
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(context.Canceled)

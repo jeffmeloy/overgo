@@ -78,8 +78,7 @@ func writeTinyE4B(t *testing.T, directory string) string {
 				}
 			}
 		}
-		stored, err := quant.Quantize(kind, values)
-		testcheck.NoError(t, err)
+		stored := testcheck.Must(quant.Quantize(kind, values))(t)
 		tensors = append(tensors, gguf.TensorData{Name: name, Shape: shape, Type: kind, Data: bytes.NewReader(stored)})
 	}
 	perLayerWidth := uint64(tinyE4BLayers * tinyE4BPerLayer)
@@ -160,20 +159,17 @@ func writeTinyE4B(t *testing.T, directory string) string {
 func registeredCandidate(t *testing.T, store artifact.Reader, checkpoint artifact.ID) recipe.Definition {
 	t.Helper()
 	ctx := t.Context()
-	children, err := store.Children(ctx, checkpoint)
-	testcheck.NoError(t, err)
+	children := testcheck.Must(store.Children(ctx, checkpoint))(t)
 	for _, produced := range children {
 		if produced.Child.Kind() != artifact.KindModel || produced.Relation != artifact.RelationProducedBy {
 			continue
 		}
-		dependents, err := store.Children(ctx, produced.Child)
-		testcheck.NoError(t, err)
+		dependents := testcheck.Must(store.Children(ctx, produced.Child))(t)
 		for _, dependent := range dependents {
 			if dependent.Child.Kind() != artifact.KindRecipe {
 				continue
 			}
-			definition, err := recipe.RequireDefinition(ctx, store, dependent.Child)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(recipe.RequireDefinition(ctx, store, dependent.Child))(t)
 			if definition.Task == recipe.TaskInference && definition.Model == produced.Child {
 				return definition
 			}
@@ -213,16 +209,13 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	session, err := openSession(ctx, store, base, datasetPath)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(openSession(ctx, store, base, datasetPath))(t)
 	window := []uint32{1, 5, 9, 2, 22, 7, 3, 11, 4}
-	model, err := e4btrain.LoadArtifact(ctx, base, window)
-	testcheck.NoError(t, err)
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+	model := testcheck.Must(e4btrain.LoadArtifact(ctx, base, window))(t)
+	plan := testcheck.Must(trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: session.authority.Objective, Updates: 1, MaximumSequence: len(window),
 		Parameters: model.ParameterCount(), Optimizer: session.authority.Optimizer,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	trainer := unstepped{Model: model, config: plan.Optimizer()}
 	first, second := filepath.Join(root, "first"), filepath.Join(root, "second")
 	for _, target := range []string{first, second} {
@@ -233,13 +226,10 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 		t.Fatal(settled)
 	}
 
-	checkpoint, err := trainingprogram.LoadCheckpoint(first)
-	testcheck.NoError(t, err)
-	original, err := gguf.Open(base)
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(first))(t)
+	original := testcheck.Must(gguf.Open(base))(t)
 	defer original.Close()
-	published, err := gguf.Open(filepath.Join(first, trainingprogram.CheckpointModel))
-	testcheck.NoError(t, err)
+	published := testcheck.Must(gguf.Open(filepath.Join(first, trainingprogram.CheckpointModel)))(t)
 	defer published.Close()
 	trained := map[string]bool{}
 	for _, group := range model.OptimizerPlan().Groups() {
@@ -270,8 +260,7 @@ func TestE4BZeroStepPublishKeepsEveryTensorAsStored(t *testing.T) {
 	// The server resolves the registered candidate once it is active.
 	candidate := registeredCandidate(t, store, checkpoint.ID())
 	testcheck.NoError(t, modelrecipetest.ActivateCandidate(ctx, store, "fixture/tiny-e4b", candidate))
-	served, err := modelrecipe.ResolveActiveGGUF(ctx, store, filepath.Join(first, trainingprogram.CheckpointModel))
-	testcheck.NoError(t, err)
+	served := testcheck.Must(modelrecipe.ResolveActiveGGUF(ctx, store, filepath.Join(first, trainingprogram.CheckpointModel)))(t)
 	testcheck.NoError(t, served.Close())
 	leftInfo, leftErr := os.Stat(filepath.Join(first, trainingprogram.CheckpointFrozenShard))
 	rightInfo, rightErr := os.Stat(filepath.Join(second, trainingprogram.CheckpointFrozenShard))

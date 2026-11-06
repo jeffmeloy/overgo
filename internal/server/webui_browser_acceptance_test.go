@@ -32,16 +32,14 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		// A skip, not a pass: a verify naming this test outside the lane runner is vacuous evidence.
 		testskip.NotApplicable(t, "browser acceptance runs through cmd/webui-lane")
 	}
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	running, blocked := publishBrowserLaneOperations(t, handler)
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#api")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#api"))(t)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
@@ -73,8 +71,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	testcheck.NoError(t, browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "Add a local model|Declare a hosted provider"`))
 	// The picker over an empty store, captured and audited at both viewports.
 	for _, viewport := range webuilane.ScreenViewports {
-		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "picker-empty")
-		testcheck.NoError(t, err)
+		findings := testcheck.Must(webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "picker-empty"))(t)
 		for _, finding := range findings {
 			t.Error(finding)
 		}
@@ -240,14 +237,13 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 	runID := testutil.ArtifactID(t, artifact.KindRun, "browser-lane-recovered-run")
 	runningRunID := testutil.ArtifactID(t, artifact.KindRun, "browser-lane-cancelled-run")
 	runningEntered := make(chan struct{})
-	running, err := handler.operations.Submit(t.Context(), operation.Request{
+	running := testcheck.Must(handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		close(runningEntered)
 		<-ctx.Done()
 		return operation.Completion{Run: runningRunID}, ctx.Err()
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	<-runningEntered
 	return running, blockOperation(t, handler, recipeID, runID, "retry-browser", "Retry browser operation")
 }
@@ -257,7 +253,7 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID, code, summary string) artifact.ID {
 	t.Helper()
 	var attempts atomic.Uint32
-	blocked, err := handler.operations.Submit(t.Context(), operation.Request{
+	blocked := testcheck.Must(handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if attempts.Add(1) == 1 {
@@ -267,8 +263,7 @@ func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID,
 			})
 		}
 		return operation.Completion{Run: runID}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	waitBrowserOperationState(t, handler, blocked, operation.StateBlocked)
 	return blocked
 }
@@ -337,11 +332,9 @@ func requireWebUILane(t *testing.T, reason string) {
 // connections the page keeps open.
 func openBrowserLeg(t *testing.T, url string) (context.Context, *webuilane.Browser, func(expression string), func(expression string)) {
 	t.Helper()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, url)
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, path, url))(t)
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := browserSettle(t, ctx, browser)
 	return ctx, browser, check, settle
@@ -359,8 +352,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "browser acceptance runs through cmd/webui-lane")
 	}
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	// A declared hosted model gives the picker a row (its key set, so the
 	// row serves); the generator holds every turn open until released, so
 	// a running turn is there for the Escape key to stop.
@@ -378,8 +370,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, httpServer.URL+"/"))(t)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .composer textarea") && window.overgo.errors.length === 0`); err != nil {
 		var page string

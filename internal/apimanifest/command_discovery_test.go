@@ -20,8 +20,7 @@ func TestCommandDiscoveryProjection(t *testing.T) {
 		Classification: OperatorAndAutomation,
 		Flags:          []Parameter{{Name: "next", Type: "bool"}, {Name: "prompt", Type: "bool"}},
 	}
-	binary, err := ProjectCommandBinary(base)
-	testcheck.NoError(t, err)
+	binary := testcheck.Must(ProjectCommandBinary(base))(t)
 	if binary.Purpose != base.Purpose || binary.Audience != base.Audience || binary.Classification != string(OperatorAndAutomation) {
 		t.Fatalf("projection dropped discovery metadata: %+v", binary)
 	}
@@ -37,8 +36,7 @@ func TestCommandDiscoveryProjection(t *testing.T) {
 	// A changed flag registration is reflected, not stale.
 	renamed := base
 	renamed.Flags = []Parameter{{Name: "frontier", Type: "bool"}, {Name: "prompt", Type: "bool", Required: true}}
-	changed, err := ProjectCommandBinary(renamed)
-	testcheck.NoError(t, err)
+	changed := testcheck.Must(ProjectCommandBinary(renamed))(t)
 	if !slices.Equal(changed.Flags, renamed.Flags) || slices.Equal(changed.Flags, base.Flags) {
 		t.Fatalf("flag registration change not reflected: %+v", changed.Flags)
 	}

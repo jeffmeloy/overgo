@@ -19,8 +19,7 @@ import (
 // commits an output of the given media type, the way the executors do.
 func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler, artifact.ID) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	outputID := testutil.ArtifactBytesID(t, artifact.KindOutput, output)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "video-generate-"+mediaType)
 	runID := testutil.ArtifactID(t, artifact.KindRun, "video-generate-run-"+mediaType)
@@ -40,8 +39,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 		}},
 		completion: map[recipe.Task]operation.Completion{recipe.TaskVideoGen: {Run: runID, Outputs: []artifact.ID{outputID}}},
 	}
-	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: workspace}, workspace))(t)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()

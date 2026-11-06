@@ -25,8 +25,7 @@ func TestDecodeTextChunkUTF8Restart(t *testing.T) {
 		var state DecodeState
 		var output strings.Builder
 		for start := 0; start < len(ids); start += size {
-			encoded, err := json.Marshal(state)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(state))(t)
 			var restored DecodeState
 			testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 			before := slices.Clone(restored.Pending)

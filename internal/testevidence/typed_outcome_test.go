@@ -41,8 +41,7 @@ func TestOutcomesClassifyFromTypedEvents(t *testing.T) {
 		true:  {{name("Short"), name("Inapplicable"), name("Frozen")}, {name("Unowned")}},
 		false: {{name("Inapplicable"), name("Frozen")}, {name("Short"), name("Unowned")}},
 	} {
-		report, err := readGoTestJSON(bytes.NewReader(stream.Bytes()), short, false, 0, nil, nil)
-		testcheck.NoError(t, err)
+		report := testcheck.Must(readGoTestJSON(bytes.NewReader(stream.Bytes()), short, false, 0, nil, nil))(t)
 		if !slices.Equal(report.ClassifiedSkipped, want[0]) || !slices.Equal(report.Skipped, want[1]) {
 			t.Fatalf("short=%t classified %v unowned %v, want %v", short, report.ClassifiedSkipped, report.Skipped, want)
 		}

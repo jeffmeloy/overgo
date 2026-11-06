@@ -23,8 +23,7 @@ func TestPatchEmbedSourcePatchRoundTripsGrid(t *testing.T) {
 	const gridH, gridW, merge = 4, 6, 2
 	seen := make(map[int]bool)
 	for token := range gridH * gridW {
-		src, err := patchEmbedSourcePatch(token, gridH, gridW, merge)
-		testcheck.NoError(t, err)
+		src := testcheck.Must(patchEmbedSourcePatch(token, gridH, gridW, merge))(t)
 		if src < 0 || src >= gridH*gridW || seen[src] {
 			t.Fatalf("token %d -> src %d invalid or duplicate", token, src)
 		}

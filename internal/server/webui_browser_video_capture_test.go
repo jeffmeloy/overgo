@@ -34,8 +34,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	capture := func(state string) {
 		t.Helper()
 		for _, viewport := range []webuilane.Viewport{{Name: "desktop", Width: 1280, Height: 900}, {Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 390, Height: 380}, {Name: "small-phone", Width: 320, Height: 568}} {
-			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "camera-"+state)
-			testcheck.NoError(t, err)
+			findings := testcheck.Must(webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "camera-"+state))(t)
 			for _, finding := range findings {
 				t.Errorf("camera %s: %+v", state, finding)
 			}

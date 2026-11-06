@@ -102,10 +102,8 @@ func TestRowsMatchTheFormulas(t *testing.T) {
 		for index := range values {
 			values[index] = float32(draws.NormFloat64()) * 0.02
 		}
-		weights, err := quant.Quantize(format.weights, values)
-		testcheck.NoError(t, err)
-		decoded, err := quant.Dequantize(format.weights, weights, uint64(len(values)))
-		testcheck.NoError(t, err)
+		weights := testcheck.Must(quant.Quantize(format.weights, values))(t)
+		decoded := testcheck.Must(quant.Dequantize(format.weights, weights, uint64(len(values))))(t)
 		for _, tokens := range []int{1, 2, 3, 4, 5, 9} {
 			activations := make([][]byte, tokens)
 			out := make([][]float32, tokens)
@@ -174,8 +172,7 @@ func BenchmarkIQ4XSRows(b *testing.B) {
 	for index := range values {
 		values[index] = float32(draws.NormFloat64()) * 0.02
 	}
-	weights, err := quant.Quantize(dtype.IQ4XS, values)
-	testcheck.NoError(b, err)
+	weights := testcheck.Must(quant.Quantize(dtype.IQ4XS, values))(b)
 	for _, tokens := range []int{1, 4} {
 		activations := make([][]byte, tokens)
 		out := make([][]float32, tokens)

@@ -23,8 +23,7 @@ func stopFixture(t *testing.T) (string, ControlEvent) {
 
 func recordStop(t *testing.T, event ControlEvent) ControlEvent {
 	t.Helper()
-	got, err := RecordStop(t.Context(), event)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(RecordStop(t.Context(), event))(t)
 	return got
 }
 
@@ -46,8 +45,7 @@ func TestStopStateContract(t *testing.T) {
 		grant.Previous = stop.ID
 		grant.CodeCommit = changed
 		granted := recordStop(t, grant)
-		current, err = ReadStop(t.Context(), root, changed, ExecutionInteractive)
-		testcheck.NoError(t, err)
+		current = testcheck.Must(ReadStop(t.Context(), root, changed, ExecutionInteractive))(t)
 		testcheck.NoError(t, current.RequireExecution(event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()))
 		for _, mutate := range []func(*ControlEvent){func(e *ControlEvent) { e.Worker = "another-worker" }, func(e *ControlEvent) { e.Task = "row/other" }, func(e *ControlEvent) { e.Lane = "other-owner" }} {
 			wrong := event
@@ -88,8 +86,7 @@ func TestStopStateContract(t *testing.T) {
 	})
 	t.Run("stop while gate mutation owner runs", func(t *testing.T) {
 		root, event := stopFixture(t)
-		lock, err := authoritylock.Acquire(root)
-		testcheck.NoError(t, err)
+		lock := testcheck.Must(authoritylock.Acquire(root))(t)
 		defer lock.Close()
 		recordStop(t, event)
 		status, err := ReadStop(t.Context(), root, event.CodeCommit, ExecutionUnattended)
@@ -151,8 +148,7 @@ func TestStopStateContract(t *testing.T) {
 func TestStopStateLivesOutsideTheStore(t *testing.T) {
 	t.Parallel()
 	root, event := stopFixture(t)
-	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "overgodb-store")))(t)
 	before, sequence := store.Head()
 	stop := recordStop(t, event)
 	resume := event

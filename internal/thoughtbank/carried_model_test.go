@@ -75,8 +75,7 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 	}
 	var fixture carriedGain
 	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	suitePath := filepath.Join(roots.Datasets, filepath.FromSlash(carriedSuite))
 	data, err := os.ReadFile(suitePath)
 	if err != nil {
@@ -115,8 +114,7 @@ func TestCarriedNotesGainOnTheNextChunk(t *testing.T) {
 		if !held || digest(text) != reference.TextSHA256 {
 			t.Fatalf("%s: the suite's document is not the one the fixture's losses are of; write the fixture again with %s", reference.Name, carriedGainScript)
 		}
-		encoded, err := generator.tokenizer.Encode(text)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(generator.tokenizer.Encode(text))(t)
 		ids := make([]string, len(encoded))
 		for position, token := range encoded {
 			ids[position] = strconv.Itoa(token)

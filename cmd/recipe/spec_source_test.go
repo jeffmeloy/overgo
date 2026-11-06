@@ -20,8 +20,7 @@ import (
 
 func TestRecipeSpecSourceReceipt(t *testing.T) {
 	original, want := registrationFixture(t)
-	files, err := os.ReadDir(filepath.Join(original, want.Directory))
-	testcheck.NoError(t, err)
+	files := testcheck.Must(os.ReadDir(filepath.Join(original, want.Directory)))(t)
 	source := hfrepo.SourceReceipt{Source: want.SourceRepository, Revision: want.SourceCommit}
 	root := t.TempDir()
 	directory := filepath.Join(root, want.Directory)
@@ -30,8 +29,7 @@ func TestRecipeSpecSourceReceipt(t *testing.T) {
 		if file.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(original, want.Directory, file.Name()))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(original, want.Directory, file.Name())))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, file.Name()), data, 0600))
 		source.Files = append(source.Files, hfrepo.SourceFile{Path: file.Name(), SHA256: fmt.Sprintf("%x", sha256.Sum256(data)), Bytes: int64(len(data))})
 	}
@@ -39,14 +37,12 @@ func TestRecipeSpecSourceReceipt(t *testing.T) {
 		t.Fatal("test source unexpectedly has Git metadata")
 	}
 	receiptPath := filepath.Join(t.TempDir(), "source.json")
-	data, err := json.Marshal(source)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(source))(t)
 	testcheck.NoError(t, os.WriteFile(receiptPath, data, 0600))
 	output := filepath.Join(t.TempDir(), "registration.json")
 	args := []string{"-root", root, "-output", output, "-spdx", want.Directory + "=" + want.License.SPDX, "-source-receipt", receiptPath, want.Directory}
 	testcheck.NoError(t, assembleSpecification(args))
-	declared, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	declared := testcheck.Must(os.ReadFile(output))(t)
 	var got []modelRegistration
 	testcheck.NoError(t, json.Unmarshal(declared, &got))
 	if len(got) != 1 || got[0].Model != want.Model || got[0].TensorInventory != want.TensorInventory || got[0].SourceCommit != want.SourceCommit || got[0].SourceRepository != want.SourceRepository {
@@ -57,8 +53,7 @@ func TestRecipeSpecSourceReceipt(t *testing.T) {
 	testcheck.NoError(t, registerModels(register))
 	head := func() artifact.CommitID {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(storePath)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(storePath))(t)
 		defer store.Close()
 		if _, found, err := store.Manifest(t.Context(), want.Model); err != nil || !found {
 			t.Fatalf("model absent: %v", err)
@@ -97,14 +92,12 @@ func TestRecipeSpecSourceReceipt(t *testing.T) {
 			case "unlisted license":
 				receipt.Files = slices.DeleteFunc(receipt.Files, func(file hfrepo.SourceFile) bool { return file.Path == want.License.Path })
 			}
-			updated, err := json.Marshal(receipt)
-			testcheck.NoError(t, err)
+			updated := testcheck.Must(json.Marshal(receipt))(t)
 			values[0]["source_receipt"] = updated
 			if failure == "missing receipt" {
 				delete(values[0], "source_receipt")
 			}
-			updated, err = json.Marshal(values)
-			testcheck.NoError(t, err)
+			updated = testcheck.Must(json.Marshal(values))(t)
 			testcheck.NoError(t, os.WriteFile(output, updated, 0600))
 			if err := registerModels(register); err == nil {
 				t.Fatal("invalid source registration succeeded")
@@ -123,17 +116,14 @@ func TestRecipeSpecSourceReceipt(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(secondDir, 0700))
 	slices.Reverse(source.Files)
 	for _, file := range source.Files {
-		data, err := os.ReadFile(filepath.Join(directory, file.Path))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(directory, file.Path)))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(secondDir, file.Path), data, 0600))
 	}
-	data, err = json.Marshal(source)
-	testcheck.NoError(t, err)
+	data = testcheck.Must(json.Marshal(source))(t)
 	testcheck.NoError(t, os.WriteFile(receiptPath, data, 0600))
 	args[1] = secondRoot
 	testcheck.NoError(t, assembleSpecification(args))
-	repeated, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	repeated := testcheck.Must(os.ReadFile(output))(t)
 	if !bytes.Equal(declared, repeated) {
 		t.Fatal("relocation or enumeration changed source-backed declaration")
 	}
@@ -144,8 +134,7 @@ func TestRecipeSpecSourceReceiptLicenseAuthority(t *testing.T) {
 	directory := filepath.Join(root, want.Directory)
 	testcheck.NoError(t, os.Mkdir(filepath.Join(directory, "transformer"), 0700))
 	for _, name := range []string{"config.json", "model.safetensors"} {
-		data, err := os.ReadFile(filepath.Join(directory, name))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(directory, name)))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "transformer", name), data, 0600))
 	}
 	for name, body := range map[string]string{
@@ -187,11 +176,9 @@ func TestRecipeSpecSourceReceiptLicenseAuthority(t *testing.T) {
 	if _, err := assembleRegistration(t.Context(), root, want.Directory, "MIT", &source); err != nil {
 		t.Fatalf("explicitly reviewed license was refused: %v", err)
 	}
-	card, err := os.ReadFile(filepath.Join(directory, "README.md"))
-	testcheck.NoError(t, err)
+	card := testcheck.Must(os.ReadFile(filepath.Join(directory, "README.md")))(t)
 	source.Files = append(source.Files, hfrepo.SourceFile{Path: "README.md", SHA256: fmt.Sprintf("%x", sha256.Sum256(card)), Bytes: int64(len(card))})
-	declared, err := assembleRegistration(t.Context(), root, want.Directory, "", &source)
-	testcheck.NoError(t, err)
+	declared := testcheck.Must(assembleRegistration(t.Context(), root, want.Directory, "", &source))(t)
 	var got registrationDeclaration
 	testcheck.NoError(t, json.Unmarshal(declared, &got))
 	if got.License.SPDX != "mit" {

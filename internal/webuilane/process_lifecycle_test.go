@@ -21,8 +21,7 @@ func TestBrowserCloseReportsCleanupFailure(t *testing.T) {
 	if data, err := os.ReadFile(marker); err != nil || string(data) != "unowned" {
 		t.Fatalf("unowned profile changed: %q, %v", data, err)
 	}
-	owned, err := os.MkdirTemp("", "overgo-webui-lane-")
-	testcheck.NoError(t, err)
+	owned := testcheck.Must(os.MkdirTemp("", "overgo-webui-lane-"))(t)
 	defer os.RemoveAll(owned)
 	browser := &Browser{profile: owned}
 	testcheck.NoError(t, browser.Close())
@@ -42,8 +41,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		path, args = "cmd", []string{"/c", "exit 0"}
 	}
-	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
-	testcheck.NoError(t, err)
+	supervised := testcheck.Must(processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args}))(t)
 	if _, err := waitDevToolsPort(t.Context(), processcontrol.WatchLine(nil, devToolsAnnouncement), supervised); err == nil {
 		t.Fatal("exited browser reported a DevTools port")
 	}

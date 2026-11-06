@@ -21,8 +21,7 @@ func TestFractaleProcessLeadership(t *testing.T) {
 		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale process evidence")
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	adaptiveGo := testprocess.PinnedTree(t, filepath.Dir(roots.Models), "b8fef3cc227ecb9e942146dc130424029dfe679d", "go")
 	temporary := t.TempDir()
 	candidateBinary := filepath.Join(temporary, "overgo-fractale.test.exe")

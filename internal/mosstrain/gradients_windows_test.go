@@ -64,8 +64,7 @@ func TestMOSSAdapterGradients(t *testing.T) {
 	if err != nil || identity.DigestHex() != gradientGoldenDigest {
 		t.Fatal("golden changed identity", err)
 	}
-	source, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer source.Close()
 	read := func(name string) []float32 {
 		t.Helper()
@@ -73,8 +72,7 @@ func TestMOSSAdapterGradients(t *testing.T) {
 		if !ok {
 			t.Fatalf("golden lacks %s", name)
 		}
-		values, err := safetensors.ReadF32(item)
-		testcheck.NoError(t, err)
+		values := testcheck.Must(safetensors.ReadF32(item))(t)
 		return values
 	}
 	var config goldenConfig
@@ -92,14 +90,13 @@ func TestMOSSAdapterGradients(t *testing.T) {
 		}
 	}
 	optimizerConfig := optimizer.Config{BaseLearningRate: 1e-3, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
-	trainer, err := New(t.Context(), spec, Options{Rank: rank, Alpha: alpha}, func(name string) ([]float32, error) {
+	trainer := testcheck.Must(New(t.Context(), spec, Options{Rank: rank, Alpha: alpha}, func(name string) ([]float32, error) {
 		item, ok := source.Tensors["weight."+name]
 		if !ok {
 			return nil, fmt.Errorf("golden lacks %s", name)
 		}
 		return safetensors.ReadF32(item)
-	}, adapter, optimizerConfig)
-	testcheck.NoError(t, err)
+	}, adapter, optimizerConfig))(t)
 	defer trainer.Close()
 	geometry := Geometry{Height: goldenHeight, Width: goldenWidth, Text: goldenText}
 	testcheck.NoError(t, trainer.Reserve(t.Context(), geometry))
@@ -108,8 +105,7 @@ func TestMOSSAdapterGradients(t *testing.T) {
 	noised, target := FlowPath(latent, noise, goldenSigma)
 	example := Example{Geometry: geometry, Latent: latent, Refined: read("refined")}
 	testcheck.NoError(t, trainer.Clear())
-	prediction, err := trainer.Predict(t.Context(), example, noised, goldenTimestep)
-	testcheck.NoError(t, err)
+	prediction := testcheck.Must(trainer.Predict(t.Context(), example, noised, goldenTimestep))(t)
 	compare := func(name string, got, want []float32) {
 		t.Helper()
 		if len(got) != len(want) {
@@ -130,8 +126,7 @@ func TestMOSSAdapterGradients(t *testing.T) {
 		}
 	}
 	compare("prediction", prediction, rows(read("prediction"), spec.InChannels, goldenHeight, goldenWidth))
-	loss, err := trainer.Accumulate(t.Context(), example, noised, target, goldenTimestep)
-	testcheck.NoError(t, err)
+	loss := testcheck.Must(trainer.Accumulate(t.Context(), example, noised, target, goldenTimestep))(t)
 	if want := float64(read("loss")[0]); math.Abs(loss-want) > goldenTolerance*want {
 		t.Fatalf("loss %g, autograd %g", loss, want)
 	}

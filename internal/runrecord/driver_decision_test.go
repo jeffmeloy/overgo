@@ -15,43 +15,36 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 
 	goal := testutil.ArtifactID(t, artifact.KindEvidence, "driver-goal")
-	causal, err := NewCausalRoot(
+	causal := testcheck.Must(NewCausalRoot(
 		TriggerControllerProposal,
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-root"),
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-motivation-b"),
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-motivation-a"),
-	)
-	testcheck.NoError(t, err)
-	interaction, err := NewBudget(
+	))(t)
+	interaction := testcheck.Must(NewBudget(
 		"queries",
 		testutil.ArtifactID(t, artifact.KindDatasetShard, "driver-interaction-split"),
 		10,
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-interaction-authority"),
-	)
-	testcheck.NoError(t, err)
-	resources, err := NewBudget(
+	))(t)
+	resources := testcheck.Must(NewBudget(
 		"compute-units",
 		testutil.ArtifactID(t, artifact.KindDatasetShard, "driver-resource-split"),
 		20,
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-resource-authority"),
-	)
-	testcheck.NoError(t, err)
-	interactionChargeA, err := NewBudgetCharge(
+	))(t)
+	interactionChargeA := testcheck.Must(NewBudgetCharge(
 		interaction.ID, 1, testutil.ArtifactID(t, artifact.KindEvidence, "driver-interaction-consumer-a"), "inspect",
-	)
-	testcheck.NoError(t, err)
-	interactionChargeB, err := NewBudgetCharge(
+	))(t)
+	interactionChargeB := testcheck.Must(NewBudgetCharge(
 		interaction.ID, 2, testutil.ArtifactID(t, artifact.KindEvidence, "driver-interaction-consumer-b"), "compare",
-	)
-	testcheck.NoError(t, err)
-	resourceChargeA, err := NewBudgetCharge(
+	))(t)
+	resourceChargeA := testcheck.Must(NewBudgetCharge(
 		resources.ID, 3, testutil.ArtifactID(t, artifact.KindEvidence, "driver-resource-consumer-a"), "realize",
-	)
-	testcheck.NoError(t, err)
-	resourceChargeB, err := NewBudgetCharge(
+	))(t)
+	resourceChargeB := testcheck.Must(NewBudgetCharge(
 		resources.ID, 4, testutil.ArtifactID(t, artifact.KindEvidence, "driver-resource-consumer-b"), "evaluate",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "driver-decision/budget-parents",
 		Artifacts: []artifact.Descriptor{
@@ -66,21 +59,17 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	contents := make([]artifact.Content, 0, 6)
 	var budgetLineage []artifact.Lineage
 	for _, budget := range []Budget{interaction, resources} {
-		content, err := budget.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(budget.Content())(t)
 		contents = append(contents, content)
 		budgetLineage = append(budgetLineage, budget.Lineage()...)
 	}
 	for _, charge := range []BudgetCharge{interactionChargeA, interactionChargeB, resourceChargeA, resourceChargeB} {
-		content, err := charge.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(charge.Content())(t)
 		contents = append(contents, content)
 		budgetLineage = append(budgetLineage, charge.Lineage()...)
 	}
-	budgetBatch, err := artifact.NewDocumentBatch("driver-decision/budgets", contents, budgetLineage, nil)
-	testcheck.NoError(t, err)
-	head, err := store.Commit(ctx, budgetBatch)
-	testcheck.NoError(t, err)
+	budgetBatch := testcheck.Must(artifact.NewDocumentBatch("driver-decision/budgets", contents, budgetLineage, nil))(t)
+	head := testcheck.Must(store.Commit(ctx, budgetBatch))(t)
 
 	incumbent := DriverOption{
 		Recipe:    testutil.ArtifactID(t, artifact.KindRecipe, "driver-incumbent"),
@@ -136,8 +125,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		},
 	}
 
-	decision, err := NewDriverDecision(ctx, store, facts)
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(NewDriverDecision(ctx, store, facts))(t)
 	if _, err := decision.Content(); err != nil {
 		t.Fatal(err)
 	}
@@ -170,8 +158,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	equalCostEligible.Missing[0].CostUnits = validated.Missing[1].CostUnits
 	equalCostFacts := facts
 	equalCostFacts.Options = []DriverOption{validated, incumbent, equalCostEligible}
-	equalCost, err := NewDriverDecision(ctx, store, equalCostFacts)
-	testcheck.NoError(t, err)
+	equalCost := testcheck.Must(NewDriverDecision(ctx, store, equalCostFacts))(t)
 	if equalCost.Action != DriverActionRealize || equalCost.Subject != eligible.Candidate {
 		t.Fatalf("equal-cost action tie = %+v", equalCost)
 	}
@@ -187,8 +174,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	}}
 	identityFacts := facts
 	identityFacts.Options = []DriverOption{peerEligible, incumbent, eligible}
-	identity, err := NewDriverDecision(ctx, store, identityFacts)
-	testcheck.NoError(t, err)
+	identity := testcheck.Must(NewDriverDecision(ctx, store, identityFacts))(t)
 	wantIdentity := eligible.Candidate
 	if artifact.CompareID(peerEligible.Candidate, wantIdentity) < 0 {
 		wantIdentity = peerEligible.Candidate
@@ -202,8 +188,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	tooExpensiveEligible.Missing[0].CostUnits = decision.Resources.Remaining + 1
 	affordableFacts := facts
 	affordableFacts.Options = []DriverOption{tooExpensiveEligible, incumbent, validated}
-	affordable, err := NewDriverDecision(ctx, store, affordableFacts)
-	testcheck.NoError(t, err)
+	affordable := testcheck.Must(NewDriverDecision(ctx, store, affordableFacts))(t)
 	if affordable.Stop != DriverStopContinue || affordable.Action != DriverActionEvaluate ||
 		affordable.Subject != validated.Candidate || affordable.Target != validated.Missing[1].Target {
 		t.Fatalf("lowest affordable work = %+v", affordable)
@@ -216,8 +201,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	}
 	unaffordableFacts := facts
 	unaffordableFacts.Options = []DriverOption{tooExpensiveEligible, incumbent, tooExpensiveValidated}
-	unaffordable, err := NewDriverDecision(ctx, store, unaffordableFacts)
-	testcheck.NoError(t, err)
+	unaffordable := testcheck.Must(NewDriverDecision(ctx, store, unaffordableFacts))(t)
 	if unaffordable.Stop != driverStopBudgetExhausted || unaffordable.Action != driverActionRefuse ||
 		unaffordable.Subject.Valid() || unaffordable.Target.Valid() || unaffordable.Need != "" {
 		t.Fatalf("unaffordable pending work = %+v", unaffordable)
@@ -230,8 +214,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	slices.Reverse(permutedValidated.Missing)
 	permuted := facts
 	permuted.Options = []DriverOption{eligible, permutedValidated, incumbent}
-	canonical, err := NewDriverDecision(ctx, store, permuted)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(NewDriverDecision(ctx, store, permuted))(t)
 	_, canonicalErr := canonical.Content()
 	if canonical.ID != decision.ID || canonicalErr != nil {
 		t.Fatalf("permuted decision = %s, validation %v; want %s", canonical.ID, canonicalErr, decision.ID)
@@ -349,8 +332,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	saturationB := testutil.ArtifactID(t, artifact.KindEvidence, "driver-saturation-b")
 	saturatedFacts := facts
 	saturatedFacts.SaturationEvidence = []artifact.ID{saturationB, saturationA}
-	saturated, err := NewDriverDecision(ctx, store, saturatedFacts)
-	testcheck.NoError(t, err)
+	saturated := testcheck.Must(NewDriverDecision(ctx, store, saturatedFacts))(t)
 	wantSaturationTarget := saturationA
 	if artifact.CompareID(saturationB, saturationA) < 0 {
 		wantSaturationTarget = saturationB
@@ -363,8 +345,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	operatorEvidence := testutil.ArtifactID(t, artifact.KindEvidence, "driver-operator-stop")
 	operatorFacts := saturatedFacts
 	operatorFacts.OperatorStop = operatorEvidence
-	operator, err := NewDriverDecision(ctx, store, operatorFacts)
-	testcheck.NoError(t, err)
+	operator := testcheck.Must(NewDriverDecision(ctx, store, operatorFacts))(t)
 	if operator.Stop != driverStopOperator || operator.Action != DriverActionStop || operator.Target != operatorEvidence {
 		t.Fatalf("operator stop decision = %+v", operator)
 	}
@@ -372,33 +353,28 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	refusalEvidence := testutil.ArtifactID(t, artifact.KindEvidence, "driver-refusal")
 	refusalFacts := facts
 	refusalFacts.Refusal = refusalEvidence
-	refused, err := NewDriverDecision(ctx, store, refusalFacts)
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(NewDriverDecision(ctx, store, refusalFacts))(t)
 	if refused.Stop != driverStopRefused || refused.Action != driverActionRefuse || refused.Target != refusalEvidence {
 		t.Fatalf("refused decision = %+v", refused)
 	}
 
-	fullInteraction, err := NewBudgetCharge(
+	fullInteraction := testcheck.Must(NewBudgetCharge(
 		interaction.ID, decision.Interaction.Remaining,
 		testutil.ArtifactID(t, artifact.KindEvidence, "driver-exhaustion-consumer"), "exhaust",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "driver-decision/exhaustion-parent",
 		Artifacts: []artifact.Descriptor{{ID: fullInteraction.Consumer}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	fullInteractionBatch, err := fullInteraction.Batch("driver-decision/exhaustion-charge")
-	testcheck.NoError(t, err)
-	exhaustedHead, err := store.Commit(ctx, fullInteractionBatch)
-	testcheck.NoError(t, err)
+	fullInteractionBatch := testcheck.Must(fullInteraction.Batch("driver-decision/exhaustion-charge"))(t)
+	exhaustedHead := testcheck.Must(store.Commit(ctx, fullInteractionBatch))(t)
 	// The caller repeats the same grant-only reference. The committed charge is
 	// discovered from lineage and therefore cannot be omitted to retain budget.
 	exhaustedFacts := facts
 	exhaustedFacts.Head = exhaustedHead
-	exhausted, err := NewDriverDecision(ctx, store, exhaustedFacts)
-	testcheck.NoError(t, err)
+	exhausted := testcheck.Must(NewDriverDecision(ctx, store, exhaustedFacts))(t)
 	if exhausted.Stop != driverStopBudgetExhausted || exhausted.Action != driverActionRefuse ||
 		exhausted.Subject.Valid() || exhausted.Target.Valid() || exhausted.Need != "" ||
 		exhausted.Interaction.Remaining != 0 || len(exhausted.Interaction.Charges) != 3 ||

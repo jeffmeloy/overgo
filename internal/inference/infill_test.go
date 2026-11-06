@@ -38,19 +38,18 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 	prefix := []tokenizer.TokenID{5, 6, 7, 8, 9}
 	suffix := []tokenizer.TokenID{10, 11, 12}
 	prompt := []tokenizer.TokenID{13}
-	psm, err := runner.FormatInfillTokens(
+	psm := testcheck.Must(runner.FormatInfillTokens(
 		prefix,
 		suffix,
 		prompt,
 		nil,
 		InfillFormatOptions{MaxNewTokens: 2},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	wantPSM := []tokenizer.TokenID{1, 2, 5, 6, 7, 8, 9, 13, 3, 10, 11, 12, 4}
 	if !slices.Equal(psm, wantPSM) {
 		t.Fatalf("PSM tokens = %v, want %v", psm, wantPSM)
 	}
-	spm, err := runner.FormatInfillTokens(
+	spm := testcheck.Must(runner.FormatInfillTokens(
 		prefix,
 		suffix,
 		prompt,
@@ -59,8 +58,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 			MaxNewTokens: 2,
 			SuffixPrefix: true,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	wantSPM := []tokenizer.TokenID{1, 3, 10, 11, 12, 2, 5, 6, 7, 8, 9, 13, 4}
 	if !slices.Equal(spm, wantSPM) {
 		t.Fatalf("SPM tokens = %v, want %v", spm, wantSPM)
@@ -83,14 +81,13 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 	}
 	prefix := []tokenizer.TokenID{4, 5, 6, 7, 8, 9, 10, 11}
 	suffix := []tokenizer.TokenID{12, 13, 14, 15}
-	got, err := runner.FormatInfillTokens(
+	got := testcheck.Must(runner.FormatInfillTokens(
 		prefix,
 		suffix,
 		nil,
 		nil,
 		InfillFormatOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	want := []tokenizer.TokenID{1, 6, 7, 8, 9, 10, 11, 2, 12, 13, 3}
 	if !slices.Equal(got, want) {
 		t.Fatalf("truncated FIM tokens = %v, want %v", got, want)

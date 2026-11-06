@@ -35,8 +35,7 @@ import (
 // of the pair, FFmpeg and the clips this machine lacks.
 func installedBridgedPair(t *testing.T, work string, count int) (pair, manifest string) {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	pair = roots.ResolveModelPath("webssl-dino-to-rae-bridge")
 	if _, held, err := rae.ResolveBridgedPair(pair); err != nil || !held {
 		testskip.NotApplicable(t, "no bridged pair with its encoder and collection is at "+pair)
@@ -52,10 +51,8 @@ func installedBridgedPair(t *testing.T, work string, count int) (pair, manifest 
 	var names strings.Builder
 	for index := range count {
 		name := fmt.Sprintf("clip-%02d.mp4", index)
-		source, err := os.Open(clips[index])
-		testcheck.NoError(t, err)
-		target, err := os.Create(filepath.Join(work, name))
-		testcheck.NoError(t, err)
+		source := testcheck.Must(os.Open(clips[index]))(t)
+		target := testcheck.Must(os.Create(filepath.Join(work, name)))(t)
 		_, copyErr := io.Copy(target, source)
 		testcheck.NoError(t, firstError(copyErr, source.Close(), target.Close()))
 		names.WriteString(name + "\n")
@@ -79,16 +76,13 @@ func firstError(errs ...error) error {
 // the store to recording it.
 func recordedBridgeCheckpoint(t *testing.T, storePath, out string) trainingprogram.Checkpoint {
 	t.Helper()
-	checkpoint, err := trainingprogram.LoadCheckpoint(out)
-	testcheck.NoError(t, err)
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(out))(t)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	defer store.Close()
 	if _, recorded, err := store.Artifact(t.Context(), checkpoint.ID()); err != nil || !recorded {
 		t.Fatalf("checkpoint %s recorded %t (%v), want the trained bridge recorded", checkpoint.ID(), recorded, err)
 	}
-	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights)))(t)
 	defer weights.Close()
 	if len(weights.Tensors) != 2 || checkpoint.ParameterCount != 768*1025 {
 		t.Fatalf("the checkpoint holds %d tensors and %d parameters, want the bridge's weights and offsets", len(weights.Tensors), checkpoint.ParameterCount)
@@ -150,16 +144,14 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		t.Fatalf("cut %d pictures (%v), want one for each of the %d clips", len(cut), err, frames)
 	}
 	for _, name := range cut {
-		file, err := os.Open(name)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(os.Open(name))(t)
 		shape, decodeErr := png.DecodeConfig(file)
 		if err := firstError(decodeErr, file.Close()); err != nil || shape.Width != shape.Height || shape.Width == 0 {
 			t.Fatalf("%s is %d by %d (%v), want a square picture", name, shape.Width, shape.Height, err)
 		}
 	}
 	storePath, out := filepath.Join(work, "store"), filepath.Join(work, "out")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storePath))(t)
 	source, training := registerSplit(t, ctx, store, "frames", pictures, frames, nil)
 	registerObjective(t, ctx, store, work, pictureObjectiveAlias, trainingprogram.ObjectiveSpec{
 		Name: "frames", Kind: trainingprogram.ObjectiveImageLatent,
@@ -199,8 +191,7 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	// claim reads, and leaves the one verdict as it was.
 	resolved, _, err := rae.ResolveBridgedPair(pair)
 	testcheck.NoError(t, err)
-	recipeID, err := trainingworkflow.BootstrapObjectiveRecipe(ctx, store, resolved.Bridge, pictureObjectiveAlias)
-	testcheck.NoError(t, err)
+	recipeID := testcheck.Must(trainingworkflow.BootstrapObjectiveRecipe(ctx, store, resolved.Bridge, pictureObjectiveAlias))(t)
 	kept := func() int {
 		var files int
 		cache := filepath.Join(work, "cache")

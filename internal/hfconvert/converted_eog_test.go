@@ -33,10 +33,8 @@ func TestConvertedEOGTokenList(t *testing.T) {
 				if declaration.generation != "" {
 					testutil.WriteTextFile(t, directory, "generation_config.json", `{"eos_token_id":`+declaration.generation+`}`)
 				}
-				metadata, err := tokenizerMetadata(directory, 4, json.RawMessage(declaration.model))
-				testcheck.NoError(t, err)
-				vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-				testcheck.NoError(t, err)
+				metadata := testcheck.Must(tokenizerMetadata(directory, 4, json.RawMessage(declaration.model)))(t)
+				vocab := testcheck.Must(tokenizer.Load(&gguf.File{Metadata: metadata}))(t)
 				if actual := vocab.EOGTokens(); !slices.Equal(actual, declaration.want) {
 					t.Fatalf("token-content fallback stops=%v, want %v", actual, declaration.want)
 				}
@@ -62,10 +60,8 @@ func TestConvertedEOGTokenList(t *testing.T) {
 				testcheck.NoError(t, json.Unmarshal([]byte(declaration.source), &root))
 				var text qwen35TokenConfig
 				testcheck.NoError(t, json.Unmarshal(root["text_config"], &text))
-				metadata, err := tokenizerMetadata(directory, text.Vocabulary, text.EOS)
-				testcheck.NoError(t, err)
-				vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-				testcheck.NoError(t, err)
+				metadata := testcheck.Must(tokenizerMetadata(directory, text.Vocabulary, text.EOS))(t)
+				vocab := testcheck.Must(tokenizer.Load(&gguf.File{Metadata: metadata}))(t)
 				if actual := vocab.EOGTokens(); !slices.Equal(actual, declaration.want) {
 					t.Fatalf("nested Qwen stops=%v, want %v", actual, declaration.want)
 				}
@@ -130,11 +126,9 @@ func TestConvertedEOGTokenList(t *testing.T) {
 				return
 			}
 			testcheck.NoError(t, err)
-			file, err := gguf.Open(path)
-			testcheck.NoError(t, err)
+			file := testcheck.Must(gguf.Open(path))(t)
 			defer file.Close()
-			vocabulary, err := tokenizer.Load(file)
-			testcheck.NoError(t, err)
+			vocabulary := testcheck.Must(tokenizer.Load(file))(t)
 			if actual := vocabulary.EOGTokens(); !slices.Equal(actual, test.want) {
 				t.Fatalf("converted declared stop IDs = %v; want %v", actual, test.want)
 			}

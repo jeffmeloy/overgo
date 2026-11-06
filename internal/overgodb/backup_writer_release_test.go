@@ -54,12 +54,10 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 			name = "cancel-and-resume"
 		}
 		t.Run(name, func(t *testing.T) {
-			store, err := Open(t.TempDir())
-			testcheck.NoError(t, err)
+			store := testcheck.Must(Open(t.TempDir()))(t)
 			defer store.Close()
 			payload := bytes.Repeat([]byte("captured immutable blob"), 8192)
-			id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, payload))(t)
 			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "backup/captured", Contents: []artifact.Content{{
 				Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream"}, Data: payload,
 			}}}); err != nil {
@@ -69,8 +67,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 				t.Fatal(err)
 			}
 			head, sequence := store.Head()
-			writer, err := Create(store.root)
-			testcheck.NoError(t, err)
+			writer := testcheck.Must(Create(store.root))(t)
 			defer writer.Close()
 			destination := filepath.Join(t.TempDir(), "backup")
 			ctx, cancel := context.WithCancelCause(t.Context())
@@ -142,8 +139,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 			if copied.err != nil || copied.report.Head != head || copied.report.Sequence != sequence {
 				t.Fatalf("captured identity changed: %+v, %v", copied.report, copied.err)
 			}
-			replica, err := OpenReadOnly(destination)
-			testcheck.NoError(t, err)
+			replica := testcheck.Must(OpenReadOnly(destination))(t)
 			defer replica.Close()
 			if _, found, err := replica.Artifact(t.Context(), tail.ID); err != nil || found {
 				t.Fatalf("post-capture content entered backup: found=%t err=%v", found, err)

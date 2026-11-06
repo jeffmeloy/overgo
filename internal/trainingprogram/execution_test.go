@@ -8,18 +8,15 @@ import (
 )
 
 func TestObjectiveExecutionRunsCompiledOrderWithoutAllocation(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
-	program, err := CompileObjectiveProgram(ObjectiveForecast, nil, plan)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}}))(t)
+	program := testcheck.Must(CompileObjectiveProgram(ObjectiveForecast, nil, plan))(t)
 	var order []OperatorPhase
-	execution, err := BindObjective(
+	execution := testcheck.Must(BindObjective(
 		program,
 		func(*struct{}) error { order = append(order, PhaseForward); return nil },
 		func(*struct{}) error { order = append(order, PhaseBackward); return nil },
 		func(*struct{}) error { order = append(order, PhaseOptimize); return nil },
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	state := struct{}{}
 	order = make([]OperatorPhase, 0, 3)
 	if allocations := testing.AllocsPerRun(100, func() {

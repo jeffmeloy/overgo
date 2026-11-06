@@ -24,31 +24,27 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("catalog evidence weights"), 0o644))
-	weights, err := os.Open(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.Open(weightsPath))(t)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
 	testcheck.NoError(t, err)
 	evidenceData := []byte(`{"summary":{"decode_tokens_per_second_p50":491.35}}`)
 	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
 	testcheck.NoError(t, err)
-	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
+	record := testcheck.Must(runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
 		Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured,
 		Commit: "0123456789abcdef0123456789abcdef01234567",
 		WallNS: 220_000_000, PeakDeviceBytes: 512, Evidence: []artifact.ID{evidence},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "catalog-evidence-recipe")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "catalog-evidence-dataset")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "catalog-evidence-run")
-	evaluation, err := runrecord.NewEvaluation(recipeID, runID, datasetID, []runrecord.Metric{
+	evaluation := testcheck.Must(runrecord.NewEvaluation(recipeID, runID, datasetID, []runrecord.Metric{
 		{Name: "accuracy", Value: 0.42, Direction: runrecord.DirectionMaximize},
-	})
-	testcheck.NoError(t, err)
-	evaluationContent, err := evaluation.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	evaluationContent := testcheck.Must(evaluation.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/catalog-evidence/evaluation", Contents: []artifact.Content{evaluationContent},
 	}); err != nil {
@@ -59,8 +55,7 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	// The join key is the registered weights location: the claim's model
 	// is the weights digest, the catalog's is the manifest, and the
 	// on-disk file is the identity both register.
-	registered, err := filepath.Abs(weightsPath)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(filepath.Abs(weightsPath))(t)
 	benchmark, measured := index.BenchmarksByLocation[registered]
 	if !measured || benchmark.Tier != string(runrecord.TierCapabilityMeasured) ||
 		benchmark.DecodeTokensPerSecond != 491.35 || benchmark.WallNS != 220_000_000 {

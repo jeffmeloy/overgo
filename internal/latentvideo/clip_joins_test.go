@@ -40,8 +40,7 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 		// held is an encoder whose workers wait at gate in the middle of a drawing; entered counts those that have begun and drawn those that have ended.
 		held := func() (encoder *gifEncoder, gate chan struct{}, entered, drawn *atomic.Int32) {
 			t.Helper()
-			encoder, err := NewClipEncoder(fps, UnitPixels)
-			testcheck.NoError(t, err)
+			encoder = testcheck.Must(NewClipEncoder(fps, UnitPixels))(t)
 			gate, entered, drawn = make(chan struct{}), &atomic.Int32{}, &atomic.Int32{}
 			t.Cleanup(func() {
 				select {
@@ -116,10 +115,8 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 			t.Fatalf("a frame waiting for a worker when its request is cancelled = %v with %d frames taken, want it refused with the cancellation and the %d before it taken", err, len(encoder.frames), workers)
 		}
 		close(gate)
-		bounded, err := encoder.Finish()
-		testcheck.NoError(t, err)
-		inTurn, err := NewClipEncoder(fps, UnitPixels)
-		testcheck.NoError(t, err)
+		bounded := testcheck.Must(encoder.Finish())(t)
+		inTurn := testcheck.Must(NewClipEncoder(fps, UnitPixels))(t)
 		for index := range workers {
 			testcheck.NoError(t, inTurn.Add(index, frame(float32(index+1)/workers), height, width))
 		}

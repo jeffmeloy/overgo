@@ -24,11 +24,9 @@ func TestWebUIBrowserRunNotice(t *testing.T) {
 	handler := newTestHandlerForRepository(t, fixture.store, &fakeGenerator{}, func(config *Config) { config.Workflows = fixture.workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, path, server.URL))(t)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := browserSettle(t, ctx, browser)

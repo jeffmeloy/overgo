@@ -15,8 +15,7 @@ import (
 // derives tiktoken ranks as vocabulary IDs and deliberately emits no merge
 // list. These tiny ranks expose a different answer from leftmost merging.
 func TestKimiRankBPEDeclaration(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json")))(t)
 	var source struct {
 		SourceSHA256 string `json:"source_sha256"`
 		Pattern      string `json:"pattern"`
@@ -36,11 +35,9 @@ func TestKimiRankBPEDeclaration(t *testing.T) {
 	load := func(pre any) *Tokenizer {
 		t.Helper()
 		dir := t.TempDir()
-		data, err := json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre})
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre}))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
-		encoder, err := Load(dir)
-		testcheck.NoError(t, err)
+		encoder := testcheck.Must(Load(dir))(t)
 		return encoder
 	}
 	pre := map[string]any{"type": "Sequence", "pretokenizers": []any{

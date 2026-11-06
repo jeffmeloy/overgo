@@ -58,19 +58,16 @@ func registerConversations(t *testing.T, conversations []dataset.Conversation) c
 	directory := filepath.Join(root, "conversations")
 	testcheck.NoError(t, os.MkdirAll(directory, 0o755))
 	for index, conversation := range conversations {
-		data, err := json.Marshal(conversation)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(conversation))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, fmt.Sprintf("%02d.json", index+1)), data, 0o600))
 	}
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "store")))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
-	registered, err := dataset.RegisterDirectoryDatasetAs(ctx, store, "chats", directory, dataset.ModalityStructured)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDatasetAs(ctx, store, "chats", directory, dataset.ModalityStructured))(t)
 	return conversationRun{store: store, model: model, source: registered.Dataset, work: filepath.Join(root, "work"), root: root}
 }
 
@@ -107,8 +104,7 @@ func TestConversationSFTTrainsOnRenderedConversations(t *testing.T) {
 		OutputDirectory: filepath.Join(run.root, "trained-1"), Steps: 6,
 		Step: func(step, total int, _ float64) { steps = append(steps, step*100+total) },
 	}
-	result, err := RunConversationSFT(ctx, run.store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(RunConversationSFT(ctx, run.store, request))(t)
 	if !result.Trained.Valid() || !result.Verdict.Valid() {
 		t.Fatalf("a conversation run published trained %v and verdict %v", result.Trained, result.Verdict)
 	}
@@ -119,8 +115,7 @@ func TestConversationSFTTrainsOnRenderedConversations(t *testing.T) {
 	if err != nil || len(files) != 12 {
 		t.Fatalf("rendered %d records (%v), want twelve", len(files), err)
 	}
-	first, err := os.ReadFile(files[0])
-	testcheck.NoError(t, err)
+	first := testcheck.Must(os.ReadFile(files[0]))(t)
 	var record conversationRecord
 	if err := json.Unmarshal(first, &record); err != nil {
 		t.Fatalf("first record %q is not a conversation record: %v", first, err)
@@ -208,13 +203,11 @@ func TestConversationRunSkipsAnUnusableConversationAndSaysSo(t *testing.T) {
 // no variant of a conversation the model trains on is one it is judged on, which the verdict would
 // read as memorization; a dataset that opens one way has no held-out side to give and is refused.
 func TestConversationsSharingAnOpeningNeverSplitAcrossTheVerdict(t *testing.T) {
-	source, err := artifact.IdentifyBytes(artifact.KindDataset, []byte("chats"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(artifact.IdentifyBytes(artifact.KindDataset, []byte("chats")))(t)
 	record := func(opening, reply string) []byte {
-		data, err := json.Marshal(conversationRecord{Segments: []conversationSegment{
+		data := testcheck.Must(json.Marshal(conversationRecord{Segments: []conversationSegment{
 			{Text: opening}, {Text: reply, Trained: true},
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		return data
 	}
 	// Twenty conversations in ten openings, two replies to each: a tenth held out is two records.
@@ -223,8 +216,7 @@ func TestConversationsSharingAnOpeningNeverSplitAcrossTheVerdict(t *testing.T) {
 		opening := strings.Repeat("a", 1+index)
 		records = append(records, record(opening, "cd"), record(opening, "dc"))
 	}
-	groups, err := conversationGroups(records)
-	testcheck.NoError(t, err)
+	groups := testcheck.Must(conversationGroups(records))(t)
 	for index := 0; index < len(records); index += 2 {
 		if groups[index] != groups[index+1] {
 			t.Fatalf("records %d and %d open alike and are in groups %.12s and %.12s", index, index+1, groups[index], groups[index+1])
@@ -248,8 +240,7 @@ func TestConversationsSharingAnOpeningNeverSplitAcrossTheVerdict(t *testing.T) {
 	}
 
 	// One opening for every conversation leaves nothing to hold out apart from the rest.
-	alike, err := conversationGroups([][]byte{record("ab", "cd"), record("ab", "dc")})
-	testcheck.NoError(t, err)
+	alike := testcheck.Must(conversationGroups([][]byte{record("ab", "cd"), record("ab", "dc")}))(t)
 	if _, _, err := conversationSplit(source, alike); err == nil || !strings.Contains(err.Error(), "distinct way") {
 		t.Errorf("conversations that all open one way: err = %v, want them refused", err)
 	}
@@ -362,8 +353,7 @@ func TestPreviewConversationsShowsWhatARunTrains(t *testing.T) {
 			t.Errorf("%s: trained tokens spell %q, want the reply %q alone", record.ID, learned.String(), messages[1].Content)
 		}
 	}
-	every, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, true, 1, 1)
-	testcheck.NoError(t, err)
+	every := testcheck.Must(PreviewConversations(t.Context(), run.store, run.source, letters, run.model, true, 1, 1))(t)
 	for _, token := range every.Page[0].Sequences[0].Tokens {
 		if !token.Trained {
 			t.Errorf("token %q is masked though the run trains on prompts", token.Piece)

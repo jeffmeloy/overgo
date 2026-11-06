@@ -21,28 +21,22 @@ import (
 
 func testAlignmentLease(t *testing.T, store *overgodb.Store, base recipe.Definition, wave []byte, source recipecontract.AudioReference, policy dataset.AudioInspectionPolicy, binding RunBinding) {
 	t.Helper()
-	profile, err := NewAlignmentProfile(AlignmentProfile{FrameMapping: "pooled-hop-cells", WordMapping: "whitespace-token-spans", BlankBoundary: "excluded", Confidence: "geometric-mean-target-probability"})
-	testcheck.NoError(t, err)
-	batch, err := profile.Batch("fixture/alignment/profile")
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(NewAlignmentProfile(AlignmentProfile{FrameMapping: "pooled-hop-cells", WordMapping: "whitespace-token-spans", BlankBoundary: "excluded", Confidence: "geometric-mean-target-probability"}))(t)
+	batch := testcheck.Must(profile.Batch("fixture/alignment/profile"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.AlignmentDefinition(base, profile.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.AlignmentDefinition(base, profile.ID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "fixture/alignment/recipe", definition); err != nil {
 		t.Fatal(err)
 	}
-	condition, err := artifact.JSONContent(transcriptionContract, recipecontract.Transcription{Source: source, Text: "b", Language: "en"})
-	testcheck.NoError(t, err)
+	condition := testcheck.Must(artifact.JSONContent(transcriptionContract, recipecontract.Transcription{Source: source, Text: "b", Language: "en"}))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "fixture/alignment/condition", Contents: []artifact.Content{condition}}); err != nil {
 		t.Fatal(err)
 	}
-	session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(LoadSession(t.Context(), store, definition.ID, 1<<20))(t)
 	defer session.Close(context.WithoutCancel(t.Context()))
-	lease, err := session.Lease(t.Context())
-	testcheck.NoError(t, err)
+	lease := testcheck.Must(session.Lease(t.Context()))(t)
 	defer lease.Release()
 	request := AlignmentRequest{Transcription: condition.Descriptor.ID, Span: recipecontract.SampleSpan{Start: 16, End: 112}}
 	origin := dataset.AudioPayloadOrigin{Container: source.Audio}
@@ -125,8 +119,7 @@ func testAlignmentLease(t *testing.T, store *overgodb.Store, base recipe.Definit
 
 func TestAlignmentTargetMapping(t *testing.T) {
 	directory, _ := transcriptionFixtureModel(t)
-	tokenizer, err := hfbpe.Load(directory)
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(hfbpe.Load(directory))(t)
 	words, targets, owners, err := alignmentTargets(tokenizer, "bc")
 	if err != nil || !reflect.DeepEqual(words, []string{"bc"}) || !reflect.DeepEqual(targets, []int{1, 2}) || !reflect.DeepEqual(owners, []int{0, 0}) {
 		t.Fatalf("mapping: %v %v %v %v", words, targets, owners, err)
@@ -160,8 +153,7 @@ func TestAlignedWordSampleCells(t *testing.T) {
 	path := CTCAlignment{States: []int{0, 1, 1, 2, 3, 4}}
 	emissions := make([]float32, 18)
 	emissions[4], emissions[7], emissions[14] = -1, -3, -2
-	got, err := alignedWords(path, emissions, []int{1, 2}, []int{0, 1}, []string{"one", "two"}, 3, 4, 100, 19)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(alignedWords(path, emissions, []int{1, 2}, []int{0, 1}, []string{"one", "two"}, 3, 4, 100, 19))(t)
 	if len(got) != 2 || got[0].Span != (recipecontract.SampleSpan{Start: 104, End: 112}) || got[1].Span != (recipecontract.SampleSpan{Start: 116, End: 119}) || got[0].Confidence != math.Exp(-2) || got[1].Confidence != math.Exp(-2) {
 		t.Fatalf("sample cells: %+v", got)
 	}

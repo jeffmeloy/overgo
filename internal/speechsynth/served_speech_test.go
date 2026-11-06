@@ -102,10 +102,8 @@ func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice 
 	if len(fixture.Cases) == 0 {
 		t.Fatal("the fixture holds no text")
 	}
-	synth, err := LoadSynthesizer(directory)
-	testcheck.NoError(t, err)
-	inventory, err := Inventory(synth.directory)
-	testcheck.NoError(t, err)
+	synth := testcheck.Must(LoadSynthesizer(directory))(t)
+	inventory := testcheck.Must(Inventory(synth.directory))(t)
 	weightMatch := false
 	for _, component := range inventory.Manifest.Components {
 		if component.Role == artifact.ComponentWeights && component.Artifact.DigestHex() == fixture.WeightsSHA256 {
@@ -115,8 +113,7 @@ func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice 
 	if !weightMatch {
 		t.Fatal("independent voice fixture weights differ from served inventory")
 	}
-	voicePath, err := ResolveVoicePath(directory, fixture.Voice)
-	testcheck.NoError(t, err)
+	voicePath := testcheck.Must(ResolveVoicePath(directory, fixture.Voice))(t)
 	for path, expected := range map[string]string{filepath.Join(directory, "tokenizer.model"): fixture.TokenizerSHA256, voicePath: fixture.VoiceSHA256} {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
 		if err != nil || id.DigestHex() != expected {
@@ -125,16 +122,13 @@ func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice 
 	}
 	var preparedID artifact.ID
 	if prepareVoice {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		defer store.Close()
-		batch, err := inventory.Batch("voice-reference-model")
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(inventory.Batch("voice-reference-model"))(t)
 		if _, err := artifact.Publish(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
-		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID))(t)
 		if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "voice-reference-recipe", definition); err != nil {
 			t.Fatal(err)
 		}
@@ -143,8 +137,7 @@ func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice 
 		if err != nil || len(recording) == 0 {
 			t.Fatalf("independent recording absent: %v", err)
 		}
-		content, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/reference-voice"}).ContentBytes(recording)
-		testcheck.NoError(t, err)
+		content := testcheck.Must((artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/reference-voice"}).ContentBytes(recording))(t)
 		if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "voice-reference-recording", Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -155,8 +148,7 @@ func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice 
 		for _, component := range inventory.Components {
 			voiceBudget += 2 * int64(component.Size)
 		}
-		preparedID, err = synth.BindVoice(t.Context(), store, definition, SynthesisRequest{ReferenceAudio: content.Descriptor.ID, ReferenceEndSample: len(decoded.Samples), VoiceMemoryBytes: voiceBudget})
-		testcheck.NoError(t, err)
+		preparedID = testcheck.Must(synth.BindVoice(t.Context(), store, definition, SynthesisRequest{ReferenceAudio: content.Descriptor.ID, ReferenceEndSample: len(decoded.Samples), VoiceMemoryBytes: voiceBudget}))(t)
 		prepared, err := synth.voiceState(preparedID.String())
 		if err != nil || len(fixture.ReferenceState) != synth.model.Dims.Layers {
 			t.Fatalf("independent state absent: %v", err)

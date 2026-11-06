@@ -52,29 +52,21 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	model, projector, definition := id(artifact.KindModel, "model"), id(artifact.KindProjector, "projector"), id(artifact.KindModelDefinition, "definition")
-	projection, err := modelrecipe.ProjectionDefinition(model, projector, artifact.ID{}, recipe.DataImage)
-	testcheck.NoError(t, err)
-	content, err := projection.ArtifactContent()
-	testcheck.NoError(t, err)
+	projection := testcheck.Must(modelrecipe.ProjectionDefinition(model, projector, artifact.ID{}, recipe.DataImage))(t)
+	content := testcheck.Must(projection.ArtifactContent())(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "fixture/models", Artifacts: []artifact.Descriptor{{ID: model}, {ID: projector}, {ID: definition}}, Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	spec := modelValidationSpecification{Model: model, Projector: projector, CodeCommit: strings.Repeat("a", 40)}
-	campaign, err := evaluation.NewIsolatedCampaign(store, validationFixtureRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: projection.ID}, environment, spec.CodeCommit)
-	testcheck.NoError(t, err)
+	campaign := testcheck.Must(evaluation.NewIsolatedCampaign(store, validationFixtureRuntime{}, modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: projection.ID}, environment, spec.CodeCommit))(t)
 	// These are host evidence fixtures, not claims of real multimodal quality.
 	required := []string{"quality/video/native", "quality/image/native"}
 	for _, name := range required {
-		data, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: name, Cases: []evaluation.ExactCase{{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2}}})
-		testcheck.NoError(t, err)
-		suite, err := evaluation.CompileSuite(data, campaign.Authorities())
-		testcheck.NoError(t, err)
-		result, err := campaign.Evaluate(t.Context(), suite)
-		testcheck.NoError(t, err)
-		evidence, err := evaluation.RequireEvaluationEvidence(t.Context(), store, result.Evidence)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: name, Cases: []evaluation.ExactCase{{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2}}}))(t)
+		suite := testcheck.Must(evaluation.CompileSuite(data, campaign.Authorities()))(t)
+		result := testcheck.Must(campaign.Evaluate(t.Context(), suite))(t)
+		evidence := testcheck.Must(evaluation.RequireEvaluationEvidence(t.Context(), store, result.Evidence))(t)
 		metric := evidence.Metrics[0]
 		spec.Cells = append(spec.Cells, modelValidationCell{Name: name, Evidence: evidence.ID, Plan: evidence.Plan, ModelDefinition: definition, Recipe: projection.ID, Environment: environment.ID, Dataset: evidence.Dataset, Split: evidence.Split, Shards: evidence.Shards,
 			Bounds: []modelValidationBound{{Metric: metric.Name, Unit: metric.Unit, Direction: metric.Direction, Minimum: metric.Value, Maximum: metric.Value}}})
@@ -132,12 +124,10 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 	}
 	t.Run("one executed protocol bundle covers eighteen cells", func(t *testing.T) {
 		oracle := strings.Repeat("c", 64)
-		record, err := runrecord.NewGateRecord(projection.ID, environment.ID, spec.CodeCommit, runrecord.OutcomeSucceeded, "", 1,
+		record := testcheck.Must(runrecord.NewGateRecord(projection.ID, environment.ID, spec.CodeCommit, runrecord.OutcomeSucceeded, "", 1,
 			[]runrecord.GateStep{{Name: "candidate-execution", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1,
-				Evidence: fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%s;model_definition=%s;cases=18", oracle, definition)}})
-		testcheck.NoError(t, err)
-		batch, err := record.Batch("fixture/protocol-gate")
-		testcheck.NoError(t, err)
+				Evidence: fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%s;model_definition=%s;cases=18", oracle, definition)}}))(t)
+		batch := testcheck.Must(record.Batch("fixture/protocol-gate"))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -184,29 +174,22 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "fixture/audio-source", Artifacts: []artifact.Descriptor{{ID: dataset}, {ID: split}, {ID: source.Audio}, {ID: source.Profile}}}); err != nil {
 			t.Fatal(err)
 		}
-		compiled, err := evaluation.CompileTranscription(evaluation.TranscriptionSuite{
+		compiled := testcheck.Must(evaluation.CompileTranscription(evaluation.TranscriptionSuite{
 			Kind: evaluation.TranscriptionKind, Schema: "fixture/transcription", Source: "host-only stored-output fixture",
 			Dataset: dataset, Split: split, Normalization: []evaluation.TranscriptionNormalization{evaluation.TranscriptionLowercase},
 			Cases: []evaluation.TranscriptionCase{{Name: "one", Group: "fixture", Source: source, Reference: "hello", SampleCount: 16000, SampleRate: 16000}},
-		})
-		testcheck.NoError(t, err)
-		plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: projection.ID, CodeCommit: spec.CodeCommit,
-			Environment: environment.ID, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident}})
-		testcheck.NoError(t, err)
-		output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema), recipecontract.Transcription{Source: source, Text: "hello"})
-		testcheck.NoError(t, err)
-		run, err := runrecord.NewBoundRun(projection.ID, runrecord.OutcomeSucceeded, []artifact.ID{dataset, split, source.Audio, source.Profile}, []artifact.ID{output.Descriptor.ID}, "",
-			spec.CodeCommit, environment.ID, 1, []runrecord.PhaseMetric{{Phase: runrecord.PhaseGenerate, DurationNS: 1}})
-		testcheck.NoError(t, err)
-		runContent, err := run.Content()
-		testcheck.NoError(t, err)
-		batch, err := artifact.NewDocumentBatch("fixture/audio-output", []artifact.Content{output, runContent}, run.Lineage(), nil)
-		testcheck.NoError(t, err)
+		}))(t)
+		plan := testcheck.Must(evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: projection.ID, CodeCommit: spec.CodeCommit,
+			Environment: environment.ID, Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident}}))(t)
+		output := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema), recipecontract.Transcription{Source: source, Text: "hello"}))(t)
+		run := testcheck.Must(runrecord.NewBoundRun(projection.ID, runrecord.OutcomeSucceeded, []artifact.ID{dataset, split, source.Audio, source.Profile}, []artifact.ID{output.Descriptor.ID}, "",
+			spec.CodeCommit, environment.ID, 1, []runrecord.PhaseMetric{{Phase: runrecord.PhaseGenerate, DurationNS: 1}}))(t)
+		runContent := testcheck.Must(run.Content())(t)
+		batch := testcheck.Must(artifact.NewDocumentBatch("fixture/audio-output", []artifact.Content{output, runContent}, run.Lineage(), nil))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 			t.Fatal(err)
 		}
-		report, err := evaluation.EvaluateTranscription(t.Context(), store, compiled, plan, []evaluation.TranscriptionPrediction{{Name: "one", Run: run.ID}})
-		testcheck.NoError(t, err)
+		report := testcheck.Must(evaluation.EvaluateTranscription(t.Context(), store, compiled, plan, []evaluation.TranscriptionPrediction{{Name: "one", Run: run.ID}}))(t)
 		cell := modelValidationCell{Name: "quality/audio/native", Evidence: report.ID, Plan: plan.Identity(), ModelDefinition: definition, Recipe: projection.ID,
 			Environment: environment.ID, Dataset: dataset, Split: split, Cases: []string{"one"}, Bounds: []modelValidationBound{
 				{Metric: "wer", Unit: "ratio", Direction: runrecord.DirectionMinimize}, {Metric: "cer", Unit: "ratio", Direction: runrecord.DirectionMinimize},
@@ -228,8 +211,7 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 	})
 	resource := spec.Cells[0]
 	resource.Name = "resources/image/native"
-	value, err := evaluation.RequireEvaluationEvidence(t.Context(), store, resource.Evidence)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(evaluation.RequireEvaluationEvidence(t.Context(), store, resource.Evidence))(t)
 	if err := checkModelValidationCell(spec, resource, value); err == nil {
 		t.Fatal("unmeasured GPU peak accepted")
 	}

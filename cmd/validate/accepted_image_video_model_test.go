@@ -39,8 +39,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 			}
 			// Corrected outputs supersede earlier encoding errors, not inputs or judges.
 			value.Run, value.Outputs = binding.Run, []artifact.ID{binding.Output}
-			run, err := runrecord.RequireRun(t.Context(), store, binding.Run)
-			testcheck.NoError(t, err)
+			run := testcheck.Must(runrecord.RequireRun(t.Context(), store, binding.Run))(t)
 			testcheck.NoError(t, checkImageVideoCaseRun(value, run))
 			content, found, err := artifact.ReadContent(t.Context(), store, binding.Output)
 			if err != nil || !found {
@@ -51,8 +50,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 			observed.Artifact, observed.Delay = binding.Output, 0
 			if observed.FPS != 0 {
 				for frame := range observed.Frames {
-					delay, err := media.GIFFrameDelay(observed.FPS, frame)
-					testcheck.NoError(t, err)
+					delay := testcheck.Must(media.GIFFrameDelay(observed.FPS, frame))(t)
 					observed.Delay += delay
 				}
 			}

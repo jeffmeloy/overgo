@@ -17,13 +17,11 @@ import (
 // with the error every device stepper returns, and a finite gradient steps.
 func TestDeviceMuonStopsOnANonFiniteDirection(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const side, huge = 4, 1e30
 	elements := side * side
-	plan, err := CompilePlan(elements, []GroupSpec{{Name: "m", Start: 0, End: elements, Rows: side, Cols: side}})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompilePlan(elements, []GroupSpec{{Name: "m", Start: 0, End: elements, Rows: side, Cols: side}}))(t)
 	config := Config{BaseLearningRate: 0.1, Momentum: 0.9, Schedule: ScheduleConstant}
 	step := func(planted float32) error {
 		weights, gradients, momentum := make([]float32, elements), make([]float32, elements), make([]float32, elements)

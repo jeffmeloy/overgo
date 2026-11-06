@@ -28,15 +28,12 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/fractale/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
-	execution, err := modelrecipe.CompileCandidateExecution(ctx, store, program)
-	testcheck.NoError(t, err)
-	output, err := capability.Execute(
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
+	execution := testcheck.Must(modelrecipe.CompileCandidateExecution(ctx, store, program))(t)
+	output := testcheck.Must(capability.Execute(
 		ctx, store, modelPath, execution,
 		`{"text":"def fibonacci(n):","max_tokens":8}`,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	generation, ok := capabilityruntime.Unwrap(output).(thoughtbank.Generation)
 	if !ok {
 		t.Fatalf("generation type = %T", output)
@@ -45,11 +42,10 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	if generation.Text != reference || len(generation.Tokens) != 8 {
 		t.Fatalf("generation = %q/%v", generation.Text, generation.Tokens)
 	}
-	verification, err := modelintake.PublishVerification(
+	verification := testcheck.Must(modelintake.PublishVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
 		"host", "go", "real Fractale generation matched adaptive_new reference",
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err := modelrecipe.ActivateCapability(
 		ctx, store, definition, verification, recipe.EvidenceParity, "real checkpoint completion matched",
 	); err != nil {

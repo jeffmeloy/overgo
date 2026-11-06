@@ -27,12 +27,11 @@ func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/offline/parents", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	passthrough, err := NewComposedModel(ComposedModelDocument{
+	passthrough := testcheck.Must(NewComposedModel(ComposedModelDocument{
 		Architecture: "llama", Recipe: recipeID, Parents: []artifact.ID{base},
 		Operation: OfflineCompositionPassthrough, Compatibility: []artifact.ID{compatibility},
-	})
-	testcheck.NoError(t, err)
-	arithmetic, err := NewComposedModel(ComposedModelDocument{
+	}))(t)
+	arithmetic := testcheck.Must(NewComposedModel(ComposedModelDocument{
 		Architecture: "llama", Recipe: recipeID, Parents: []artifact.ID{base},
 		Components: []artifact.ID{first, second}, Operation: OfflineCompositionTaskArithmetic,
 		Compatibility: []artifact.ID{compatibility},
@@ -40,8 +39,7 @@ func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 			{Component: first, Numerator: int64(tensor.SingletonExtent), Denominator: uint64(tensor.SingletonExtent)},
 			{Component: second, Numerator: -int64(tensor.SingletonExtent), Denominator: uint64(tensor.PairedExtent)},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for key, document := range map[string]ComposedModelDocument{
 		"fixture/offline/passthrough": passthrough,
 		"fixture/offline/arithmetic":  arithmetic,

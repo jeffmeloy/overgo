@@ -26,8 +26,7 @@ func TestChecksRunTheLongSequences(t *testing.T) {
 	if tags := slices.Index(arguments, "-tags"); tags < 0 || tags+1 >= len(arguments) || arguments[tags+1] != landing.CycleTags {
 		t.Fatalf("the lane runs %v, want it under the cycle's tags %s", arguments, landing.CycleTags)
 	}
-	source, err := os.ReadFile(filepath.Join("..", "..", "internal", "overgodb", "long_sequences_test.go"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "internal", "overgodb", "long_sequences_test.go")))(t)
 	if !strings.Contains(string(source), "//go:build integration") || !strings.Contains(string(source), "func TestLongStoreLifecycles(") {
 		t.Fatal("the store's long lifecycles are not a test the cycle's tags alone compile")
 	}

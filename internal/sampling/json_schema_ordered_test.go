@@ -11,10 +11,8 @@ func TestOrderedJSONPreservesSchemaPropertyAndConstantOrder(t *testing.T) {
 		`{"properties":{"z":{"const":{"b":1,"a":2}},"a":{"type":"string"}},` +
 			`"required":["z"]}`,
 	)
-	value, err := parseOrderedJSON(source)
-	testcheck.NoError(t, err)
-	encoded, err := marshalOrderedJSON(value)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(parseOrderedJSON(source))(t)
+	encoded := testcheck.Must(marshalOrderedJSON(value))(t)
 	if encoded != string(source) {
 		t.Fatalf("round trip = %s, want %s", encoded, source)
 	}
@@ -52,8 +50,7 @@ func TestOrderedJSONRejectsDuplicateKeysTrailingDataAndExcessDepth(t *testing.T)
 
 func TestOrderedJSONAcceptsUTF8BOM(t *testing.T) {
 	input := append([]byte{0xef, 0xbb, 0xbf}, []byte(`{"type":"boolean"}`)...)
-	value, err := parseOrderedJSON(input)
-	testcheck.NoError(t, err)
+	value := testcheck.Must(parseOrderedJSON(input))(t)
 	if _, ok := value.(orderedJSONObject); !ok {
 		t.Fatalf("value type = %T", value)
 	}

@@ -94,8 +94,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 		forged := fixture.proposal
 		forged.ID = artifact.ID{}
 		forged.Citations = append(slices.Clone(forged.Citations), extra.Descriptor.ID)
-		forged, err := episodeKnowledgeProposalCodec.New(forged)
-		testcheck.NoError(t, err)
+		forged = testcheck.Must(episodeKnowledgeProposalCodec.New(forged))(t)
 		publishKnowledgeDocument(t, fixture.store, "knowledge/forged-proposal", forged)
 		if _, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			forged.ID, fixture.baseline.ID, fixture.trial.ID); err == nil ||
@@ -151,9 +150,8 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 	t.Run("added lineage", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixture(t)
 		defer fixture.store.Close()
-		promotion, err := publishEpisodeKnowledgePromotion(t.Context(), fixture.store,
-			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
-		testcheck.NoError(t, err)
+		promotion := testcheck.Must(publishEpisodeKnowledgePromotion(t.Context(), fixture.store,
+			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID))(t)
 		extra := testutil.ArtifactID(t, artifact.KindEvidence, "knowledge-extra-promotion-parent")
 		if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 			Key:       "knowledge/promotion-extra-lineage",
@@ -440,24 +438,21 @@ func publishKnowledgeConsumedRetrieval(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	documents, err := dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents)
-	testcheck.NoError(t, err)
+	documents = testcheck.Must(dataset.PublishAgentRetrievalSource(t.Context(), store, artifact.KindFile, documents))(t)
 	embedder := evaluationEmbedder{model: modelID}
 	reranker := evaluationReranker{policy: rerankID, scores: scores}
 	builder := dataset.AgentRetrievalBuilder{Repository: store}
-	projection, err := builder.Build(t.Context(), dataset.AgentRetrievalBuild{
+	projection := testcheck.Must(builder.Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: documents,
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: 128, CandidateLimit: uint64(len(texts))},
 		Embedder: embedder, RerankPolicy: rerankID,
-	})
-	testcheck.NoError(t, err)
-	consumed, err := runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, dataset.AgentRetrievalQuery{
+	}))(t)
+	consumed := testcheck.Must(runrecord.SearchAndPublishConsumedRetrieval(t.Context(), store, dataset.AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1, AllowedDatasets: []artifact.ID{datasetID},
 		Embedder: embedder, Reranker: reranker,
 	}, runrecord.RetrievalConsumer{
 		Recipe: recipeID, Model: modelID, Operation: operationID, TaskContract: taskID, Strategy: strategyID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return consumedRetrievalFixture{receipt: consumed.Receipt, search: consumed.Search}
 }
 
@@ -468,11 +463,10 @@ func knowledgeDecision(
 	evidence ...artifact.ID,
 ) recipe.Decision {
 	t.Helper()
-	value, err := recipe.NewDecision(
+	value := testcheck.Must(recipe.NewDecision(
 		subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
 		recipe.Decider{CodeCommit: strings.Repeat("b", 40), Derivation: evaluator}, evidence,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return value
 }
 
@@ -481,13 +475,11 @@ func knowledgeTypedDocument(t *testing.T, kind artifact.Kind, label string) arti
 	body := struct {
 		Label string `json:"label"`
 	}{Label: label}
-	id, err := artifact.JSONID(kind, body)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.JSONID(kind, body))(t)
 	contract := artifact.DocumentContract{
 		Kind: kind, MediaType: "application/vnd.overgo.test-knowledge+json", Schema: "overgo/test-knowledge/v1",
 	}
-	content, err := contract.ContentJSON(id, body)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentJSON(id, body))(t)
 	return content
 }
 
@@ -498,8 +490,7 @@ type knowledgeDocument interface {
 
 func publishKnowledgeDocument(t *testing.T, store *overgodb.Store, key string, value knowledgeDocument) {
 	t.Helper()
-	content, err := value.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(value.Content())(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: key, Contents: []artifact.Content{content}, Lineage: value.Lineage(),
 	}); err != nil {

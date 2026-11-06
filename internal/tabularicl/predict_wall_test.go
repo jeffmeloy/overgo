@@ -23,8 +23,7 @@ func TestPredictWall(t *testing.T) {
 	golden := readGolden(t)
 	for _, task := range Tasks() {
 		loadStart := time.Now()
-		head, err := LoadHead(headDir(t, task))
-		testcheck.NoError(t, err)
+		head := testcheck.Must(LoadHead(headDir(t, task)))(t)
 		t.Logf("%s: load %.2fs", task, time.Since(loadStart).Seconds())
 		for _, c := range golden.Cases {
 			if c.Task != task {

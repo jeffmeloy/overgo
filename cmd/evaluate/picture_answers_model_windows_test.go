@@ -58,17 +58,14 @@ type pictureReference struct {
 func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/picture_answers/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's reference picture answers are on file: %v", err)
 	}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference pictureReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -86,8 +83,7 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 					t.Skipf("UNAVAILABLE: %s cannot be read: %v", path, err)
 				}
 			}
-			store, err := overgodb.OpenReadOnly(roots.Store)
-			testcheck.NoError(t, err)
+			store := testcheck.Must(overgodb.OpenReadOnly(roots.Store))(t)
 			modelID, _, err := modelcli.ResolveModel(t.Context(), store, model)
 			testcheck.NoError(t, err)
 			reserve, bind := modelcli.ModelReserve(t.Context())
@@ -96,20 +92,17 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 				t.Fatal(err, closeErr)
 			}
 			t.Cleanup(func() { _ = vision.Close() })
-			runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{})
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{}))(t)
 			t.Cleanup(func() { _ = runner.Close() })
 			bind(runner)
 			widest, same, tokens := 0.0, 0, 0
 			for _, own := range reference.Cases {
-				file, err := os.Open(filepath.Join(frames, own.Name))
-				testcheck.NoError(t, err)
+				file := testcheck.Must(os.Open(filepath.Join(frames, own.Name)))(t)
 				picture, _, err := image.Decode(file)
 				if closeErr := file.Close(); err != nil || closeErr != nil {
 					t.Fatal(err, closeErr)
 				}
-				built, err := vision.BuildImagePrompt(t.Context(), runner, picture, "", reference.Question, false)
-				testcheck.NoError(t, err)
+				built := testcheck.Must(vision.BuildImagePrompt(t.Context(), runner, picture, "", reference.Question, false))(t)
 				ids, projected, err := inference.CompileProjectedInputs(built, runner.Spec().EmbeddingLength)
 				testcheck.NoError(t, err)
 				if digest := promptDigest(ids); digest != own.IDsSHA256 {

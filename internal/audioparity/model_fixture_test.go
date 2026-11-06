@@ -12,13 +12,10 @@ import (
 
 func loadASRModel(t *testing.T, store *overgodb.Store, election Election) (string, *safetensors.Source) {
 	t.Helper()
-	modelRoot, err := artifact.AvailablePath(t.Context(), store, election.Model.ID, artifact.LocationDirectory)
-	testcheck.NoError(t, err)
-	weights, err := safetensors.OpenSource(modelRoot)
-	testcheck.NoError(t, err)
+	modelRoot := testcheck.Must(artifact.AvailablePath(t.Context(), store, election.Model.ID, artifact.LocationDirectory))(t)
+	weights := testcheck.Must(safetensors.OpenSource(modelRoot))(t)
 	t.Cleanup(func() { _ = weights.Close() })
-	digests, err := weights.ShardDigests()
-	testcheck.NoError(t, err)
+	digests := testcheck.Must(weights.ShardDigests())(t)
 	weightCount := 0
 	for _, file := range election.Files {
 		if file.Role == "weights" {

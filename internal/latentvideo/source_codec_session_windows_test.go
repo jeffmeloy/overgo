@@ -27,8 +27,7 @@ const sourceCodecTolerance = 1e-5
 func TestLiveEditSourceCodec(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(repo))(t)
 	checkpoint := filepath.Join(roots.ResolveModelPath("Wan2.1-T2V-1.3B"), "Wan2.1_VAE.pth")
 	if _, err := os.Stat(checkpoint); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan source codec: %v", err)
@@ -37,19 +36,15 @@ func TestLiveEditSourceCodec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Wan source codec: %v", err)
 	}
-	graph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
+	graph := testcheck.Must(CompileVAEEncoderPlan(catalog.Tensors))(t)
 	stats := loadSourceCodecStats(t)
 	profile := SourceCodecProfile{InputChannels: graph.InputChannels, LatentChannels: graph.LatentChannels, Stride: graph.Stride, LatentStats: stats}
-	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32}))(t)
 	source := loadRealSourceCrops(t, plan.Source)
 	hostStarted := time.Now()
-	want, err := EncodeSourceVideo(checkpoint, graph, plan, source)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(EncodeSourceVideo(checkpoint, graph, plan, source))(t)
 	hostWall := time.Since(hostStarted)
-	session, err := newVAEEncoderCUDASession(checkpoint, graph, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(newVAEEncoderCUDASession(checkpoint, graph, 0))(t)
 	defer session.Close()
 	got, evidence, err := session.Encode(t.Context(), plan, source)
 	testcheck.NoError(t, err)
@@ -71,8 +66,7 @@ func TestLiveEditSourceCodec(t *testing.T) {
 
 func loadSourceCodecStats(t testing.TB) VAELatentStats {
 	t.Helper()
-	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g0_config.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(testutil.FixturePath(t, "wan", "g0_config.json")))(t)
 	var fixture struct {
 		Stats struct {
 			Mean []float32 `json:"mean"`

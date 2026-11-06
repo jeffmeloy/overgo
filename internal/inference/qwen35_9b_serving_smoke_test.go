@@ -73,10 +73,9 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 	path := qwen35_9BServingPath(t)
 
 	loadStart := time.Now()
-	runner, err := openNativeFixtureRunner(path, OpenOptions{
+	runner := testcheck.Must(openNativeFixtureRunner(path, OpenOptions{
 		DeviceOrdinal: 0,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer runner.Close()
 	loadElapsed := time.Since(loadStart)
 
@@ -97,8 +96,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 
 	ctx := t.Context()
 	newGreedy := func() *sampling.Sampler {
-		s, err := sampling.New(sampling.Config{})
-		testcheck.NoError(t, err)
+		s := testcheck.Must(sampling.New(sampling.Config{}))(t)
 		if !s.IsRawGreedy() {
 			t.Fatal("default sampler is not raw greedy")
 		}
@@ -112,8 +110,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 			Sampler:      newGreedy(),
 		})
 		testcheck.NoError(t, err)
-		promptIDs, err = runner.promptTokenIDs(prompt, GenerateOptions{})
-		testcheck.NoError(t, err)
+		promptIDs = testcheck.Must(runner.promptTokenIDs(prompt, GenerateOptions{}))(t)
 		return promptIDs, ids[len(promptIDs):], text
 	}
 
@@ -198,8 +195,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 			DecodeMode:  "greedy (temp 0), 8 new tokens per case, ID-level",
 			Cases:       cases,
 		}
-		blob, err := json.MarshalIndent(fixture, "", " ")
-		testcheck.NoError(t, err)
+		blob := testcheck.Must(json.MarshalIndent(fixture, "", " "))(t)
 		blob = append(blob, '\n')
 		testcheck.NoError(t, os.WriteFile(fixturePath, blob, 0o644))
 		t.Logf("wrote serving-smoke fixture %s", fixturePath)

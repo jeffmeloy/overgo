@@ -19,21 +19,16 @@ import (
 
 func TestMADNormDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const rows, width = 7, 8
 	const epsilon = 1e-8
 	rng := rand.New(rand.NewSource(7))
 	input, incoming := randSlice(rng, rows*width), randSlice(rng, rows*width)
-	wantForward, err := hostmath.MADNorm(input, rows, width, epsilon)
-	testcheck.NoError(t, err)
-	wantBackward, err := hostmath.MADNormBackward(incoming, input, rows, width, epsilon)
-	testcheck.NoError(t, err)
-	gotForward, err := MADNormForward(worker, input, rows, width, epsilon)
-	testcheck.NoError(t, err)
-	gotBackward, err := MADNormBackward(worker, incoming, input, rows, width, epsilon)
-	testcheck.NoError(t, err)
+	wantForward := testcheck.Must(hostmath.MADNorm(input, rows, width, epsilon))(t)
+	wantBackward := testcheck.Must(hostmath.MADNormBackward(incoming, input, rows, width, epsilon))(t)
+	gotForward := testcheck.Must(MADNormForward(worker, input, rows, width, epsilon))(t)
+	gotBackward := testcheck.Must(MADNormBackward(worker, incoming, input, rows, width, epsilon))(t)
 	forwardDelta, backwardDelta := 0.0, 0.0
 	for index := range input {
 		forwardDelta = max(forwardDelta, math.Abs(float64(gotForward[index]-wantForward[index])))
@@ -47,22 +42,18 @@ func TestMADNormDeviceMatchesHost(t *testing.T) {
 
 func TestMADNormBackwardResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const rows, width = 9, 12
 	const epsilon = 1e-8
 	rng := rand.New(rand.NewSource(29))
 	input, incoming := randSlice(rng, rows*width), randSlice(rng, rows*width)
-	output, err := MADNormForward(worker, input, rows, width, epsilon)
-	testcheck.NoError(t, err)
-	want, err := MADNormBackward(worker, incoming, input, rows, width, epsilon)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(MADNormForward(worker, input, rows, width, epsilon))(t)
+	want := testcheck.Must(MADNormBackward(worker, incoming, input, rows, width, epsilon))(t)
 	var pointers []driver.DevicePtr
 	allocate := func(initial []float32) driver.DevicePtr {
 		t.Helper()
-		pointer, err := AllocResidentF32(worker, len(input), initial)
-		testcheck.NoError(t, err)
+		pointer := testcheck.Must(AllocResidentF32(worker, len(input), initial))(t)
 		pointers = append(pointers, pointer)
 		return pointer
 	}

@@ -49,8 +49,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 	}
 	for _, steps := range []int{1, 2, 50, 1001} {
 		t.Run(fmt.Sprint(steps), func(t *testing.T) {
-			schedule, err := compileNearestGridFlowSchedule(t.Context(), steps, 1000, 5, 1)
-			testcheck.NoError(t, err)
+			schedule := testcheck.Must(compileNearestGridFlowSchedule(t.Context(), steps, 1000, 5, 1))(t)
 			for suffix, values := range map[string][]float64{"sigmas": schedule.Sigmas, "timesteps": schedule.Timesteps} {
 				name := fmt.Sprintf("schedule.%d.%s", steps, suffix)
 				expected := mossF32(t, source, name)

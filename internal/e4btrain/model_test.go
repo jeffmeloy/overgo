@@ -78,8 +78,7 @@ func tinyModel(t *testing.T, seed int64) *Model {
 	for index := range ids {
 		ids[index] = rng.Intn(tinyVocab)
 	}
-	m, err := newModel(shape, head, perLayerRows, ids)
-	testcheck.NoError(t, err)
+	m := testcheck.Must(newModel(shape, head, perLayerRows, ids))(t)
 	for _, group := range m.plan.Groups() {
 		values := m.weights[group.Start:group.End]
 		if group.Rows == 1 {

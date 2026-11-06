@@ -25,12 +25,10 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 	ctx := t.Context()
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "server-decision-operation")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "server-decision-recipe")
-	request, err := operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{
+	request := testcheck.Must(operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{
 		Code: "rollback", Argv: []string{"--target", "prior"},
-	}, artifact.ID{})
-	testcheck.NoError(t, err)
-	requestContent, err := request.Content()
-	testcheck.NoError(t, err)
+	}, artifact.ID{}))(t)
+	requestContent := testcheck.Must(request.Content())(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "operator/approval/" + request.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: operationID}, {ID: recipeID}},
@@ -44,8 +42,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	response := serveTestRequest(handler, http.MethodGet, "/operations/decisions", "")
@@ -62,8 +59,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		t.Fatalf("pending-decision view = %+v", view)
 	}
 
-	decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerDecline)
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(runrecord.NewHumanDecision(request, operatoraction.AnswerDecline))(t)
 	testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, decision))
 	response = serveTestRequest(handler, http.MethodGet, "/operations/decisions", "")
 	if response.Code != http.StatusOK {

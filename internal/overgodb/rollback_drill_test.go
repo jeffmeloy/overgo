@@ -21,8 +21,7 @@ import (
 func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 
 	modelContent := func(payload string) artifact.Content {
@@ -55,12 +54,11 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 		CodeCommit: "0123456789abcdef0123456789abcdef01234567",
 		Derivation: testutil.ArtifactID(t, artifact.KindEvidence, "promotion-authority"),
 	}
-	promotion, err := recipe.NewDecision(
+	promotion := testcheck.Must(recipe.NewDecision(
 		challenger.Descriptor.ID, recipe.DecisionAccepted, recipe.EvidenceProduction,
 		"challenger promoted over champion", decider,
 		[]artifact.ID{champion.Descriptor.ID},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if promotion.Decider != decider {
 		t.Fatal("promotion decision lost its decider identity")
 	}
@@ -101,14 +99,12 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 
 	// The drill: reverse the promotion with a decision carrying the decider
 	// identity, compare-and-set the alias back, and prove restoration.
-	rollback, err := recipe.NewDecision(
+	rollback := testcheck.Must(recipe.NewDecision(
 		champion.Descriptor.ID, recipe.DecisionAccepted, recipe.EvidenceProduction,
 		"rollback drill restores the prior champion", decider,
 		[]artifact.ID{promotion.ID},
-	)
-	testcheck.NoError(t, err)
-	rollbackContent, err := rollback.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	rollbackContent := testcheck.Must(rollback.Content())(t)
 	promoted := challenger.Descriptor.ID
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "drill/rollback",

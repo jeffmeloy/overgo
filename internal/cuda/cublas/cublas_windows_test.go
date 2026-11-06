@@ -36,8 +36,7 @@ type fixtureMemory struct {
 func newBLASFixture(t *testing.T) *blasFixture {
 	t.Helper()
 	cudatest.Require(t)
-	worker, err := device.New(fixtureDevice)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(fixtureDevice))(t)
 	t.Cleanup(func() {
 		if err := worker.Close(); err != nil {
 			t.Errorf("close CUDA worker: %v", err)
@@ -365,8 +364,7 @@ func TestCUBLASIsAskedForRepeatableResults(t *testing.T) {
 	if os.Getenv("CUBLAS_WORKSPACE_CONFIG") == "" {
 		t.Fatal("the workspace is not set when the package has started")
 	}
-	record, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "repeatable-steps.txt"))
-	testcheck.NoError(t, err)
+	record := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "repeatable-steps.txt")))(t)
 	if !strings.Contains(string(record), "CUBLAS_WORKSPACE_CONFIG="+workspaceConfig) {
 		t.Fatalf("the record measured no workspace of %s", workspaceConfig)
 	}

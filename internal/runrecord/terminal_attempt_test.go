@@ -33,13 +33,11 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		t, ctx, store, implementation, schema, "terminal-attempt/1", "terminal/fixture/capability",
 	)
 
-	observation, err := PublishFailureObservation(ctx, store, FailureObservation{
+	observation := testcheck.Must(PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "test-lane", Message: "dial tcp 127.0.0.1:9: connection refused",
 		ExitCode: 1, ObservedUnixNS: failureFixtureObservedNS,
-	})
-	testcheck.NoError(t, err)
-	normalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation))
-	testcheck.NoError(t, err)
+	}))(t)
+	normalization := testcheck.Must(PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation)))(t)
 	disposition := executionfailure.Decide(executionfailure.Situation{
 		Cause: normalization.Cause, Attempts: 1, MaxAttempts: 3,
 	})
@@ -47,7 +45,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		ExitCode: 1, TreeTerminated: true, StdoutBytes: 11, StderrBytes: 42, WallNS: 5_000_000,
 	}
 
-	first, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
+	first := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
 		Operation: operation, Capability: capability.ID, Outcome: OutcomeFailed,
 		FailureObservation:   observation.ID,
 		FailureNormalization: normalization.ID,
@@ -57,18 +55,16 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		Transcript:           transcript,
 		Gaps:                 []string{GapToolOutput},
 		ObservedUnixNS:       failureFixtureObservedNS,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 
 	// The retry closes as a second attempt chained to the first, with
 	// only its outcome measured: every other facet is an explicit gap.
-	second, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
+	second := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
 		Operation: operation, Capability: capability.ID, Attempt: 1, Outcome: OutcomeSucceeded,
 		Previous:       first.ID,
 		Gaps:           []string{GapProcessTermination, GapResources, GapToolOutput, GapTranscript},
 		ObservedUnixNS: failureFixtureObservedNS + 1,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 
 	// The receipt alone reaches everything evaluation and recovery read.
 	resolved, found, err := ResolveTerminalAttemptReceipt(ctx, store, operation, 0)
@@ -175,27 +171,21 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 		t, ctx, store, implementation, schema, "terminal-reference/1", "terminal/reference/capability",
 	)
 
-	observation, err := PublishFailureObservation(ctx, store, FailureObservation{
+	observation := testcheck.Must(PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "connection refused", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS,
-	})
-	testcheck.NoError(t, err)
-	foreignObservation, err := PublishFailureObservation(ctx, store, FailureObservation{
+	}))(t)
+	foreignObservation := testcheck.Must(PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "deadline exceeded", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS + 1,
-	})
-	testcheck.NoError(t, err)
-	normalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation))
-	testcheck.NoError(t, err)
-	foreignNormalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(foreignObservation))
-	testcheck.NoError(t, err)
-	runBoundObservation, err := PublishFailureObservation(ctx, store, FailureObservation{
+	}))(t)
+	normalization := testcheck.Must(PublishFailureNormalization(ctx, store, NormalizeFailureObservation(observation)))(t)
+	foreignNormalization := testcheck.Must(PublishFailureNormalization(ctx, store, NormalizeFailureObservation(foreignObservation)))(t)
+	runBoundObservation := testcheck.Must(PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "connection refused", ExitCode: 1,
 		ObservedUnixNS: failureFixtureObservedNS + 2, Run: foreignRun,
-	})
-	testcheck.NoError(t, err)
-	runBoundNormalization, err := PublishFailureNormalization(ctx, store, NormalizeFailureObservation(runBoundObservation))
-	testcheck.NoError(t, err)
+	}))(t)
+	runBoundNormalization := testcheck.Must(PublishFailureNormalization(ctx, store, NormalizeFailureObservation(runBoundObservation)))(t)
 	if _, err := PublishFailureObservation(ctx, store, FailureObservation{
 		Source: "reference-test", Message: "connection refused",
 		ObservedUnixNS: failureFixtureObservedNS + 3, Run: operations["run-bound-observation"],
@@ -206,13 +196,12 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 	// A historical classifier may legitimately have reached a different
 	// classification. The receipt closes over that stored version instead of
 	// silently reclassifying it with today's rules.
-	historicalNormalization, err := PublishFailureNormalization(ctx, store, FailureNormalization{
+	historicalNormalization := testcheck.Must(PublishFailureNormalization(ctx, store, FailureNormalization{
 		Observation:       observation.ID,
 		ClassifierVersion: executionfailure.ClassifierVersion + 1,
 		Cause:             executionfailure.CauseTimeout,
 		Rule:              "historical-timeout",
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if historicalNormalization.Cause == NormalizeFailureObservation(observation).Cause {
 		t.Fatal("historical fixture does not differ from the current classifier")
 	}
@@ -404,10 +393,9 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 		}
 	}
 
-	validPrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
+	validPrior := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["valid"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS,
-	))
-	testcheck.NoError(t, err)
+	)))(t)
 	recovered, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["valid"], 1, OutcomeRecovered, validPrior.ID, failureFixtureObservedNS+1,
 	))
@@ -430,10 +418,9 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 		t.Fatal("recovered receipt with a missing prior receipt was accepted")
 	}
 
-	sourcePrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
+	sourcePrior := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["source"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+4,
-	))
-	testcheck.NoError(t, err)
+	)))(t)
 	if _, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["foreign"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+5,
 	)); err != nil {
@@ -446,14 +433,12 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 		t.Fatal("recovered receipt with a foreign operation's prior was accepted")
 	}
 
-	ordinalZero, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
+	ordinalZero := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["ordinal"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+7,
-	))
-	testcheck.NoError(t, err)
-	ordinalOne, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
+	)))(t)
+	ordinalOne := testcheck.Must(PublishTerminalAttemptReceipt(ctx, store, receipt(
 		operations["ordinal"], 1, OutcomeSucceeded, ordinalZero.ID, failureFixtureObservedNS+8,
-	))
-	testcheck.NoError(t, err)
+	)))(t)
 	if ordinalOne.ID == ordinalZero.ID {
 		t.Fatal("ordinal fixture collapsed distinct receipts")
 	}
@@ -474,10 +459,8 @@ func commitTerminalTestReceiptDirect(
 ) TerminalAttemptReceipt {
 	t.Helper()
 	value.Version = artifact.InitialDocumentVersion
-	identified, err := terminalAttemptCodec.New(value)
-	testcheck.NoError(t, err)
-	batch, err := terminalAttemptCodec.Batch(key, identified, nil, nil)
-	testcheck.NoError(t, err)
+	identified := testcheck.Must(terminalAttemptCodec.New(value))(t)
+	batch := testcheck.Must(terminalAttemptCodec.Batch(key, identified, nil, nil))(t)
 	if _, err := repository.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -492,19 +475,16 @@ func publishTerminalTestCapability(
 	protocol, key string,
 ) CapabilityIdentity {
 	t.Helper()
-	capability, err := (CapabilityIdentity{
+	capability := testcheck.Must((CapabilityIdentity{
 		Implementation: implementation, Release: "1.0.0",
 		Transport: CapabilityTransport{Kind: CapabilityTransportBuiltin, Protocol: protocol},
 		Schema:    schema, Platform: CapabilityPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		Resources: CapabilityResourceEnvelope{
 			MaxInputBytes: 4096, MaxOutputBytes: 4096, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 4096,
 		},
-	}).Identify()
-	testcheck.NoError(t, err)
-	content, err := capability.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, capability.Lineage(), nil)
-	testcheck.NoError(t, err)
+	}).Identify())(t)
+	content := testcheck.Must(capability.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch(key, []artifact.Content{content}, capability.Lineage(), nil))(t)
 	if _, err := repository.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

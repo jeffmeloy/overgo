@@ -55,8 +55,7 @@ func TestADraftVerdictIsRecordedPerModelBuildAndCard(t *testing.T) {
 	first := draftVerdict{Model: model, Execution: "build-a", Device: "GPU-1", Refused: true}
 	second := draftVerdict{Model: model, Execution: "build-a", Device: "GPU-2", Refused: false}
 	read := func() draftVerdicts {
-		store, err := overgodb.OpenReadOnly(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(repository))(t)
 		defer store.Close()
 		return readDraftVerdicts(ctx, store)
 	}

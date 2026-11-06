@@ -22,10 +22,8 @@ const (
 // TestResidentMatrixLayout verifies exact resident partitioning.
 func TestResidentMatrixLayout(t *testing.T) {
 	cfg := smallHybrid()
-	m, err := BuildModel(cfg, testSeed)
-	testcheck.NoError(t, err)
-	plans, err := m.matrixPlans()
-	testcheck.NoError(t, err)
+	m := testcheck.Must(BuildModel(cfg, testSeed))(t)
+	plans := testcheck.Must(m.matrixPlans())(t)
 	if len(plans) != len(cfg.Types) {
 		t.Fatalf("plans=%d, want %d layers", len(plans), len(cfg.Types))
 	}
@@ -67,18 +65,15 @@ func TestResidentMatrixLayout(t *testing.T) {
 // and holds the checkpoint it ends at to reloading: every trainable group's
 // saved weights read back bit-exact beside momentum covering them all.
 func TestHybridCompiledHostLifecycle(t *testing.T) {
-	model, err := BuildModel(smallHybrid(), testSeed)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(BuildModel(smallHybrid(), testSeed))(t)
 	var state optimizer.State
-	trajectory, err := model.TrainHost(testSteps, optimizer.Config{
+	trajectory := testcheck.Must(model.TrainHost(testSteps, optimizer.Config{
 		BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant,
-	}, TrainingOptions{Checkpoint: func(snapshot optimizer.State) error { state = snapshot; return nil }})
-	testcheck.NoError(t, err)
+	}, TrainingOptions{Checkpoint: func(snapshot optimizer.State) error { state = snapshot; return nil }}))(t)
 	testutil.RequireFiniteDecrease(t, "hybrid host", trajectory, testSteps)
 	directory := t.TempDir()
 	testcheck.NoError(t, model.SaveWeights(filepath.Join(directory, "model.safetensors")))
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	defer source.Close()
 	groups := slices.Concat(model.matPlan.Groups(), model.vecPlan.Groups())
 	if len(source.Tensors) != len(groups) || len(state.Momentum) != len(model.matW)+len(model.vecW) || state.Step != testSteps {

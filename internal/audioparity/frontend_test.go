@@ -77,21 +77,17 @@ func TestFrontendIntermediateParity(t *testing.T) {
 			Tensors        map[string]frontendTensor `json:"tensors"`
 		} `json:"cases"`
 	}
-	encoded, err := os.ReadFile("testdata/frontend_boundaries.json")
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile("testdata/frontend_boundaries.json"))(t)
 	testcheck.NoError(t, json.Unmarshal(encoded, &fixture))
-	encoded, err = os.ReadFile("testdata/granite_speech_5_election.json")
-	testcheck.NoError(t, err)
-	election, err := NormalizeElection(encoded)
-	testcheck.NoError(t, err)
+	encoded = testcheck.Must(os.ReadFile("testdata/granite_speech_5_election.json"))(t)
+	election := testcheck.Must(NormalizeElection(encoded))(t)
 	if fixture.Version != 1 || fixture.Election != election.ID || fixture.Source != election.ModelSource || !reflect.DeepEqual(fixture.Dataset, election.Dataset) ||
 		fixture.Fixture != election.Observations[0].Fixture || fixture.EncodedSHA256 != election.Observations[0].Audio.DigestHex() ||
 		fixture.Runtime.Python != election.Runtime.Python || fixture.Runtime.Torch != election.Runtime.Torch ||
 		fixture.Runtime.Transformers != election.Runtime.Transformers || fixture.Runtime.Device != "cpu" || len(fixture.Runtime.Files) == 0 || len(fixture.Cases) == 0 {
 		t.Fatal("frontend capture does not bind the elected CPU oracle")
 	}
-	encoded, err = os.ReadFile("../audiodsp/testdata/power_logmel_frontend.json")
-	testcheck.NoError(t, err)
+	encoded = testcheck.Must(os.ReadFile("../audiodsp/testdata/power_logmel_frontend.json"))(t)
 	digest := sha256.Sum256(bytes.ReplaceAll(encoded, []byte("\r\n"), []byte("\n")))
 	if hex.EncodeToString(digest[:]) != fixture.ConfigSHA256 {
 		t.Fatal("frontend declaration hash differs")
@@ -99,8 +95,7 @@ func TestFrontendIntermediateParity(t *testing.T) {
 	var config audiodsp.FrontendConfig
 	testcheck.NoError(t, json.Unmarshal(encoded, &config))
 	t.Run("resample", func(t *testing.T) {
-		encoded, err := os.ReadFile(testutil.FixturePath(t, "pockettts", "g9_resample.json"))
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(os.ReadFile(testutil.FixturePath(t, "pockettts", "g9_resample.json")))(t)
 		digest := sha256.Sum256(bytes.ReplaceAll(encoded, []byte("\r\n"), []byte("\n")))
 		if hex.EncodeToString(digest[:]) != fixture.ResampleFixtureSHA256 {
 			t.Fatal("resampling oracle fixture changed")
@@ -128,23 +123,19 @@ func TestFrontendIntermediateParity(t *testing.T) {
 		// Absolute input-quantization propagation through the FIR plus output
 		// float32 rounding; no distributional accumulation assumption.
 		tolerance := float64(math.Nextafter32(1, 2)-1) * (maximum*tapSum + outputMaximum)
-		resampled, err := media.ResamplePoly(t.Context(), nil, input, golden.Up, golden.Down, golden.Taps)
-		testcheck.NoError(t, err)
+		resampled := testcheck.Must(media.ResamplePoly(t.Context(), nil, input, golden.Up, golden.Down, golden.Taps))(t)
 		testutil.RequireWithin(t, "resampled-waveform", resampled, golden.Y, tolerance)
 		declaration := config
 		declaration.SampleRate *= golden.Up
 		declaration.ResampleTaps = golden.Taps
-		plan, err := audiodsp.NewFrontend(declaration, uint64(math.MaxInt))
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(audiodsp.NewFrontend(declaration, uint64(math.MaxInt)))(t)
 		var workspace audiodsp.Workspace
 		for _, chunks := range [][][]float32{{input}, {input[:1], nil, input[1:]}} {
-			reconstructed, err := plan.Reconstruct(t.Context(), chunks, config.SampleRate*golden.Down, &workspace)
-			testcheck.NoError(t, err)
+			reconstructed := testcheck.Must(plan.Reconstruct(t.Context(), chunks, config.SampleRate*golden.Down, &workspace))(t)
 			testutil.RequireWithin(t, "resampled-STFT-roundtrip", reconstructed, golden.Y, tolerance)
 		}
 	})
-	plan, err := audiodsp.NewFrontend(config, uint64(math.MaxInt))
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(audiodsp.NewFrontend(config, uint64(math.MaxInt)))(t)
 	for _, probe := range fixture.Cases {
 		t.Run(probe.Name, func(t *testing.T) {
 			input := probe.Tensors["input"].values(t, probe.Tensors["input"].Shape[0])

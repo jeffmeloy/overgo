@@ -22,8 +22,7 @@ import (
 func TestResidentSessionReclaimsReleasedRecords(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
-	session, err := NewResidentSession(0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewResidentSession(0))(t)
 	defer func() {
 		if err := session.Close(ctx); err != nil {
 			t.Error(err)
@@ -36,15 +35,13 @@ func TestResidentSessionReclaimsReleasedRecords(t *testing.T) {
 	testcheck.NoError(t, builder.Err())
 	bind := func() *ResidentProgram {
 		t.Helper()
-		program, err := session.Compile(ctx, "records", nil, output)
-		testcheck.NoError(t, err)
+		program := testcheck.Must(session.Compile(ctx, "records", nil, output))(t)
 		testcheck.NoError(t, session.BindF32(ctx, program, "records", weight, []float32{1, 2}))
 		return program
 	}
 	check := func(program *ResidentProgram) {
 		t.Helper()
-		result, err := session.Execute(ctx, program, map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: []float32{10, 20}}})
-		testcheck.NoError(t, err)
+		result := testcheck.Must(session.Execute(ctx, program, map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: []float32{10, 20}}}))(t)
 		if want := []float32{11, 22}; !slices.Equal(result[output].Data, want) {
 			t.Fatal("output", result[output].Data, "want", want)
 		}
@@ -80,8 +77,7 @@ func TestCompiledFeedsUseIndexedInputs(t *testing.T) {
 	dynamic := builder.Input("dynamic", dtype.F32, tensor.MustShape(2))
 	static := builder.Input("static", dtype.F32, tensor.MustShape(2))
 	output := builder.Add(dynamic, static)
-	program, err := compileResidentProgram("resident test", []*tensor.Tensor{dynamic}, []*tensor.Tensor{output})
-	testcheck.NoError(t, err)
+	program := testcheck.Must(compileResidentProgram("resident test", []*tensor.Tensor{dynamic}, []*tensor.Tensor{output}))(t)
 	dynamicSlot, dynamicOK := program.Graph.InputSlot(dynamic)
 	staticSlot, staticOK := program.Graph.InputSlot(static)
 	if !dynamicOK || !staticOK || len(program.dynamic) != 1 || program.dynamic[0] != dynamicSlot {

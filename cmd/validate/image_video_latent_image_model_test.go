@@ -128,14 +128,12 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var bundle mediaLatentImageBundle
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_latent_images.json"), &bundle))
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_latent_images.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_latent_images.json")))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoLatentImagesSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || len(bundle.Numerical) != 5 || bundle.Scope == "" || len(bundle.Failed) != 3 {
 		t.Fatal("incomplete image bundle")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -147,8 +145,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	}
 	checkTest := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty image check")
@@ -180,14 +177,12 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 		t.Fatal("changed diffusion instrumentation")
 	}
 	for _, id := range bundle.Failed {
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		if len(report.Failed) == 0 {
 			t.Fatal("lost failed acquisition evidence")
 		}
 	}
-	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	testcheck.NoError(t, err)
+	quality := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json")))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol struct {
 		Cases []struct {
@@ -216,8 +211,7 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	}
 	for _, c := range bundle.Cases {
 		checkTest(c.Test)
-		run, err := runrecord.RequireExactRun(t.Context(), store, c.Run)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.RequireExactRun(t.Context(), store, c.Run))(t)
 		if _, err := runrecord.RequireEnvironment(t.Context(), store, run.Environment); err != nil {
 			t.Fatal(err)
 		}

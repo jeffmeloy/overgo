@@ -79,8 +79,7 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "model.gguf")
 	source, err := os.Open(original)
 	testcheck.NoError(t, err)
-	copied, err := os.Create(path)
-	testcheck.NoError(t, err)
+	copied := testcheck.Must(os.Create(path))(t)
 	_, copyErr := io.Copy(copied, source)
 	testcheck.NoError(t, errors.Join(copyErr, source.Close(), copied.Close()))
 
@@ -89,8 +88,7 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 		t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)
 	testcheck.NoError(t, err)
-	inventory, err := modelartifact.FromGGUFPath(path)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromGGUFPath(path))(t)
 	remembered := modelartifact.Claimer(func(candidate string) (artifact.ID, uint64, bool) {
 		for index, component := range inventory.Components {
 			if inventory.Locations[index].Value == candidate {
@@ -100,21 +98,16 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 		return artifact.ID{}, 0, false
 	})
 
-	verified, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, path)
-	testcheck.NoError(t, err)
+	verified := testcheck.Must(modelrecipe.ResolveActiveGGUF(t.Context(), store, path))(t)
 	want := residentDigests(t, verified)
-	claimed, err := modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered)
-	testcheck.NoError(t, err)
+	claimed := testcheck.Must(modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered))(t)
 	if got := residentDigests(t, claimed); !maps.Equal(got, want) {
 		t.Fatalf("the claimed load holds %d tensors that differ from the verified load's %d", len(got), len(want))
 	}
 
-	claimed, err = modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered)
-	testcheck.NoError(t, err)
-	file, err := os.OpenFile(path, os.O_RDWR, 0)
-	testcheck.NoError(t, err)
-	info, err := file.Stat()
-	testcheck.NoError(t, err)
+	claimed = testcheck.Must(modelrecipe.ResolveClaimedGGUF(t.Context(), store, path, remembered))(t)
+	file := testcheck.Must(os.OpenFile(path, os.O_RDWR, 0))(t)
+	info := testcheck.Must(file.Stat())(t)
 	last := make([]byte, 1)
 	if _, err := file.ReadAt(last, info.Size()-1); err != nil {
 		t.Fatal(err)

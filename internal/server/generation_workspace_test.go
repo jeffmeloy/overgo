@@ -80,8 +80,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 			},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	capabilities := serveTestRequest(handler, http.MethodGet, "/generation/capabilities", "")
 	if capabilities.Code != http.StatusOK || !strings.Contains(capabilities.Body.String(), `"type":"integer"`) {
@@ -128,15 +127,13 @@ func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
 			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	run := func() workflowResponse {
-		body, err := json.Marshal(workflowRequest{
+		body := testcheck.Must(json.Marshal(workflowRequest{
 			Task: recipe.TaskGeneration, Recipe: recipeID,
 			Input: json.RawMessage(`{"text":"run"}`),
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		response := serveTestRequest(handler, http.MethodPost, "/generation/run", string(body))
 		if response.Code != http.StatusAccepted {
 			t.Fatalf("recovery status=%d body=%s", response.Code, response.Body.String())

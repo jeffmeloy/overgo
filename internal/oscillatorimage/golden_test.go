@@ -29,8 +29,7 @@ const (
 // references beside the store, not inside the artifact directory.
 func referenceFixturePath(t *testing.T, name string) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	return filepath.Join(roots.References(), "fixtures", name)
 }
 
@@ -97,8 +96,7 @@ func artifactDir(t *testing.T) string {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": requires the Un-0 model artifact")
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	return roots.ResolveModelPath("Un-0")
 }
 

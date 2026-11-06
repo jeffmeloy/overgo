@@ -15,8 +15,7 @@ import (
 // The Unicode Consortium corpus was frozen before candidate implementation;
 // expectations come from its columns, never from our generated tables.
 func TestNFCUnicode16Conformance(t *testing.T) {
-	raw, err := os.ReadFile("testdata/NormalizationTest-16.0.0.txt")
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile("testdata/NormalizationTest-16.0.0.txt"))(t)
 	if got := fmt.Sprintf("%x", sha256.Sum256(raw)); got != "d811971453e7075e1ad56fb1b301eece5aa80757b81f6156e74a1bfb3ae5ceb1" {
 		t.Fatal("independent Unicode16 corpus identity changed", got)
 	}

@@ -17,8 +17,7 @@ import (
 // every result reports inspected, matched, returned, and loaded facts.
 func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	ctx := t.Context()
 	wide := make([]artifact.Descriptor, 0, 8)
@@ -58,16 +57,14 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 		{"seed", Query{Artifact: &narrowOne.ID}, QueryPlanReport{Index: "seed", Inspected: 1, Matched: 1, Returned: 1, Loaded: 1}},
 	} {
 		test.query.MaxResults, test.query.Projection = 10, ProjectArtifacts
-		result, err := store.Query(ctx, test.query)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(store.Query(ctx, test.query))(t)
 		if result.Plan != test.want {
 			t.Fatalf("%s plan = %+v, want %+v", test.name, result.Plan, test.want)
 		}
 	}
 
 	unowned := Query{MaxResults: 100, Projection: ProjectArtifacts}
-	scan, err := store.Query(ctx, unowned)
-	testcheck.NoError(t, err)
+	scan := testcheck.Must(store.Query(ctx, unowned))(t)
 	if scan.Plan.Index != "catalog" || scan.Plan.Inspected != 8 {
 		t.Fatalf("catalog plan = %+v", scan.Plan)
 	}
@@ -77,8 +74,7 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 		t.Fatalf("unowned contract was not refused: %v", err)
 	}
 
-	repeat, err := store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts})
-	testcheck.NoError(t, err)
+	repeat := testcheck.Must(store.Query(ctx, Query{MediaType: "application/narrow", MaxResults: 10, Projection: ProjectArtifacts}))(t)
 	if repeat.Plan != media {
 		t.Fatalf("equal contract and head produced unequal plans: %+v vs %+v", repeat.Plan, media)
 	}

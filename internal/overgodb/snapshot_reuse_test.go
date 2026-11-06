@@ -15,19 +15,15 @@ import (
 
 func TestSnapshotReuseAcceptance(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	payload := bytes.Repeat([]byte("snapshot-reuse"), 8192)
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-	testcheck.NoError(t, err)
-	first, err := store.Commit(t.Context(), artifact.Batch{Key: "snapshot/first", Contents: []artifact.Content{{
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, payload))(t)
+	first := testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "snapshot/first", Contents: []artifact.Content{{
 		Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream"}, Data: payload,
-	}}})
-	testcheck.NoError(t, err)
+	}}}))(t)
 	destination := filepath.Join(t.TempDir(), "backup")
-	cold, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	cold := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	if cold.Head != first || cold.FilesCopied == 0 || cold.BytesCopied < int64(len(payload)) || cold.FilesReused != 0 {
 		t.Fatalf("cold: %+v", cold)
 	}
@@ -36,8 +32,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 		testcheck.NoError(t, os.Rename(destination, destination+".partial"))
 	}
 	retire()
-	warm, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	warm := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	if warm.Head != first || warm.Extent != cold.Extent || warm.BytesCopied != 0 || warm.FilesCopied != 0 || warm.BytesReused != cold.BytesCopied || warm.FilesReused != cold.FilesCopied {
 		t.Fatalf("unchanged snapshot recopied: cold=%+v warm=%+v", cold, warm)
 	}
@@ -49,8 +44,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	testcheck.NoError(t, os.Remove(filepath.Join(destination+".partial", "backup-seal.json")))
 	orphan := filepath.Join(destination+".partial", blobDirectory, ".backup-interrupted")
 	testcheck.NoError(t, os.WriteFile(orphan, payload, storeFileMode))
-	unsealed, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	unsealed := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	if unsealed.FilesCopied != 0 || unsealed.FilesSynced != cold.FilesCopied {
 		t.Fatalf("unsealed bytes were trusted without sync: %+v", unsealed)
 	}
@@ -58,28 +52,23 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 		t.Fatalf("unverified scratch received a seal: %v", err)
 	}
 	retire()
-	second, err := store.Commit(t.Context(), artifact.Batch{Key: "snapshot/second", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "new-extent")}})
-	testcheck.NoError(t, err)
-	advanced, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "snapshot/second", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "new-extent")}}))(t)
+	advanced := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	if advanced.Head != second || advanced.Sequence != cold.Sequence+1 || advanced.Extent <= cold.Extent || advanced.BytesReused < int64(len(payload)) {
 		t.Fatalf("advanced: %+v", advanced)
 	}
 	retire()
 	// Same-size corruption must be replaced, never accepted from metadata.
-	candidate, err := newBlobStore(destination + ".partial").path(id)
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(newBlobStore(destination + ".partial").path(id))(t)
 	testcheck.NoError(t, os.WriteFile(candidate, bytes.Repeat([]byte("x"), len(payload)), storeFileMode))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(destination+".partial", storeFilename), []byte("torn"), storeFileMode))
-	repaired, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	repaired := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	if repaired.Head != second || repaired.BytesCopied != advanced.Extent+int64(len(payload)) {
 		t.Fatalf("repair: %+v", repaired)
 	}
 	testcheck.NoError(t, newBlobStore(destination).verify(t.Context(), id))
 	// Copies remain independent of source file mutations.
-	sourceBlob, err := store.blobs.path(id)
-	testcheck.NoError(t, err)
+	sourceBlob := testcheck.Must(store.blobs.path(id))(t)
 	testcheck.NoError(t, os.WriteFile(sourceBlob, bytes.Repeat([]byte("y"), len(payload)), storeFileMode))
 	if err := newBlobStore(destination).verify(t.Context(), id); err != nil {
 		t.Fatalf("snapshot shares source storage: %v", err)
@@ -101,15 +90,13 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 		if _, err := store.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		rotated, err := store.Backup(t.Context(), destination)
-		testcheck.NoError(t, err)
+		rotated := testcheck.Must(store.Backup(t.Context(), destination))(t)
 		if rotated.Head != second || rotated.BytesReused < int64(len(payload)) {
 			t.Fatalf("rotation: %+v", rotated)
 		}
 	})
 	t.Run("contention and cancellation", func(t *testing.T) {
-		lock, err := processlock.Acquire(writerLockPath(store.root), storeFileMode)
-		testcheck.NoError(t, err)
+		lock := testcheck.Must(processlock.Acquire(writerLockPath(store.root), storeFileMode))(t)
 		defer lock.Close()
 		ctx, cancel := context.WithCancelCause(t.Context())
 		defer cancel(nil)
@@ -149,18 +136,15 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 		if report.FilesCopied != 1 || report.FilesReused != 0 {
 			t.Fatalf("source hardlink reused: %+v", report)
 		}
-		copyInfo, err := os.Stat(path)
-		testcheck.NoError(t, err)
-		sourceInfo, err := os.Stat(sourceBlob)
-		testcheck.NoError(t, err)
+		copyInfo := testcheck.Must(os.Stat(path))(t)
+		sourceInfo := testcheck.Must(os.Stat(sourceBlob))(t)
 		if os.SameFile(copyInfo, sourceInfo) {
 			t.Fatal("copy still aliases source")
 		}
 	})
 	t.Run("source cannot be staging", func(t *testing.T) {
 		root := filepath.Join(t.TempDir(), "backup.partial")
-		source, err := Create(root)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(Create(root))(t)
 		defer source.Close()
 		if _, err := source.Commit(t.Context(), fixtureBatch(t)); err != nil {
 			t.Fatal(err)
@@ -172,15 +156,12 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	t.Run("segmented corpus cost", func(t *testing.T) {
 		root := t.TempDir()
 		copyScaleCorpus(t, root)
-		source, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(OpenReadOnly(root))(t)
 		defer source.Close()
 		target := filepath.Join(t.TempDir(), "scale")
-		cold, err := source.Backup(t.Context(), target)
-		testcheck.NoError(t, err)
+		cold := testcheck.Must(source.Backup(t.Context(), target))(t)
 		testcheck.NoError(t, os.Rename(target, target+".partial"))
-		warm, err := source.Backup(t.Context(), target)
-		testcheck.NoError(t, err)
+		warm := testcheck.Must(source.Backup(t.Context(), target))(t)
 		if warm.FilesCopied != 0 || warm.BytesCopied != 0 || warm.BytesReused != cold.BytesCopied {
 			t.Fatalf("scale reuse: cold=%+v warm=%+v", cold, warm)
 		}

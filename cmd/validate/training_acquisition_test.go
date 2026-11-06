@@ -36,8 +36,7 @@ func TestTrainingProofChild(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(out, 0o700))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(out, "owned"), []byte("child still owns this"), 0o600))
 	if address := os.Getenv("OVERGO_TEST_PROOF_CONTROL"); address != "" {
-		control, err := net.Dial("tcp", address)
-		testcheck.NoError(t, err)
+		control := testcheck.Must(net.Dial("tcp", address))(t)
 		defer control.Close()
 		if _, err := io.WriteString(control, out+"\n"); err != nil {
 			t.Fatal(err)
@@ -53,10 +52,8 @@ func TestTrainingProofChild(t *testing.T) {
 	testcheck.NoError(t, json.Unmarshal([]byte(os.Getenv("OVERGO_TEST_PROOF_PAIR")), &result))
 	if mode == "fresh" || mode == "missing-with-concurrent-proof" {
 		store := overgodbtest.Create(t, os.Getenv("OVERGO_TEST_PROOF_STORE"))
-		id, err := artifact.ParseID(os.Getenv("OVERGO_TEST_PROOF_RECIPE"))
-		testcheck.NoError(t, err)
-		result, err = modelrecipetest.PublishVerification(t.Context(), store, "fixture/child/fresh", id)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(os.Getenv("OVERGO_TEST_PROOF_RECIPE")))(t)
+		result = testcheck.Must(modelrecipetest.PublishVerification(t.Context(), store, "fixture/child/fresh", id))(t)
 		if mode == "missing-with-concurrent-proof" {
 			return
 		}
@@ -74,8 +71,7 @@ func TestTrainingProofChild(t *testing.T) {
 // a zero exit without evidence, and a reader opened before the child publishes.
 func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 	t.Parallel()
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	for _, mode := range []string{"missing", "stale", "wrong", "malformed", "missing-with-concurrent-proof", "fresh"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
@@ -91,8 +87,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 			}
 			pair, err := modelrecipetest.PublishVerification(t.Context(), writer, "fixture/old", id)
 			testcheck.NoError(t, err)
-			encoded, err := json.Marshal(pair)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(pair))(t)
 			reader := overgodbtest.OpenReadOnly(t, filepath.Join(root, "store"))
 			_, before := reader.Head()
 			err = acquireTraining(t.Context(), io.Discard, root, reader, ModelValidation{Recipe: selected}, executable,
@@ -127,10 +122,8 @@ func TestTrainingAcquisitionRetainsPrivateScratchUntilCompletion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	store := overgodbtest.Create(t, filepath.Join(root, "store"))
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
-	control, err := net.Listen("tcp", "127.0.0.1:0")
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
+	control := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 	defer control.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -144,11 +137,9 @@ func TestTrainingAcquisitionRetainsPrivateScratchUntilCompletion(t *testing.T) {
 			"OVERGO_TEST_PROOF_CHILD=missing", "OVERGO_TEST_PROOF_CONTROL="+control.Addr().String())
 		control.Close()
 	}()
-	connection, err := control.Accept()
-	testcheck.NoError(t, err)
+	connection := testcheck.Must(control.Accept())(t)
 	defer connection.Close()
-	path, err := bufio.NewReader(connection).ReadString('\n')
-	testcheck.NoError(t, err)
+	path := testcheck.Must(bufio.NewReader(connection).ReadString('\n'))(t)
 	path = strings.TrimSpace(path)
 	if err := acquireTraining(ctx, io.Discard, root, store, cell, executable, args, "OVERGO_TEST_PROOF_CHILD=missing"); err == nil {
 		t.Error("second missing-proof attempt credited")

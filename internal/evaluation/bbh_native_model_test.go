@@ -21,13 +21,11 @@ import (
 
 func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(text string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(text))(t)
 		return id
 	}
 	var oracle struct {
@@ -56,8 +54,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	if oracle.Cases != 5761 || len(oracle.Groups) != 24 || len(oracle.Controls) != 96 || len(oracle.Scoring) != 72 || oracle.Profile != fmt.Sprintf("%x", sha256.Sum256(bbhNativeProfileData)) {
 		t.Fatal("native BBH reference denominator or profile changed")
 	}
-	groups, err := compiledNativeBBH()
-	testcheck.NoError(t, err)
+	groups := testcheck.Must(compiledNativeBBH())(t)
 	if len(groups) != 24 {
 		t.Fatal("native BBH task declarations changed")
 	}
@@ -163,8 +160,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	}
 	legacy, _, err := assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", cases)
 	testcheck.NoError(t, err)
-	old, err := CompileGroupedChoice(legacy.(GroupedChoiceSuite))
-	testcheck.NoError(t, err)
+	old := testcheck.Must(CompileGroupedChoice(legacy.(GroupedChoiceSuite)))(t)
 	if old.choice.identity.String() != "profile:sha256:15e6dbe88da49d3bd37f49542e2d4743528f7400e40e07f8330adf62d505c356" {
 		t.Fatal("retained generated-letter case identity changed")
 	}
@@ -177,8 +173,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 			changedOptions++
 		}
 	}
-	native, err := CompileGroupedChoice(suite)
-	testcheck.NoError(t, err)
+	native := testcheck.Must(CompileGroupedChoice(suite))(t)
 	if native.choice.identity == old.choice.identity {
 		t.Fatal("native raw protocol reused the generated case identity")
 	}

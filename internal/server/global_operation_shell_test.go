@@ -67,12 +67,11 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-terminal-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-terminal-run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "global-shell-terminal-output")
-	id, err := handler.operations.Submit(t.Context(), operation.Request{
+	id := testcheck.Must(handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		return operation.Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if status, err := handler.operations.Wait(t.Context(), id); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("terminal operation=(%+v, %v)", status, err)
 	}

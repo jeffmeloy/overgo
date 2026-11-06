@@ -32,8 +32,7 @@ func TestInstalledStoreRecordIsWhole(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	read := func(name string) (lines map[string][]string, fields map[string]map[string]string) {
 		t.Helper()
-		raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", name)))(t)
 		lines, fields = map[string][]string{}, map[string]map[string]string{}
 		var part string
 		for line := range strings.Lines(string(raw)) {
@@ -106,8 +105,7 @@ func TestInstalledStoreRecordIsWhole(t *testing.T) {
 	var sum int64
 	for _, registered := range projections(new(catalogState)) {
 		found := first(lines, servicePart, `^projection `+regexp.QuoteMeta(registered.name)+` bytes (\d+) .* decode-microseconds (\d+) `)
-		size, err := strconv.ParseInt(found[1], 10, 64)
-		testcheck.NoError(t, err)
+		size := testcheck.Must(strconv.ParseInt(found[1], 10, 64))(t)
 		sum += size
 	}
 	if strconv.FormatInt(sum, 10) != generation[2] {

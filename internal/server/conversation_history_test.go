@@ -21,8 +21,7 @@ func conversationHistoryFixture(t testing.TB) (*Handler, string, string) {
 	h := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Stored answer"}}))
 	h.config.MaxStoredResponses = 2
 	respond := func(input, previous string) string {
-		body, err := json.Marshal(map[string]any{"input": input, "previous_response_id": previous, "max_output_tokens": 1})
-		testcheck.NoError(t, err)
+		body := testcheck.Must(json.Marshal(map[string]any{"input": input, "previous_response_id": previous, "max_output_tokens": 1}))(t)
 		response := serveTestRequest(h, http.MethodPost, "/v1/responses", string(body))
 		var result responsesResponse
 		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &result) != nil {
@@ -118,8 +117,7 @@ func TestConversationHistoryPaging(t *testing.T) {
 	}
 	for range 2 {
 		for _, archived := range []bool{true, false} {
-			body, err := json.Marshal(map[string]any{"root": root, "title": "Renamed", "archived": archived})
-			testcheck.NoError(t, err)
+			body := testcheck.Must(json.Marshal(map[string]any{"root": root, "title": "Renamed", "archived": archived}))(t)
 			if response := serveTestRequest(h, http.MethodPost, "/interactions/label", string(body)); response.Code != http.StatusOK {
 				t.Fatal(response.Body)
 			}

@@ -27,8 +27,7 @@ func TestThoughtBankRoutePublishesCheckpoint(t *testing.T) {
 	dataset := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(dataset, []byte("abcdabcd"), 0o600))
 	_, out := requireRoutePublishes(t, "thoughtbank", "-model", model, "-dataset", dataset, "-rows", "3")
-	weights, err := safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(safetensors.OpenFile(filepath.Join(out, trainingprogram.CheckpointWeights)))(t)
 	defer weights.Close()
 	bank := []string{"bank.fw_a", "bank.fw_b", "bank.fw_o", "bank.norm"}
 	for _, name := range bank {
@@ -95,8 +94,7 @@ func writeTinyThoughtBank(t *testing.T, directory string) string {
 			count *= shape[axis]
 		}
 		writePickleTensor(&pickle, name, key, count, shape, stride)
-		storage, err := files.CreateHeader(&zip.FileHeader{Name: "archive/data/" + key, Method: zip.Store})
-		testcheck.NoError(t, err)
+		storage := testcheck.Must(files.CreateHeader(&zip.FileHeader{Name: "archive/data/" + key, Method: zip.Store}))(t)
 		for element := range count {
 			value := float32(math.Sin(float64(int64(index)*count+element))) / 2
 			testcheck.NoError(t, binary.Write(storage, binary.LittleEndian, value))
@@ -109,8 +107,7 @@ func writeTinyThoughtBank(t *testing.T, directory string) string {
 		writePickleInt(&pickle, 1)
 	}
 	pickle.Write([]byte{'u', '.'}) // SETITEMS, STOP
-	data, err := files.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate})
-	testcheck.NoError(t, err)
+	data := testcheck.Must(files.CreateHeader(&zip.FileHeader{Name: "archive/data.pkl", Method: zip.Deflate}))(t)
 	if _, err := data.Write(pickle.Bytes()); err != nil {
 		t.Fatal(err)
 	}

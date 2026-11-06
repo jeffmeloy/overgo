@@ -38,10 +38,8 @@ func TestObserverSamplesTheProcessLedger(t *testing.T) {
 // the ledger. NewObserver declares which a session is.
 func TestAHostSessionHoldsNoDeviceMemory(t *testing.T) {
 	t.Parallel()
-	host, err := NewObserver(nil, true)
-	testcheck.NoError(t, err)
-	device, err := NewObserver(nil, false)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(NewObserver(nil, true))(t)
+	device := testcheck.Must(NewObserver(nil, false))(t)
 	if !host.host || device.host {
 		t.Fatalf("NewObserver declared host=%t for a host session and host=%t for a device one", host.host, device.host)
 	}

@@ -44,10 +44,8 @@ func TestBenchmarkResultTokenDigest(t *testing.T) {
 func TestPromptSuiteRotation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "suite.json")
 	testcheck.NoError(t, os.WriteFile(path, []byte(`["cold","repeat","rotate"]`), 0o644))
-	opts, err := parseOptions([]string{"-prompt-suite", path, "-runs", "5", "model.gguf"})
-	testcheck.NoError(t, err)
-	prompts, err := benchmarkPrompts(opts)
-	testcheck.NoError(t, err)
+	opts := testcheck.Must(parseOptions([]string{"-prompt-suite", path, "-runs", "5", "model.gguf"}))(t)
+	prompts := testcheck.Must(benchmarkPrompts(opts))(t)
 	want := []string{"cold", "repeat", "rotate", "cold", "repeat"}
 	for index, expected := range want {
 		if got := prompts[benchmarkPromptIndex(index, len(prompts))]; got != expected {
@@ -71,8 +69,7 @@ func TestPromptSuiteRotation(t *testing.T) {
 func TestPairedComparison(t *testing.T) {
 	baseline, candidate := pairedFixture(t)
 	first := []string{"baseline", "candidate", "baseline"}
-	comparison, err := compareBenchmarkResults(baseline, candidate, "cache_prompt", first)
-	testcheck.NoError(t, err)
+	comparison := testcheck.Must(compareBenchmarkResults(baseline, candidate, "cache_prompt", first))(t)
 	if !comparison.ID.Valid() || comparison.Outcome != "all-pairs-faster" || comparison.MedianDeltaMilliseconds != -10 || comparison.CacheUpperBound {
 		t.Fatalf("paired comparison = %+v", comparison)
 	}
@@ -129,8 +126,6 @@ func pairedFixture(t *testing.T) (benchmarkResult, benchmarkResult) {
 	for index := range candidate.Runs {
 		candidate.Runs[index].TotalMilliseconds -= 10
 	}
-	var err error
-	candidate.OptionsDigest, err = benchmarkOptionsDigest(options{Tokens: 4, Runs: 3, Warmup: 1, CachePrompt: true}, nil)
-	testcheck.NoError(t, err)
+	candidate.OptionsDigest = testcheck.Must(benchmarkOptionsDigest(options{Tokens: 4, Runs: 3, Warmup: 1, CachePrompt: true}, nil))(t)
 	return baseline, candidate
 }

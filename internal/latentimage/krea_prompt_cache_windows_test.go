@@ -20,20 +20,17 @@ func TestAKreaPromptMetAgainPlacesNoTextEncoder(t *testing.T) {
 	first := Request{Prompt: "a red fox licking a vanilla ice cream cone in snow", Width: 256, Height: 256, Steps: 2, Seed: 42}
 	other := first
 	other.Prompt = "a lighthouse on a cliff at dusk"
-	generator, err := LoadGenerator(ctx, kreaDirOrSkip(t), kreaProfileOrSkip(t), first)
-	testcheck.NoError(t, err)
+	generator := testcheck.Must(LoadGenerator(ctx, kreaDirOrSkip(t), kreaProfileOrSkip(t), first))(t)
 	defer closeReporting(t, ctx, generator)
 	fresh, _ := runResidentGeneration(t, ctx, generator, first)
 	// copied is what giving the session request copies to the card, and how long it takes.
 	copied := func(request Request) (uint64, time.Duration) {
 		t.Helper()
-		before, err := generator.pipeline.runtime.Stats(ctx)
-		testcheck.NoError(t, err)
+		before := testcheck.Must(generator.pipeline.runtime.Stats(ctx))(t)
 		started := time.Now()
 		testcheck.NoError(t, generator.Reset(ctx, request))
 		wall := time.Since(started)
-		after, err := generator.pipeline.runtime.Stats(ctx)
-		testcheck.NoError(t, err)
+		after := testcheck.Must(generator.pipeline.runtime.Stats(ctx))(t)
 		return after.Execution.HostToDeviceBytes - before.Execution.HostToDeviceBytes, wall
 	}
 	encoded, encodedWall := copied(other)

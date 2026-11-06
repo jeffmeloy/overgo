@@ -25,11 +25,10 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 	sealed := identity("sealed-inputs")
 	clean := identity("clean-worker")
 
-	bootstrap, err := NewAdmissionBinding(AdmissionBinding{
+	bootstrap := testcheck.Must(NewAdmissionBinding(AdmissionBinding{
 		Generation: 0, Proposer: proposer, Evaluator: evaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	replay, err := NewAdmissionBinding(AdmissionBinding{
 		Generation: 0, Proposer: proposer, Evaluator: evaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean,
@@ -68,53 +67,47 @@ func TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration(t *testing.T
 	}
 
 	nextEvaluator := AuthorityDomain{Name: "evaluation-plane-v2", Identity: identity("evaluator-key-v2")}
-	approval, err := recipe.NewDecision(
+	approval := testcheck.Must(recipe.NewDecision(
 		nextEvaluator.Identity, recipe.DecisionAccepted, recipe.EvidenceProduction,
 		"generation 0 decider approves the generation 1 evaluator",
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: decider.Identity},
 		[]artifact.ID{sealed},
-	)
-	testcheck.NoError(t, err)
-	next, err := NewAdmissionBinding(AdmissionBinding{
+	))(t)
+	next := testcheck.Must(NewAdmissionBinding(AdmissionBinding{
 		Generation: 1, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: approval.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if err := ValidateAdmissionSuccession(next, bootstrap, approval); err != nil {
 		t.Fatalf("legal succession refused: %v", err)
 	}
 
-	imposter, err := recipe.NewDecision(
+	imposter := testcheck.Must(recipe.NewDecision(
 		nextEvaluator.Identity, recipe.DecisionAccepted, recipe.EvidenceProduction,
 		"self-approval by the proposer domain",
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: proposer.Identity},
 		[]artifact.ID{sealed},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	forged := next
 	forged.PriorApproval = imposter.ID
-	forged, err = NewAdmissionBinding(AdmissionBinding{
+	forged = testcheck.Must(NewAdmissionBinding(AdmissionBinding{
 		Generation: 1, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: imposter.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if err := ValidateAdmissionSuccession(forged, bootstrap, imposter); err == nil {
 		t.Fatal("approval decided outside the prior decider authority accepted")
 	}
 	if err := ValidateAdmissionSuccession(next, bootstrap, imposter); err == nil {
 		t.Fatal("binding citing a different approval accepted")
 	}
-	skipped, err := NewAdmissionBinding(AdmissionBinding{
+	skipped := testcheck.Must(NewAdmissionBinding(AdmissionBinding{
 		Generation: 2, Proposer: proposer, Evaluator: nextEvaluator, Decider: decider,
 		SealedInputs: sealed, CleanWorker: clean, PriorApproval: approval.ID,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if err := ValidateAdmissionSuccession(skipped, bootstrap, approval); err == nil {
 		t.Fatal("generation skip accepted")
 	}
 
-	content, err := next.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(next.Content())(t)
 	parsed, err := ParseAdmissionBinding(content.Data)
 	if err != nil || parsed.ID != next.ID || parsed.PriorApproval != approval.ID {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)

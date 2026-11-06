@@ -17,8 +17,7 @@ import (
 // carries the device; this package does.
 func TestDeepSeekOCRProjectorReadsBackThroughItsRuntime(t *testing.T) {
 	t.Parallel()
-	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR")))(t)
 	defer repository.Close()
 	metadata, tensors, err := hfgguf.DeepSeekOCRProjectorConversion(repository)
 	testcheck.NoError(t, err)

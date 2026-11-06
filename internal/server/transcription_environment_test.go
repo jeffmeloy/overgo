@@ -53,17 +53,14 @@ func workspaceDevice(t *testing.T, resident bool) string {
 			t.Fatal(err)
 		}
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "transcription/"+name+"-verification", definition.ID)
-	testcheck.NoError(t, err)
+	verification := testcheck.Must(modelrecipetest.PublishVerification(ctx, store, "transcription/"+name+"-verification", definition.ID))(t)
 	testcheck.NoError(t, modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "isolated environment fixture activation"))
-	workspace, err := NewTranscriptionWorkspace(ctx, store, TranscriptionPolicy{Recipe: definition.ID, MemoryBytes: 1 << 20, Inspection: fixture.Policy}, transcriptionHTTPCommit)
-	testcheck.NoError(t, err)
+	workspace := testcheck.Must(NewTranscriptionWorkspace(ctx, store, TranscriptionPolicy{Recipe: definition.ID, MemoryBytes: 1 << 20, Inspection: fixture.Policy}, transcriptionHTTPCommit))(t)
 	defer func() {
 		if err := workspace.Close(context.WithoutCancel(ctx)); err != nil {
 			t.Error(err)
 		}
 	}()
-	environment, err := runrecord.RequireEnvironment(ctx, store, workspace.environment)
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.RequireEnvironment(ctx, store, workspace.environment))(t)
 	return environment.Device
 }

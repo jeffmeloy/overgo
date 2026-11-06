@@ -28,8 +28,7 @@ func TestTrainingVerificationSpecs(t *testing.T) {
 func TestTrainingVerificationMatrix(t *testing.T) {
 	t.Parallel()
 	root := trainingFixture(t)
-	data, err := generateTraining(root)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(generateTraining(root))(t)
 	text := string(data)
 	for _, required := range []string{
 		"1 model artifacts, 2 strongest training claims.",
@@ -94,8 +93,7 @@ func trainingFixture(t *testing.T) string {
 			},
 		},
 	}
-	data, err := json.MarshalIndent(specification, "", " ")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.MarshalIndent(specification, "", " "))(t)
 	testutil.WriteTextFile(t, root, filepath.FromSlash("docs/verification/fixture-training.json"), string(data)+"\n")
 	return root
 }

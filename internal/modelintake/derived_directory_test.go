@@ -20,16 +20,13 @@ func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	directory := testutil.Qwen35Directory(t)
 	testutil.WriteTextFile(t, directory, "generation_config.json", `{"do_sample":true,"temperature":0.25}`)
-	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(t.Context(), store, directory))(t)
 	defer loaded.Close()
-	state, err := loaded.State()
-	testcheck.NoError(t, err)
+	state := testcheck.Must(loaded.State())(t)
 	if state.Verification != modelrecipe.StateNotVerified {
 		t.Fatalf("state = %+v", state)
 	}
-	policy, err := loaded.RuntimePolicy()
-	testcheck.NoError(t, err)
+	policy := testcheck.Must(loaded.RuntimePolicy())(t)
 	if policy.Serving.Sampling.Temperature != 0.25 {
 		t.Fatalf("the directory's sampling did not reach the policy: %+v", policy.Serving.Sampling)
 	}

@@ -28,8 +28,7 @@ func TestOneListAnswersWhetherEachWorktreeIsOnTheTrunk(t *testing.T) {
 	testutil.WriteTextFile(t, ahead, "own.txt", "its own\n")
 	git(ahead, "add", "-A")
 	git(ahead, "commit", "-q", "-m", "a commit of its own")
-	trees, err := landing.Worktrees(t.Context(), repo)
-	testcheck.NoError(t, err)
+	trees := testcheck.Must(landing.Worktrees(t.Context(), repo))(t)
 	head := func(root string) string {
 		t.Helper()
 		for _, tree := range trees {

@@ -51,16 +51,14 @@ const hardenedStatesFilter = `(() => {
 func TestWebUIBrowserHardenedStates(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "hardened states run through cmd/webui-lane")
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), path: writeTensorFixture(t)})
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, httpServer.URL+"/"))(t)
 	defer browser.Close()
 	settle := browserSettle(t, ctx, browser)
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
@@ -141,8 +139,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 			visit(tab, "overgo.api.inFlight() === 0")
 			// CaptureState sizes the viewport and awaits the page's transitions before it
 			// audits; the screens leg keeps the pictures, so this leg writes none.
-			measured, err := webuilane.CaptureState(ctx, browser, "", viewport, "oversized-"+tab)
-			testcheck.NoError(t, err)
+			measured := testcheck.Must(webuilane.CaptureState(ctx, browser, "", viewport, "oversized-"+tab))(t)
 			for _, finding := range measured {
 				findings = append(findings, "oversized: "+finding.String())
 			}

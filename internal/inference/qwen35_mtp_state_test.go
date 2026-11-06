@@ -15,10 +15,8 @@ import (
 func TestMTPSessionStateRoundTrip(t *testing.T) {
 	runner := qwen35MTPStateRunner()
 	session := qwen35MTPStateFixture()
-	data, err := runner.SaveMTPSession(session)
-	testcheck.NoError(t, err)
-	restored, err := runner.LoadMTPSession(data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveMTPSession(session))(t)
+	restored := testcheck.Must(runner.LoadMTPSession(data))(t)
 	if !reflect.DeepEqual(restored, session) {
 		t.Fatalf("restored Qwen3.5 MTP session differs:\n got %+v\nwant %+v", restored, session)
 	}
@@ -26,10 +24,8 @@ func TestMTPSessionStateRoundTrip(t *testing.T) {
 	fresh := qwen35MTPStateFixture()
 	fresh.Position = fresh.MTPStart
 	fresh.Layer = LayerCache{}
-	freshData, err := runner.SaveMTPSession(fresh)
-	testcheck.NoError(t, err)
-	freshRestored, err := runner.LoadMTPSession(freshData)
-	testcheck.NoError(t, err)
+	freshData := testcheck.Must(runner.SaveMTPSession(fresh))(t)
+	freshRestored := testcheck.Must(runner.LoadMTPSession(freshData))(t)
 	if !reflect.DeepEqual(freshRestored, fresh) {
 		t.Fatalf("fresh Qwen3.5 MTP session differs: got %+v want %+v", freshRestored, fresh)
 	}
@@ -37,8 +33,7 @@ func TestMTPSessionStateRoundTrip(t *testing.T) {
 
 func TestMTPSessionStateRejectsCorruption(t *testing.T) {
 	runner := qwen35MTPStateRunner()
-	data, err := runner.SaveMTPSession(qwen35MTPStateFixture())
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveMTPSession(qwen35MTPStateFixture()))(t)
 	for _, length := range []int{0, len(data) - 1} {
 		if _, err := runner.LoadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated Qwen3.5 MTP state length %d was accepted", length)

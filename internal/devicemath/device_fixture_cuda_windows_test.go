@@ -15,8 +15,7 @@ import (
 func residentAllocation(t *testing.T, worker *device.Worker, pointers *[]driver.DevicePtr) func(count int, initial []float32) driver.DevicePtr {
 	return func(count int, initial []float32) driver.DevicePtr {
 		t.Helper()
-		pointer, err := AllocResidentF32(worker, count, initial)
-		testcheck.NoError(t, err)
+		pointer := testcheck.Must(AllocResidentF32(worker, count, initial))(t)
 		*pointers = append(*pointers, pointer)
 		return pointer
 	}

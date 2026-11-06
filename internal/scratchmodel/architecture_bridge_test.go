@@ -10,11 +10,10 @@ import (
 
 // TestConstructionEmitsExecutableProfile: constructed profile remains executable authority.
 func TestConstructionEmitsExecutableProfile(t *testing.T) {
-	construction, err := Compile(
+	construction := testcheck.Must(Compile(
 		CorpusFacts{Documents: bridgeCorpus(), Seed: 7, Steps: 2},
 		testDerivationProfile(t),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	profile := construction.Architecture()
 	if profile.Name != ScratchArchitecture {
 		t.Fatalf("emitted architecture %q, want %q", profile.Name, ScratchArchitecture)
@@ -34,8 +33,7 @@ func TestConstructionEmitsExecutableProfile(t *testing.T) {
 		profile.Position != model.PositionLearnedAbsolute {
 		t.Fatalf("profile policies %+v do not describe the constructed topology", profile)
 	}
-	tokens, err := construction.Tokens(construction.Split().Train[0])
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(construction.Tokens(construction.Split().Train[0]))(t)
 	if _, err := construction.CompileForwardGraph(tokens); err != nil {
 		t.Fatalf("policy-driven forward refused the registered profile: %v", err)
 	}

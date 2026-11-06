@@ -28,8 +28,7 @@ import (
 // promote a failure.
 func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longform.Summary {
 	t.Helper()
-	id, err := artifact.ParseID(text)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID(text))(t)
 	content, found, err := artifact.ReadContent(t.Context(), store, id)
 	if err != nil || !found {
 		t.Fatalf("counterexample %s absent: %v", id, err)
@@ -92,8 +91,7 @@ func guardResult(t *testing.T) longform.Result {
 
 func TestGuardEvidenceContract(t *testing.T) {
 	t.Run("frozen measured corpus", func(t *testing.T) {
-		corpus, err := os.ReadFile("testdata/guard-corpus.txt")
-		testcheck.NoError(t, err)
+		corpus := testcheck.Must(os.ReadFile("testdata/guard-corpus.txt"))(t)
 		// Exact bytes measured by the Qwen/E4B records at 3a75f6fb.
 		if digest := fmt.Sprintf("%x", sha256.Sum256(corpus)); digest != "0968f131791aca99b7526836c9e8f643b2e63777a85353d42c36ecad49e0d29b" {
 			t.Fatalf("frozen measurement corpus changed: %s", digest)

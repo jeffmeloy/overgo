@@ -74,8 +74,7 @@ func TestGatedDeltaOperationsMatchTheComposedPreparation(t *testing.T) {
 				outputs = append(outputs, beta, gate, gates)
 			}
 			testcheck.NoError(t, b.Err())
-			got, err := Execute(outputs, feeds)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(Execute(outputs, feeds))(t)
 			same := func(name string, fused, composed []float32) {
 				t.Helper()
 				if !slices.EqualFunc(fused, composed, func(x, y float32) bool { return math.Float32bits(x) == math.Float32bits(y) }) {

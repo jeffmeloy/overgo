@@ -23,8 +23,7 @@ const mossReferenceSource = "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2
 
 func mossFixtureBytes(t *testing.T, name, digest string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "moss", name))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "moss", name)))(t)
 	actual := sha256.Sum256(data)
 	if hex.EncodeToString(actual[:]) != digest {
 		t.Fatalf("fixture %s changed identity", name)
@@ -44,8 +43,7 @@ func mossGolden(t *testing.T, name string) *safetensors.Source {
 		t.Fatalf("unknown golden %q", name)
 	}
 	mossFixtureBytes(t, name+".safetensors", digest)
-	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", name+".safetensors"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", name+".safetensors")))(t)
 	t.Cleanup(func() {
 		if err := source.Close(); err != nil {
 			t.Error(err)
@@ -73,8 +71,7 @@ func mossF32(t *testing.T, source *safetensors.Source, name string) []float32 {
 	if !found || tensor.DType != "F32" {
 		t.Fatalf("missing F32 golden %s", name)
 	}
-	data, err := io.ReadAll(tensor.Reader())
-	testcheck.NoError(t, err)
+	data := testcheck.Must(io.ReadAll(tensor.Reader()))(t)
 	values := make([]float32, len(data)/4)
 	for index := range values {
 		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[index*4:]))
@@ -188,8 +185,7 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 				if !found || tensor.DType != "I64" || !slices.Equal(tensor.Shape, []uint64{1, uint64(count)}) {
 					t.Fatalf("invalid token fixture %s.%s", name, suffix)
 				}
-				raw, err := io.ReadAll(tensor.Reader())
-				testcheck.NoError(t, err)
+				raw := testcheck.Must(io.ReadAll(tensor.Reader()))(t)
 				for i := 0; i < len(raw); i += 8 {
 					value := int64(binary.LittleEndian.Uint64(raw[i:]))
 					if value < 0 || suffix == "attention_mask" && value != 1 {

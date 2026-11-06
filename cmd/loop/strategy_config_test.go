@@ -16,24 +16,18 @@ import (
 func strategyStore(t *testing.T) (string, loop.Strategy) {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	data := []byte("strategy prompt")
-	prompt, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t)
 	text := artifact.Content{Descriptor: artifact.Descriptor{ID: prompt, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
-	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
+	worker := testcheck.Must(recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: "configured-strategy", Prompt: prompt,
 		ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model"),
 		Policies:    []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")},
-	})
-	testcheck.NoError(t, err)
-	want, err := loop.NewStrategy(worker, testutil.ArtifactID(t, artifact.KindProfile, "catalog"), loop.Config{MaxAttemptsPerStep: 3, MaxInvocations: 11})
-	testcheck.NoError(t, err)
-	content, err := want.Content()
-	testcheck.NoError(t, err)
-	batch, err := artifact.NewDocumentBatch("fixture/configured-strategy", []artifact.Content{content, text}, nil, nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	want := testcheck.Must(loop.NewStrategy(worker, testutil.ArtifactID(t, artifact.KindProfile, "catalog"), loop.Config{MaxAttemptsPerStep: 3, MaxInvocations: 11}))(t)
+	content := testcheck.Must(want.Content())(t)
+	batch := testcheck.Must(artifact.NewDocumentBatch("fixture/configured-strategy", []artifact.Content{content, text}, nil, nil))(t)
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}

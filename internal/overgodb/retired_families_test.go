@@ -98,8 +98,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	written := func(families []retiredFamily) string {
 		t.Helper()
 		root := filepath.Join(t.TempDir(), "store")
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		for ordinal, family := range families {
 			batch, _, producer := familyBatch(t, family, ordinal+1)
 			if _, err := store.CommitAs(ctx, producer, batch); err != nil {
@@ -116,8 +115,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	// does not count under their own key and name.
 	unproduced := func(families []retiredFamily) []retiredFamily {
 		t.Helper()
-		census, err := censusCheckpoint(written(families), 1)
-		testcheck.NoError(t, err)
+		census := testcheck.Must(censusCheckpoint(written(families), 1))(t)
 		return slices.DeleteFunc(slices.Clone(families), func(family retiredFamily) bool {
 			return slices.ContainsFunc(census.members, func(member memberCensus) bool {
 				return keyedLike(member.name) == family.keyed &&
@@ -172,8 +170,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	}
 
 	// The table against the record it was read from.
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "checkpoint-families.txt")))(t)
 	// read are the families the record classes as unwritten and unread by
 	// its four readers that a reader outside them still reads.
 	read := map[string]string{
@@ -247,8 +244,7 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 	t.Helper()
 	ctx := t.Context()
 	fixture := retiredFixture{root: filepath.Join(t.TempDir(), "store"), keptAlias: "kept/aliased", want: make([]retiredCount, len(retiredFamilies))}
-	store, err := Create(fixture.root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(fixture.root))(t)
 	ordinal := 0
 	// commit writes a batch and counts it under its key when that is a
 	// retired family of commits.
@@ -354,14 +350,11 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 // rebuilt rebuilds the fixture's store, read-only, and opens the copy.
 func (fixture retiredFixture) rebuilt(t *testing.T, withoutRetired bool) (*Store, *Store, RebuildReport) {
 	t.Helper()
-	source, err := OpenReadOnly(fixture.root)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(OpenReadOnly(fixture.root))(t)
 	t.Cleanup(func() { _ = source.Close() })
 	destination := filepath.Join(t.TempDir(), "rebuilt")
-	report, err := Rebuild(t.Context(), source, destination, nil, nil, withoutRetired)
-	testcheck.NoError(t, err)
-	copied, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(Rebuild(t.Context(), source, destination, nil, nil, withoutRetired))(t)
+	copied := testcheck.Must(OpenReadOnly(destination))(t)
 	t.Cleanup(func() { _ = copied.Close() })
 	return source, copied, report
 }

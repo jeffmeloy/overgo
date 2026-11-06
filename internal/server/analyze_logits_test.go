@@ -49,10 +49,8 @@ func TestNativeTokenProbabilityEntropy(t *testing.T) {
 func TestNativeTokenProbabilityEntropyBoundedByUniform(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
-	uniform, err := handler.nativeTokenProbability(0, []float32{0, 0, 0, 0}, 1)
-	testcheck.NoError(t, err)
-	skewed, err := handler.nativeTokenProbability(0, []float32{3, 0, 0, 0}, 1)
-	testcheck.NoError(t, err)
+	uniform := testcheck.Must(handler.nativeTokenProbability(0, []float32{0, 0, 0, 0}, 1))(t)
+	skewed := testcheck.Must(handler.nativeTokenProbability(0, []float32{3, 0, 0, 0}, 1))(t)
 	maxEntropy := math.Log(4)
 	if *uniform.Entropy > maxEntropy+1e-9 {
 		t.Fatalf("uniform entropy %v exceeds ln(4) %v", *uniform.Entropy, maxEntropy)

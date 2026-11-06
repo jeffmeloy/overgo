@@ -8,9 +8,8 @@ import (
 )
 
 func TestAgentTrajectoryIdentity(t *testing.T) {
-	base, err := NewInteractionTrace(Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")},
-		testutil.ArtifactID(t, artifact.KindEvidence, "request"), []InteractionMessage{{Role: "user", Content: "task"}, {Role: "assistant", Content: "result"}}, nil, "")
-	testcheck.NoError(t, err)
+	base := testcheck.Must(NewInteractionTrace(Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")},
+		testutil.ArtifactID(t, artifact.KindEvidence, "request"), []InteractionMessage{{Role: "user", Content: "task"}, {Role: "assistant", Content: "result"}}, nil, ""))(t)
 	base.Events[1].Branch = "candidate/a"
 	base.TaskContract = testutil.ArtifactID(t, artifact.KindRecipe, "task")
 	base.ToolManuals = []artifact.ID{testutil.ArtifactID(t, artifact.KindRecipe, "manual")}
@@ -21,10 +20,8 @@ func TestAgentTrajectoryIdentity(t *testing.T) {
 	base.Attempts = []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "attempt")}
 	base.BudgetCharges = []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "charge")}
 	base.Terminal = OutcomeSucceeded
-	first, err := NewAgentTrajectory(base)
-	testcheck.NoError(t, err)
-	second, err := NewAgentTrajectory(base)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewAgentTrajectory(base))(t)
+	second := testcheck.Must(NewAgentTrajectory(base))(t)
 	if first.ID != second.ID || len(first.Lineage()) == 0 || first.Events[1].Branch != "candidate/a" {
 		t.Fatalf("trajectory = %+v", first)
 	}

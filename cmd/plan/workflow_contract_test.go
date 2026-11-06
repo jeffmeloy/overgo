@@ -86,12 +86,10 @@ func TestPromptReadsWithoutWriting(t *testing.T) {
 	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
 	root := initializePlanTestRepository(t, mutationPlan(t, "Prompt task"))
 	t.Chdir(root)
-	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "overgodb-store")))(t)
 	head, sequence := store.Head()
 	testcheck.NoError(t, store.Close())
-	before, err := os.ReadFile(filepath.Join(root, plan.Path))
-	testcheck.NoError(t, err)
+	before := testcheck.Must(os.ReadFile(filepath.Join(root, plan.Path)))(t)
 	for _, worker := range []string{"session-one", "session-two"} {
 		out := captureStdout(t, func() {
 			testcheck.NoError(t, run(cli{prompt: true, worker: worker}, nil))
@@ -144,8 +142,7 @@ func TestStopStatusProjection(t *testing.T) {
 	if !strings.Contains(prompt, "stop=active") || strings.Contains(prompt, "TASK ") {
 		t.Fatalf("stopped executable prompt: %s", prompt)
 	}
-	raw, err := os.ReadFile(plan.Path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(plan.Path))(t)
 	testcheck.NoError(t, os.WriteFile(plan.Path, []byte("{broken"), 0600))
 	captureStdout(t, func() {
 		if err := run(cli{next: true}, nil); err != nil {

@@ -19,15 +19,12 @@ const (
 // without a nested JSON decode, an escaped one still decodes as JSON does, and
 // a malformed one is refused.
 func TestIDRoundTrip(t *testing.T) {
-	id, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
-	testcheck.NoError(t, err)
-	parsed, err := ParseID(id.String())
-	testcheck.NoError(t, err)
+	id := testcheck.Must(IdentifyBytes(KindModel, []byte(fixtureModelPayload)))(t)
+	parsed := testcheck.Must(ParseID(id.String()))(t)
 	if parsed != id || parsed.Kind() != KindModel {
 		t.Fatalf("round trip = %v, want %v", parsed, id)
 	}
-	encoded, err := json.Marshal(id)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(id))(t)
 	var decoded ID
 	if err := json.Unmarshal(encoded, &decoded); err != nil || decoded != id {
 		t.Fatalf("JSON round trip = %v, %v, want %v", decoded, err, id)
@@ -53,10 +50,8 @@ func TestIDRoundTrip(t *testing.T) {
 }
 
 func TestIdentityIncludesKind(t *testing.T) {
-	model, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
-	testcheck.NoError(t, err)
-	checkpoint, err := IdentifyBytes(KindCheckpoint, []byte(fixtureModelPayload))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(IdentifyBytes(KindModel, []byte(fixtureModelPayload)))(t)
+	checkpoint := testcheck.Must(IdentifyBytes(KindCheckpoint, []byte(fixtureModelPayload)))(t)
 	if model == checkpoint || model.digest != checkpoint.digest {
 		t.Fatalf("kind qualification failed: model=%s checkpoint=%s", model, checkpoint)
 	}
@@ -119,8 +114,7 @@ func TestDescriptorValidation(t *testing.T) {
 }
 
 func TestRelationJSONRoundTrip(t *testing.T) {
-	encoded, err := json.Marshal(RelationQuantizedFrom)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(RelationQuantizedFrom))(t)
 	var decoded Relation
 	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 	if decoded != RelationQuantizedFrom {
@@ -135,8 +129,7 @@ func TestHasherMatchesIdentifyForAnyChunking(t *testing.T) {
 	want, wantSize, err := Identify(KindTensorSet, bytes.NewReader(payload))
 	testcheck.NoError(t, err)
 	for _, cut := range []int{1, 3, 64, 65, 4096, len(payload), len(payload) + 1} {
-		hasher, err := NewHasher(KindTensorSet)
-		testcheck.NoError(t, err)
+		hasher := testcheck.Must(NewHasher(KindTensorSet))(t)
 		for rest := payload; len(rest) > 0; {
 			size := min(cut, len(rest))
 			if _, err := hasher.Write(rest[:size]); err != nil {
@@ -148,8 +141,7 @@ func TestHasherMatchesIdentifyForAnyChunking(t *testing.T) {
 			t.Fatalf("cut %d: identity (%s, %d), want (%s, %d)", cut, got, size, want, wantSize)
 		}
 	}
-	empty, err := NewHasher(KindTensorSet)
-	testcheck.NoError(t, err)
+	empty := testcheck.Must(NewHasher(KindTensorSet))(t)
 	wantEmpty, _ := IdentifyBytes(KindTensorSet, nil)
 	if got, size := empty.ID(); got != wantEmpty || size != 0 {
 		t.Fatalf("empty identity = (%s, %d), want (%s, 0)", got, size, wantEmpty)

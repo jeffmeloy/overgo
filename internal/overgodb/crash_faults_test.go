@@ -33,8 +33,7 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 	root := t.TempDir()
 	recorder := newCrashRecorder(root)
 	t.Cleanup(crashAttach(recorder))
-	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_CREATE|os.O_RDWR, storeFileMode)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.OpenFile(filepath.Join(root, storeFilename), os.O_CREATE|os.O_RDWR, storeFileMode))(t)
 	defer file.Close()
 	payload := []byte(`{"streamed":true}`)
 	log := recordLog{file: file}
@@ -59,8 +58,7 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
@@ -86,8 +84,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 	assertFaultedStoreSurfaces(t, store, pending.Descriptor)
 	testcheck.NoError(t, store.Close())
 
-	store, err = Create(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(Create(root))(t)
 	defer store.Close()
 	if _, ok, err := store.Artifact(t.Context(), pending.Descriptor.ID); err != nil || ok {
 		t.Fatalf("partial artifact after recovery = (%v, %v)", ok, err)
@@ -102,8 +99,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	crashRefuseJournal(t, root, crashFsync)
 	pending := fixtureDescriptor(t, artifact.KindEvidence, "sync-uncertain")
 	id, err := store.Commit(t.Context(), artifact.Batch{
@@ -113,8 +109,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 		t.Fatalf("sync append = (%s, %v)", id, err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = Create(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(Create(root))(t)
 	defer store.Close()
 	if descriptor, ok, err := store.Artifact(t.Context(), pending.ID); err != nil || !ok || descriptor.ID != pending.ID {
 		t.Fatalf("uncertain commit replay = (%+v, %v, %v)", descriptor, ok, err)

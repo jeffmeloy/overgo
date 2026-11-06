@@ -22,8 +22,7 @@ func TestMLPBridgeForwardAndValidation(t *testing.T) {
 	targetContent, target := bridgeContract(t, "target", representation.ModalityText, 3, 1, 4,
 		representation.NormalizationContract{Kind: representation.NormalizationLayer, Epsilon: 1e-5, Magnitude: representation.MagnitudeUnit})
 	definition := Definition{Source: source.ID, Target: target.ID, Operator: OperatorMLPGELU, Intermediate: 2, Bias: true}
-	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	testcheck.NoError(t, err)
+	program := testcheck.Must((Compiler{}).Compile(definition, sourceContent, targetContent))(t)
 
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(2, 2))
@@ -33,8 +32,7 @@ func TestMLPBridgeForwardAndValidation(t *testing.T) {
 		Second:     builder.Input("second.weight", dtype.F32, tensor.MustShape(2, 3)),
 		SecondBias: builder.Input("second.bias", dtype.F32, tensor.MustShape(3)),
 	}
-	output, err := program.Build(builder, input, weights)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(program.Build(builder, input, weights))(t)
 	ops := make([]tensor.Op, 0, len(builder.Nodes()))
 	for _, node := range builder.Nodes() {
 		ops = append(ops, node.Op)
@@ -47,11 +45,10 @@ func TestMLPBridgeForwardAndValidation(t *testing.T) {
 	zeroFirstBias := reference.ZeroValue(weights.FirstBias.Shape)
 	zeroSecond := reference.ZeroValue(weights.Second.Shape)
 	secondBias := mustReferenceValue(t, weights.SecondBias.Shape, []float32{1, 2, 3})
-	values, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	values := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input: inputValue, weights.First: zeroFirst, weights.FirstBias: zeroFirstBias,
 		weights.Second: zeroSecond, weights.SecondBias: secondBias,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	wantInput := []float32{1, 2, 3, 1, 2, 3}
 	want := make([]float32, len(wantInput))
 	hostmath.LayerNormInto(want, wantInput, nil, nil, 2, 3, float64(target.Normalization.Epsilon))
@@ -62,8 +59,7 @@ func TestMLPBridgeForwardAndValidation(t *testing.T) {
 	}
 
 	t.Run("linear", func(t *testing.T) {
-		linear, err := (Compiler{}).Compile(Definition{Source: source.ID, Target: target.ID, Operator: OperatorLinear}, sourceContent, targetContent)
-		testcheck.NoError(t, err)
+		linear := testcheck.Must((Compiler{}).Compile(Definition{Source: source.ID, Target: target.ID, Operator: OperatorLinear}, sourceContent, targetContent))(t)
 		builder := tensor.NewBuilder()
 		input := builder.Input("input", dtype.F32, tensor.MustShape(2, 1))
 		weight := builder.Input("weight", dtype.F32, tensor.MustShape(2, 3))
@@ -129,17 +125,13 @@ func TestExternalAttentionBridgeAdmission(t *testing.T) {
 		representation.NormalizationContract{Kind: representation.NormalizationNone, Magnitude: representation.MagnitudeNative})
 	layer := uint32(2)
 	target.Producer.Tap, target.Producer.Layer, target.ID = representation.TapLayerOutput, &layer, artifact.ID{}
-	targetContent, err := json.Marshal(target)
-	testcheck.NoError(t, err)
-	target, err = representation.ParseContract(targetContent)
-	testcheck.NoError(t, err)
-	targetContent, err = json.Marshal(target)
-	testcheck.NoError(t, err)
-	program, err := (Compiler{}).Compile(Definition{
+	targetContent := testcheck.Must(json.Marshal(target))(t)
+	target = testcheck.Must(representation.ParseContract(targetContent))(t)
+	targetContent = testcheck.Must(json.Marshal(target))(t)
+	program := testcheck.Must((Compiler{}).Compile(Definition{
 		Source: source.ID, Target: target.ID, Operator: OperatorExternalAttention,
 		HeadCount: 2, SourceTokenLimit: 4,
-	}, sourceContent, targetContent)
-	testcheck.NoError(t, err)
+	}, sourceContent, targetContent))(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(3, 2))
 	if _, err := program.Build(builder, input, Weights{}); err == nil {
@@ -174,10 +166,8 @@ func bridgeContract(
 		},
 		Normalization: normalization,
 	}
-	content, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	parsed, err := representation.ParseContract(content)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(json.Marshal(value))(t)
+	parsed := testcheck.Must(representation.ParseContract(content))(t)
 	return content, parsed
 }
 

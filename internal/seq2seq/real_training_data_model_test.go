@@ -28,8 +28,7 @@ func realGSM8KTrainingPair(t *testing.T, ordinal int) (*Generator, TrainingPair,
 	if ordinal < 0 {
 		t.Fatal("negative GSM8K record ordinal")
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	recordPath := filepath.Join(roots.Datasets, "openai_gsm8k_train.jsonl")
 	file, err := os.Open(recordPath)
 	if err != nil {
@@ -47,27 +46,20 @@ func realGSM8KTrainingPair(t *testing.T, ordinal int) (*Generator, TrainingPair,
 	datasetID, _ := artifact.IdentifyBytes(artifact.KindDataset, []byte(recordPath))
 	splitID, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(recordPath+"#train"))
 	processorID, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("json-text-pair/question-answer/v1"))
-	processor, err := trainingdata.JSONTextPairProcessor("question", "answer")
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(trainingdata.JSONTextPairProcessor("question", "answer"))(t)
 	authority := trainingdata.Authority{
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID}, Seed: 17,
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
 	}
-	materialized, err := trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
+	materialized := testcheck.Must(trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: processor,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer materialized.Close()
-	stream, err := trainingdata.NewStream(materialized, nil)
-	testcheck.NoError(t, err)
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1})
-	testcheck.NoError(t, err)
-	batch, err := batcher.Next(context.Background())
-	testcheck.NoError(t, err)
-	generator, err := LoadGenerator(modeltest.Directory(t, "needle"))
-	testcheck.NoError(t, err)
-	pair, err := generator.TrainingPair(batch.Examples[0])
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingdata.NewStream(materialized, nil))(t)
+	batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: 1, MicrobatchExamples: 1, DecodeWorkers: 1}))(t)
+	batch := testcheck.Must(batcher.Next(context.Background()))(t)
+	generator := testcheck.Must(LoadGenerator(modeltest.Directory(t, "needle")))(t)
+	pair := testcheck.Must(generator.TrainingPair(batch.Examples[0]))(t)
 	return generator, pair, batch.Examples[0]
 }
 
@@ -76,8 +68,7 @@ func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
 	if len(pair.Source) < 12 || len(pair.Targets) < 20 || pair.DecoderInput[0] != generator.model.Dims.StartToken || pair.Targets[len(pair.Targets)-1] != generator.model.Dims.EOSToken {
 		t.Fatalf("unexpected real pair geometry source=%d decoder=%d target=%d", len(pair.Source), len(pair.DecoderInput), len(pair.Targets))
 	}
-	loss, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	loss := testcheck.Must(generator.model.Loss(pair))(t)
 	if math.IsNaN(loss) || math.IsInf(loss, 0) || loss <= 0 || loss >= 20 {
 		t.Fatalf("real GSM8K teacher-forced loss=%g", loss)
 	}
@@ -90,10 +81,8 @@ func TestNeedleRealGSM8KTrainingPair(t *testing.T) {
 
 func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	before, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(generator.model.Loss(pair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	operators := trainer.Program().Operators()
 	if len(operators) != 3 || operators[0].ID != trainingForward || operators[1].ID != trainingBackward || operators[2].ID != trainingMuon {
@@ -111,11 +100,9 @@ func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	}
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(pair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(pair))(t)
 	}
-	after, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(generator.model.Loss(pair))(t)
 	if trajectory[0] != before || !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
 		t.Fatalf("real GSM8K loss did not descend: before=%g trajectory=%v after=%g", before, trajectory, after)
 	}
@@ -125,22 +112,17 @@ func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
 	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
 	_, heldOutPair, heldOutExample := realGSM8KTrainingPair(t, 1)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	for range 3 {
 		if _, err := trainer.Step(trainPair); err != nil {
 			t.Fatal(err)
 		}
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	if !(trainAfter < trainBefore) || math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
 		t.Fatalf("invalid train/held-out result train %.6f -> %.6f held-out %.6f -> %.6f", trainBefore, trainAfter, heldOutBefore, heldOutAfter)
 	}
@@ -155,8 +137,7 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
 	rawBefore, foldedBefore := block.rawGate, block.gate
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
 	if len(parameters) < 33 || parameters[1].Name != "decoder.final_cross.raw_gate" ||
@@ -168,11 +149,9 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	testcheck.NoError(t, trainer.backward(&probe))
 	const epsilon = float32(1e-3)
 	block.rawGate, block.gate = rawBefore+epsilon, sigmoid(rawBefore+epsilon)
-	plus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = rawBefore-epsilon, sigmoid(rawBefore-epsilon)
-	minus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = rawBefore, foldedBefore
 	finiteDifference := (plus - minus) / (2 * float64(epsilon))
 	analytic := float64(probe.gradient[generator.model.Dims.DModel])
@@ -181,14 +160,12 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	}
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(pair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(pair))(t)
 	}
 	if block.rawGate == rawBefore || block.gate == foldedBefore {
 		t.Fatalf("final cross gate did not update: raw=%g folded=%g", block.rawGate, block.gate)
 	}
-	after, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(generator.model.Loss(pair))(t)
 	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
 		t.Fatalf("final cross training did not descend: %v -> %g", trajectory, after)
 	}
@@ -197,8 +174,7 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 1, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -217,11 +193,9 @@ func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
 	}
 	original := block.o[index]
 	block.o[index] = original + 1
-	plus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.o[index] = original - 1
-	minus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.o[index] = original
 	plusWeight := float64(math.Float32frombits(uint32(original+1) << 16))
 	minusWeight := float64(math.Float32frombits(uint32(original-1) << 16))
@@ -239,13 +213,11 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
 	original := append([]uint16(nil), block.o...)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(pair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(pair))(t)
 	}
 	changed := 0
 	for index, word := range block.o {
@@ -253,8 +225,7 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 			changed++
 		}
 	}
-	after, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	after := testcheck.Must(generator.model.Loss(pair))(t)
 	if changed == 0 || !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && after < trajectory[2]) {
 		t.Fatalf("output projection did not train: changed=%d trajectory=%v after=%g", changed, trajectory, after)
 	}
@@ -263,8 +234,7 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalCrossAttentionCoreGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 1, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -293,12 +263,9 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 	qBefore := append([]uint16(nil), block.q...)
 	kBefore := append([]uint16(nil), block.k...)
 	vBefore := append([]uint16(nil), block.v...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	wantParameters := []string{
 		"decoder.final_norm", "decoder.final_cross.raw_gate", "decoder.final_cross.output",
@@ -341,13 +308,10 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 	kNormAnalytic, kNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.kNorm, probe.gradient[trainer.layout.kNorm.start:trainer.layout.kNorm.end])
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	qChanged := changedBF16(qBefore, block.q)
 	kChanged := changedBF16(kBefore, block.k)
 	vChanged := changedBF16(vBefore, block.v)
@@ -377,12 +341,9 @@ func TestNeedleRealGSM8KFullDecoderMuon(t *testing.T) {
 		selfBefore[layer] = projectionSnapshot{append([]uint16(nil), self.q...), append([]uint16(nil), self.k...), append([]uint16(nil), self.v...)}
 		crossBefore[layer] = projectionSnapshot{append([]uint16(nil), cross.q...), append([]uint16(nil), cross.k...), append([]uint16(nil), cross.v...)}
 	}
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
 	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8
@@ -422,13 +383,10 @@ func TestNeedleRealGSM8KFullDecoderMuon(t *testing.T) {
 	}
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
 		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
 		t.Fatalf("full decoder result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
@@ -460,12 +418,9 @@ func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
 		before[layer] = projectionSnapshot{append([]uint16(nil), block.q...), append([]uint16(nil), block.k...), append([]uint16(nil), block.v...)}
 	}
 	finalNormBefore := append([]float32(nil), generator.model.encFinalNorm...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	wantCount := 1 + generator.model.Dims.DecoderLayers*2*8 + 1 + generator.model.Dims.EncoderLayers*8 + 1
 	if parameters := trainer.Program().Parameters(); len(parameters) != wantCount {
@@ -496,13 +451,10 @@ func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
 	)
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
 		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
 		t.Fatalf("encoder result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
@@ -537,12 +489,9 @@ func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
 	generator, trainPair, _ := realGSM8KTrainingPair(t, 0)
 	_, heldOutPair, _ := realGSM8KTrainingPair(t, 1)
 	before := append([]uint16(nil), generator.model.embed...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	parameters := trainer.Program().Parameters()
 	if parameters[len(parameters)-1].Name != "shared.embedding" || !parameters[len(parameters)-1].Trainable {
@@ -557,13 +506,10 @@ func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
 	analytic, finite := verifyBF16GradientRadius(t, generator.model, trainPair, generator.model.embed, probe.embeddingGradient, 4)
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	if !(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
 		math.IsNaN(heldOutAfter) || math.IsInf(heldOutAfter, 0) || heldOutAfter <= 0 {
 		t.Fatalf("embedding result train %.6f -> %v -> %.6f held-out %.6f -> %.6f", trainBefore, trajectory, trainAfter, heldOutBefore, heldOutAfter)
@@ -609,8 +555,7 @@ func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
 	meanLoss := func(pairs []TrainingPair) float64 {
 		var sum float64
 		for _, pair := range pairs {
-			loss, err := generator.model.Loss(pair)
-			testcheck.NoError(t, err)
+			loss := testcheck.Must(generator.model.Loss(pair))(t)
 			sum += loss
 		}
 		return sum / float64(len(pairs))
@@ -618,14 +563,12 @@ func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
 	trainBefore := meanLoss(trainPairs)
 	heldOutBefore := meanLoss(heldOutPairs)
 	steps := trainRecords * epochs
-	trainer, err := newConstantTrainer(generator.model, steps, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, steps, 0.001, 0.9))(t)
 	defer trainer.Close()
 	trajectory := make([]float64, 0, steps)
 	for range epochs {
 		for _, pair := range trainPairs {
-			loss, err := trainer.Step(pair)
-			testcheck.NoError(t, err)
+			loss := testcheck.Must(trainer.Step(pair))(t)
 			trajectory = append(trajectory, loss)
 		}
 	}
@@ -639,8 +582,7 @@ func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 1, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -655,11 +597,9 @@ func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 	originalRaw, originalGate := block.rawGate, block.gate
 	const epsilon = float32(1e-3)
 	block.rawGate, block.gate = originalRaw+epsilon, sigmoid(originalRaw+epsilon)
-	plus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw-epsilon, sigmoid(originalRaw-epsilon)
-	minus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw, originalGate
 	finite := (plus - minus) / (2 * float64(epsilon))
 	analytic := float64(probe.selfRawGateGradient)
@@ -672,8 +612,7 @@ func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 
 func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 1, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -687,11 +626,9 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 	originalRaw, originalGate := block.rawGate, block.gate
 	const epsilon = float32(1e-3)
 	block.rawGate, block.gate = originalRaw+epsilon, sigmoid(originalRaw+epsilon)
-	plus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw-epsilon, sigmoid(originalRaw-epsilon)
-	minus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw, originalGate
 	finite := (plus - minus) / (2 * float64(epsilon))
 	analytic := float64(probe.penultimateCrossRawGate)
@@ -704,8 +641,7 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 
 func TestNeedleRealGSM8KPenultimateSelfAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 1, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: pair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -719,11 +655,9 @@ func TestNeedleRealGSM8KPenultimateSelfAttentionGradient(t *testing.T) {
 	originalRaw, originalGate := block.rawGate, block.gate
 	const epsilon = float32(1e-3)
 	block.rawGate, block.gate = originalRaw+epsilon, sigmoid(originalRaw+epsilon)
-	plus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw-epsilon, sigmoid(originalRaw-epsilon)
-	minus, err := generator.model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(generator.model.Loss(pair))(t)
 	block.rawGate, block.gate = originalRaw, originalGate
 	finite := (plus - minus) / (2 * float64(epsilon))
 	analytic := float64(probe.penultimateSelfRawGate)
@@ -742,12 +676,9 @@ func TestNeedleRealGSM8KPenultimateSelfAttentionMuon(t *testing.T) {
 	qBefore := append([]uint16(nil), block.q...)
 	kBefore := append([]uint16(nil), block.k...)
 	vBefore := append([]uint16(nil), block.v...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: trainPair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -760,13 +691,10 @@ func TestNeedleRealGSM8KPenultimateSelfAttentionMuon(t *testing.T) {
 	kNormAnalytic, kNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.kNorm, probe.gradient[trainer.layout.penultimateSelfKNorm.start:trainer.layout.penultimateSelfKNorm.end])
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	qChanged, kChanged, vChanged := changedBF16(qBefore, block.q), changedBF16(kBefore, block.k), changedBF16(vBefore, block.v)
 	if qChanged == 0 || kChanged == 0 || vChanged == 0 ||
 		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
@@ -789,22 +717,16 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionMuon(t *testing.T) {
 	block := &generator.model.decoderCross[layer]
 	outputBefore := append([]uint16(nil), block.o...)
 	gateBefore := block.rawGate
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	changed := changedBF16(outputBefore, block.o)
 	if changed == 0 || block.rawGate == gateBefore ||
 		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
@@ -824,12 +746,9 @@ func TestNeedleRealGSM8KPenultimateCrossQKVMuon(t *testing.T) {
 	qBefore := append([]uint16(nil), block.q...)
 	kBefore := append([]uint16(nil), block.k...)
 	vBefore := append([]uint16(nil), block.v...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: trainPair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -842,13 +761,10 @@ func TestNeedleRealGSM8KPenultimateCrossQKVMuon(t *testing.T) {
 	kNormAnalytic, kNormFinite := verifyFloat32Gradient(t, generator.model, trainPair, block.kNorm, probe.gradient[trainer.layout.penultimateCrossKNorm.start:trainer.layout.penultimateCrossKNorm.end])
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	qChanged, kChanged, vChanged := changedBF16(qBefore, block.q), changedBF16(kBefore, block.k), changedBF16(vBefore, block.v)
 	if qChanged == 0 || kChanged == 0 || vChanged == 0 ||
 		!(trajectory[1] < trajectory[0] && trajectory[2] < trajectory[1] && trainAfter < trajectory[2]) ||
@@ -871,12 +787,9 @@ func TestNeedleRealGSM8KFinalSelfAttentionMuon(t *testing.T) {
 	qBefore := append([]uint16(nil), block.q...)
 	kBefore := append([]uint16(nil), block.k...)
 	vBefore := append([]uint16(nil), block.v...)
-	trainBefore, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutBefore, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
-	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
-	testcheck.NoError(t, err)
+	trainBefore := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutBefore := testcheck.Must(generator.model.Loss(heldOutPair))(t)
+	trainer := testcheck.Must(newConstantTrainer(generator.model, 3, 0.001, 0.9))(t)
 	defer trainer.Close()
 	probe := trainingStep{pair: trainPair}
 	testcheck.NoError(t, trainer.forward(&probe))
@@ -886,13 +799,10 @@ func TestNeedleRealGSM8KFinalSelfAttentionMuon(t *testing.T) {
 	vAnalytic, vFinite := verifyBF16Gradient(t, generator.model, trainPair, block.v, probe.selfVGradient)
 	trajectory := make([]float64, 3)
 	for step := range trajectory {
-		trajectory[step], err = trainer.Step(trainPair)
-		testcheck.NoError(t, err)
+		trajectory[step] = testcheck.Must(trainer.Step(trainPair))(t)
 	}
-	trainAfter, err := generator.model.Loss(trainPair)
-	testcheck.NoError(t, err)
-	heldOutAfter, err := generator.model.Loss(heldOutPair)
-	testcheck.NoError(t, err)
+	trainAfter := testcheck.Must(generator.model.Loss(trainPair))(t)
+	heldOutAfter := testcheck.Must(generator.model.Loss(heldOutPair))(t)
 	qChanged := changedBF16(qBefore, block.q)
 	kChanged := changedBF16(kBefore, block.k)
 	vChanged := changedBF16(vBefore, block.v)
@@ -945,11 +855,9 @@ func verifyBF16GradientRadius(t *testing.T, model *Model, pair TrainingPair, wei
 	firstValue := float64(math.Float32frombits(uint32(firstWord) << 16))
 	secondValue := float64(math.Float32frombits(uint32(secondWord) << 16))
 	weights[index] = firstWord
-	firstLoss, err := model.Loss(pair)
-	testcheck.NoError(t, err)
+	firstLoss := testcheck.Must(model.Loss(pair))(t)
 	weights[index] = secondWord
-	secondLoss, err := model.Loss(pair)
-	testcheck.NoError(t, err)
+	secondLoss := testcheck.Must(model.Loss(pair))(t)
 	weights[index] = original
 	finite := (secondLoss - firstLoss) / (secondValue - firstValue)
 	analytic := float64(gradient[index])
@@ -966,11 +874,9 @@ func verifyFloat32Gradient(t *testing.T, model *Model, pair TrainingPair, weight
 	original := weights[index]
 	const epsilon = float32(1e-3)
 	weights[index] = original + epsilon
-	plus, err := model.Loss(pair)
-	testcheck.NoError(t, err)
+	plus := testcheck.Must(model.Loss(pair))(t)
 	weights[index] = original - epsilon
-	minus, err := model.Loss(pair)
-	testcheck.NoError(t, err)
+	minus := testcheck.Must(model.Loss(pair))(t)
 	weights[index] = original
 	finite := (plus - minus) / (2 * float64(epsilon))
 	analytic := float64(gradient[index])

@@ -1036,8 +1036,7 @@ func Warm(color Color) bool {
 func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	t.Parallel()
 	fixture := fixtureSnapshot(t, shapeFixture)
-	reading, err := readShapes(fixture)
-	testcheck.NoError(t, err)
+	reading := testcheck.Must(readShapes(fixture))(t)
 	want := []string{
 		"run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import",
 		"run call-and-test lines=18 places=2 cmd/alpha/main.go:8-16 main, cmd/beta/main.go:8-16 main",
@@ -1064,8 +1063,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	}
 	{
 		fixture := fixtureSnapshot(t, shapeFixture, caseFixture)
-		reading, err := readShapes(fixture)
-		testcheck.NoError(t, err)
+		reading := testcheck.Must(readShapes(fixture))(t)
 		compile := []string{"internal/suites/suites.go Compile"}
 		planted := []consolidatedGroup{
 			{name: "planted cases", functions: compile, cases: []string{`"a"`, `"b"`}, calls: []string{"decode"}},
@@ -1079,10 +1077,8 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 			`group "planted files" repeats in run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import`,
 		})
 	}
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
-	testcheck.NoError(t, err)
-	reading, err = readShapes(snapshot)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal"))(t)
+	reading = testcheck.Must(readShapes(snapshot))(t)
 	if reading.files == 0 {
 		t.Fatal("the shape reading read no production file of the repository, want the files of cmd and internal")
 	}
@@ -1117,8 +1113,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	for _, family := range reading.families[:min(largestShown, len(reading.families))] {
 		t.Log(family)
 	}
-	repeats, err := consolidatedRepeats(snapshot, reading, slices.Concat(consolidatedGroups, consolidatedSurfaceGroups))
-	testcheck.NoError(t, err)
+	repeats := testcheck.Must(consolidatedRepeats(snapshot, reading, slices.Concat(consolidatedGroups, consolidatedSurfaceGroups)))(t)
 	if len(repeats) > 0 {
 		t.Errorf("a consolidated group repeats again, want its places served by the common component:\n%s", strings.Join(repeats, "\n"))
 	}

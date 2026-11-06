@@ -119,8 +119,7 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	var expected bytes.Buffer
 	testcheck.NoError(t, png.Encode(&expected, image.NewRGBA(image.Rect(0, 0, 1, 1))))
 	testcheck.NoError(t, browser.AwaitDownload(ctx, "preview.png"))
-	data, err := os.ReadFile(filepath.Join(downloadDirectory, "preview.png"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(downloadDirectory, "preview.png")))(t)
 	if !bytes.Equal(data, expected.Bytes()) {
 		t.Fatal("authenticated download bytes differ")
 	}

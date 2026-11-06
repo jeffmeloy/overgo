@@ -61,12 +61,10 @@ func TestMimiStreamingDecode(t *testing.T) {
 	t.Run("generation boundaries", testStreamingFrameBoundaries)
 	fixture, shapes, read := readCodecFixture(t)
 	frames, width := fixture.Latents.Shape[0], fixture.Latents.Shape[1]
-	codec, err := loadCodecDecoder(read, shapes, fixture.Config, width, fixtureSpeechProgram())
-	testcheck.NoError(t, err)
+	codec := testcheck.Must(loadCodecDecoder(read, shapes, fixture.Config, width, fixtureSpeechProgram()))(t)
 	m := &Model{Dims: Dims{LatentDim: width}, Codec: codec, EmbMean: fixture.Mean, EmbStd: fixture.Std}
 	values := f32of(fixture.Latents.Values)
-	whole, err := m.LatentsToPCM(t.Context(), LatentBatch{Frames: frames, Width: width, Values: values})
-	testcheck.NoError(t, err)
+	whole := testcheck.Must(m.LatentsToPCM(t.Context(), LatentBatch{Frames: frames, Width: width, Values: values}))(t)
 	requireWithin(t, "independent PocketTTS PCM", whole, fixture.PCM, tolSeanetPCM)
 	for _, chunk := range []int{1, codec.window, frames} {
 		t.Run(fmt.Sprint(chunk), func(t *testing.T) {
@@ -75,8 +73,7 @@ func TestMimiStreamingDecode(t *testing.T) {
 			var got []float32
 			for start := 0; start < frames; start += chunk {
 				end := min(start+chunk, frames)
-				pcm, err := m.decodeLatents(t.Context(), state, LatentBatch{Values: values[start*width : end*width], Frames: end - start, Width: width})
-				testcheck.NoError(t, err)
+				pcm := testcheck.Must(m.decodeLatents(t.Context(), state, LatentBatch{Values: values[start*width : end*width], Frames: end - start, Width: width}))(t)
 				if len(pcm) != len(whole)/frames*(end-start) {
 					t.Fatalf("chunk emitted %d samples", len(pcm))
 				}
@@ -130,8 +127,7 @@ func TestVoicePreparation(t *testing.T) {
 	if len(fixture.Conditioning.Shape) != tensor.PairedExtent {
 		t.Fatal("independent voice reference is absent")
 	}
-	encoder, err := loadCodecEncoder(read, shapes, fixture.Config, fixture.Conditioning.Shape[1], fixtureSpeechProgram())
-	testcheck.NoError(t, err)
+	encoder := testcheck.Must(loadCodecEncoder(read, shapes, fixture.Config, fixture.Conditioning.Shape[1], fixtureSpeechProgram()))(t)
 	conditioning, padding, err := encoder.encode(t.Context(), fixture.VoiceInput)
 	testcheck.NoError(t, err)
 	if padding != 1 || len(conditioning) != len(fixture.Conditioning.Values) {
@@ -140,8 +136,7 @@ func TestVoicePreparation(t *testing.T) {
 	requireWithin(t, "independent encoder and speaker projection", conditioning, fixture.Conditioning.Values, tolTransformer)
 	withBOS := fixture.Config
 	withBOS.FlowLM.InsertBOSBeforeVoice = true
-	withEncoder, err := loadCodecEncoder(read, shapes, withBOS, fixture.Conditioning.Shape[1], fixtureSpeechProgram())
-	testcheck.NoError(t, err)
+	withEncoder := testcheck.Must(loadCodecEncoder(read, shapes, withBOS, fixture.Conditioning.Shape[1], fixtureSpeechProgram()))(t)
 	prefixed, _, err := withEncoder.encode(t.Context(), fixture.VoiceInput)
 	testcheck.NoError(t, err)
 	requireWithin(t, "independent configured voice prefix", prefixed, fixture.ConditioningWithBOS, tolTransformer)
@@ -208,8 +203,7 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 	directory := t.TempDir()
 	fixture.Config.FlowLM.Transformer.NumHeads = tensor.PairedExtent
 	fixture.Config.FlowLM.Transformer.MaxPeriod = fixture.Config.Mimi.Transformer.MaxPeriod
-	config, err := json.Marshal(fixture.Config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(json.Marshal(fixture.Config))(t)
 	for name, data := range map[string][]byte{configFileName: config, "tokenizer.model": []byte("unused tokenizer inventory fixture")} {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), data, 0o600))
 	}
@@ -218,25 +212,19 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 		tensors[name] = f32of(value.Values)
 	}
 	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), tensors, shapes, nil))
-	inventory, err := Inventory(directory)
-	testcheck.NoError(t, err)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
-	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(Inventory(directory))(t)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID))(t)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
-	batch, err := inventory.Batch("fixture-model")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(inventory.Batch("fixture-model"))(t)
 	if _, err := artifact.Publish(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "fixture-recipe", definition); err != nil {
 		t.Fatal(err)
 	}
-	wav, err := media.EncodeWAVPCM16(fixture.VoiceInput, fixture.Config.Mimi.SampleRate)
-	testcheck.NoError(t, err)
-	recording, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/recording"}).ContentBytes(wav)
-	testcheck.NoError(t, err)
+	wav := testcheck.Must(media.EncodeWAVPCM16(fixture.VoiceInput, fixture.Config.Mimi.SampleRate))(t)
+	recording := testcheck.Must((artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/recording"}).ContentBytes(wav))(t)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture-recording", Contents: []artifact.Content{recording}}); err != nil {
 		t.Fatal(err)
 	}
@@ -244,8 +232,7 @@ func testPreparedVoiceBinding(t *testing.T, fixture codecFixture, shapes map[str
 	model.Codec = &CodecDecoder{SampleRate: fixture.Config.Mimi.SampleRate}
 	synth := &Synthesizer{model: model, tokenizer: &Unigram{}, directory: directory, boundRecipe: definition.ID, voices: map[string]*VoiceState{}}
 	request := SynthesisRequest{Text: "a", ReferenceAudio: recording.Descriptor.ID, ReferenceEndSample: len(fixture.VoiceInput), VoiceMemoryBytes: artifact.MaxContentBytes}
-	id, err := synth.BindVoice(t.Context(), store, definition, request)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(synth.BindVoice(t.Context(), store, definition, request))(t)
 	voice, err := synth.voiceState(request.voiceKey())
 	if err != nil || voice.Frames != fixture.Conditioning.Shape[0] {
 		t.Fatalf("prepared frames: %v %v", voice, err)
@@ -338,8 +325,7 @@ func testStreamingFrameBoundaries(t *testing.T) {
 		want, wantEOS, err := m.GenerateLatentsWithVoice(t.Context(), voice, ids, p)
 		testcheck.NoError(t, err)
 		calls = 0
-		state, err := m.promptVoice(t.Context(), voice, ids, p)
-		testcheck.NoError(t, err)
+		state := testcheck.Must(m.promptVoice(t.Context(), voice, ids, p))(t)
 		var got []float32
 		var logits []float64
 		complete, err := m.walkFrames(t.Context(), state, p, func(frame []float32, logit float64) error {
@@ -352,8 +338,7 @@ func testStreamingFrameBoundaries(t *testing.T) {
 		}
 		for _, cancelContext := range []bool{false, true} {
 			calls = 0
-			state, err := m.promptVoice(t.Context(), voice, ids, p)
-			testcheck.NoError(t, err)
+			state := testcheck.Must(m.promptVoice(t.Context(), voice, ids, p))(t)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			cause := errors.New("consumer stopped")
 			complete, err := m.walkFrames(ctx, state, p, func([]float32, float64) error {

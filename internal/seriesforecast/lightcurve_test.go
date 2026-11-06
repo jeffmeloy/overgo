@@ -9,14 +9,12 @@ import (
 )
 
 func TestLightCurveProcessorDerivesBandAndBoundary(t *testing.T) {
-	processor, err := LightCurveProcessor(2, 3)
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(LightCurveProcessor(2, 3))(t)
 	record := trainingdata.RawRecord{ID: "curve", Group: "heldout", Data: []byte(`{
 		"objid": 7,
 		"x": [4, 500, 14, 1, 1, 600, 20, 1, 3, 500, 13, 1, 1, 500, 11, 1, 2, 500, 12, 1, 0, 0, 0, 0]
 	}`)}
-	example, err := processor(t.Context(), record)
-	testcheck.NoError(t, err)
+	example := testcheck.Must(processor(t.Context(), record))(t)
 	input, target, err := TrainingPair(example)
 	testcheck.NoError(t, err)
 	if got, want := input, []float32{11, 12}; !slices.Equal(got, want) {
@@ -35,10 +33,8 @@ func TestLightCurveTrainingProcessorReservesTwoPatches(t *testing.T) {
 		"objid": 7,
 		"x": [1, 500, 11, 1, 2, 500, 12, 1, 3, 500, 13, 1, 4, 500, 14, 1, 5, 500, 15, 1, 6, 500, 16, 1]
 	}`)}
-	processor, err := LightCurveTrainingProcessor(2, 3)
-	testcheck.NoError(t, err)
-	example, err := processor(t.Context(), record)
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(LightCurveTrainingProcessor(2, 3))(t)
+	example := testcheck.Must(processor(t.Context(), record))(t)
 	input, target, err := TrainingPair(example)
 	testcheck.NoError(t, err)
 	if got, want := input, []float32{11, 12, 13, 14}; !slices.Equal(got, want) {

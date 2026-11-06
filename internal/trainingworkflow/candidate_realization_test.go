@@ -67,8 +67,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 		{SourceInput: []float32{1, 0}, TargetInput: []float32{1, 1}},
 		{SourceInput: []float32{0, 1}, TargetInput: []float32{1, -1}},
 	}
-	datasetID, err := artifact.JSONID(artifact.KindDataset, examples)
-	testcheck.NoError(t, err)
+	datasetID := testcheck.Must(artifact.JSONID(artifact.KindDataset, examples))(t)
 	// Only the inputs are registered; the adapter, its initial weights and
 	// the composite reach the store through the realization's publication.
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -101,12 +100,11 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	}
 	assembly := RealizationAssembly{Architecture: "llama", Recipe: recipeID}
 
-	realized, err := RealizeCompositionCandidate(
+	realized := testcheck.Must(RealizeCompositionCandidate(
 		ctx, store, candidate, targetID,
 		RealizationSeamActivations{Source: source, Target: linearTarget},
 		training, assembly,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if realized.Adapter.BridgeBefore == realized.Adapter.BridgeAfter {
 		t.Fatal("the adapter did not train")
 	}
@@ -129,12 +127,11 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	identical := applyLinearMap(source, [][]float64{{1, 0.5}, {-0.25, 1}}, func(int, int) float64 { return 0 })
 	graft := candidate
 	graft.Adapter = composition.AdapterIdentity
-	direct, err := RealizeCompositionCandidate(
+	direct := testcheck.Must(RealizeCompositionCandidate(
 		ctx, store, graft, targetID,
 		RealizationSeamActivations{Source: source, Target: identical},
 		RealizationTraining{}, assembly,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if direct.Composite.Adapter.Valid() || direct.Adapter.BridgeAfter.Valid() {
 		t.Fatalf("identity graft trained an adapter: %+v", direct)
 	}

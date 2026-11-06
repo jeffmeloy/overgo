@@ -25,13 +25,12 @@ func TestWebUIBrowserRemoteTurns(t *testing.T) {
 	if err := json.Unmarshal(serveTestRequest(handler, http.MethodGet, "/health", "").Body.Bytes(), &health); err != nil || health.Model == "" {
 		t.Fatalf("health = %+v, %v", health, err)
 	}
-	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
+	catalog := testcheck.Must(json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
 		{"model": health.Model, "location": "remote://fake/vendor/model", "present": true, "recipe": "recipe:remote",
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:remote", "tier": "contract-tested"}}},
 		{"model": "model:local", "location": "C:/models/local.gguf", "present": true, "recipe": "recipe:local",
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:local", "tier": "verified"}}},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)

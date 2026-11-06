@@ -18,8 +18,7 @@ import (
 // frozen group's gradients clear without a product, and the one session keeps the operations it opened.
 func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	shapes := [][2]int{{32, 16}, {16, 64}, {8, 8}}
 	specs := make([]GroupSpec, 0, len(shapes))
@@ -29,8 +28,7 @@ func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 		specs = append(specs, GroupSpec{Name: string(rune('a' + index)), Start: start, End: end, Rows: shape[0], Cols: shape[1], Frozen: index == len(shapes)-1})
 		start = end
 	}
-	plan, err := CompilePlan(start, specs)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompilePlan(start, specs))(t)
 	config := Config{BaseLearningRate: 0.05, Momentum: 0.9, Steps: 3, Schedule: ScheduleLinearDecay}
 	rng := rand.New(rand.NewSource(5))
 	initial := make([]float32, start)
@@ -53,8 +51,7 @@ func TestStreamedMuonSessionPreparesOnce(t *testing.T) {
 		}
 		return result
 	}
-	session, err := NewStreamedMuon(worker)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(NewStreamedMuon(worker))(t)
 	defer session.Close()
 	opened := session.ops
 	kept := steps(func(weights, gradients, momentum []float32, number int) error {

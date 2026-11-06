@@ -29,14 +29,11 @@ func TestEncoderCapturePublication(t *testing.T) {
 	if err = safetensors.Save(tensorPath, map[string][]float32{"probe": {1}}, map[string][]int{"probe": {1}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(tensorPath)
-	testcheck.NoError(t, err)
-	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(tensorPath))(t)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t)
 	capture.TensorsSHA256, capture.TensorCount = id.DigestHex(), 1
 	source := []byte("# identity-only synthetic publication fixture\n")
-	sourceID, err := artifact.IdentifyBytes(artifact.KindFile, source)
-	testcheck.NoError(t, err)
+	sourceID := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, source))(t)
 	capture.CaptureSHA256 = sourceID.DigestHex()
 	sourcePath := filepath.Join(dir, "source.py")
 	if err = os.WriteFile(sourcePath, source, 0o600); err != nil {
@@ -53,13 +50,11 @@ func TestEncoderCapturePublication(t *testing.T) {
 	}
 	writeReport()
 	store := overgodbtest.Open(t, t.TempDir())
-	batch, err := election.Batch("capture-test/election")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(election.Batch("capture-test/election"))(t)
 	if _, err = artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	golden, err := PublishEncoderCapture(t.Context(), store, election, reportPath, sourcePath, tensorPath)
-	testcheck.NoError(t, err)
+	golden := testcheck.Must(PublishEncoderCapture(t.Context(), store, election, reportPath, sourcePath, tensorPath))(t)
 	if _, err = artifact.RequireTypedContent(t.Context(), store, golden); err != nil {
 		t.Fatal(err)
 	}

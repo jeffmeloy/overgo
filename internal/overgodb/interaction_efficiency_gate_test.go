@@ -14,8 +14,7 @@ import (
 // kind index inspects a fraction of what the catalog scan inspects.
 func TestKindIndexInspectsLessThanScan(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 	ctx := t.Context()
 	descriptors := make([]artifact.Descriptor, 0, 9)

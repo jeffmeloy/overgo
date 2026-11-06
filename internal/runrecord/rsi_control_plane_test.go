@@ -19,22 +19,19 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	}
 
 	// Causal derivation: one root, typed triggers, reproducible motivation.
-	root, err := NewCausalRoot(TriggerControllerProposal, id(artifact.KindEvidence, "proposal"))
-	testcheck.NoError(t, err)
-	retry, err := root.Derive(TriggerRetry, id(artifact.KindEvidence, "retry"))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(NewCausalRoot(TriggerControllerProposal, id(artifact.KindEvidence, "proposal")))(t)
+	retry := testcheck.Must(root.Derive(TriggerRetry, id(artifact.KindEvidence, "retry")))(t)
 	if retry.Root != root.Root || retry.Trigger != TriggerRetry {
 		t.Fatalf("derived cause lost the root: %+v", retry)
 	}
 
 	// Terminal attempt evidence: complete records admit, incomplete refuse.
 	commit := "0123456789abcdef0123456789abcdef01234567"
-	attempt, err := NewAttemptRecord(AttemptRecord{
+	attempt := testcheck.Must(NewAttemptRecord(AttemptRecord{
 		PlanItem: "plane", PlanStep: "terminal", Result: id(artifact.KindEvidence, "result"),
 		Recipe: id(artifact.KindRecipe, "recipe"), CodeCommit: commit,
 		Outcome: OutcomeSucceeded, WallNS: 1, Causal: &retry,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if attempt.Causal == nil || attempt.Causal.Root != root.Root {
 		t.Fatalf("attempt dropped its causal chain: %+v", attempt.Causal)
 	}

@@ -43,8 +43,7 @@ type unlimitedOCRRow struct {
 }
 
 func TestUnlimitedOCRLayoutMetrics(t *testing.T) {
-	rows, err := parseUnlimitedOCRRows("title [1, 2, 3, 4]alpha\ntext [5, 6, 7, 8]beta")
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(parseUnlimitedOCRRows("title [1, 2, 3, 4]alpha\ntext [5, 6, 7, 8]beta"))(t)
 	if len(rows) != 2 || rows[1].Kind != "text" || rows[1].Coordinates != [4]int{5, 6, 7, 8} || rows[1].Text != "beta" {
 		t.Fatalf("rows = %+v", rows)
 	}
@@ -59,8 +58,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_CUDA_TEST=1 for real Unlimited OCR parity")
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	fixtureRoot := filepath.Join(roots.References(), "fixtures")
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Unlimited-OCR-bf16.gguf")
 	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Unlimited-OCR-mmproj-bf16.gguf")
@@ -71,8 +69,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	assertSHA256(t, imagePath, "98db361580c88252e3942dd3ab197e332348ee0e295e5b22ec734de58c6f46e1")
 	assertSHA256(t, goldenPath, "72339f0f4aece7c793d8c77a0c804ba2b121af3caf96340bf850d89bb744acd5")
 
-	raw, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(goldenPath))(t)
 	var golden unlimitedOCRGolden
 	testcheck.NoError(t, json.Unmarshal(raw, &golden))
 	if len(golden.InputIDs) == 0 || len(golden.GeneratedTokenIDs) == 0 || golden.OutputText == "" {
@@ -83,8 +80,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 		!strings.HasSuffix(lines[28], "Line 28 adaptive memory scalable OCR validation row 0476") {
 		t.Fatal("Unlimited OCR oracle layout is invalid")
 	}
-	imageFile, err := os.Open(imagePath)
-	testcheck.NoError(t, err)
+	imageFile := testcheck.Must(os.Open(imagePath))(t)
 	source, _, decodeErr := image.Decode(imageFile)
 	closeErr := imageFile.Close()
 	if decodeErr != nil || closeErr != nil {
@@ -98,21 +94,18 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 		t.Fatalf("UNAVAILABLE: Unlimited OCR projector or CUDA absent; parity NOT verified: %v", err)
 	}
 	defer vision.Close()
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative,
-	)
-	testcheck.NoError(t, err)
-	language, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	))(t)
+	language := testcheck.Must(inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{}))(t)
 	defer language.Close()
 	if golden.Decode.Prompt != projector.DeepSeekOCRImagePad+"document parsing." {
 		t.Fatalf("Unlimited OCR oracle prompt = %q", golden.Decode.Prompt)
 	}
 	projectStarted := time.Now()
-	prompt, err := mustProjectorSession(t, vision).BuildImagePrompt(
+	prompt := testcheck.Must(mustProjectorSession(t, vision).BuildImagePrompt(
 		t.Context(), language, source, "", "document parsing.", false,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	projectDuration := time.Since(projectStarted)
 	if !slices.Equal(prompt.TokenIDs, golden.InputIDs) {
 		t.Fatalf("Unlimited OCR prompt IDs = %d, want %d", len(prompt.TokenIDs), len(golden.InputIDs))
@@ -135,8 +128,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	greedyConfig.TopP = 1
 	greedyConfig.NoRepeatNgramSize = 35
 	greedyConfig.NgramWindow = 128
-	greedy, err := sampling.New(greedyConfig)
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(greedyConfig))(t)
 	generateStarted := time.Now()
 	generated, _, err := language.Generate(t.Context(), "", inference.GenerateOptions{
 		MaxNewTokens: len(golden.GeneratedTokenIDs), Sampler: greedy, DeviceGreedy: true,
@@ -156,14 +148,10 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if delta := len(generated) - len(wantGenerated); delta < -1 || delta > 1 {
 		t.Fatalf("Unlimited OCR output tokens = %d, want %d±1", len(generated), len(wantGenerated))
 	}
-	text, err := language.Detokenize(generated, inference.RenderText)
-	testcheck.NoError(t, err)
-	wantText, err := language.Detokenize(wantGenerated, inference.RenderText)
-	testcheck.NoError(t, err)
-	gotRows, err := parseUnlimitedOCRRows(text)
-	testcheck.NoError(t, err)
-	wantRows, err := parseUnlimitedOCRRows(wantText)
-	testcheck.NoError(t, err)
+	text := testcheck.Must(language.Detokenize(generated, inference.RenderText))(t)
+	wantText := testcheck.Must(language.Detokenize(wantGenerated, inference.RenderText))(t)
+	gotRows := testcheck.Must(parseUnlimitedOCRRows(text))(t)
+	wantRows := testcheck.Must(parseUnlimitedOCRRows(wantText))(t)
 	if len(gotRows) != 29 || len(wantRows) != 29 {
 		t.Fatalf("Unlimited OCR rows = %d, want %d", len(gotRows), len(wantRows))
 	}

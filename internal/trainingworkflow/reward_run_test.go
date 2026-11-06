@@ -56,8 +56,7 @@ func rewardFixture(t *testing.T) (string, Request) {
 	model, prompts := filepath.Join(root, "model"), filepath.Join(root, "prompts.json")
 	writeModel(t, model, weights, shapes)
 	// The end token is declared in config.json, which a checkpoint carries with it.
-	config, err := os.ReadFile(filepath.Join(model, "config.json"))
-	testcheck.NoError(t, err)
+	config := testcheck.Must(os.ReadFile(filepath.Join(model, "config.json")))(t)
 	for path, content := range map[string]string{filepath.Join(model, "config.json"): strings.Replace(string(config), "{", `{"eos_token_id":0,`, 1), prompts: rewardPrompts} {
 		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
@@ -112,14 +111,12 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 	run := func(request Request, name string, steps int) Result {
 		t.Helper()
 		request.Steps, request.OutputDirectory = steps, filepath.Join(filepath.Dir(request.ModelDirectory), name)
-		result, err := Execute(ctx, request)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(Execute(ctx, request))(t)
 		return result
 	}
 	trained := func(request Request, name string) map[string][]float32 {
 		t.Helper()
-		model, err := loadTrainableModel(filepath.Join(filepath.Dir(request.ModelDirectory), name))
-		testcheck.NoError(t, err)
+		model := testcheck.Must(loadTrainableModel(filepath.Join(filepath.Dir(request.ModelDirectory), name)))(t)
 		return model.Weights
 	}
 	const prompts, passes = 5, 2
@@ -139,20 +136,15 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 	}
 
 	// Every group is in the store under the weights it was drawn from.
-	base, err := identifyModel(request.ModelDirectory)
-	testcheck.NoError(t, err)
-	suite, err := evaluation.ParseInstructionPrompts([]byte(rewardPrompts))
-	testcheck.NoError(t, err)
-	tokens, err := loadTrainableTokenizer(request.ModelDirectory)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(identifyModel(request.ModelDirectory))(t)
+	suite := testcheck.Must(evaluation.ParseInstructionPrompts([]byte(rewardPrompts)))(t)
+	tokens := testcheck.Must(loadTrainableTokenizer(request.ModelDirectory))(t)
 	held := map[string]int{}
 	for _, name := range suite.Names() {
 		prompt, limit, _ := suite.Asked(name)
-		encoded, err := tokens.encode(prompt)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(tokens.encode(prompt))(t)
 		for updates := 0; updates <= trace.Updated; updates++ {
-			weights, err := evaluation.UpdatedWeights(base, request.Rewards.Training, uint64(updates))
-			testcheck.NoError(t, err)
+			weights := testcheck.Must(evaluation.UpdatedWeights(base, request.Rewards.Training, uint64(updates)))(t)
 			group := evaluation.SampledGroup{
 				Group: name, Code: request.Rewards.Code, Weights: weights, Tokenizer: base, Template: "none",
 				Ends: []tokenizer.TokenID{0}, Temperature: 1, Seed: request.Rewards.Seed, MaxTokens: limit,

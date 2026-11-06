@@ -46,30 +46,25 @@ func TestAgentRecoveryToolProcess(t *testing.T) {
 // on PATH, so a caller runs serially.
 func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceFixture, func()) {
 	t.Helper()
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	t.Setenv("PATH", filepath.Dir(executable)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	fixture := newAgentWorkspaceFixture(t, store, nil, nil)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	testcheck.NoError(t, err)
+	listener := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 	t.Cleanup(func() { _ = listener.Close() })
 	release := func() {
 		t.Helper()
-		connection, err := listener.Accept()
-		testcheck.NoError(t, err)
+		connection := testcheck.Must(listener.Accept())(t)
 		defer connection.Close()
 		if _, err := connection.Write([]byte{1}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
-	stream, err := agenttool.NewManual(agenttool.Manual{
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
+	stream := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "tool.stream", Description: "Prints its output in two pieces.", Effect: agenttool.EffectInspection,
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: filepath.Base(executable),
 			Args: []string{"-test.run=^TestAgentRecoveryToolProcess$", "--", listener.Addr().String()}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), store, []string{filepath.Base(executable)}); err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +154,7 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 		for index, message := range messages {
 			turns[index] = map[string]string{"role": "user", "content": message}
 		}
-		body, err := json.Marshal(map[string]any{"agent": "research-agent", "session": session, "messages": turns})
-		testcheck.NoError(t, err)
+		body := testcheck.Must(json.Marshal(map[string]any{"agent": "research-agent", "session": session, "messages": turns}))(t)
 		if answered := serveTestRequest(fixture.handler, http.MethodPost, "/agents/chat", string(body)); answered.Code != http.StatusOK || !strings.Contains(answered.Body.String(), `"choices"`) {
 			t.Fatalf("agent chat status=%d body=%s", answered.Code, answered.Body.String())
 		}

@@ -83,16 +83,14 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	testskip.Short(t, "loader baseline reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_baseline.json")
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoBaselineSHA256))
 	var baseline mediaLoaderBaseline
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &baseline))
 	var inventory imageVideoInventory
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory))
 	testcheck.NoError(t, checkMediaLoaderBaseline(baseline, inventory))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -107,8 +105,7 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	}
 	requirePass := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty baseline check")
@@ -157,8 +154,7 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	var changed map[string]any
 	testcheck.NoError(t, json.Unmarshal(data, &changed))
 	changed["source"] = "changed"
-	changedData, err := json.Marshal(changed)
-	testcheck.NoError(t, err)
+	changedData := testcheck.Must(json.Marshal(changed))(t)
 	if checkMediaProtocolIdentity(changedData, imageVideoBaselineSHA256) == nil {
 		t.Fatal("accepted substituted acquisition identity")
 	}

@@ -17,15 +17,13 @@ import (
 func TestNoDocumentRecordsNothing(t *testing.T) {
 	t.Parallel()
 	root := "../.."
-	documents, err := TrackedDocuments(t.Context(), root)
-	testcheck.NoError(t, err)
+	documents := testcheck.Must(TrackedDocuments(t.Context(), root))(t)
 	checked := 0
 	for _, document := range documents {
 		if path.Ext(document) != ".json" {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(root, filepath.FromSlash(document))))(t)
 		var value any
 		if json.Unmarshal(data, &value) != nil {
 			continue

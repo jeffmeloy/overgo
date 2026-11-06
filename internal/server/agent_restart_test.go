@@ -17,15 +17,13 @@ func TestAMutationAfterARestartRuns(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
-	write, err := agenttool.NewManual(agenttool.Manual{
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
+	write := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "store.commit", Description: "A mutation manual for the approval gate.",
 		Effect:    agenttool.EffectMutation,
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), fixture.store, []string{"git"}); err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +47,7 @@ func TestAMutationAfterARestartRuns(t *testing.T) {
 		t.Fatalf("inspection status=%d body=%s", inspect.Code, inspect.Body.String())
 	}
 
-	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: fixture.store}, fixture.generator)
-	testcheck.NoError(t, err)
+	restarted := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: fixture.store}, fixture.generator))(t)
 	defer restarted.Close()
 	body := `"agent":"research-agent","session":"alpha","tool":"store.commit","arguments":{}`
 	preview := serveTestRequest(restarted, http.MethodPost, "/agents/approval", `{`+body+`}`)

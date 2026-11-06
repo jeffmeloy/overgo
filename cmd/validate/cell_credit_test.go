@@ -259,8 +259,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 	// Serial: it names the cycle's credit file in the process environment.
 	root, head := fixtureRepository(t)
-	storeRoot, err := filepath.Abs(filepath.Join(t.TempDir(), "overgodb-store"))
-	testcheck.NoError(t, err)
+	storeRoot := testcheck.Must(filepath.Abs(filepath.Join(t.TempDir(), "overgodb-store")))(t)
 	kept, weights := filepath.Join(t.TempDir(), "cycle_credit.json"), filepath.Join(t.TempDir(), "model.gguf")
 	t.Setenv(clioptions.CycleCreditEnvironment, kept)
 	store := overgodbtest.Create(t, storeRoot)
@@ -280,8 +279,7 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 	if err := executeRun(t.Context(), &out, root, storeRoot, nil, bound(), scopeCells); err != nil || !strings.Contains(out.String(), "kept credited") {
 		t.Fatalf("a cell whose weights are as they were was started again: %v\n%s", err, out.String())
 	}
-	before, err := os.Stat(weights)
-	testcheck.NoError(t, err)
+	before := testcheck.Must(os.Stat(weights))(t)
 	testcheck.NoError(t, os.WriteFile(weights, []byte("changed"), 0o600))
 	testcheck.NoError(t, os.Chtimes(weights, before.ModTime(), before.ModTime()))
 	out.Reset()
@@ -296,10 +294,8 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 func creditView(t *testing.T, store *overgodb.Store, directory string) artifact.ID {
 	t.Helper()
 	image := testutil.ArtifactID(t, artifact.KindTensorSet, "view image")
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}})
-	testcheck.NoError(t, err)
-	location, err := artifact.CanonicalLocalLocation(image, artifact.LocationDirectory, directory)
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}}))(t)
+	location := testcheck.Must(artifact.CanonicalLocalLocation(image, artifact.LocationDirectory, directory))(t)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{
 		Key: "test/credit/view/" + manifest.ID.String(), Artifacts: []artifact.Descriptor{{ID: image, Size: 1}}, Manifests: []artifact.Manifest{manifest},
 		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
@@ -357,18 +353,14 @@ func creditModel(t *testing.T, store *overgodb.Store, paths ...string) artifact.
 	var batch artifact.Batch
 	var components []artifact.Component
 	for index, path := range paths {
-		id, err := artifact.IdentifyFile(artifact.KindFile, path)
-		testcheck.NoError(t, err)
-		info, err := os.Stat(path)
-		testcheck.NoError(t, err)
-		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyFile(artifact.KindFile, path))(t)
+		info := testcheck.Must(os.Stat(path))(t)
+		location := testcheck.Must(artifact.CanonicalLocalLocation(id, artifact.LocationFile, path))(t)
 		components = append(components, artifact.Component{Role: artifact.ComponentConfig, Ordinal: uint32(index), Name: filepath.Base(path), Artifact: id})
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id, Size: uint64(info.Size())})
 		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 	}
-	manifest, err := artifact.NewManifest(artifact.KindModel, components)
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, components))(t)
 	batch.Manifests = []artifact.Manifest{manifest}
 	batch.Key = "test/credit/" + manifest.ID.String()
 	if _, err := artifact.Publish(t.Context(), store, batch); err != nil {

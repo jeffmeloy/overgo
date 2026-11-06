@@ -46,16 +46,12 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	publish := os.Getenv("OVERGO_E4B_PUBLISH_RESOURCES") == "1"
 	var revision string
 	if publish {
-		var err error
-		revision, err = runrecord.VerifyingCommit(testutil.RepoRoot(t))
-		testcheck.NoError(t, err)
+		revision = testcheck.Must(runrecord.VerifyingCommit(testutil.RepoRoot(t)))(t)
 	}
-	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.CurrentEnvironment("cuda:0", "cuda"))(t)
 	var observations []runrecord.ServingObservation
 	var steps []runrecord.GateStep
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	ctx := t.Context()
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	var paths []string
@@ -67,22 +63,16 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 		{"tensor-set:sha256:185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e", artifact.LocationFile},
 		{"dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3", artifact.LocationDirectory},
 	} {
-		id, err := artifact.ParseID(input.id)
-		testcheck.NoError(t, err)
-		path, err := artifact.AvailablePath(ctx, store, id, input.kind)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(input.id))(t)
+		path := testcheck.Must(artifact.AvailablePath(ctx, store, id, input.kind))(t)
 		paths = append(paths, path)
 	}
-	candidate, err := modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1])
-	testcheck.NoError(t, err)
+	candidate := testcheck.Must(modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1]))(t)
 	cases, oracleBytes := prepareE4BServingCases(t, ctx, paths[2])
-	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, paths[0])
-	testcheck.NoError(t, err)
-	identity, err := loaded.Identity()
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(modelrecipe.ResolveActiveGGUF(ctx, store, paths[0]))(t)
+	identity := testcheck.Must(loaded.Identity())(t)
 	steps = append(steps, runrecord.GateStep{Name: "media-resource-contract", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Since(startedAll)), Evidence: fmt.Sprintf("contract=e4b-media-resources-v1;oracle_sha256=%x;model_definition=%s;modes=6;reloads=3;cycles=3;actions=5", sha256.Sum256(oracleBytes), identity.Definition)})
-	observer, err := device.New(0)
-	testcheck.NoError(t, err)
+	observer := testcheck.Must(device.New(0))(t)
 	defer func() {
 		if err := observer.Close(); err != nil {
 			t.Error(err)
@@ -103,23 +93,20 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	var ceiling driver.MemoryStats
 	for reload := range 3 {
 		t.Run(fmt.Sprintf("reload-%d", reload), func(t *testing.T) {
-			runner, err := modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{}))(t)
 			defer func() {
 				if err := runner.Close(); err != nil {
 					t.Error(err)
 				}
 			}()
-			projection, err := projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
-			testcheck.NoError(t, err)
+			projection := testcheck.Must(projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor}))(t)
 			defer func() {
 				if err := projection.Close(); err != nil {
 					t.Error(err)
 				}
 			}()
 			trace := &e4bServingTrace{Runner: runner}
-			handler, err := New(Config{RuntimePolicy: runner.RuntimePolicy(), MaxConcurrent: 1, MaxTokens: 128, ImageProjector: projection, AudioProjector: projection, VideoFPS: 1, VideoMaxFrames: 2}, trace)
-			testcheck.NoError(t, err)
+			handler := testcheck.Must(New(Config{RuntimePolicy: runner.RuntimePolicy(), MaxConcurrent: 1, MaxTokens: 128, ImageProjector: projection, AudioProjector: projection, VideoFPS: 1, VideoMaxFrames: 2}, trace))(t)
 			defer func() {
 				if err := handler.Close(); err != nil {
 					t.Error(err)
@@ -127,10 +114,8 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 			}()
 			memory := func() (driver.MemoryStats, driver.MemoryStats) {
 				t.Helper()
-				language, err := runner.DeviceMemoryStats(ctx)
-				testcheck.NoError(t, err)
-				media, err := projection.DeviceMemoryStats(ctx, false)
-				testcheck.NoError(t, err)
+				language := testcheck.Must(runner.DeviceMemoryStats(ctx))(t)
+				media := testcheck.Must(projection.DeviceMemoryStats(ctx, false))(t)
 				return language, media
 			}
 			var projectionPeak uint64
@@ -227,7 +212,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 				}
 				duration := uint64(time.Since(started))
 				outcome, failure := executionOutcome(trace.generationErr)
-				observation, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+				observation := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 					Model: runner.ModelID(), Recipe: candidate.Definition.ID, Environment: environment.ID, Task: recipe.TaskInference,
 					Outcome: outcome, Failure: failure, StartedUnixNS: started.UnixNano(), MeasuredNS: duration,
 					SessionReused: currentCycle != 0 || action != 0 || test.name != cases[0].name,
@@ -238,13 +223,10 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 						phaseSample,
 						{Stage: runrecord.ServingHardwareFinish, ElapsedNS: duration, DeviceCurrentBytes: language.CurrentBytes + media.CurrentBytes, DevicePeakBytes: peak, DeviceAllocations: language.Allocations + media.Allocations},
 					},
-				})
-				testcheck.NoError(t, err)
+				}))(t)
 				observations = append(observations, observation)
-				promptBytes, err := json.Marshal(trace.ids)
-				testcheck.NoError(t, err)
-				evidence, err := json.Marshal(map[string]any{"observation": observation.ID, "output_sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(actual))), "input_sha256": fmt.Sprintf("%x", sha256.Sum256(encoded)), "prompt_sha256": fmt.Sprintf("%x", sha256.Sum256(promptBytes)), "mode": test.name, "reload": reload, "cycle": currentCycle, "action": action})
-				testcheck.NoError(t, err)
+				promptBytes := testcheck.Must(json.Marshal(trace.ids))(t)
+				evidence := testcheck.Must(json.Marshal(map[string]any{"observation": observation.ID, "output_sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(actual))), "input_sha256": fmt.Sprintf("%x", sha256.Sum256(encoded)), "prompt_sha256": fmt.Sprintf("%x", sha256.Sum256(promptBytes)), "mode": test.name, "reload": reload, "cycle": currentCycle, "action": action}))(t)
 				steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-r%d-c%d-%s-a%d", reload, currentCycle, test.name, action), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: duration, Evidence: string(evidence)})
 				action++
 				t.Logf("mode=%s interrupt=%q wall=%s peak=%d retained=%d allocations=%d", test.name, interrupt, time.Since(started), peak, language.CurrentBytes+media.CurrentBytes, language.Allocations+media.Allocations)
@@ -285,8 +267,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 				t.Fatal("closed runner accepted generation")
 			}
 			t.Logf("reload=%d released=%d owned=%d", reload, after-before, owned)
-			release, err := json.Marshal(map[string]uint64{"before": before, "after": after, "owned": owned})
-			testcheck.NoError(t, err)
+			release := testcheck.Must(json.Marshal(map[string]uint64{"before": before, "after": after, "owned": owned}))(t)
 			steps = append(steps, runrecord.GateStep{Name: fmt.Sprintf("media-release-%d", reload), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Since(releaseStarted)), Evidence: string(release)})
 		})
 		if t.Failed() {
@@ -300,16 +281,12 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 		}
 		writer := overgodbtest.Create(t, roots.Store)
 		testcheck.NoError(t, modelintake.RegisterProjectionCandidate(ctx, writer, candidate))
-		record, err := runrecord.NewGateRecord(candidate.Definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", uint64(time.Since(startedAll)), steps)
-		testcheck.NoError(t, err)
-		batch, err := record.Batch("validation/media-resources/" + record.Result.ID.String())
-		testcheck.NoError(t, err)
-		content, err := environment.Content()
-		testcheck.NoError(t, err)
+		record := testcheck.Must(runrecord.NewGateRecord(candidate.Definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", uint64(time.Since(startedAll)), steps))(t)
+		batch := testcheck.Must(record.Batch("validation/media-resources/" + record.Result.ID.String()))(t)
+		content := testcheck.Must(environment.Content())(t)
 		batch.Contents = append(batch.Contents, content)
 		for _, observation := range observations {
-			content, err := observation.Content()
-			testcheck.NoError(t, err)
+			content := testcheck.Must(observation.Content())(t)
 			batch.Contents = append(batch.Contents, content)
 			batch.Lineage = append(batch.Lineage, observation.Lineage()...)
 			batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(record.Result.ID, observation.ID)...)

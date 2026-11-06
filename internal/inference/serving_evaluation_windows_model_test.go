@@ -49,8 +49,7 @@ func TestServingGoldenEvidenceCatalog(t *testing.T) {
 }
 
 func TestServingGoldenEvidence(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	for _, test := range servingGoldenCases {
 		t.Run(test.Name, func(t *testing.T) {
 			modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", test.Model)
@@ -71,8 +70,7 @@ func readServingGolden(t testing.TB, test servingGoldenCase) (evaluation.ExactSu
 	t.Helper()
 	path := testutil.FixturePath(t, test.Fixture)
 	requireServingFileIdentity(t, path, artifact.KindEvidence, test.Evidence)
-	suite, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(os.ReadFile(path))(t)
 	var golden evaluation.ExactSuite
 	testcheck.NoError(t, strictjson.DecodeBytes(suite, &golden))
 	if golden.Schema != test.Schema || len(golden.Cases) == 0 {
@@ -83,8 +81,7 @@ func readServingGolden(t testing.TB, test servingGoldenCase) (evaluation.ExactSu
 
 func requireServingFileIdentity(t testing.TB, path string, kind artifact.Kind, want string) {
 	t.Helper()
-	file, err := os.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(path))(t)
 	defer file.Close()
 	identity, _, err := artifact.Identify(kind, file)
 	testcheck.NoError(t, err)

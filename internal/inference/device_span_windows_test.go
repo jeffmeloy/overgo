@@ -34,16 +34,14 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
-	runner, err := openF32FixtureRunner(path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(path, OpenOptions{}))(t)
 	defer runner.Close()
 	ctx := t.Context()
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
 
 	// Teacher-forced host oracle: consume each span token one step at a
 	// time and record the greedy selection after every position.
-	oracle, err := runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1})
-	testcheck.NoError(t, err)
+	oracle := testcheck.Must(runner.NewContinuousBatch(ContinuousBatchOptions{MaxSequences: 1}))(t)
 	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	var oracleTokens, oraclePosition uint32
@@ -62,8 +60,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	defer runner.mu.Unlock()
 
 	// Whole-history span from an empty cache.
-	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, nil, nil)
-	testcheck.NoError(t, err)
+	span := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, nil, nil))(t)
 	defer func() {
 		testcheck.NoError(t, span.Release(t.Context()))
 	}()
@@ -86,13 +83,11 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	}
 
 	// The MTP shape proper: a committed prefix cache plus a draft span.
-	prefix, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens[:1], nil, nil)
-	testcheck.NoError(t, err)
+	prefix := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens[:1], nil, nil))(t)
 	defer func() {
 		testcheck.NoError(t, prefix.Release(t.Context()))
 	}()
-	draft, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens[1:], prefix, nil)
-	testcheck.NoError(t, err)
+	draft := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens[1:], prefix, nil))(t)
 	defer func() {
 		testcheck.NoError(t, draft.Release(t.Context()))
 	}()

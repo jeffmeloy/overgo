@@ -73,8 +73,7 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	}
 	const save, restore = "/slots/0?action=save", "/slots/0?action=restore"
 	objectFile := func(id string) string {
-		parsed, err := artifact.ParseID(id)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(artifact.ParseID(id))(t)
 		return filepath.Join(directory, objectstore.Directory, parsed.Kind().String(), parsed.DigestHex())
 	}
 
@@ -91,8 +90,7 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	if copied := slot(first, save, "copy", http.StatusOK); copied["id"] != stateID {
 		t.Fatalf("the same state under a second name = %v, want %s", copied, stateID)
 	}
-	parsedState, err := artifact.ParseID(stateID)
-	testcheck.NoError(t, err)
+	parsedState := testcheck.Must(artifact.ParseID(stateID))(t)
 	parents, err := store.Parents(t.Context(), parsedState)
 	if err != nil || len(parents) != 2 {
 		t.Fatalf("saved state lineage = %v err=%v, want the model and the recipe", parents, err)
@@ -171,10 +169,8 @@ func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	slot(other, restore, "prefix", http.StatusNotFound)
 	// The same model under another recipe finds the state and refuses it, since the recipe binds its numeric path.
 	path := testutil.HermeticLlamaGGUFWith(t, 64, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, joinedMessagesTemplate))
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
-	otherRecipe, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference))(t)
+	otherRecipe := testcheck.Must(inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{}))(t)
 	defer otherRecipe.Close()
 	if otherRecipe.ModelID() != firstRunner.ModelID() {
 		t.Fatalf("the other recipe serves model %s, not %s", otherRecipe.ModelID(), firstRunner.ModelID())

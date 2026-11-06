@@ -33,7 +33,7 @@ func sampledVocab(t *testing.T) *tokenizer.Vocab {
 		}
 	}
 	types[0], types[1], types[2] = int32(tokenizer.TokenUnknown), int32(tokenizer.TokenControl), int32(tokenizer.TokenControl)
-	vocab, err := tokenizer.Load(&gguf.File{Metadata: []gguf.Metadata{
+	vocab := testcheck.Must(tokenizer.Load(&gguf.File{Metadata: []gguf.Metadata{
 		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
 		testutil.GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
 		testutil.GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
@@ -43,8 +43,7 @@ func sampledVocab(t *testing.T) *tokenizer.Vocab {
 		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
 		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, scores),
 		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	return vocab
 }
 
@@ -111,8 +110,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	vocab := sampledVocab(t)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() { _ = store.Close() })
 	checkpoint := testutil.ArtifactID(t, artifact.KindCheckpoint, "sampled fixture checkpoint")
 	training := testutil.ArtifactID(t, artifact.KindProfile, "sampled fixture training")
@@ -120,20 +118,17 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 		Group: "prompt 12 at update 0", Code: "inference surface 1", Weights: checkpoint, Tokenizer: testutil.ArtifactID(t, artifact.KindTokenizer, "sampled fixture tokenizer"),
 		Template: "chat-template", Prompt: []tokenizer.TokenID{1, 16}, Ends: []tokenizer.TokenID{2}, Temperature: 0.7, MaxTokens: 4, Seed: 3,
 	}
-	held, err := loadSampled(ctx, store, group)
-	testcheck.NoError(t, err)
+	held := testcheck.Must(loadSampled(ctx, store, group))(t)
 	apart := []tokenizer.TokenID{4, 5, 2}
 	sampler := &scriptedSampler{vocab: vocab, ids: apart, chances: []float64{0.5, 0.25, 1}}
-	first, err := group.sample(ctx, sampler, held, 0)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(group.sample(ctx, sampler, held, 0))(t)
 	if !slices.Equal(first.Completion, apart) || !slices.Equal(first.LogProbabilities, []float64{math.Log(0.5), math.Log(0.25), 0}) || first.End != sampledEndOfSequence || first.Text != "An" || first.Draw != 0 {
 		t.Fatalf("the first draw is recorded as %+v, want the ids %v with their log probabilities, ended at an ending id", first, apart)
 	}
 	if asked := sampler.asked; !slices.Equal(asked.PromptTokenIDs, group.Prompt) || asked.Sampler == nil || asked.MaxNewTokens != group.MaxTokens || asked.PostSamplingProbabilities == 0 {
 		t.Fatalf("the generator was asked %+v, want the group's prompt ids, a sampler, its limit and each id's probability", asked)
 	}
-	again, err := vocab.Encode(first.Text, tokenizer.EncodeOptions{})
-	testcheck.NoError(t, err)
+	again := testcheck.Must(vocab.Encode(first.Text, tokenizer.EncodeOptions{}))(t)
 	if ids, completion := group.Tokens(first); slices.Equal(again, apart[:2]) || !slices.Equal(ids, []tokenizer.TokenID{1, 16, 4, 5, 2}) || !slices.Equal(completion, []bool{false, false, true, true, true}) {
 		t.Fatalf("the text %q tokenizes to %v and the draw is read as %v with completion %v; want the text's ids other than the %v sampled, and the draw's the sampled ones after the prompt's", first.Text, again, ids, completion, apart[:2])
 	}
@@ -178,8 +173,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 		}
 	}
 	elsewhere := overgodbtest.Open(t, t.TempDir())
-	fresh, err := loadSampled(ctx, elsewhere, group)
-	testcheck.NoError(t, err)
+	fresh := testcheck.Must(loadSampled(ctx, elsewhere, group))(t)
 	sampler.ids, sampler.chances = apart, []float64{0.5, 0.25, 1}
 	if same, err := group.sample(ctx, sampler, fresh, 0); err != nil || !reflect.DeepEqual(same, first) {
 		t.Fatalf("the same draw in another store = %+v (%v), want %+v: its seed is its group's and its index's", same, err, first)
@@ -208,8 +202,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	}
 
 	// Another arm's weights, another update, template, setting, code or prompt is another group.
-	once, err := UpdatedWeights(checkpoint, training, 1)
-	testcheck.NoError(t, err)
+	once := testcheck.Must(UpdatedWeights(checkpoint, training, 1))(t)
 	twice, _ := UpdatedWeights(checkpoint, training, 2)
 	if start, err := UpdatedWeights(checkpoint, training, 0); err != nil || start != checkpoint || once == checkpoint || once == twice || !once.Valid() {
 		t.Fatalf("the weights before the first update are %s (%v) and after one and two %s and %s, want the checkpoint and two identities of their own", start, err, once, twice)
@@ -239,10 +232,8 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 		long.Completion = append(long.Completion, tokenizer.TokenID(100000+index))
 		long.LogProbabilities = append(long.LogProbabilities, math.Log(0.5)/float64(index+1))
 	}
-	kept, err := json.Marshal(long)
-	testcheck.NoError(t, err)
-	before, err := json.Marshal(ExactResult{Name: "prompt 12", PromptTokens: 2, GeneratedTokens: 256, Text: long.Text})
-	testcheck.NoError(t, err)
+	kept := testcheck.Must(json.Marshal(long))(t)
+	before := testcheck.Must(json.Marshal(ExactResult{Name: "prompt 12", PromptTokens: 2, GeneratedTokens: 256, Text: long.Text}))(t)
 	each := float64(len(kept)-len(before)) / float64(len(long.Completion))
 	t.Logf("a draw of %d sampled tokens is %d bytes with its ids and log probabilities and %d as text alone: %.1f bytes a token more", len(long.Completion), len(kept), len(before), each)
 	if each > 32 {

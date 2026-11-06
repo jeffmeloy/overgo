@@ -41,8 +41,7 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 	nextProcess := func() *promptEncoder {
 		t.Helper()
 		forgetPromptEncoders(t)
-		encoder, err := promptEncoderFor(spec)
-		testcheck.NoError(t, err)
+		encoder := testcheck.Must(promptEncoderFor(spec))(t)
 		return encoder
 	}
 	encoder := nextProcess()

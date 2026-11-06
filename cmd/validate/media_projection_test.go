@@ -39,16 +39,14 @@ func TestTypedMediaProjection(t *testing.T) {
 	row.verification.Gate.Environment = row.verification.Run.Environment
 	row.verification.Gate.Steps = []runrecord.GateStep{{Evidence: "peak_device_bytes=1048576"}, {Evidence: "peak_device_bytes=1073741824"}}
 	stale := reportRow{model: "fixture", modelID: row.modelID, task: string(recipe.TaskVideoGen), stale: "missing verification"}
-	projection, err := projectMediaRows([]reportRow{row, stale}, scope, true)
-	testcheck.NoError(t, err)
+	projection := testcheck.Must(projectMediaRows([]reportRow{row, stale}, scope, true))(t)
 	if projection.Counts != (mediaProjectionCounts{Activations: 2, Stale: 1, MeasuredVerifiers: 1}) || !projection.Truncated {
 		t.Fatal("wrong denominator or completeness", projection)
 	}
 	if projection.Rows[0].Supersedes == nil || *projection.Rows[0].Supersedes != previous || projection.Rows[0].GenerationGap == "" || projection.Rows[0].RepairOwner == "" || projection.Rows[1].Verifier != nil {
 		t.Fatal("lost history or invented generation acceptance")
 	}
-	data, err := json.Marshal(projection)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(projection))(t)
 	var decoded mediaProjection
 	testcheck.NoError(t, json.Unmarshal(data, &decoded))
 	if !reflect.DeepEqual(projection, decoded) {
@@ -92,10 +90,8 @@ func TestTypedMediaProjection(t *testing.T) {
 	for _, marker := range []string{"", "peak_device_bytes=0", "peak_device_bytes=18446744073709551615"} {
 		changed := row.verification
 		changed.Gate.Steps = []runrecord.GateStep{{Evidence: marker}}
-		value, err := projectMediaVerifier(changed)
-		testcheck.NoError(t, err)
-		encoded, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(projectMediaVerifier(changed))(t)
+		encoded := testcheck.Must(json.Marshal(value))(t)
 		var roundtrip mediaVerifierProjection
 		testcheck.NoError(t, json.Unmarshal(encoded, &roundtrip))
 		if !reflect.DeepEqual(*value, roundtrip) || (value.PeakStepDeviceBytes == nil) != (marker == "") {

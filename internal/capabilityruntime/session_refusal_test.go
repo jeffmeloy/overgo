@@ -26,7 +26,7 @@ func TestSessionThatCannotTakeARequestIsReplaced(t *testing.T) {
 	loads, resets, closes := 0, 0, 0
 	refusal := errors.New("the session cannot hold this request beside what it holds")
 	var refuse func(context.Context, scalarRequest) error
-	director, err := NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
+	director := testcheck.Must(NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
 		"scalar", "host", 1, func(scalarRequest) error { return nil },
 		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*cachedScalarModel, error) {
 			loads++
@@ -46,8 +46,7 @@ func TestSessionThatCannotTakeARequestIsReplaced(t *testing.T) {
 				func(request scalarRequest) (int, error) { return request.Value + model.bias, nil },
 			)
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	defer director.Close(t.Context())
 	execute := director.Executor()
 	execution := modelrecipetest.CandidateExecution(t, store, program)

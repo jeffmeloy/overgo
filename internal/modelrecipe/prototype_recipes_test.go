@@ -37,18 +37,15 @@ func derivationResolvedDefinition(t *testing.T, name string) ResolvedModelDefini
 	t.Helper()
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
-	profileDocument, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
-	tensors, err := modelartifact.NewTensorInventoryDocument(
+	profileDocument := testcheck.Must(NewProfileDocument(profile))(t)
+	tensors := testcheck.Must(modelartifact.NewTensorInventoryDocument(
 		testutil.ArtifactID(t, artifact.KindModel, name), modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{
 			Name: "token_embd.weight", Shape: []uint64{definitionTensorWidth, definitionTensorWidth},
 			Storage: "f32", Bytes: definitionTensorBytes,
 		}},
-	)
-	testcheck.NoError(t, err)
-	document, err := NewModelDefinitionDocument(profileDocument, tensors, definitionSpec())
-	testcheck.NoError(t, err)
+	))(t)
+	document := testcheck.Must(NewModelDefinitionDocument(profileDocument, tensors, definitionSpec()))(t)
 	return ResolvedModelDefinition{
 		Document: document, Profile: profileDocument, Tensors: tensors, Spec: definitionSpec(),
 	}
@@ -59,11 +56,10 @@ func derivationResolvedDefinition(t *testing.T, name string) ResolvedModelDefini
 // unsupported, duplicate, or unresolved requests fail without a fallback.
 func TestPrototypeRecipeDerivation(t *testing.T) {
 	resolved := derivationResolvedDefinition(t, "prototype-derivation-model")
-	candidates, err := derivePrototypeRecipeFixture(
+	candidates := testcheck.Must(derivePrototypeRecipeFixture(
 		resolved, recipe.PlacementHybrid, recipe.SessionCapacity, recipe.ResidencyHybridNative,
 		[]recipe.Task{recipe.TaskForecast},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(candidates) != 2 {
 		t.Fatalf("candidate set = %d recipes", len(candidates))
 	}

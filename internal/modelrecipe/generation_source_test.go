@@ -26,8 +26,7 @@ func TestResolveGenerationSource(t *testing.T) {
 		{hfrepo.Identity{ModelType: "un0"}, recipe.TaskVideoGen, ModuleOscillatorVideoPrepare},
 	}
 	for _, test := range tests {
-		profile, err := ResolveGenerationSource(test.task, test.identity)
-		testcheck.NoError(t, err)
+		profile := testcheck.Must(ResolveGenerationSource(test.task, test.identity))(t)
 		if profile.Prepare != test.prepare {
 			t.Fatalf("prepare=%q want %q", profile.Prepare, test.prepare)
 		}
@@ -36,8 +35,7 @@ func TestResolveGenerationSource(t *testing.T) {
 		if profile.Profile == "" {
 			profileID = artifact.ID{}
 		}
-		definition, err := GenerationDefinition(profile.Prepare, modelID, profileID)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(GenerationDefinition(profile.Prepare, modelID, profileID))(t)
 		if definition.Task != test.task || !slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool {
 			return node.Module == test.prepare
 		}) {

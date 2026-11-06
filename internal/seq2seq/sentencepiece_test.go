@@ -77,8 +77,7 @@ func TestPieceMergesSegmentAsByteMergesDo(t *testing.T) {
 		"aé":        {spaceMarker + "a", "<0xC3>", "<unk>"},
 		"</s>":      {spaceMarker, "<", "/", "s", ">"},
 	} {
-		ids, err := table.encode(text)
-		testcheck.NoError(t, err)
+		ids := testcheck.Must(table.encode(text))(t)
 		expected := make([]int, len(want))
 		for index, piece := range want {
 			expected[index] = id(piece)

@@ -49,8 +49,7 @@ func TestAssistantOnlyLoss(t *testing.T) {
 		if err != nil || len(weights) == 0 {
 			t.Fatalf("prompts=%t: the run left no weights in %s (%v)", prompts, output, err)
 		}
-		data, err := os.ReadFile(weights[0])
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(weights[0]))(t)
 		trained[index] = string(data)
 		var verdict struct {
 			BaselineValue  float64 `json:"baseline_value"`
@@ -70,17 +69,14 @@ func TestAssistantOnlyLoss(t *testing.T) {
 	}
 
 	// Each run's held-out examples are judged on the tokens it learns.
-	tokens, err := loadTrainableTokenizerFor(run.model, true)
-	testcheck.NoError(t, err)
+	tokens := testcheck.Must(loadTrainableTokenizerFor(run.model, true))(t)
 	for _, prompts := range []bool{false, true} {
 		records, skipped, err := conversationRecords(ctx, run.store, run.source, letters, prompts, tokens)
 		if err != nil || len(skipped) != 0 {
 			t.Fatalf("records = %d, skipped %v, err %v: want every conversation usable", len(records), skipped, err)
 		}
-		registered, err := registerRecords(ctx, run.store, run.work, records)
-		testcheck.NoError(t, err)
-		objective, err := LoadObjectiveAlias(ctx, run.store, conversationAliasPrefix+registered.Dataset.DigestHex()[:conversationNameDigits])
-		testcheck.NoError(t, err)
+		registered := testcheck.Must(registerRecords(ctx, run.store, run.work, records))(t)
+		objective := testcheck.Must(LoadObjectiveAlias(ctx, run.store, conversationAliasPrefix+registered.Dataset.DigestHex()[:conversationNameDigits]))(t)
 		data, held, err := textObjectiveData(ctx, run.store, objective, tokens, conversationWindow, true, 0)
 		testcheck.NoError(t, err)
 		for id, example := range data.Examples {
@@ -118,8 +114,7 @@ func TestSegmentConversationCutsAtTheReply(t *testing.T) {
 		{Role: "system", Content: "ab"}, {Role: "user", Content: "ba"}, {Role: "assistant", Content: "cd"},
 		{Role: "user", Content: "a"}, {Role: "assistant", Content: "dc"},
 	}
-	segments, err := segmentConversation(messages, letters, false)
-	testcheck.NoError(t, err)
+	segments := testcheck.Must(segmentConversation(messages, letters, false))(t)
 	if learned := pieces(segments, true); learned != "cddc" {
 		t.Errorf("learned %q, want the two replies, cd and dc", learned)
 	}
@@ -306,13 +301,11 @@ func TestPackWindowsCarriesTheMask(t *testing.T) {
 // many answers as the targets the example is judged on.
 func TestHeldoutAnswersOnlyTheTokensItLearns(t *testing.T) {
 	run := registerConversations(t, periodic(2))
-	model, err := loadTrainableModel(run.model)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(loadTrainableModel(run.model))(t)
 	tokens := []int{1, 2, 3, 2, 1, 3}
 	trained := []bool{false, false, false, true, true, false}
 	example := HeldoutExample{Input: []float64{1, 2, 3, 2, 1, 3}}
-	prediction, err := nextTokens(model, example, trained)
-	testcheck.NoError(t, err)
+	prediction := testcheck.Must(nextTokens(model, example, trained))(t)
 	if want := learnedTargets(tokens, trained); len(prediction.Values) != len(want) || !slices.Equal(want, []int{2, 1}) {
 		t.Fatalf("%d answers for targets %v, want one answer for each of the two learned tokens", len(prediction.Values), want)
 	}

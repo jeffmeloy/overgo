@@ -38,7 +38,7 @@ func TestDatasetPreviewUsesProductionProcessor(t *testing.T) {
 			Encoding: trainingdata.EncodingUTF8, Data: append([]byte("processed:"), record.Data...),
 		}}}, nil
 	}
-	dataset, err := trainingdata.MaterializeRecords(trainingdata.Authority{
+	dataset := testcheck.Must(trainingdata.MaterializeRecords(trainingdata.Authority{
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
@@ -46,10 +46,8 @@ func TestDatasetPreviewUsesProductionProcessor(t *testing.T) {
 		},
 	}, processorID, []trainingdata.RawRecord{{ID: "record", Data: []byte("source")}}, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: processor,
-	})
-	testcheck.NoError(t, err)
-	handler, err := New(Config{DatasetPreview: datasetPreviewResolver{dataset: dataset}}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	}))(t)
+	handler := testcheck.Must(New(Config{DatasetPreview: datasetPreviewResolver{dataset: dataset}}, &fakeGenerator{}))(t)
 	response := serveTestRequest(handler, http.MethodPost, "/datasets/preview", `{"name":"fixture","position":0,"limit":1}`)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
@@ -71,8 +69,7 @@ func TestDatasetPreviewOpensRegisteredDataset(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	corpus := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, "notes.txt"), []byte("the sea is wide"), 0o644))
-	directory, err := json.Marshal(corpus)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(json.Marshal(corpus))(t)
 	if registered := serveTestRequest(handler, http.MethodPost, "/library/register",
 		`{"kind":"dataset","name":"notes","directory":`+string(directory)+`}`); registered.Code != http.StatusOK {
 		t.Fatalf("register status=%d body=%s", registered.Code, registered.Body.String())
@@ -89,8 +86,7 @@ func TestDatasetPreviewOpensRegisteredDataset(t *testing.T) {
 	if unregistered.Code != http.StatusBadRequest || !strings.Contains(unregistered.Body.String(), `dataset \"absent\" is not registered`) {
 		t.Fatalf("unregistered status=%d body=%s", unregistered.Code, unregistered.Body.String())
 	}
-	storeless, err := New(Config{}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	storeless := testcheck.Must(New(Config{}, &fakeGenerator{}))(t)
 	defer storeless.Close()
 	if refused := serveTestRequest(storeless, http.MethodPost, "/datasets/preview", `{"name":"notes","position":0,"limit":1}`); refused.Code != http.StatusNotImplemented {
 		t.Fatalf("storeless status=%d body=%s", refused.Code, refused.Body.String())

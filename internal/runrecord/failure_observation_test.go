@@ -43,8 +43,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: publish observation: %v", sample.name, err)
 		}
-		before, err := observation.Content()
-		testcheck.NoError(t, err)
+		before := testcheck.Must(observation.Content())(t)
 		derived := NormalizeFailureObservation(observation)
 		if derived.Cause != sample.cause || derived.ClassifierVersion != executionfailure.ClassifierVersion {
 			t.Fatalf("%s: derived classification = %+v", sample.name, derived)
@@ -77,10 +76,8 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		}
 
 		// The raw observation is untouched by both classifications.
-		reread, err := failureObservationCodec.Require(ctx, store, observation.ID)
-		testcheck.NoError(t, err)
-		after, err := reread.Content()
-		testcheck.NoError(t, err)
+		reread := testcheck.Must(failureObservationCodec.Require(ctx, store, observation.ID))(t)
+		after := testcheck.Must(reread.Content())(t)
 		if !bytes.Equal(before.Data, after.Data) {
 			t.Fatalf("%s: raw evidence changed under reclassification", sample.name)
 		}
@@ -93,8 +90,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		{"foreign cause", FailureNormalization{ClassifierVersion: 1, Cause: "crashed", Rule: "unmatched"}},
 		{"zero classifier", FailureNormalization{Cause: executionfailure.CauseUnknown, Rule: "unmatched"}},
 	}
-	anchor, err := PublishFailureObservation(ctx, store, corpus[0].value)
-	testcheck.NoError(t, err)
+	anchor := testcheck.Must(PublishFailureObservation(ctx, store, corpus[0].value))(t)
 	for _, refusal := range refusals {
 		refusal.value.Observation = anchor.ID
 		if _, err := PublishFailureNormalization(ctx, store, refusal.value); err == nil {

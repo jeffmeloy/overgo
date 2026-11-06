@@ -17,8 +17,7 @@ func TestHermeticCUDAFixedBudgetEOGPreservesDeviceGreedy(t *testing.T) {
 	const outputTokens = 4
 	generate := func(continueAfterEOG bool, budget int) []tokenizer.TokenID {
 		t.Helper()
-		sampler, err := sampling.New(sampling.Config{Temperature: 0})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens: budget, Sampler: sampler, DeviceGreedy: true,
 			ContinueAfterEOG: continueAfterEOG, PromptTokenIDs: prompt,

@@ -22,8 +22,7 @@ func TestPairedFeatureLogitRowSkipsLastTokenRow(t *testing.T) {
 		Shape: tensor.MustShape(vocabulary, rows),
 		Data:  data,
 	}
-	row, err := pairedFeatureLogitRow(logits, rowIndex, vocabulary)
-	testcheck.NoError(t, err)
+	row := testcheck.Must(pairedFeatureLogitRow(logits, rowIndex, vocabulary))(t)
 	wantStart := data[rowIndex*vocabulary]
 	wantEnd := data[(rowIndex+1)*vocabulary-1]
 	if len(row) != vocabulary || row[0] != wantStart || row[vocabulary-1] != wantEnd {

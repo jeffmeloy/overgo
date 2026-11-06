@@ -123,8 +123,7 @@ func mediaCapacityMeasurements(t testing.TB, raw []byte) []json.RawMessage {
 		if err := json.Unmarshal([]byte(value), &row); err != nil {
 			t.Fatal("incomplete resource measurement", err)
 		}
-		encoded, err := json.Marshal(row)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(json.Marshal(row))(t)
 		rows = append(rows, encoded)
 	}
 	return rows
@@ -132,14 +131,12 @@ func mediaCapacityMeasurements(t testing.TB, raw []byte) []json.RawMessage {
 
 func TestImageVideoCapacityEvidenceRejectsAlteration(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/image_video_capacity.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/image_video_capacity.json")))(t)
 	for _, field := range []string{"native_observations", "checks", "prior_bundles", "failed_attempts"} {
 		var changed map[string]any
 		testcheck.NoError(t, json.Unmarshal(raw, &changed))
 		delete(changed, field)
-		candidate, err := json.Marshal(changed)
-		testcheck.NoError(t, err)
+		candidate := testcheck.Must(json.Marshal(changed))(t)
 		if checkMediaProtocolIdentity(candidate, imageVideoCapacitySHA256) == nil {
 			t.Fatal("altered capacity evidence accepted", field)
 		}
@@ -162,15 +159,13 @@ func TestImageVideoCapacityMeasurementsReassembleOutput(t *testing.T) {
 func TestImageVideoCapacityAcceptance(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json")))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256))
 	var bundle mediaCapacityBundle
 	if err := json.Unmarshal(raw, &bundle); err != nil || bundle.Version != 1 || !gitauthority.ValidObjectID(bundle.Source) || len(bundle.Checks) == 0 || len(bundle.Limitations) == 0 {
 		t.Fatal("incomplete capacity record", err)
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := evidenceReader(t, store, "capacity evidence")
 	protocol := read(bundle.Protocol)
@@ -178,8 +173,7 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	if err != nil || checkMediaProtocolIdentity(current, bundle.ProtocolSHA) != nil {
 		t.Fatal("capacity protocol changed", err)
 	}
-	environment, err := checkMediaCapacityBinding(bundle, protocol, read(bundle.Environment))
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(checkMediaCapacityBinding(bundle, protocol, read(bundle.Environment)))(t)
 	for path, digest := range bundle.Prior {
 		data, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil || checkMediaProtocolIdentity(data, digest) != nil {
@@ -242,8 +236,7 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	}
 	matchMeasurements := func(name string, id artifact.ID) {
 		t.Helper()
-		raw, err := json.Marshal(measurements[name])
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(measurements[name]))(t)
 		var stored any
 		testcheck.NoError(t, json.Unmarshal(read(id), &stored))
 		canonical, err := json.Marshal(stored)

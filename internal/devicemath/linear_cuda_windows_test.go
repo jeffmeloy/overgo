@@ -22,8 +22,7 @@ func randSlice(rng *rand.Rand, n int) []float32 {
 
 func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	const rows, in, out = 7, 5, 9
 	rng := rand.New(rand.NewSource(41))
@@ -73,8 +72,7 @@ func hostLinearLoss(x, w, dY []float32, rows, in, out int) float64 {
 // W[outDim,in]) against an fp64 reference.
 func TestLinearForwardTMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, in, outDim = 12, 20, 16
@@ -82,8 +80,7 @@ func TestLinearForwardTMatchesHost(t *testing.T) {
 	x := randSlice(rng, rows*in)
 	w := randSlice(rng, outDim*in) // [outDim, in]
 
-	got, err := LinearForwardT(worker, x, w, rows, in, outDim)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(LinearForwardT(worker, x, w, rows, in, outDim))(t)
 	var maxDiff float64
 	for r := range rows {
 		for o := range outDim {
@@ -108,8 +105,7 @@ func TestLinearForwardTMatchesHost(t *testing.T) {
 // is exact up to fp rounding; the residual is fp32 GEMM precision.
 func TestLinearBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, in, out = 6, 5, 4
@@ -169,8 +165,7 @@ func hostLinearLossT(x, w, dY []float32, rows, in, outDim int) float64 {
 // densecausal convention) against a central finite-difference of the host loss.
 func TestLinearBackwardTGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, in, outDim = 6, 5, 4

@@ -67,8 +67,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	holds := heldFile
 	rows := func(checkout *sliceFixture) (ids []string) {
 		t.Helper()
-		document, err := plan.Load(checkout.planPath())
-		testcheck.NoError(t, err)
+		document := testcheck.Must(plan.Load(checkout.planPath()))(t)
 		for _, item := range document.Items {
 			ids = append(ids, item.ID)
 		}
@@ -88,8 +87,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	}
 
 	// The lead gives the second row a check only the first's tree passes.
-	document, err := plan.Load(fixture.planPath())
-	testcheck.NoError(t, err)
+	document := testcheck.Must(plan.Load(fixture.planPath()))(t)
 	document.Items[0].Steps[0].Verify = "test -f " + fileOne
 	fixture.commitPlan(document)
 	leads := fixture.git("rev-parse", "HEAD")

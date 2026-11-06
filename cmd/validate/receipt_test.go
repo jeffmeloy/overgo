@@ -24,8 +24,7 @@ func TestReceiptKeepsTheStreamThatProvesAPass(t *testing.T) {
 		`{"Action":"pass","Package":"example/pkg","Elapsed":0.02}`,
 	}, "\n") + "\n"
 	store := t.TempDir()
-	id, err := publishReceipt(t.Context(), store, []byte(passing))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(publishReceipt(t.Context(), store, []byte(passing)))(t)
 	opened := overgodbtest.OpenReadOnly(t, store)
 	content, found, err := artifact.ReadContent(t.Context(), opened, id)
 	if err != nil || !found || string(content.Data) != passing {

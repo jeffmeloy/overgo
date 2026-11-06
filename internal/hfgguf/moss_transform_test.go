@@ -20,13 +20,11 @@ import (
 func TestMOSSTransformGolden(t *testing.T) {
 	root := filepath.Join("..", "..", "fixtures", "moss")
 	path := filepath.Join(root, "import-transforms.safetensors")
-	encoded, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile(path))(t)
 	if fmt.Sprintf("%x", sha256.Sum256(encoded)) != "f568ae58eb27427734a9e8d31fb19944b152aeedc41e6e6fe13039291b79b88f" {
 		t.Fatal("upstream golden changed identity")
 	}
-	source, err := safetensors.OpenFile(path)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(path))(t)
 	defer source.Close()
 	if len(source.Metadata) != 1 {
 		t.Fatal("missing provenance")
@@ -40,14 +38,11 @@ func TestMOSSTransformGolden(t *testing.T) {
 			t.Fatalf("provenance %s = %q", key, metadata[key])
 		}
 	}
-	groups, err := strconv.ParseUint(metadata["groups"], 10, 64)
-	testcheck.NoError(t, err)
-	heads, err := strconv.ParseUint(metadata["heads"], 10, 64)
-	testcheck.NoError(t, err)
+	groups := testcheck.Must(strconv.ParseUint(metadata["groups"], 10, 64))(t)
+	heads := testcheck.Must(strconv.ParseUint(metadata["heads"], 10, 64))(t)
 	var names map[string]string
 	testcheck.NoError(t, json.Unmarshal([]byte(metadata["source_tensors"]), &names))
-	contract, err := os.ReadFile(filepath.Join(root, "oracle-contract.json"))
-	testcheck.NoError(t, err)
+	contract := testcheck.Must(os.ReadFile(filepath.Join(root, "oracle-contract.json")))(t)
 	if fmt.Sprintf("%x", sha256.Sum256(contract)) != "0c2767456a75075671de88538d8c1ce0f673ef41c2bae897c4e59449fad0ca86" {
 		t.Fatal("frozen acceptance changed")
 	}
@@ -77,12 +72,9 @@ func TestMOSSTransformGolden(t *testing.T) {
 				t.Fatal("missing F32 output")
 			}
 			input.Name = names[name]
-			mapped, err := mappedTensorData([]tensorMapping{{name: name, tensor: input, shape: input.Shape, storage: gguf.DTypeF32, transforms: transforms(input.Name)}})
-			testcheck.NoError(t, err)
-			actual, err := io.ReadAll(mapped[0].Data)
-			testcheck.NoError(t, err)
-			want, err := io.ReadAll(expected.Reader())
-			testcheck.NoError(t, err)
+			mapped := testcheck.Must(mappedTensorData([]tensorMapping{{name: name, tensor: input, shape: input.Shape, storage: gguf.DTypeF32, transforms: transforms(input.Name)}}))(t)
+			actual := testcheck.Must(io.ReadAll(mapped[0].Data))(t)
+			want := testcheck.Must(io.ReadAll(expected.Reader()))(t)
 			if len(actual) != len(want) {
 				t.Fatalf("payload size %d != %d", len(actual), len(want))
 			}

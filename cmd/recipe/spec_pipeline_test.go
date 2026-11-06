@@ -16,15 +16,13 @@ func TestRecipeSpecPipelineRegistration(t *testing.T) {
 	component := filepath.Join(directory, "transformer")
 	testcheck.NoError(t, os.MkdirAll(component, 0o700))
 	// Reuse the fixture's validated payload in the component declared by the pipeline.
-	entries, err := os.ReadDir(directory)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(directory))(t)
 	for _, entry := range entries {
 		name := entry.Name()
 		if filepath.Ext(name) != ".safetensors" && name != "config.json" {
 			continue
 		}
-		body, err := os.ReadFile(filepath.Join(directory, name))
-		testcheck.NoError(t, err)
+		body := testcheck.Must(os.ReadFile(filepath.Join(directory, name)))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(component, name), body, 0o600))
 	}
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model_index.json"), []byte(`{"_class_name":"MOSSImagePipeline","transformer":["pipeline_moss_image","MOSSImageTransformer"]}`), 0o600))
@@ -33,12 +31,10 @@ func TestRecipeSpecPipelineRegistration(t *testing.T) {
 	fixtureGit(t, directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--no-gpg-sign", "-qm", "pipeline")
 	output := filepath.Join(t.TempDir(), "pipeline.json")
 	testcheck.NoError(t, assembleSpecification([]string{"-root", root, "-output", output, "-spdx", "fixture=Apache-2.0", "fixture"}))
-	data, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(output))(t)
 	var got []modelRegistration
 	testcheck.NoError(t, json.Unmarshal(data, &got))
-	want, err := modelartifact.FromHFPath(directory)
-	testcheck.NoError(t, err)
+	want := testcheck.Must(modelartifact.FromHFPath(directory))(t)
 	if len(got) != 1 || got[0].Model != want.Manifest.ID || got[0].TensorInventory != want.TensorInventory.ID {
 		t.Fatalf("declaration does not bind pipeline: %+v", got)
 	}

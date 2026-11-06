@@ -14,8 +14,7 @@ import (
 )
 
 func TestKimiDeclaredRankConversion(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_rank_reference.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "hfbpe", "testdata", "kimi_k3_rank_reference.json")))(t)
 	var reference struct {
 		Pattern     string          `json:"pattern"`
 		Vocab       map[string]int  `json:"vocab"`
@@ -41,15 +40,12 @@ func TestKimiDeclaredRankConversion(t *testing.T) {
 	dir := t.TempDir()
 	convert := func(source map[string]any) ([]gguf.Metadata, error) {
 		t.Helper()
-		data, err := json.Marshal(source)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(source))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(dir, "tokenizer.json"), data, 0600))
 		return tokenizerMetadata(dir, 163588, nil)
 	}
-	metadata, err := convert(makeSource())
-	testcheck.NoError(t, err)
-	vocab, err := tokenizer.Load(&gguf.File{Metadata: metadata})
-	testcheck.NoError(t, err)
+	metadata := testcheck.Must(convert(makeSource()))(t)
+	vocab := testcheck.Must(tokenizer.Load(&gguf.File{Metadata: metadata}))(t)
 	if vocab.Pre != "kimi" || !vocab.IgnoreMerges {
 		t.Fatal("converter did not bind Kimi rank BPE to native GGUF metadata")
 	}

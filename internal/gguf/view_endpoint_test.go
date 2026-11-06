@@ -20,11 +20,10 @@ func TestAViewTensorIsReleasedAtItsEnd(t *testing.T) {
 		binary.LittleEndian.PutUint32(data[4*index:], uint32(index))
 	}
 	built := 0
-	file, err := View(nil, []ViewTensor{{Name: "large", Shape: []uint64{elements}, Type: DTypeF32, Open: func() (io.Reader, error) {
+	file := testcheck.Must(View(nil, []ViewTensor{{Name: "large", Shape: []uint64{elements}, Type: DTypeF32, Open: func() (io.Reader, error) {
 		built++
 		return bytes.NewReader(data), nil
-	}}}, WriteOptions{}, "")
-	testcheck.NoError(t, err)
+	}}}, WriteOptions{}, ""))(t)
 	source := file.source.(*viewSource)
 	info, _ := file.Tensor("large")
 	part, read := info.Size/4, make([]byte, 0, info.Size)

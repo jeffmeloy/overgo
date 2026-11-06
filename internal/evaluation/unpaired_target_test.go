@@ -46,7 +46,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		}
 	}
 	session := heldoutTraining(t, store, source, training.ID)
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "kto", Kind: trainingprogram.ObjectiveDPO,
 		Signature: recipecontract.ModalitySignature{
 			Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
@@ -55,10 +55,8 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
 		Metric: trainingprogram.MetricUnpairedPreferenceLoss, Evidence: []artifact.ID{session.Observation},
 		Authority: trainingprogram.ObjectiveAdaptive,
-	})
-	testcheck.NoError(t, err)
-	view, err := CompileSFTEvaluationView(objective, training, heldout)
-	testcheck.NoError(t, err)
+	}))(t)
+	view := testcheck.Must(CompileSFTEvaluationView(objective, training, heldout))(t)
 	labels := map[string]bool{}
 	for index, record := range view.Records {
 		labels[record.ID] = index%2 == 0
@@ -66,8 +64,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	if len(view.Records) < 2 {
 		t.Fatalf("the held-out view holds %d records, want desirable and undesirable ones", len(view.Records))
 	}
-	plan, err := CompileUnpairedHeldoutPlan(objective, view, derived(artifact.KindModel, "reference"), 0.1, labels)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileUnpairedHeldoutPlan(objective, view, derived(artifact.KindModel, "reference"), 0.1, labels))(t)
 	score := func(value float64) sequencescore.Score { return sequencescore.Score{LogProbability: value, Tokens: 1} }
 	// observe answers every held-out record with its reward shift above
 	// the reference when desirable and below it when not.
@@ -93,10 +90,8 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	registration, err := split.PublicationBatch("test-registration", nil)
-	testcheck.NoError(t, err)
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
+	registration := testcheck.Must(split.PublicationBatch("test-registration", nil))(t)
+	content := testcheck.Must(objective.Content())(t)
 	registration.Contents = append(registration.Contents, content)
 	for _, id := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation, derived(artifact.KindModel, "reference")} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: id})
@@ -113,8 +108,7 @@ func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		if err != nil || verdict.Metric != trainingprogram.MetricUnpairedPreferenceLoss || verdict.Passed != candidate.passed {
 			t.Fatalf("%s = (%+v, %v), want passed %t on held-out KTO loss", candidate.name, verdict, err, candidate.passed)
 		}
-		batch, err := HeldoutBatch(view, plan, reports[0], reports[candidate.shift], verdict)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(HeldoutBatch(view, plan, reports[0], reports[candidate.shift], verdict))(t)
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}

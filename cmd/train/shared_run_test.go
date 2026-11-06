@@ -52,10 +52,8 @@ func TestEveryTrainRoutePublishesACheckpoint(t *testing.T) {
 func sharedRunPublishes(t *testing.T) {
 	root, store, modelPath, datasetPath := routeFixture(t)
 	ctx := t.Context()
-	session, err := openSession(ctx, store, modelPath, datasetPath)
-	testcheck.NoError(t, err)
-	plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(openSession(ctx, store, modelPath, datasetPath))(t)
+	plan := testcheck.Must(probeSession(session.authority.Objective, 3, testMatrix.End, 0))(t)
 	matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
 	target := filepath.Join(root, "checkpoint")
 	run := boundedRun{name: "shared-run", plan: plan, session: session, loss: matrix.loss,
@@ -65,10 +63,8 @@ func sharedRunPublishes(t *testing.T) {
 		},
 	}
 	testcheck.NoError(t, run.train(ctx))
-	stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(plan.Updates()))
-	testcheck.NoError(t, err)
-	checkpoint, err := trainingprogram.LoadCheckpoint(target)
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(plan.Updates())))(t)
+	checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(target))(t)
 	_, recorded, err := store.Artifact(ctx, checkpoint.ID())
 	if err != nil || !recorded || checkpoint.Model != session.model || checkpoint.Program != matrix.program.ID() ||
 		checkpoint.Stream != trainingprogram.DatasetState(stream) {
@@ -106,11 +102,9 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 	t.Run("the shared run", func(t *testing.T) {
 		root, store, modelPath, datasetPath := routeFixture(t)
 		ctx := t.Context()
-		session, err := openSession(ctx, store, modelPath, datasetPath)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(openSession(ctx, store, modelPath, datasetPath))(t)
 		session.proof = true
-		plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(probeSession(session.authority.Objective, 3, testMatrix.End, 0))(t)
 		matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
 		target, full := filepath.Join(root, "proof"), filepath.Join(root, "full")
 		if err := (boundedRun{name: "proof", plan: plan, session: session, loss: matrix.loss,
@@ -131,10 +125,8 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 	t.Run("a held-out run's publications", func(t *testing.T) {
 		root, store, modelPath, datasetPath := routeFixture(t)
 		ctx := t.Context()
-		session, err := recipeSession(ctx, store, modelPath, datasetPath, trainingworkflow.TokenContract)
-		testcheck.NoError(t, err)
-		config, err := trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(recipeSession(ctx, store, modelPath, datasetPath, trainingworkflow.TokenContract))(t)
+		config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End))(t)
 		matrix := newHostMatrix(t, session.authority.Objective, config)
 		for name, publish := range map[string]func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error){
 			"under the trainer's own program, as the tabular route publishes": func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
@@ -145,8 +137,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 			},
 		} {
 			// Each publication takes a step of its own, so its checkpoint is no other's.
-			stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(matrix.step().Step))
-			testcheck.NoError(t, err)
+			stream := testcheck.Must(trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(matrix.step().Step)))(t)
 			target, full := filepath.Join(root, name, "proof"), filepath.Join(root, name, "full")
 			proved, err := publish(target, stream, true)
 			if err != nil {
@@ -180,10 +171,8 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 			t.Fatal(err)
 		}
-		recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset)
-		testcheck.NoError(t, err)
-		model, err := trainingworkflow.WeightsIdentity(base)
-		testcheck.NoError(t, err)
+		recipeID := testcheck.Must(trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset))(t)
+		model := testcheck.Must(trainingworkflow.WeightsIdentity(base))(t)
 		t.Setenv(commandChildEnvironment, childStandIn)
 		// started runs the training command over the arguments and returns
 		// what it printed, the status it ended with and the error it wrote for
@@ -192,10 +181,9 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 			t.Helper()
 			var printed bytes.Buffer
 			written := filepath.Join(t.TempDir(), "error.txt")
-			receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			receipt := testcheck.Must(processcontrol.Run(ctx, processcontrol.Command{
 				Path: os.Args[0], Args: arguments, Stdout: &printed, Env: append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written),
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			// A command that ended well wrote no error.
 			refusal, _ := os.ReadFile(written)
 			return printed.String(), receipt.ExitCode, string(refusal)
@@ -348,16 +336,13 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 	flow := generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityVideo, trainingprogram.MetricVideoPSNRUnit)
 	t.Run("scratch start", func(t *testing.T) {
 		root, store, _, datasetPath := routeFixture(t)
-		declaration, err := os.ReadFile(datasetPath)
-		testcheck.NoError(t, err)
+		declaration := testcheck.Must(os.ReadFile(datasetPath))(t)
 		construction, processor, err := bootstrapConstruction(oscillatorimage.Config{ModelType: "fixture"}, testMatrix.End, 1, declaration)
 		testcheck.NoError(t, err)
-		session, err := scratchSession(t.Context(), store, construction, processor,
-			generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
-		testcheck.NoError(t, err)
+		session := testcheck.Must(scratchSession(t.Context(), store, construction, processor,
+			generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit)))(t)
 		session.data = declaration
-		plan, err := probeSession(trainingprogram.ObjectiveLatentL2, 3, testMatrix.End, 0)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(probeSession(trainingprogram.ObjectiveLatentL2, 3, testMatrix.End, 0))(t)
 		matrix := newHostMatrix(t, trainingprogram.ObjectiveLatentL2, plan.Optimizer())
 		target := filepath.Join(root, "checkpoint")
 		if err := (boundedRun{name: "scratch", plan: plan, session: session, loss: matrix.loss,
@@ -368,8 +353,7 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 		}).train(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		checkpoint, err := trainingprogram.LoadCheckpoint(target)
-		testcheck.NoError(t, err)
+		checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(target))(t)
 		scratch := trainingprogram.LineageParent{Artifact: construction.ID(), Relation: artifact.RelationDependsOn}
 		if checkpoint.Model != construction.InitializedModel() || checkpoint.Program != matrix.program.ID() || !slices.Contains(checkpoint.Lineage, scratch) {
 			t.Fatalf("scratch checkpoint of %s under program %s with lineage %v, want the latent-l2 program %s from construction %s",
@@ -381,12 +365,9 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 		if ran.err != nil || ran.steps != 3 {
 			t.Fatalf("flow-matching run = (%d steps, %v), want all three", ran.steps, ran.err)
 		}
-		checkpoint, err := trainingprogram.LoadCheckpoint(ran.target)
-		testcheck.NoError(t, err)
-		program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, newHostMatrix(t, trainingprogram.ObjectiveFlowMatching, checkpoint.Optimizer.Config).plan)
-		testcheck.NoError(t, err)
-		stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(ran.steps))
-		testcheck.NoError(t, err)
+		checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(ran.target))(t)
+		program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, newHostMatrix(t, trainingprogram.ObjectiveFlowMatching, checkpoint.Optimizer.Config).plan))(t)
+		stream := testcheck.Must(trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(ran.steps)))(t)
 		session := ran.session
 		_, recorded, err := session.store.Artifact(t.Context(), checkpoint.ID())
 		if err != nil || !recorded || session.authority.Objective != trainingprogram.ObjectiveFlowMatching || checkpoint.Program != program.ID() ||
@@ -420,8 +401,7 @@ func TestRoutePublicationRecordsActualAuthority(t *testing.T) {
 	})
 	t.Run("setup failure", func(t *testing.T) {
 		_, store, modelPath, datasetPath := routeFixture(t)
-		session, err := openSession(t.Context(), store, modelPath, datasetPath)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(openSession(t.Context(), store, modelPath, datasetPath))(t)
 		failure := errors.New("the model failed to load")
 		setupErr := failure
 		session.settle(t.Context(), &setupErr)
@@ -453,11 +433,9 @@ type authorityRun struct {
 func runUnderContract(t *testing.T, contract trainingworkflow.RecipeContract, kind trainingprogram.ObjectiveKind, cancelAt int) authorityRun {
 	t.Helper()
 	root, store, modelPath, datasetPath := routeFixture(t)
-	session, err := openSessionAs(t.Context(), store, modelPath, datasetPath, contract)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(openSessionAs(t.Context(), store, modelPath, datasetPath, contract))(t)
 	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("edited after the session read it"), 0o600))
-	plan, err := probeSession(kind, 3, testMatrix.End, 0)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(probeSession(kind, 3, testMatrix.End, 0))(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	if cancelAt == 0 {

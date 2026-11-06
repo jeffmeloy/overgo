@@ -28,8 +28,7 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 		"alpha":      {Features: []string{"a"}, ValidatedFixture: "alpha.gguf"},
 		"multimodal": {Features: []string{"image"}, RealModelValidation: "pending-language-model-oracle", MultimodalValidatedFixture: "projector.gguf + image.png + golden.json"},
 	})
-	output, err := generate(root)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(generate(root))(t)
 	text := string(output)
 	if strings.Contains(text, "experimental") || strings.Contains(text, "| Status |") {
 		t.Fatalf("prototype rows must carry no status vocabulary:\n%s", text)
@@ -115,13 +114,11 @@ func TestRebindClaimsUsesCanonicalBytes(t *testing.T) {
 	writeTestManifest(t, root, []claim{item}, testModels())
 	var tested []string
 	for _, proof := range item.Evidence {
-		identity, err := evidenceIdentity(root, item.ID, proof)
-		testcheck.NoError(t, err)
+		identity := testcheck.Must(evidenceIdentity(root, item.ID, proof))(t)
 		tested = append(tested, identity)
 	}
 	testcheck.NoError(t, rebindClaim(root, item, tested))
-	document, err := loadManifest(root)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(loadManifest(root))(t)
 	for _, item := range document.Claims[0].Evidence {
 		if strings.Contains(item.Identity, strings.Repeat("0", 64)) {
 			t.Fatalf("identity not rebound: %s", item.Identity)
@@ -229,8 +226,7 @@ func TestReverifyBindsTestedBytes(t *testing.T) {
 	if err != nil || len(moved) != 2 || moved[0].ID != "edited-claim" || moved[1].ID != "authority-claim" {
 		t.Fatalf("moved claims after re-verification = %v, %v; want the stable claim rebound to its tested bytes", moved, err)
 	}
-	document, err := loadManifest(root)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(loadManifest(root))(t)
 	if edited := document.Claims[1].Evidence[0]; edited.Identity != claims[1].Evidence[0].Identity {
 		t.Fatalf("a source edited during its verify was rebound to %s", edited.Identity)
 	}
@@ -300,14 +296,12 @@ func writeSymbolEvidence(t *testing.T, root, path, data, contains, symbol string
 	t.Helper()
 	testutil.WriteTextFile(t, root, path, data)
 	proof := evidence{Path: path, Contains: contains, Symbol: symbol, Role: role}
-	payload, err := evidencePayload(proof, []byte(data))
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(evidencePayload(proof, []byte(data)))(t)
 	kind := artifact.KindFile
 	if role == roleArtifact {
 		kind = artifact.KindEvidence
 	}
-	id, err := artifact.IdentifyBytes(kind, payload)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(kind, payload))(t)
 	proof.Identity = id.String()
 	return proof
 }
@@ -322,8 +316,7 @@ func writeTestManifest(t *testing.T, root string, claims []claim, models map[str
 		Claims:   claims,
 		Models:   models,
 	}
-	data, err := json.MarshalIndent(document, "", "  ")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.MarshalIndent(document, "", "  "))(t)
 	testutil.WriteTextFile(t, root, manifestPath, string(data))
 }
 

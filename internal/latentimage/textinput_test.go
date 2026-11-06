@@ -60,8 +60,7 @@ func TestRenderKreaTextInputLayout(t *testing.T) {
 	suffix := []int{300}           // 1 row
 	const maxPrompt = 5
 	const padID = 9
-	sequence, err := representation.AssemblePaddedSequence(prefix, prompt, suffix, maxPrompt, padID)
-	testcheck.NoError(t, err)
+	sequence := testcheck.Must(representation.AssemblePaddedSequence(prefix, prompt, suffix, maxPrompt, padID))(t)
 	in := textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}
 
 	// total = maxPrompt + len(prefix) = 5 + 3 = 8; padded = 5+3-1 = 7.
@@ -81,8 +80,7 @@ func TestRenderKreaTextInputLayout(t *testing.T) {
 
 	// Over-long prompt is truncated to maxPrompt (mirrors adaptive).
 	long := []int{200, 201, 202, 203, 204, 205, 206}
-	sequence, err = representation.AssemblePaddedSequence(prefix, long, suffix, maxPrompt, padID)
-	testcheck.NoError(t, err)
+	sequence = testcheck.Must(representation.AssemblePaddedSequence(prefix, long, suffix, maxPrompt, padID))(t)
 	tr := textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}
 	if len(tr.IDs) != maxPrompt+len(prefix) || tr.PromptRows != maxPrompt {
 		t.Fatalf("truncated: ids=%d promptRows=%d", len(tr.IDs), tr.PromptRows)

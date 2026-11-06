@@ -29,18 +29,14 @@ func TestDecodeStateOutputsDoNotRetainLayerHistories(t *testing.T) {
 	if len(outputs) != 3 {
 		t.Fatalf("decode outputs duplicated or omitted: %d", len(outputs))
 	}
-	contract, err := tensor.CompileOutputTargetContract(logits)
-	testcheck.NoError(t, err)
+	contract := testcheck.Must(tensor.CompileOutputTargetContract(logits))(t)
 	retained := make(map[*tensor.Tensor]struct{}, len(outputs))
 	for _, output := range outputs {
 		retained[output] = struct{}{}
 	}
-	plan, err := planner.BuildWithRewrites(outputs, contract.Alignment, nil, retained)
-	testcheck.NoError(t, err)
-	historyBytes, err := firstHistory.Shape.Bytes(dtype.F32)
-	testcheck.NoError(t, err)
-	stateBytes, err := firstState.Shape.Bytes(dtype.F32)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(planner.BuildWithRewrites(outputs, contract.Alignment, nil, retained))(t)
+	historyBytes := testcheck.Must(firstHistory.Shape.Bytes(dtype.F32))(t)
+	stateBytes := testcheck.Must(firstState.Shape.Bytes(dtype.F32))(t)
 	if limit := 2*historyBytes + 2*stateBytes; plan.ArenaSize > limit {
 		t.Fatalf("state collection retains full histories: arena=%d, live working-set bound=%d", plan.ArenaSize, limit)
 	}
@@ -162,13 +158,11 @@ func TestFlashNextDecodeReplaysItsStepInputs(t *testing.T) {
 	cache := builder.Input("cache", dtype.F32, tensor.MustShape(width, 1, uint64(blocks*budget)))
 	attention := builder.SparseAttentionWithOffset(query, cache, cache, selected, 1, true, pastTokens)
 	testcheck.NoError(t, builder.Err())
-	compiled, err := executor.Compile(attention)
-	testcheck.NoError(t, err)
-	program, err := compileDecodeSessionPlan(
+	compiled := testcheck.Must(executor.Compile(attention))(t)
+	program := testcheck.Must(compileDecodeSessionPlan(
 		compiled, []deviceBatchGraph{{logits: attention, tokenInput: scores}}, []deviceCacheTargetPlan{{}},
 		decodeSessionIdentity{capacity: blocks * budget, branches: 1, tokenCount: 1, blockSelection: true},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	next := pastTokens - 1
 	testcheck.NoError(t, program.updateBranch(0, []uint32{0}, next, next))
 	refreshed := map[tensor.Op]uint32{}
@@ -196,13 +190,12 @@ func TestParameterizedDecodeRefreshesPerLayerRows(t *testing.T) {
 	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(logits)
 	testcheck.NoError(t, err)
-	program, err := compileDecodeSessionPlan(
+	program := testcheck.Must(compileDecodeSessionPlan(
 		compiled,
 		[]deviceBatchGraph{{logits: logits, tokenInput: tokenRows, perLayerRows: perLayerRows}},
 		[]deviceCacheTargetPlan{{}},
 		decodeSessionIdentity{capacity: 8, branches: 1, tokenCount: 1},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if err = program.updateBranch(0, []uint32{3}, 5, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +235,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	testcheck.NoError(t, builder.Err())
 	compiled, err := executor.Compile(output, key)
 	testcheck.NoError(t, err)
-	program, err := compileDecodeSessionPlan(
+	program := testcheck.Must(compileDecodeSessionPlan(
 		compiled,
 		[]deviceBatchGraph{{
 			logits: output, tokenInput: tokenRows,
@@ -255,8 +248,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 			capacity: capacityTokens,
 			branches: 1, tokenCount: 1,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	rows := []uint32{2}
 	if err = program.updateBranch(0, rows, 3, 3); err != nil {
 		t.Fatal(err)

@@ -32,8 +32,7 @@ func TestQwen35DraftsVerifyInAWindow(t *testing.T) {
 	if !runner.windowsDecode() {
 		t.Fatalf("the hybrid over cells %v decodes outside Strata's window verifier", runner.cellLayers)
 	}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	const promptTokens = 8
 	prompt := make([]tokenizer.TokenID, promptTokens)
 	for index := range prompt {

@@ -32,16 +32,14 @@ import (
 // that acceptance and says the reward arm was not adopted.
 func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-qwen25-05b.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-qwen25-05b.txt")))(t)
 	record := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {
 			record[key] = value
 		}
 	}
-	named, err := artifact.ParseID(record["acceptance"])
-	testcheck.NoError(t, err)
+	named := testcheck.Must(artifact.ParseID(record["acceptance"]))(t)
 	var document InstructionAcceptance
 	testcheck.NoError(t, strictjson.DecodeBytes([]byte(record["document"]), &document))
 	acceptance, err := instructionAcceptanceCodec.New(document)
@@ -65,8 +63,7 @@ func TestInstructionPilotRecordIsTheAcceptanceItNames(t *testing.T) {
 	if uint64(len(acceptance.Basis)) != groups || acceptance.Discordance != repeated+acceptance.Gain || acceptance.Power != power || power < 1-missedGain {
 		t.Fatalf("the acceptance has a basis of %d draws, arms differing on %v and power %v; the record's %d development groups, %d of them differing, give %v and %v", len(acceptance.Basis), acceptance.Discordance, acceptance.Power, groups, differing, repeated+acceptance.Gain, power)
 	}
-	ran, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-run-qwen25-05b.txt"))
-	testcheck.NoError(t, err)
+	ran := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "instruction-pilot-run-qwen25-05b.txt")))(t)
 	run := map[string]string{}
 	for line := range strings.Lines(string(ran)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

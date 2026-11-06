@@ -18,8 +18,7 @@ func TestMoERouterObservationIdentityCoverageAndValidation(t *testing.T) {
 		CombineWeights: []float32{0.7, 0.3, 0.6, 0.4}, Accepted: []bool{true, true, true, false},
 		Margins: []MoERouterMargin{{Observed: true, Value: 0.2}, {Observed: true}},
 	}
-	observation, err := NewMoERouterObservation(fixture)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(NewMoERouterObservation(fixture))(t)
 	content, err := moeRouterObservationCodec.Content(observation)
 	if err != nil || content.Descriptor.ID != observation.ID {
 		t.Fatalf("observation content = (%s, %v)", content.Descriptor.ID, err)

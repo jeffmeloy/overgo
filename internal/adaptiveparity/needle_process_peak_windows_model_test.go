@@ -17,8 +17,7 @@ const needleProcessRuns = 3
 
 func TestNeedleProcessPeakLeadership(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	adaptiveRoot := filepath.Dir(roots.Models)
 	adaptiveGo := filepath.Join(adaptiveRoot, "go")
 	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {

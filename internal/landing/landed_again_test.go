@@ -64,8 +64,7 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 
 	before := fixture.read(plan.Path)
 	fixture.write("a.txt", "changed\n")
-	first, err := land("row/do")
-	testcheck.NoError(t, err)
+	first := testcheck.Must(land("row/do"))(t)
 	landed := fixture.read(plan.Path)
 	// What a kill between the trunk's move and the plan's save leaves.
 	fixture.write(plan.Path, before)
@@ -78,8 +77,7 @@ func TestEveryStageFailureLeavesTheTrunkAlone(t *testing.T) {
 	if _, err := land("other/do"); err != nil {
 		t.Fatalf("the landing with the trunk's plan written back: %v", err)
 	}
-	published, err := plan.Parse([]byte(fixture.git("show", "HEAD:"+plan.Path)))
-	testcheck.NoError(t, err)
+	published := testcheck.Must(plan.Parse([]byte(fixture.git("show", "HEAD:"+plan.Path))))(t)
 	for _, item := range published.Items {
 		if item.ID == "row" {
 			t.Fatalf("the landed step row/do is in the trunk's plan again: %+v", item)

@@ -14,14 +14,10 @@ import (
 func TestCodecChunkStreamOwnsCausalState(t *testing.T) {
 	t.Parallel()
 	op := NewCodecOperation[struct{}](CodecPointwise, "accumulate", 1, 1)
-	var err error
-	op.Bindings, err = BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}})
-	testcheck.NoError(t, err)
+	op.Bindings = testcheck.Must(BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}}))(t)
 	program := CodecProgram[struct{}]{Operations: []CodecOperation[struct{}]{op}}
-	first, err := NewCodecChunkStream[struct{}, int](program)
-	testcheck.NoError(t, err)
-	second, err := NewCodecChunkStream[struct{}, int](program)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewCodecChunkStream[struct{}, int](program))(t)
+	second := testcheck.Must(NewCodecChunkStream[struct{}, int](program))(t)
 	step := func(_ int, _ CodecOperation[struct{}], state *int, value CodecVolume[int]) (CodecVolume[int], error) {
 		*state += value.Storage
 		value.Storage = *state

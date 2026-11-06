@@ -27,20 +27,16 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			t.Parallel()
 			store := overgodbtest.Open(t, t.TempDir())
 			weights := []byte("benchmark producer weights")
-			model, err := artifact.IdentifyBytes(artifact.KindModel, weights)
-			testcheck.NoError(t, err)
+			model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, weights))(t)
 			path := filepath.Join(t.TempDir(), "model.gguf")
 			testcheck.NoError(t, os.WriteFile(path, weights, 0o600))
-			platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "fixture-gpu", Backend: "cuda", Driver: "fixture"})
-			testcheck.NoError(t, err)
+			platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "fixture-gpu", Backend: "cuda", Driver: "fixture"}))(t)
 			body := map[string]any{"code_commit": planTestCommit, "environment_id": platform.ID, "environment": platform,
 				"load_ms": 100, "summary": map[string]float64{"decode_tokens_per_second_p50": 12, "prompt_tokens_per_second_p50": 24, "ttft_ms_p50": 5}}
 			configuration := benchmarkrecord.BenchmarkConfiguration{Tokens: 32, Runs: 2, TopK: 40}
-			optionsDigest, err := configuration.Digest()
-			testcheck.NoError(t, err)
+			optionsDigest := testcheck.Must(configuration.Digest())(t)
 			prompts := []string{"benchmark fixture prompt"}
-			workload, err := artifact.JSONID(artifact.KindEvidence, prompts)
-			testcheck.NoError(t, err)
+			workload := testcheck.Must(artifact.JSONID(artifact.KindEvidence, prompts))(t)
 			body["model_id"], body["tokenizer_container"] = model, model
 			body["recipe_id"] = testutil.ArtifactID(t, artifact.KindRecipe, "benchmark-recipe")
 			body["module_digest"], body["options_digest"] = strings.Repeat("b", 64), optionsDigest
@@ -77,16 +73,12 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			case "missing-eog":
 				delete(body, "end_of_sequence_ignored")
 			}
-			data, err := json.Marshal(body)
-			testcheck.NoError(t, err)
-			evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-			testcheck.NoError(t, err)
-			record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, WallNS: 200, PeakDeviceBytes: 300, Evidence: []artifact.ID{evidence}}})
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(body))(t)
+			evidence := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, data))(t)
+			record := testcheck.Must(runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, WallNS: 200, PeakDeviceBytes: 300, Evidence: []artifact.ID{evidence}}}))(t)
 			testcheck.NoError(t, runrecord.CommitVerificationClaim(t.Context(), store, record, data, evidence, path))
 			summary := LatestEvidence(t.Context(), store, nil, 0).BenchmarksByLocation[path]
-			encoded, err := json.Marshal(summary)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(summary))(t)
 			var facts struct {
 				CodeCommit  string      `json:"code_commit"`
 				Environment artifact.ID `json:"environment"`
@@ -129,32 +121,27 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 			}
 			testcheck.NoError(t, err)
 			if mode != "missing-environment" {
-				batch, err := platform.Batch("execution/environment")
-				testcheck.NoError(t, err)
+				batch := testcheck.Must(platform.Batch("execution/environment"))(t)
 				if _, err := store.Commit(t.Context(), batch); err != nil {
 					t.Fatal(err)
 				}
 			}
-			exact, err := CompileExact(exactFixture())
-			testcheck.NoError(t, err)
+			exact := testcheck.Must(CompileExact(exactFixture()))(t)
 			authorities := ListingAuthorities()
 			authorities.Environment, authorities.CodeCommit = platform.ID, planTestCommit
 			if mode == "hosted" {
 				authorities.Execution.Prompting = PromptingHostedChat
 			}
-			plan, err := BindExact(exact, authorities)
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(BindExact(exact, authorities))(t)
 			if mode == "invalid-policy" {
-				policy, err := authorityContent(executionContract, ExecutionPolicy{Lifecycle: "automatic"})
-				testcheck.NoError(t, err)
+				policy := testcheck.Must(authorityContent(executionContract, ExecutionPolicy{Lifecycle: "automatic"}))(t)
 				for index := range plan.authorities {
 					if plan.authorities[index].Descriptor.ID == plan.Execution() {
 						plan.authorities[index] = policy
 					}
 				}
 				plan.body.Execution = policy.Descriptor.ID
-				plan.identity, err = artifact.JSONID(artifact.KindProfile, plan.body)
-				testcheck.NoError(t, err)
+				plan.identity = testcheck.Must(artifact.JSONID(artifact.KindProfile, plan.body))(t)
 			}
 			publishPlanFixtureAuthorities(t, store, plan)
 			if mode == "missing-policy" {
@@ -189,25 +176,20 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			run, err := runrecord.NewBoundRun(runRecipe, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output}, "", commit, runEnvironment, 1, nil)
-			testcheck.NoError(t, err)
+			run := testcheck.Must(runrecord.NewBoundRun(runRecipe, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output}, "", commit, runEnvironment, 1, nil))(t)
 			if mode == "missing-run" {
 				if _, err := store.Commit(t.Context(), artifact.Batch{Key: "execution/run", Artifacts: []artifact.Descriptor{{ID: run.ID}}}); err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				content, err := run.Content()
-				testcheck.NoError(t, err)
-				batch, err := artifact.NewDocumentBatch("execution/run", []artifact.Content{content}, run.Lineage(), nil)
-				testcheck.NoError(t, err)
+				content := testcheck.Must(run.Content())(t)
+				batch := testcheck.Must(artifact.NewDocumentBatch("execution/run", []artifact.Content{content}, run.Lineage(), nil))(t)
 				if _, err := store.Commit(t.Context(), batch); err != nil {
 					t.Fatal(err)
 				}
 			}
-			record, err := runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, recordDataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
-			testcheck.NoError(t, err)
-			batch, err := record.Batch("execution/evaluation")
-			testcheck.NoError(t, err)
+			record := testcheck.Must(runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, recordDataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}))(t)
+			batch := testcheck.Must(record.Batch("execution/evaluation"))(t)
 			if _, err := store.Commit(t.Context(), batch); err != nil {
 				t.Fatal(err)
 			}
@@ -241,8 +223,7 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
 	authorities := ListingAuthorities()
 	authorities.CodeCommit = planTestCommit
 	want := map[artifact.ID]float64{}
@@ -257,8 +238,7 @@ func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 			})
 		}
 		testcheck.NoError(t, err)
-		batch, err := platform.Batch("comparison/environment/" + mode)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(platform.Batch("comparison/environment/" + mode))(t)
 		if mode == "resident" || mode == "environment" {
 			if _, err := store.Commit(t.Context(), batch); err != nil {
 				t.Fatal(err)
@@ -276,21 +256,17 @@ func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 		if mode == "cases" {
 			changed := exactFixture()
 			changed.Cases[0].Prompt = "a distinct case"
-			compiled, err = CompileExact(changed)
-			testcheck.NoError(t, err)
+			compiled = testcheck.Must(CompileExact(changed))(t)
 		}
-		plan, err := BindExact(compiled, bound)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(BindExact(compiled, bound))(t)
 		if mode == "scorer" {
-			scorer, err := authorityContent(scorerProfileContract, struct {
+			scorer := testcheck.Must(authorityContent(scorerProfileContract, struct {
 				Version uint16 `json:"version"`
 				Kind    string `json:"kind"`
-			}{artifact.InitialDocumentVersion, "distinct-fixture-scorer"})
-			testcheck.NoError(t, err)
+			}{artifact.InitialDocumentVersion, "distinct-fixture-scorer"}))(t)
 			plan.authorities = append(plan.authorities, scorer)
 			plan.body.Scorer = scorer.Descriptor.ID
-			plan.identity, err = artifact.JSONID(artifact.KindProfile, plan.body)
-			testcheck.NoError(t, err)
+			plan.identity = testcheck.Must(artifact.JSONID(artifact.KindProfile, plan.body))(t)
 		}
 		if mode == "resident" {
 			publishPlanFixtureAuthorities(t, store, plan)
@@ -300,20 +276,15 @@ func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "comparison/output/" + mode, Artifacts: []artifact.Descriptor{{ID: output}}}); err != nil {
 			t.Fatal(err)
 		}
-		run, err := runrecord.NewBoundRun(bound.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.Identity()}, []artifact.ID{output}, "", bound.CodeCommit, platform.ID, 1, nil)
-		testcheck.NoError(t, err)
-		content, err := run.Content()
-		testcheck.NoError(t, err)
-		batch, err = artifact.NewDocumentBatch("comparison/run/"+mode, []artifact.Content{content}, run.Lineage(), nil)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.NewBoundRun(bound.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.Identity()}, []artifact.ID{output}, "", bound.CodeCommit, platform.ID, 1, nil))(t)
+		content := testcheck.Must(run.Content())(t)
+		batch = testcheck.Must(artifact.NewDocumentBatch("comparison/run/"+mode, []artifact.Content{content}, run.Lineage(), nil))(t)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
 		value := float64(index+1) / 10
-		record, err := runrecord.NewEvaluation(bound.RuntimeRecipe, run.ID, compiled.dataset, []runrecord.Metric{{Name: "accuracy", Value: value, Direction: runrecord.DirectionMaximize}})
-		testcheck.NoError(t, err)
-		batch, err = record.Batch("comparison/evaluation/" + mode)
-		testcheck.NoError(t, err)
+		record := testcheck.Must(runrecord.NewEvaluation(bound.RuntimeRecipe, run.ID, compiled.dataset, []runrecord.Metric{{Name: "accuracy", Value: value, Direction: runrecord.DirectionMaximize}}))(t)
+		batch = testcheck.Must(record.Batch("comparison/evaluation/" + mode))(t)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
@@ -374,24 +345,19 @@ func TestASplitModelsBenchmarkIsFoundUnderItsShards(t *testing.T) {
 		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: artifact.Location{Artifact: part, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd})
 		shards = append(shards, path)
 	}
-	manifest, err := artifact.NewManifest(artifact.KindModel, components)
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, components))(t)
 	batch.Manifests = []artifact.Manifest{manifest}
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	data, err := json.Marshal(map[string]any{"summary": map[string]float64{"decode_tokens_per_second_p50": 92, "prompt_tokens_per_second_p50": 117, "ttft_ms_p50": 95}})
-	testcheck.NoError(t, err)
-	evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-	testcheck.NoError(t, err)
-	record, err := runrecord.NewModelVerification(manifest.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}})
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(map[string]any{"summary": map[string]float64{"decode_tokens_per_second_p50": 92, "prompt_tokens_per_second_p50": 117, "ttft_ms_p50": 95}}))(t)
+	evidence := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, data))(t)
+	record := testcheck.Must(runrecord.NewModelVerification(manifest.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}}))(t)
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(t.Context(), store, record, data, evidence, shards[0]))
 	// A model served from its own files registers its directory and no file, and its benchmark is found there.
 	directory := t.TempDir()
 	image := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte("the image a directory serves"))
-	served, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}})
-	testcheck.NoError(t, err)
+	served := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}}))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/directory-benchmark", Manifests: []artifact.Manifest{served},
 		Artifacts: []artifact.Descriptor{{ID: image, Size: uint64(len("the image a directory serves"))}},
@@ -402,8 +368,7 @@ func TestASplitModelsBenchmarkIsFoundUnderItsShards(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	viewed, err := runrecord.NewModelVerification(served.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}})
-	testcheck.NoError(t, err)
+	viewed := testcheck.Must(runrecord.NewModelVerification(served.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}}))(t)
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(t.Context(), store, viewed, data, evidence, directory))
 	index := LatestEvidence(t.Context(), store, nil, 0)
 	for _, shard := range shards {

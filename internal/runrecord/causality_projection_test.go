@@ -16,12 +16,10 @@ import (
 func TestCausalityProjectionRebuild(t *testing.T) {
 	rootID := testutil.ArtifactID(t, artifact.KindEvidence, "typed-causal-root")
 	motivation := testutil.ArtifactID(t, artifact.KindEvidence, "typed-causal-motivation")
-	causal, err := NewCausalRoot(TriggerControllerProposal, rootID, motivation)
-	testcheck.NoError(t, err)
+	causal := testcheck.Must(NewCausalRoot(TriggerControllerProposal, rootID, motivation))(t)
 	value := servingObservationFixture(t)
 	value.Causal = &causal
-	observation, err := NewServingObservation(value)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(NewServingObservation(value))(t)
 	batch, err := observation.Batch("causality/typed-serving")
 	if err != nil || len(batch.Causality) != 1 || batch.Causality[0].Execution != observation.ID {
 		t.Fatalf("typed causal batch = (%+v, %v)", batch.Causality, err)

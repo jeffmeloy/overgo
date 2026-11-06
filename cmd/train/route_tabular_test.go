@@ -81,8 +81,7 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "store")))(t)
 	defer store.Close()
 	objective, modelPath := registerTableSplit(t, ctx, store, root, tables, nil, metric)
 
@@ -128,8 +127,7 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if err != nil || !found {
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
-	document, err := io.ReadAll(content)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(io.ReadAll(content))(t)
 	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
 		t.Fatalf("verdict = %+v (%v), want %s from %g to %g", verdict, err, metric, base, trained)
 	}
@@ -150,8 +148,7 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 	t.Helper()
 	corpus := t.TempDir()
 	for table, request := range tables {
-		data, err := json.Marshal(request)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(request))(t)
 		// Names that sort in table order keep record i table i.
 		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%04d.json", table)), data, 0o600))
 	}
@@ -165,8 +162,7 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 // dataset and its training membership.
 func registerSplit(t *testing.T, ctx context.Context, store *overgodb.Store, name, corpus string, count int, groups []string) (source, training artifact.ID) {
 	t.Helper()
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, name, corpus)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDataset(ctx, store, name, corpus))(t)
 	var records []dataset.Record
 	for index := range uint64(count) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
@@ -176,10 +172,8 @@ func registerSplit(t *testing.T, ctx context.Context, store *overgodb.Store, nam
 		}
 		records = append(records, dataset.Record{ID: id, Group: group})
 	}
-	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	testcheck.NoError(t, err)
-	splitBatch, err := split.PublicationBatch("test-split", nil)
-	testcheck.NoError(t, err)
+	split := testcheck.Must(dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}}))(t)
+	splitBatch := testcheck.Must(split.PublicationBatch("test-split", nil))(t)
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -210,21 +204,18 @@ func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store,
 	t.Helper()
 	var referenced []artifact.ID
 	stand := func(kind artifact.Kind, name string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte(name))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, []byte(name)))(t)
 		referenced = append(referenced, id)
 		return id
 	}
 	spec.Processors = []artifact.ID{stand(artifact.KindProfile, "overgo/objective-test/processor")}
 	spec.Loss, spec.Evaluation = stand(artifact.KindProfile, "overgo/objective-test/loss"), stand(artifact.KindProfile, "overgo/objective-test/evaluation")
 	spec.Evidence, spec.Authority = []artifact.ID{stand(artifact.KindEvidence, "overgo/objective-test/note")}, trainingprogram.ObjectiveDeclared
-	objective, err := trainingprogram.NewObjective(spec)
-	testcheck.NoError(t, err)
+	objective := testcheck.Must(trainingprogram.NewObjective(spec))(t)
 	for _, name := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
 		stand(artifact.KindProfile, "overgo/training-bootstrap/"+name)
 	}
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(objective.Content())(t)
 	batch := artifact.Batch{
 		Key: "test-objective", Contents: []artifact.Content{content},
 		Aliases: []artifact.AliasBinding{{Name: alias, Target: objective.ID}},

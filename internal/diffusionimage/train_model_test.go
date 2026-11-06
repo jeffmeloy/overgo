@@ -32,8 +32,7 @@ func TestRealCheckpointTrainingSmoke(t *testing.T) {
 		X       []float32
 	}](t, "real_forward")
 	x, target := fixedFlowPath(t, golden.X, golden.B, sigmaMin)
-	trainer, err := NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant})
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(m, optimizer.Config{BaseLearningRate: lr, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}))(t)
 	defer func() {
 		testcheck.NoError(t, trainer.Close())
 	}()
@@ -45,8 +44,7 @@ func TestRealCheckpointTrainingSmoke(t *testing.T) {
 	losses := make([]float64, 0, steps)
 	for step := range steps {
 		stepStart := time.Now()
-		loss, err := trainer.Step(x, target, golden.B, golden.H, golden.W)
-		testcheck.NoError(t, err)
+		loss := testcheck.Must(trainer.Step(x, target, golden.B, golden.H, golden.W))(t)
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			t.Fatalf("non-finite loss %v at step %d", loss, step+1)
 		}

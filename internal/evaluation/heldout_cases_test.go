@@ -44,8 +44,7 @@ func TestHeldoutVerdictSummaryCountsItsRecords(t *testing.T) {
 	commit("test-plan", forecast.plan.Batch)
 	commit("test-base", base.Batch)
 	commit("test-trained", trained.Batch)
-	verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, trained, session)
-	testcheck.NoError(t, err)
+	verdict := testcheck.Must(JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, trained, session))(t)
 	commit("test-verdict", verdict.Batch)
 
 	records := trained.RecordScores()

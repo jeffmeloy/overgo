@@ -23,8 +23,7 @@ func TestChangeProposalRecordIsTheJudgmentItNames(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	read := func(name string) map[string]string {
-		raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", name))
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", name)))(t)
 		fields := map[string]string{}
 		for line := range strings.Lines(string(raw)) {
 			if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {
@@ -34,8 +33,7 @@ func TestChangeProposalRecordIsTheJudgmentItNames(t *testing.T) {
 		return fields
 	}
 	record := read("change-proposal-qwen25-05b.txt")
-	named, err := artifact.ParseID(record["judgment"])
-	testcheck.NoError(t, err)
+	named := testcheck.Must(artifact.ParseID(record["judgment"]))(t)
 	var judgment changeJudgment
 	testcheck.NoError(t, strictjson.DecodeBytes([]byte(record["document"]), &judgment))
 	canonical, err := changeJudgmentCodec.New(judgment)

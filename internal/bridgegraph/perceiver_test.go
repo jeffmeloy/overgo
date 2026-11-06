@@ -25,17 +25,14 @@ func TestPerceiverResampler(t *testing.T) {
 	target.Tensor.Axes[tensor.SingletonExtent].Bounds = representation.AxisBounds{Extent: 2}
 	target.Sequence.Mask = representation.MaskNone
 	target.Sequence.Padding = representation.PaddingNone
-	encodedTarget, err := json.Marshal(target)
-	testcheck.NoError(t, err)
-	target, err = representation.ParseContract(encodedTarget)
-	testcheck.NoError(t, err)
+	encodedTarget := testcheck.Must(json.Marshal(target))(t)
+	target = testcheck.Must(representation.ParseContract(encodedTarget))(t)
 	targetContent = encodedTarget
 	definition := Definition{
 		Source: source.ID, Target: target.ID, Operator: OperatorPerceiver,
 		LatentCount: 2, HeadCount: 1, SourceTokenLimit: 3,
 	}
-	program, err := (Compiler{}).Compile(definition, sourceContent, targetContent)
-	testcheck.NoError(t, err)
+	program := testcheck.Must((Compiler{}).Compile(definition, sourceContent, targetContent))(t)
 	builder := tensor.NewBuilder()
 	input := builder.Input("source", dtype.F32, tensor.MustShape(2, 3))
 	mask := builder.Input("mask", dtype.F32, tensor.MustShape(3))
@@ -44,10 +41,9 @@ func TestPerceiverResampler(t *testing.T) {
 	key := builder.Input("key", dtype.F32, tensor.MustShape(2, 2))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(2, 2))
 	projection := builder.Input("output", dtype.F32, tensor.MustShape(2, 2))
-	output, err := program.Build(builder, input, Weights{
+	output := testcheck.Must(program.Build(builder, input, Weights{
 		Mask: mask, Latents: latents, Query: query, Key: key, Value: value, Output: projection,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	attentionFound := false
 	for _, node := range builder.Nodes() {
 		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).HasKeyBias {
@@ -69,10 +65,8 @@ func TestPerceiverResampler(t *testing.T) {
 	}
 	firstFeeds[input] = inferenceValue(t, input.Shape, []float32{1, 0, 0, 1, 10, 10})
 	secondFeeds[input] = inferenceValue(t, input.Shape, []float32{1, 0, 0, 1, 1000, -1000})
-	first, err := reference.Execute([]*tensor.Tensor{output}, firstFeeds)
-	testcheck.NoError(t, err)
-	second, err := reference.Execute([]*tensor.Tensor{output}, secondFeeds)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, firstFeeds))(t)
+	second := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, secondFeeds))(t)
 	if len(first[output].Data) != len(second[output].Data) {
 		t.Fatalf("Perceiver output extents differ: %v %v", first[output], second[output])
 	}

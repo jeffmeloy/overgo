@@ -106,8 +106,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		}
 		if d.ReferenceFile != "" {
 			d.ReferenceFile = filepath.Join(root, d.ReferenceFile)
-			cases, err := readSmokeReference(d)
-			testcheck.NoError(t, err)
+			cases := testcheck.Must(readSmokeReference(d))(t)
 			referenceCases += len(cases)
 		}
 	}
@@ -118,8 +117,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 	selectedReference := referenceStore != ""
 	if referenceStore != "" || os.Getenv(dataroot.Env) != "" {
 		if referenceStore == "" {
-			roots, err := dataroot.Resolve(root)
-			testcheck.NoError(t, err)
+			roots := testcheck.Must(dataroot.Resolve(root))(t)
 			referenceStore = roots.Store
 		}
 		store := overgodbtest.OpenReadOnly(t, referenceStore)
@@ -130,10 +128,8 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		entries = nil
 		extra := 0
 		for _, manifest := range catalog.Manifests {
-			active, err := modelrecipe.HasActiveRecipe(t.Context(), store, manifest.ID, recipe.TaskInference)
-			testcheck.NoError(t, err)
-			trained, err := modelrecipe.IsTrained(t.Context(), store, manifest.ID, recipe.TaskInference)
-			testcheck.NoError(t, err)
+			active := testcheck.Must(modelrecipe.HasActiveRecipe(t.Context(), store, manifest.ID, recipe.TaskInference))(t)
+			trained := testcheck.Must(modelrecipe.IsTrained(t.Context(), store, manifest.ID, recipe.TaskInference))(t)
 			if !active || trained {
 				continue
 			}
@@ -167,10 +163,8 @@ func TestSmokePublishesCompleteBoundRecord(t *testing.T) {
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
 	path := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
-	_, err = store.Commit(t.Context(), artifact.Batch{Key: "smoke-test-inputs", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipe}}})
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(path))(t)
+	testcheck.Must(store.Commit(t.Context(), artifact.Batch{Key: "smoke-test-inputs", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipe}}}))(t)
 	testcheck.NoError(t, store.Close())
 	oracle := smokeOracle{Model: model, Recipe: recipe, Domain: "text", Chat: true, Claim: "addition", Generation: &evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2+2?", MaxTokens: 16, Answers: []string{"4"}}}
 	observation := smokeObservation{Claim: oracle.Claim, Generation: &evaluation.ExactResult{Name: "addition", PromptTokens: 4, GeneratedTokens: 1, Text: "4"}}

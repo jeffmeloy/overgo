@@ -66,6 +66,30 @@ func threeLineChecks(file *ast.File) int {
 	return count
 }
 
+// testFileCount is what count reads in the module's test files outside testdata, each parsed from its syntax alone.
+func testFileCount(t *testing.T, count func(*ast.File) int) int {
+	t.Helper()
+	total := 0
+	for _, top := range []string{"cmd", "internal"} {
+		testcheck.NoError(t, filepath.WalkDir(filepath.Join(checkoutRoot, top), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || !strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/testdata/") {
+				return err
+			}
+			source, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
+			if err != nil {
+				return err
+			}
+			total += count(file)
+			return nil
+		}))
+	}
+	return total
+}
+
 func isNamed(expression ast.Expr, name string) bool {
 	ident, isIdent := expression.(*ast.Ident)
 	return isIdent && ident.Name == name
@@ -106,29 +130,11 @@ func checked(t *testing.T) {
 	}
 }
 `
-	parsed, err := parser.ParseFile(token.NewFileSet(), "p_test.go", fixture, parser.SkipObjectResolution)
-	testcheck.NoError(t, err)
+	parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), "p_test.go", fixture, parser.SkipObjectResolution))(t)
 	if got := threeLineChecks(parsed); got != 2 {
 		t.Fatalf("the fixture holds %d three-line checks, want the bare check and its init form", got)
 	}
-	total := 0
-	for _, top := range []string{"cmd", "internal"} {
-		testcheck.NoError(t, filepath.WalkDir(filepath.Join(checkoutRoot, top), func(path string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/testdata/") {
-				return err
-			}
-			source, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
-			if err != nil {
-				return err
-			}
-			total += threeLineChecks(file)
-			return nil
-		}))
-	}
+	total := testFileCount(t, threeLineChecks)
 	if total > threeLineCheckCeiling {
 		t.Errorf("the module's tests hold %d three-line error checks, over the ceiling of %d, so say each in one call with testcheck.NoError", total, threeLineCheckCeiling)
 	}

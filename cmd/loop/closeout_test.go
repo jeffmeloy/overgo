@@ -39,8 +39,7 @@ import (
 func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	t.Parallel()
 	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
-	root, err := filepath.EvalSymlinks(t.TempDir())
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.EvalSymlinks(t.TempDir()))(t)
 	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
 	folder := func(slash string) string { return madeFolder(t, at(slash)) }
 	write := func(slash, content string) { testutil.WriteTextFile(t, root, slash, content) }
@@ -158,8 +157,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	// counted is the line of counts a close-out of h prints, from a listing of its own.
 	counted := func(h hygiene) string {
 		t.Helper()
-		found, err := listLeftovers(h, false)
-		testcheck.NoError(t, err)
+		found := testcheck.Must(listLeftovers(h, false))(t)
 		states := map[string]int{}
 		for _, entry := range found {
 			states[entry.state]++
@@ -168,8 +166,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	}
 	unknownOf := func(h hygiene) (unknown int) {
 		t.Helper()
-		found, err := listLeftovers(h, false)
-		testcheck.NoError(t, err)
+		found := testcheck.Must(listLeftovers(h, false))(t)
 		for _, entry := range found {
 			if entry.state == stateUnknown {
 				unknown++
@@ -217,8 +214,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	}
 	// A listing that does not measure reads the files only of what a delete could take: the walk
 	// of the build cache and the data root is what a close-out is spared.
-	unmeasured, err := listLeftovers(h, false)
-	testcheck.NoError(t, err)
+	unmeasured := testcheck.Must(listLeftovers(h, false))(t)
 	for _, entry := range unmeasured {
 		if deletable := entry.action == actionDelete && entry.state == stateFinished; entry.measured || entry.bytes != 0 && !deletable {
 			t.Errorf("a listing that does not measure read %d bytes of %s %s (measured: %v), which no delete could take", entry.bytes, entry.place, entry.path, entry.measured)

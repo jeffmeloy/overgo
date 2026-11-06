@@ -33,8 +33,7 @@ func sizedPool(t *testing.T, store *overgodb.Store, request HeldoutPoolRequest, 
 	t.Helper()
 	ctx := t.Context()
 	request.Gain = 1
-	sized, err := BuildHeldoutPool(ctx, store, request)
-	testcheck.NoError(t, err)
+	sized := testcheck.Must(BuildHeldoutPool(ctx, store, request))(t)
 	missed := normalQuantile(1 - missedGain)
 	request.Gain = (poolCritical(confirmations) + poolCritical(confirmations+1) + missed + missed) / 2 / math.Sqrt(float64(sized.Documents[poolPromotion]))
 	pool, err := BuildHeldoutPool(ctx, store, request)
@@ -72,8 +71,7 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 	for _, record := range membership.Records {
 		promotion = append(promotion, record.ID)
 	}
-	budget, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID)
-	testcheck.NoError(t, err)
+	budget := testcheck.Must(runrecord.NewBudget(poolUnit, pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID))(t)
 	charged := func() int {
 		_, charges, err := runrecord.BudgetCharges(ctx, store, budget.ID)
 		testcheck.NoError(t, err)
@@ -141,14 +139,10 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 
 	// A second pool of the same documents, whose promotion part the proposer charges.
 	blinded := publishedPool(t, store, request, issued+1)
-	proposer, err := changeProposer(objective.ID)
-	testcheck.NoError(t, err)
-	granted, err := runrecord.NewBudget(poolUnit, blinded.Partition.Promotion, blinded.Acceptance.Confirmations, blinded.Acceptance.ID)
-	testcheck.NoError(t, err)
-	peek, err := runrecord.NewBudgetCharge(granted.ID, 1, proposer, "a reading by the proposer")
-	testcheck.NoError(t, err)
-	batch, err := peek.Batch("pool-fixture/proposer-charge")
-	testcheck.NoError(t, err)
+	proposer := testcheck.Must(changeProposer(objective.ID))(t)
+	granted := testcheck.Must(runrecord.NewBudget(poolUnit, blinded.Partition.Promotion, blinded.Acceptance.Confirmations, blinded.Acceptance.ID))(t)
+	peek := testcheck.Must(runrecord.NewBudgetCharge(granted.ID, 1, proposer, "a reading by the proposer"))(t)
+	batch := testcheck.Must(peek.Batch("pool-fixture/proposer-charge"))(t)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}

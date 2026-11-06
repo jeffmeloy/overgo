@@ -26,25 +26,21 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 	// Leave room for browser setup/stop silence, bounded to twice the longest
 	// source clip. This isolated fixture retains all native signal admission.
 	policyPath := filepath.Join(filepath.Dir(f.path), "transcription_policy.json")
-	policyBytes, err := os.ReadFile(policyPath)
-	testcheck.NoError(t, err)
+	policyBytes := testcheck.Must(os.ReadFile(policyPath))(t)
 	var policy server.TranscriptionPolicy
 	testcheck.NoError(t, json.Unmarshal(policyBytes, &policy))
 	policy.Inspection.MaximumSamples *= 2
 	policy.Inspection.MaximumEncodedBytes = 44 + 2*policy.Inspection.MaximumSamples
-	policyBytes, err = json.Marshal(policy)
-	testcheck.NoError(t, err)
+	policyBytes = testcheck.Must(json.Marshal(policy))(t)
 	testcheck.NoError(t, os.WriteFile(policyPath, policyBytes, 0600))
 	_, front := f.proxy(t)
 	browserURL := front.URL
-	executable, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	for index, name := range []string{"granite", "nemotron"} {
 		t.Run(name, func(t *testing.T) {
 			want := strings.TrimSpace(f.transcribe(t, front, index))
 			ctx := t.Context()
-			browser, err := webuilane.Open(ctx, executable, browserURL)
-			testcheck.NoError(t, err)
+			browser := testcheck.Must(webuilane.Open(ctx, executable, browserURL))(t)
 			defer browser.Close()
 			check := func(expression string) {
 				t.Helper()

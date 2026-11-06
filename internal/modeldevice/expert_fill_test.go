@@ -170,8 +170,7 @@ func TestExpertFillReadsEachRangeOnce(t *testing.T) {
 			}
 			for _, name := range banks {
 				bank := cache.banks[name]
-				table, err := mem.at(bank.table, experts*pointerBytes)
-				testcheck.NoError(t, err)
+				table := testcheck.Must(mem.at(bank.table, experts*pointerBytes))(t)
 				for index := range uint32(experts) {
 					pointer := driver.DevicePtr(binary.LittleEndian.Uint64(table[index*pointerBytes:]))
 					held, err := mem.at(pointer, bank.bytes)

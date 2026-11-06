@@ -17,23 +17,19 @@ func TestStreamingWriterDeterministicShards(t *testing.T) {
 		{Name: "model-a.safetensors", Tensors: []streamTensorSpec{{Name: "a", DType: "U8", Shape: []uint64{2}}}},
 	}, Metadata: map[string]string{"format": "pt"}}
 	first := filepath.Join(t.TempDir(), "first")
-	writer, err := newStreamWriter(first, plan)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(newStreamWriter(first, plan))(t)
 	testcheck.NoError(t, writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})))
 	testcheck.NoError(t, writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})))
 	testcheck.NoError(t, writer.finalize())
 
 	second := filepath.Join(t.TempDir(), "second")
-	writer, err = newStreamWriter(second, streamPlan{Shards: []streamShardSpec{plan.Shards[1], plan.Shards[0]}, Metadata: plan.Metadata})
-	testcheck.NoError(t, err)
+	writer = testcheck.Must(newStreamWriter(second, streamPlan{Shards: []streamShardSpec{plan.Shards[1], plan.Shards[0]}, Metadata: plan.Metadata}))(t)
 	testcheck.NoError(t, writer.writeTensor("a", 2, bytes.NewReader([]byte{1, 2})))
 	testcheck.NoError(t, writer.writeTensor("b", 3, bytes.NewReader([]byte{3, 4, 5})))
 	testcheck.NoError(t, writer.finalize())
 	for _, name := range []string{"model-a.safetensors", "model-b.safetensors", streamIndexName} {
-		left, err := os.ReadFile(filepath.Join(first, name))
-		testcheck.NoError(t, err)
-		right, err := os.ReadFile(filepath.Join(second, name))
-		testcheck.NoError(t, err)
+		left := testcheck.Must(os.ReadFile(filepath.Join(first, name)))(t)
+		right := testcheck.Must(os.ReadFile(filepath.Join(second, name)))(t)
 		if !bytes.Equal(left, right) {
 			t.Fatalf("streaming artifact %s differs across plan and write order", name)
 		}
@@ -45,8 +41,7 @@ func TestStreamingWriterAtomicFinalize(t *testing.T) {
 	plan := streamPlan{Shards: []streamShardSpec{{
 		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "weight", DType: "U8", Shape: []uint64{2}}},
 	}}}
-	writer, err := newStreamWriter(destination, plan)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(newStreamWriter(destination, plan))(t)
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
 		t.Fatalf("destination visible before finalization: %v", err)
 	}
@@ -77,11 +72,9 @@ func TestStreamingWriterResume(t *testing.T) {
 			{Name: "second", DType: "U8", Shape: []uint64{3}},
 		},
 	}}}
-	writer, err := newStreamWriter(destination, plan)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(newStreamWriter(destination, plan))(t)
 	testcheck.NoError(t, writer.writeTensor("first", 2, bytes.NewReader([]byte{1, 2})))
-	resumed, err := newStreamWriter(destination, plan)
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(newStreamWriter(destination, plan))(t)
 	if len(resumed.completed) != 1 {
 		t.Fatalf("resumed completion count = %d", len(resumed.completed))
 	}
@@ -90,12 +83,10 @@ func TestStreamingWriterResume(t *testing.T) {
 	}
 	testcheck.NoError(t, resumed.writeTensor("second", 3, bytes.NewReader([]byte{3, 4, 5})))
 	testcheck.NoError(t, resumed.finalize())
-	source, err := OpenSource(destination)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(OpenSource(destination))(t)
 	defer source.Close()
 	for name, want := range map[string][]byte{"first": {1, 2}, "second": {3, 4, 5}} {
-		got, err := io.ReadAll(source.Tensors[name].Reader())
-		testcheck.NoError(t, err)
+		got := testcheck.Must(io.ReadAll(source.Tensors[name].Reader()))(t)
 		if !bytes.Equal(got, want) {
 			t.Fatalf("tensor %s = %v, want %v", name, got, want)
 		}
@@ -107,8 +98,7 @@ func TestStreamingWriterDerivedBounds(t *testing.T) {
 	plan := streamPlan{Shards: []streamShardSpec{{
 		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "matrix", DType: "F32", Shape: []uint64{2, 2}}, {Name: "empty", DType: "U8", Shape: []uint64{0}}},
 	}}}
-	writer, err := newStreamWriter(destination, plan)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(newStreamWriter(destination, plan))(t)
 	testcheck.NoError(t, writer.writeTensor("empty", 0, bytes.NewReader(nil)))
 	payload := floatPayload(1, 2, 3, 4)
 	if err := writer.writeTensor("matrix", uint64(len(payload)-1), bytes.NewReader(payload)); err == nil {
@@ -116,8 +106,7 @@ func TestStreamingWriterDerivedBounds(t *testing.T) {
 	}
 	testcheck.NoError(t, writer.writeTensor("matrix", uint64(len(payload)), bytes.NewReader(payload)))
 	testcheck.NoError(t, writer.finalize())
-	source, err := OpenSource(destination)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(OpenSource(destination))(t)
 	defer source.Close()
 	tensor := source.Tensors["matrix"]
 	if tensor.Size() != int64(len(payload)) || tensor.Shape[0] != 2 || tensor.Shape[1] != 2 {

@@ -68,18 +68,15 @@ func TestFunctionCallSuiteScoresAGeneratorAndRefusesWhatItCannotCompile(t *testi
 	wrong.Name = "wrong"
 	wrong.Arguments = map[string][]json.RawMessage{"base": {json.RawMessage(`99`)}, "height": {json.RawMessage(`5`)}}
 	suite := FunctionCallSuite{Kind: functionCallKind, Schema: "fixture/v1", Source: "fixture", Cases: []FunctionCallCase{triangleCase(), wrong}}
-	compiled, err := compileFunctionCall(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindFunctionCall(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileFunctionCall(suite))(t)
+	plan := testcheck.Must(bindFunctionCall(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateFunctionCall(t.Context(), store, textGenerator(`[{"name":"calculate_triangle_area","arguments":{"base":10,"height":5}}]`), compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateFunctionCall(t.Context(), store, textGenerator(`[{"name":"calculate_triangle_area","arguments":{"base":10,"height":5}}]`), compiled, plan))(t)
 	if report.Accuracy != 0.5 || !report.Observations[0].Accepted || report.Observations[1].Accepted || report.Observations[1].Why == "" {
 		t.Fatalf("report = %+v, want the first case accepted and the second refused with its reason", report)
 	}
@@ -120,8 +117,7 @@ func TestFunctionCallSuiteDescribesEachTool(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	suite, err := BuildBFCLFunctionCalls(FunctionCallSpec{Questions: questions, Answers: answers})
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildBFCLFunctionCalls(FunctionCallSpec{Questions: questions, Answers: answers}))(t)
 	for index, want := range []string{
 		`Find the area of a triangle. <tools> [{"name":"geometry.area","description":"The area of a <triangle> & more.","parameters":{"unit":{"type":"string","description":"The unit, \"cm\" by default.","required":false},"base":{"type":"integer","description":"The base.","required":true},"height":{"type":"float","description":"The height.","required":true}}}]`,
 		`Second. <tools> [{"name":"second","description":"","parameters":{"only":{"type":"boolean","description":"","required":false}}}]`,
@@ -158,8 +154,7 @@ func TestBFCLFunctionCallsReadTheLeaderboardsFiles(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	suite, err := BuildBFCLFunctionCalls(FunctionCallSpec{Questions: questions, Answers: answers})
-	testcheck.NoError(t, err)
+	suite := testcheck.Must(BuildBFCLFunctionCalls(FunctionCallSpec{Questions: questions, Answers: answers}))(t)
 	if len(suite.Cases) != 2 || suite.Cases[0].Name != "bfcl-v3-simple/simple_0" || suite.Cases[0].Function != "calculate_triangle_area" ||
 		suite.Cases[0].Prompt != `Find the area of a triangle. <tools> [{"name":"calculate_triangle_area","description":"","parameters":{"base":{"type":"integer","description":"","required":false},"unit":{"type":"string","description":"","required":false}}}]` ||
 		len(suite.Cases[0].Arguments["unit"]) != 2 {

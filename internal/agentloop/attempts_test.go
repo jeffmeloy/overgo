@@ -30,16 +30,14 @@ func attemptTools(t *testing.T, store *overgodb.Store, handle http.HandlerFunc) 
 	server := httptest.NewServer(handle)
 	t.Cleanup(server.Close)
 	ceiling := agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Value: attemptTarget}}}
-	look, err := agenttool.NewManual(agenttool.Manual{
+	look := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "attempt.look", Description: "Read the state file.", Effect: agenttool.EffectInspection, Ceiling: ceiling,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/look"},
-	})
-	testcheck.NoError(t, err)
-	change, err := agenttool.NewManual(agenttool.Manual{
+	}))(t)
+	change := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "attempt.change", Description: "Change the state file.", Effect: agenttool.EffectMutation, Ceiling: ceiling,
 		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: server.URL + "/change"},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{look, change}); err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +69,7 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 	})
 	root := t.TempDir()
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, attemptTarget), []byte("state"), 0o600))
-	checkpoints, err := NewMutationCheckpointRuntime(root, store)
-	testcheck.NoError(t, err)
+	checkpoints := testcheck.Must(NewMutationCheckpointRuntime(root, store))(t)
 	session := &Session{ID: "attempts", Checkpoints: checkpoints}
 
 	failing.Store(true)
@@ -86,10 +83,8 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 		t.Fatalf("steps = %d after one inspection that failed once", session.Steps)
 	}
 
-	preview, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments)
-	testcheck.NoError(t, err)
-	refused, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.look", noArguments)
-	testcheck.NoError(t, err)
+	preview := testcheck.Must(coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments))(t)
+	refused := testcheck.Must(coordinator.PreviewMutationDecision(ctx, session, "attempt.look", noArguments))(t)
 	agent := testutil.ArtifactID(t, artifact.KindRecipe, "attempt-agent")
 	if _, err := coordinator.ApproveMutationWithManuals(ctx, session, "attempt.change", noArguments, preview.Operation, agent, []artifact.ID{refused.Manual}); err == nil {
 		t.Fatal("an approval outside the agent's manuals was granted")
@@ -128,8 +123,7 @@ func TestAToolErrorLeavesTheSessionUsable(t *testing.T) {
 	if err != nil || !found || interaction.Run != tip.ID || len(interaction.Tools) != 1 {
 		t.Fatalf("interaction = %+v, found=%t, err=%v", interaction, found, err)
 	}
-	checkpoint, err := runrecord.RequireAgentMutationCheckpoint(ctx, store, interaction.Tools[0])
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(runrecord.RequireAgentMutationCheckpoint(ctx, store, interaction.Tools[0]))(t)
 	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, store, preview.Operation, checkpoint.Attempt)
 	if err != nil || !found || stimulus.ID != interaction.Stimulus || tip.Invocation.Preflight != stimulus.ID {
 		t.Fatalf("checkpoint attempt %d, stimulus %+v, found=%t, err=%v", checkpoint.Attempt, stimulus, found, err)
@@ -157,8 +151,7 @@ func TestACancelledMutationClosesItsReceipt(t *testing.T) {
 	if _, err := coordinator.Propose(ctx, session, "attempt.look", noArguments); err != nil {
 		t.Fatal(err)
 	}
-	preview, err := coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments)
-	testcheck.NoError(t, err)
+	preview := testcheck.Must(coordinator.PreviewMutationDecision(ctx, session, "attempt.change", noArguments))(t)
 	approveChange(t, coordinator, session)
 	cancelling.Store(true)
 	if _, err := coordinator.Propose(ctx, session, "attempt.change", noArguments); err == nil {
@@ -184,10 +177,8 @@ func TestASessionTipReadsWhatARestoreFinds(t *testing.T) {
 	session := &Session{ID: "tip"}
 	agrees := func(step int) {
 		t.Helper()
-		tip, err := coordinator.ReadSessionTip(ctx, session.ID, step)
-		testcheck.NoError(t, err)
-		restored, err := coordinator.RestoreSession(ctx, session.ID)
-		testcheck.NoError(t, err)
+		tip := testcheck.Must(coordinator.ReadSessionTip(ctx, session.ID, step))(t)
+		restored := testcheck.Must(coordinator.RestoreSession(ctx, session.ID))(t)
 		if tip.Steps != restored.Steps || tip.Interaction != restored.Interaction || tip.Inspected != restored.Inspection.Valid() {
 			t.Fatalf("tip %+v, restored %+v", tip, restored)
 		}

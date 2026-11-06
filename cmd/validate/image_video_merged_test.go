@@ -37,42 +37,35 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	testskip.Short(t, "merged media evidence requires the private store")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_merged.json")
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoMergedSHA256))
 	var value mediaMergedEvidence
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &value))
 	if value.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(value.Local) || !gitauthority.ValidObjectID(value.Incoming) || !gitauthority.ValidObjectID(value.Merged) || value.Scope == "" || len(value.Checks) == 0 {
 		t.Fatal("incomplete merged media evidence")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, check := range value.Checks {
 		content, found, err := artifact.ReadContent(t.Context(), store, check.Evidence)
 		if err != nil || !found {
 			t.Fatalf("missing %s: %v", check.Name, err)
 		}
-		report, err := testevidence.GoTestJSONReport(string(content.Data))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(content.Data)))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if check.Name == "" || check.Command == "" || report.PassedPackages == 0 || report.PassedTests == 0 {
 			t.Fatal("empty merged-source check")
 		}
 	}
-	inventory, err := loadFrozenMediaInventory(root)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(loadFrozenMediaInventory(root))(t)
 	if inventory.Census != value.Inventory {
 		t.Fatal("changed frozen media denominator")
 	}
-	census, err := capabilityCensusCodec.Require(t.Context(), store, inventory.Census)
-	testcheck.NoError(t, err)
+	census := testcheck.Must(capabilityCensusCodec.Require(t.Context(), store, inventory.Census))(t)
 	testcheck.NoError(t, checkImageVideoCoverage(inventory, census, inventory.Tasks))
-	pending, err := loadMediaPending(root)
-	testcheck.NoError(t, err)
+	pending := testcheck.Must(loadMediaPending(root))(t)
 	testcheck.NoError(t, checkImageVideoDefinitions(t.Context(), store, inventory, pending))
-	scope, err := resolveMediaReportScope("image-video")
-	testcheck.NoError(t, err)
+	scope := testcheck.Must(resolveMediaReportScope("image-video"))(t)
 	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store), scope.Tasks...)
 	if err != nil || truncated {
 		t.Fatalf("current media catalog incomplete: %v", err)

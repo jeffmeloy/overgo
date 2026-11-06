@@ -61,8 +61,7 @@ func TestGPUCapacityAdmissionProcess(t *testing.T) {
 		child := sharedAdmissionCommand(t, sharedAdmissionProbe{Name: probe.Name, Hold: true})
 		child.Stdin = os.Stdin
 		child.Stderr = os.Stderr
-		output, err := child.StdoutPipe()
-		testcheck.NoError(t, err)
+		output := testcheck.Must(child.StdoutPipe())(t)
 		testcheck.NoError(t, child.Start())
 		line, err := bufio.NewReader(output).ReadString('\n')
 		if err != nil || strings.TrimSpace(line) != "admitted" {
@@ -90,8 +89,7 @@ func TestGPUCapacityAdmissionProcess(t *testing.T) {
 
 func sharedAdmissionCommand(t *testing.T, probe sharedAdmissionProbe) *exec.Cmd {
 	t.Helper()
-	encoded, err := json.Marshal(probe)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(probe))(t)
 	command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestGPUCapacityAdmissionProcess$", "-test.timeout=30s")
 	command.Dir = t.TempDir()
 	command.Env = append(os.Environ(), sharedAdmissionProbeEnvironment+"="+string(encoded), "OVERGO_DATA_ROOT="+command.Dir, "ProgramData="+command.Dir)
@@ -121,22 +119,19 @@ func holdSharedAdmission(t *testing.T, probe sharedAdmissionProbe) heldSharedAdm
 	testcheck.NoError(t, err)
 	defer reader.Close()
 	command.Stdin = reader
-	output, err := command.StdoutPipe()
-	testcheck.NoError(t, err)
+	output := testcheck.Must(command.StdoutPipe())(t)
 	command.Stderr = os.Stderr
 	testcheck.NoError(t, command.Start())
 	t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
 	held := heldSharedAdmission{command: command, input: input, output: bufio.NewReader(output)}
 	if probe.Descendant {
-		line, err := held.output.ReadString('\n')
-		testcheck.NoError(t, err)
+		line := testcheck.Must(held.output.ReadString('\n'))(t)
 		encodedPID, found := strings.CutPrefix(strings.TrimSpace(line), "descendant ")
 		pid, err := strconv.Atoi(encodedPID)
 		if !found || err != nil {
 			t.Fatalf("descendant identity: %q: %v", line, err)
 		}
-		held.descendant, err = os.FindProcess(pid)
-		testcheck.NoError(t, err)
+		held.descendant = testcheck.Must(os.FindProcess(pid))(t)
 		t.Cleanup(func() { _ = held.descendant.Kill(); _, _ = held.descendant.Wait() })
 	}
 	held.requireLine(t, "admitted")
@@ -170,8 +165,7 @@ func (held heldSharedAdmission) kill(t *testing.T) {
 func sharedAdmissionName(t *testing.T) string {
 	t.Helper()
 	name := "gpu-admission:" + t.TempDir()
-	path, err := resourceAdmissionPath(name)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(resourceAdmissionPath(name))(t)
 	t.Cleanup(func() { _ = os.Remove(path) })
 	return name
 }

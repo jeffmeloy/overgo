@@ -16,21 +16,16 @@ func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
 	ctx, root := t.Context(), t.TempDir()
 	path := filepath.Join(root, "fixture.txt")
 	testcheck.NoError(t, os.WriteFile(path, []byte("x"), 0o600))
-	inventory, err := dataset.NewInventory([]dataset.InventoryFile{{
+	inventory := testcheck.Must(dataset.NewInventory([]dataset.InventoryFile{{
 		Path: filepath.Base(path), OriginalName: filepath.Base(path), Modality: "text", Format: "txt", Bytes: 1,
-	}})
-	testcheck.NoError(t, err)
-	version, err := dataset.NewVersion([]dataset.Asset{{Name: "inventory", Artifact: inventory.ID, Records: 1}})
-	testcheck.NoError(t, err)
-	catalog, err := dataset.NewCatalog([]dataset.CatalogEntry{{
+	}}))(t)
+	version := testcheck.Must(dataset.NewVersion([]dataset.Asset{{Name: "inventory", Artifact: inventory.ID, Records: 1}}))(t)
+	catalog := testcheck.Must(dataset.NewCatalog([]dataset.CatalogEntry{{
 		Name: "fixture", Dataset: version.ID, Inventory: inventory.ID, StorageKind: "file", Source: "test",
 		Modality: "text", Formats: []string{"txt"}, Files: 1, Bytes: 1,
-	}})
-	testcheck.NoError(t, err)
-	location, err := artifact.CanonicalLocalLocation(version.ID, artifact.LocationFile, path)
-	testcheck.NoError(t, err)
-	source, err := overgodb.Create(filepath.Join(root, "source"))
-	testcheck.NoError(t, err)
+	}}))(t)
+	location := testcheck.Must(artifact.CanonicalLocalLocation(version.ID, artifact.LocationFile, path))(t)
+	source := testcheck.Must(overgodb.Create(filepath.Join(root, "source")))(t)
 	if _, err := dataset.PublishCatalog(ctx, source, dataset.CompiledCatalog{
 		Catalog: catalog, Datasets: []dataset.Document{version}, Inventories: []dataset.Inventory{inventory},
 		Locations: []artifact.Location{location},
@@ -41,8 +36,7 @@ func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
 	if _, err := overgodb.Release(ctx, source, nil, overgodb.RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
 	}
-	coverage, err := dataset.InspectCatalog(ctx, source)
-	testcheck.NoError(t, err)
+	coverage := testcheck.Must(dataset.InspectCatalog(ctx, source))(t)
 	if !coverage.Complete || coverage.Available != coverage.Registered {
 		t.Fatalf("coverage = %+v", coverage)
 	}

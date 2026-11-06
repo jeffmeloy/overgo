@@ -43,10 +43,8 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	observe := func(label string, attempt runrecord.ServingObservation) runrecord.ServingObservation {
 		t.Helper()
 		attempt.Model, attempt.Recipe, attempt.Environment, attempt.Task = model, cmp.Or(attempt.Recipe, recipeID), environment, recipe.TaskImageGen
-		observation, err := runrecord.NewServingObservation(attempt)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("serving/" + label)
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.NewServingObservation(attempt))(t)
+		batch := testcheck.Must(observation.Batch("serving/" + label))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -62,14 +60,12 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	gate, err := runrecord.NewGateRecord(recipeID, environment, "0123456789abcdef0123456789abcdef01234567", runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "interrupts", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1}})
 	testcheck.NoError(t, err)
-	batch, err := gate.Batch("validation/interrupts")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(gate.Batch("validation/interrupts"))(t)
 	batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(gate.Result.ID, interrupt.ID)...)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.failures != 1 {
 		t.Fatalf("serving summary = %+v, want the two attempts of the user, not the validation run's, nor the failure a success with no commit ended", summary)
@@ -145,10 +141,8 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 		if loadMS != 0 {
 			value.Phases = append(value.Phases, runrecord.PhaseMetric{Phase: runrecord.PhaseLoad, DurationNS: loadMS * millisecond})
 		}
-		observation, err := runrecord.NewServingObservation(value)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("measured/" + label)
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
+		batch := testcheck.Must(observation.Batch("measured/" + label))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -170,12 +164,10 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 	attempt("between-page", between, 2, 0, 5, 200, 50, 0)
 	resumed := attempt("between-fast", between, 3, 4000, 100, 1000, 80, peak)
 
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	stale := evaluation.BenchmarkSummary{FirstTokenMS: 250, DecodeTokensPerSecond: 4, LoadMS: 12000, PeakDeviceBytes: 2 * peak}
 	comparison := testutil.ArtifactID(t, artifact.KindProfile, "benchmark-execution")
-	staleData, err := json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment, "comparison": comparison})
-	testcheck.NoError(t, err)
+	staleData := testcheck.Must(json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment, "comparison": comparison}))(t)
 	testcheck.NoError(t, json.Unmarshal(staleData, &stale))
 	summary := summaries[measuredRecipe]
 	for name, cell := range map[string]Cell{
@@ -253,20 +245,17 @@ func TestPeakMemoryReadsASampledZero(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, hardware := range attempts {
-		observation, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+		observation := testcheck.Must(runrecord.NewServingObservation(runrecord.ServingObservation{
 			Model: model, Recipe: recipes[name], Environment: environment, Task: recipe.TaskForecast,
 			Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: wall, Hardware: hardware,
-		})
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("sampled/" + name)
-		testcheck.NoError(t, err)
+		}))(t)
+		batch := testcheck.Must(observation.Batch("sampled/" + name))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 		observed[name] = observation.ID
 	}
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	var none evaluation.BenchmarkSummary
 	host := summaries[recipes["host"]]
 	want := Cell{Unit: "bytes", Label: "0 bytes: runs on the host", Source: observed["host"], Environment: host.environment,

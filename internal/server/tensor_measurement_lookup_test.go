@@ -19,22 +19,18 @@ func TestTensorMeasurementLookupStopsAtItsMatch(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
 	older := []byte(`{"schema":"not a measurement"}`)
-	olderID, err := artifact.IdentifyBytes(artifact.KindTensorInventory, older)
-	testcheck.NoError(t, err)
+	olderID := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorInventory, older))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "server/tensor-lookup-older", Contents: []artifact.Content{{
 		Descriptor: artifact.Descriptor{ID: olderID, Size: uint64(len(older)), MediaType: modelartifact.TensorMeasurementMediaType, Schema: modelartifact.TensorMeasurementSchema},
 		Data:       older,
 	}}}); err != nil {
 		t.Fatal(err)
 	}
-	file, err := gguf.Open(writeTensorFixture(t))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(writeTensorFixture(t)))(t)
 	defer file.Close()
-	model, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(modelartifact.FromGGUF(file, artifact.KindModel))(t)
 	policy := modelartifact.MeasurementPolicy{MaxSamplesPerTensor: testAnalysisPolicy.TensorSamples, MaxReadBytes: testAnalysisPolicy.TensorReadBytes}
-	measured, err := measureGGUF(model.TensorInventory, file, policy)
-	testcheck.NoError(t, err)
+	measured := testcheck.Must(measureGGUF(model.TensorInventory, file, policy))(t)
 	testcheck.NoError(t, publishTensorMeasurement(t.Context(), store, model.TensorInventory, measured))
 	found, ok, err := findTensorMeasurement(t.Context(), store, model.TensorInventory.ID, policy)
 	if err != nil || !ok || found.ID != measured.ID {

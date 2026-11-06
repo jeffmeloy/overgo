@@ -30,8 +30,7 @@ type ctcOracleCase struct {
 
 func ctcOracleCases(t *testing.T) []ctcOracleCase {
 	t.Helper()
-	data, err := os.ReadFile("testdata/ctc_oracle.json")
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile("testdata/ctc_oracle.json"))(t)
 	var fixture struct {
 		Schema        string          `json:"schema"`
 		TorchVersion  string          `json:"torch_version"`
@@ -70,8 +69,7 @@ func ctcOracleCases(t *testing.T) []ctcOracleCase {
 
 func ctcScratch(t testing.TB, test ctcOracleCase) []float64 {
 	t.Helper()
-	count, err := CTCLossWorkspaceSize(test.Frames, test.Vocabulary, len(test.Targets))
-	testcheck.NoError(t, err)
+	count := testcheck.Must(CTCLossWorkspaceSize(test.Frames, test.Vocabulary, len(test.Targets)))(t)
 	return make([]float64, count)
 }
 
@@ -89,8 +87,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 				workspace := ctcScratch(t, test)
 				gradient := make([]float32, len(test.Logits))
 				original := slices.Clone(test.Logits)
-				loss, err := CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-				testcheck.NoError(t, err)
+				loss := testcheck.Must(CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace))(t)
 				// Float64 accumulation allowance scales with the DP geometry and
 				// loss magnitude; gradient comparison below allows one float32 ULP at 1.
 				tolerance := 32 * (math.Nextafter(1, 2) - 1) * float64(len(workspace)) * max(1, math.Abs(*test.Loss))
@@ -109,8 +106,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-			testcheck.NoError(t, err)
+			plan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}}))(t)
 			program, err := CompileObjectiveProgram(ObjectiveCTC, nil, plan)
 			if err != nil || program.Objective() != ObjectiveCTC {
 				t.Fatalf("CTC program = %+v, %v", program, err)
@@ -125,8 +121,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 			t.Run(test.Name, func(t *testing.T) {
 				workspace := ctcScratch(t, test)
 				gradient := make([]float32, len(test.Logits))
-				loss, err := CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-				testcheck.NoError(t, err)
+				loss := testcheck.Must(CTCLossF32(t.Context(), gradient, test.Logits, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace))(t)
 				epsilon := float64(math.Nextafter32(1, 2) - 1)
 				testutil.RequireElementsWithin(t, "CTC logits gradient", gradient, test.Gradient, epsilon)
 				probe := slices.Clone(test.Logits)
@@ -136,8 +131,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 					step := max(float32(1.0/1024), 2*(math.Nextafter32(value, float32(math.Inf(1)))-value))
 					probe[index] = value + step
 					upper := probe[index]
-					plus, err := CTCLossF32(t.Context(), nil, probe, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)
-					testcheck.NoError(t, err)
+					plus := testcheck.Must(CTCLossF32(t.Context(), nil, probe, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace))(t)
 					probe[index] = value - step
 					span := float64(upper) - float64(probe[index])
 					minus, err := CTCLossF32(t.Context(), nil, probe, test.Targets, test.Frames, test.Vocabulary, test.Blank, workspace)

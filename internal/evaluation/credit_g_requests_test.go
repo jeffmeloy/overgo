@@ -44,8 +44,7 @@ func creditGFixture() []TableColumn {
 func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 	t.Parallel()
 	table := creditGFixture()
-	built, err := BuildCreditGRequests(table)
-	testcheck.NoError(t, err)
+	built := testcheck.Must(BuildCreditGRequests(table))(t)
 	if again, _ := BuildCreditGRequests(table); len(built) != creditGRequests || !slices.EqualFunc(built, again, slices.Equal[[]byte]) {
 		t.Fatalf("the same table built %d requests, and not the same bytes twice", len(built))
 	}

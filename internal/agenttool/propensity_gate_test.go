@@ -9,11 +9,10 @@ import (
 
 func propensityManual(t *testing.T, name string, effect Effect) Manual {
 	t.Helper()
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: name, Description: "Propensity gate fixture.", Effect: effect,
 		Transport: Transport{Kind: TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return manual
 }
 
@@ -62,8 +61,7 @@ func TestMutationProposalUsesZeroAlpha(t *testing.T) {
 // dispatches whatever the active catalog resolves, so a visible proxy makes
 // the reachable set part of the gated action space.
 func TestCapabilityProxyCannotHideMutationFromPropensityGate(t *testing.T) {
-	proxy, err := CapabilityProxyManual()
-	testcheck.NoError(t, err)
+	proxy := testcheck.Must(CapabilityProxyManual())(t)
 	read := propensityManual(t, "store.read", EffectInspection)
 	write := propensityManual(t, "store.write", EffectMutation)
 	if err := InspectionOnlySteering([]Manual{proxy, read}, []Manual{read}); err != nil {

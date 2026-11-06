@@ -15,9 +15,8 @@ func TestWorkflowEvaluationBindsTrace(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "evaluation trace model")
 	request := testutil.ArtifactID(t, artifact.KindEvidence, "evaluation trace request")
 	trace := func(input artifact.ID) runrecord.InteractionTrace {
-		value, err := runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: recipeID, Model: modelID}, input,
-			[]runrecord.InteractionMessage{{Role: "assistant", Content: "answer"}}, nil, "")
-		testcheck.NoError(t, err)
+		value := testcheck.Must(runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: recipeID, Model: modelID}, input,
+			[]runrecord.InteractionMessage{{Role: "assistant", Content: "answer"}}, nil, ""))(t)
 		return value
 	}
 	baseline, candidate := trace(request), trace(request)

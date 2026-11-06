@@ -14,13 +14,11 @@ import (
 // none answers empty.
 func TestRecentArtifactsWalkNewestFirst(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	commit := func(key, mediaType string, data []byte) artifact.ID {
 		t.Helper()
-		id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 			Key:      key,
 			Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: mediaType}, Data: data}},
@@ -32,15 +30,13 @@ func TestRecentArtifactsWalkNewestFirst(t *testing.T) {
 	older := commit("recent/1", "image/png", []byte("older image"))
 	clip := commit("recent/2", "audio/wav", []byte("a clip"))
 	newer := commit("recent/3", "image/jpeg", []byte("newer image"))
-	recent, err := store.RecentArtifacts(t.Context(), artifact.KindFile, 5, nil)
-	testcheck.NoError(t, err)
+	recent := testcheck.Must(store.RecentArtifacts(t.Context(), artifact.KindFile, 5, nil))(t)
 	if len(recent) != 3 || recent[0].Descriptor.ID != newer || recent[1].Descriptor.ID != clip || recent[2].Descriptor.ID != older ||
 		recent[0].Sequence <= recent[2].Sequence || !recent[0].Payload || len(recent[0].Producers) != 0 {
 		t.Fatalf("recent = %+v", recent)
 	}
 	// A produced artifact lists the runs that produced it (a gallery names the record).
-	producer, err := artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run"))
-	testcheck.NoError(t, err)
+	producer := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run")))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:       "recent/4",
 		Artifacts: []artifact.Descriptor{{ID: producer, Size: 1}},

@@ -38,8 +38,7 @@ func TestRetainedProjectionResults(t *testing.T) {
 	if len(fixtures) == 0 {
 		t.Fatal("projection denominator is empty")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, fixture := range fixtures {
 		t.Run(fixture.Name, func(t *testing.T) {
@@ -62,18 +61,15 @@ func TestRetainedProjectionResults(t *testing.T) {
 			}
 			var suite ExactSuite
 			testcheck.NoError(t, json.Unmarshal([]byte(readText(fixture.Suite)), &suite))
-			exact, err := CompileExact(suite)
-			testcheck.NoError(t, err)
+			exact := testcheck.Must(CompileExact(suite))(t)
 			var body planBody
 			readRetainedEvidence(t, store, retained.Plan, &body)
-			policy, err := ReadExecutionPolicy(t.Context(), store, body.Execution)
-			testcheck.NoError(t, err)
+			policy := testcheck.Must(ReadExecutionPolicy(t.Context(), store, body.Execution))(t)
 			plan, err := BindExact(exact, ExactAuthorities{ModelDefinition: retained.ModelDefinition, RuntimeRecipe: retained.Recipe, CodeCommit: retained.Producer, Environment: retained.Environment, Execution: policy})
 			if err != nil || plan.Identity() != retained.Plan || len(suite.Cases) != retained.Cases {
 				t.Fatalf("bound plan or denominator differs: %v", err)
 			}
-			shards, err := compileExactShards(exact, plan)
-			testcheck.NoError(t, err)
+			shards := testcheck.Must(compileExactShards(exact, plan))(t)
 			reports, err := loadShardReports(t.Context(), store, plan, shards)
 			if err != nil || len(reports) != len(shards) {
 				t.Fatalf("missing exact results: %v", err)
@@ -95,8 +91,7 @@ func TestRetainedProjectionResults(t *testing.T) {
 			if err != nil || merged.ID != retained.Report {
 				t.Fatalf("report differs: %v", err)
 			}
-			proof, err := runrecord.VerifyGateRun(t.Context(), store, retained.Recipe, retained.Gate, retained.Run)
-			testcheck.NoError(t, err)
+			proof := testcheck.Must(runrecord.VerifyGateRun(t.Context(), store, retained.Recipe, retained.Gate, retained.Run))(t)
 			want := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", retained.Plan, retained.Report, len(suite.Cases))
 			if proof.Run.CodeCommit != retained.Producer || proof.Run.Environment != retained.Environment || len(proof.Gate.Steps) != 1 || proof.Gate.Steps[0].Evidence != want || proof.Run.MeasuredNS == 0 {
 				t.Fatal("execution authority differs")
@@ -116,8 +111,7 @@ func TestRetainedProjectionResults(t *testing.T) {
 				Protocol struct{ Model, Projector artifact.ID }
 			}
 			readRetainedEvidence(t, store, qualification.Proposal, &proposal)
-			definition, err := recipe.RequireDefinition(t.Context(), store, retained.Recipe)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, retained.Recipe))(t)
 			for dependency, want := range map[recipe.DependencyRole]artifact.ID{recipe.DependencyModel: proposal.Protocol.Model, recipe.DependencyProjector: proposal.Protocol.Projector} {
 				got, found := definition.PrimaryDependency(dependency)
 				if !found || got != want {

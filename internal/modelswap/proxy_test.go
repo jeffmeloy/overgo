@@ -13,8 +13,7 @@ import (
 )
 
 func TestModelSwapRoutesLiveEnvelopeBeforeEOF(t *testing.T) {
-	supervisor, err := New(&fakeLauncher{}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(&fakeLauncher{}, 0))(t)
 	defer supervisor.Close()
 	wanted := Servable{Name: "native", Model: "exact-model", Location: "weights"}
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"exact-model": wanted}}
@@ -111,8 +110,7 @@ func (l *upstreamLauncher) Launch(_ context.Context, servable Servable) (Process
 // typed refusal.
 func TestModelSwapProxy(t *testing.T) {
 	launcher := &upstreamLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	proxy := &Proxy{
 		Supervisor: supervisor,
@@ -124,16 +122,14 @@ func TestModelSwapProxy(t *testing.T) {
 	front := httptest.NewServer(proxy)
 	defer front.Close()
 
-	refused, err := http.Get(front.URL + "/health")
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(http.Get(front.URL + "/health"))(t)
 	refused.Body.Close()
 	if refused.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("model-less request with nothing running = %d", refused.StatusCode)
 	}
 
-	first, err := http.Post(front.URL+"/v1/chat/completions", "application/json",
-		strings.NewReader(`{"model":"alpha","messages":[{"role":"user","content":"hi"}]}`))
-	testcheck.NoError(t, err)
+	first := testcheck.Must(http.Post(front.URL+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"alpha","messages":[{"role":"user","content":"hi"}]}`)))(t)
 	firstBody, _ := io.ReadAll(first.Body)
 	first.Body.Close()
 	if !strings.Contains(string(firstBody), "served-by:alpha") ||
@@ -142,8 +138,7 @@ func TestModelSwapProxy(t *testing.T) {
 	}
 
 	// Model-less requests ride the running child.
-	plain, err := http.Get(front.URL + "/health")
-	testcheck.NoError(t, err)
+	plain := testcheck.Must(http.Get(front.URL + "/health"))(t)
 	plainBody, _ := io.ReadAll(plain.Body)
 	plain.Body.Close()
 	if !strings.Contains(string(plainBody), "served-by:alpha path:/health") {
@@ -151,9 +146,8 @@ func TestModelSwapProxy(t *testing.T) {
 	}
 
 	// Naming beta swaps: alpha's server closes, beta serves.
-	second, err := http.Post(front.URL+"/v1/chat/completions", "application/json",
-		strings.NewReader(`{"model":"beta"}`))
-	testcheck.NoError(t, err)
+	second := testcheck.Must(http.Post(front.URL+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"beta"}`)))(t)
 	secondBody, _ := io.ReadAll(second.Body)
 	second.Body.Close()
 	if !strings.Contains(string(secondBody), "served-by:beta") {
@@ -165,8 +159,7 @@ func TestModelSwapProxy(t *testing.T) {
 
 	// The swap query parameter swaps too -- the GUI's picker rides a
 	// health probe with ?swap= through the proxy to switch models.
-	query, err := http.Get(front.URL + "/health?swap=alpha")
-	testcheck.NoError(t, err)
+	query := testcheck.Must(http.Get(front.URL + "/health?swap=alpha"))(t)
 	queryBody, _ := io.ReadAll(query.Body)
 	query.Body.Close()
 	if !strings.Contains(string(queryBody), "served-by:alpha") {
@@ -175,8 +168,7 @@ func TestModelSwapProxy(t *testing.T) {
 	if running, ok := supervisor.Status(); !ok || running.Name != "alpha" {
 		t.Fatalf("running after query-param swap = (%+v, %t)", running, ok)
 	}
-	missing, err := http.Get(front.URL + "/health?swap=missing-model")
-	testcheck.NoError(t, err)
+	missing := testcheck.Must(http.Get(front.URL + "/health?swap=missing-model"))(t)
 	missing.Body.Close()
 	if missing.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("explicit unknown swap silently served current model: HTTP %d", missing.StatusCode)
@@ -184,8 +176,7 @@ func TestModelSwapProxy(t *testing.T) {
 
 	// A model query parameter is the server's own vocabulary (analysis
 	// targets); it rides the running child and never swaps.
-	analyze, err := http.Get(front.URL + "/analyze/tensors?model=beta")
-	testcheck.NoError(t, err)
+	analyze := testcheck.Must(http.Get(front.URL + "/analyze/tensors?model=beta"))(t)
 	analyzeBody, _ := io.ReadAll(analyze.Body)
 	analyze.Body.Close()
 	if !strings.Contains(string(analyzeBody), "served-by:alpha") {
@@ -197,9 +188,8 @@ func TestModelSwapProxy(t *testing.T) {
 
 	// A chat body echoing the running child's own name never re-resolves
 	// against the catalog -- alias collisions must not swap mid-chat.
-	echo, err := http.Post(front.URL+"/v1/chat/completions", "application/json",
-		strings.NewReader(`{"model":"ALPHA"}`))
-	testcheck.NoError(t, err)
+	echo := testcheck.Must(http.Post(front.URL+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"ALPHA"}`)))(t)
 	echoBody, _ := io.ReadAll(echo.Body)
 	echo.Body.Close()
 	if !strings.Contains(string(echoBody), "served-by:alpha") {
@@ -211,14 +201,12 @@ func TestModelSwapProxy(t *testing.T) {
 // answer carries, the fact the shell reads to show its swap-proxy status.
 func TestModelSwapProxyNamesItself(t *testing.T) {
 	launcher := &upstreamLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"alpha": {Name: "alpha", Location: "alpha.gguf"}}}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
-	answer, err := http.Get(front.URL + "/health?swap=alpha")
-	testcheck.NoError(t, err)
+	answer := testcheck.Must(http.Get(front.URL + "/health?swap=alpha"))(t)
 	answer.Body.Close()
 	if answer.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
 		t.Fatalf("proxied answer header = %q", answer.Header.Get("X-Overgo-Swap-Proxy"))

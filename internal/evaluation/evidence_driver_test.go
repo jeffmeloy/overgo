@@ -37,8 +37,7 @@ type evidenceDriverFixture struct {
 func TestEvidenceDriverConsumesCrossDomainCandidates(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
-	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	testcheck.NoError(t, err)
+	decision := testcheck.Must(CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request))(t)
 
 	activation, active, err := modelrecipe.ActiveRecord(
 		t.Context(), fixture.store, fixture.production.model, fixture.production.testCase.Task,
@@ -79,8 +78,7 @@ func TestEvidenceDriverConsumesCrossDomainCandidates(t *testing.T) {
 func TestEvidenceDerivedSelection(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
-	selected, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	testcheck.NoError(t, err)
+	selected := testcheck.Must(CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request))(t)
 	if selected.Stop != runrecord.DriverStopContinue || selected.Action != runrecord.DriverActionRealize ||
 		selected.Goal != fixture.probe.CheckDecision ||
 		selected.Subject != fixture.composition.ID() || selected.Target != fixture.composition.ID() ||
@@ -161,13 +159,11 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
-	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
-	testcheck.NoError(t, err)
-	compiled, err := modelrecipe.CompileAdmittedCandidate(
+	decision := testcheck.Must(CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request))(t)
+	compiled := testcheck.Must(modelrecipe.CompileAdmittedCandidate(
 		t.Context(), fixture.store, fixture.composition.ID(), fixture.compositionPermit.ID,
 		composition.SameBaseCandidatePlugin{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	evaluator := testutil.ArtifactID(t, artifact.KindProfile, "shared cross-domain evaluator")
 	inputs := testutil.ArtifactID(t, artifact.KindDatasetShard, "shared held-out evaluator inputs")
 	requirements := []CandidateFitnessRequirement{
@@ -175,10 +171,9 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 		{Name: "peak-bytes", Direction: runrecord.DirectionMinimize, MinimumImprovement: 5},
 		{Name: "wall-ns", Direction: runrecord.DirectionMinimize, MinimumImprovement: 5},
 	}
-	contract, err := NewCrossDomainEvaluationContract(
+	contract := testcheck.Must(NewCrossDomainEvaluationContract(
 		decision, compiled, evaluator, inputs, requirements, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	metricVector := func(capability, peak, wall float64) []runrecord.Metric {
 		return []runrecord.Metric{
 			{Name: "capability", Value: capability, Unit: "ratio", Direction: runrecord.DirectionMaximize},
@@ -213,8 +208,7 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 		arms = append(arms, measured)
 	}
 	before, _ := fixture.store.Head()
-	result, err := EvaluateCrossDomainCandidate(contract, decision, compiled, arms)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(EvaluateCrossDomainCandidate(contract, decision, compiled, arms))(t)
 	after, _ := fixture.store.Head()
 	if before != after || result.Verdict != CandidateEvaluationImproved || len(result.Reasons) != 0 ||
 		len(result.Contributions) != len(contract.Ablations) || result.Contract.ID != contract.ID {
@@ -262,14 +256,13 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 	})
 
 	tradeoffAuthority := testutil.ArtifactID(t, artifact.KindEvidence, "predeclared peak tradeoff")
-	tradeoff, err := NewCrossDomainEvaluationContract(
+	tradeoff := testcheck.Must(NewCrossDomainEvaluationContract(
 		decision, compiled, evaluator, inputs, requirements,
 		[]CandidateAcceptedTradeoff{{
 			RegressedMetric: "peak-bytes", MaximumRegression: 10,
 			ImprovedMetric: "capability", MinimumImprovement: 0.1, Authority: tradeoffAuthority,
 		}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	tradeoffArms := cloneCandidateEvaluationArms(arms)
 	for index := range tradeoffArms {
 		tradeoffArms[index].Split, tradeoffArms[index].Budget = tradeoff.PromotionSplit, tradeoff.PromotionBudget
@@ -301,27 +294,21 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	identifier := func(label string) artifact.ID {
 		return testutil.ArtifactID(t, artifact.KindEvidence, "evidence driver "+label)
 	}
-	binding, err := runrecord.NewAdmissionBinding(runrecord.AdmissionBinding{
+	binding := testcheck.Must(runrecord.NewAdmissionBinding(runrecord.AdmissionBinding{
 		Proposer:     runrecord.AuthorityDomain{Name: "driver-proposer", Identity: identifier("proposer")},
 		Evaluator:    runrecord.AuthorityDomain{Name: "driver-evaluator", Identity: identifier("evaluator")},
 		Decider:      runrecord.AuthorityDomain{Name: "driver-decider", Identity: identifier("decider")},
 		SealedInputs: promotionSplit,
 		CleanWorker:  identifier("clean worker"),
-	})
-	testcheck.NoError(t, err)
-	code, err := runrecord.NewCodeRevision(strings.Repeat("d", 40))
-	testcheck.NoError(t, err)
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	}))(t)
+	code := testcheck.Must(runrecord.NewCodeRevision(strings.Repeat("d", 40)))(t)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: "evidence-driver", OS: "test", Arch: "test", Device: "host",
 		Backend: "go", Driver: "test", Runtime: "go-test",
-	})
-	testcheck.NoError(t, err)
-	bindingContent, err := binding.Content()
-	testcheck.NoError(t, err)
-	codeBatch, err := code.Publication()
-	testcheck.NoError(t, err)
-	environmentContent, err := environment.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	bindingContent := testcheck.Must(binding.Content())(t)
+	codeBatch := testcheck.Must(code.Publication())(t)
+	environmentContent := testcheck.Must(environment.Content())(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "evidence-driver/common-authorities",
 		Artifacts: []artifact.Descriptor{
@@ -346,8 +333,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 		t.Fatal(err)
 	}
 	compositionSpec := newEvidenceDriverCompositionSpec(t, base.Document.ID, delta.Document.ID)
-	compositionContent, err := compositionSpec.Content()
-	testcheck.NoError(t, err)
+	compositionContent := testcheck.Must(compositionSpec.Content())(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:      "evidence-driver/composition-spec",
 		Contents: []artifact.Content{compositionContent}, Lineage: compositionSpec.Lineage(),
@@ -398,25 +384,20 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	)
 
 	root := evidenceDriverContent(t, artifact.KindEvidence, "causal root")
-	causal, err := runrecord.NewCausalRoot(
+	causal := testcheck.Must(runrecord.NewCausalRoot(
 		runrecord.TriggerControllerProposal, root.Descriptor.ID, probe.CheckDecision,
-	)
-	testcheck.NoError(t, err)
-	interaction, err := runrecord.NewBudget(
+	))(t)
+	interaction := testcheck.Must(runrecord.NewBudget(
 		"queries", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver interaction split"),
 		cheapCost, identifier("interaction authority"),
-	)
-	testcheck.NoError(t, err)
-	resources, err := runrecord.NewBudget(
+	))(t)
+	resources := testcheck.Must(runrecord.NewBudget(
 		"queries", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver resource split"),
 		unadmitted.Spec().Prediction.Cost, identifier("resource authority"),
-	)
-	testcheck.NoError(t, err)
-	interactionContent, err := interaction.Content()
-	testcheck.NoError(t, err)
-	resourceContent, err := resources.Content()
-	testcheck.NoError(t, err)
-	head, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+	))(t)
+	interactionContent := testcheck.Must(interaction.Content())(t)
+	resourceContent := testcheck.Must(resources.Content())(t)
+	head := testcheck.Must(artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "evidence-driver/request-authorities",
 		Artifacts: []artifact.Descriptor{
 			{ID: interaction.Split}, {ID: interaction.Authority},
@@ -424,8 +405,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 		},
 		Contents: []artifact.Content{root, interactionContent, resourceContent},
 		Lineage:  append(interaction.Lineage(), resources.Lineage()...),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return evidenceDriverFixture{
 		store: store, probe: probe, production: production,
 		codeCandidate: codeCandidate, codeAdmission: codeAdmission,
@@ -460,15 +440,12 @@ func publishEvidenceDriverCandidate(
 	prediction := recipe.SteeringPrediction{
 		Metric: "held-out capability", Benefit: 1, Cost: cost, Unit: "ratio",
 	}
-	development, err := runrecord.NewBudget("queries", developmentSplit, cost, binding.Decider.Identity)
-	testcheck.NoError(t, err)
-	promotion, err := runrecord.NewBudget("queries", promotionSplit, cost, binding.Decider.Identity)
-	testcheck.NoError(t, err)
+	development := testcheck.Must(runrecord.NewBudget("queries", developmentSplit, cost, binding.Decider.Identity))(t)
+	promotion := testcheck.Must(runrecord.NewBudget("queries", promotionSplit, cost, binding.Decider.Identity))(t)
 	falsifierMetric = cmp.Or(falsifierMetric, prediction.Metric)
-	falsifier, err := modelrecipe.NewCandidateEvaluationIntent(
+	falsifier := testcheck.Must(modelrecipe.NewCandidateEvaluationIntent(
 		subject, falsifierMetric, "queries", modelrecipe.CandidateStopOnBudgetOrNonPositiveIsolatedImprovement,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	componentSubject := component.Specification
 	type observedReference struct {
 		role     modelrecipe.CandidateReferenceRole
@@ -489,12 +466,11 @@ func publishEvidenceDriverCandidate(
 		if references[index].role == modelrecipe.CandidateReferenceBaseline && baselineGoal.Valid() {
 			evidence = append(evidence, baselineGoal)
 		}
-		references[index].decision, err = recipe.NewDecision(
+		references[index].decision = testcheck.Must(recipe.NewDecision(
 			references[index].subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
 			recipe.Decider{CodeCommit: strings.Repeat("e", 40), Derivation: binding.Evaluator.Identity},
 			evidence,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 	}
 	candidateReferences := make([]modelrecipe.CandidateReference, len(references))
 	for index, reference := range references {
@@ -502,21 +478,16 @@ func publishEvidenceDriverCandidate(
 			Role: reference.role, Subject: reference.subject, Evidence: reference.decision.ID,
 		}
 	}
-	candidate, err := modelrecipe.NewCandidate(modelrecipe.CandidateSpec{
+	candidate := testcheck.Must(modelrecipe.NewCandidate(modelrecipe.CandidateSpec{
 		Subject: subject, Parent: parent, Components: []modelrecipe.CandidateComponent{component},
 		Prediction: prediction, CostUnit: "queries", Falsifier: falsifier.ID,
 		References: candidateReferences, DevelopmentSplit: developmentSplit, PromotionSplit: promotionSplit,
 		DevelopmentBudget: development.ID, PromotionBudget: promotion.ID, Code: code, Environment: environment,
-	})
-	testcheck.NoError(t, err)
-	developmentContent, err := development.Content()
-	testcheck.NoError(t, err)
-	promotionContent, err := promotion.Content()
-	testcheck.NoError(t, err)
-	falsifierContent, err := falsifier.Content()
-	testcheck.NoError(t, err)
-	candidateContent, err := candidate.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	developmentContent := testcheck.Must(development.Content())(t)
+	promotionContent := testcheck.Must(promotion.Content())(t)
+	falsifierContent := testcheck.Must(falsifier.Content())(t)
+	candidateContent := testcheck.Must(candidate.Content())(t)
 	contents := []artifact.Content{developmentContent, promotionContent, falsifierContent, candidateContent}
 	lineage := append(development.Lineage(), promotion.Lineage()...)
 	lineage = append(lineage, falsifier.Lineage()...)
@@ -538,10 +509,8 @@ func publishEvidenceDriverCandidate(
 		return candidate, runrecord.CandidateAdmission{}
 	}
 	adapters := append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())
-	admission, err := runrecord.AdmitCandidate(t.Context(), store, candidate, binding.ID, adapters...)
-	testcheck.NoError(t, err)
-	admissionContent, err := admission.Content()
-	testcheck.NoError(t, err)
+	admission := testcheck.Must(runrecord.AdmitCandidate(t.Context(), store, candidate, binding.ID, adapters...))(t)
+	admissionContent := testcheck.Must(admission.Content())(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:      "evidence-driver/admission/" + label,
 		Contents: []artifact.Content{admissionContent}, Lineage: admission.Lineage(),
@@ -563,24 +532,18 @@ func publishEvidenceDriverModelDefinition(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	seed, err := modelrecipetest.PublishModelDefinition(
+	seed := testcheck.Must(modelrecipetest.PublishModelDefinition(
 		t.Context(), store, "evidence-driver/model-seed/"+label, modelID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	const tensorBytes = uint64(4)
-	tensors, err := modelartifact.NewTensorInventoryDocument(
+	tensors := testcheck.Must(modelartifact.NewTensorInventoryDocument(
 		modelID, modelartifact.TensorFormatSafetensors,
 		[]modelartifact.TensorFact{{Name: "weight", Shape: []uint64{1, 1}, Storage: "f32", Bytes: tensorBytes}},
-	)
-	testcheck.NoError(t, err)
-	document, err := modelrecipe.NewModelDefinitionDocument(seed.Profile, tensors, seed.Spec)
-	testcheck.NoError(t, err)
-	resolved, err := document.Resolve(seed.Profile, tensors)
-	testcheck.NoError(t, err)
-	tensorContent, err := tensors.Content()
-	testcheck.NoError(t, err)
-	documentContent, err := document.Content()
-	testcheck.NoError(t, err)
+	))(t)
+	document := testcheck.Must(modelrecipe.NewModelDefinitionDocument(seed.Profile, tensors, seed.Spec))(t)
+	resolved := testcheck.Must(document.Resolve(seed.Profile, tensors))(t)
+	tensorContent := testcheck.Must(tensors.Content())(t)
+	documentContent := testcheck.Must(document.Content())(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:      "evidence-driver/model/" + label,
 		Contents: []artifact.Content{tensorContent, documentContent},
@@ -610,8 +573,7 @@ func newEvidenceDriverCompositionSpec(
 		Rationale:     "bounded by the exact typed tensor inventories",
 		ReopenTrigger: "recompile when either exact model definition changes",
 	}
-	id, err := artifact.JSONID(artifact.KindRecipe, value)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.JSONID(artifact.KindRecipe, value))(t)
 	value.ID = id
 	if _, err := value.Content(); err != nil {
 		t.Fatal(err)
@@ -621,13 +583,12 @@ func newEvidenceDriverCompositionSpec(
 
 func evidenceDriverContent(t *testing.T, kind artifact.Kind, label string) artifact.Content {
 	t.Helper()
-	content, err := artifact.JSONContent(
+	content := testcheck.Must(artifact.JSONContent(
 		artifact.JSONContract(kind, "overgo.evidence-driver-test.v1"),
 		struct {
 			Label string `json:"label"`
 		}{Label: label},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return content
 }
 

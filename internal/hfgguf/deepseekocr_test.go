@@ -14,8 +14,7 @@ import (
 // conversion tests, or explains why none applies here.
 func deepSeekOCRCheckpoint(t *testing.T) *hfrepo.Repository {
 	t.Helper()
-	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR")))(t)
 	t.Cleanup(func() { _ = repository.Close() })
 	return repository
 }
@@ -29,8 +28,7 @@ func TestDeepSeekOCRConversionValidatesCheckpoint(t *testing.T) {
 	if !IsDeepSeekOCRRepository(repository.Identity) {
 		t.Fatalf("identity %+v is not the DeepSeek-OCR family", repository.Identity)
 	}
-	spec, err := ValidateDeepSeekOCRRepository(repository)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ValidateDeepSeekOCRRepository(repository))(t)
 	if spec.BlockCount == 0 || spec.ExpertCount == 0 || spec.ExpertUsedCount == 0 || spec.SharedExpertCount == 0 || spec.LeadingDenseBlocks == 0 {
 		t.Fatalf("spec = %+v", spec)
 	}

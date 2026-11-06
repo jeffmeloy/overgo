@@ -29,8 +29,7 @@ func TestLaneOutcomeContract(t *testing.T) {
 func TestRepoSelectsTheStore(t *testing.T) {
 	t.Setenv(dataroot.Env, t.TempDir())
 	selected := filepath.Join(t.TempDir(), "selected-store")
-	store, err := overgodb.Create(selected)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(selected))(t)
 	testcheck.NoError(t, store.Close())
 	if err := runArgs(t.Context(), []string{"-smoke", "-repo", selected}, io.Discard); err == nil || !strings.Contains(err.Error(), "outcome=empty") {
 		t.Fatalf("smoke over the -repo store = %v", err)
@@ -40,8 +39,7 @@ func TestRepoSelectsTheStore(t *testing.T) {
 func TestSelectedModelPublicationAdmission(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(dataroot.Env, root)
-	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "overgodb-store")))(t)
 	testcheck.NoError(t, store.Close())
 	// A selected publication reaches the same catalog admission as a full
 	// pass. An empty catalog still fails; selecting a model grants no credit.

@@ -39,8 +39,7 @@ func TestServedEditStageTimes(t *testing.T) {
 		ctx, stages := processmeasure.WithStages(t.Context())
 		clock := processmeasure.NewStopwatch()
 		_, video := edits.serve(ctx, t, service, request.prompt, request.seed)
-		elapsed, err := clock.Elapsed()
-		testcheck.NoError(t, err)
+		elapsed := testcheck.Must(clock.Elapsed())(t)
 		if video.Frames != frames || video.Width != width || video.Height != height {
 			t.Fatalf("%s: a served edit is %d frames of %d by %d", request.name, video.Frames, video.Width, video.Height)
 		}

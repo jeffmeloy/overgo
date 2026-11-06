@@ -35,20 +35,16 @@ func TestLlamaSPMEncodeDecode(t *testing.T) {
 		array("tokenizer.ggml.scores", gguf.ValueTypeFloat32, scores),
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
-	ids, err := vocab.Encode("hello", EncodeOptions{AddSpecial: true})
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
+	ids := testcheck.Must(vocab.Encode("hello", EncodeOptions{AddSpecial: true}))(t)
 	if want := []TokenID{1, 12}; !slices.Equal(ids, want) {
 		t.Fatalf("IDs = %v, want %v", ids, want)
 	}
-	text, err := vocab.Decode(ids, false)
-	testcheck.NoError(t, err)
+	text := testcheck.Must(vocab.Decode(ids, false))(t)
 	if text != "hello" {
 		t.Fatalf("decoded text = %q, want hello", text)
 	}
-	piece, err := vocab.DecodePiece(12, false)
-	testcheck.NoError(t, err)
+	piece := testcheck.Must(vocab.DecodePiece(12, false))(t)
 	if piece != " hello" {
 		t.Fatalf("streaming piece = %q, want %q", piece, " hello")
 	}
@@ -72,15 +68,12 @@ func TestLlamaSPMByteFallback(t *testing.T) {
 		array("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, len(tokens))),
 		array("tokenizer.ggml.token_type", gguf.ValueTypeInt32, types),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
-	ids, err := vocab.Encode("é", EncodeOptions{})
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
+	ids := testcheck.Must(vocab.Encode("é", EncodeOptions{}))(t)
 	if want := []TokenID{4, 5}; !slices.Equal(ids, want) {
 		t.Fatalf("IDs = %v, want %v", ids, want)
 	}
-	text, err := vocab.Decode(ids, false)
-	testcheck.NoError(t, err)
+	text := testcheck.Must(vocab.Decode(ids, false))(t)
 	if text != "é" {
 		t.Fatalf("decoded text = %q, want é", text)
 	}

@@ -17,8 +17,7 @@ import (
 // gate. This check reads historical evidence; it never executes a model.
 func TestMiniCPMIFEvalGoParityAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }

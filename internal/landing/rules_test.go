@@ -88,10 +88,8 @@ func Name(name string, values []string, count *int, fallback *config, load func(
 	return name, limit
 }
 `
-	base, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n")})
-	testcheck.NoError(t, err)
-	candidate, err := base.Overlay(map[string][]byte{"internal/p/p.go": []byte(lazy)})
-	testcheck.NoError(t, err)
+	base := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n")}))(t)
+	candidate := testcheck.Must(base.Overlay(map[string][]byte{"internal/p/p.go": []byte(lazy)}))(t)
 	if findings := newLegacyForms(base, candidate); len(findings) != 0 {
 		t.Fatalf("lazy fallbacks were refused: %q", findings)
 	}
@@ -138,8 +136,7 @@ func TestNewPolicyLiteralsIgnoresRenames(t *testing.T) {
 	t.Parallel()
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
-		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n\n" + source)})
-		testcheck.NoError(t, err)
+		result := testcheck.Must((gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n\n" + source)}))(t)
 		return result
 	}
 	base := snapshot("func half(n int) int { return n / 2 }\n")
@@ -177,8 +174,7 @@ func TestWrittenCodeIsCountedByKind(t *testing.T) {
 	const large = "package p\n\nfunc A() int { return 1 }\n\nfunc B() int { return A() + A() }\n"
 	snapshot := func(files map[string][]byte) gosyntax.Snapshot {
 		t.Helper()
-		out, err := gosyntax.Snapshot{}.Overlay(files)
-		testcheck.NoError(t, err)
+		out := testcheck.Must(gosyntax.Snapshot{}.Overlay(files))(t)
 		return out
 	}
 	base := snapshot(map[string][]byte{"p/p.go": []byte(small), "p/old.go": []byte(large)})

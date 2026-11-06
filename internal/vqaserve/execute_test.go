@@ -19,12 +19,9 @@ func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-model")
 	testutil.PublishArtifact(t, store, modelID)
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
-	image, err := ImageContract.ContentBytes([]byte("image"))
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
+	image := testcheck.Must(ImageContract.ContentBytes([]byte("image")))(t)
 	answer, result, err := RunProgram(
 		t.Context(), store, modelID, program,
 		"vqa/runtime", image, "where?",
@@ -95,8 +92,7 @@ func TestRequestFormAndBudget(t *testing.T) {
 	if _, err := ReadImage(t.Context(), store, imageID); err == nil || !strings.Contains(err.Error(), "absent") {
 		t.Fatalf("an absent image read: %v", err)
 	}
-	question, err := artifact.JSONContent(QuestionContract, "what?")
-	testcheck.NoError(t, err)
+	question := testcheck.Must(artifact.JSONContent(QuestionContract, "what?"))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/vqa/question", Contents: []artifact.Content{question}}); err != nil {
 		t.Fatal(err)
 	}
@@ -112,8 +108,7 @@ func TestRequestFormAndBudget(t *testing.T) {
 		{"wrong media", artifact.JSONMediaType, ImageContract.Schema, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			content, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: test.media, Schema: test.schema}).ContentBytes([]byte(test.name))
-			testcheck.NoError(t, err)
+			content := testcheck.Must((artifact.DocumentContract{Kind: artifact.KindFile, MediaType: test.media, Schema: test.schema}).ContentBytes([]byte(test.name)))(t)
 			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "test/vqa/" + test.name, Contents: []artifact.Content{content}}); err != nil {
 				t.Fatal(err)
 			}

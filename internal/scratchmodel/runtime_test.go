@@ -11,10 +11,8 @@ import (
 
 func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	testcheck.NoError(t, err)
-	result, err := construction.TrainShared(oracle.Steps, trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t)))(t)
+	result := testcheck.Must(construction.TrainShared(oracle.Steps, trainingprogram.BuiltinOptimizerPolicy()))(t)
 	if len(result.Losses) != len(oracle.LossHistory) {
 		t.Fatalf("shared trajectory length=%d want=%d", len(result.Losses), len(oracle.LossHistory))
 	}
@@ -27,18 +25,14 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 		t.Fatalf("shared validation=%.9f oracle=%.9f", result.ValidationLoss, oracle.FinalValLoss)
 	}
 
-	exact, err := construction.Probe(oracle.Train[:1])
-	testcheck.NoError(t, err)
+	exact := testcheck.Must(construction.Probe(oracle.Train[:1]))(t)
 	weights, gradients := make([]float32, len(construction.weights)), make([]float32, len(construction.weights))
 	for index, value := range construction.weights {
 		weights[index] = float32(value)
 	}
-	model, err := construction.BindMADTransformer(weights)
-	testcheck.NoError(t, err)
-	gradient, err := construction.BindMADTransformer(gradients)
-	testcheck.NoError(t, err)
-	tokens, err := construction.Tokens(oracle.Train[0])
-	testcheck.NoError(t, err)
+	model := testcheck.Must(construction.BindMADTransformer(weights))(t)
+	gradient := testcheck.Must(construction.BindMADTransformer(gradients))(t)
+	tokens := testcheck.Must(construction.Tokens(oracle.Train[0]))(t)
 	loss, trace, err := hostmath.MADTransformerForward(model, tokens)
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, hostmath.MADTransformerBackward(model, gradient, tokens, trace))

@@ -64,8 +64,7 @@ func TestRememberImagesEncodesAPictureOnce(t *testing.T) {
 		return imagePromptItem{Count: source.Bounds().Dx(), Embeddings: make([]float32, source.Bounds().Dx())}, nil
 	})
 	rows := func() weak.Pointer[float32] {
-		item, err := fresh(t.Context(), picture(11, 3))
-		testcheck.NoError(t, err)
+		item := testcheck.Must(fresh(t.Context(), picture(11, 3)))(t)
 		return weak.Make(&item.Embeddings[0])
 	}()
 	for width := 12; width < 12+rememberedImages; width++ {

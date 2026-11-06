@@ -97,8 +97,7 @@ func TestMOSSImageValidation(t *testing.T) {
 			if request.Task != recipe.TaskImageGen {
 				t.Fatal(request)
 			}
-			definition, err := recipe.RequireDefinition(t.Context(), store, id)
-			testcheck.NoError(t, err)
+			definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, id))(t)
 			status, present, err := modelrecipe.Status(ctx, store, id)
 			if err != nil || !present || status != recipe.StatusCandidate {
 				t.Fatal("premature activation", status, err)

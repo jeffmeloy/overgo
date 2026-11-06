@@ -30,8 +30,7 @@ func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(path, []byte("initial weights"), 0600))
 	before, err := discovery.WeightsIdentity(path, memo)
 	testcheck.NoError(t, err)
-	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/catalog-refresh-test/v1"), struct{ Value string }{"new declaration"})
-	testcheck.NoError(t, err)
+	content := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/catalog-refresh-test/v1"), struct{ Value string }{"new declaration"}))(t)
 	if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "catalog/refresh", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}

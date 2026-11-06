@@ -85,18 +85,15 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset)
-	testcheck.NoError(t, err)
+	recipeID := testcheck.Must(trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset))(t)
 	out := filepath.Join(root, "trained")
-	result, err := trainingworkflow.Execute(ctx, trainingworkflow.Request{
+	result := testcheck.Must(trainingworkflow.Execute(ctx, trainingworkflow.Request{
 		Repository: store, Recipe: recipeID, Observations: store,
 		ModelDirectory: base, DatasetPath: dataset, OutputDirectory: out,
 		Steps: 1, MaximumSequence: 16, Host: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	trained := filepath.Join(out, trainingprogram.CheckpointModel)
-	file, err := gguf.Open(trained)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(trained))(t)
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if closeErr := file.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
@@ -110,8 +107,7 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 		!slices.Contains(parents, artifact.Lineage{Child: definition.Model, Parent: result.Checkpoint.ID(), Relation: artifact.RelationProducedBy}) {
 		t.Fatalf("trained model lineage = (%v, %v), want it trained from %s and produced by %s", parents, err, result.Checkpoint.Model, result.Checkpoint.ID())
 	}
-	weights, err := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components))(t)
 	if loaded, err := trainingprogram.LoadCheckpoint(out); err != nil || loaded.Weights != weights.ID {
 		t.Fatalf("checkpoint = (%s, %v), want it bound to the complete trained weights %s", loaded.Weights, err, weights.ID)
 	}
@@ -119,23 +115,17 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 	// model on the host and open it the way the server does.
 	profile, _ := definition.PrimaryDependency(recipe.DependencyProfile)
 	modelDefinition, _ := definition.PrimaryDependency(recipe.DependencyDefinition)
-	host, err := modelrecipe.InferenceWithModelDefinition(definition.Model, profile, modelDefinition, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(modelrecipe.InferenceWithModelDefinition(definition.Model, profile, modelDefinition, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference))(t)
 	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "fixture/trained-model", host))
 	testcheck.NoError(t, store.Close())
-	served, err := modelcli.OpenRunner(ctx, storeRoot, trained, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	served := testcheck.Must(modelcli.OpenRunner(ctx, storeRoot, trained, inference.OpenOptions{}))(t)
 	defer served.Close()
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
-	baseline, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(base, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference))(t)
+	baseline := testcheck.Must(inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{}))(t)
 	defer baseline.Close()
 	prompt, continuation := "a b", []string{" c d"}
-	scores, err := served.ScoreContinuations(ctx, prompt, continuation)
-	testcheck.NoError(t, err)
-	before, err := baseline.ScoreContinuations(ctx, prompt, continuation)
-	testcheck.NoError(t, err)
+	scores := testcheck.Must(served.ScoreContinuations(ctx, prompt, continuation))(t)
+	before := testcheck.Must(baseline.ScoreContinuations(ctx, prompt, continuation))(t)
 	if len(scores) != 1 || scores[0].Tokens == 0 || math.IsNaN(scores[0].LogProbability) || math.IsInf(scores[0].LogProbability, 0) ||
 		scores[0].LogProbability == before[0].LogProbability {
 		t.Fatalf("served trained model scores %+v against the base's %+v, want a finite score of its own", scores, before)

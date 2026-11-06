@@ -25,12 +25,11 @@ func TestModelVerificationLedger(t *testing.T) {
 	dataset := testutil.ArtifactID(t, artifact.KindDatasetShard, "training-dataset")
 	commit := strings.Repeat("ab", 20)
 
-	record, err := NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
+	record := testcheck.Must(NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
 		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: commit,
 			Dataset: dataset, SpanSteps: 60, SpanTokens: 480_000, Evidence: []artifact.ID{smoke}},
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	replay, err := NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
 		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: commit,
@@ -42,8 +41,7 @@ func TestModelVerificationLedger(t *testing.T) {
 	if record.Claims[0].Capability != "inference" {
 		t.Fatalf("claims not sorted: %+v", record.Claims)
 	}
-	content, err := record.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(record.Content())(t)
 	parsed, err := ParseModelVerification(content.Data)
 	if err != nil || parsed.ID != record.ID || len(parsed.Claims) != 2 {
 		t.Fatalf("roundtrip = (%+v, %v)", parsed, err)
@@ -89,14 +87,12 @@ func TestModelVerificationLedger(t *testing.T) {
 	// a second model; the derived matrix takes the strongest evidenced tier
 	// per capability and unions evidence only at the winning tier, invariant
 	// to record order.
-	upgrade, err := NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
+	upgrade := testcheck.Must(NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
 		{Capability: "inference", Tier: TierCapabilityMeasured, Commit: commit,
 			ContextTokens: 8192, WallNS: 4_750_000_000, PeakDeviceBytes: 2 << 30,
 			Evidence: []artifact.ID{floor}},
-	})
-	testcheck.NoError(t, err)
-	sibling, err := NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{valid})
-	testcheck.NoError(t, err)
+	}))(t)
+	sibling := testcheck.Must(NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{valid}))(t)
 	matrix := VerificationMatrix([]ModelVerification{record, upgrade, sibling})
 	if len(matrix) != 2 || matrix[0].Name != "Carbon-500M" || matrix[1].Name != "Qwen2.5-0.5B" {
 		t.Fatalf("matrix rows = %+v", matrix)
@@ -116,12 +112,11 @@ func TestModelVerificationLedger(t *testing.T) {
 		training.Dataset != dataset || training.SpanSteps != 60 || training.Commit != commit {
 		t.Fatalf("training row lost provenance: %+v", training)
 	}
-	measuredSibling, err := NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{
+	measuredSibling := testcheck.Must(NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit,
 			ContextTokens: 2625, WallNS: 2_983_801_000, PeakDeviceBytes: 1_368_364_544,
 			Evidence: []artifact.ID{smoke}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	displaced := VerificationMatrix([]ModelVerification{sibling, measuredSibling})
 	cell := displaced[0].Capabilities[0]
 	if cell.Tier != TierExactGolden || cell.WallNS != 2_983_801_000 || len(cell.Evidence) != 2 {
@@ -137,12 +132,11 @@ func TestModelVerificationLedger(t *testing.T) {
 	}
 
 	correctedCommit := strings.Repeat("cd", 20)
-	correction, err := NewModelVerificationCorrection(model, "Carbon-500M", []CapabilityClaim{
+	correction := testcheck.Must(NewModelVerificationCorrection(model, "Carbon-500M", []CapabilityClaim{
 		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
 		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: correctedCommit,
 			Dataset: dataset, SpanSteps: 60, SpanTokens: 480_000, Evidence: []artifact.ID{smoke}},
-	}, []artifact.ID{record.ID})
-	testcheck.NoError(t, err)
+	}, []artifact.ID{record.ID}))(t)
 	corrected := VerificationMatrix([]ModelVerification{record, correction})
 	if len(corrected) != 1 || len(corrected[0].Capabilities) != 2 ||
 		corrected[0].Capabilities[1].Commit != correctedCommit {

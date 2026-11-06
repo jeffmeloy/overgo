@@ -19,8 +19,7 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 	for _, earlyKey := range []bool{true, false} {
 		t.Run("early-key="+strconv.FormatBool(earlyKey), func(t *testing.T) {
 			fixture := newTranscriptionHTTPFixture(t, nil)
-			handler, err := New(Config{Repository: fixture.store, RuntimePolicy: testRuntimePolicy(), APIKey: testAPIKey, Workflows: fixture.workspace}, GenerationRefused{Reason: "no chat model is loaded"})
-			testcheck.NoError(t, err)
+			handler := testcheck.Must(New(Config{Repository: fixture.store, RuntimePolicy: testRuntimePolicy(), APIKey: testAPIKey, Workflows: fixture.workspace}, GenerationRefused{Reason: "no chat model is loaded"}))(t)
 			defer handler.Close()
 			initial := make(chan struct{})
 			held := make(chan struct{})
@@ -39,11 +38,9 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 			}))
 			defer server.Close()
 			defer release()
-			path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-			testcheck.NoError(t, err)
+			path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 			ctx := t.Context()
-			browser, err := webuilane.Open(ctx, path, "about:blank")
-			testcheck.NoError(t, err)
+			browser := testcheck.Must(webuilane.Open(ctx, path, "about:blank"))(t)
 			defer browser.Close()
 			testcheck.NoError(t, browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL}, nil))
 			check := func(p string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, p) }

@@ -14,10 +14,8 @@ import (
 // (a lane store forked before they were recorded) cannot check them.
 func requireStoreLineage(t *testing.T, store *overgodb.Store, text string) {
 	t.Helper()
-	id, err := artifact.ParseID(text)
-	testcheck.NoError(t, err)
-	found, err := store.HasContent(t.Context(), id)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID(text))(t)
+	found := testcheck.Must(store.HasContent(t.Context(), id))(t)
 	if !found {
 		t.Skipf("integration: the bound guard record %s is absent from this store; only the producer's store lineage carries it", id)
 	}

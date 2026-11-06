@@ -12,10 +12,8 @@ import (
 
 func TestLiveEditTextConditioning(t *testing.T) {
 	modelDirectory := wanModelDir(t)
-	base, err := LoadDenoiserConfig(modelDirectory, referenceDenoiserPolicy)
-	testcheck.NoError(t, err)
-	checkpoint, err := CompileReferenceEditCheckpoint(filepath.Join(filepath.Dir(modelDirectory), "LiveEdit", "ar-forcing_002000.pt"), base)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(LoadDenoiserConfig(modelDirectory, referenceDenoiserPolicy))(t)
+	checkpoint := testcheck.Must(CompileReferenceEditCheckpoint(filepath.Join(filepath.Dir(modelDirectory), "LiveEdit", "ar-forcing_002000.pt"), base))(t)
 	weights, sourceBytes, err := checkpoint.loadTextProjection()
 	testcheck.NoError(t, err)
 	const textDim = 4096
@@ -23,8 +21,7 @@ func TestLiveEditTextConditioning(t *testing.T) {
 	for index := range context {
 		context[index] = float32(math.Sin(float64(index) * 0.01))
 	}
-	projected, err := projectCompactTextConditioning(context, 1, checkpoint.Config.TextLen, textDim, checkpoint.Config.Dim, weights, true)
-	testcheck.NoError(t, err)
+	projected := testcheck.Must(projectCompactTextConditioning(context, 1, checkpoint.Config.TextLen, textDim, checkpoint.Config.Dim, weights, true))(t)
 	if len(projected) != checkpoint.Config.TextLen*checkpoint.Config.Dim || sourceBytes <= 0 {
 		t.Fatalf("projected=%d source_bytes=%d", len(projected), sourceBytes)
 	}

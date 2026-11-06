@@ -24,8 +24,7 @@ func (r publishRepository) Commit(context.Context, Batch) (CommitID, error) {
 func TestPublishTreatsARepeatAsSuccess(t *testing.T) {
 	t.Parallel()
 	refusal := errors.New("refused")
-	id, err := IdentifyBytes(KindEvidence, []byte("published"))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(IdentifyBytes(KindEvidence, []byte("published")))(t)
 	batch := Batch{Key: "k", Aliases: []AliasBinding{{Name: "a", Target: id}}}
 	for _, test := range []struct {
 		outcome error
@@ -45,10 +44,8 @@ func TestPublishTreatsARepeatAsSuccess(t *testing.T) {
 // reports no move when the alias is bound to the target already.
 func TestAliasMoveOwnsTheCompareAndSwap(t *testing.T) {
 	t.Parallel()
-	held, err := IdentifyBytes(KindEvidence, []byte("held"))
-	testcheck.NoError(t, err)
-	next, err := IdentifyBytes(KindEvidence, []byte("next"))
-	testcheck.NoError(t, err)
+	held := testcheck.Must(IdentifyBytes(KindEvidence, []byte("held")))(t)
+	next := testcheck.Must(IdentifyBytes(KindEvidence, []byte("next")))(t)
 	if first := AliasMove("a", next, ID{}); first.Previous != nil || first.Target != next || first.Remove {
 		t.Fatalf("first binding = %+v", first)
 	}

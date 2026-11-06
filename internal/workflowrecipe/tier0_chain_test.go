@@ -33,8 +33,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	if definition.ID != replay.ID {
 		t.Fatalf("chain artifact is not content-addressed: %v != %v", definition.ID, replay.ID)
 	}
-	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(recipe.CompileProgram(definition, workflowrecipe.Catalog()))(t)
 
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -43,8 +42,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	runtime, err := workflowruntime.NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(workflowruntime.NewForProgram(store, program))(t)
 	seen := map[recipe.ModuleID][]artifact.ID{}
 	register := func(
 		module recipe.ModuleID,
@@ -79,12 +77,10 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 		return workflowruntime.ArtifactValue(recipe.DataText, text, content)
 	})
 
-	operation, err := workflowruntime.ExecutionID(definition.ID, "tier0/chain")
-	testcheck.NoError(t, err)
-	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", operation, nil, program, map[recipe.PortName]workflowruntime.Value{
+	operation := testcheck.Must(workflowruntime.ExecutionID(definition.ID, "tier0/chain"))(t)
+	result := testcheck.Must(runtime.ExecuteProgram(ctx, "tier0/chain", operation, nil, program, map[recipe.PortName]workflowruntime.Value{
 		"prompt": {Kind: recipe.DataText, Items: []workflowruntime.Datum{{Value: "prompt"}}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("chain run = %+v", result.Run)
 	}
@@ -119,7 +115,7 @@ func chainDefinition(t *testing.T, modelA, modelB artifact.ID) recipe.Definition
 		return recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost, ModelSlot: slot}
 	}
 	edge := recipe.Connect
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskGeneration,
 		[]recipe.Dependency{
 			{Role: recipe.DependencyModel, Slot: 0, Artifact: modelA},
@@ -148,7 +144,6 @@ func chainDefinition(t *testing.T, modelA, modelB artifact.ID) recipe.Definition
 			Name: "text", Data: recipe.DataText,
 			Source: recipe.Endpoint{Node: "b-detokenize", Port: "text"},
 		}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return definition
 }

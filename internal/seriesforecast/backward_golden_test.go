@@ -70,8 +70,7 @@ func TestResidualBlockBackwardMatchesGolden(t *testing.T) {
 		},
 	}
 	grads := Grads{}
-	dx, err := model.residualBlockBackward("blk", f32(g.X), f32(g.Dout), grads)
-	testcheck.NoError(t, err)
+	dx := testcheck.Must(model.residualBlockBackward("blk", f32(g.X), f32(g.Dout), grads))(t)
 	closeTo(t, "grad_x", dx, g.GradX, wiredTol)
 	closeTo(t, "grad_hidden_weight", grads["blk.hidden_layer.weight"], g.GradHiddenWeight, wiredTol)
 	closeTo(t, "grad_hidden_bias", grads["blk.hidden_layer.bias"], g.GradHiddenBias, wiredTol)
@@ -163,8 +162,7 @@ func TestPatchEmbedBackwardMatchesGolden(t *testing.T) {
 	sigma := make([]float64, g.NP)
 	patchStats(series, masks, g.PatchLen, mu, sigma)
 	grads := Grads{}
-	dSeries, err := model.patchEmbedBackward(series, masks, mu, sigma, f32(g.Dout), grads)
-	testcheck.NoError(t, err)
+	dSeries := testcheck.Must(model.patchEmbedBackward(series, masks, mu, sigma, f32(g.Dout), grads))(t)
 	closeTo(t, "grad_series", dSeries, g.GradSeries, wiredTol)
 	closeTo(t, "grad_hidden_weight", grads["tokenizer.hidden_layer.weight"], g.GradHiddenWeight, wiredTol)
 	closeTo(t, "grad_output_weight", grads["tokenizer.output_layer.weight"], g.GradOutputWeight, wiredTol)
@@ -269,8 +267,7 @@ func TestDecoderLayerBackwardMatchesGolden(t *testing.T) {
 	})
 	grads := Grads{}
 	invFreq := hostmath.RopeInvFreq(model.Dims.RopeTheta, hd)
-	dx, err := model.layerBackward(0, vec("x"), vec("dout"), invFreq, n, grads)
-	testcheck.NoError(t, err)
+	dx := testcheck.Must(model.layerBackward(0, vec("x"), vec("dout"), invFreq, n, grads))(t)
 	closeTo(t, "grad_x", dx, want("grad_x"), wiredTol)
 	for name, key := range map[string]string{
 		"stacked_xf.0.pre_attn_ln.scale":                "grad_preA",

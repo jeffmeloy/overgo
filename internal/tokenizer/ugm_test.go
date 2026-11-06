@@ -21,8 +21,7 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 		tokenToID: map[string]TokenID{"▁": 3, "h": 4, "i": 5, "▁hi": 6},
 		ugmMaxLen: len("▁hi"),
 	}
-	got, err := vocab.Encode("hi", EncodeOptions{AddSpecial: true})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(vocab.Encode("hi", EncodeOptions{AddSpecial: true}))(t)
 	if want := []TokenID{6, 1}; !slices.Equal(got, want) {
 		t.Fatalf("UGM IDs = %v, want %v", got, want)
 	}
@@ -32,13 +31,10 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 // vocabulary to llama.cpp's token IDs.
 func TestRealUMT5Tokenization(t *testing.T) {
 	testskip.Short(t, "requires a real UMT5 model")
-	file, err := gguf.Open(modeltest.Directory(t, "umt5-xxl-encoder-Q5_K_S.gguf"))
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(modeltest.Directory(t, "umt5-xxl-encoder-Q5_K_S.gguf")))(t)
 	defer file.Close()
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
-	got, err := vocab.Encode("Hello world!", EncodeOptions{})
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
+	got := testcheck.Must(vocab.Encode("Hello world!", EncodeOptions{}))(t)
 	if want := []TokenID{23231, 3914, 332}; !slices.Equal(got, want) {
 		t.Fatalf("UMT5 IDs = %v, want pinned llama.cpp %v", got, want)
 	}

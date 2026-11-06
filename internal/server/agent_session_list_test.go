@@ -33,13 +33,11 @@ func TestAgentSessionList(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
-	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
 		if code := serveTestRequest(first, http.MethodPost, "/agents/step", step); code.Code != http.StatusOK {
 			t.Fatalf("step status=%d body=%s", code.Code, code.Body.String())
@@ -54,8 +52,7 @@ func TestAgentSessionList(t *testing.T) {
 		t.Fatalf("session list status=%d body=%s", list.Code, body)
 	}
 	testcheck.NoError(t, first.Close())
-	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	restarted := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	defer restarted.Close()
 	survived := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
 	if survived.Code != http.StatusOK ||
@@ -82,13 +79,11 @@ func TestListingAgentSessionsRestoresNone(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
-	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	defer first.Close()
 	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
 		if response := serveTestRequest(first, http.MethodPost, "/agents/step", step); response.Code != http.StatusOK {
@@ -96,8 +91,7 @@ func TestListingAgentSessionsRestoresNone(t *testing.T) {
 		}
 	}
 	listed := serveTestRequest(first, http.MethodGet, "/agents/sessions", "")
-	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	restarted := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	defer restarted.Close()
 	again := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
 	if again.Code != http.StatusOK || again.Body.String() != listed.Body.String() {

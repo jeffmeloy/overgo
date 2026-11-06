@@ -75,16 +75,14 @@ type promptReference struct {
 // differing still, so that the entry cannot outlive the fault.
 func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/prompt_ids/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's own tokens are on file (%v); write them with %s", err, promptIDsScript)
 	}
 	held, faulted := 0, map[string]bool{}
 	for _, fixture := range fixtures {
-		raw, err := os.ReadFile(fixture)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(fixture))(t)
 		var reference promptReference
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
@@ -110,8 +108,7 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 				}
 				cases.Cases = append(cases.Cases, held)
 			}
-			encoded, err := json.Marshal(cases)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(cases))(t)
 			path := filepath.Join(t.TempDir(), "cases.json")
 			testcheck.NoError(t, os.WriteFile(path, encoded, 0o600))
 			chat := reference.Protocol == promptChat

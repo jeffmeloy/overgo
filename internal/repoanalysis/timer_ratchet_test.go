@@ -70,10 +70,8 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	time.Sleep(derived)
 }
 `)
-	snapshot, err := gosyntax.DiscoverGo(root, ".")
-	testcheck.NoError(t, err)
-	census, err := FixedTimerCensus(snapshot)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(root, "."))(t)
+	census := testcheck.Must(FixedTimerCensus(snapshot))(t)
 	if !slices.Equal(census, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}) {
 		t.Fatalf("fixture census = %+v", census)
 	}
@@ -84,11 +82,8 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 		t.Fatalf("a source with no fixed timer was refused: %v", err)
 	}
 
-	repository, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	live, err := gosyntax.DiscoverGo(repository, "internal", "cmd")
-	testcheck.NoError(t, err)
-	liveCensus, err := FixedTimerCensus(live)
-	testcheck.NoError(t, err)
+	repository := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	live := testcheck.Must(gosyntax.DiscoverGo(repository, "internal", "cmd"))(t)
+	liveCensus := testcheck.Must(FixedTimerCensus(live))(t)
 	testcheck.NoError(t, RefuseFixedTimers(liveCensus))
 }

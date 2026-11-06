@@ -12,16 +12,12 @@ import (
 // TestTernaryMastersCheckpointRoundTripIsBitExact steps a master matrix once
 // and holds the checkpoint it publishes to reading back bit for bit.
 func TestTernaryMastersCheckpointRoundTripIsBitExact(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(testMatrix.End, []hostoptimizer.GroupSpec{testMatrix})
-	testcheck.NoError(t, err)
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(testMatrix.End, []hostoptimizer.GroupSpec{testMatrix}))(t)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End))(t)
 	masters, gradients := []float32{0.5, -0.25, 0.75, -1}, []float32{0.1, -0.2, 0.3, -0.4}
-	muon, err := hostoptimizer.New(masters, gradients, plan, config)
-	testcheck.NoError(t, err)
+	muon := testcheck.Must(hostoptimizer.New(masters, gradients, plan, config))(t)
 	muon.Step()
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, plan)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, plan))(t)
 	checkpointtest.RequireRoundTrip(t, program, ternaryMasters{masters: masters, plan: plan, stepper: hostStepper{muon}},
 		map[string][]float32{testMatrix.Name: masters})
 }

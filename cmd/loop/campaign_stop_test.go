@@ -17,11 +17,9 @@ import (
 func TestCampaignActiveWorkerStop(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_STOP_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
-		_, err := plan.RecordStop(t.Context(), plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "requested", Detail: "active worker fixture"})
-		testcheck.NoError(t, err)
+		testcheck.Must(plan.RecordStop(t.Context(), plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "requested", Detail: "active worker fixture"}))(t)
 		// Stay alive in an OS wait: only supervisor cancellation ends this child.
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		testcheck.NoError(t, err)
+		listener := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 		defer listener.Close()
 		_, _ = listener.Accept()
 		return

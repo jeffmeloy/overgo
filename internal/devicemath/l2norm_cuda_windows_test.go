@@ -19,8 +19,7 @@ import (
 // large eps clamps rows (norm<=eps -> dX=inv*dY, no dot term).
 func TestL2NormBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	cases := []struct {
@@ -47,8 +46,7 @@ func TestL2NormBackwardDeviceMatchesHost(t *testing.T) {
 			dY := rs(tc.rows * tc.width)
 
 			want := hostmath.L2NormBackward(x, dY, tc.rows, tc.width, tc.eps)
-			got, err := L2NormBackwardDevice(worker, x, dY, tc.rows, tc.width, tc.eps)
-			testcheck.NoError(t, err)
+			got := testcheck.Must(L2NormBackwardDevice(worker, x, dY, tc.rows, tc.width, tc.eps))(t)
 			diff := testutil.MaxAbsDiff(got, want)
 			t.Logf("L2NormBackward %-9s max|device-host| %.3e", tc.name, diff)
 			const tol = 1e-5

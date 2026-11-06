@@ -31,15 +31,13 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	scorer := testutil.ArtifactID(t, artifact.KindModel, "action-scorer")
 	drafter := testutil.ArtifactID(t, artifact.KindModel, "action-drafter")
 	chain := Action{Version: ActionVersion, Kind: KindChainRecipes, Chain: &ChainAction{Scorer: scorer, Drafter: drafter}}
-	first, err := compile(chain)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(compile(chain))(t)
 	second, err := compile(chain)
 	if err != nil || len(first) != 2 || len(second) != 2 ||
 		first[0].Descriptor.ID != second[0].Descriptor.ID || first[1].Descriptor.ID != second[1].Descriptor.ID {
 		t.Fatalf("chain compile not deterministic: (%v, %v)", second, err)
 	}
-	definition, err := recipe.ParseDefinition(first[0].Data)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.ParseDefinition(first[0].Data))(t)
 	if _, err := recipe.CompileProgram(definition, workflowrecipe.Catalog()); err != nil {
 		t.Fatalf("emitted chain recipe is not executable through the catalog: %v", err)
 	}
@@ -181,8 +179,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		t.Fatal("action document with a code-carrying field parsed; the language must refuse unknown fields")
 	}
 
-	serialized, err := json.Marshal(chain)
-	testcheck.NoError(t, err)
+	serialized := testcheck.Must(json.Marshal(chain))(t)
 	roundtrip, err := ParseAction(serialized)
 	if err != nil || roundtrip.Kind != KindChainRecipes || roundtrip.Chain == nil {
 		t.Fatalf("roundtrip = (%+v, %v)", roundtrip, err)

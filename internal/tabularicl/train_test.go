@@ -31,13 +31,11 @@ func TestDecoderTrainerRealArtifacts(t *testing.T) {
 			if request.Rows == 0 {
 				t.Fatalf("%s fixture absent", task)
 			}
-			head, err := LoadHead(headDir(t, task))
-			testcheck.NoError(t, err)
+			head := testcheck.Must(LoadHead(headDir(t, task)))(t)
 			before := append([]float32(nil), head.decL1W...)
-			trainer, err := NewTrainer(head, optimizer.Config{
+			trainer := testcheck.Must(NewTrainer(head, optimizer.Config{
 				BaseLearningRate: 1e-5, Momentum: 0.9, Schedule: optimizer.ScheduleConstant,
-			})
-			testcheck.NoError(t, err)
+			}))(t)
 			result, stepErr := trainer.Step(request)
 			closeErr := trainer.Close()
 			if stepErr != nil || closeErr != nil {
@@ -90,10 +88,8 @@ func tinyRegressionHead() *Head {
 // reads both back bit for bit.
 func TestDecoderTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	head := tinyRegressionHead()
-	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(head.TrainableParameterCount())
-	testcheck.NoError(t, err)
-	trainer, err := NewTrainer(head, config)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(trainingprogram.BuiltinOptimizerPolicy().Config(head.TrainableParameterCount()))(t)
+	trainer := testcheck.Must(NewTrainer(head, config))(t)
 	defer trainer.Close()
 	if _, err := trainer.Step(Request{
 		Task: TaskRegression, Rows: 4, Cols: 2, TrainRows: 2,

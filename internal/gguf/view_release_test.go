@@ -31,8 +31,7 @@ func TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds(t *testing.T) {
 	}
 	first, firstData := tensor("first", 1)
 	second, secondData := tensor("second", 7)
-	file, err := View(nil, []ViewTensor{first, second}, WriteOptions{}, "")
-	testcheck.NoError(t, err)
+	file := testcheck.Must(View(nil, []ViewTensor{first, second}, WriteOptions{}, ""))(t)
 	// Opening reads the directory with a read-ahead that may build the first tensors; the load is counted from here.
 	source, before := file.source.(*viewSource), maps.Clone(opened)
 	read := func(name string, from, size uint64) []byte {

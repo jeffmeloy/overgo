@@ -12,8 +12,7 @@ import (
 )
 
 func TestKimiDeclaredSplitIntegration(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "tokenizer", "testdata", "kimi-declared-split.json")))(t)
 	var source struct {
 		SourceSHA256 string `json:"source_sha256"`
 		Pattern      string `json:"pattern"`
@@ -51,11 +50,9 @@ func TestKimiDeclaredSplitIntegration(t *testing.T) {
 	load := func(pre any) *Tokenizer {
 		t.Helper()
 		directory := t.TempDir()
-		data, err := json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre})
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(map[string]any{"model": model, "pre_tokenizer": pre}))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "tokenizer.json"), data, 0600))
-		tok, err := Load(directory)
-		testcheck.NoError(t, err)
+		tok := testcheck.Must(Load(directory))(t)
 		return tok
 	}
 	declared := load(declaration(source.Pattern))

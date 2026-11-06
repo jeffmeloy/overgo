@@ -31,8 +31,7 @@ func TestStateDirectoryIgnoresItself(t *testing.T) {
 	for _, err := range failures {
 		testcheck.NoError(t, err)
 	}
-	lock, err := Acquire(filepath.Join(root, StateDirectory, "holder.lock"), 0o600)
-	testcheck.NoError(t, err)
+	lock := testcheck.Must(Acquire(filepath.Join(root, StateDirectory, "holder.lock"), 0o600))(t)
 	defer lock.Close()
 	status, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all").CombinedOutput()
 	if err != nil {
@@ -41,8 +40,7 @@ func TestStateDirectoryIgnoresItself(t *testing.T) {
 	if strings.TrimSpace(string(status)) != "" {
 		t.Fatalf("state is visible to git:\n%s", status)
 	}
-	entries, err := os.ReadDir(filepath.Join(root, StateDirectory))
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(filepath.Join(root, StateDirectory)))(t)
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		names = append(names, entry.Name())

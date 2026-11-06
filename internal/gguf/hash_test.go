@@ -61,20 +61,18 @@ func TestHashMatchesConcatenatedTensorPayloads(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	file, err := Parse(
+	file := testcheck.Must(Parse(
 		bytes.NewReader(encoded.Bytes()),
 		uint64(encoded.Len()),
 		DefaultOptions(),
-	)
-	testcheck.NoError(t, err)
-	result, err := file.Hash(HashOptions{
+	))(t)
+	result := testcheck.Must(file.Hash(HashOptions{
 		XXH64:     true,
 		SHA1:      true,
 		SHA256:    true,
 		UUID:      true,
 		PerTensor: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	combined := append(append([]byte(nil), payloads[0]...), payloads[1]...)
 	wantSHA1 := sha1.Sum(combined)
 	wantSHA256 := sha256.Sum256(combined)

@@ -18,7 +18,7 @@ const (
 func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 	t.Helper()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
-	catalog, err := NewCatalog(
+	catalog := testcheck.Must(NewCatalog(
 		Module{
 			ID: fixtureSourceModule, Tasks: []Task{TaskInference}, Placements: []Placement{PlacementHost},
 			Outputs: []Port{{Name: "tokens", Data: DataTokens, Cardinality: CardinalityOne}},
@@ -28,17 +28,15 @@ func fixtureRecipe(t *testing.T) (Definition, *Catalog) {
 			Inputs:  []Port{{Name: "tokens", Data: DataTokens, Cardinality: CardinalityOne}},
 			Outputs: []Port{{Name: "logits", Data: DataLogits, Cardinality: CardinalityOne}},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	source := Node{ID: "source", Module: fixtureSourceModule, Placement: PlacementHost}
 	sink := Node{ID: "sink", Module: fixtureSinkModule, Placement: PlacementHost}
-	definition, err := NewDefinitionWithDependencies(
+	definition := testcheck.Must(NewDefinitionWithDependencies(
 		TaskInference, []Dependency{{Role: DependencyModel, Artifact: modelID}}, []Node{sink, source},
 		[]Edge{{From: Endpoint{Node: source.ID, Port: "tokens"}, To: Endpoint{Node: sink.ID, Port: "tokens"}}},
 		nil,
 		[]Output{{Name: "logits", Data: DataLogits, Source: Endpoint{Node: sink.ID, Port: "logits"}}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return definition, catalog
 }
 
@@ -47,10 +45,9 @@ func TestDefinitionCanonicalIdentityAndValidation(t *testing.T) {
 	testcheck.NoError(t, definition.Validate(catalog))
 	nodes := slices.Clone(definition.Nodes)
 	slices.Reverse(nodes)
-	rebuilt, err := NewDefinitionWithDependencies(
+	rebuilt := testcheck.Must(NewDefinitionWithDependencies(
 		definition.Task, definition.Dependencies, nodes, definition.Edges, definition.Inputs, definition.Outputs,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if rebuilt.ID != definition.ID {
 		t.Fatalf("canonical IDs differ: %s != %s", rebuilt.ID, definition.ID)
 	}
@@ -92,17 +89,15 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 		{Role: DependencyModel, Artifact: definition.Model},
 		{Role: DependencyProfile, Artifact: profileID},
 	}
-	bound, err := NewDefinitionWithDependencies(
+	bound := testcheck.Must(NewDefinitionWithDependencies(
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	slices.Reverse(dependencies)
-	reordered, err := NewDefinitionWithDependencies(
+	reordered := testcheck.Must(NewDefinitionWithDependencies(
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if reordered.ID != bound.ID {
 		t.Fatal("dependency order changed recipe identity")
 	}
@@ -111,11 +106,10 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	}
 	otherProfile := testutil.ArtifactID(t, artifact.KindProfile, "other-profile")
 	dependencies[0].Artifact = otherProfile
-	changed, err := NewDefinitionWithDependencies(
+	changed := testcheck.Must(NewDefinitionWithDependencies(
 		definition.Task, dependencies, definition.Nodes, definition.Edges,
 		definition.Inputs, definition.Outputs,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if changed.ID == bound.ID {
 		t.Fatal("profile change preserved recipe identity")
 	}
@@ -181,8 +175,7 @@ func TestSameComputationIgnoresOnlyTheSessionPolicy(t *testing.T) {
 	base, _ := fixtureRecipe(t)
 	rebuild := func(nodes []Node, dependencies []Dependency) Definition {
 		t.Helper()
-		value, err := NewDefinitionWithDependencies(base.Task, dependencies, nodes, base.Edges, base.Inputs, base.Outputs)
-		testcheck.NoError(t, err)
+		value := testcheck.Must(NewDefinitionWithDependencies(base.Task, dependencies, nodes, base.Edges, base.Inputs, base.Outputs))(t)
 		return value
 	}
 	session := slices.Clone(base.Nodes)

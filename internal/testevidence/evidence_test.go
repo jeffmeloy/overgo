@@ -153,8 +153,7 @@ func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Ski
 
 func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	out := "{\"Action\":\"skip\",\"Package\":\"overgo/example\",\"Test\":\"TestFixture\",\"Output\":\"UNAVAILABLE: fixture\\n\"}\n"
-	report, err := GoTestJSONReport(out)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(GoTestJSONReport(out))(t)
 	if len(report.Skipped) != 1 {
 		t.Fatalf("report = %+v", report)
 	}
@@ -171,8 +170,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
 		testskip.Key, testskip.KindShort,
 	)
-	report, err := goTestJSONReport(out, true, false)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(goTestJSONReport(out, true, false))(t)
 	if report.PassedTests != 1 || report.PassedPackages != 1 || len(report.ClassifiedSkipped) != 1 {
 		t.Fatalf("required evidence counts are wrong: %+v", report)
 	}

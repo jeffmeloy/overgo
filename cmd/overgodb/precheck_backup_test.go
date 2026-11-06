@@ -18,8 +18,7 @@ func TestPrecheckTakesItsOwnBackup(t *testing.T) {
 	t.Parallel()
 	repository, backups := filepath.Join(t.TempDir(), "store"), t.TempDir()
 	commit := func(text string) {
-		store, err := overgodb.Create(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Create(repository))(t)
 		defer store.Close()
 		content := textContent(t, strings.Repeat(text, 1<<13))
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "backup/" + text, Contents: []artifact.Content{content}}); err != nil {
@@ -27,8 +26,7 @@ func TestPrecheckTakesItsOwnBackup(t *testing.T) {
 		}
 	}
 	commit("first")
-	first, err := sealBackup(t.Context(), repository, backups)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(sealBackup(t.Context(), repository, backups))(t)
 	seal, err := overgodb.ReadBackupSeal(first)
 	if err != nil || !strings.Contains(filepath.Base(first), seal.Head.String()[:12]) {
 		t.Fatalf("backup %s does not carry the head its seal names: %+v, %v", first, seal, err)

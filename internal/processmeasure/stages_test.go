@@ -33,11 +33,9 @@ func TestStagesDivideARequest(t *testing.T) {
 	}
 	work()
 	outer()
-	elapsed, err := clock.Elapsed()
-	testcheck.NoError(t, err)
+	elapsed := testcheck.Must(clock.Elapsed())(t)
 	var report strings.Builder
-	unnamed, err := stages.Report(&report, time.Duration(elapsed))
-	testcheck.NoError(t, err)
+	unnamed := testcheck.Must(stages.Report(&report, time.Duration(elapsed)))(t)
 	if len(stages.parts) != 2 || stages.parts[0].Name != "inner" || stages.parts[0].Times != 2 || stages.parts[1].Name != "outer" || stages.parts[1].Times != 1 {
 		t.Fatalf("the parts are %+v", stages.parts)
 	}
@@ -92,8 +90,7 @@ func TestStagesReadEachPartsPeak(t *testing.T) {
 	hold(2)
 	release(2)
 	after()
-	parts, err := stages.Parts()
-	testcheck.NoError(t, err)
+	parts := testcheck.Must(stages.Parts())(t)
 	want := map[string]uint64{"inner": 8, "outer": 8, "after": 3}
 	if len(parts) != len(want) {
 		t.Fatalf("the parts are %+v", parts)

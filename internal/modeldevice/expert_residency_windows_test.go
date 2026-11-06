@@ -35,11 +35,9 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 		tableBytes             = 2 * experts * 8
 		gateStride, downStride = 256, 1024
 	)
-	worker, err := device.New(modelTestDeviceOrdinal)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(modelTestDeviceOrdinal))(t)
 	defer worker.Close()
-	weights, err := NewDeviceWeights(worker)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(NewDeviceWeights(worker))(t)
 	loader := NewLoader(file)
 	loader.Experts(weights, file.Tensors, tableBytes+2*(gateStride+downStride))
 	testcheck.NoError(t, loader.Load(t.Context(), nil))

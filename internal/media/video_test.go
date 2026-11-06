@@ -47,8 +47,7 @@ func TestDecodeGIFCompositesDisposalAndSamples(t *testing.T) {
 	}
 	var data bytes.Buffer
 	testcheck.NoError(t, gif.EncodeAll(&data, &encoded))
-	frames, err := DecodeGIF(bytes.NewReader(data.Bytes()), len(encoded.Image))
-	testcheck.NoError(t, err)
+	frames := testcheck.Must(DecodeGIF(bytes.NewReader(data.Bytes()), len(encoded.Image)))(t)
 	if len(frames) != len(encoded.Image) {
 		t.Fatalf("frames = %d", len(frames))
 	}
@@ -66,8 +65,7 @@ func TestDecodeGIFCompositesDisposalAndSamples(t *testing.T) {
 			}
 		}
 	}
-	sampled, err := DecodeGIF(bytes.NewReader(data.Bytes()), RGBChannels)
-	testcheck.NoError(t, err)
+	sampled := testcheck.Must(DecodeGIF(bytes.NewReader(data.Bytes()), RGBChannels))(t)
 	if len(sampled) != RGBChannels || color.RGBAModel.Convert(sampled[tensor.PairedExtent].At(0, 0)).(color.RGBA) != want[len(want)-tensor.SingletonExtent][tensor.FirstOffset] {
 		t.Fatalf("sampled frames = %d", len(sampled))
 	}
@@ -80,8 +78,7 @@ func TestDecodeEncodedVideoGIF(t *testing.T) {
 		image.NewPaletted(image.Rect(0, 0, tensor.PairedExtent, tensor.PairedExtent), color.Palette{color.Black, color.White}),
 	}, Delay: []int{tensor.SingletonExtent, tensor.SingletonExtent}}
 	testcheck.NoError(t, gif.EncodeAll(&data, frames))
-	decoded, err := DecodeEncodedVideo(t.Context(), data.Bytes(), "", tensor.PairedExtent, tensor.SingletonExtent)
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(DecodeEncodedVideo(t.Context(), data.Bytes(), "", tensor.PairedExtent, tensor.SingletonExtent))(t)
 	if len(decoded) != tensor.SingletonExtent || decoded[tensor.FirstOffset].Bounds() != image.Rect(0, 0, tensor.PairedExtent, tensor.PairedExtent) {
 		t.Fatalf("decoded frames = %d, bounds=%v", len(decoded), decoded[tensor.FirstOffset].Bounds())
 	}

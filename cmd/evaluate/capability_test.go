@@ -49,10 +49,9 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 	weights := []byte("capability-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "capability-profile")
-	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	model := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "capability/model",
 		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}, {ID: profile}},
@@ -66,8 +65,7 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 		requested = &missing
 	}
 	if define != nil {
-		definition, err := define(model.ID, profile)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(define(model.ID, profile))(t)
 		if explicit {
 			requested = &definition.ID
 			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "candidate", definition); err != nil {
@@ -169,8 +167,7 @@ func TestACapabilitySessionNamesTheDeviceItRunsOnAndRefusesOneItCannotSelect(t *
 			if opening.err != nil {
 				t.Fatal(opening.err)
 			}
-			want, err := runrecord.CurrentEnvironment(c.device, c.backend)
-			testcheck.NoError(t, err)
+			want := testcheck.Must(runrecord.CurrentEnvironment(c.device, c.backend))(t)
 			if got := opening.session.(*capabilitySession).campaign.Authorities().Environment; got != want.ID {
 				t.Errorf("the session's environment is %s, want that of %s/%s, %s", got, c.device, c.backend, want.ID)
 			}
@@ -248,8 +245,7 @@ func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) 
 // so an evaluation run never replays the answers of another.
 func TestAVQAAnswerIsReplayedOnlyForTheSameQuestionOfTheSameAttempt(t *testing.T) {
 	t.Parallel()
-	base, err := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(vqaRunKey("attempt-1", "a.png", "Describe the image.", 48))(t)
 	if again, _ := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48); again != base {
 		t.Fatal("the same attempt, image, question and budget changed the key")
 	}

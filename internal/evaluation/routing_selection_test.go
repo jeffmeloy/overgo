@@ -43,12 +43,11 @@ func publishSelectionModel(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(
 		modelID, planID(t, artifact.KindProfile, name+"-profile"),
 		planID(t, artifact.KindModelDefinition, name+"-definition"),
 		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.PublishCandidate(
 		ctx, store, "routing/fixture/candidate/"+name, definition,
 	); err != nil {
@@ -64,44 +63,35 @@ func publishSelectionEvaluation(
 ) artifact.ID {
 	t.Helper()
 	ctx := t.Context()
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
-	plan, err := BindExact(exact, ExactAuthorities{
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
+	plan := testcheck.Must(BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, name+"-definition"),
 		RuntimeRecipe:   definition.ID,
 		CodeCommit:      planTestCommit,
 		Environment:     planID(t, artifact.KindEvidence, name+"-environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleIsolated},
-	})
-	testcheck.NoError(t, err)
-	report, err := EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	report := testcheck.Must(EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil))(t)
 	metrics := []runrecord.Metric{{Name: exactMetricName, Value: quality, Direction: runrecord.DirectionMaximize}}
-	policy, err := newAcceptancePolicy(metrics)
-	testcheck.NoError(t, err)
-	evaluator, err := NewEvaluator(plan.identity, policy)
-	testcheck.NoError(t, err)
+	policy := testcheck.Must(newAcceptancePolicy(metrics))(t)
+	evaluator := testcheck.Must(NewEvaluator(plan.identity, policy))(t)
 	durationNS := uint64(10 + len(tag))
-	run, err := runrecord.NewBoundRun(
+	run := testcheck.Must(runrecord.NewBoundRun(
 		plan.body.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.identity}, []artifact.ID{report}, "",
 		plan.body.CodeCommit, plan.body.Environment, durationNS,
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: durationNS}},
-	)
-	testcheck.NoError(t, err)
-	record, err := runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, plan.body.Dataset, metrics)
-	testcheck.NoError(t, err)
+	))(t)
+	record := testcheck.Must(runrecord.NewEvaluation(plan.body.RuntimeRecipe, run.ID, plan.body.Dataset, metrics))(t)
 	for _, publication := range []struct {
 		key      string
 		document evidenceBatchDocument
 	}{{"run", run}, {"evaluation", record}} {
-		batch, err := publication.document.Batch("routing/fixture/" + name + "/" + tag + "/" + publication.key)
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(publication.document.Batch("routing/fixture/" + name + "/" + tag + "/" + publication.key))(t)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	evidence, err := PublishEvaluationEvidence(ctx, store, plan, policy, evaluator, report, run, record)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(PublishEvaluationEvidence(ctx, store, plan, policy, evaluator, report, run, record))(t)
 	return evidence.ID
 }
 
@@ -122,11 +112,10 @@ func TestRoutingEvidenceDerivedSelection(t *testing.T) {
 	costlyStrong, _ := publishSelectionEvidence(t, store, "costly-strong", 16384, 0.9)
 	cheapestWeak, _ := publishSelectionEvidence(t, store, "cheapest-weak", 1024, 0.3)
 
-	decision, err := SelectServingRecipe(
+	decision := testcheck.Must(SelectServingRecipe(
 		ctx, store, recipe.TaskInference, exactMetricName, baseline,
 		[]artifact.ID{costlyStrong, cheapStrong, cheapestWeak},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if decision.Selected != cheapDefinition.ID {
 		t.Fatalf("selection = %s; the cheapest candidate meeting the baseline must win", decision.Selected)
 	}
@@ -176,11 +165,10 @@ func TestRoutingResourceIsRecordedBytesNotManifestSize(t *testing.T) {
 	cheapStrong, cheapDefinition := publishSelectionEvidence(t, store, "cheap-strong", 2048, 0.6)
 	manifestModel := publishSelectionManifestModel(t, store, "manifest-model", 4096)
 	manifestEvidence := publishSelectionEvaluation(t, store, manifestModel, "manifest-model", "base", 0.7)
-	decision, err := SelectServingRecipe(
+	decision := testcheck.Must(SelectServingRecipe(
 		ctx, store, recipe.TaskInference, exactMetricName, baseline,
 		[]artifact.ID{manifestEvidence, cheapStrong},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if decision.Selected != cheapDefinition.ID {
 		t.Fatalf("selection = %s; the 4096-byte manifest model must not beat the 2048-byte model on its 172-byte manifest", decision.Selected)
 	}
@@ -207,10 +195,9 @@ func publishSelectionManifestModel(
 	t.Helper()
 	ctx := t.Context()
 	weightsID := planID(t, artifact.KindTensorSet, name+"-weights")
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	modelID := manifest.ID
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "routing/fixture/model/" + name,
@@ -224,12 +211,11 @@ func publishSelectionManifestModel(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
+	definition := testcheck.Must(modelrecipe.InferenceWithModelDefinition(
 		modelID, planID(t, artifact.KindProfile, name+"-profile"),
 		planID(t, artifact.KindModelDefinition, name+"-definition"),
 		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "routing/fixture/candidate/"+name, definition); err != nil {
 		t.Fatal(err)
 	}

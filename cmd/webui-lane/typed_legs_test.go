@@ -24,8 +24,7 @@ func TestLaneJudgesTypedLegOutcomes(t *testing.T) {
 	// and terminal action (none when it never ended), then its verdict.
 	ran := func(path string, outcomes ...[2]string) []string {
 		event := func(action, test string) string {
-			encoded, err := json.Marshal(map[string]string{"Action": action, "Package": path, "Test": test})
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(map[string]string{"Action": action, "Package": path, "Test": test}))(t)
 			return string(encoded)
 		}
 		events, verdict := []string{event("start", "")}, "pass"
@@ -41,8 +40,7 @@ func TestLaneJudgesTypedLegOutcomes(t *testing.T) {
 		return append(events, event(verdict, ""))
 	}
 	judge := func(records []webuilane.LegRecord, required []string, events ...[]string) error {
-		report, err := testevidence.GoTestJSONReport(strings.Join(slices.Concat(events...), "\n"))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(strings.Join(slices.Concat(events...), "\n")))(t)
 		return webuilane.LaneVerdict(report, records, required)
 	}
 	passes := ran(server, [2]string{"TestWebUIBrowserPasses", "pass"})

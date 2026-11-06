@@ -40,10 +40,8 @@ func verifyVADWaveformStream(t *testing.T) {
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
-	offline, err := audiodsp.NewFrontend(config, vadReferenceBytes)
-	testcheck.NoError(t, err)
-	stream, err := audiodsp.NewStreamFrontend(config, vadReferenceBytes)
-	testcheck.NoError(t, err)
+	offline := testcheck.Must(audiodsp.NewFrontend(config, vadReferenceBytes))(t)
+	stream := testcheck.Must(audiodsp.NewStreamFrontend(config, vadReferenceBytes))(t)
 	executed := 0
 	for _, model := range reference.Models {
 		network, _ := loadVADNetwork(t, store, model)
@@ -84,11 +82,10 @@ func verifyVADWaveformStream(t *testing.T) {
 						chunks++
 						// Serialize and replace both execution workspaces at each chunk:
 						// no hidden process-local state can supply missing context.
-						encoded, err := json.Marshal(struct {
+						encoded := testcheck.Must(json.Marshal(struct {
 							Frontend audiodsp.StreamState
 							Caches   [][]float32
-						}{state, caches})
-						testcheck.NoError(t, err)
+						}{state, caches}))(t)
 						var restart struct {
 							Frontend audiodsp.StreamState
 							Caches   [][]float32
@@ -153,12 +150,10 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 		t.Fatal("VAD source is not the pinned shared corpus row")
 	}
 	corpus := librispeechPath(t, "clean", record.Split, record.Shard)
-	id, err := artifact.ParseID("file:sha256:" + record.ShardSHA256)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID("file:sha256:" + record.ShardSHA256))(t)
 	verifyASRFile(t, corpus, id, record.ShardBytes)
 	// The existing Arrow/Parquet owner bounds source materialization separately.
-	rows, err := dataset.OpenParquetRows(t.Context(), corpus, []string{"audio.bytes", "id"}, 512<<20)
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(dataset.OpenParquetRows(t.Context(), corpus, []string{"audio.bytes", "id"}, 512<<20))(t)
 	defer rows.Close()
 	row, err := rows.Read(t.Context(), record.Row)
 	if err != nil || row["id"] == nil || *row["id"] != record.RowID || row["audio.bytes"] == nil {
@@ -180,8 +175,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 func loadVADNetwork(t *testing.T, store *overgodb.Store, model vadNumericalModel) (*speechactivity.Network, speechactivity.Declaration) {
 	t.Helper()
 	_, _, checkpoint, declaration := loadVADArtifacts(t, store, model)
-	network, err := speechactivity.LoadNetwork(t.Context(), checkpoint, declaration, vadReferenceBytes)
-	testcheck.NoError(t, err)
+	network := testcheck.Must(speechactivity.LoadNetwork(t.Context(), checkpoint, declaration, vadReferenceBytes))(t)
 	return network, declaration
 }
 
@@ -202,8 +196,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 			if component.Role != artifact.ComponentWeights || filepath.ToSlash(component.Path) != model.Checkpoint+"/model.pth.tar" {
 				continue
 			}
-			root, err := artifact.AvailablePath(t.Context(), store, registration.Model, artifact.LocationDirectory)
-			testcheck.NoError(t, err)
+			root := testcheck.Must(artifact.AvailablePath(t.Context(), store, registration.Model, artifact.LocationDirectory))(t)
 			license, found, err := artifact.ReadContent(t.Context(), store, registration.License.Artifact)
 			if err != nil || !found || len(license.Data) == 0 {
 				t.Fatalf("VAD license absent: %v", err)
@@ -218,10 +211,8 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 				t.Fatalf("VAD physical identity differs: %v", err)
 			}
 			checkpoint := filepath.Join(root, component.Path)
-			id, err := artifact.ParseID("tensor-set:sha256:" + model.SHA256)
-			testcheck.NoError(t, err)
-			info, err := os.Stat(checkpoint)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.ParseID("tensor-set:sha256:" + model.SHA256))(t)
+			info := testcheck.Must(os.Stat(checkpoint))(t)
 			verifyASRFile(t, checkpoint, id, uint64(info.Size()))
 			var declaration speechactivity.Declaration
 			readAudioFixtureJSON(t, model.Declaration, &declaration)
@@ -239,8 +230,7 @@ func verifyVADNumericalReference(t *testing.T) {
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
-	frontend, err := audiodsp.NewFrontend(config, vadReferenceBytes)
-	testcheck.NoError(t, err)
+	frontend := testcheck.Must(audiodsp.NewFrontend(config, vadReferenceBytes))(t)
 	for _, model := range reference.Models {
 		t.Run(model.Checkpoint, func(t *testing.T) {
 			network, declaration := loadVADNetwork(t, store, model)

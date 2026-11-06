@@ -37,8 +37,7 @@ func TestFitnessScoredCompositeSelection(t *testing.T) {
 	tradeoff := fitnessScore(t, "fitness-tradeoff", [2]float64{0.70, 0.95}, [2]float64{100, 140}, [2]float64{1000, 900})
 	flat := fitnessScore(t, "fitness-flat", [2]float64{0.70, 0.70}, [2]float64{100, 100}, [2]float64{1000, 1000})
 
-	verdicts, err := ScoreCompositeSelection([]CompositeScore{tradeoff, flat, pareto})
-	testcheck.NoError(t, err)
+	verdicts := testcheck.Must(ScoreCompositeSelection([]CompositeScore{tradeoff, flat, pareto}))(t)
 	if len(verdicts) != 3 || verdicts[0].Composite != pareto.Composite || !verdicts[0].Fit {
 		t.Fatalf("selection order = %+v", verdicts)
 	}
@@ -82,7 +81,7 @@ func TestFitnessScoredCompositeSelection(t *testing.T) {
 // the existing promoter, and an unfit composite refuses with its
 // regressions named.
 func TestSelectionEmitsAblationGatedPromotion(t *testing.T) {
-	policy, err := NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
+	policy := testcheck.Must(NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
 		Direction:                 runrecord.DirectionMaximize,
 		MinimumSeeds:              3,
 		MinimumHeldOutGain:        0.05,
@@ -91,8 +90,7 @@ func TestSelectionEmitsAblationGatedPromotion(t *testing.T) {
 		MaximumSeedSpread:         0.05,
 		MaximumLatencyIncrease:    0.2,
 		MaximumDeviceByteIncrease: 64,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	evidence := RepresentationBridgePromotion{
 		Bridge:         testutil.ArtifactID(t, artifact.KindAdapter, "selection bridge"),
 		SourceModel:    testutil.ArtifactID(t, artifact.KindModel, "selection donor"),
@@ -113,8 +111,7 @@ func TestSelectionEmitsAblationGatedPromotion(t *testing.T) {
 		Evaluation: testutil.ArtifactID(t, artifact.KindEvidence, "selection evaluation"),
 		Improved:   []string{"quality"}, Fit: true,
 	}
-	promotion, err := EmitAblationGatedPromotion(fit, policy, evidence)
-	testcheck.NoError(t, err)
+	promotion := testcheck.Must(EmitAblationGatedPromotion(fit, policy, evidence))(t)
 	if promotion.ID.Kind() != artifact.KindEvidence || promotion.PolicyID != policy.ID ||
 		promotion.WorstSourceDependence < policy.MinimumSourceDependence {
 		t.Fatalf("emitted promotion = %+v", promotion)

@@ -20,11 +20,10 @@ func TestCharacterizeCatalogEmptyStore(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(dir, 0o755))
 	store := overgodbtest.Create(t, dir)
 
-	count, err := characterizeCatalog(
+	count := testcheck.Must(characterizeCatalog(
 		t.Context(), store, 4096,
 		modelartifact.MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if count != 0 {
 		t.Errorf("empty store characterized %d models, want 0", count)
 	}

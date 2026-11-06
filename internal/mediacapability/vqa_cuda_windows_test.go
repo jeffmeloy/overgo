@@ -34,26 +34,21 @@ func TestVQAActivation(t *testing.T) {
 		t.Skipf("UNAVAILABLE: RxBrain demo image: %v", err)
 	}
 	capability := vqaCapability()
-	source, err := capability.Resolve(t.Context(), model)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), model))(t)
 	modelID := source.Inventory.Manifest.ID
 	definition, _, err := source.Define(modelID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, model)
 	testcheck.NoError(t, modelrecipe.EnsureRuntimePolicy(t.Context(), store, definition))
-	imageContent, err := artifact.DocumentContract{Kind: artifact.KindFile, MediaType: "image/jpeg", Schema: "overgo.image-input.v1"}.OwnedContentBytes(image)
-	testcheck.NoError(t, err)
+	imageContent := testcheck.Must(artifact.DocumentContract{Kind: artifact.KindFile, MediaType: "image/jpeg", Schema: "overgo.image-input.v1"}.OwnedContentBytes(image))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/vqa-image", Contents: []artifact.Content{imageContent}}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(vqaserve.Request{Image: imageContent.Descriptor.ID, Question: "What objects are on the stovetop, and where is the green toy?"})
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(vqaserve.Request{Image: imageContent.Descriptor.ID, Question: "What objects are on the stovetop, and where is the green toy?"}))(t)
 	execution := modelrecipetest.CandidateExecution(t, store, program)
-	output, err := capability.Execute(t.Context(), store, model, execution, string(raw))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(capability.Execute(t.Context(), store, model, execution, string(raw)))(t)
 	answer, ok := capabilityruntime.Unwrap(output).(string)
 	if !ok {
 		t.Fatalf("answer output type=%T", output)

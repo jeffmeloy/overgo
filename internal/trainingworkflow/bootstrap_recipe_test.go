@@ -35,14 +35,12 @@ func TestBootstrapKeepsRecordedFileFacts(t *testing.T) {
 	source := []byte("class MOSSImagePipeline:\n    pass\n")
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), source, 0o600))
 	store := overgodbtest.Open(t, t.TempDir())
-	id, err := artifact.IdentifyBytes(artifact.KindFile, source)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, source))(t)
 	const recorded = "text/plain"
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "registered", Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(source)), MediaType: recorded}}}); err != nil {
 		t.Fatal(err)
 	}
-	model, err := identifyAndRecordWeights(t.Context(), store, root)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(identifyAndRecordWeights(t.Context(), store, root))(t)
 	if _, found, err := store.Manifest(t.Context(), model); err != nil || !found {
 		t.Fatalf("the pipeline was not recorded: %v", err)
 	}
@@ -63,8 +61,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 	if _, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath); err != nil {
 		t.Fatal(err)
 	}
-	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("weights"))
-	testcheck.NoError(t, err)
+	modelID := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("weights")))(t)
 	recorded, err := artifact.AvailablePath(ctx, store, modelID, artifact.LocationFile)
 	if err != nil {
 		t.Fatalf("bootstrapped model has no recorded weights location: %v", err)
@@ -88,8 +85,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 // production file of the package imports the test fixture that once
 // supplied a fabricated verification.
 func TestBootstrapVerifiesWithARealRun(t *testing.T) {
-	sources, err := build.ImportDir(".", 0)
-	testcheck.NoError(t, err)
+	sources := testcheck.Must(build.ImportDir(".", 0))(t)
 	if slices.Contains(sources.Imports, "overgo/internal/modelrecipetest") {
 		t.Fatal("production training workflow imports the modelrecipetest fixture")
 	}
@@ -102,10 +98,8 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	testcheck.NoError(t, err)
-	modelID, err := identifyModel(modelPath)
-	testcheck.NoError(t, err)
+	recipeID := testcheck.Must(BootstrapTokenRecipe(ctx, store, modelPath, datasetPath))(t)
+	modelID := testcheck.Must(identifyModel(modelPath))(t)
 	status := func() recipe.Status {
 		t.Helper()
 		state, _, err := modelrecipe.Status(ctx, store, recipeID)
@@ -117,12 +111,11 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	}
 	train := func(output string) Result {
 		t.Helper()
-		result, err := Execute(ctx, Request{
+		result := testcheck.Must(Execute(ctx, Request{
 			Repository: store, Recipe: recipeID, Observations: store,
 			ModelDirectory: modelPath, DatasetPath: datasetPath, OutputDirectory: filepath.Join(root, output),
 			Steps: 1, MaximumSequence: 16, Host: true,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		return result
 	}
 	prior := executableCodeCommit
@@ -139,10 +132,8 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 		if err != nil || !found || activation.Definition.ID != recipeID {
 			t.Fatalf("run %d activation = (%s, found %t, %v), want %s active", index, activation.Definition.ID, found, err, recipeID)
 		}
-		verified, err := runrecord.VerifyEvidence(ctx, store, recipeID, activation.Event.Evidence)
-		testcheck.NoError(t, err)
-		observation, err := runrecord.RequireServingObservation(ctx, store, result.Observation)
-		testcheck.NoError(t, err)
+		verified := testcheck.Must(runrecord.VerifyEvidence(ctx, store, recipeID, activation.Event.Evidence))(t)
+		observation := testcheck.Must(runrecord.RequireServingObservation(ctx, store, result.Observation))(t)
 		if verified.Gate.CodeCommit != commit || verified.Run.CodeCommit != commit || verified.Gate.Environment != observation.Environment ||
 			!slices.Contains(verified.Run.Inputs, result.Observation) || !slices.Contains(verified.Run.Inputs, result.Checkpoint.ID()) || verified.Run.MeasuredNS == 0 {
 			t.Fatalf("run %d verification = gate %+v run %+v, want it bound to commit %s, environment %s, observation %s and checkpoint %s",
@@ -164,8 +155,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	modelPath, data := filepath.Join(root, "model.safetensors"), []byte("training data")
 	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
 	source := overgodbtest.Create(t, filepath.Join(root, "source"))
-	recipeID, err := BootstrapRecipe(ctx, source, modelPath, data, TokenContract)
-	testcheck.NoError(t, err)
+	recipeID := testcheck.Must(BootstrapRecipe(ctx, source, modelPath, data, TokenContract))(t)
 	dataset, split, _, err := TextAuthority(data)
 	testcheck.NoError(t, err)
 	rebuilt := overgodbtest.Create(t, filepath.Join(root, "rebuilt"))
@@ -182,8 +172,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	definition, err := recipe.RequireDefinition(ctx, rebuilt, recipeID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(ctx, rebuilt, recipeID))(t)
 	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
 	if _, err := trainingprogram.CompileObjectiveMatrix(ctx, rebuilt, []artifact.ID{objective}); err == nil {
 		t.Fatal("the rebuilt store resolves an objective whose dataset and split it never declared")
@@ -205,15 +194,13 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 
 	ctx := t.Context()
-	definitionID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	testcheck.NoError(t, err)
+	definitionID := testcheck.Must(BootstrapTokenRecipe(ctx, store, modelPath, datasetPath))(t)
 	content, ok, err := artifact.ReadContent(ctx, store, definitionID)
 	testcheck.NoError(t, err)
 	if !ok {
 		t.Fatalf("recipe definition %s was not stored", definitionID)
 	}
-	definition, err := recipe.ParseDefinition(content.Data)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.ParseDefinition(content.Data))(t)
 	optimizerID, ok := definition.PrimaryDependency(recipe.DependencyOptimizer)
 	if !ok {
 		t.Fatal("bootstrap recipe has no optimizer policy dependency")

@@ -36,11 +36,9 @@ func TestMergeLoRAWritesTheMergedCheckpoint(t *testing.T) {
 	// Up·Down by hand: up rows (1, 2) and (0, 1) over down rows (1, 0, 2) and (0, 1, -1).
 	update := []float64{1, 2, 0, 0, 1, -1}
 	testcheck.NoError(t, runSubcommand([]string{"merge-lora", "-adapter", adapterDirectory, "-base", base, "-output", output}))
-	source, err := safetensors.OpenSource(output)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(output))(t)
 	defer source.Close()
-	got, err := safetensors.ReadF32(source.Tensors[loRAModule+".weight"])
-	testcheck.NoError(t, err)
+	got := testcheck.Must(safetensors.ReadF32(source.Tensors[loRAModule+".weight"]))(t)
 	for index, value := range got {
 		want := float64(weights[loRAModule+".weight"][index]) + 3*update[index]
 		if math.Abs(float64(value)-want) > 1e-5 {

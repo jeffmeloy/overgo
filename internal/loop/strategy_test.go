@@ -11,14 +11,11 @@ import (
 )
 
 func TestContentAddressedStrategyIdentity(t *testing.T) {
-	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{Name: "strategy-worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "prompt"), ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model"), Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")}})
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(recipe.NewAgentDefinition(recipe.AgentDefinition{Name: "strategy-worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "prompt"), ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model"), Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")}}))(t)
 	config := Config{MaxAttemptsPerStep: 3, MaxInvocations: 10}
 	catalog := testutil.ArtifactID(t, artifact.KindProfile, "catalog")
-	first, err := NewStrategy(worker, catalog, config)
-	testcheck.NoError(t, err)
-	second, err := NewStrategy(worker, catalog, config)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewStrategy(worker, catalog, config))(t)
+	second := testcheck.Must(NewStrategy(worker, catalog, config))(t)
 	if first.ID != second.ID || len(first.Lineage()) == 0 {
 		t.Fatalf("strategies differ: %s %s", first.ID, second.ID)
 	}

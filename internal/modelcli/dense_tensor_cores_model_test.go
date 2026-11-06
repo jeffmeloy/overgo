@@ -23,8 +23,7 @@ import (
 // their requests once each is activated over a profile derived with it.
 func TestDenseModelsServePromptTensorCores(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	claim := discovery.LoadMemo(t.Context(), store).Claim
 	for _, served := range []struct {
@@ -45,8 +44,7 @@ func TestDenseModelsServePromptTensorCores(t *testing.T) {
 				}
 				t.Fatalf("%s cannot be read: %v", served.path, err)
 			}
-			loaded, err := modelrecipe.ResolveClaimedGGUF(t.Context(), store, served.path, claim)
-			testcheck.NoError(t, err)
+			loaded := testcheck.Must(modelrecipe.ResolveClaimedGGUF(t.Context(), store, served.path, claim))(t)
 			file, _, spec, _, _, _, err := loaded.Take()
 			testcheck.NoError(t, err)
 			testcheck.NoError(t, file.Close())

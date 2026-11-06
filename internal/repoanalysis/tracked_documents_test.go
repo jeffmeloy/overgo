@@ -32,8 +32,7 @@ func ValidateTrackedDocuments(census []TrackedDocument) error {
 // last reader.
 func TestEveryTrackedFileHasAReader(t *testing.T) {
 	t.Parallel()
-	census, err := CheckoutDocuments(t.Context(), "../..")
-	testcheck.NoError(t, err)
+	census := testcheck.Must(CheckoutDocuments(t.Context(), "../.."))(t)
 	testcheck.NoError(t, ValidateTrackedDocuments(census))
 	t.Logf("documents=%d all read", len(census))
 }
@@ -52,13 +51,12 @@ func TestEveryTrackedFileHasAReader(t *testing.T) {
 func TestEveryFixtureHasAReader(t *testing.T) {
 	t.Parallel()
 	const fixtures = "fixtures/"
-	snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
+	snapshot := testcheck.Must(gosyntax.Snapshot{}.Overlay(map[string][]byte{
 		"internal/golden/golden_test.go": []byte(`package golden
 func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manifest.json"); join("fixtures/joined", row.Name) }
 `),
 		"internal/prose/prose.go": []byte("package prose\nvar roots = []string{\"cmd/\", \"fixtures/\"}\n"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	texts := map[string]string{"fixtures/model/manifest.json": `{"weights": "weights.bin"}`}
 	census, err := TrackedDocumentCensus(snapshot, []string{
 		"fixtures/joined/tensor.bin", "fixtures/model/latent.f32le", "fixtures/model/manifest.json", "fixtures/model/weights.bin", "fixtures/stray.sum",
@@ -81,10 +79,8 @@ func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manif
 		t.Errorf("the census refuses %q, want %q: the fixture nothing names and the one only a directory covers, and neither the one a test names nor the one a read manifest names", refused, want)
 	}
 
-	listed, err := checkoutFiles(t.Context(), "../..", []string{fixtures})
-	testcheck.NoError(t, err)
-	checkout, err := CheckoutDocuments(t.Context(), "../..")
-	testcheck.NoError(t, err)
+	listed := testcheck.Must(checkoutFiles(t.Context(), "../..", []string{fixtures}))(t)
+	checkout := testcheck.Must(CheckoutDocuments(t.Context(), "../.."))(t)
 	live, covered := LiveDocuments(checkout), 0
 	for _, document := range checkout {
 		if !strings.HasPrefix(document.Path, fixtures) {
@@ -118,7 +114,7 @@ func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manif
 // pass off a stray as read.
 func TestTrackedDocumentCensusFollowsTheName(t *testing.T) {
 	t.Parallel()
-	snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
+	snapshot := testcheck.Must(gosyntax.Snapshot{}.Overlay(map[string][]byte{
 		"cmd/report/paths.go": []byte("package main\nconst reportPath = \"docs/REPORT.md\"\n"),
 		"cmd/report/main.go": []byte(`package main
 import (
@@ -144,16 +140,14 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 		"internal/fixtures/fixtures_test.go":   []byte("package fixtures\nfunc TestBlocks(t *testing.T) { for _, name := range []string{\"resblock\", \"rope\"} { load(name + \".json\") } }\n"),
 		"internal/fixtures/stray_name_test.go": []byte("package fixtures\nvar _ = \"a sentence mentioning unused\"\n"),
 		"internal/production/production.go":    []byte("package production\nvar word = \"orphan\"\n"),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	documents := []string{
 		"docs/REPORT.md", "docs/baseline.json", "docs/golden.json", "docs/imported.json",
 		"docs/ledger.json", "docs/model_report.json", "docs/notes.md", "docs/receipts/run.json", "docs/receipts/stray.txt", "docs/samples/a.png",
 		"docs/tested.json", "fixtures/blocks/resblock.json", "fixtures/blocks/unused.json", "fixtures/orphan.json",
 		"internal/policy/rules.json", "report.json",
 	}
-	census, err := TrackedDocumentCensus(snapshot, documents)
-	testcheck.NoError(t, err)
+	census := testcheck.Must(TrackedDocumentCensus(snapshot, documents))(t)
 	var measured []string
 	for _, document := range census {
 		measured = append(measured, document.Path+" W="+strings.Join(document.Writers, ",")+" R="+strings.Join(document.Readers, ","))

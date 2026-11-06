@@ -21,20 +21,17 @@ func repositoryView(t *testing.T, repository artifact.Repository) string {
 	var view []string
 	for ordinal := range scaleCorpusCommits {
 		content := scaleContent(ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, content))(t)
 		descriptor, found, err := repository.Artifact(ctx, id)
 		if err != nil || !found {
 			t.Fatalf("artifact %d: found=%v err=%v", ordinal, found, err)
 		}
 		view = append(view, fmt.Sprintf("artifact/%s/%d/%s", id, descriptor.Size, descriptor.MediaType))
-		parents, err := repository.Parents(ctx, id)
-		testcheck.NoError(t, err)
+		parents := testcheck.Must(repository.Parents(ctx, id))(t)
 		for _, edge := range parents {
 			view = append(view, fmt.Sprintf("parent/%s/%s/%s", edge.Child, edge.Parent, edge.Relation))
 		}
-		children, err := repository.Children(ctx, id)
-		testcheck.NoError(t, err)
+		children := testcheck.Must(repository.Children(ctx, id))(t)
 		for _, edge := range children {
 			view = append(view, fmt.Sprintf("child/%s/%s/%s", edge.Child, edge.Parent, edge.Relation))
 		}
@@ -74,8 +71,7 @@ func TestModularStoreRepositoryParity(t *testing.T) {
 	if _, _, contentBytes := copyScaleCorpus(t, root); contentBytes == 0 {
 		t.Fatal("corpus carried no content")
 	}
-	snapshotOpen, err := OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	snapshotOpen := testcheck.Must(OpenReadOnly(root))(t)
 	defer snapshotOpen.Close()
 	if !snapshotOpen.SnapshotReplay().Loaded {
 		t.Fatal("snapshot open path unavailable")
@@ -84,8 +80,7 @@ func TestModularStoreRepositoryParity(t *testing.T) {
 	copyCorpusFile(t, snapshotOpen.log.file.Name(), journalRoot+"/"+storeFilename)
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(journalRoot, blobDirectory))
 	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(journalRoot, segmentDirectory))
-	journalOpen, err := OpenReadOnly(journalRoot)
-	testcheck.NoError(t, err)
+	journalOpen := testcheck.Must(OpenReadOnly(journalRoot))(t)
 	defer journalOpen.Close()
 	if journalOpen.SnapshotReplay().Loaded {
 		t.Fatal("journal open path unexpectedly used a snapshot")

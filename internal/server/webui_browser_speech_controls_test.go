@@ -83,8 +83,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 		},
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -99,15 +98,13 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	settle(`document.querySelector('.task-model-selector select[aria-label="generation model"]').value===` + strconv.Quote(generator.secondRecipe.String()))
 	check(`(()=>{const input=document.querySelector('.composer textarea');input.value='Read this document aloud.';input.dispatchEvent(new Event('input'));return true;})()`)
 	for _, viewport := range append(webuilane.ScreenViewports, webuilane.Viewport{Name: "phone-keyboard", Width: 390, Height: 380}) {
-		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-primary-controls")
-		testcheck.NoError(t, err)
+		findings := testcheck.Must(webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-primary-controls"))(t)
 		t.Logf("%s: layout findings %v", viewport.Name, findings)
 		check(`(()=>{const voice=document.querySelector('.mode-controls select[aria-label="voice"]'),r=voice.getBoundingClientRect();return r.height>0 && r.top>=0 && r.bottom<=innerHeight && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===voice;})()`)
 		check(`(()=>{const button=document.querySelector('[aria-label="Open speech options"]');button.focus();return document.activeElement===button;})()`)
 		pressKey(t, ctx, browser, "Enter", 13)
 		settle(`document.querySelector('#settings-dialog').open && !document.querySelector('[aria-label="Speech options"]').hidden`)
-		findings, err = webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-options")
-		testcheck.NoError(t, err)
+		findings = testcheck.Must(webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-options"))(t)
 		t.Logf("%s options: layout findings %v", viewport.Name, findings)
 		check(`(()=>{const button=document.querySelector('#settings-dialog [data-close-dialog]'),r=button.getBoundingClientRect();button.focus();return r.height>0 && r.top>=0 && r.bottom<=innerHeight && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===button;})()`)
 		pressKey(t, ctx, browser, "Enter", 13)

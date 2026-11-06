@@ -95,20 +95,17 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
-	testcheck.NoError(t, err)
-	result, err := Execute(ctx, Request{
+	recipeID := testcheck.Must(BootstrapTokenRecipe(ctx, store, modelPath, datasetPath))(t)
+	result := testcheck.Must(Execute(ctx, Request{
 		Repository: store, Recipe: recipeID, Observations: store,
 		ModelDirectory: modelPath, DatasetPath: datasetPath,
 		OutputDirectory: filepath.Join(root, "out"),
 		Steps:           1, MaximumSequence: 16, Host: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Losses) == 0 || math.IsNaN(result.Losses[0]) || math.IsInf(result.Losses[0], 0) {
 		t.Fatalf("gguf training losses = %v", result.Losses)
 	}
-	expected, err := identifyModel(modelPath)
-	testcheck.NoError(t, err)
+	expected := testcheck.Must(identifyModel(modelPath))(t)
 	if result.Checkpoint.Model != expected {
 		t.Fatalf("checkpoint model = %s, want the GGUF file identity %s", result.Checkpoint.Model, expected)
 	}
@@ -133,24 +130,19 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 // optimizer, stream and RNG against uninterrupted training.
 func legacySingleGGUFCheckpoint(t *testing.T, directory string, checkpoint trainingprogram.Checkpoint) trainingprogram.Checkpoint {
 	t.Helper()
-	model, err := gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel)))(t)
 	var weights bytes.Buffer
 	testcheck.NoError(t, model.WriteTo(&weights, gguf.WriteOptions{}))
 	testcheck.NoError(t, model.Close())
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, "model.gguf"), weights.Bytes(), 0o644))
-	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, weights.Bytes())
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, weights.Bytes()))(t)
 	resumePath := filepath.Join(directory, "resume.json")
-	resume, err := os.ReadFile(resumePath)
-	testcheck.NoError(t, err)
+	resume := testcheck.Must(os.ReadFile(resumePath))(t)
 	resume = bytes.ReplaceAll(resume, []byte(checkpoint.Weights.String()), []byte(id.String()))
-	resumeID, err := artifact.IdentifyBytes(artifact.KindCheckpoint, resume)
-	testcheck.NoError(t, err)
+	resumeID := testcheck.Must(artifact.IdentifyBytes(artifact.KindCheckpoint, resume))(t)
 	testcheck.NoError(t, os.WriteFile(resumePath, resume, 0o644))
 	documentPath := filepath.Join(directory, trainingprogram.CheckpointFilename)
-	document, err := os.ReadFile(documentPath)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(os.ReadFile(documentPath))(t)
 	document = bytes.Replace(document, []byte(`"version":3`), []byte(`"version":2`), 1)
 	document = bytes.ReplaceAll(document, []byte(checkpoint.Weights.String()), []byte(id.String()))
 	document = bytes.ReplaceAll(document, []byte(checkpoint.Resume.String()), []byte(resumeID.String()))
@@ -158,7 +150,6 @@ func legacySingleGGUFCheckpoint(t *testing.T, directory string, checkpoint train
 	for _, name := range []string{trainingprogram.CheckpointModel, trainingprogram.CheckpointFrozenShard} {
 		testcheck.NoError(t, os.Remove(filepath.Join(directory, name)))
 	}
-	legacy, err := trainingprogram.LoadCheckpoint(directory)
-	testcheck.NoError(t, err)
+	legacy := testcheck.Must(trainingprogram.LoadCheckpoint(directory))(t)
 	return legacy
 }

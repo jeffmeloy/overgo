@@ -21,8 +21,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	t.Cleanup(func() { _ = store.Close() })
 	kind := producerKinds[0]
 	guarded := retentionContent(t, artifact.KindEvidence, map[string]any{"claim": "guarded"})
@@ -41,8 +40,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	if _, sequence := store.Head(); sequence != 0 {
 		t.Fatalf("a refused batch advanced the head to %d", sequence)
 	}
-	committed, err := store.CommitAs(ctx, NewProducer(kind.producer), batch)
-	testcheck.NoError(t, err)
+	committed := testcheck.Must(store.CommitAs(ctx, NewProducer(kind.producer), batch))(t)
 	// Who asked is no part of what was asked: the repeat replays and mints nothing.
 	if repeat, err := store.Commit(ctx, batch); err != nil || repeat != committed {
 		t.Fatalf("a repeat through the plain door = %s, %v; want the committed %s", repeat, err, committed)
@@ -61,8 +59,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	}
 	testcheck.NoError(t, store.Close())
 
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	t.Cleanup(func() { _ = store.Close() })
 	for sequence, producer := range map[uint64]string{1: kind.producer, 2: ""} {
 		frame, found, err := store.CommitDeltaAt(ctx, sequence)
@@ -75,8 +72,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	if _, err := Rebuild(ctx, store, destination, nil, func(string, artifact.ID) error { return nil }, false); err != nil {
 		t.Fatalf("rebuild could not transplant a guarded kind: %v", err)
 	}
-	rebuilt, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(OpenReadOnly(destination))(t)
 	t.Cleanup(func() { _ = rebuilt.Close() })
 	if held, err := rebuilt.HasContent(ctx, guarded.Descriptor.ID); err != nil || !held {
 		t.Fatalf("rebuilt store holds the guarded content = %v, %v", held, err)

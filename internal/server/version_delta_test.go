@@ -38,8 +38,7 @@ func testScorecardHistory() *ScorecardHistory {
 // and print as not a number.
 func TestScorecardMoveKeepsAZeroMeasure(t *testing.T) {
 	t.Parallel()
-	data, err := json.Marshal(ScorecardMove{Name: "m", Task: "inference", Kind: "worse", Metric: "failure-rate", After: 0.05})
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(ScorecardMove{Name: "m", Task: "inference", Kind: "worse", Metric: "failure-rate", After: 0.05}))(t)
 	if !strings.Contains(string(data), `"before":0`) || !strings.Contains(string(data), `"after":0.05`) {
 		t.Fatalf("a move from zero marshals as %s, want its before kept", data)
 	}

@@ -61,8 +61,7 @@ func TestOnlyMissingPartsRefuseARun(t *testing.T) {
 		store := open(t)
 		publishProgramFacts(t, store, path)
 		testcheck.NoError(t, os.Rename(other, path))
-		loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 		defer loaded.Close()
 		if loaded.state.State.Verification != StateNotVerified {
 			t.Fatalf("state = %+v", loaded.state.State)

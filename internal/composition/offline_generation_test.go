@@ -15,11 +15,10 @@ import (
 func TestOfflineArtifactGenerationExactPassthrough(t *testing.T) {
 	plan := offlineGenerationPlan(t, OfflineArtifactExactPassthrough)
 	directory := offlineGenerationDirectory(t)
-	evidence, err := ValidateOfflineArtifactGeneration(
+	evidence := testcheck.Must(ValidateOfflineArtifactGeneration(
 		plan, directory, testutil.ArtifactID(t, artifact.KindModel, "generated passthrough"),
 		offlineGenerationTrials(t),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if evidence.Operator != OfflineArtifactExactPassthrough || evidence.ExecutionPlan != plan.ID ||
 		evidence.TensorCount != uint32(len(plan.Operations)) || evidence.TensorBytes != plan.Operations[0].OutputBytes {
 		t.Fatalf("passthrough generation evidence = %+v", evidence)
@@ -29,11 +28,10 @@ func TestOfflineArtifactGenerationExactPassthrough(t *testing.T) {
 func TestOfflineArtifactGenerationTaskArithmetic(t *testing.T) {
 	plan := offlineGenerationPlan(t, OfflineArtifactTaskArithmetic)
 	directory := offlineGenerationDirectory(t)
-	evidence, err := ValidateOfflineArtifactGeneration(
+	evidence := testcheck.Must(ValidateOfflineArtifactGeneration(
 		plan, directory, testutil.ArtifactID(t, artifact.KindModel, "generated arithmetic"),
 		offlineGenerationTrials(t),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if evidence.Operator != OfflineArtifactTaskArithmetic || len(evidence.Trials) != tensor.PairedExtent {
 		t.Fatalf("task arithmetic generation evidence = %+v", evidence)
 	}
@@ -61,8 +59,7 @@ func offlineGenerationPlan(t *testing.T, operator OfflineArtifactOperator) Offli
 			Coefficient: 1,
 		}
 	}
-	bytes, err := safetensors.TensorBytes("F32", []uint64{2})
-	testcheck.NoError(t, err)
+	bytes := testcheck.Must(safetensors.TensorBytes("F32", []uint64{2}))(t)
 	resident := bytes * uint64(modelCount)
 	sourceBytes := make([]uint64, modelCount)
 	for index := range sourceBytes {

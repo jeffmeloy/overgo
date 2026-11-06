@@ -18,8 +18,7 @@ import (
 // assertRunsBroken holds a load whose recipe cannot bind to running from its own file, its state saying why.
 func assertRunsBroken(t *testing.T, store artifact.Reader, path, reason string) {
 	t.Helper()
-	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 	defer loaded.Close()
 	if state := loaded.state.State; state.Verification != StateBroken || !strings.Contains(state.Reason, reason) {
 		t.Fatalf("state = %+v, want broken over %q", state, reason)
@@ -34,10 +33,9 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		store := openProgramStore(t)
 		defer store.Close()
 		inventory, _ := publishProgramFacts(t, store, path)
-		definition, err := inferenceFixture(
+		definition := testcheck.Must(inferenceFixture(
 			inventory.Manifest.ID, recipe.PlacementHybrid, DecodeSessionCapacity,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		activateProgram(t, store, definition)
 		assertRunsBroken(t, store, path, "no model definition")
 	})
@@ -49,11 +47,10 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		otherPath := t.TempDir() + "/other.gguf"
 		writeServingDefinitionGGUF(t, otherPath, true)
 		_, other := publishProgramFacts(t, store, otherPath)
-		definition, err := InferenceWithModelDefinition(
+		definition := testcheck.Must(InferenceWithModelDefinition(
 			inventory.Manifest.ID, other.Profile.ID, other.Document.ID, recipe.PlacementHybrid,
 			DecodeSessionCapacity, recipe.ResidencyHybridNative,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		activateProgram(t, store, definition)
 		assertRunsBroken(t, store, path, "differs from active model definition")
 	})
@@ -68,8 +65,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	definition := definitionRecipe(t, inventory, resolved)
 	activateProgram(t, store, definition)
 
-	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(ResolveActiveGGUF(t.Context(), store, path))(t)
 	defer loaded.Close()
 	identity := loaded.state.Program.Identity
 	if identity.Model != inventory.Manifest.ID || identity.Profile != resolved.Profile.ID ||
@@ -103,8 +99,7 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 		return inventory.Components[0].ID, inventory.Components[0].Size, true
 	}
 
-	loaded, err := ResolveClaimedGGUF(t.Context(), store, path, claimTrue)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(ResolveClaimedGGUF(t.Context(), store, path, claimTrue))(t)
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Model != inventory.Manifest.ID ||
 		len(loaded.state.Claims) != 1 || loaded.state.Claims[0] != inventory.Components[0].ID {
@@ -116,21 +111,18 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	}
 	defer file.Close()
 
-	other, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("other bytes"))
-	testcheck.NoError(t, err)
-	derived, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
+	other := testcheck.Must(artifact.IdentifyBytes(artifact.KindTensorSet, []byte("other bytes")))(t)
+	derived := testcheck.Must(ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return other, inventory.Components[0].Size, true
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	defer derived.Close()
 	if derived.state.State.Verification != StateNotVerified || len(derived.state.Claims) != 1 || derived.state.Claims[0] != other {
 		t.Fatalf("a claim no recipe names = state %+v, claims %v", derived.state.State, derived.state.Claims)
 	}
 
-	hashed, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
+	hashed := testcheck.Must(ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return artifact.ID{}, 0, false
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(hashed.state.Claims) != 0 {
 		t.Fatalf("an unclaimed program carries claims %v", hashed.state.Claims)
 	}
@@ -156,8 +148,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	}
 	// The candidate's own inventory claims its shard: the program carries the
 	// claim for the open to prove.
-	claimed, err := ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, inventory.Claim)
-	testcheck.NoError(t, err)
+	claimed := testcheck.Must(ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, inventory.Claim))(t)
 	defer claimed.Close()
 	if len(claimed.state.Claims) != 1 || claimed.state.Claims[0] != inventory.Components[0].ID {
 		t.Fatalf("claimed candidate carries claims %v", claimed.state.Claims)
@@ -176,8 +167,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 
 func openProgramStore(t *testing.T) *overgodb.Store {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	return store
 }
 
@@ -187,23 +177,17 @@ func publishProgramFacts(
 	path string,
 ) (modelartifact.Inventory, ResolvedModelDefinition) {
 	t.Helper()
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromGGUF(file, artifact.KindModel))(t)
 	profile, ok := model.LookupArchitecture(definitionArchitecture)
 	if !ok {
 		t.Fatal("fixture profile unavailable")
 	}
-	profileDocument, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
-	spec, err := model.ReadSpecWithProfile(file, profile)
-	testcheck.NoError(t, err)
-	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	testcheck.NoError(t, err)
-	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	testcheck.NoError(t, err)
+	profileDocument := testcheck.Must(NewProfileDocument(profile))(t)
+	spec := testcheck.Must(model.ReadSpecWithProfile(file, profile))(t)
+	document := testcheck.Must(NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec))(t)
+	resolved := testcheck.Must(document.Resolve(profileDocument, inventory.TensorInventory))(t)
 	testcheck.NoError(t, PublishResolvedModelDefinition(t.Context(), store, inventory, resolved))
 	return inventory, resolved
 }
@@ -214,11 +198,10 @@ func definitionRecipe(
 	resolved ResolvedModelDefinition,
 ) recipe.Definition {
 	t.Helper()
-	definition, err := InferenceWithModelDefinition(
+	definition := testcheck.Must(InferenceWithModelDefinition(
 		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
 		DecodeSessionCapacity, recipe.ResidencyHybridNative,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return definition
 }
 

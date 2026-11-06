@@ -44,22 +44,18 @@ func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInsp
 		portName recipe.PortName = "messages"
 	)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "response-model")
-	catalog, err := recipe.NewCatalog(recipe.Module{
+	catalog := testcheck.Must(recipe.NewCatalog(recipe.Module{
 		ID: moduleID, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Outputs: []recipe.Port{{Name: portName, Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
-	})
-	testcheck.NoError(t, err)
-	definition, err := recipe.NewDefinitionWithDependencies(
+	}))(t)
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 		[]recipe.Node{{ID: nodeID, Module: moduleID, Placement: recipe.PlacementHost}}, nil, nil,
 		[]recipe.Output{{Name: portName, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: nodeID, Port: portName}}},
-	)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
-	scope, err := program.InteractionScope(nodeID)
-	testcheck.NoError(t, err)
+	))(t)
+	program := testcheck.Must(recipe.CompileProgram(definition, catalog))(t)
+	scope := testcheck.Must(program.InteractionScope(nodeID))(t)
 	return &recipeInspectorGenerator{fakeGenerator: generator, description: modelrecipe.RuntimeDescription{
 		Task:     recipe.TaskInference,
 		Identity: modelrecipe.ProgramIdentity{Model: modelID, Profile: testutil.ArtifactID(t, artifact.KindProfile, "response-profile"), Definition: definition.ID, Recipe: definition.ID},

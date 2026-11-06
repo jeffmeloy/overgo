@@ -30,14 +30,12 @@ func TestQwen35ServesFromItsSafetensors(t *testing.T) {
 	cudatest.Require(t)
 	native := modeltest.Directory(t, "Qwen3.5-4B")
 	converted := modeltest.Directory(t, "Qwen3.5-4B-f16.gguf")
-	viewed, err := gguf.Open(native)
-	testcheck.NoError(t, err)
+	viewed := testcheck.Must(gguf.Open(native))(t)
 	defer viewed.Close()
 	if viewed.ViewDirectory() == "" {
 		t.Fatalf("%s is not served as the view of its own files", native)
 	}
-	written, err := gguf.Open(converted)
-	testcheck.NoError(t, err)
+	written := testcheck.Must(gguf.Open(converted))(t)
 	defer written.Close()
 	blocks, _ := viewed.MetadataValue("qwen35.block_count")
 	drafts, _ := viewed.MetadataValue("qwen35.nextn_predict_layers")
@@ -72,14 +70,12 @@ func TestQwen35ServesFromItsSafetensors(t *testing.T) {
 	t.Logf("%d tensors byte for byte the conversion's, %d the same values in the type the converter now stores; the draft layer's norms the fix shifted: %v",
 		len(written.Tensors)-len(shifted)-len(promoted), len(promoted), shifted)
 
-	runner, err := openNativeFixtureRunner(native, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openNativeFixtureRunner(native, OpenOptions{}))(t)
 	defer runner.Close()
 	if !runner.SpeculatesByDefault() {
 		t.Fatal("the 4B served from its own files does not draft by default")
 	}
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	drafted, kept := 0, 0
 	byDefault := GenerateOptions{
 		MaxNewTokens: 96, Sampler: greedy, DeviceGreedy: true,
@@ -104,9 +100,7 @@ func TestQwen35ServesFromItsSafetensors(t *testing.T) {
 // sameValues reports whether two tensors' stored bytes decode to the same floats, bit for bit.
 func sameValues(t *testing.T, left gguf.TensorInfo, leftBytes []byte, right gguf.TensorInfo, rightBytes []byte) bool {
 	t.Helper()
-	leftValues, err := model.DecodeHostTensor(left, leftBytes)
-	testcheck.NoError(t, err)
-	rightValues, err := model.DecodeHostTensor(right, rightBytes)
-	testcheck.NoError(t, err)
+	leftValues := testcheck.Must(model.DecodeHostTensor(left, leftBytes))(t)
+	rightValues := testcheck.Must(model.DecodeHostTensor(right, rightBytes))(t)
 	return slices.EqualFunc(leftValues.Data, rightValues.Data, func(a, b float32) bool { return math.Float32bits(a) == math.Float32bits(b) })
 }

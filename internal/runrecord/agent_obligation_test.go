@@ -9,15 +9,13 @@ import (
 
 func TestAgentObligationEvidence(t *testing.T) {
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "receipt")
-	obligation, err := NewAgentObligation(AgentObligation{
+	obligation := testcheck.Must(NewAgentObligation(AgentObligation{
 		Task: testutil.ArtifactID(t, artifact.KindRecipe, "task"), Name: "tests", Scope: "internal/agentloop",
 		MutationEpoch: 3, Sources: []artifact.ID{source},
-	})
-	testcheck.NoError(t, err)
-	resolution, err := NewAgentObligationResolution(AgentObligationResolution{
+	}))(t)
+	resolution := testcheck.Must(NewAgentObligationResolution(AgentObligationResolution{
 		Obligation: obligation.ID, Scope: obligation.Scope, MutationEpoch: obligation.MutationEpoch, Evidence: []artifact.ID{source},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !AgentObligationSatisfied(obligation, []AgentObligationResolution{resolution}) {
 		t.Fatal("exact resolution remained open")
 	}

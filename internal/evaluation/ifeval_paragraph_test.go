@@ -53,8 +53,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		if err != nil || dropped != 0 {
 			t.Fatalf("%d: dropped=%d err=%v", index, dropped, err)
 		}
-		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(assembled.(instructionRulesSuite)))(t)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("paragraph denominator expanded")
 		}
@@ -85,8 +84,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 	t.Run("ordinal is owned and part of acceptance identity", func(t *testing.T) {
 		rule := instructionRule{Name: id, Kind: ifevalIndexedParagraph, Values: []string{"cat"}, Count: &countRule{Relation: relationEqual, Value: 2}, Ordinal: 2}
 		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "paragraph-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "paragraph", Prompt: "Write two paragraphs.", MaxTokens: 1, Rules: []instructionRule{rule}}}}
-		compiled, err := compileInstructionRules(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(suite))(t)
 		suite.Cases[0].Rules[0].Ordinal = 1
 		other, err := compileInstructionRules(suite)
 		if err != nil || compiled.identity == other.identity {

@@ -23,16 +23,14 @@ func BenchmarkActivityWaveform(b *testing.B) {
 		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7_000},
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
-	frontend, err := audiodsp.NewFrontend(config, 1<<24)
-	testcheck.NoError(b, err)
+	frontend := testcheck.Must(audiodsp.NewFrontend(config, 1<<24))(b)
 	detector := OfflineDetector{network: testNetwork(), frontend: frontend, config: config,
 		policy: OfflineConfig{Smoothing: 1, Threshold: .5, MaxSpeech: config.SampleRate / int(config.Geometry.HopSamples)}, memoryBytes: 1 << 24}
 	samples := make([]float32, config.SampleRate)
 	for i := range samples {
 		samples[i] = float32(i%config.FFTLength)/float32(config.FFTLength) - .5
 	}
-	encoded, err := media.EncodeWAVPCM16(samples, config.SampleRate)
-	testcheck.NoError(b, err)
+	encoded := testcheck.Must(media.EncodeWAVPCM16(samples, config.SampleRate))(b)
 	request := DetectionRequest{Audio: encoded, MaximumSamples: uint64(len(samples)), MemoryBytes: 1 << 24}
 	want, err := detector.Detect(b.Context(), request)
 	if err != nil || len(want) == 0 {
@@ -79,8 +77,7 @@ func TestNetworkChunkAndRestart(t *testing.T) {
 		var first, restarted Workspace
 		left, state, err := n.Evaluate(t.Context(), features[:split], split, nil, &first, nil)
 		testcheck.NoError(t, err)
-		encoded, err := json.Marshal(state)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(json.Marshal(state))(t)
 		var restored [][]float32
 		testcheck.NoError(t, json.Unmarshal(encoded, &restored))
 		before := cloneState(restored)

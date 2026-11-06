@@ -26,18 +26,15 @@ import (
 func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t)
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modeltest.GGUF(t, "qwen2"), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
-	)
-	testcheck.NoError(t, err)
-	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{DeviceOrdinal: 0})
-	testcheck.NoError(t, err)
+	))(t)
+	runner := testcheck.Must(inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{DeviceOrdinal: 0}))(t)
 	defer runner.Close()
 
-	handler, err := server.New(server.Config{
+	handler := testcheck.Must(server.New(server.Config{
 		ModelID: "qwen2-attn", MaxTokens: 128, RuntimePolicy: runner.RuntimePolicy(),
-	}, runner)
-	testcheck.NoError(t, err)
+	}, runner))(t)
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
@@ -45,8 +42,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"prompt": "The quick brown fox jumps", "layer": 6})
 	request, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL+"/analyze/attention", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(request)
-	testcheck.NoError(t, err)
+	response := testcheck.Must(http.DefaultClient.Do(request))(t)
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", response.StatusCode)

@@ -34,10 +34,9 @@ func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 		{Shape: tensor.MustShape(2, 1), Data: []float32{0, 1}},
 	}
 	spec := model.Spec{CommonSpec: model.CommonSpec{EmbeddingLength: 2, RMSNormEpsilon: 1e-6}, MultimodalSpec: model.MultimodalSpec{AltUpActive: 0}}
-	got, err := predictAlternateStates(
+	got := testcheck.Must(predictAlternateStates(
 		states, layer, spec.AltUpActive, spec.EmbeddingLength, spec.RMSNormEpsilon,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	modality := float32(math.Tanh(float64((1 / float32(math.Sqrt(0.5+1e-6))) / 2)))
 	if math.Abs(float64(got[0].Data[0]-(1+modality))) > 1e-6 || got[0].Data[1] != 0 ||
 		got[1].Data[0] != 0 || math.Abs(float64(got[1].Data[1]-(1+2*modality))) > 1e-6 {
@@ -57,8 +56,7 @@ func TestGemma3nMagnitudeMatchAndMerge(t *testing.T) {
 		Shape: tensor.MustShape(2, 2, 1),
 		Data:  []float32{1, 0, 0, 1},
 	}
-	merged, err := mergeAlternateStates([]reference.Value{active, mergeInput}, unembedding, 0)
-	testcheck.NoError(t, err)
+	merged := testcheck.Must(mergeAlternateStates([]reference.Value{active, mergeInput}, unembedding, 0))(t)
 	if math.Abs(float64(merged.Data[0]-1.5)) > 1e-6 || math.Abs(float64(merged.Data[1]-4.5)) > 1e-6 {
 		t.Fatalf("merged = %v", merged.Data)
 	}
@@ -67,8 +65,7 @@ func TestGemma3nMagnitudeMatchAndMerge(t *testing.T) {
 func TestGemma3nGaussianSparsity(t *testing.T) {
 	gate := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{0, 1, 10}}
 	up := reference.Value{Shape: tensor.MustShape(3, 1), Data: []float32{1, 1, 1}}
-	got, err := activateAlternateFFN(gate, up, true, 0)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(activateAlternateFFN(gate, up, true, 0))(t)
 	if got.Data[0] != 0 || got.Data[1] != 0 || got.Data[2] < 6.3 || got.Data[2] > 6.34 {
 		t.Fatalf("sparse activation = %v", got.Data)
 	}

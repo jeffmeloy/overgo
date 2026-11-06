@@ -35,8 +35,7 @@ func TestPromptEnhanceRewritesUnderTheInstruction(t *testing.T) {
 		messages[1].Role != inference.ChatRoleUser || messages[1].Content != "a red square" {
 		t.Fatalf("the served model saw %+v", messages)
 	}
-	id, err := artifact.ParseID(answer.Record)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID(answer.Record))(t)
 	descriptor, reader, found, err := handler.repository.OpenContent(t.Context(), id)
 	if err != nil || !found || descriptor.Schema != promptEnhancementSchema || descriptor.MediaType != artifact.JSONMediaType {
 		t.Fatalf("record = %+v found=%v err=%v", descriptor, found, err)

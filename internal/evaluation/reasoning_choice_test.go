@@ -79,10 +79,8 @@ func reasoningCampaign(t *testing.T, store *overgodb.Store, runtime Runtime) (*C
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "fixture/reasoning", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
-	campaign, err := newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated)
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
+	campaign := testcheck.Must(newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated))(t)
 	return campaign.WithPrompting(PromptingReasoning), identity
 }
 
@@ -123,8 +121,7 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	suite := chatLetterSuite()
-	compiled, err := CompileMultipleChoice(suite)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileMultipleChoice(suite))(t)
 	asked := func(suite MultipleChoiceSuite) []askedChoice {
 		listed := make([]askedChoice, len(suite.Cases))
 		for index, testCase := range suite.Cases {
@@ -135,12 +132,9 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	// identities binds a suite and returns its plan with the plan's comparison and answer identities.
 	identities := func(compiled multipleChoicePlan, authorities ExactAuthorities) (Plan, [3]artifact.ID) {
 		t.Helper()
-		plan, err := BindMultipleChoice(compiled, authorities)
-		testcheck.NoError(t, err)
-		comparison, err := plan.comparisonIdentity()
-		testcheck.NoError(t, err)
-		observed, err := plan.observed(asked(compiled.suite))
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(BindMultipleChoice(compiled, authorities))(t)
+		comparison := testcheck.Must(plan.comparisonIdentity())(t)
+		observed := testcheck.Must(plan.observed(asked(compiled.suite)))(t)
 		return plan, [3]artifact.ID{plan.Identity(), comparison, observed}
 	}
 
@@ -199,8 +193,7 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	reworded := suite
 	reworded.Cases = slices.Clone(suite.Cases)
 	reworded.Cases[0].Prompt = "Q1 asked otherwise\nAnswer:"
-	recompiled, err := CompileMultipleChoice(reworded)
-	testcheck.NoError(t, err)
+	recompiled := testcheck.Must(CompileMultipleChoice(reworded))(t)
 	if _, other := identities(compiled, modelled); other[0] == bound[0] || other[2] == bound[2] {
 		t.Error("another model binds the same plan or answers under the reasoning protocol")
 	}
@@ -259,12 +252,9 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	store, objective, training, heldout := poolObjective(t)
 	model := &reasoningFixture{thought: "A first, then B.", said: []string{"So the answer is (B).", "", "Both fit, but A."}}
 	campaign, identity := reasoningCampaign(t, store, model)
-	source, err := json.Marshal(suite)
-	testcheck.NoError(t, err)
-	evaluated, err := CompileSuite(source, campaign.Authorities())
-	testcheck.NoError(t, err)
-	result, err := campaign.Evaluate(ctx, evaluated)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(json.Marshal(suite))(t)
+	evaluated := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
+	result := testcheck.Must(campaign.Evaluate(ctx, evaluated))(t)
 	if len(model.options) != len(suite.Cases) || !slices.Equal(model.thinking, []bool{true, true, true}) ||
 		!strings.HasSuffix(model.shaped[0], exploratoryWording) || model.options[0].Sampler == nil || model.options[0].DeviceGreedy || model.options[0].MaxNewTokens != exploratoryMaxTokens {
 		t.Fatalf("the model was asked %q with thinking %v under %d generations; want each question with the wording and thinking on, sampled up to %d tokens", model.shaped, model.thinking, len(model.options), exploratoryMaxTokens)
@@ -285,8 +275,7 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	}
 
 	// Exposure.
-	exposed, err := choiceContent(suite.Cases[0])
-	testcheck.NoError(t, err)
+	exposed := testcheck.Must(choiceContent(suite.Cases[0]))(t)
 	const combinations = 140
 	var cases []InstructionCase
 	for index, record := range slices.Concat(training.Records, heldout.Records) {
@@ -303,8 +292,7 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 	if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "exposure-fixture/training", Artifacts: []artifact.Descriptor{{ID: request.Training}}}); err != nil {
 		t.Fatal(err)
 	}
-	parts, err := InstructionGroups(request)
-	testcheck.NoError(t, err)
+	parts := testcheck.Must(InstructionGroups(request))(t)
 	holding := request
 	holding.Cases = slices.Clone(cases)
 	holding.Cases[slices.IndexFunc(holding.Cases, func(listed InstructionCase) bool { return listed.Record == parts[poolPromotion][0] })].Content = exposed
@@ -340,10 +328,8 @@ func TestEvaluationProtocolCapturesAllPolicyInputs(t *testing.T) {
 		}
 	}
 	// The development part names the cases the run asked.
-	named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+exposed))
-	testcheck.NoError(t, err)
-	holders, err := store.Parents(ctx, named)
-	testcheck.NoError(t, err)
+	named := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+exposed)))(t)
+	holders := testcheck.Must(store.Parents(ctx, named))(t)
 	developed := slices.ContainsFunc(holders, func(edge artifact.Lineage) bool {
 		part, found, err := dataset.LoadMembership(ctx, store, edge.Parent)
 		return err == nil && found && part.Partition == PoolParts[poolDevelopment] && len(part.Records) == len(suite.Cases)

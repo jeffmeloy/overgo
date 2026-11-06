@@ -20,23 +20,17 @@ import (
 func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 	cudatest.Require(t)
 	cfg := generationGraphConfig()
-	rope, err := newRopePlan(cfg.HeadDim, []RopeSection{
+	rope := testcheck.Must(newRopePlan(cfg.HeadDim, []RopeSection{
 		{Width: 4, Theta: 5e6, Axis: AxisTime},
 		{Width: 2, Theta: 1e4, Axis: AxisHeight},
 		{Width: 2, Theta: 1e4, Axis: AxisWidth},
-	})
-	testcheck.NoError(t, err)
-	graph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16)
-	testcheck.NoError(t, err)
-	referenceGraph, err := buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.F32)
-	testcheck.NoError(t, err)
-	indexed, err := executor.CompileIndexed(graph.Output)
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	}))(t)
+	graph := testcheck.Must(buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.BF16))(t)
+	referenceGraph := testcheck.Must(buildDeviceGenerationLayer(cfg, rope, 3, 2, 2, 11, dtype.F32))(t)
+	indexed := testcheck.Must(executor.CompileIndexed(graph.Output))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
-	cuda, err := executor.NewWithWorker(worker)
-	testcheck.NoError(t, err)
+	cuda := testcheck.Must(executor.NewWithWorker(worker))(t)
 	defer cuda.Close()
 	feeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	referenceFeeds := make(map[*tensor.Tensor]reference.Value)
@@ -85,11 +79,9 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 	for node, pointer := range feeds {
 		testcheck.NoError(t, indexed.Inputs.Set(node, pointer))
 	}
-	result, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), indexed.Graph, nil, indexed.Inputs)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), indexed.Graph, nil, indexed.Inputs))(t)
 	got := result[graph.Output].Data
-	wantResult, err := reference.Execute([]*tensor.Tensor{referenceGraph.Output}, referenceFeeds)
-	testcheck.NoError(t, err)
+	wantResult := testcheck.Must(reference.Execute([]*tensor.Tensor{referenceGraph.Output}, referenceFeeds))(t)
 	want := wantResult[referenceGraph.Output].Data
 	if len(got) != cfg.HiddenSize*graph.Tokens {
 		t.Fatalf("generation output elements=%d", len(got))

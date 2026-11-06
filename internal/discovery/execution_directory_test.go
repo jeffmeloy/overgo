@@ -22,8 +22,7 @@ func TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	parent, err := pathidentity.Canonical(t.TempDir())
-	testcheck.NoError(t, err)
+	parent := testcheck.Must(pathidentity.Canonical(t.TempDir()))(t)
 	child, dead := filepath.Join(parent, "LiveEdit"), filepath.Join(parent, "Moved")
 	for _, directory := range []string{child, filepath.Join(parent, "Wan2.1-T2V-1.3B")} {
 		testcheck.NoError(t, os.Mkdir(directory, 0o700))
@@ -31,10 +30,9 @@ func TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory(t *testing.T) {
 	record := func(name string, directories ...string) artifact.ID {
 		t.Helper()
 		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte(name))
-		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 			Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		batch := artifact.Batch{
 			Key:       "fixture/discovery/execution-directory/" + name,
 			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(name))}},

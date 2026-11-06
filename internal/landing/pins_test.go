@@ -27,8 +27,7 @@ func TestPreflightNamesPinnedBytes(t *testing.T) {
 		"docs/image_video_capacity.json":          `{"source_files": {"internal/c/harness_test.go": {"evidence": "e", "sha256": "` + digest("package c\n") + `"}}}`,
 		"cmd/validate/accepted_fixture_test.go":   "package main\nfunc TestFixture(t *testing.T) { requireAcceptedDocument(t, root, \"docs/verification/fixture-coverage.json\", \"" + digest("the reviewed document") + "\", nil) }\n",
 	})
-	stale, err := stalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"})
-	testcheck.NoError(t, err)
+	stale := testcheck.Must(stalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"}))(t)
 	want := []string{
 		"docs/verification/fixture-coverage.json (pinned by cmd/validate/accepted_fixture_test.go)",
 		"internal/a/a_test.go (pinned by docs/verification/fixture-coverage.json)",

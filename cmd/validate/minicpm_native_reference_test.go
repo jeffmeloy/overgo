@@ -24,15 +24,11 @@ const (
 
 func readMiniNativeCaptures(t testing.TB) {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(retainedReferenceStore(roots.Store)))(t)
 	defer store.Close()
-	id, err := artifact.ParseID("evidence:sha256:39ce1caf0a126eb35fb73510350972a27d6acf8a483e326e80b80425b1311d5a")
-	testcheck.NoError(t, err)
-	root, err := artifact.RequireTypedContent(t.Context(), store, id)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID("evidence:sha256:39ce1caf0a126eb35fb73510350972a27d6acf8a483e326e80b80425b1311d5a"))(t)
+	root := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, id))(t)
 	var provenance struct {
 		Schema       string                 `json:"schema"`
 		Model        string                 `json:"model"`
@@ -70,10 +66,8 @@ func readMiniNativeCaptures(t testing.TB) {
 		testcheck.NoError(t, err)
 	}
 	testcheck.NoError(t, checkNativeTextCaptures(goCapture, native, 48, 82))
-	deviceID, err := artifact.ParseID("evidence:sha256:2b3944a01a6fad3a8db1c5742aea84ea95ffccccd0929c4730b15196f33ef7d9")
-	testcheck.NoError(t, err)
-	deviceRoot, err := artifact.RequireTypedContent(t.Context(), store, deviceID)
-	testcheck.NoError(t, err)
+	deviceID := testcheck.Must(artifact.ParseID("evidence:sha256:2b3944a01a6fad3a8db1c5742aea84ea95ffccccd0929c4730b15196f33ef7d9"))(t)
+	deviceRoot := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, deviceID))(t)
 	var deviceBinding struct {
 		Schema          string                 `json:"schema"`
 		NativeReference artifact.ID            `json:"native_reference"`
@@ -87,8 +81,7 @@ func readMiniNativeCaptures(t testing.TB) {
 	if _, err := artifact.RequireTypedContent(t.Context(), store, deviceBinding.Inputs["source"]); err != nil {
 		t.Fatal(err)
 	}
-	deviceContent, err := artifact.RequireTypedContent(t.Context(), store, deviceBinding.Inputs["capture"])
-	testcheck.NoError(t, err)
+	deviceContent := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, deviceBinding.Inputs["capture"]))(t)
 	var device struct {
 		nativeTextCapture
 		Identity    modelrecipe.ProgramIdentity `json:"identity"`
@@ -103,8 +96,7 @@ func readMiniNativeCaptures(t testing.TB) {
 	if _, err := runrecord.NewEnvironment(device.Environment); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := recipe.RequireDefinition(t.Context(), store, device.Identity.Recipe)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, device.Identity.Recipe))(t)
 	for role, expected := range map[recipe.DependencyRole]artifact.ID{
 		recipe.DependencyModel:      device.Identity.Model,
 		recipe.DependencyProfile:    device.Identity.Profile,

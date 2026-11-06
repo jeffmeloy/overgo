@@ -50,8 +50,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 		}
 		return nil
 	})
-	content, err := mediacapability.OutputContent(tinyPNG(t))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(mediacapability.OutputContent(tinyPNG(t)))(t)
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
 	defer fixture.handler.Close()
@@ -97,8 +96,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	check(`!document.querySelector('.chat-log').textContent.includes('Decoding image')`)
 	check(`(async () => {const content=await overgo.api.blob(overgo.contentURL('` + content.Descriptor.ID.String() + `'));return content.type.includes('image/png') && content.size>0;})()`)
 	const layout = `{"summary":{"caption":"蓝色方块"},"items":[{"label":"object","caption":"blue cube","bbox":[-128,-128,128,128]}],"bbox_format":"yxyx","bbox_coord_space":"abs_centralized"}`
-	encoded, err := json.Marshal(layout)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(layout))(t)
 	check(`(() => {mossField('prompt mode').value='layout';mossSend(` + string(encoded) + `);return true;})()`)
 	settle(`document.querySelectorAll('.artifact.msg.media img').length===2 && !document.querySelector('.send-button').disabled`)
 	inputs := fixture.requests()

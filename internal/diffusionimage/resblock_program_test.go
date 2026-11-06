@@ -18,10 +18,8 @@ func TestResBlockProgramMatchesTinyReference(t *testing.T) {
 	if !ok {
 		t.Fatal("first tiny encoder block is not residual")
 	}
-	program, err := compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width)
-	testcheck.NoError(t, err)
-	got, err := program.execute(t.Context(), nil, input)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(compileResBlockProgram(block, model.Cfg, model.Cfg.BaseChannels, height, width))(t)
+	got := testcheck.Must(program.execute(t.Context(), nil, input))(t)
 	want := block.forward(model, input, 1, model.Cfg.BaseChannels, height, width)
 	requireWithin(t, "residual block graph", got, want, tolTight)
 }

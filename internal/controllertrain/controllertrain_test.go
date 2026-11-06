@@ -14,8 +14,7 @@ import (
 
 func TestCorpusRequiresExternalGroupAndTypedModule(t *testing.T) {
 	spec := fixtureCorpusSpec()
-	corpus, err := Compile(spec)
-	testcheck.NoError(t, err)
+	corpus := testcheck.Must(Compile(spec))(t)
 	batch, err := corpus.PublicationBatch("controller/test-corpus")
 	if err != nil || batch.Validate() != nil || corpus.Dataset().Kind() != artifact.KindDataset || corpus.Split().Kind() != artifact.KindDatasetShard {
 		t.Fatalf("compiled corpus = (%s, %s, %v)", corpus.Dataset(), corpus.Split(), err)
@@ -52,12 +51,10 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 		}
 	}
 	seeds[1].Model = candidate
-	budget, err := runrecord.NewBudget("queries", split, uint64(len(seeds)), fixtureID(t, artifact.KindEvidence, "budget-authority"))
-	testcheck.NoError(t, err)
+	budget := testcheck.Must(runrecord.NewBudget("queries", split, uint64(len(seeds)), fixtureID(t, artifact.KindEvidence, "budget-authority")))(t)
 	charges := make([]runrecord.BudgetCharge, len(seeds))
 	for index := range charges {
-		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
-		testcheck.NoError(t, err)
+		charges[index] = testcheck.Must(runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index)))(t)
 	}
 	spec := DecisionSpec{
 		Dataset: dataset, Split: split, CurrentChampion: champion, Candidate: candidate, Seeds: seeds,
@@ -71,8 +68,7 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 	if err != nil || decision.State != DecisionPromote || decision.Rollback != champion {
 		t.Fatalf("promotion = (%s, %s, %v)", decision.State, decision.Rollback, err)
 	}
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(decision.Content())(t)
 	parsed, err := ParseDecision(content.Data)
 	if err != nil || parsed.ID != decision.ID {
 		t.Fatalf("parsed promotion = (%s, %v)", parsed.ID, err)

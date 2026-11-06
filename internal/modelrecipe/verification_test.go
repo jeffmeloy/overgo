@@ -17,17 +17,15 @@ func publishVerification(
 ) Verification {
 	t.Helper()
 	environment := publishVerificationEnvironment(t, store, key+"/environment")
-	record, err := runrecord.NewGateRecord(
+	record := testcheck.Must(runrecord.NewGateRecord(
 		definitionID, environment, lifecycleDecisionCommit,
 		runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{
 			Name: "verify", Phase: runrecord.PhaseValidate,
 			Outcome: runrecord.StepSucceeded, DurationNS: 1,
 		}},
-	)
-	testcheck.NoError(t, err)
-	batch, err := record.Batch(key)
-	testcheck.NoError(t, err)
+	))(t)
+	batch := testcheck.Must(record.Batch(key))(t)
 	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -36,12 +34,10 @@ func publishVerification(
 
 func publishVerificationEnvironment(t testing.TB, store artifact.Repository, key string) artifact.ID {
 	t.Helper()
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
 		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
-	})
-	testcheck.NoError(t, err)
-	batch, err := environment.Batch(key)
-	testcheck.NoError(t, err)
+	}))(t)
+	batch := testcheck.Must(environment.Batch(key))(t)
 	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		t.Fatal(err)
 	}

@@ -345,8 +345,7 @@ func TestSeededInitLatentKreaGeometry(t *testing.T) {
 	t.Logf("krea 2048x2048 latent geometry: [z=%d,h=%d,w=%d] elements=%d",
 		shape.ZDim, shape.Height, shape.Width, shape.Elements())
 
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	latent := make([]float32, shape.Elements())

@@ -51,8 +51,7 @@ func TestGrammarVocabularyBindingReuse(t *testing.T) {
 			callers.Go(func() { assertSample(runner, fmt.Sprintf("root ::= %q", fmt.Sprint(token)), token) })
 		}
 		callers.Wait()
-		binding, err := runner.grammarVocabulary()
-		testcheck.NoError(t, err)
+		binding := testcheck.Must(runner.grammarVocabulary())(t)
 		// A second decode of ANY token would now fail. This probe makes zero
 		// second-compile DecodePiece calls observable without runtime test hooks.
 		for i := range runner.vocab.Tokens {
@@ -69,8 +68,7 @@ func TestGrammarVocabularyBindingReuse(t *testing.T) {
 		other := newRunner(8)
 		other.vocab.Tokens[1].Text = "different"
 		assertSample(other, `root ::= "different"`, 1)
-		otherBinding, err := other.grammarVocabulary()
-		testcheck.NoError(t, err)
+		otherBinding := testcheck.Must(other.grammarVocabulary())(t)
 		if otherBinding == binding {
 			t.Fatal("different runners shared a vocabulary binding")
 		}
@@ -112,18 +110,14 @@ func TestCompileGBNFUsesDecodedVocabularyAndEOG(t *testing.T) {
 		PAD:  tokenizer.NullToken,
 		Mask: tokenizer.NullToken,
 	}}}
-	grammar, err := runner.CompileGBNF(`root ::= "a"`, "")
-	testcheck.NoError(t, err)
-	sampler, err := sampling.New(sampling.Config{GBNF: grammar})
-	testcheck.NoError(t, err)
+	grammar := testcheck.Must(runner.CompileGBNF(`root ::= "a"`, ""))(t)
+	sampler := testcheck.Must(sampling.New(sampling.Config{GBNF: grammar}))(t)
 	logits := []float32{1, 100, 10}
-	token, err := sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	token := testcheck.Must(sampler.Sample(logits))(t)
 	if token != 0 {
 		t.Fatalf("GBNF vocabulary first token = %d, want 0", token)
 	}
-	token, err = sampler.Sample(logits)
-	testcheck.NoError(t, err)
+	token = testcheck.Must(sampler.Sample(logits))(t)
 	if token != 1 {
 		t.Fatalf("GBNF vocabulary terminal token = %d, want 1", token)
 	}

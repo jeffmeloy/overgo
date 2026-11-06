@@ -24,15 +24,13 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 	defer fixture.store.Close()
 	// A mutation manual whose only role is the approval gate; its argv
 	// transport runs only under the committed policy naming its program.
-	manuals, err := agenttool.StandardManuals()
-	testcheck.NoError(t, err)
-	write, err := agenttool.NewManual(agenttool.Manual{
+	manuals := testcheck.Must(agenttool.StandardManuals())(t)
+	write := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 		Name: "store.commit", Description: "A mutation manual for the approval gate.",
 		Effect:    agenttool.EffectMutation,
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := agenttool.PublishArgvPolicy(t.Context(), fixture.store, []string{"git"}); err != nil {
 		t.Fatal(err)
 	}

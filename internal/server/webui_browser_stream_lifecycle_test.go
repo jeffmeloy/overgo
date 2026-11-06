@@ -123,7 +123,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	// its last transition is then always an event.
 	settle(`(() => { const latest = (window.laneStreams['/runtime/activity/stream'] || []).at(-1); return !!latest && !latest.aborted && window.laneAnswered.has(latest); })()`)
 	seen := make(chan struct{})
-	submitted, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stream-lifecycle")},
+	submitted := testcheck.Must(handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stream-lifecycle")},
 		func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
 			select {
 			case <-seen:
@@ -131,8 +131,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 				return operation.Completion{}, context.Cause(ctx)
 			}
 			return operation.Completion{Run: testutil.ArtifactID(t, artifact.KindRun, "stream-lifecycle-run")}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	settle(`window.laneSeen.has(` + strconv.Quote(submitted.String()) + `)`)
 	close(seen)
 	settle(`window.laneSeen.has(` + strconv.Quote("completed:"+submitted.String()) + `) && overgo.api.inFlight() === 0`)

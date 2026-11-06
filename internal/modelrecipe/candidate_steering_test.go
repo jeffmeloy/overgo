@@ -288,12 +288,10 @@ func newSteeringCandidateFixture(t *testing.T, options steeringCandidateOptions)
 // direction lacks a direct measurement never admits.
 func TestRecipeBoundToolCallPropensityControl(t *testing.T) {
 	ctx := t.Context()
-	fixture, err := newSteeringCandidateFixture(t, steeringCandidateOptions{})
-	testcheck.NoError(t, err)
-	compiled, err := CompileAdmittedCandidate(
+	fixture := testcheck.Must(newSteeringCandidateFixture(t, steeringCandidateOptions{}))(t)
+	compiled := testcheck.Must(CompileAdmittedCandidate(
 		ctx, fixture.store, fixture.candidate.ID(), fixture.admission.ID, SteeringCandidatePlugin{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(compiled.Components) != 1 || len(compiled.Ablations) != 1 {
 		t.Fatalf("compiled shape = %d components, %d ablations", len(compiled.Components), len(compiled.Ablations))
 	}
@@ -334,8 +332,7 @@ func TestRecipeBoundToolCallPropensityControl(t *testing.T) {
 // eligibility owner left to bypass this.
 func TestToolBudgetProposalAdmission(t *testing.T) {
 	ctx := t.Context()
-	fixture, err := newSteeringCandidateFixture(t, steeringCandidateOptions{})
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(newSteeringCandidateFixture(t, steeringCandidateOptions{}))(t)
 	replayed, err := runrecord.RequireReplayedCandidateAdmission(
 		ctx, fixture.store, fixture.admission.ID, fixture.candidate, CandidateAdmissionAdapters()...,
 	)

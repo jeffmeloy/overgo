@@ -18,12 +18,9 @@ func TestControllerEvaluationInputs(t *testing.T) {
 			records[i].Prompt = "abcdefghijklmnopqrstuvwxyz 0123456789"
 		}
 	}
-	corpus, err := Compile(spec)
-	testcheck.NoError(t, err)
-	c, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: 17, Steps: 400}, scratchmodeltest.Profile(t))
-	testcheck.NoError(t, err)
-	inputs, err := prepareEvaluationInputs(c, corpus)
-	testcheck.NoError(t, err)
+	corpus := testcheck.Must(Compile(spec))(t)
+	c := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: 17, Steps: 400}, scratchmodeltest.Profile(t)))(t)
+	inputs := testcheck.Must(prepareEvaluationInputs(c, corpus))(t)
 	if len(inputs.tokens) != len(spec.Holdout) || len(inputs.expected) != len(spec.Holdout) {
 		t.Fatal("held-out denominator changed")
 	}
@@ -32,8 +29,7 @@ func TestControllerEvaluationInputs(t *testing.T) {
 			t.Fatal("held-out action or candidate denominator changed")
 		}
 		for j, tokens := range candidates {
-			document, err := corpus.CandidateDocument(spec.Holdout[i].Prompt, inputs.actions[j])
-			testcheck.NoError(t, err)
+			document := testcheck.Must(corpus.CandidateDocument(spec.Holdout[i].Prompt, inputs.actions[j]))(t)
 			if len(tokens) != utf8.RuneCountInString(document)+2 {
 				t.Fatal("candidate sequence was truncated")
 			}
@@ -42,8 +38,7 @@ func TestControllerEvaluationInputs(t *testing.T) {
 	// A valid corpus may still exceed a particular construction's context.
 	// Reject it during preparation, before a resident trainer is allocated.
 	spec.Holdout[0].Prompt += " a"
-	oversized, err := Compile(spec)
-	testcheck.NoError(t, err)
+	oversized := testcheck.Must(Compile(spec))(t)
 	if _, err := prepareEvaluationInputs(c, oversized); err == nil || !strings.Contains(err.Error(), spec.Holdout[0].ID) {
 		t.Fatalf("oversized evaluation lacked a named refusal: %v", err)
 	}

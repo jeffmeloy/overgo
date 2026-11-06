@@ -33,9 +33,7 @@ func humanDecisionFixture(t *testing.T) (*overgodb.Store, operatoraction.Approva
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "operation")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume operation", Argv: []string{"overgo", "resume"}}
-	request, err := operatoraction.NewApprovalRequest(operation, recipeID, action, artifact.ID{})
-	testcheck.NoError(t, err)
-	decision, err := NewHumanDecision(request, operatoraction.AnswerGrant)
-	testcheck.NoError(t, err)
+	request := testcheck.Must(operatoraction.NewApprovalRequest(operation, recipeID, action, artifact.ID{}))(t)
+	decision := testcheck.Must(NewHumanDecision(request, operatoraction.AnswerGrant))(t)
 	return store, request, decision
 }

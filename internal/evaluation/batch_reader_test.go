@@ -26,16 +26,14 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 			PromptTokens: exactPromptTokens, GeneratedTokens: exactGeneratedTokens,
 		})
 	}
-	exact, err := CompileExact(suite)
-	testcheck.NoError(t, err)
-	plan, err := BindExact(exact, ExactAuthorities{
+	exact := testcheck.Must(CompileExact(suite))(t)
+	plan := testcheck.Must(BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "batched-model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "batched-recipe"),
 		CodeCommit:      planTestCommit,
 		Environment:     planID(t, artifact.KindEvidence, "batched-environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleIsolated},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store, storeErr := overgodb.Open(t.TempDir())
 	if storeErr != nil {
 		t.Fatal(storeErr)

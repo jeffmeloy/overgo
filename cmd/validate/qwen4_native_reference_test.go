@@ -23,12 +23,10 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for retained Qwen4 native evidence")
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
-	id, err := artifact.ParseID("evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c")
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID("evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c"))(t)
 	var provenance struct {
 		Schema, Model, Recipe string
 		GoCommit              string                 `json:"go_commit"`

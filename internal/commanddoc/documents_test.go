@@ -16,8 +16,7 @@ func TestRootDocumentsNameExistingCommands(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	for _, document := range []string{"skill.md", "README.md"} {
-		data, err := os.ReadFile(filepath.Join(root, document))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(root, document)))(t)
 		named := 0
 		for rest := string(data); ; {
 			at := strings.Index(rest, "cmd/")

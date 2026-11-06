@@ -13,17 +13,15 @@ func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
 		maximumSequence = 128
 	)
 	config := hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: hostoptimizer.ScheduleConstant}
-	plan, err := CompileTrainingSessionPlan(SessionSpec{
+	plan := testcheck.Must(CompileTrainingSessionPlan(SessionSpec{
 		Objective: ObjectiveTokenPrediction, DatasetUnits: datasetUnits,
 		MaximumSequence: maximumSequence, Optimizer: config,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if plan.Updates() != datasetUnits || plan.MaximumSequence() != maximumSequence ||
 		plan.Optimizer().Steps != datasetUnits || !plan.ID().Valid() {
 		t.Fatalf("plan = %#v", plan)
 	}
-	first, err := plan.Seed("init")
-	testcheck.NoError(t, err)
+	first := testcheck.Must(plan.Seed("init"))(t)
 	second, err := plan.Seed("evaluation")
 	if err != nil || first == second {
 		t.Fatalf("stream seeds = %d/%d, err=%v", first, second, err)

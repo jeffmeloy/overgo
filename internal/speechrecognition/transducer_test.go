@@ -40,11 +40,9 @@ func tinyTransducer(t *testing.T) (*safetensors.Source, Declaration, TransducerB
 		DecoderProjection: identity, Joint: AffineBinding{Weight: add("joint", []int{3, 2}, make([]float32, 6)), Bias: add("joint.bias", []int{3}, []float32{0, 1, -1})}, Blank: 2, MaxSymbolsPerFrame: 2}
 	directory := t.TempDir()
 	testcheck.NoError(t, safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil))
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	t.Cleanup(func() { source.Close() })
-	model, err := LoadTransducer(t.Context(), source, d, b, 1<<20)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(LoadTransducer(t.Context(), source, d, b, 1<<20))(t)
 	return source, d, b, model
 }
 
@@ -66,8 +64,7 @@ func TestTransducerCheckpointRestart(t *testing.T) {
 	counts, _, err := model.checkpointLayout()
 	testcheck.NoError(t, err)
 	for boundary := range 8 {
-		checkpoint, err := model.checkpoint(&reference)
-		testcheck.NoError(t, err)
+		checkpoint := testcheck.Must(model.checkpoint(&reference))(t)
 		if len(checkpoint.Values) != len(counts) {
 			t.Fatal("checkpoint retained an undeclared buffer")
 		}
@@ -76,8 +73,7 @@ func TestTransducerCheckpointRestart(t *testing.T) {
 				t.Fatal("checkpoint retention changed across cache rollover")
 			}
 		}
-		data, err := json.Marshal(checkpoint)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(checkpoint))(t)
 		var persisted transducerCheckpoint
 		testcheck.NoError(t, strictjson.DecodeBytes(data, &persisted))
 		var restart TransducerWorkspace
@@ -85,25 +81,20 @@ func TestTransducerCheckpointRestart(t *testing.T) {
 		if boundary != 0 {
 			model.joint.bias[model.binding.Blank] = 2
 		}
-		want, err := model.RecognizeChunk(t.Context(), x, 2, false, &reference, nil)
-		testcheck.NoError(t, err)
+		want := testcheck.Must(model.RecognizeChunk(t.Context(), x, 2, false, &reference, nil))(t)
 		got, err := model.RecognizeChunk(t.Context(), x, 2, false, &restart, nil)
 		if err != nil || !slices.Equal(got.Tokens, want.Tokens) || !slices.Equal(got.Durations, want.Durations) {
 			t.Fatalf("boundary %d: restored emissions differ: %v", boundary, err)
 		}
-		wantState, err := model.checkpoint(&reference)
-		testcheck.NoError(t, err)
-		gotState, err := model.checkpoint(&restart)
-		testcheck.NoError(t, err)
-		wantJSON, err := json.Marshal(wantState)
-		testcheck.NoError(t, err)
+		wantState := testcheck.Must(model.checkpoint(&reference))(t)
+		gotState := testcheck.Must(model.checkpoint(&restart))(t)
+		wantJSON := testcheck.Must(json.Marshal(wantState))(t)
 		gotJSON, err := json.Marshal(gotState)
 		if err != nil || !slices.Equal(wantJSON, gotJSON) {
 			t.Fatalf("boundary %d: numerical restart state differs: %v", boundary, err)
 		}
 	}
-	checkpoint, err := model.checkpoint(&reference)
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(model.checkpoint(&reference))(t)
 	for _, change := range []func(*transducerCheckpoint){
 		func(c *transducerCheckpoint) { c.Final = true },
 		func(c *transducerCheckpoint) { c.Frames++ },
@@ -135,8 +126,7 @@ func TestTransducerStateIsolationAndForcedAdvance(t *testing.T) {
 	if err != nil || !slices.Equal(result.Tokens, wantTokens) || !slices.Equal(result.Durations, wantDurations) {
 		t.Fatalf("forced progress=%+v: %v", result, err)
 	}
-	first, err := model.RecognizeChunk(t.Context(), x, 2, false, &a, nil)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(model.RecognizeChunk(t.Context(), x, 2, false, &a, nil))(t)
 	if !slices.Equal(first.Tokens, wantTokens) || !slices.Equal(first.Durations, wantDurations) {
 		t.Fatal("first chunk differs")
 	}

@@ -25,8 +25,7 @@ import (
 // where nothing has been answered before.
 func scoreChoicesAlone(t *testing.T, ctx context.Context, scorer continuationScorer, suite MultipleChoiceSuite) ([]choiceObservation, float64, error) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
@@ -97,8 +96,7 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 		}
 		candidate[prompt] = []sequencescore.Score{{LogProbability: -4, Tokens: 4}, {LogProbability: -3, Tokens: 1}}
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	type model struct {
 		tally      *choiceTally
 		campaign   *Campaign
@@ -107,27 +105,22 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 	served := func(name string, scores map[string][]sequencescore.Score) model {
 		definition := publishSelectionModel(t, store, name, 4096)
 		tally := &choiceTally{scores: scores}
-		campaign, err := newCampaign(store, tally, modelrecipe.ProgramIdentity{
+		campaign := testcheck.Must(newCampaign(store, tally, modelrecipe.ProgramIdentity{
 			Model: planID(t, artifact.KindModel, name+"-model"), Definition: planID(t, artifact.KindModelDefinition, name+"-definition"), Recipe: definition.ID,
-		}, environment, runtimeLedgerCommit, LifecycleIsolated)
-		testcheck.NoError(t, err)
+		}, environment, runtimeLedgerCommit, LifecycleIsolated))(t)
 		return model{tally, campaign, definition}
 	}
 	// evaluated evaluates the suite as it now stands, and returns the result with the records of answers the store then holds for it.
 	evaluated := func(subject model) (CampaignResult, []artifact.ID, error) {
-		source, err := json.Marshal(suite)
-		testcheck.NoError(t, err)
-		compiled, err := CompileSuite(source, subject.campaign.Authorities())
-		testcheck.NoError(t, err)
+		source := testcheck.Must(json.Marshal(suite))(t)
+		compiled := testcheck.Must(CompileSuite(source, subject.campaign.Authorities()))(t)
 		result, evaluateErr := subject.campaign.Evaluate(ctx, compiled)
 		asked := make([]askedChoice, len(suite.Cases))
 		for index, testCase := range suite.Cases {
 			asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
 		}
-		observed, err := compiled.Plan().observed(asked)
-		testcheck.NoError(t, err)
-		edges, err := store.Children(ctx, observed)
-		testcheck.NoError(t, err)
+		observed := testcheck.Must(compiled.Plan().observed(asked))(t)
+		edges := testcheck.Must(store.Children(ctx, observed))(t)
 		var records []artifact.ID
 		for _, edge := range edges {
 			if edge.Child.Kind() == artifact.KindOutput {
@@ -234,24 +227,19 @@ func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/outcomes", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 		t.Fatal(err)
 	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"}))(t)
 	// The model scores the answer likelier on the right case, the other candidate on the wrong one, and the two alike on the tied one; it says "ok" to every prompt.
 	tally := &choiceTally{scores: map[string][]sequencescore.Score{
 		"right?": {{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
 		"wrong?": {{LogProbability: -2, Tokens: 1}, {LogProbability: -1, Tokens: 1}},
 		"tied?":  {{LogProbability: -1, Tokens: 1}, {LogProbability: -1, Tokens: 1}},
 	}}
-	campaign, err := newCampaign(store, tally, identity, environment, planTestCommit, LifecycleIsolated)
-	testcheck.NoError(t, err)
+	campaign := testcheck.Must(newCampaign(store, tally, identity, environment, planTestCommit, LifecycleIsolated))(t)
 	read := func(suite any) (map[string]bool, bool) {
 		t.Helper()
-		source, err := json.Marshal(suite)
-		testcheck.NoError(t, err)
-		compiled, err := CompileSuite(source, campaign.Authorities())
-		testcheck.NoError(t, err)
-		result, err := campaign.Evaluate(ctx, compiled)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(json.Marshal(suite))(t)
+		compiled := testcheck.Must(CompileSuite(source, campaign.Authorities()))(t)
+		result := testcheck.Must(campaign.Evaluate(ctx, compiled))(t)
 		return CaseOutcomes(ctx, store, result.Evaluation)
 	}
 	choices := MultipleChoiceSuite{Kind: MultipleChoiceKind, Schema: "fixture/outcomes/v1", Source: "outcomes", Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy, TieBreak: TieBreakFirst}

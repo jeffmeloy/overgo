@@ -33,8 +33,7 @@ const retainedIFEvalDataset = "dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f84
 func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifevalNativeScores, responses map[string]string) {
 	t.Helper()
 	parse := func(value string) artifact.ID {
-		id, err := artifact.ParseID(value)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(value))(t)
 		return id
 	}
 	if len(responses) != 541 || len(scores.Rows) != 541 || scores.Prompts != 541 || scores.Instructions != 834 {
@@ -73,8 +72,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 	if boundEntries != 1 {
 		t.Fatal("retained parameter catalog binding is absent or ambiguous")
 	}
-	parameters, err := readIFEvalParameters(t.Context(), store, imported, parameterID)
-	testcheck.NoError(t, err)
+	parameters := testcheck.Must(readIFEvalParameters(t.Context(), store, imported, parameterID))(t)
 	want := map[string]int{"language:response_language": 31, "change_case:english_capital": 25, "change_case:english_lowercase": 39, "length_constraints:number_sentences": 52, "change_case:capital_word_frequency": 25, "length_constraints:nth_paragraph_first_word": 12, "keywords:letter_frequency": 33, "keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
 	counts := map[string]int{}
 	instructions := 0
@@ -110,8 +108,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 			if !mapped || len(rules) != 1 {
 				t.Fatalf("native instruction %s is not mapped once", id)
 			}
-			rule, err := compileInstructionRule(rules[0])
-			testcheck.NoError(t, err)
+			rule := testcheck.Must(compileInstructionRule(rules[0]))(t)
 			strict, loose, err := evaluateInstructionViews(raw, []compiledInstructionRule{rule})
 			testcheck.NoError(t, err)
 			if strict[0] != row.Strict[index] || loose[0] != row.Loose[index] {
@@ -166,8 +163,7 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 		RandomSeed   int               `json:"random_seed"`
 	}
 	var previous struct{ Scores artifact.ID }
-	referenceID, err := artifact.ParseID("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839")
-	testcheck.NoError(t, err)
+	referenceID := testcheck.Must(artifact.ParseID("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839"))(t)
 	readRetainedEvidence(t, store, referenceID, &previous)
 	var reference, actual nativeReference
 	readRetainedEvidence(t, store, previous.Scores, &reference)
@@ -180,8 +176,7 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 		t.Fatal("pinned native judge or task inputs changed")
 	}
 	if actual.Input.Valid() {
-		content, err := artifact.RequireTypedContent(t.Context(), store, actual.Input)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, actual.Input))(t)
 		contract := artifact.JSONContract(artifact.KindEvidence, "overgo/ifeval-native-input/v1")
 		if err := contract.ValidateContent(content, actual.Input); err != nil || actual.InputSHA256 != actual.Input.DigestHex() {
 			t.Fatal("native input content differs from its recorded hash or contract")

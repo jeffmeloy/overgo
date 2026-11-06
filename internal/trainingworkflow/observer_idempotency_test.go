@@ -15,10 +15,8 @@ import (
 // environment instead of refusing on a no-op batch.
 func TestObserverRepeatsEnvironmentCommit(t *testing.T) {
 	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
-	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	testcheck.NoError(t, err)
-	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
-	testcheck.NoError(t, err)
+	model := testcheck.Must(artifact.IdentifyBytes(artifact.KindModel, []byte("model")))(t)
+	recipeID := testcheck.Must(artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe")))(t)
 	ctx := t.Context()
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "test/observer-idempotency/authority",
@@ -27,8 +25,7 @@ func TestObserverRepeatsEnvironmentCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	for session := range 2 {
-		observer, err := NewObserver(store, true)
-		testcheck.NoError(t, err)
+		observer := testcheck.Must(NewObserver(store, true))(t)
 		if _, err := observer.Finish(ctx, model, recipeID, nil, 1); err != nil {
 			t.Fatalf("session %d observation: %v", session, err)
 		}

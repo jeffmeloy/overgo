@@ -22,8 +22,7 @@ type datasetTrainingFixture struct {
 func TestDatasetBridgeTraining(t *testing.T) {
 	fixture := newDatasetTrainingFixture(t)
 	before := slices.Clone(fixture.request.Weights)
-	result, err := (Trainer{}).Step(t.Context(), fixture.request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must((Trainer{}).Step(t.Context(), fixture.request))(t)
 	if slices.Equal(before, fixture.request.Weights) || result.BridgeBefore == result.BridgeAfter ||
 		result.Checkpoint.Kind() != artifact.KindCheckpoint || len(result.Metrics) != 2 ||
 		fixture.source.Calls != len(fixture.request.Examples)*fixture.request.Epochs ||
@@ -40,15 +39,13 @@ func TestDatasetBridgeTraining(t *testing.T) {
 
 func TestBridgeCheckpointResume(t *testing.T) {
 	fixture := newDatasetTrainingFixture(t)
-	first, err := (Trainer{}).Step(t.Context(), fixture.request)
-	testcheck.NoError(t, err)
+	first := testcheck.Must((Trainer{}).Step(t.Context(), fixture.request))(t)
 	if _, err := fixture.store.Commit(t.Context(), first.Batch); err != nil {
 		t.Fatal(err)
 	}
 	fixture.request.Resume = first.Checkpoint
 	fixture.request.Epochs = 1
-	second, err := (Trainer{}).Step(t.Context(), fixture.request)
-	testcheck.NoError(t, err)
+	second := testcheck.Must((Trainer{}).Step(t.Context(), fixture.request))(t)
 	if second.BridgeBefore != first.BridgeAfter || second.BridgeAfter == first.BridgeAfter ||
 		second.Optimizer.Step != first.Optimizer.Step+fixture.request.Epochs {
 		t.Fatalf("resume result first=%+v second=%+v", first, second)
@@ -67,8 +64,7 @@ func TestBridgeTrainingFreezesModels(t *testing.T) {
 	testcheck.NoError(t, err)
 	targetBefore, _, err := fixture.store.Artifact(ctx, fixture.request.Target)
 	testcheck.NoError(t, err)
-	result, err := (Trainer{}).Step(ctx, fixture.request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must((Trainer{}).Step(ctx, fixture.request))(t)
 	sourceAfter, _, _ := fixture.store.Artifact(ctx, fixture.request.Source)
 	targetAfter, _, _ := fixture.store.Artifact(ctx, fixture.request.Target)
 	if sourceBefore != sourceAfter || targetBefore != targetAfter ||
@@ -88,8 +84,7 @@ func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 		{SourceInput: []float32{1, 0}, TargetInput: []float32{1, 1}},
 		{SourceInput: []float32{0, 1}, TargetInput: []float32{1, -1}},
 	}
-	datasetID, err := artifact.JSONID(artifact.KindDataset, examples)
-	testcheck.NoError(t, err)
+	datasetID := testcheck.Must(artifact.JSONID(artifact.KindDataset, examples))(t)
 	// The initial bridge is not registered: the training result declares
 	// the weights it starts from, so its batch commits on its own.
 	weights := []float32{0.5, 0, 0, 0.5}
@@ -99,10 +94,9 @@ func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "bridge-training/dataset-fixture", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{{
+	plan := testcheck.Must(optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{{
 		Name: "bridge.linear", Start: 0, End: len(weights), Rows: 2, Cols: 2,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	source := &testutil.FrozenForwardStub{Model: sourceID}
 	target := &testutil.FrozenForwardStub{Model: targetID}
 	return datasetTrainingFixture{

@@ -26,18 +26,15 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	ctx := t.Context()
 	segmented := t.TempDir()
 	plain := t.TempDir()
-	segmentedStore, err := Create(segmented)
-	testcheck.NoError(t, err)
+	segmentedStore := testcheck.Must(Create(segmented))(t)
 	defer segmentedStore.Close()
-	plainStore, err := Create(plain)
-	testcheck.NoError(t, err)
+	plainStore := testcheck.Must(Create(plain))(t)
 	defer plainStore.Close()
 
 	commitOrdinal := func(t *testing.T, store *Store, ordinal int) {
 		t.Helper()
 		content := scaleContent(ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, content))(t)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "application/octet-stream"}
 		batch := artifact.Batch{
 			Key:      fmt.Sprintf("scale/%d", ordinal),
@@ -65,8 +62,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	}
 	testcheck.NoError(t, segmentedStore.Close())
 
-	reopened, err := OpenReadOnly(segmented)
-	testcheck.NoError(t, err)
+	reopened := testcheck.Must(OpenReadOnly(segmented))(t)
 	defer reopened.Close()
 	segmentedDigest := querySurfaceDigestBounded(t, reopened, commits)
 	if plainDigest := querySurfaceDigestBounded(t, plainStore, commits); plainDigest != segmentedDigest {
@@ -75,11 +71,9 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 
 	// Reader tailing across rotation: reader opens, writer seals and
 	// commits more, reader refresh lands on the new head.
-	writer, err := Create(segmented)
-	testcheck.NoError(t, err)
+	writer := testcheck.Must(Create(segmented))(t)
 	defer writer.Close()
-	reader, err := OpenReadOnly(segmented)
-	testcheck.NoError(t, err)
+	reader := testcheck.Must(OpenReadOnly(segmented))(t)
 	defer reader.Close()
 	commitOrdinal(t, writer, commits)
 	testcheck.NoError(t, writer.sealActiveSegment(t.Context()))
@@ -97,8 +91,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	copyCorpusTree(t, filepath.Join(segmented, segmentDirectory), filepath.Join(corruptRoot, segmentDirectory))
 	copyCorpusTree(t, filepath.Join(segmented, blobDirectory), filepath.Join(corruptRoot, blobDirectory))
 	victim := filepath.Join(corruptRoot, segmentDirectory, filepath.Base(sealed[1]))
-	data, err := os.ReadFile(victim)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(victim))(t)
 	data[len(data)/2] ^= 0xFF
 	testcheck.NoError(t, os.WriteFile(victim, data, storeFileMode))
 	if _, err := OpenReadOnly(corruptRoot); err == nil || !strings.Contains(err.Error(), filepath.Base(sealed[1])) {
@@ -130,8 +123,7 @@ func TestSealWithInlineContent(t *testing.T) {
 		}
 		return bodies
 	}
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	want := read(store, "before the seal")
 	if !strings.HasPrefix(want[0], "legacy-inline/0/") {
 		t.Fatalf("fixture content = %q", want[0])
@@ -181,8 +173,7 @@ func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 	ctx := t.Context()
 	var out strings.Builder
 	for ordinal := 0; ordinal < commits; ordinal += scaleAliasStride {
-		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal)))(t)
 		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)

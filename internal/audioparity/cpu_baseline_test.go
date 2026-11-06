@@ -46,11 +46,9 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	declarationBytes, err := os.ReadFile(declarationPath)
-	testcheck.NoError(t, err)
+	declarationBytes := testcheck.Must(os.ReadFile(declarationPath))(t)
 	testcheck.NoError(t, verifyRegisteredAudioModels(t.Context(), store, dataRoot, declarationBytes))
-	electionBytes, err := os.ReadFile("testdata/granite_speech_5_election.json")
-	testcheck.NoError(t, err)
+	electionBytes := testcheck.Must(os.ReadFile("testdata/granite_speech_5_election.json"))(t)
 	election, err := NormalizeElection(electionBytes)
 	if err != nil || len(election.Observations) == 0 {
 		t.Fatalf("pinned election: %v", err)
@@ -63,18 +61,15 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		"../audiodsp/testdata/power_logmel_frontend.json":  &frontend,
 		"../dataset/testdata/audio_inspection_policy.json": &policy,
 	} {
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		testcheck.NoError(t, json.Unmarshal(data, destination))
 	}
 	architecture, _, err := graniteRecipe()
 	testcheck.NoError(t, err)
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: int(architecture.Preprocessor.StackFactor),
 		DeltaRadius: int(architecture.Preprocessor.DeltaWinLength-1) / 2, FinalFrameSamples: 1}
-	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: encoder, BlankToken: int(architecture.Config.PadTokenID), Language: "en"})
-	testcheck.NoError(t, err)
-	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{})
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: encoder, BlankToken: int(architecture.Config.PadTokenID), Language: "en"}))(t)
+	contract := testcheck.Must(modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{}))(t)
 	commitBatch(profile.Batch("baseline/profile/" + profile.ID.String()))
 	commitBatch(contract.Batch("baseline/contract/" + contract.ID.String()))
 	var registered []struct {
@@ -97,8 +92,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			tokenizer = component.Artifact
 		}
 	}
-	definition, err := modelrecipe.TranscriptionDefinition(election.Model.ID, contract.ID, profile.ID, tokenizer, inventory)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.TranscriptionDefinition(election.Model.ID, contract.ID, profile.ID, tokenizer, inventory))(t)
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "baseline/recipe/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +103,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	}
 	batch := artifact.Batch{Key: "baseline/source/" + election.Dataset.Artifact.String(),
 		Artifacts: []artifact.Descriptor{{ID: election.Dataset.Artifact, Size: election.Dataset.Bytes, MediaType: election.Dataset.MediaType}}}
-	location, err := artifact.CanonicalLocalLocation(election.Dataset.Artifact, artifact.LocationFile, corpusPath)
-	testcheck.NoError(t, err)
+	location := testcheck.Must(artifact.CanonicalLocalLocation(election.Dataset.Artifact, artifact.LocationFile, corpusPath))(t)
 	batch.Locations = []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}
 	if prior, found, err := store.Artifact(t.Context(), election.Dataset.Artifact); err != nil {
 		t.Fatal(err)
@@ -120,8 +113,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	commitBatch(batch, nil)
 	// Fixed integration workspace, not an observed process peak or runtime default.
 	const memoryBytes = 4 << 30
-	source, err := dataset.NewAudioPayloadReader(memoryBytes)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(dataset.NewAudioPayloadReader(memoryBytes))(t)
 	defer source.Close()
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "overgo/asr-cpu-baseline/v1",
 		Source:  "Pinned validation rows from the CPU oracle election plus synthetic negative controls; no held-out or full-corpus claim",
@@ -130,16 +122,14 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	var inputs []map[string]any
 	add := func(name, group, path, target string, origin dataset.AudioPayloadOrigin, encoded []byte, samples, rate uint64, silent bool) {
 		t.Helper()
-		inspection, err := dataset.InspectAudio(t.Context(), store, encoded, origin, policy)
-		testcheck.NoError(t, err)
+		inspection := testcheck.Must(dataset.InspectAudio(t.Context(), store, encoded, origin, policy))(t)
 		suite.Cases = append(suite.Cases, evaluation.TranscriptionCase{Name: name, Group: group, Source: inspection.Signal.Source,
 			Reference: target, SampleCount: samples, SampleRate: rate, SilentControl: silent})
 		inputs = append(inputs, map[string]any{"name": name, "path": path, "origin": origin, "policy": policy})
 	}
 	for index, observation := range election.Observations {
 		origin := dataset.AudioPayloadOrigin{Container: election.Dataset.Artifact, Column: "audio.bytes", Row: new(uint64(index))}
-		encoded, err := source.Read(t.Context(), dataset.AudioPayloadReference{Path: corpusPath, Audio: observation.Audio, Origin: origin}, policy.MaximumEncodedBytes)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(source.Read(t.Context(), dataset.AudioPayloadReference{Path: corpusPath, Audio: observation.Audio, Origin: origin}, policy.MaximumEncodedBytes))(t)
 		add(observation.Fixture, "librispeech-validation", corpusPath, observation.Expected, origin, encoded, observation.Samples, uint64(observation.SampleRate), false)
 	}
 	for _, name := range []string{"silence", "clipped", "wrong-rate"} {
@@ -164,19 +154,16 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			rate /= 2
 		}
 		encoded := testutil.MonoPCM16WAV(uint32(rate), samples)
-		id, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, encoded))(t)
 		path := filepath.Join(fixtureRoot, name+".wav")
 		testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
-		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
-		testcheck.NoError(t, err)
+		location := testcheck.Must(artifact.CanonicalLocalLocation(id, artifact.LocationFile, path))(t)
 		commitBatch(artifact.Batch{Key: "baseline/control/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(encoded))}},
 			Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, nil)
 		add(name, "negative-controls", path, target, dataset.AudioPayloadOrigin{Container: id}, encoded, uint64(len(samples)), rate, name == "silence")
 	}
 	sourceIdentity := audioSources(t, root).Identity()
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
-	testcheck.NoError(t, err)
+	environment := testcheck.Must(runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0))))(t)
 	commitBatch(environment.Batch("baseline/environment/" + environment.ID.String()))
 	commit := strings.TrimSpace(baselineCommand(t, root, "git", "rev-parse", "HEAD"))
 	suitePath := filepath.Join(fixtureRoot, "suite.json")
@@ -189,8 +176,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		manifestPath: map[string]any{"suite": suitePath, "model": election.Model.ID, "runtime_recipe": definition.ID,
 			"code_commit": commit, "environment": environment.ID, "memory_bytes": memoryBytes, "options": options, "inputs": inputs},
 	} {
-		encoded, err := json.Marshal(body)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(json.Marshal(body))(t)
 		testcheck.NoError(t, os.WriteFile(path, encoded, 0600))
 	}
 	testcheck.NoError(t, store.Close())
@@ -204,8 +190,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 		}
 	}
 	store = overgodbtest.OpenReadOnly(t, storeRoot)
-	content, err := artifact.RequireTypedContent(t.Context(), store, reportID)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, reportID))(t)
 	var report evaluation.TranscriptionResourceReport
 	testcheck.NoError(t, json.Unmarshal(content.Data, &report))
 	if report.Model != election.Model.ID || report.Dataset != suite.Dataset || report.Split != suite.Split ||
@@ -245,14 +230,12 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 				t.Fatalf("negative control %s outcome=%s failure=%s", measured.Name, run.Outcome, run.Failure)
 			}
 		}
-		observation, err := runrecord.RequireObservationChunkSummary(t.Context(), store, measured.Observation)
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.RequireObservationChunkSummary(t.Context(), store, measured.Observation))(t)
 		if _, known := observation.Aggregate.Measure(runrecord.ResourcePeakHostBytes); known || observation.Aggregate.Interactions != nil {
 			t.Fatal("unmeasured resources became available")
 		}
 	}
-	qualityContent, err := artifact.RequireTypedContent(t.Context(), store, report.Quality)
-	testcheck.NoError(t, err)
+	qualityContent := testcheck.Must(artifact.RequireTypedContent(t.Context(), store, report.Quality))(t)
 	var quality evaluation.TranscriptionReport
 	testcheck.NoError(t, json.Unmarshal(qualityContent.Data, &quality))
 	for _, group := range quality.Groups {

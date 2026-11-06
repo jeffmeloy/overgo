@@ -55,11 +55,9 @@ func smallEncoder(t *testing.T) (smallFixture, *safetensors.Source, *Encoder) {
 	if err = safetensors.Save(filepath.Join(dir, "model.safetensors"), values, shapes, nil); err != nil {
 		t.Fatal(err)
 	}
-	source, err := safetensors.OpenSource(dir)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(dir))(t)
 	t.Cleanup(func() { _ = source.Close() })
-	e, err := LoadEncoder(t.Context(), source, fixture.Declaration, 1<<20)
-	testcheck.NoError(t, err)
+	e := testcheck.Must(LoadEncoder(t.Context(), source, fixture.Declaration, 1<<20))(t)
 	return fixture, source, e
 }
 
@@ -86,8 +84,7 @@ func TestEncoderNativeOracle(t *testing.T) {
 				return nil
 			})
 			testcheck.NoError(t, err)
-			logits, err := e.Project(t.Context(), hidden, frames, &w)
-			testcheck.NoError(t, err)
+			logits := testcheck.Must(e.Project(t.Context(), hidden, frames, &w))(t)
 			if seen != len(tc.Traces) || len(hidden) != frames*e.input.out || frames != len(tc.Tokens) {
 				t.Fatal("incomplete forward")
 			}

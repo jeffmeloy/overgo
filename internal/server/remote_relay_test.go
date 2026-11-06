@@ -25,16 +25,12 @@ func newRelayGenerator(t *testing.T, pieces []string) (*remoterelay.Generator, r
 	t.Helper()
 	provider, received := relaytest.Serve(t, "", "relay-key", pieces)
 	t.Setenv("OVERGO_SERVER_RELAY_TEST_KEY", "relay-key")
-	declared, err := remoteprovider.New(remoteprovider.Provider{
+	declared := testcheck.Must(remoteprovider.New(remoteprovider.Provider{
 		Name: "fake", Endpoint: provider.URL, KeyEnvironment: "OVERGO_SERVER_RELAY_TEST_KEY", Model: "vendor/model",
-	})
-	testcheck.NoError(t, err)
-	definition, err := modelrecipe.RemoteInferenceDefinition(testutil.ArtifactID(t, artifact.KindModel, "served-remote"), declared.ID)
-	testcheck.NoError(t, err)
-	generator, err := remoterelay.New(declared, definition, provider.Client())
-	testcheck.NoError(t, err)
-	environment, err := remoteprovider.Environment(declared)
-	testcheck.NoError(t, err)
+	}))(t)
+	definition := testcheck.Must(modelrecipe.RemoteInferenceDefinition(testutil.ArtifactID(t, artifact.KindModel, "served-remote"), declared.ID))(t)
+	generator := testcheck.Must(remoterelay.New(declared, definition, provider.Client()))(t)
+	environment := testcheck.Must(remoteprovider.Environment(declared))(t)
 	return generator, environment, received
 }
 
@@ -50,18 +46,16 @@ func newRelayHandler(t *testing.T, pieces []string) (*Handler, *overgodb.Store) 
 	}
 	repository := overgodbtest.Open(t, t.TempDir())
 	// The interaction's lineage names the served recipe: declared in the store, as a declaration commits it.
-	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
-	testcheck.NoError(t, err)
+	description := testcheck.Must(generator.RecipeRuntimeDescription(recipe.TaskInference))(t)
 	if _, err := repository.Commit(t.Context(), artifact.Batch{
 		Key: "test/serving-recipe/" + description.Identity.Recipe.String(), Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment, Repository: repository,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	return handler, repository
 }
@@ -101,11 +95,10 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
 	}
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	defer handler.Close()
 
 	body := `{"model":"` + testModelID + `","max_tokens":4,"messages":[{"role":"system","content":"be brief"},{"role":"user","content":"hi"}]}`

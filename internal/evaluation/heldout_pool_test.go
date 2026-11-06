@@ -51,8 +51,7 @@ func poolObjectiveOver(t *testing.T, store *overgodb.Store, name string, documen
 		text := fmt.Sprintf("document %d of the pool's corpus\n", index%(poolFixtureDocuments-poolFixtureCopies))
 		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("document-%03d.txt", index)), []byte(text), 0o600))
 	}
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, name, corpus)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDataset(ctx, store, name, corpus))(t)
 	document, _, err := dataset.Load(ctx, store, registered.Dataset)
 	testcheck.NoError(t, err)
 	var records []dataset.Record
@@ -62,25 +61,21 @@ func poolObjectiveOver(t *testing.T, store *overgodb.Store, name string, documen
 			records = append(records, dataset.Record{ID: id, Group: id})
 		}
 	}
-	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 1, []dataset.SplitPartition{{Name: "train", Weight: 1}, {Name: "heldout", Weight: 3}})
-	testcheck.NoError(t, err)
+	split := testcheck.Must(dataset.BuildGroupSplit(registered.Dataset, records, 1, []dataset.SplitPartition{{Name: "train", Weight: 1}, {Name: "heldout", Weight: 3}}))(t)
 	training, heldout := split.Memberships[1], split.Memberships[0]
 	profile := func(role string) artifact.ID {
 		return testutil.ArtifactID(t, artifact.KindProfile, "pool fixture "+role)
 	}
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "pool fixture evidence")
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "pool fixture token prediction", Kind: trainingprogram.ObjectiveTokenPrediction,
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{"text"}, Outputs: []recipecontract.Modality{"text"}},
 		Dataset:   registered.Dataset, Split: training.ID, Processors: []artifact.ID{profile("processor")},
 		Loss: profile("loss"), Evaluation: profile("evaluation"), Metric: trainingprogram.MetricTokenAccuracy,
 		HeldoutRecords: poolFixtureScored, Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveDeclared,
-	})
-	testcheck.NoError(t, err)
-	content, err := objective.Content()
-	testcheck.NoError(t, err)
-	batch, err := split.PublicationBatch("pool-fixture/"+objective.ID.String(), nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(objective.Content())(t)
+	batch := testcheck.Must(split.PublicationBatch("pool-fixture/"+objective.ID.String(), nil))(t)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: profile("processor")}, artifact.Descriptor{ID: profile("loss")},
 		artifact.Descriptor{ID: profile("evaluation")}, artifact.Descriptor{ID: evidence})
 	batch.Contents = append(batch.Contents, content)
@@ -111,15 +106,13 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 		Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"), Gain: 0.5, Sequence: 8,
 		Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "pool fixture verdict")}, Weights: [poolPartCount]uint64{1, 2, 6, 2},
 	}
-	pool, err := BuildHeldoutPool(ctx, store, request)
-	testcheck.NoError(t, err)
+	pool := testcheck.Must(BuildHeldoutPool(ctx, store, request))(t)
 	if _, err := artifact.Publish(ctx, store, pool.Batch); err != nil {
 		t.Fatal(err)
 	}
 
 	// The parts hold held-out documents only, each once, none twice by content.
-	contents, err := recordContents(ctx, store, objective.Dataset)
-	testcheck.NoError(t, err)
+	contents := testcheck.Must(recordContents(ctx, store, objective.Dataset))(t)
 	trained := map[string]bool{}
 	for _, record := range training.Records {
 		trained[contents[record.ID]] = true
@@ -156,8 +149,7 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 	}
 
 	// The acceptance states the count the promotion part's size allows, and no more.
-	acceptance, err := poolAcceptanceCodec.Require(ctx, store, pool.Acceptance.ID)
-	testcheck.NoError(t, err)
+	acceptance := testcheck.Must(poolAcceptanceCodec.Require(ctx, store, pool.Acceptance.ID))(t)
 	promotion := uint64(pool.Documents[poolPromotion])
 	if acceptance.Split != pool.Partition.ID || acceptance.Documents != promotion || acceptance.Confirmations == 0 ||
 		poolDocuments(request.Gain, acceptance.Confirmations) > promotion || poolDocuments(request.Gain, acceptance.Confirmations+1) <= promotion ||
@@ -177,8 +169,7 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 	}
 
 	// The budgets are the acceptance's, and the proposer is blinded from both parts.
-	proposer, err := changeProposer(objective.ID)
-	testcheck.NoError(t, err)
+	proposer := testcheck.Must(changeProposer(objective.ID))(t)
 	issued := map[artifact.ID]uint64{}
 	for _, content := range pool.Batch.Contents {
 		if content.Descriptor.MediaType != runrecord.BudgetMediaType {
@@ -189,8 +180,7 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 			t.Fatalf("a budget of the pool: %+v, %v; want the acceptance as its authority", budget, err)
 		}
 		issued[budget.Split] = budget.Issued
-		charge, err := runrecord.NewBudgetCharge(budget.ID, 1, proposer, "a reading by the proposer")
-		testcheck.NoError(t, err)
+		charge := testcheck.Must(runrecord.NewBudgetCharge(budget.ID, 1, proposer, "a reading by the proposer"))(t)
 		if err := runrecord.ValidateBlinding(pool.Partition, budget, []runrecord.BudgetCharge{charge}); err == nil {
 			t.Errorf("the proposer may charge the budget of %s", budget.Split)
 		}
@@ -240,14 +230,12 @@ func TestRecordedGainsReadTheVerdictsOnRecord(t *testing.T) {
 	for index := range forecast.cases {
 		squares += (float64(index%2) - mean) * (float64(index%2) - mean)
 	}
-	trained, err := forecast.plan.Score(observations)
-	testcheck.NoError(t, err)
+	trained := testcheck.Must(forecast.plan.Score(observations))(t)
 	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)
 	commit("test-plan", forecast.plan.Batch)
 	commit("test-base", base.Batch)
 	commit("test-trained", trained.Batch)
-	verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, trained, session)
-	testcheck.NoError(t, err)
+	verdict := testcheck.Must(JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, trained, session))(t)
 	commit("test-verdict", verdict.Batch)
 	gains, model, basis, err := RecordedGains(ctx, store, forecast.objective)
 	want := mean / math.Sqrt(squares/float64(len(forecast.cases)-1))

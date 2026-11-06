@@ -10,8 +10,7 @@ import (
 )
 
 func TestChatReasoningDeclaredChannels(t *testing.T) {
-	gemma, err := os.ReadFile("testdata/chat_templates/gemma_e4b.jinja")
-	testcheck.NoError(t, err)
+	gemma := testcheck.Must(os.ReadFile("testdata/chat_templates/gemma_e4b.jinja"))(t)
 	const inkling = "{{ '<|content_thinking|>' + message.reasoning_content + '<|content_text|>' + message.content }}"
 	t.Run("tool_use_template_selection", func(t *testing.T) {
 		runner := &Runner{preparedModel: preparedModel{file: &gguf.File{Metadata: []gguf.Metadata{
@@ -20,15 +19,12 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 		}}}}
 		tools := []ChatTool{toolWeatherDefinition()}
 		output := `<think>check facts</think><tool_call>{"name":"weather","arguments":{"city":"Paris"}}</tool_call>`
-		message, err := runner.ParseChatOutput(output, tools)
-		testcheck.NoError(t, err)
-		stream, err := runner.NewChatOutputStream(tools)
-		testcheck.NoError(t, err)
+		message := testcheck.Must(runner.ParseChatOutput(output, tools))(t)
+		stream := testcheck.Must(runner.NewChatOutputStream(tools))(t)
 		if _, err := stream.Accept(output); err != nil {
 			t.Fatal(err)
 		}
-		streamed, err := stream.Finish()
-		testcheck.NoError(t, err)
+		streamed := testcheck.Must(stream.Finish())(t)
 		for _, value := range []ChatMessage{message, streamed} {
 			if value.ReasoningContent != "check facts" || value.Content != "" || len(value.ToolCalls) != 1 || value.ToolCalls[0].Function.Name != "weather" {
 				t.Fatalf("tool-use template was not selected: %+v", value)
@@ -81,15 +77,13 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 				t.Fatalf("reasoning=%q content=%q calls=%v; want %q / %q", message.ReasoningContent, message.Content, message.ToolCalls, test.reasoning, test.content)
 			}
 			for split := range len(test.output) + 1 {
-				stream, err := runner.NewChatOutputStream(nil)
-				testcheck.NoError(t, err)
+				stream := testcheck.Must(runner.NewChatOutputStream(nil))(t)
 				for _, piece := range []string{test.output[:split], test.output[split:]} {
 					if _, err := stream.Accept(piece); err != nil {
 						t.Fatalf("split %d: %v", split, err)
 					}
 				}
-				got, err := stream.Finish()
-				testcheck.NoError(t, err)
+				got := testcheck.Must(stream.Finish())(t)
 				if got.ReasoningClosed != test.closed || got.ReasoningContent != test.reasoning || got.Content != test.content || len(got.ToolCalls) != 0 {
 					t.Fatalf("split %d disagrees with buffered result: %+v", split, got)
 				}
@@ -106,8 +100,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 			thought := `example: <tool_call>{"name":"example","arguments":{}}</tool_call>`
 			prefix := syntax.open + thought
 			for index := range len(prefix) {
-				deltas, err := stream.Accept(prefix[index : index+1])
-				testcheck.NoError(t, err)
+				deltas := testcheck.Must(stream.Accept(prefix[index : index+1]))(t)
 				for _, delta := range deltas {
 					if delta.Started || delta.Name != "" || delta.Arguments != "" {
 						t.Fatalf("reasoning emitted a tool delta: %+v", delta)
@@ -118,8 +111,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 			var started int
 			var arguments strings.Builder
 			for _, piece := range []string{syntax.close, actualCall} {
-				deltas, err := stream.Accept(piece)
-				testcheck.NoError(t, err)
+				deltas := testcheck.Must(stream.Accept(piece))(t)
 				for _, delta := range deltas {
 					if delta.Started {
 						started++
@@ -130,8 +122,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 					arguments.WriteString(delta.Arguments)
 				}
 			}
-			message, err := stream.Finish()
-			testcheck.NoError(t, err)
+			message := testcheck.Must(stream.Finish())(t)
 			if started != 1 || arguments.String() != `{"city":"Paris"}` || message.ReasoningContent != thought || len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Name != "actual" {
 				t.Fatalf("reasoning/tool separation: starts=%d arguments=%q message=%+v", started, arguments.String(), message)
 			}

@@ -68,8 +68,7 @@ func TestWebUIBrowserExportSizePreview(t *testing.T) {
 		t.Helper()
 		check(`(() => { [...document.querySelectorAll('#panel-` + panel + ` button')].find(button => button.textContent === 'Run').click(); return true; })()`)
 		settle(`document.querySelector('#panel-` + panel + ` [aria-label="run status"]').textContent.startsWith('completed / ')`)
-		info, err := os.Stat(file)
-		testcheck.NoError(t, err)
+		info := testcheck.Must(os.Stat(file))(t)
 		var text string
 		testcheck.NoError(t, browser.Evaluate(ctx, `window.`+kept, &text))
 		if want := strconv.FormatInt(info.Size(), 10) + " bytes"; !strings.Contains(strings.ReplaceAll(text, ",", ""), want) {

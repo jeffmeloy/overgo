@@ -9,8 +9,7 @@ import (
 func TestRepositoryStateParsesDirtyStatus(t *testing.T) {
 	t.Parallel()
 	raw := []byte(" M docs/a file.md\x00R  new.go\x00old.go\x00?? new.txt\x00")
-	paths, err := ParseDirtyStatus(raw)
-	testcheck.NoError(t, err)
+	paths := testcheck.Must(ParseDirtyStatus(raw))(t)
 	if len(paths) != 3 {
 		t.Fatalf("dirty paths = %+v", paths)
 	}

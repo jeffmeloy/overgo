@@ -71,12 +71,10 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		return
 	}
 	processInitialization := measureScratchProcessInitialization(t)
-	oracleBytes, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	testcheck.NoError(t, err)
+	oracleBytes := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json")))(t)
 	oracle, _, err := adaptiveparity.NormalizeScratchOracle(oracleBytes)
 	testcheck.NoError(t, err)
-	evidenceBytes, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_performance.json"))
-	testcheck.NoError(t, err)
+	evidenceBytes := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_performance.json")))(t)
 	var evidence scratchPerformanceEvidence
 	testcheck.NoError(t, strictjson.DecodeBytes(evidenceBytes, &evidence))
 	oracleDigest := sha256.Sum256(oracleBytes)
@@ -96,22 +94,18 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	}
 
 	compileStarted := time.Now()
-	construction, err := scratchmodel.Compile(
+	construction := testcheck.Must(scratchmodel.Compile(
 		scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps},
 		scratchmodeltest.Profile(t),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	compileWall := time.Since(compileStarted)
 	policy := trainingprogram.BuiltinOptimizerPolicy()
-	host, err := construction.TrainShared(oracle.Steps, policy)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(construction.TrainShared(oracle.Steps, policy))(t)
 	initStarted := time.Now()
-	trainer, err := scratchtrain.NewResidentTrainer(construction, oracle.Steps, policy)
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(scratchtrain.NewResidentTrainer(construction, oracle.Steps, policy))(t)
 	defer trainer.Close()
 	initWall := time.Since(initStarted)
-	lifecycle, err := trainer.Lifecycle()
-	testcheck.NoError(t, err)
+	lifecycle := testcheck.Must(trainer.Lifecycle())(t)
 	testcheck.NoError(t, trainer.ResetPeakMemory())
 
 	// All interval allocations bound incremental live heap from above.
@@ -131,12 +125,9 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	}
 	var finalHeap runtime.MemStats
 	runtime.ReadMemStats(&finalHeap)
-	validationTokens, err := construction.Tokens(oracle.Validation[0])
-	testcheck.NoError(t, err)
-	validation, err := trainer.Evaluate(validationTokens)
-	testcheck.NoError(t, err)
-	memory, err := trainer.MemoryStats()
-	testcheck.NoError(t, err)
+	validationTokens := testcheck.Must(construction.Tokens(oracle.Validation[0]))(t)
+	validation := testcheck.Must(trainer.Evaluate(validationTokens))(t)
+	memory := testcheck.Must(trainer.MemoryStats())(t)
 	weights, gradients, momentum, err := trainer.Snapshot()
 	testcheck.NoError(t, err)
 	hostPeak := finalHeap.TotalAlloc - baseline.TotalAlloc
@@ -173,8 +164,7 @@ func measureScratchProcessInitialization(t *testing.T) time.Duration {
 	t.Helper()
 	command := exec.Command(os.Args[0], "-test.run=^TestScratchTrainingLeadership$", "-test.count=1", "-test.v")
 	command.Env = append(os.Environ(), scratchProcessReady+"=1")
-	stdout, err := command.StdoutPipe()
-	testcheck.NoError(t, err)
+	stdout := testcheck.Must(command.StdoutPipe())(t)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	started := time.Now()

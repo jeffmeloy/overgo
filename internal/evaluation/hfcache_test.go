@@ -19,8 +19,7 @@ import (
 // per split.
 func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	t.Parallel()
-	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow")))(t)
 	root := t.TempDir()
 	place := func(parts ...string) {
 		t.Helper()
@@ -33,8 +32,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	place("TAUR-Lab___mu_sr", "default", "0.0.0", "bb22", "mu_sr-murder_mysteries.arrow")
 	place("unrelated___scratch", "default", "0.0.0", "cc33", "scratch-test.arrow")
 
-	seeds, err := deriveHFCacheBenchmarks(root)
-	testcheck.NoError(t, err)
+	seeds := testcheck.Must(deriveHFCacheBenchmarks(root))(t)
 	if len(seeds) != 2 {
 		t.Fatalf("seeds = %+v, want mmlu test and musr murder_mysteries only", seeds)
 	}

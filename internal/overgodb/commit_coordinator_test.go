@@ -17,12 +17,10 @@ import (
 func TestCommitCoordinatorAtomicity(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	base := fixtureBatch(t)
-	baseID, err := store.Commit(ctx, base)
-	testcheck.NoError(t, err)
+	baseID := testcheck.Must(store.Commit(ctx, base))(t)
 	digestBefore := catalogDigest(t, store.state)
 	headBefore, sequenceBefore := store.Head()
 
@@ -50,13 +48,12 @@ func TestCommitCoordinatorAtomicity(t *testing.T) {
 
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, "coordinator-advance")
 	content := artifact.Content{Descriptor: descriptor, Data: []byte("coordinator-advance")}
-	advanceID, err := store.Commit(ctx, artifact.Batch{
+	advanceID := testcheck.Must(store.Commit(ctx, artifact.Batch{
 		Key:      "coordinator/advance",
 		Contents: []artifact.Content{content},
 		Aliases:  []artifact.AliasBinding{{Name: "coordinator/alias", Target: descriptor.ID}},
 		Lineage:  []artifact.Lineage{{Child: descriptor.ID, Parent: base.Artifacts[0].ID, Relation: artifact.RelationDerivedFrom}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if head, sequence := store.Head(); head != advanceID || sequence != sequenceBefore+1 {
 		t.Fatalf("advance head = (%s, %d)", head, sequence)
 	}

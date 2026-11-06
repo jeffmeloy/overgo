@@ -17,8 +17,7 @@ import (
 // delta with a hole in it.
 func TestHeadBoundDeltaReconciliation(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	ctx := t.Context()
 	contract := ProjectionContractVersion()

@@ -18,8 +18,7 @@ import (
 
 func TestScratchInputExtent(t *testing.T) {
 	oracle := loadOracle(t)
-	c, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	testcheck.NoError(t, err)
+	c := testcheck.Must(Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t)))(t)
 	boundary := make([]int, c.config.BlockSize+1)
 	negative, outside := slices.Clone(boundary), slices.Clone(boundary)
 	negative[len(negative)-1], outside[len(outside)-1] = -1, c.config.VocabSize
@@ -58,11 +57,9 @@ func TestScratchInputExtent(t *testing.T) {
 
 func testDerivationProfile(t testing.TB) DerivationProfile {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
-	profile, err := PublishDerivationProfileCatalog(context.Background(), store)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(PublishDerivationProfileCatalog(context.Background(), store))(t)
 	return profile
 }
 
@@ -70,8 +67,7 @@ func testDerivationProfile(t testing.TB) DerivationProfile {
 // content back to the same identity.
 func TestDerivationProfileContentRoundTrip(t *testing.T) {
 	profile := testDerivationProfile(t)
-	content, err := profile.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(profile.Content())(t)
 	parsed, err := derivationProfileCodec.Parse(content.Data)
 	if err != nil || parsed.ID != profile.ID {
 		t.Fatalf("profile round trip = (%s, %v)", parsed.ID, err)
@@ -80,8 +76,7 @@ func TestDerivationProfileContentRoundTrip(t *testing.T) {
 
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json")))(t)
 	oracle, _, err := adaptiveparity.NormalizeScratchOracle(raw)
 	testcheck.NoError(t, err)
 	return oracle
@@ -89,8 +84,7 @@ func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 
 func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t)))(t)
 	plan, program := construction.OptimizerPlan(), construction.Program()
 	if plan.ParameterCount() != oracle.ParameterCount || plan.GroupCount() != len(oracle.Groups) {
 		t.Fatalf("optimizer coverage=%d/%d want=%d/%d", plan.ParameterCount(), plan.GroupCount(), oracle.ParameterCount, len(oracle.Groups))
@@ -122,12 +116,9 @@ func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 
 func TestScratchConstructionAuthority(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
-	testcheck.NoError(t, err)
-	wantDataset, err := oracle.CorpusID()
-	testcheck.NoError(t, err)
-	wantSplit, err := oracle.SplitID()
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t)))(t)
+	wantDataset := testcheck.Must(oracle.CorpusID())(t)
+	wantSplit := testcheck.Must(oracle.SplitID())(t)
 	if construction.ID().Kind() != artifact.KindModel || construction.Dataset() != wantDataset || construction.SplitID() != wantSplit {
 		t.Fatalf("construction identities = %s / %s / %s", construction.ID(), construction.Dataset(), construction.SplitID())
 	}
@@ -153,8 +144,7 @@ func TestScratchConstructionAuthority(t *testing.T) {
 		t.Fatalf("derived config differs: %+v", config)
 	}
 	for index, document := range split.Train {
-		tokens, err := construction.Tokens(document)
-		testcheck.NoError(t, err)
+		tokens := testcheck.Must(construction.Tokens(document))(t)
 		if !reflect.DeepEqual(tokens, oracle.Tokens[index]) {
 			t.Fatalf("tokens[%d] = %v, want %v", index, tokens, oracle.Tokens[index])
 		}
@@ -187,8 +177,7 @@ func TestActiveDerivationProfileAuthority(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
 	profile := testDerivationProfile(t)
-	construction, err := Compile(facts, profile)
-	testcheck.NoError(t, err)
+	construction := testcheck.Must(Compile(facts, profile))(t)
 	wantProfile := profile.ID
 	if construction.Authority().DerivationProfile() != wantProfile {
 		t.Fatal("construction derivation profile differs")
@@ -198,10 +187,8 @@ func TestActiveDerivationProfileAuthority(t *testing.T) {
 	}
 	changed := profile
 	changed.Epsilon *= 2
-	changed, err = NewDerivationProfile(changed)
-	testcheck.NoError(t, err)
-	second, err := Compile(facts, changed)
-	testcheck.NoError(t, err)
+	changed = testcheck.Must(NewDerivationProfile(changed))(t)
+	second := testcheck.Must(Compile(facts, changed))(t)
 	if second.config.Epsilon != changed.Epsilon || second.Authority().DerivationProfile() == wantProfile {
 		t.Fatal("changed derivation profile did not change authority")
 	}
@@ -222,10 +209,8 @@ func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
 	profile := testDerivationProfile(t)
-	first, err := Compile(facts, profile)
-	testcheck.NoError(t, err)
-	second, err := Compile(facts, profile)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Compile(facts, profile))(t)
+	second := testcheck.Must(Compile(facts, profile))(t)
 	if first.ID() != second.ID() || first.Authority().ID() != second.Authority().ID() {
 		t.Fatal("identical corpus facts changed construction identity")
 	}
@@ -247,8 +232,7 @@ func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	changed := facts
 	changed.Documents = append([]string(nil), facts.Documents...)
 	changed.Documents[0] += "a"
-	third, err := Compile(changed, profile)
-	testcheck.NoError(t, err)
+	third := testcheck.Must(Compile(changed, profile))(t)
 	if third.ID() == first.ID() || third.Dataset() == first.Dataset() {
 		t.Fatal("corpus mutation preserved initialized model identity")
 	}

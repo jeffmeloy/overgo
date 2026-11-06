@@ -28,11 +28,9 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "store")
 	commit := func(key, body string, snapshot bool) {
 		t.Helper()
-		store, err := overgodb.Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Create(root))(t)
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: "test/counted/v1"}
-		content, err := contract.ContentBytes([]byte(body))
-		testcheck.NoError(t, err)
+		content := testcheck.Must(contract.ContentBytes([]byte(body)))(t)
 		if _, err := store.Commit(ctx, artifact.Batch{Key: key, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -73,8 +71,7 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 	commit("counted/second", `{"n":2}`, true)
 	commit("counted/third", `{"n":3}`, false)
 	before := files()
-	output, err := run()
-	testcheck.NoError(t, err)
+	output := testcheck.Must(run())(t)
 	if after := files(); after != before {
 		t.Fatalf("the census changed the store's files:\n%s\nwere\n%s", after, before)
 	}

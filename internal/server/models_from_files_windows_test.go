@@ -41,8 +41,7 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 	for token := range directoryTokens {
 		vocabulary[string(rune('['+token))] = token
 	}
-	tokenizer, err := json.Marshal(map[string]any{"model": map[string]any{"merges": []string{}, "vocab": vocabulary}})
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(json.Marshal(map[string]any{"model": map[string]any{"merges": []string{}, "vocab": vocabulary}}))(t)
 	testutil.WriteTextFile(t, directory, "tokenizer.json", string(tokenizer))
 	for name, path := range map[string]string{
 		"a GGUF":                  testutil.HermeticLlamaGGUFWith(t, 64, testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template)),
@@ -50,18 +49,15 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := filepath.Join(t.TempDir(), "store")
-			created, err := overgodb.Create(root)
-			testcheck.NoError(t, err)
+			created := testcheck.Must(overgodb.Create(root))(t)
 			testcheck.NoError(t, created.Close())
-			runner, err := modelcli.OpenRunner(t.Context(), root, path, inference.OpenOptions{})
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(modelcli.OpenRunner(t.Context(), root, path, inference.OpenOptions{}))(t)
 			defer runner.Close()
 			store := overgodbtest.Open(t, root)
-			handler, err := New(Config{
+			handler := testcheck.Must(New(Config{
 				ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 				Analysis: testAnalysisPolicy, Repository: store,
-			}, runner)
-			testcheck.NoError(t, err)
+			}, runner))(t)
 			t.Cleanup(func() { handler.Close() })
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(

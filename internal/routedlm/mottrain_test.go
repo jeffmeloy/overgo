@@ -79,8 +79,7 @@ func motTestTrainer(t *testing.T) (*ModalityTransformerTrainer, []float32, []int
 	for i := range headValues {
 		headValues[i] = float32(rng.NormFloat64()) * 0.3
 	}
-	trainer, err := NewModalityTransformerTrainer(cfg, layers, finalNorm, bf16Encode(headValues), trainingprogram.BuiltinOptimizerPolicy())
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewModalityTransformerTrainer(cfg, layers, finalNorm, bf16Encode(headValues), trainingprogram.BuiltinOptimizerPolicy()))(t)
 	t.Cleanup(func() { trainer.Close() })
 	// Mixed prompt: text, text, vision, vision, vision, text, text.
 	mask := []int{0, 0, 1, 1, 1, 0, 0}
@@ -143,11 +142,9 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 				}
 			}
 			shift(1)
-			plus, err := trainer.Loss(hidden, mask, targets)
-			testcheck.NoError(t, err)
+			plus := testcheck.Must(trainer.Loss(hidden, mask, targets))(t)
 			shift(-1)
-			minus, err := trainer.Loss(hidden, mask, targets)
-			testcheck.NoError(t, err)
+			minus := testcheck.Must(trainer.Loss(hidden, mask, targets))(t)
 			copy(values, saved)
 			numeric := (plus - minus) / (2 * epsilon)
 			var got float64
@@ -166,18 +163,15 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 // must reduce the pipeline's own cross-entropy.
 func TestModalityTransformerStepDescends(t *testing.T) {
 	trainer, hidden, mask, targets := motTestTrainer(t)
-	first, err := trainer.Loss(hidden, mask, targets)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(trainer.Loss(hidden, mask, targets))(t)
 	var last MoTTrainStepResult
 	for step := range 5 {
-		last, err = trainer.Step(hidden, mask, targets)
-		testcheck.NoError(t, err)
+		last = testcheck.Must(trainer.Step(hidden, mask, targets))(t)
 		if last.GradientL2 <= 0 {
 			t.Fatalf("step %d: gradient norm %g", step, last.GradientL2)
 		}
 	}
-	final, err := trainer.Loss(hidden, mask, targets)
-	testcheck.NoError(t, err)
+	final := testcheck.Must(trainer.Loss(hidden, mask, targets))(t)
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
@@ -191,8 +185,7 @@ func TestModalityTransformerCheckpointRoundTripIsBitExact(t *testing.T) {
 	if _, err := trainer.Step(hidden, mask, targets); err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan())
-	testcheck.NoError(t, err)
+	program := testcheck.Must(trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan()))(t)
 	trained := map[string][]float32{}
 	for layer, spans := range trainer.spans {
 		for suffix, section := range map[string]int{

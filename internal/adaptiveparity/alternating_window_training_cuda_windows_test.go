@@ -22,10 +22,8 @@ import (
 
 func TestAlternatingWindowTrainingCells(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	e4bPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	input, target := adjacentTokenRows(t, e4bPath)
@@ -35,8 +33,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	if err != nil || !layer.PerLayerInput || trained.ParameterCount() == 0 {
 		t.Fatalf("layer=%+v parameters=%d err=%v", layer, trained.ParameterCount(), err)
 	}
-	example, err := trained.BuildExample(t.Context(), e4bPath, nil, input, target, "text")
-	testcheck.NoError(t, err)
+	example := testcheck.Must(trained.BuildExample(t.Context(), e4bPath, nil, input, target, "text"))(t)
 	loss, err := trained.Step(worker, example)
 	if err != nil || math.IsNaN(loss) || math.IsInf(loss, 0) {
 		t.Fatalf("loss=%g err=%v", loss, err)
@@ -52,8 +49,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 
 func adjacentTokenRows(t *testing.T, path string) ([]uint32, []uint32) {
 	t.Helper()
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(path))(t)
 	vocabulary, err := tokenizer.Load(file)
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {

@@ -33,23 +33,20 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		}
 	})
 	t.Run("cogvlm image prompt", func(t *testing.T) {
-		runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{}))(t)
 		defer runner.Close()
 		session := testSession(t, runner)
 		tok := &cogVLMPromptTokenizer{}
-		single, err := session.BuildImagePrompt(
+		single := testcheck.Must(session.BuildImagePrompt(
 			t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if tok.text != "Question: beforeafter Answer:" {
 			t.Fatalf("session image prompt text = %q", tok.text)
 		}
-		multi, err := session.BuildImagesPrompt(
+		multi := testcheck.Must(session.BuildImagesPrompt(
 			t.Context(), tok, []image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4))},
 			[]string{"before", "after"}, PromptOptions{},
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if !reflect.DeepEqual(single, multi) {
 			t.Fatal("single-image session prompt differs from one-element images prompt")
 		}
@@ -68,16 +65,14 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		}
 	})
 	t.Run("mimovl images prompt", func(t *testing.T) {
-		runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{}))(t)
 		defer runner.Close()
 		tok := &recordingPromptTokenizer{pad: qwen3VLImagePad}
-		prompt, err := testSession(t, runner).BuildImagesPrompt(
+		prompt := testcheck.Must(testSession(t, runner).BuildImagesPrompt(
 			t.Context(), tok,
 			[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 4, 4))},
 			[]string{"a", "b", "c"}, PromptOptions{},
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		if prompt.EmbeddingWidth != 4 || len(prompt.EmbeddingTokenIndices) != 8 {
 			t.Fatalf("session images prompt = width %d indices %v", prompt.EmbeddingWidth, prompt.EmbeddingTokenIndices)
 		}

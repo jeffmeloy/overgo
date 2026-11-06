@@ -16,8 +16,7 @@ func TestCampaignProcessLifecycle(t *testing.T) {
 	t.Parallel()
 	const helperRoot = "OVERGO_CAMPAIGN_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
-		owner, err := BeginCampaign(root, "process-worker")
-		testcheck.NoError(t, err)
+		owner := testcheck.Must(BeginCampaign(root, "process-worker"))(t)
 		defer owner.Close()
 		fmt.Println(owner.Environment())
 		_, _ = io.Copy(io.Discard, os.Stdin)
@@ -29,8 +28,7 @@ func TestCampaignProcessLifecycle(t *testing.T) {
 	output, outputWriter := io.Pipe()
 	defer output.Close()
 	defer outputWriter.Close()
-	child, err := Start(t.Context(), Command{Path: os.Args[0], Args: []string{"-test.run=^TestCampaignProcessLifecycle$"}, Env: append(os.Environ(), helperRoot+"="+root), Stdin: input, Stdout: outputWriter, Stderr: os.Stderr})
-	testcheck.NoError(t, err)
+	child := testcheck.Must(Start(t.Context(), Command{Path: os.Args[0], Args: []string{"-test.run=^TestCampaignProcessLifecycle$"}, Env: append(os.Environ(), helperRoot+"="+root), Stdin: input, Stdout: outputWriter, Stderr: os.Stderr}))(t)
 	defer child.Terminate()
 	if _, err := bufio.NewReader(output).ReadString('\n'); err != nil {
 		t.Fatal(err)
@@ -58,8 +56,7 @@ func TestCampaignRunningFollowsOwnerLock(t *testing.T) {
 	if running() {
 		t.Fatal("worktree without a supervisor reported a campaign")
 	}
-	owner, err := BeginCampaign(root, "worker")
-	testcheck.NoError(t, err)
+	owner := testcheck.Must(BeginCampaign(root, "worker"))(t)
 	defer owner.Close()
 	if duplicate, err := BeginCampaign(root, "worker"); !errors.Is(err, processlock.ErrBusy) {
 		if duplicate != nil {
@@ -74,8 +71,7 @@ func TestCampaignRunningFollowsOwnerLock(t *testing.T) {
 	if running() {
 		t.Fatal("supervisor reported after lock release")
 	}
-	replacement, err := BeginCampaign(root, "worker")
-	testcheck.NoError(t, err)
+	replacement := testcheck.Must(BeginCampaign(root, "worker"))(t)
 	defer replacement.Close()
 	if !running() {
 		t.Fatal("replacement supervisor not reported")

@@ -61,19 +61,14 @@ func serveEdits(t *testing.T, name string, source latentvideo.SourceVideo) serve
 			t.Skipf("UNAVAILABLE: %v", err)
 		}
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, edit)
-	clip, err := latentvideo.SourceFramesContent(source)
-	testcheck.NoError(t, err)
+	clip := testcheck.Must(latentvideo.SourceFramesContent(source))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/" + name, Contents: []artifact.Content{profileContent, clip}}); err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +80,7 @@ func serveEdits(t *testing.T, name string, source latentvideo.SourceVideo) serve
 // test's to give back.
 func editService(t *testing.T) capabilityruntime.Executor {
 	t.Helper()
-	director, err := editSessions()
-	testcheck.NoError(t, err)
+	director := testcheck.Must(editSessions())(t)
 	t.Cleanup(testutil.Closer(t, context.Background(), director))
 	return editExecutor(director, nil)
 }
@@ -95,10 +89,8 @@ func editService(t *testing.T) capabilityruntime.Executor {
 // the clip it made.
 func (edits servedEdits) serve(ctx context.Context, t *testing.T, service capabilityruntime.Executor, prompt string, seed int64) (capabilityruntime.Measured, latentvideo.EncodedVideo) {
 	t.Helper()
-	raw, err := json.Marshal(latentvideo.ReferenceEditRequest{Prompt: prompt, Seed: seed, SourceArtifact: edits.clip})
-	testcheck.NoError(t, err)
-	output, err := service(ctx, edits.store, edits.directory, edits.execution, string(raw))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(latentvideo.ReferenceEditRequest{Prompt: prompt, Seed: seed, SourceArtifact: edits.clip}))(t)
+	output := testcheck.Must(service(ctx, edits.store, edits.directory, edits.execution, string(raw)))(t)
 	measured, _ := output.(capabilityruntime.Measured)
 	video, ok := measured.Output.(latentvideo.EncodedVideo)
 	if !ok {

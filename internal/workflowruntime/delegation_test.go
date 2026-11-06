@@ -14,30 +14,24 @@ import (
 func TestDelegatedAgentInvocation(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	manual, err := agenttool.NewManual(agenttool.Manual{Name: "repo.read", Description: "Read repository state.", Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}})
-	testcheck.NoError(t, err)
-	snapshot, err := agenttool.NewCatalogSnapshot([]agenttool.Manual{manual})
-	testcheck.NoError(t, err)
+	manual := testcheck.Must(agenttool.NewManual(agenttool.Manual{Name: "repo.read", Description: "Read repository state.", Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}}))(t)
+	snapshot := testcheck.Must(agenttool.NewCatalogSnapshot([]agenttool.Manual{manual}))(t)
 	snapshotContent, _ := snapshot.ArtifactContent()
 	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{manual}); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := artifact.NewDocumentBatch("delegation-fixture", []artifact.Content{snapshotContent}, nil, nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch("delegation-fixture", []artifact.Content{snapshotContent}, nil, nil))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
-	worker, err := recipe.NewAgentDefinition(recipe.AgentDefinition{Name: "worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "prompt"), ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model-recipe"), ToolManuals: []artifact.ID{manual.ID}, Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")}})
-	testcheck.NoError(t, err)
-	invocation, err := recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
+	worker := testcheck.Must(recipe.NewAgentDefinition(recipe.AgentDefinition{Name: "worker", Prompt: testutil.ArtifactID(t, artifact.KindFile, "prompt"), ModelRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "model-recipe"), ToolManuals: []artifact.ID{manual.ID}, Policies: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "policy")}}))(t)
+	invocation := testcheck.Must(recipe.NewDelegatedAgentInvocation(recipe.DelegatedAgentInvocation{
 		Task: testutil.ArtifactID(t, artifact.KindRecipe, "task"), Worker: worker.ID,
 		Grant:           recipe.AgentCapabilityGrant{Manuals: []artifact.ID{manual.ID}, AllowedEffects: []string{"inspection"}, ReadOnly: true},
 		StartingContext: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "context")},
 		Scheduler:       recipe.AgentSchedulerPolicy{MaxSteps: 4, MaxParallel: 1, Preemptible: true}, Catalog: snapshot.ID, Model: testutil.ArtifactID(t, artifact.KindModel, "model"),
-	})
-	testcheck.NoError(t, err)
-	compiled, err := CompileDelegatedAgentInvocation(ctx, store, invocation, worker)
-	testcheck.NoError(t, err)
+	}))(t)
+	compiled := testcheck.Must(CompileDelegatedAgentInvocation(ctx, store, invocation, worker))(t)
 	if len(compiled.Manuals) != 1 || compiled.Manuals[0].ID != manual.ID {
 		t.Fatalf("compiled manuals = %v", compiled.Manuals)
 	}

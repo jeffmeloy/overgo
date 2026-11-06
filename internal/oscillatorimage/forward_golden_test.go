@@ -80,9 +80,7 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 		K: f32of(gf("K")), KCond: f32of(gf("K_cond")), Blocks: blocks,
 		ToOutW: f32of(gf("to_out_w")), ToOutB: f32of(gf("to_out_b")),
 	}
-	features, err := model.integrate(t.Context(), phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))})
-	testcheck.NoError(t, err)
-	image, err := model.decodePlanar(features)
-	testcheck.NoError(t, err)
+	features := testcheck.Must(model.integrate(t.Context(), phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))}))(t)
+	image := testcheck.Must(model.decodePlanar(features))(t)
 	requireWithin(t, "generator", image.Pixels, gf("out"), tolGenerator)
 }

@@ -23,12 +23,11 @@ func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
 		plan.factorElements != 32 || plan.longElements != 16 || !plan.require || !plan.selectLong {
 		t.Fatalf("rotary catalog plan = %+v", plan)
 	}
-	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
+	catalog := testcheck.Must(newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
 		tensorInfo("blk.2.rope_freqs.weight", 16),
 		tensorInfo("blk.0.rope_factors_long.weight", 16),
 		tensorInfo("blk.0.rope_factors_short.weight", 16),
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	var layer LayerWeights
 	testcheck.NoError(t, plan.bind(catalog, "fixture", &layer))
 	if layer.RopeFactors == nil || layer.RopeFactors.Name != "blk.0.rope_factors_long.weight" {

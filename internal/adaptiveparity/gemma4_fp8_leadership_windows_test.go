@@ -68,8 +68,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	var evidence gemma4FP8PerformanceEvidence
 	evidencePath := filepath.Join(root, "fixtures", "adaptive_gemma4_fp8_performance.json")
-	evidenceBytes, err := os.ReadFile(evidencePath)
-	testcheck.NoError(t, err)
+	evidenceBytes := testcheck.Must(os.ReadFile(evidencePath))(t)
 	testcheck.NoError(t, strictjson.DecodeBytes(evidenceBytes, &evidence))
 	if evidence.Schema != "overgo/adaptive-gemma4-fp8-performance/v1" || evidence.SourceCommit == "" ||
 		evidence.SourceEntrypoint != "go/extmodel/alternating_window_decoder_cuda_windows_test.go:TestGemma4Device_GoldenGate" ||
@@ -96,23 +95,18 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	}
 	slices.Sort(referenceWalls)
 	referenceWall := referenceWalls[len(referenceWalls)/2]
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-native.gguf")
 	assertSHA256(t, modelPath, evidence.CandidateArtifactSHA256)
 	started := time.Now()
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
+	loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyDeviceNative,
-	)
-	testcheck.NoError(t, err)
-	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	))(t)
+	runner := testcheck.Must(inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{}))(t)
 	defer runner.Close()
 	loadWall := time.Since(started)
-	loadMemory, err := runner.DeviceMemoryStats(t.Context())
-	testcheck.NoError(t, err)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	loadMemory := testcheck.Must(runner.DeviceMemoryStats(t.Context()))(t)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	// The reference wall is the MEDIAN of its five recorded runs, so the
 	// candidate measures the same statistic: three greedy generations,
 	// each token-exact, compared by median -- one cold-clock or

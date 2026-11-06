@@ -18,44 +18,37 @@ func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 	formatID := testutil.ArtifactID(t, artifact.KindProfile, "format")
 	testutil.PublishArtifact(t, store, audioID)
 	testutil.PublishArtifact(t, store, formatID)
-	profile, err := audioSignalProfileCodec.NewInitial(AudioSignalProfileDocument{Profile: recipecontract.DecodedAudioSignalProfile{
+	profile := testcheck.Must(audioSignalProfileCodec.NewInitial(AudioSignalProfileDocument{Profile: recipecontract.DecodedAudioSignalProfile{
 		Source:      recipecontract.AudioReference{Audio: audioID, Profile: formatID},
 		SchemaValid: true, DecodeStatus: recipecontract.AudioDecodeComplete,
 		Format:     recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		FrameCount: 16_000, SampleCount: 16_000, FiniteSampleCount: 16_000,
 		ClipThreshold: 1, PeakAbsolute: 0.5, RootMeanSquare: 0.125, DCOffset: 0.01,
-	}})
-	testcheck.NoError(t, err)
-	policy, err := audioAdmissionPolicyCodec.NewInitial(AudioAdmissionPolicyDocument{Policy: recipecontract.AudioAdmissionPolicy{
+	}}))(t)
+	policy := testcheck.Must(audioAdmissionPolicyCodec.NewInitial(AudioAdmissionPolicyDocument{Policy: recipecontract.AudioAdmissionPolicy{
 		MinimumDurationNanoseconds: uint64(time.Second / 2), MaximumDurationNanoseconds: uint64(2 * time.Second),
 		MinimumChannels: 1, MaximumChannels: 1, SilenceRMSThreshold: 0.001,
 		MaximumClippedFraction: 0.01, MaximumAbsoluteDCOffset: 0.1,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	profileLineage := artifact.DependencyLineage(profile.ID, audioID, formatID)
-	profileBatch, err := audioSignalProfileCodec.Batch(
+	profileBatch := testcheck.Must(audioSignalProfileCodec.Batch(
 		"fixture/audio-signal-profile", profile, profileLineage, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, profileBatch); err != nil {
 		t.Fatal(err)
 	}
-	policyBatch, err := audioAdmissionPolicyCodec.Batch("fixture/audio-admission-policy", policy, nil, nil)
-	testcheck.NoError(t, err)
+	policyBatch := testcheck.Must(audioAdmissionPolicyCodec.Batch("fixture/audio-admission-policy", policy, nil, nil))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, policyBatch); err != nil {
 		t.Fatal(err)
 	}
-	result, err := policy.Policy.Evaluate(profile.Profile)
-	testcheck.NoError(t, err)
-	decision, err := audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
+	result := testcheck.Must(policy.Policy.Evaluate(profile.Profile))(t)
+	decision := testcheck.Must(audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
 		Signal: profile.ID, Policy: policy.ID, Decision: result,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	decisionLineage := artifact.DependencyLineage(decision.ID, decision.Signal, decision.Policy)
-	batch, err := audioAdmissionDecisionCodec.Batch(
+	batch := testcheck.Must(audioAdmissionDecisionCodec.Batch(
 		"fixture/audio-admission-decision", decision, decisionLineage, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -71,16 +64,13 @@ func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 
 func TestAudioAdmissionDecisionRejectsUnprovedLineage(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
-	decision, err := audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
+	decision := testcheck.Must(audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
 		Signal:   testutil.ArtifactID(t, artifact.KindEvidence, "missing-signal"),
 		Policy:   testutil.ArtifactID(t, artifact.KindProfile, "missing-policy"),
 		Decision: recipecontract.AudioAdmissionDecision{Outcome: recipecontract.AudioAdmissionAccepted},
-	})
-	testcheck.NoError(t, err)
-	content, err := audioAdmissionDecisionCodec.Content(decision)
-	testcheck.NoError(t, err)
-	unbound, err := artifact.NewDocumentBatch("fixture/unbound-audio-admission", []artifact.Content{content}, nil, nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(audioAdmissionDecisionCodec.Content(decision))(t)
+	unbound := testcheck.Must(artifact.NewDocumentBatch("fixture/unbound-audio-admission", []artifact.Content{content}, nil, nil))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, unbound); err != nil {
 		t.Fatal(err)
 	}

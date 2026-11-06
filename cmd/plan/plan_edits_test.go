@@ -44,8 +44,7 @@ func TestMain(m *testing.M) {
 // would type, and returns what it printed and whether it refused.
 func planCommand(t *testing.T, root string, arguments ...string) (string, error) {
 	t.Helper()
-	executable, err := os.Executable()
-	testcheck.NoError(t, err)
+	executable := testcheck.Must(os.Executable())(t)
 	command := exec.CommandContext(t.Context(), executable, arguments...)
 	command.Dir = root
 	// The child's refusals are this test's to read: they go to no error file a
@@ -71,8 +70,7 @@ func planBytes(t *testing.T, path string) []byte {
 // editedPlan loads the plan of root as the command left it.
 func editedPlan(t *testing.T, root string) plan.Plan {
 	t.Helper()
-	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
-	testcheck.NoError(t, err)
+	document := testcheck.Must(plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path))))(t)
 	return document
 }
 

@@ -38,8 +38,7 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 		t.Fatalf("a proved set does not load as the state it was written from: %s", reason)
 	}
 
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("never durable"))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("never durable")))(t)
 	sound.contents.set(id, contentLocator{size: 1, blob: true}, 0)
 	target, err = publish(&sound)
 	if err == nil || !strings.Contains(err.Error(), "contents") {
@@ -57,8 +56,7 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 // whole or bounded.
 func TestDescriptorIndexesAppend(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	var committed []artifact.ID
 	for index := range 40 {
@@ -74,8 +72,7 @@ func TestDescriptorIndexesAppend(t *testing.T) {
 	}
 	sorted := slices.SortedFunc(slices.Values(committed), artifact.CompareID)
 	for _, limit := range []int{len(committed), 5} {
-		result, err := store.Query(t.Context(), Query{Schema: schema, MaxResults: limit, Projection: ProjectCatalog})
-		testcheck.NoError(t, err)
+		result := testcheck.Must(store.Query(t.Context(), Query{Schema: schema, MaxResults: limit, Projection: ProjectCatalog}))(t)
 		var ids []artifact.ID
 		for _, descriptor := range result.Artifacts {
 			ids = append(ids, descriptor.ID)

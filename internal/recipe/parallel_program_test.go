@@ -23,7 +23,7 @@ func TestParallelReadySet(t *testing.T) {
 	left := Node{ID: "left", Module: branch.ID, Placement: PlacementHost}
 	right := Node{ID: "right", Module: branch.ID, Placement: PlacementHost}
 	sink := Node{ID: "sink", Module: join.ID, Placement: PlacementHost}
-	definition, err := NewDefinitionWithDependencies(
+	definition := testcheck.Must(NewDefinitionWithDependencies(
 		TaskInference, []Dependency{{Role: DependencyModel, Artifact: model}},
 		[]Node{left, right, sink},
 		[]Edge{
@@ -35,12 +35,9 @@ func TestParallelReadySet(t *testing.T) {
 			{Name: "right", Data: DataText, Target: Endpoint{Node: right.ID, Port: "input"}},
 		},
 		[]Output{{Name: "output", Data: DataText, Source: Endpoint{Node: sink.ID, Port: "output"}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := NewCatalog(branch, join)
-	testcheck.NoError(t, err)
-	program, err := CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
+	))(t)
+	catalog := testcheck.Must(NewCatalog(branch, join))(t)
+	program := testcheck.Must(CompileProgram(definition, catalog))(t)
 	sets := program.ReadySets()
 	if len(sets) != 2 || len(sets[0]) != 2 || sets[0][0].Node.ID != left.ID ||
 		sets[0][1].Node.ID != right.ID || len(sets[1]) != 1 || sets[1][0].Node.ID != sink.ID {

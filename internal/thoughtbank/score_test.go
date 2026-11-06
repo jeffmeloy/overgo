@@ -29,8 +29,7 @@ func TestScoreSequenceIsTheForwardsLogProbability(t *testing.T) {
 	for index, character := range text {
 		ids[index] = int32(character - 'a')
 	}
-	output, err := FastWeightBankLMForward(ids, nil, 0, generator.weights)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(FastWeightBankLMForward(ids, nil, 0, generator.weights))(t)
 	var want float64
 	for position := 1; position < len(ids); position++ {
 		logits := output.Logits[(position-1)*vocabulary : position*vocabulary]
@@ -40,8 +39,7 @@ func TestScoreSequenceIsTheForwardsLogProbability(t *testing.T) {
 		}
 		want += float64(logits[ids[position]]) - math.Log(total)
 	}
-	scores, err := generator.ScoreContinuations(t.Context(), "", []string{text})
-	testcheck.NoError(t, err)
+	scores := testcheck.Must(generator.ScoreContinuations(t.Context(), "", []string{text}))(t)
 	if len(scores) != 1 || scores[0].Tokens != uint64(len(ids)-1) || math.Abs(scores[0].LogProbability-want) > 1e-6 {
 		t.Fatalf("score = %+v, want %d tokens and log-probability %g", scores, len(ids)-1, want)
 	}
@@ -56,10 +54,8 @@ func TestScoreSequenceReadsALongSequenceInDisjointWindows(t *testing.T) {
 	const tail = 5
 	text := scoringText(vocabulary, 2*scoringWindowTokens+tail)
 	windows := []string{text[:scoringWindowTokens], text[scoringWindowTokens : 2*scoringWindowTokens], text[2*scoringWindowTokens:]}
-	whole, err := generator.ScoreContinuations(t.Context(), "", []string{text})
-	testcheck.NoError(t, err)
-	apart, err := generator.ScoreContinuations(t.Context(), "", windows)
-	testcheck.NoError(t, err)
+	whole := testcheck.Must(generator.ScoreContinuations(t.Context(), "", []string{text}))(t)
+	apart := testcheck.Must(generator.ScoreContinuations(t.Context(), "", windows))(t)
 	var tokens uint64
 	var logProbability float64
 	for _, score := range apart {

@@ -24,8 +24,7 @@ func TestPublishDatasetCatalogCommand(t *testing.T) {
 	args := []string{"-repo", repository, "-legacy", legacyRoot, "-root", contentRoot}
 	testcheck.NoError(t, run(args, &output))
 	store := overgodbtest.OpenReadOnly(t, repository)
-	coverage, err := dataset.InspectCatalog(t.Context(), store)
-	testcheck.NoError(t, err)
+	coverage := testcheck.Must(dataset.InspectCatalog(t.Context(), store))(t)
 	if !coverage.Complete || coverage.Registered != 1 || coverage.Available != coverage.Registered ||
 		!strings.Contains(output.String(), "changed=true") {
 		t.Fatalf("coverage=%+v output=%q", coverage, output.String())
@@ -58,23 +57,18 @@ func TestCatalogPublishesAMixture(t *testing.T) {
 	if err != nil || !found || mixture.Type != dataset.TypeMixture || !strings.Contains(output.String(), mixture.ID.String()) {
 		t.Fatalf("registered mixture = %+v, %t, %v; output %q", mixture, found, err, output.String())
 	}
-	processor, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("mixture-test/text"))
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("mixture-test/text")))(t)
 	text := []recipecontract.Modality{recipecontract.ModalityText}
-	materialized, err := trainingdata.MaterializeWhole(ctx, store, trainingdata.Authority{
+	materialized := testcheck.Must(trainingdata.MaterializeWhole(ctx, store, trainingdata.Authority{
 		Dataset: mixture.ID, Processors: []artifact.ID{processor},
 		Signature: recipecontract.ModalitySignature{Inputs: text, Outputs: text},
 	}, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: text,
-		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, trainingdata.EncodingUTF8)}})
-	testcheck.NoError(t, err)
+		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, trainingdata.EncodingUTF8)}}))(t)
 	defer materialized.Close()
-	stream, err := trainingdata.NewStream(materialized, nil)
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingdata.NewStream(materialized, nil))(t)
 	const draws = 8
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: draws, DecodeWorkers: 1})
-	testcheck.NoError(t, err)
-	batch, err := batcher.Next(ctx)
-	testcheck.NoError(t, err)
+	batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: draws, DecodeWorkers: 1}))(t)
+	batch := testcheck.Must(batcher.Next(ctx))(t)
 	drawn := map[string]int{}
 	for _, example := range batch.Examples {
 		drawn[string(example.Values[0].Data)]++

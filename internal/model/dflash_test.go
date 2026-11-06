@@ -14,8 +14,7 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	input := func(name string, shape tensor.Shape, value float32) *tensor.Tensor {
 		item := builder.Input(name, dtype.F32, shape)
-		elements, err := shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(shape.Elements())(t)
 		data := make([]float32, elements)
 		for index := range data {
 			data[index] = value + float32(index%5)*0.01
@@ -53,20 +52,17 @@ func TestBuildDFlashFeatureInjectionAndNoiseBlock(t *testing.T) {
 	cacheKey, cacheValue, err := program.CacheProjection().Build(builder, fused, weights, []uint32{0, 1}, nil, nil)
 	testcheck.NoError(t, err)
 	noise := input("noise", tensor.MustShape(4, 3), 0.1)
-	result, err := buildFixtureDenseBlockCachedForLayer(
+	result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(
 		builder, noise, spec, weights, []uint32{2, 3, 4}, cacheKey, cacheValue, 0,
-	)
-	testcheck.NoError(t, err)
-	results, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
-	testcheck.NoError(t, err)
+	))(t)
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds))(t)
 	if !results[result.Output].Shape.Equal(tensor.MustShape(4, 3)) ||
 		!results[result.Key].Shape.Equal(tensor.MustShape(2, 1, 5)) ||
 		!results[result.Value].Shape.Equal(tensor.MustShape(2, 1, 5)) {
 		t.Fatalf("unexpected DFlash shapes: output=%v key=%v value=%v",
 			results[result.Output].Shape.Slice(), results[result.Key].Shape.Slice(), results[result.Value].Shape.Slice())
 	}
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).Causal {
 			t.Fatal("DFlash noise block used causal attention")

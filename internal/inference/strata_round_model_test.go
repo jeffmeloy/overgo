@@ -47,9 +47,8 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	// The experts stay where the load placed them and the PCIe share is none, so plain decoding and the windows compute
 	// each expert in the same place (a host expert on the CPU, a card expert on the card): Strata's PCIe share takes a
 	// share of each window's misses, which a window's size moves.
-	runner, err := openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draftFile, StrataRound: true},
-		recipe.ResidencyHybridNative)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(model, OpenOptions{HoldExperts: true, Draft: draftFile, StrataRound: true},
+		recipe.ResidencyHybridNative))(t)
 	t.Cleanup(func() {
 		if err := runner.Close(); err != nil {
 			t.Error(err)
@@ -59,16 +58,14 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	runner.strataTestShare = &none
 	// The bench's session: --max-context 131072 (a longer one selects with the wide top-k kernel, as Strata's would).
 	runner.qsaStreamedContext = strataRoundBenchContext
-	prompt, err := runner.FormatChatWithOptions(
+	prompt := testcheck.Must(runner.FormatChatWithOptions(
 		[]ChatMessage{{Role: ChatRoleUser, Content: "Explain how a refrigerator keeps food cold."}},
 		ChatFormatOptions{AddGenerationPrompt: true},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	const generated = 48
 	decode := func(round, plain bool, drafts strataDraftSource, spans func(int, int)) []tokenizer.TokenID {
 		t.Helper()
-		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		testcheck.NoError(t, err)
+		greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 		runner.strataTestDrafts = drafts
 		var delivered []tokenizer.TokenID
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
@@ -121,8 +118,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	t.Logf("%d windows over %d tokens, %d with a wrong draft", windows, generated, wrong)
 	// A callback's failure ends the request with it, no token delivered after it.
 	gone, delivered := errors.New("the client left"), 0
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	_, _, err = runner.Generate(t.Context(), prompt, GenerateOptions{
 		MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, ContinueAfterEOG: true, StrataRound: true,
 		OnToken: func(TokenEvent) error {
@@ -158,8 +154,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	// is the same whatever the drafts were: the drafter's windows give the round's plain sampled decoding's tokens.
 	sampled := func(plain bool) []tokenizer.TokenID {
 		t.Helper()
-		sampler, err := sampling.New(sampling.Config{Temperature: 0.8, TopK: 20, TopP: 0.95, Seed: 7})
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(sampling.New(sampling.Config{Temperature: 0.8, TopK: 20, TopP: 0.95, Seed: 7}))(t)
 		ids, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: sampler, ContinueAfterEOG: true, PlainDecode: plain, StrataRound: true,
 		})
@@ -179,8 +174,7 @@ func TestFlashNextDecodeRoundIsStratas(t *testing.T) {
 	// cells move experts off the card to make room, so the two may part later at a near tie.)
 	turn := func(prompt string, cache, plain bool) ([]tokenizer.TokenID, string, int) {
 		t.Helper()
-		greedy, err := sampling.New(sampling.Config{Temperature: 0})
-		testcheck.NoError(t, err)
+		greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 		cached := 0
 		ids, text, err := runner.Generate(t.Context(), prompt, GenerateOptions{
 			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PlainDecode: plain, StrataRound: true,

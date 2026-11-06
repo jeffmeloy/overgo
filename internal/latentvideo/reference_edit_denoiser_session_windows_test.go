@@ -24,8 +24,7 @@ import (
 func TestLiveEditRetainedDenoiser(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(repo))(t)
 	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
@@ -34,8 +33,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
 		VAEStride: [3]int{4, 8, 8},
 	}
-	base, err := LoadDenoiserConfig(wanDir, policy)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(LoadDenoiserConfig(wanDir, policy))(t)
 	checkpoint, err := CompileReferenceEditCheckpoint(
 		filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"), base,
 	)
@@ -66,17 +64,13 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	var outputs [][]float32
 	for frame := range 2 {
 		combined := retainedDenoiserChunk(current, source, frame)
-		patches, err := session.cold.PatchifyLatent(combined)
-		testcheck.NoError(t, err)
-		output, err := session.RunChunk(t.Context(), patches, blockE, headE, frame, true)
-		testcheck.NoError(t, err)
+		patches := testcheck.Must(session.cold.PatchifyLatent(combined))(t)
+		output := testcheck.Must(session.RunChunk(t.Context(), patches, blockE, headE, frame, true))(t)
 		outputs = append(outputs, output)
 	}
 	stats := session.Stats()
-	memory, err := session.MemoryStats()
-	testcheck.NoError(t, err)
-	execution, err := session.ExecutionStats()
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(session.MemoryStats())(t)
+	execution := testcheck.Must(session.ExecutionStats())(t)
 	if stats.Layers != 2 || stats.Runs != 2 || stats.ContextProjections != 1 || stats.HistoryTokens != geometry.Seq || stats.WeightBytes == 0 {
 		t.Fatalf("retained denoiser stats=%+v", stats)
 	}
@@ -107,10 +101,8 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	}
 	testcheck.NoError(t, err)
 	defer fresh.Close()
-	second, err := fresh.cold.PatchifyLatent(retainedDenoiserChunk(current, source, 1))
-	testcheck.NoError(t, err)
-	coldSecond, err := fresh.RunChunk(t.Context(), second, blockE, headE, 0, true)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(fresh.cold.PatchifyLatent(retainedDenoiserChunk(current, source, 1)))(t)
+	coldSecond := testcheck.Must(fresh.RunChunk(t.Context(), second, blockE, headE, 0, true))(t)
 	historyEffect := testutil.MaxAbsDiff(outputs[1], coldSecond)
 	if historyEffect == 0 {
 		t.Fatal("retained self-attention history has no numerical effect")
@@ -124,8 +116,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(repo))(t)
 	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
@@ -134,12 +125,10 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
 		VAEStride: [3]int{4, 8, 8},
 	}
-	base, err := LoadDenoiserConfig(wanDir, policy)
-	testcheck.NoError(t, err)
-	checkpoint, err := CompileReferenceEditCheckpoint(
+	base := testcheck.Must(LoadDenoiserConfig(wanDir, policy))(t)
+	checkpoint := testcheck.Must(CompileReferenceEditCheckpoint(
 		filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"), base,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	geometry := LatentGeometry{
 		Channels: checkpoint.Config.InDim, LatentFrames: 3, LatentHeight: 32, LatentWidth: 64,
 		Grid: [3]int{3, 16, 32}, Seq: 3 * 16 * 32,
@@ -156,15 +145,13 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	for index := range combined {
 		combined[index] = float32(index%257-128) / 257
 	}
-	patches, err := session.cold.PatchifyLatent(combined)
-	testcheck.NoError(t, err)
+	patches := testcheck.Must(session.cold.PatchifyLatent(combined))(t)
 	headE, blockE, err := CompileTimestepConditioning([]float64{900}, session.cold.timestepWeights)
 	testcheck.NoError(t, err)
 	run := func() ([]float32, [][2][sha256.Size]byte) {
 		t.Helper()
 		testcheck.NoError(t, session.ResetHistory())
-		output, err := session.RunChunk(t.Context(), patches, blockE, headE, 0, true)
-		testcheck.NoError(t, err)
+		output := testcheck.Must(session.RunChunk(t.Context(), patches, blockE, headE, 0, true))(t)
 		digests := make([][2][sha256.Size]byte, layers)
 		for layer := range layers {
 			for kind, buffer := range []*executor.DeviceBuffer{session.cacheKeys[layer], session.cacheValues[layer]} {
@@ -173,8 +160,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 					value, err = buffer.Value(session.cold.currentSelfVals[layer].Shape)
 				}
 				testcheck.NoError(t, err)
-				elements, err := value.Shape.Elements()
-				testcheck.NoError(t, err)
+				elements := testcheck.Must(value.Shape.Elements())(t)
 				raw := make([]byte, int(elements)*4)
 				if err := session.worker.Do(t.Context(), func(state *device.State) error {
 					return state.Driver.MemcpyDtoH(raw, value.Pointer)
@@ -203,16 +189,12 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 func encodeRetainedDenoiserSource(t testing.TB, models string) []float32 {
 	t.Helper()
 	checkpoint := filepath.Join(models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
-	catalog, err := pytorchzip.ReadCatalog(checkpoint)
-	testcheck.NoError(t, err)
-	graph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(pytorchzip.ReadCatalog(checkpoint))(t)
+	graph := testcheck.Must(CompileVAEEncoderPlan(catalog.Tensors))(t)
 	profile := SourceCodecProfile{InputChannels: graph.InputChannels, LatentChannels: graph.LatentChannels, Stride: graph.Stride, LatentStats: loadSourceCodecStats(t)}
-	plan, err := CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileSourceCodecBoundary(profile, SourceVideoShape{Channels: 3, Frames: 5, Height: 32, Width: 32}))(t)
 	input := loadRealSourceCrops(t, plan.Source)
-	session, err := newVAEEncoderCUDASession(checkpoint, graph, 0)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(newVAEEncoderCUDASession(checkpoint, graph, 0))(t)
 	defer session.Close()
 	latent, _, err := session.Encode(t.Context(), plan, input)
 	testcheck.NoError(t, err)
@@ -221,8 +203,7 @@ func encodeRetainedDenoiserSource(t testing.TB, models string) []float32 {
 
 func loadRetainedDenoiserCurrent(t testing.TB) []float32 {
 	t.Helper()
-	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json")))(t)
 	var manifest struct {
 		Final struct {
 			Values []float32 `json:"values"`
@@ -253,8 +234,7 @@ func retainedDenoiserChunk(current, source []float32, frame int) []float32 {
 
 func readRetainedDenoiserF32(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	if len(raw) != elements*4 {
 		t.Fatalf("retained context bytes=%d want=%d", len(raw), elements*4)
 	}

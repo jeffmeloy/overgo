@@ -34,8 +34,7 @@ import (
 // it.
 func TestDenseBlockRecordIsWhole(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	raw, err := os.ReadFile(filepath.Join(root, "docs", "verification", "dense-block-program.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs", "verification", "dense-block-program.txt")))(t)
 	fields := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

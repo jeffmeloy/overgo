@@ -20,8 +20,7 @@ import (
 // existing stores carry; only tests may ever write it again.
 func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.ID {
 	t.Helper()
-	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_CREATE|os.O_RDWR, storeFileMode)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.OpenFile(filepath.Join(root, storeFilename), os.O_CREATE|os.O_RDWR, storeFileMode))(t)
 	defer file.Close()
 	testcheck.NoError(t, writeAll(file, encodeStoreHeader()))
 	var previous artifact.CommitID
@@ -29,8 +28,7 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 	ids := make([]artifact.ID, 0, commits)
 	for ordinal := range commits {
 		payload := fmt.Appendf(nil, "legacy-inline/%d/%s", ordinal, scaleContent(ordinal)[:64])
-		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, payload))(t)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 		batch := artifact.Batch{Key: fmt.Sprintf("legacy/%d", ordinal), Artifacts: []artifact.Descriptor{descriptor}}
 		if ordinal%scaleAliasStride == 0 {
@@ -42,10 +40,9 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 		normalized, requestHash, err := encodeBatch(batch)
 		testcheck.NoError(t, err)
 		normalized.Contents = nil
-		metadata, err := json.Marshal(persistedTransaction{
+		metadata := testcheck.Must(json.Marshal(persistedTransaction{
 			Request: requestHash, Delta: normalized, Content: []artifact.Descriptor{descriptor},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		frame := binary.LittleEndian.AppendUint32(nil, uint32(len(metadata)))
 		frame = append(frame, metadata...)
 		frame = append(frame, payload...)
@@ -74,8 +71,7 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	const commits = 24
 	ids := writeLegacyInlineStore(t, root, commits)
 
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
 	if _, sequence := store.Head(); sequence != commits {
 		t.Fatalf("legacy replay sequence %d, want %d", sequence, commits)
@@ -89,11 +85,9 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	}
 
 	newPayload := bytes.Repeat([]byte("format-flip"), 1024)
-	newID, err := artifact.IdentifyBytes(artifact.KindRun, newPayload)
-	testcheck.NoError(t, err)
+	newID := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, newPayload))(t)
 	newDescriptor := artifact.Descriptor{ID: newID, Size: uint64(len(newPayload)), MediaType: "text/plain"}
-	journalBefore, err := os.Stat(filepath.Join(root, storeFilename))
-	testcheck.NoError(t, err)
+	journalBefore := testcheck.Must(os.Stat(filepath.Join(root, storeFilename)))(t)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "legacy/new-write", Contents: []artifact.Content{{Descriptor: newDescriptor, Data: newPayload}},
 	}); err != nil {
@@ -102,8 +96,7 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	if !store.blobs.has(newID) {
 		t.Fatal("new write onto a legacy store did not use the blob format")
 	}
-	journalAfter, err := os.Stat(filepath.Join(root, storeFilename))
-	testcheck.NoError(t, err)
+	journalAfter := testcheck.Must(os.Stat(filepath.Join(root, storeFilename)))(t)
 	if growth := journalAfter.Size() - journalBefore.Size(); growth >= int64(len(newPayload)) {
 		t.Fatalf("new frame grew the journal %d bytes; inline bytes were written", growth)
 	}
@@ -112,8 +105,7 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	if _, err := Rebuild(ctx, store, destination, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	migrated, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	migrated := testcheck.Must(OpenReadOnly(destination))(t)
 	defer migrated.Close()
 	for ordinal, id := range ids {
 		descriptor, found, err := migrated.Artifact(ctx, id)

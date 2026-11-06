@@ -20,14 +20,12 @@ func TestBlobRetryPersistsTheNameItFinds(t *testing.T) {
 	t.Parallel()
 	blobs := blobStore{root: filepath.Join(t.TempDir(), blobDirectory), pack: new(blobPack)}
 	payload := []byte("a blob an earlier attempt published")
-	id, err := artifact.NewID(artifact.KindFile, sha256.Sum256(payload))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.NewID(artifact.KindFile, sha256.Sum256(payload)))(t)
 	testcheck.NoError(t, blobs.prepare(id, payload))
 	if err := blobs.prepare(id, payload); err != nil {
 		t.Fatalf("a retry over a sound blob: %v", err)
 	}
-	destination, err := blobs.path(id)
-	testcheck.NoError(t, err)
+	destination := testcheck.Must(blobs.path(id))(t)
 	testcheck.NoError(t, os.Chmod(destination, 0o444))
 	t.Cleanup(func() { _ = os.Chmod(destination, 0o644) })
 	if err := blobs.prepare(id, payload); err == nil {

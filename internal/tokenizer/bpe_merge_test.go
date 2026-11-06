@@ -82,8 +82,7 @@ func mergeTestVocab(t testing.TB) *Vocab {
 		scalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(0)),
 		scalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true),
 	}}
-	vocab, err := Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(Load(file))(t)
 	return vocab
 }
 

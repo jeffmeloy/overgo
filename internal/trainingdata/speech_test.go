@@ -22,20 +22,17 @@ func TestSpeechLatentMaterialization(t *testing.T) {
 		Codec: id(artifact.KindTensorSet, "codec"), Transform: id(artifact.KindProfile, "normalization"),
 		Conditioning: id(artifact.KindProfile, "text-bos"), Noise: id(artifact.KindProfile, "gaussian"),
 		Width: 2, MaximumFrames: 3, MaximumTextBytes: 64, MaximumEncodedBytes: 2048}
-	content, err := profile.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(profile.Content())(t)
 	source := id(artifact.KindFile, "recorded input")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "source", Artifacts: []artifact.Descriptor{{ID: source}}}); err != nil {
 		t.Fatal(err)
 	}
-	process, err := SpeechLatentProcessor(store, profile)
-	testcheck.NoError(t, err)
+	process := testcheck.Must(SpeechLatentProcessor(store, profile))(t)
 	record := SpeechLatentRecord{Profile: content.Descriptor.ID, Source: source, SourceRecord: "row-12", Text: "a b", Frames: 2,
 		Seed: -7, Latents: []float32{float32(math.Copysign(0, -1)), math.SmallestNonzeroFloat32, 0.75, -0.125}}
 	encode := func(record SpeechLatentRecord) RawRecord {
 		t.Helper()
-		data, err := json.Marshal(record)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(record))(t)
 		return RawRecord{ID: "dataset-record-3", Group: "speaker-2", Data: data}
 	}
 	example, err := process(t.Context(), encode(record))

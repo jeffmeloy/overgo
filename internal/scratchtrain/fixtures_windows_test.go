@@ -13,8 +13,7 @@ import (
 // trainers are compared on.
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json")))(t)
 	oracle, _, err := adaptiveparity.NormalizeScratchOracle(raw)
 	testcheck.NoError(t, err)
 	return oracle

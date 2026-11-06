@@ -140,8 +140,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	store := overgodbtest.Create(t, source)
 	payload := []byte("browser fixture shared weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}})
-	testcheck.NoError(t, err)
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}}))(t)
 	location := filepath.Join(t.TempDir(), "weights.bin")
 	testcheck.NoError(t, os.WriteFile(location, payload, 0o600))
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
@@ -151,8 +150,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID))(t)
 	testcheck.NoError(t, modelrecipetest.PublishActivation(ctx, store, "browser-fixture/active", definition))
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated historical result")
 	testutil.PublishArtifact(t, store, unrelated)

@@ -64,8 +64,7 @@ func TestCompositeGenerationActiveRecipe(t *testing.T) {
 
 func TestCompositeGenerationExecution(t *testing.T) {
 	runtime, store, _, request, source := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(runtime.GenerateEvidence(t.Context(), store, request))(t)
 	if !result.Commit.Valid() || len(result.Evidence.Trials) != len(compositeGenerationArms) ||
 		result.Evidence.CompositionRecipe != runtime.plan.CompositionRecipe ||
 		result.Evidence.ExecutionPlan != runtime.plan.ID || source.calls != 3 {
@@ -81,11 +80,9 @@ func TestCompositeGenerationExecution(t *testing.T) {
 
 func TestCompositeGenerationOutputLineage(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(runtime.GenerateEvidence(t.Context(), store, request))(t)
 	trial := result.Evidence.Trials[0]
-	parents, err := store.Parents(t.Context(), trial.Output)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), trial.Output))(t)
 	want := map[artifact.ID]artifact.Relation{
 		trial.Input: artifact.RelationDerivedFrom,
 		trial.Run:   artifact.RelationProducedBy,
@@ -104,8 +101,7 @@ func TestCompositeGenerationOutputLineage(t *testing.T) {
 
 func TestCompositeGenerationResourceEvidence(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(t.Context(), store, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(runtime.GenerateEvidence(t.Context(), store, request))(t)
 	for _, trial := range result.Evidence.Trials {
 		run, runErr := runrecord.RequireRun(t.Context(), store, trial.Run)
 		evaluation, evaluationErr := runrecord.RequireEvaluation(t.Context(), store, trial.Evaluation)
@@ -134,14 +130,13 @@ func compositeGenerationExecutionFixture(
 	}
 	first := inferenceBridgeValue(t, tensor.MustShape(2, 3), []float32{1, 0, 0, 1, 1, 1})
 	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{1, 2, 3})
-	runtime, err := OpenProductionComposition(
+	runtime := testcheck.Must(OpenProductionComposition(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
 			source: source, target: target,
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	request := CompositeGenerationExecutionRequest{
 		Key:                  "fixture/composite-generation/execution",

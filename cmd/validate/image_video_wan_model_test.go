@@ -26,8 +26,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 	if len(bundle.Cases) == 0 {
 		t.Fatal("Wan bundle has no cases")
 	}
-	quality, err := os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json"))
-	testcheck.NoError(t, err)
+	quality := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_protocol.json")))(t)
 	testcheck.NoError(t, checkImageVideoProtocolIdentity(quality))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, json.Unmarshal(quality, &protocol))
@@ -36,8 +35,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 		t.Fatal("Wan case lacks its protocol observation")
 	}
 	observation := protocol.Cases[index].Observations[0]
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	content, found, err := artifact.ReadContent(t.Context(), store, bundle.Cases[0].Output)
 	if err != nil || !found {
@@ -48,8 +46,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 	}
 	for _, mutation := range []string{"truncate", "reorder", "timing", "pixel"} {
 		t.Run(mutation, func(t *testing.T) {
-			video, err := gif.DecodeAll(bytes.NewReader(content.Data))
-			testcheck.NoError(t, err)
+			video := testcheck.Must(gif.DecodeAll(bytes.NewReader(content.Data)))(t)
 			switch mutation {
 			case "truncate":
 				video.Image = video.Image[:len(video.Image)-1]

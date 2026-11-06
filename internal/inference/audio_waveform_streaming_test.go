@@ -50,17 +50,14 @@ func TestStreamedWaveformReconstruction(t *testing.T) {
 
 	tables := newAudioWaveformTables(compiled)
 	features := syntheticAudioFeatures(compiled, 3)
-	got, err := audioFeaturesToWaveform(compiled, tables, features)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(audioFeaturesToWaveform(compiled, tables, features))(t)
 	requireBitIdentical(t, got, fullBufferWaveform(compiled, tables, features), 3)
 
 	tight := small
 	tight.MagnitudeLimit = 50
 	features = syntheticAudioFeatures(small, 4)
-	loose, err := audioFeaturesToWaveform(small, first, features)
-	testcheck.NoError(t, err)
-	clamped, err := audioFeaturesToWaveform(tight, first, features)
-	testcheck.NoError(t, err)
+	loose := testcheck.Must(audioFeaturesToWaveform(small, first, features))(t)
+	clamped := testcheck.Must(audioFeaturesToWaveform(tight, first, features))(t)
 	requireBitIdentical(t, clamped, fullBufferWaveform(tight, first, features), 4)
 	differs := false
 	for index := range clamped {

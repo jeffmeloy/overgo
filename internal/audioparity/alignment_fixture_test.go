@@ -54,16 +54,13 @@ type alignmentFixture struct {
 func loadAlignmentFixture(t *testing.T, storeRoot string) alignmentFixture {
 	t.Helper()
 	f := loadAlignmentAnnotations(t)
-	reference, err := overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
+	reference := testcheck.Must(overgodb.OpenReadOnly(storeRoot))(t)
 	defer reference.Close()
-	directory, err := artifact.AvailablePath(t.Context(), reference, f.Dataset, artifact.LocationDirectory)
-	testcheck.NoError(t, err)
+	directory := testcheck.Must(artifact.AvailablePath(t.Context(), reference, f.Dataset, artifact.LocationDirectory))(t)
 	f.path = filepath.Join(directory, filepath.FromSlash(f.Shard))
 	verifyASRFile(t, f.path, alignmentFileID(t, f.ShardSHA256), f.ShardBytes)
 	// Metadata and audio use the existing bounded physical-row reader.
-	metadata, err := dataset.OpenParquetRows(t.Context(), f.path, []string{"meeting_id", "audio_id", "text", "speaker_id"}, adapterAcceptanceMemory)
-	testcheck.NoError(t, err)
+	metadata := testcheck.Must(dataset.OpenParquetRows(t.Context(), f.path, []string{"meeting_id", "audio_id", "text", "speaker_id"}, adapterAcceptanceMemory))(t)
 	defer metadata.Close()
 	if metadata.Rows() != f.Rows || f.Rows == 0 {
 		t.Fatal("annotation source row denominator differs")
@@ -71,8 +68,7 @@ func loadAlignmentFixture(t *testing.T, storeRoot string) alignmentFixture {
 	seen := make(map[string]bool)
 	excluded, single, prior, selected := 0, 0, 0, 0
 	for row := range metadata.Rows() {
-		values, err := metadata.Read(t.Context(), row)
-		testcheck.NoError(t, err)
+		values := testcheck.Must(metadata.Read(t.Context(), row))(t)
 		for _, column := range []string{"meeting_id", "audio_id", "text", "speaker_id"} {
 			if values[column] == nil {
 				t.Fatalf("null %s at row %d", column, row)
@@ -109,8 +105,7 @@ func loadAlignmentFixture(t *testing.T, storeRoot string) alignmentFixture {
 
 func alignmentFileID(t *testing.T, digest string) artifact.ID {
 	t.Helper()
-	id, err := artifact.ParseID("file:sha256:" + digest)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID("file:sha256:" + digest))(t)
 	return id
 }
 
@@ -196,8 +191,7 @@ func (f alignmentFixture) referenceWords(t *testing.T, test alignmentCase, rate 
 	if len(parts) != 6 || parts[1] != f.Selection.Meeting || parts[2] != "H0"+test.Channel || parts[3] != test.Speaker {
 		t.Fatal("source clip identity differs")
 	}
-	startTicks, err := strconv.ParseUint(parts[4], 10, 64)
-	testcheck.NoError(t, err)
+	startTicks := testcheck.Must(strconv.ParseUint(parts[4], 10, 64))(t)
 	endTicks, err := strconv.ParseUint(parts[5], 10, 64)
 	if err != nil || endTicks <= startTicks {
 		t.Fatal("invalid clip interval")
@@ -233,8 +227,7 @@ func (f alignmentFixture) referenceWords(t *testing.T, test alignmentCase, rate 
 		if a < start || b > end || b <= a {
 			t.Fatal("reference word crosses or invalidates the selected interval")
 		}
-		text, err := transform.Apply(word.Text)
-		testcheck.NoError(t, err)
+		text := testcheck.Must(transform.Apply(word.Text))(t)
 		words = append(words, recipecontract.AlignedText{Text: text, Span: recipecontract.SampleSpan{Start: a - start, End: b - start}})
 	}
 	var text []string
@@ -253,8 +246,7 @@ func loadAlignmentAnnotations(t *testing.T) alignmentFixture {
 	var fixture alignmentFixture
 	readAudioFixtureJSON(t, "testdata/ami_alignment.json", &fixture)
 	path := retainedAudioFile(t, fixture.AnnotationSHA256, fixture.AnnotationBytes)
-	archive, err := zip.OpenReader(path)
-	testcheck.NoError(t, err)
+	archive := testcheck.Must(zip.OpenReader(path))(t)
 	t.Cleanup(func() { archive.Close() })
 	fixture.archive = archive
 	return fixture

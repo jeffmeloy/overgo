@@ -143,8 +143,7 @@ func TestTrainingBracket(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	id, err := publishTrainingBracket(ctx, store, session, model, recipeID, pre, post)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(publishTrainingBracket(ctx, store, session, model, recipeID, pre, post))(t)
 	bracket, found, err := trainingBracketCodec.Read(ctx, store, id)
 	if err != nil || !found {
 		t.Fatalf("bracket read = (%t, %v)", found, err)

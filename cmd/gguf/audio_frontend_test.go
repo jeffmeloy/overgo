@@ -24,8 +24,7 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 	config := audiodsp.FrontendConfig{SampleRate: 8, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 2}, FFTLength: 4, FrameSpan: 4, PadLeft: 2, PadRight: 2, Padding: "reflect", Window: "rectangular", Mel: audiodsp.MelConfig{Scale: "htk", MaxFrequency: 4}, Log: audiodsp.LogConfig{Base: "natural", GuardMode: "add", Guard: 1e-6, Scale: 1}}
 	paths := []string{filepath.Join(root, "policy.json"), filepath.Join(root, "frontend.json")}
 	for i, value := range []any{policy, config} {
-		data, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(value))(t)
 		testcheck.NoError(t, os.WriteFile(paths[i], data, 0o600))
 	}
 	var first frontendObservation

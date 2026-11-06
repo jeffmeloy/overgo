@@ -40,12 +40,11 @@ func TestReplayRejectsRequestDrift(t *testing.T) {
 
 func replayTraceFixture(t *testing.T) runrecord.InteractionTrace {
 	t.Helper()
-	trace, err := runrecord.NewInteractionTrace(runrecord.Interaction{
+	trace := testcheck.Must(runrecord.NewInteractionTrace(runrecord.Interaction{
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "replay recipe"),
 		Model:  testutil.ArtifactID(t, artifact.KindModel, "replay model"),
 	}, testutil.ArtifactID(t, artifact.KindEvidence, "replay request"), []runrecord.InteractionMessage{
 		{Role: "assistant", Content: "answer"},
-	}, nil, "")
-	testcheck.NoError(t, err)
+	}, nil, ""))(t)
 	return trace
 }

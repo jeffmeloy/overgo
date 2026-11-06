@@ -35,20 +35,17 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 
 func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 
 	modelDirectory, declaration := transcriptionFixtureModel(t)
-	hf, err := hfrepo.Open(modelDirectory)
-	testcheck.NoError(t, err)
+	hf := testcheck.Must(hfrepo.Open(modelDirectory))(t)
 	inventory, err := modelartifact.FromHFRepository(hf)
 	if closeErr := hf.Close(); err == nil {
 		err = closeErr
 	}
 	testcheck.NoError(t, err)
-	inventoryBatch, err := inventory.Batch("fixture/transcription/model")
-	testcheck.NoError(t, err)
+	inventoryBatch := testcheck.Must(inventory.Batch("fixture/transcription/model"))(t)
 	if _, err = artifact.CommitBatch(t.Context(), store, inventoryBatch); err != nil {
 		t.Fatal(err)
 	}
@@ -62,30 +59,24 @@ func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}
-	profile, err := NewExecutionProfile(ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: declaration, BlankToken: 0, Language: "en"})
-	testcheck.NoError(t, err)
-	contract, err := modelrecipe.NewAudioContract(
+	profile := testcheck.Must(NewExecutionProfile(ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: declaration, BlankToken: 0, Language: "en"}))(t)
+	contract := testcheck.Must(modelrecipe.NewAudioContract(
 		recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		frontend.Geometry, artifact.ID{}, artifact.ID{},
-	)
-	testcheck.NoError(t, err)
-	profileBatch, err := profile.Batch("fixture/transcription/profile")
-	testcheck.NoError(t, err)
+	))(t)
+	profileBatch := testcheck.Must(profile.Batch("fixture/transcription/profile"))(t)
 	if _, err = artifact.CommitBatch(t.Context(), store, profileBatch); err != nil {
 		t.Fatal(err)
 	}
-	contractBatch, err := contract.Batch("fixture/transcription/contract")
-	testcheck.NoError(t, err)
+	contractBatch := testcheck.Must(contract.Batch("fixture/transcription/contract"))(t)
 	if _, err = artifact.CommitBatch(t.Context(), store, contractBatch); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.TranscriptionDefinition(
+	definition := testcheck.Must(modelrecipe.TranscriptionDefinition(
 		inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if device {
-		definition, err = modelrecipe.DeviceTranscriptionDefinition(definition)
-		testcheck.NoError(t, err)
+		definition = testcheck.Must(modelrecipe.DeviceTranscriptionDefinition(definition))(t)
 	}
 	if _, _, err = modelrecipe.PublishCandidate(t.Context(), store, "fixture/transcription/candidate", definition); err != nil {
 		t.Fatal(err)
@@ -95,11 +86,9 @@ func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 	wave := transcriptionWAV(testWave(128))
 	silence := transcriptionWAV(make([]float32, 128))
 	registerTranscriptionInputs(t, store, environment, wave, silence)
-	session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
-	testcheck.NoError(t, err)
+	session := testcheck.Must(LoadSession(t.Context(), store, definition.ID, 1<<20))(t)
 	defer session.Close(context.WithoutCancel(t.Context()))
-	transcriber, err := session.Lease(t.Context())
-	testcheck.NoError(t, err)
+	transcriber := testcheck.Must(session.Lease(t.Context()))(t)
 	defer transcriber.Release()
 	policy := dataset.AudioInspectionPolicy{
 		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
@@ -176,11 +165,9 @@ func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 		testAlignmentLease(t, store, definition, wave, result.Source, policy, binding)
 	})
 	t.Run("training-lease", func(t *testing.T) {
-		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(LoadSession(t.Context(), store, definition.ID, 1<<20))(t)
 		defer session.Close(context.WithoutCancel(t.Context()))
-		lease, err := session.Lease(t.Context())
-		testcheck.NoError(t, err)
+		lease := testcheck.Must(session.Lease(t.Context()))(t)
 		defer lease.Release()
 		input := testWave(128)
 		if _, err := lease.PrepareCTC(t.Context(), input, 16000, "a"); err == nil {
@@ -190,16 +177,13 @@ func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 		if _, err := lease.NewOutputAdapter(cancelled, uint64(len(input)), optimizer); !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancelled adapter admission: %v", err)
 		}
-		adapter, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer)
-		testcheck.NoError(t, err)
+		adapter := testcheck.Must(lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer))(t)
 		if _, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer); err == nil {
 			t.Fatal("duplicate adapter admitted")
 		}
-		execution, err := adapter.Bind(t.Context())
-		testcheck.NoError(t, err)
+		execution := testcheck.Must(adapter.Bind(t.Context()))(t)
 		for _, length := range []int{128, 64, 128} {
-			prepared, err := lease.PrepareCTC(t.Context(), input[:length], 16000, "b")
-			testcheck.NoError(t, err)
+			prepared := testcheck.Must(lease.PrepareCTC(t.Context(), input[:length], 16000, "b"))(t)
 			if err := execution.Run(&prepared); err != nil || math.IsNaN(prepared.Loss) || math.IsInf(prepared.Loss, 0) {
 				t.Fatalf("variable-length update=%d loss=%g err=%v", length, prepared.Loss, err)
 			}
@@ -219,11 +203,9 @@ func testTranscriptionRecipeLineage(t *testing.T, device bool) {
 		}
 	})
 	t.Run("shared-component-lifetime", func(t *testing.T) {
-		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
-		testcheck.NoError(t, err)
+		session := testcheck.Must(LoadSession(t.Context(), store, definition.ID, 1<<20))(t)
 		defer session.Close(context.WithoutCancel(t.Context()))
-		lease, err := session.Lease(t.Context())
-		testcheck.NoError(t, err)
+		lease := testcheck.Must(session.Lease(t.Context()))(t)
 		defer lease.Release()
 		if _, err := session.Lease(cancelled); !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancelled admission: %v", err)
@@ -287,8 +269,7 @@ func tokenizerComponent(t *testing.T, manifest artifact.Manifest) artifact.ID {
 
 func transcriptionEvidence(t *testing.T, name string) artifact.Content {
 	t.Helper()
-	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/test-transcription-environment/v1"), map[string]string{"name": name})
-	testcheck.NoError(t, err)
+	content := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/test-transcription-environment/v1"), map[string]string{"name": name}))(t)
 	return content
 }
 
@@ -296,8 +277,7 @@ func registerTranscriptionInputs(t *testing.T, store artifact.Repository, enviro
 	t.Helper()
 	batch := artifact.Batch{Key: "fixture/transcription/inputs", Contents: []artifact.Content{environment}}
 	for _, payload := range payloads {
-		id, err := artifact.IdentifyBytes(artifact.KindFile, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, payload))(t)
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id, Size: uint64(len(payload))})
 	}
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {

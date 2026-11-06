@@ -23,16 +23,13 @@ import (
 func TestEveryCommandHasACaller(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	texts, err := trackedTexts(t.Context(), root)
-	testcheck.NoError(t, err)
-	commands, err := os.ReadDir(filepath.Join(root, "cmd"))
-	testcheck.NoError(t, err)
+	texts := testcheck.Must(trackedTexts(t.Context(), root))(t)
+	commands := testcheck.Must(os.ReadDir(filepath.Join(root, "cmd")))(t)
 	for _, command := range commands {
 		name := command.Name()
 		// A command is a directory holding Go source; one left holding only
 		// ignored files, a store a test wrote there, is none.
-		sources, err := filepath.Glob(filepath.Join(root, "cmd", name, "*.go"))
-		testcheck.NoError(t, err)
+		sources := testcheck.Must(filepath.Glob(filepath.Join(root, "cmd", name, "*.go")))(t)
 		if !command.IsDir() || len(sources) == 0 || Declared[name].Command.Purpose != "" || namedOutside(texts, name) {
 			continue
 		}

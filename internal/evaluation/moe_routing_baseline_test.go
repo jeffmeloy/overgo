@@ -24,10 +24,9 @@ func TestMoERoutingBaselineMatrixHasExactPairedAuthorities(t *testing.T) {
 		{Kind: moeRoutingStaticBias, Policy: id(artifact.KindRecipe, "static-policy"), Recipe: id(artifact.KindRecipe, "static-recipe")},
 		{Kind: moeRoutingAuxiliaryLoss, Policy: id(artifact.KindRecipe, "aux-policy"), Recipe: id(artifact.KindRecipe, "aux-recipe")},
 	}
-	matrix, err := moeRoutingBaselineCodec.New(moeRoutingBaselineMatrix{
+	matrix := testcheck.Must(moeRoutingBaselineCodec.New(moeRoutingBaselineMatrix{
 		Version: artifact.InitialDocumentVersion, moeRoutingPairedAuthorities: authorities, Arms: arms,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := moeRoutingBaselineCodec.Content(matrix)
 	if err != nil || content.Descriptor.ID != matrix.ID || len(moeRoutingBaselineLineage(matrix)) != 18 {
 		t.Fatalf("paired matrix = (%+v, %v)", matrix, err)

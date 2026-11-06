@@ -127,8 +127,7 @@ func TestGBNFVocabularyHashCompatibilityStudy(t *testing.T) {
 				var oracle []uint64
 				for sample, transformed := range []bool{false, true, true, false} {
 					results := make([]uint64, calls)
-					started, err := processmeasure.Counter()
-					testcheck.NoError(t, err)
+					started := testcheck.Must(processmeasure.Counter())(t)
 					var transform vocabularyHashSuffixStudy
 					if transformed {
 						transform = newVocabularyHashSuffixStudy(data)
@@ -143,8 +142,7 @@ func TestGBNFVocabularyHashCompatibilityStudy(t *testing.T) {
 							results[i] = hash.Sum64()
 						}
 					}
-					finished, err := processmeasure.Counter()
-					testcheck.NoError(t, err)
+					finished := testcheck.Must(processmeasure.Counter())(t)
 					if sample == 0 {
 						oracle = results
 					}

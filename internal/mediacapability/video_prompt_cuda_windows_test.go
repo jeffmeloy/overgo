@@ -35,19 +35,15 @@ import (
 func TestVideoPromptActivation(t *testing.T) {
 	cudatest.Require(t)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
 	spec := latentvideo.WanTextConditioningSpec(wan, 1)
 	if _, err := os.Stat(spec.EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-prompt-activation")
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, wan)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -60,28 +56,24 @@ func TestVideoPromptActivation(t *testing.T) {
 	// The generator stays resident across formats, so its runs count on: the
 	// GIF's first run is its first, and the MP4's first its second.
 	for served, format := range []latentvideo.ClipFormat{"", "mp4"} {
-		raw, err := json.Marshal(latentvideo.WanRequest{
+		raw := testcheck.Must(json.Marshal(latentvideo.WanRequest{
 			Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
 			Seed:   31, Frames: 5, Width: 32, Height: 16, Steps: 2, Format: format,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		mediaType := map[latentvideo.ClipFormat]string{"": media.GIFMediaType, "mp4": media.MP4MediaType}[format]
 		var first artifact.Content
 		for run := 1; run <= 2; run++ {
-			output, err := capability.Execute(t.Context(), store, wan, execution, string(raw))
-			testcheck.NoError(t, err)
+			output := testcheck.Must(capability.Execute(t.Context(), store, wan, execution, string(raw)))(t)
 			video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 			if !ok {
 				t.Fatalf("video output type=%T", output)
 			}
 			frames := 0
 			if format == "" {
-				animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-				testcheck.NoError(t, err)
+				animation := testcheck.Must(gif.DecodeAll(bytes.NewReader(video.Data)))(t)
 				frames = len(animation.Image)
 			} else {
-				shape, err := media.DecodeMP4Shape(video.Data)
-				testcheck.NoError(t, err)
+				shape := testcheck.Must(media.DecodeMP4Shape(video.Data))(t)
 				frames = shape.Frames
 			}
 			wantRun := 0

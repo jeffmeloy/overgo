@@ -48,11 +48,9 @@ func TestQwen35RecurrentMetadataIncludesPredictionLayers(t *testing.T) {
 			repository := qwen35Fixture(t)
 			var text map[string]json.RawMessage
 			testcheck.NoError(t, json.Unmarshal(repository.Config["text_config"], &text))
-			encoded, err := json.Marshal(schedule)
-			testcheck.NoError(t, err)
+			encoded := testcheck.Must(json.Marshal(schedule))(t)
 			text["layer_types"] = encoded
-			repository.Config["text_config"], err = json.Marshal(text)
-			testcheck.NoError(t, err)
+			repository.Config["text_config"] = testcheck.Must(json.Marshal(text))(t)
 			metadata, trunk, err := qwen35MetadataForOutput(repository, LanguageTokens)
 			testcheck.NoError(t, err)
 			var declared, prediction uint32
@@ -91,8 +89,7 @@ func TestQwen35ConvolutionNativeStorage(t *testing.T) {
 		binary.LittleEndian.PutUint16(encoded[offset:], uint16(math.Float32bits(1)>>16))
 	}
 	var err error
-	repository.Tensors.Tensors[name], err = safetensors.NewTensor(name, "BF16", tensor.Shape, bytes.NewReader(encoded), 0, int64(len(encoded)))
-	testcheck.NoError(t, err)
+	repository.Tensors.Tensors[name] = testcheck.Must(safetensors.NewTensor(name, "BF16", tensor.Shape, bytes.NewReader(encoded), 0, int64(len(encoded))))(t)
 	_, tensors, err := Qwen35Conversion(repository)
 	testcheck.NoError(t, err)
 	for _, output := range tensors {
@@ -102,8 +99,7 @@ func TestQwen35ConvolutionNativeStorage(t *testing.T) {
 		if output.Type != gguf.DTypeF32 {
 			t.Fatalf("native convolution requires F32, got %s", output.Type)
 		}
-		data, err := io.ReadAll(output.Data)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(io.ReadAll(output.Data))(t)
 		if len(data) != int(tensor.Elements())*4 {
 			t.Fatal("widening changed the element denominator")
 		}

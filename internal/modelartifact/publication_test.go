@@ -33,8 +33,7 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store := overgodbtest.Open(t, t.TempDir())
 			data := []byte("# A license declaration\n")
-			id, err := artifact.IdentifyBytes(tc.kind, data)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.IdentifyBytes(tc.kind, data))(t)
 			prior := artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: tc.priorType, Schema: tc.schema}
 			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "prior", Artifacts: []artifact.Descriptor{prior}}); err != nil {
 				t.Fatal(err)

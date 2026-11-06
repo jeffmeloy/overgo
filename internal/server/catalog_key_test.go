@@ -20,11 +20,10 @@ import (
 func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store,
 		Scorecard: func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return nil, nil },
-	}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	held := make(chan struct{})
 	release := sync.OnceFunc(func() { close(held) })
@@ -69,8 +68,7 @@ func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 func TestACloseCancelsAPendingMemoPublication(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store}, &fakeGenerator{}))(t)
 	waiting := make(chan struct{})
 	var seen error
 	handler.publishMemo = func(ctx context.Context) error {

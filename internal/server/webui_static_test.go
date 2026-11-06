@@ -95,8 +95,7 @@ func TestWebUIUnknownPathReturns404(t *testing.T) {
 // field. API routes stay protected; only the static assets are public.
 func TestWebUIAssetsPublicWhenAPIKeyConfigured(t *testing.T) {
 	t.Parallel()
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: "secret"}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: "secret"}, &fakeGenerator{}))(t)
 	asset := serveTestRequest(handler, http.MethodGet, "/", "")
 	if asset.Code != http.StatusOK {
 		t.Fatalf("GET / with key configured = %d, want 200 (assets public)", asset.Code)

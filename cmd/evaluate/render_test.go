@@ -26,26 +26,21 @@ func renderedDirectory(t *testing.T, model, recipeID artifact.ID) (directory, ke
 	t.Helper()
 	directory = t.TempDir()
 	var err error
-	store, err = overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store = testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
 	picture := []byte("a picture the model drew")
-	output, err := artifact.IdentifyBytes(artifact.KindOutput, picture)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, picture))(t)
 	request, key, err := renderRequest(map[string]any{"seed": float64(1)}, nil, renderPrompt{ID: "coco_1", Prompt: "a cat"}, 0)
 	testcheck.NoError(t, err)
-	inputContent, err := capabilityruntime.InputContent("overgo.image-gen-input.v1", json.RawMessage(request))
-	testcheck.NoError(t, err)
+	inputContent := testcheck.Must(capabilityruntime.InputContent("overgo.image-gen-input.v1", json.RawMessage(request)))(t)
 	input := inputContent.Descriptor.ID
 	commit := strings.Repeat("a", 40)
-	run, err := runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{input}, []artifact.ID{output}, "", commit, testutil.ArtifactID(t, artifact.KindEvidence, "environment"), 1, nil)
-	testcheck.NoError(t, err)
-	content, err := run.Content()
-	testcheck.NoError(t, err)
+	run := testcheck.Must(runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{input}, []artifact.ID{output}, "", commit, testutil.ArtifactID(t, artifact.KindEvidence, "environment"), 1, nil))(t)
+	content := testcheck.Must(run.Content())(t)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "render-fixture", Contents: []artifact.Content{content, inputContent}}); err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +62,7 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "drawing-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "drawing-recipe")
 	directory, name, store := renderedDirectory(t, model, recipeID)
-	held, err := verifyRendered(t.Context(), store, directory, model, recipeID, name)
-	testcheck.NoError(t, err)
+	held := testcheck.Must(verifyRendered(t.Context(), store, directory, model, recipeID, name))(t)
 	var manifest renderManifest
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest))
 	for label, change := range map[string]func(*renderedMedia){
@@ -91,8 +85,7 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	} {
 		forged := held
 		forged.Request = raw
-		forgedKey, err := artifact.JSONID(artifact.KindFile, forged.Request)
-		testcheck.NoError(t, err)
+		forgedKey := testcheck.Must(artifact.JSONID(artifact.KindFile, forged.Request))(t)
 		manifest.Draws = map[string]renderedMedia{forgedKey.DigestHex(): forged}
 		testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 		if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, forgedKey.DigestHex()); err == nil {
@@ -103,10 +96,8 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	var zeroFields map[string]any
 	testcheck.NoError(t, json.Unmarshal(held.Request, &zeroFields))
 	zeroFields["steps"] = 0
-	zero.Request, err = json.Marshal(zeroFields)
-	testcheck.NoError(t, err)
-	zeroKey, err := artifact.JSONID(artifact.KindFile, zero.Request)
-	testcheck.NoError(t, err)
+	zero.Request = testcheck.Must(json.Marshal(zeroFields))(t)
+	zeroKey := testcheck.Must(artifact.JSONID(artifact.KindFile, zero.Request))(t)
 	manifest.Draws = map[string]renderedMedia{zeroKey.DigestHex(): zero}
 	testcheck.NoError(t, jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600))
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, zeroKey.DigestHex()); err != nil {
@@ -115,10 +106,8 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	// A capability run records no commit, as the workflow runtime publishes it, and
 	// stays bound by its recipe, request and output; one that records another
 	// commit than the manifest's does not qualify.
-	bare, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{held.Input}, []artifact.ID{held.Output}, "")
-	testcheck.NoError(t, err)
-	bareContent, err := bare.Content()
-	testcheck.NoError(t, err)
+	bare := testcheck.Must(runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{held.Input}, []artifact.ID{held.Output}, ""))(t)
+	bareContent := testcheck.Must(bare.Content())(t)
 	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "render-fixture/bare", Contents: []artifact.Content{bareContent}}); err != nil {
 		t.Fatal(err)
 	}
@@ -229,8 +218,7 @@ func TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture(t *testing.T) {
 	if judge.Judge() != want.String() {
 		t.Fatalf("the judge names itself %q", judge.Judge())
 	}
-	input, err := judge.ResolveMedia(t.Context(), evaluation.MediaImage, name)
-	testcheck.NoError(t, err)
+	input := testcheck.Must(judge.ResolveMedia(t.Context(), evaluation.MediaImage, name))(t)
 	if !input.Producer.Valid() || !input.Request.Valid() {
 		t.Fatal("producing request was lost")
 	}
@@ -239,18 +227,15 @@ func TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture(t *testing.T) {
 	if other.Judge() == judge.Judge() {
 		t.Fatal("changed admitted judge recipe kept its identity")
 	}
-	reference, err := input.Reference()
-	testcheck.NoError(t, err)
+	reference := testcheck.Must(input.Reference())(t)
 	if _, err := judge.mediaFiles.read(reference); err != nil {
 		t.Fatal(err)
 	}
 	bound := judge.files[reference]
 	fixed := &mediaFiles{}
-	original, err := fixed.bind(bound.path, evaluation.MediaInput{Runtime: judge.identity, Decode: evaluation.MediaDecode{Format: "image"}})
-	testcheck.NoError(t, err)
+	original := testcheck.Must(fixed.bind(bound.path, evaluation.MediaInput{Runtime: judge.identity, Decode: evaluation.MediaDecode{Format: "image"}}))(t)
 	copyPath := filepath.Join(t.TempDir(), "relocated.png")
-	raw, err := os.ReadFile(bound.path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(bound.path))(t)
 	testcheck.NoError(t, os.WriteFile(copyPath, raw, 0o600))
 	relocated, err := fixed.bind(copyPath, evaluation.MediaInput{Runtime: judge.identity, Decode: evaluation.MediaDecode{Format: "image"}})
 	if err != nil || relocated != original {

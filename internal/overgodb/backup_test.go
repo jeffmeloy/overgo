@@ -14,12 +14,10 @@ import (
 func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
 	batch := fixtureBatch(t)
-	commit, err := store.Commit(t.Context(), batch)
-	testcheck.NoError(t, err)
+	commit := testcheck.Must(store.Commit(t.Context(), batch))(t)
 
 	destination := filepath.Join(t.TempDir(), "backup")
 	backupReport, err := store.Backup(t.Context(), destination)
@@ -29,8 +27,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("backup identity = %s@%d, want %s", head, sequence, commit)
 	}
 
-	replica, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	replica := testcheck.Must(OpenReadOnly(destination))(t)
 	defer replica.Close()
 	replicaHead, replicaSequence := replica.Head()
 	if replicaHead != head || replicaSequence != sequence {
@@ -51,8 +48,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("empty partial did not resume: %v", err)
 	}
 
-	empty, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	empty := testcheck.Must(Open(t.TempDir()))(t)
 	defer empty.Close()
 	if _, err := empty.Backup(t.Context(), filepath.Join(t.TempDir(), "empty-backup")); err == nil || !strings.Contains(err.Error(), "no commits") {
 		t.Fatalf("empty store not refused: %v", err)
@@ -62,11 +58,9 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 func TestConcurrentBackupExtent(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
-	first, err := store.Commit(ctx, fixtureBatch(t))
-	testcheck.NoError(t, err)
+	first := testcheck.Must(store.Commit(ctx, fixtureBatch(t)))(t)
 	store.mu.RLock()
 	head, sequence, extent, root := store.head, store.sequence, store.replayEnd, store.root
 	store.mu.RUnlock()
@@ -86,8 +80,7 @@ func TestConcurrentBackupExtent(t *testing.T) {
 	if head != first || sequence == 0 {
 		t.Fatalf("captured identity = %s@%d, want %s", head, sequence, first)
 	}
-	replica, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	replica := testcheck.Must(OpenReadOnly(destination))(t)
 	defer replica.Close()
 	if _, found, err := replica.Artifact(ctx, tail.ID); err != nil || found {
 		t.Fatalf("post-capture tail = (%v, %v)", found, err)

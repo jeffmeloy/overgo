@@ -71,14 +71,12 @@ func compiledSuiteWithSource(t *testing.T, source string) CompiledSuite {
 	testcheck.NoError(t, err)
 	shaped := suite.(MultipleChoiceSuite)
 	shaped.Source = source
-	data, err := json.Marshal(shaped)
-	testcheck.NoError(t, err)
-	compiled, err := CompileSuite(data, ExactAuthorities{
+	data := testcheck.Must(json.Marshal(shaped))(t)
+	compiled := testcheck.Must(CompileSuite(data, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return compiled
 }

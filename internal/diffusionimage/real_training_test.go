@@ -26,24 +26,20 @@ func TestRealCheckpointStructuredImageTraining(t *testing.T) {
 	}
 	sources := make([]trainingdata.RawRecord, len(paths))
 	for index, path := range paths {
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		sources[index] = trainingdata.RawRecord{ID: filepath.Base(path), Group: filepath.Base(path), Data: data}
 	}
-	records, err := trainingdata.SelectStructuredImageCrops(sources, 32, 8)
-	testcheck.NoError(t, err)
+	records := testcheck.Must(trainingdata.SelectStructuredImageCrops(sources, 32, 8))(t)
 	train := materializeImageBatch(t, records[:6], "train", 1)
 	heldout := materializeImageBatch(t, records[6:], "heldout", 1)
 
-	model, err := Load(directory)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(Load(directory))(t)
 	parameters := 0
 	for _, values := range model.raw {
 		parameters += len(values)
 	}
 	baseLR := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(parameters)
-	trainer, err := NewTrainer(model, optimizer.Config{BaseLearningRate: baseLR, Momentum: 0.9, Schedule: optimizer.ScheduleConstant})
-	testcheck.NoError(t, err)
+	trainer := testcheck.Must(NewTrainer(model, optimizer.Config{BaseLearningRate: baseLR, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}))(t)
 	defer func() {
 		testcheck.NoError(t, trainer.Close())
 	}()
@@ -88,20 +84,16 @@ func materializeImageBatch(t *testing.T, records []trainingdata.RawRecord, split
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID}, Shuffle: false,
 		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityImage}, Outputs: []recipecontract.Modality{recipecontract.ModalityImage}},
 	}
-	dataset, err := trainingdata.MaterializeRecords(authority, processorID, records, trainingdata.ProcessorBinding{
+	dataset := testcheck.Must(trainingdata.MaterializeRecords(authority, processorID, records, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityImage},
 		Process: trainingdata.ImageProcessor(trainingdata.RoleTarget),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	t.Cleanup(func() {
 		testcheck.NoError(t, dataset.Close())
 	})
-	stream, err := trainingdata.NewStream(dataset, nil)
-	testcheck.NoError(t, err)
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: examples, MicrobatchExamples: examples, DecodeWorkers: 1})
-	testcheck.NoError(t, err)
-	batch, err := batcher.Next(context.Background())
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(trainingdata.NewStream(dataset, nil))(t)
+	batcher := testcheck.Must(trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: examples, MicrobatchExamples: examples, DecodeWorkers: 1}))(t)
+	batch := testcheck.Must(batcher.Next(context.Background()))(t)
 	return batch
 }
 

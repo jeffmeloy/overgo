@@ -27,8 +27,7 @@ func TestResolveActiveExecutionServesInference(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest))(t)
 	if _, _, err := PublishCandidate(ctx, store, "fixture/active-execution/candidate", definition); err != nil {
 		t.Fatal(err)
 	}

@@ -72,8 +72,7 @@ func TestPassageLossMatchesUpstream(t *testing.T) {
 	}
 	var fixture passageLoss
 	testcheck.NoError(t, json.Unmarshal(raw, &fixture))
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	suitePath := filepath.Join(roots.Datasets, filepath.FromSlash(passageSuite))
 	data, err := os.ReadFile(suitePath)
 	if err != nil {
@@ -109,8 +108,7 @@ func TestPassageLossMatchesUpstream(t *testing.T) {
 		if !held || digest(text) != reference.TextSHA256 {
 			t.Fatalf("%s: the suite's passage is not the one the fixture's loss is of; write the fixture again with %s", reference.Name, passageLossScript)
 		}
-		encoded, err := generator.tokenizer.Encode(text)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(generator.tokenizer.Encode(text))(t)
 		ids := make([]string, len(encoded))
 		for position, token := range encoded {
 			ids[position] = strconv.Itoa(token)
@@ -132,8 +130,7 @@ func TestPassageLossMatchesUpstream(t *testing.T) {
 		if index%scoredEvery != 0 {
 			continue
 		}
-		score, err := generator.scoreSequence(t.Context(), text)
-		testcheck.NoError(t, err)
+		score := testcheck.Must(generator.scoreSequence(t.Context(), text))(t)
 		if score.Tokens != reference.Tokens {
 			t.Fatalf("%s: %d tokens were scored, and the model's own code scores %d", reference.Name, score.Tokens, reference.Tokens)
 		}

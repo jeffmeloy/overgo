@@ -19,13 +19,11 @@ func TestRSICausalChainClosure(t *testing.T) {
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	motivation := id(artifact.KindEvidence, "motivating-observation")
 	proposalEvidence := id(artifact.KindEvidence, "controller-proposal")
-	root, err := NewCausalRoot(TriggerControllerProposal, proposalEvidence, motivation)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(NewCausalRoot(TriggerControllerProposal, proposalEvidence, motivation))(t)
 
 	attemptValue := fixtureAttempt(t)
 	attemptValue.Causal = &root
-	attempt, err := NewAttemptRecord(attemptValue)
-	testcheck.NoError(t, err)
+	attempt := testcheck.Must(NewAttemptRecord(attemptValue))(t)
 
 	lifecycle := ExperimentLifecycle{
 		Version: artifact.InitialDocumentVersion, State: ExperimentProposed,
@@ -33,8 +31,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Evidence:   id(artifact.KindEvidence, "admission-decision"),
 		Causal:     &root,
 	}
-	lifecycle, err = experimentLifecycleCodec.New(lifecycle)
-	testcheck.NoError(t, err)
+	lifecycle = testcheck.Must(experimentLifecycleCodec.New(lifecycle))(t)
 
 	decision := improvementDecision{
 		Version: artifact.SecondDocumentVersion, State: ImprovementPromote,
@@ -50,19 +47,16 @@ func TestRSICausalChainClosure(t *testing.T) {
 		Rollback: id(artifact.KindModel, "parent"),
 		Causal:   &root,
 	}
-	decision, err = improvementDecisionCodec.New(decision)
-	testcheck.NoError(t, err)
+	decision = testcheck.Must(improvementDecisionCodec.New(decision))(t)
 
 	servingValue := servingObservationFixture(t)
 	servingValue.Version = artifact.InitialDocumentVersion
 	servingValue.Causal = &root
-	serving, err := servingObservationCodec.New(servingValue)
-	testcheck.NoError(t, err)
+	serving := testcheck.Must(servingObservationCodec.New(servingValue))(t)
 
 	// The rollback follow-up is caused by the failing serving evidence,
 	// derived inside the same chain.
-	rollbackCausal, err := root.Derive(TriggerRecovery, serving.ID)
-	testcheck.NoError(t, err)
+	rollbackCausal := testcheck.Must(root.Derive(TriggerRecovery, serving.ID))(t)
 
 	// The traversal: typed causal fields only. The rollback names the
 	// serving evidence it recovers from; every record answers to the

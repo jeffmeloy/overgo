@@ -65,12 +65,9 @@ func TestImageVideoReportContract(t *testing.T) {
 	register(recipe.TaskSpeech)
 	var buffer bytes.Buffer
 	testcheck.NoError(t, png.Encode(&buffer, image.NewRGBA(image.Rect(0, 0, 2, 3))))
-	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, buffer.Bytes())
-	testcheck.NoError(t, err)
-	output, err := (artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "image/png", Schema: "overgo.report-fixture-image.v1"}).Content(outputID, buffer.Bytes())
-	testcheck.NoError(t, err)
-	input, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.report-fixture-input.v1"), map[string]any{"seed": 1})
-	testcheck.NoError(t, err)
+	outputID := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, buffer.Bytes()))(t)
+	output := testcheck.Must((artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "image/png", Schema: "overgo.report-fixture-image.v1"}).Content(outputID, buffer.Bytes()))(t)
+	input := testcheck.Must(artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.report-fixture-input.v1"), map[string]any{"seed": 1}))(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "report/media", Contents: []artifact.Content{input, output}}); err != nil {
 		t.Fatal(err)
 	}
@@ -84,12 +81,9 @@ func TestImageVideoReportContract(t *testing.T) {
 		if outcome == runrecord.OutcomeFailed {
 			failure = "fixture-failure"
 		}
-		run, err := runrecord.NewRun(definition.ID, outcome, []artifact.ID{input.Descriptor.ID}, outputs, failure)
-		testcheck.NoError(t, err)
-		content, err := run.Content()
-		testcheck.NoError(t, err)
-		batch, err := artifact.NewDocumentBatch("report/run/"+string(outcome), []artifact.Content{content}, run.Lineage(), nil)
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.NewRun(definition.ID, outcome, []artifact.ID{input.Descriptor.ID}, outputs, failure))(t)
+		content := testcheck.Must(run.Content())(t)
+		batch := testcheck.Must(artifact.NewDocumentBatch("report/run/"+string(outcome), []artifact.Content{content}, run.Lineage(), nil))(t)
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -97,8 +91,7 @@ func TestImageVideoReportContract(t *testing.T) {
 			successful = run
 		}
 	}
-	scope, err := resolveMediaReportScope("image-video")
-	testcheck.NoError(t, err)
+	scope := testcheck.Must(resolveMediaReportScope("image-video"))(t)
 	if !scope.FrozenRequests || len(scope.Tasks) != 2 {
 		t.Fatal("focused scope differs")
 	}
@@ -117,16 +110,13 @@ func TestImageVideoReportContract(t *testing.T) {
 		t.Helper()
 		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o700))
 		value.Census = testutil.ArtifactID(t, artifact.KindEvidence, "report fixture census")
-		data, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(value))(t)
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "docs", "image_video_protocol.json"), data, 0o600))
 	}
 	writeProtocol(protocol)
 	testcheck.NoError(t, exportMediaSamples(root, storePath, scope))
-	first, err := generateMediaReport(root, storePath)
-	testcheck.NoError(t, err)
-	second, err := generateMediaReport(root, storePath)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(generateMediaReport(root, storePath))(t)
+	second := testcheck.Must(generateMediaReport(root, storePath))(t)
 	if !bytes.Equal(first.Markdown, second.Markdown) || !bytes.Equal(first.JSON, second.JSON) {
 		t.Fatal("report rendering is not deterministic")
 	}
@@ -172,14 +162,12 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err := exportMediaSamples(root, storePath, scope); err == nil {
 		t.Fatal("damaged existing export accepted")
 	}
-	damaged, err := generateMediaReport(root, storePath)
-	testcheck.NoError(t, err)
+	damaged := testcheck.Must(generateMediaReport(root, storePath))(t)
 	if !strings.Contains(string(damaged.Markdown), "Unavailable or invalid export") || strings.Contains(string(damaged.Markdown), "![") {
 		t.Fatal("damaged sample hidden or embedded")
 	}
 	testcheck.NoError(t, os.Remove(path))
-	missing, err := generateMediaReport(root, storePath)
-	testcheck.NoError(t, err)
+	missing := testcheck.Must(generateMediaReport(root, storePath))(t)
 	if !strings.Contains(string(missing.Markdown), "can be exported on demand") || !strings.Contains(string(missing.Markdown), outputID.String()) {
 		t.Fatal("retained output lacks an export disposition")
 	}
@@ -206,8 +194,7 @@ func writeEmptyAcceptedCoverage(t *testing.T, root string) {
 	// activation and generated samples must not acquire protocol credit.
 	coverageRoot := filepath.Join(root, "docs", "verification")
 	testcheck.NoError(t, os.MkdirAll(coverageRoot, 0o700))
-	emptyCoverage, err := json.Marshal(acceptedCoverage{Version: artifact.InitialDocumentVersion, Scope: "Fixture with no accepted campaign protocols."})
-	testcheck.NoError(t, err)
+	emptyCoverage := testcheck.Must(json.Marshal(acceptedCoverage{Version: artifact.InitialDocumentVersion, Scope: "Fixture with no accepted campaign protocols."}))(t)
 	for _, name := range []string{"text-vision-coverage.json", "image-video-coverage.json", "specialized-coverage.json"} {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(coverageRoot, name), emptyCoverage, 0o600))
 	}

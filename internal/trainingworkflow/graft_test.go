@@ -21,19 +21,15 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	targetDir, donorDir := filepath.Join(root, "target"), filepath.Join(root, "donor")
 	writeSynthesisModel(t, targetDir, 3)
 	writeSynthesisModel(t, donorDir, 5)
-	target, err := identifyModel(targetDir)
-	testcheck.NoError(t, err)
-	donor, err := identifyModel(donorDir)
-	testcheck.NoError(t, err)
-	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
-	testcheck.NoError(t, err)
+	target := testcheck.Must(identifyModel(targetDir))(t)
+	donor := testcheck.Must(identifyModel(donorDir))(t)
+	ranker := testcheck.Must(composition.TrainProposalRanker(nil, nil, nil))(t)
 	// The donor's matching component is the one candidate; retrieval is not
 	// what this test holds.
 	candidates := []composition.BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
-	proposal, err := composition.NewBridgeProposal(target, candidates, ranker,
+	proposal := testcheck.Must(composition.NewBridgeProposal(target, candidates, ranker,
 		"go test ./internal/trainingworkflow -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
-		"bridge requires measured held-out evidence")
-	testcheck.NoError(t, err)
+		"bridge requires measured held-out evidence"))(t)
 	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 	rankerContent, _ := ranker.Content()
 	proposalContent, _ := proposal.Content()
@@ -49,12 +45,11 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		Artifacts: []artifact.Descriptor{{ID: derivation}}}); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := SynthesizeBridge(store, proposal, GraftConfig{
+	outcome := testcheck.Must(SynthesizeBridge(store, proposal, GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir, GraftLayer: -1, DonorLayer: -1,
 		Seeds: []int64{7}, Steps: 1, BaseLR: 0.01, Momentum: 0.9,
 		Train: [][]int{{1, 2, 3, 4}, {2, 3, 4, 1}}, HeldOut: []int{1, 3, 2, 4},
-	}, recipe.Decider{CodeCommit: strings.Repeat("a", 40), Derivation: derivation})
-	testcheck.NoError(t, err)
+	}, recipe.Decider{CodeCommit: strings.Repeat("a", 40), Derivation: derivation}))(t)
 	want := recipe.DecisionRefused
 	if outcome.Result.Ship {
 		want = recipe.DecisionAccepted
@@ -83,11 +78,9 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 func TestComponentSynthesisLoadsOnlySelectedDonor(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "donor")
 	writeSynthesisModel(t, directory, 11)
-	component, err := loadDonorComponent(directory, -1, synthesisComponentTensor)
-	testcheck.NoError(t, err)
+	component := testcheck.Must(loadDonorComponent(directory, -1, synthesisComponentTensor))(t)
 	retained := len(component.gate) + len(component.up) + len(component.down)
-	source, err := safetensors.OpenSource(directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(directory))(t)
 	defer source.Close()
 	all := 0
 	for _, tensor := range source.Tensors {

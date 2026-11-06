@@ -21,15 +21,13 @@ import (
 func TestAgentProvenance(t *testing.T) {
 	t.Parallel()
 	handler := agentTestHandler(t, func(ctx context.Context, store *overgodb.Store) {
-		manuals, err := agenttool.StandardManuals()
-		testcheck.NoError(t, err)
-		write, err := agenttool.NewManual(agenttool.Manual{
+		manuals := testcheck.Must(agenttool.StandardManuals())(t)
+		write := testcheck.Must(agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the provenance walk.",
 			Effect:    agenttool.EffectMutation,
 			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"git"}); err != nil {
 			t.Fatal(err)
 		}

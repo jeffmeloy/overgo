@@ -36,16 +36,14 @@ func TestLoadStackFeedForward(t *testing.T) {
 				tensors = append(tensors, gguf.TensorData{Name: name, Shape: []uint64{2, 2}, Type: storageType, Data: bytes.NewReader(raw)})
 				expected = append(expected, values)
 			}
-			file, err := gguf.Open(testutil.TempGGUF(t, "layer.gguf", nil, tensors))
-			testcheck.NoError(t, err)
+			file := testcheck.Must(gguf.Open(testutil.TempGGUF(t, "layer.gguf", nil, tensors)))(t)
 			defer file.Close()
 			info := model.LayerWeights{FeedForwardGate: &file.Tensors[0], FeedForwardUp: &file.Tensors[1], FeedForwardDown: &file.Tensors[2], AttentionNorm: &file.Tensors[3]}
 			m := &Model{matW: make([]float32, 2, 14)}
 			m.matW[0], m.matW[1] = 101, 102
 			masters := m.matW[len(m.matW):cap(m.matW)]
 			var scratch []byte
-			host, err := loadStackLayer(t.Context(), file, info, masters, len(expected[0]), &scratch)
-			testcheck.NoError(t, err)
+			host := testcheck.Must(loadStackLayer(t.Context(), file, info, masters, len(expected[0]), &scratch))(t)
 			b := &builder{m: m}
 			var bound [3][]float32
 			for index, value := range []*reference.Value{host.FeedForwardGate, host.FeedForwardUp, host.FeedForwardDown} {

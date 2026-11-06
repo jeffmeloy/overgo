@@ -27,10 +27,8 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 	t.Helper()
 	pictures := catalogPictures(t, root)
 	director := pictureService(t)
-	raw, err := json.Marshal(request)
-	testcheck.NoError(t, err)
-	output, err := director.Executor()(capabilityruntime.FreshRun(t.Context()), pictures.store, root, pictures.execution, string(raw))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(request))(t)
+	output := testcheck.Must(director.Executor()(capabilityruntime.FreshRun(t.Context()), pictures.store, root, pictures.execution, string(raw)))(t)
 	measured, ok := output.(capabilityruntime.Measured)
 	if !ok {
 		t.Fatal("missing measured output")
@@ -47,15 +45,12 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 // its recipe defined from the directory as the catalog defines it.
 func catalogPictures(t *testing.T, root string) servedPictures {
 	t.Helper()
-	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Catalog[recipe.TaskImageGen].Resolve(t.Context(), root))(t)
 	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
 	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
-	batch, err := source.Inventory.Batch(t.Name())
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(source.Inventory.Batch(t.Name()))(t)
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
 	if err = modelrecipe.PublishFacts(t.Context(), store, batch); err != nil {
@@ -70,8 +65,7 @@ func catalogPictures(t *testing.T, root string) servedPictures {
 func TestMOSSTrainedModelServes(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	spec, err := latentimage.ReadRotaryTransformer(root)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(latentimage.ReadRotaryTransformer(root))(t)
 	options := mosstrain.Options{Rank: 2, Alpha: 2}
 	config := peft.Config{BaseModel: root, Rank: options.Rank, Alpha: options.Alpha}
 	request := latentimage.Request{Prompt: "blue cube", NegativePrompt: "red", Width: 48, Height: 32, Steps: 3, Seed: 42}

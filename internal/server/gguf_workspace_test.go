@@ -56,8 +56,7 @@ func TestExportQuantizedGGUF(t *testing.T) {
 		t.Fatalf("export = %+v published=%v err=%v", completion, reporter.published, err)
 	}
 	file := filepath.Join(root, "shared", "hermetic.f16.gguf")
-	written, err := gguf.Open(file)
-	testcheck.NoError(t, err)
+	written := testcheck.Must(gguf.Open(file))(t)
 	converted := slices.ContainsFunc(written.Tensors, func(info gguf.TensorInfo) bool { return info.Name == "output.weight" && info.Type == dtype.F16 })
 	_ = written.Close()
 	if !converted {
@@ -115,11 +114,9 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 		if err != nil || len(capabilities) != 1 {
 			t.Fatalf("export capabilities = %+v, %v", capabilities, err)
 		}
-		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, capabilities[0],
-			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{})
-		testcheck.NoError(t, err)
-		run, err := runrecord.RequireRun(ctx, store, completion.Run)
-		testcheck.NoError(t, err)
+		completion := testcheck.Must(workspace.ExecuteWorkflow(ctx, workflowExport, capabilities[0],
+			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{}))(t)
+		run := testcheck.Must(runrecord.RequireRun(ctx, store, completion.Run))(t)
 		return run
 	}
 	bound := exportRun(ggufTestCommit, "bound")

@@ -14,8 +14,7 @@ import (
 
 func TestBuiltinOptimizerPolicyDerivesConfig(t *testing.T) {
 	policy := BuiltinOptimizerPolicy()
-	config, err := policy.Config(policy.MomentumEffectiveSamples)
-	testcheck.NoError(t, err)
+	config := testcheck.Must(policy.Config(policy.MomentumEffectiveSamples))(t)
 	wantRate := math.Pow(float64(policy.MomentumEffectiveSamples), policy.ParameterExponent)
 	wantMomentum := float64(policy.MomentumEffectiveSamples-1) / float64(policy.MomentumEffectiveSamples+1)
 	if config.BaseLearningRate != wantRate || config.Momentum != wantMomentum {
@@ -72,16 +71,14 @@ func TestOptimizerPolicyRecordedBeforeInitializationServesBoth(t *testing.T) {
 
 func TestOptimizerPolicyRequiresRecipeContent(t *testing.T) {
 	policy := BuiltinOptimizerPolicy()
-	content, err := policy.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(policy.Content())(t)
 	store := &policyReader{contents: map[artifact.ID]artifact.Content{policy.ID: content}}
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
-	definition, err := recipe.NewDefinitionWithDependencies(recipe.TaskTraining, []recipe.Dependency{
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(recipe.TaskTraining, []recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: model},
 		{Role: recipe.DependencyOptimizer, Artifact: policy.ID},
 	}, []recipe.Node{{ID: "optimize", Module: "test", Placement: recipe.PlacementHost}}, nil, nil,
-		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}})
-	testcheck.NoError(t, err)
+		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}}))(t)
 	resolved, err := OptimizerPolicyFromRecipe(t.Context(), store, definition)
 	if err != nil || resolved.ID != policy.ID {
 		t.Fatalf("resolved = %+v, err = %v", resolved, err)

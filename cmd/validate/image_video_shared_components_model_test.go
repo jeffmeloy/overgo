@@ -51,8 +51,7 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	t.Run("frozen-baseline", TestImageVideoOptimizationBaselineAcceptance)
 	var baseline mediaLoaderBaseline
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_baseline.json"), &baseline))
-	candidateData, err := os.ReadFile(filepath.Join(root, "docs/image_video_shared_components.json"))
-	testcheck.NoError(t, err)
+	candidateData := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_shared_components.json")))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(candidateData, imageVideoSharedComponentsSHA256))
 	var candidate mediaSharedComponents
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_shared_components.json"), &candidate))
@@ -62,8 +61,7 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	if len(candidate.Acquisitions) != len(baseline.Acquisitions) || len(candidate.Sources) != len(baseline.Sources) || len(candidate.SourceEvidence) != len(baseline.Sources) {
 		t.Fatal("candidate coverage differs")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -78,8 +76,7 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	}
 	requirePass := func(id artifact.ID) {
 		t.Helper()
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 || report.PassedPackages == 0 {
 			t.Fatal("empty candidate acquisition")

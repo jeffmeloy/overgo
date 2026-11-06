@@ -21,8 +21,7 @@ func TestDispatchJSONMatchesProse(t *testing.T) {
 		}},
 	}}}
 	dispatch := plan.DispatchOf(document, worklease.UnassignedRole)
-	encoded, err := json.Marshal(dispatch)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(dispatch))(t)
 	var decoded plan.Dispatch
 	testcheck.NoError(t, json.Unmarshal(encoded, &decoded))
 	prose, open := nextAction(document, worklease.UnassignedRole)

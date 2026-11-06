@@ -15,23 +15,19 @@ import (
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	payload := []byte("image-payload")
-	payloadID, err := artifact.IdentifyBytes(artifact.KindOutput, payload)
-	testcheck.NoError(t, err)
+	payloadID := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, payload))(t)
 	payloadDescriptor := artifact.Descriptor{
 		ID: payloadID, Size: uint64(len(payload)), MediaType: "image/png",
 	}
 	missingData := []byte("missing-payload")
-	missingID, err := artifact.IdentifyBytes(artifact.KindOutput, missingData)
-	testcheck.NoError(t, err)
+	missingID := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, missingData))(t)
 	missingDescriptor := artifact.Descriptor{ID: missingID, Size: uint64(len(missingData))}
 	runData := []byte("producer-run")
-	runID, err := artifact.IdentifyBytes(artifact.KindRun, runData)
-	testcheck.NoError(t, err)
+	runID := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, runData))(t)
 	runDescriptor := artifact.Descriptor{ID: runID, Size: uint64(len(runData))}
-	_, err = artifact.CommitBatch(t.Context(), store, artifact.Batch{
+	testcheck.Must(artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:       "server/artifact-gallery",
 		Artifacts: []artifact.Descriptor{missingDescriptor, runDescriptor},
 		Contents:  []artifact.Content{{Descriptor: payloadDescriptor, Data: payload}},
@@ -39,11 +35,9 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 			{Child: payloadID, Parent: runID, Relation: artifact.RelationProducedBy},
 			{Child: missingID, Parent: runID, Relation: artifact.RelationProducedBy},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testcheck.NoError(t, store.Close())
-	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 1}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{OvergoDBPath: root, MaxStoredResponses: 1}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 
 	page := serveTestRequest(handler, http.MethodGet, "/artifacts?kind=output&limit=1", "")

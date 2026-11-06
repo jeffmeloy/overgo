@@ -36,8 +36,7 @@ const overLongReadings = 96
 func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 	synth := loadArtifactSynthesizer(t)
 	request := DocumentRequest{Text: speakOrderText, Voice: "alba", Seed: 7, Temperature: speakOrderTemperature}
-	plan, err := synth.PlanDocument(t.Context(), request)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(synth.PlanDocument(t.Context(), request))(t)
 	if len(plan.Segments) < 2 {
 		t.Fatalf("the text is planned as %d segments, and an order needs two", len(plan.Segments))
 	}
@@ -68,14 +67,13 @@ func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 		want = append(want, audio.PCM...)
 	}
 	var emitted []float32
-	whole, err := synth.Speak(media.WithAudioOutput(t.Context(), func(_ context.Context, chunk media.DecodedAudio) error {
+	whole := testcheck.Must(synth.Speak(media.WithAudioOutput(t.Context(), func(_ context.Context, chunk media.DecodedAudio) error {
 		if chunk.Format.Channels != 1 || chunk.Format.SampleRate != uint64(synth.model.Codec.SampleRate) {
 			t.Fatalf("invalid provisional format: %+v", chunk.Format)
 		}
 		emitted = append(emitted, chunk.Samples...)
 		return nil
-	}), request)
-	testcheck.NoError(t, err)
+	}), request))(t)
 	if !whole.Complete || !slices.Equal(whole.PCM, want) {
 		same := 0
 		for same < min(len(whole.PCM), len(want)) && whole.PCM[same] == want[same] {

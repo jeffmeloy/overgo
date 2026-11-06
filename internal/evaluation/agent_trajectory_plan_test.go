@@ -9,23 +9,19 @@ import (
 
 func TestAgentTrajectoryEvaluationPlan(t *testing.T) {
 	t.Parallel()
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
-	base, err := BindExact(exact, ExactAuthorities{
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
+	base := testcheck.Must(BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "agent-model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "agent-recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "agent-environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	trajectory := testutil.ArtifactID(t, artifact.KindEvidence, "trajectory")
 	judge := testutil.ArtifactID(t, artifact.KindProfile, "judge-v1")
-	plan, err := BindAgentTrajectoryPlan(base, []artifact.ID{trajectory}, []artifact.ID{judge})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(BindAgentTrajectoryPlan(base, []artifact.ID{trajectory}, []artifact.ID{judge}))(t)
 	authorities := plan.body.Agent
 	if authorities == nil || len(authorities.Deterministic) != len(requiredAgentTrajectoryScores) || authorities.AdvisoryJudges[0] != judge {
 		t.Fatalf("agent plan = %+v", authorities)
 	}
-	content, err := plan.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(plan.Content())(t)
 	parsed, err := ParsePlan(content.Data)
 	if err != nil || parsed.Identity() != plan.Identity() {
 		t.Fatalf("round trip = %s %v", parsed.Identity(), err)

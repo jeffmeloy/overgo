@@ -13,8 +13,7 @@ import (
 
 func TestAcquireSerializesPlanAndGateMutation(t *testing.T) {
 	repository := t.TempDir()
-	first, err := Acquire(repository)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(Acquire(repository))(t)
 	if second, err := Acquire(repository); err == nil {
 		_ = second.Close()
 		t.Fatal("concurrent authority mutation acquired the shared lock")

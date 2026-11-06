@@ -54,8 +54,7 @@ func TestPipelineInventoryCancellationDuringHashing(t *testing.T) {
 }
 
 func TestInventorySourceVerification(t *testing.T) {
-	inventory, err := FromHFPath(pipelineFixture(t))
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromHFPath(pipelineFixture(t)))(t)
 	testcheck.NoError(t, inventory.VerifySources(t.Context()))
 	if err := inventory.VerifySources(nil); err == nil {
 		t.Fatal("nil verification context accepted")

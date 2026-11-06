@@ -23,17 +23,15 @@ func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
 	}
 	_, trace, err := model.forward(golden.X, 1, golden.H, golden.W, true)
 	testcheck.NoError(t, err)
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	device := testcheck.Must(executor.New(0))(t)
 	defer device.Close()
 	for index, up := range trace.decUps {
 		binding := model.decoders[index].transition
-		program, err := compileDecoderTransitionProgram(
+		program := testcheck.Must(compileDecoderTransitionProgram(
 			binding,
 			imageGeometry{channels: up.channels, height: up.h, width: up.width},
 			up.nextChannels,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		want, _, _ := conv2dValidStride(
 			up.input, binding.weight, binding.bias, 1,
 			up.channels, up.nextChannels, up.h, up.width, 1, 1,
@@ -41,12 +39,11 @@ func TestRealDecoderBoundariesCUDAParity(t *testing.T) {
 		want = upsampleNearest2x(want, 1, up.nextChannels, up.h, up.width)
 		checkProjectionProgram(t, device, fmt.Sprintf("decoder transition %d", index), program, up.input, want)
 	}
-	finalProgram, err := compileFinalProjectionProgram(
+	finalProgram := testcheck.Must(compileFinalProjectionProgram(
 		model.final,
 		imageGeometry{channels: model.Cfg.BaseChannels, height: trace.finalH, width: trace.finalW},
 		model.Cfg.InChannels, model.Cfg.PatchSize,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	finalWant, _, _ := convTranspose2dStride(
 		trace.finalInput, model.final.weight, model.final.bias, 1,
 		model.Cfg.BaseChannels, model.Cfg.InChannels, trace.finalH, trace.finalW,

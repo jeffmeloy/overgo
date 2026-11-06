@@ -26,8 +26,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		Fields: []FieldBinding{{Target: "answer", Source: "label"}, {Target: "prompt", Source: "query"}},
 	}
 	store := overgodbtest.Open(t, t.TempDir())
-	imported, err := ImportBenchmark(t.Context(), store, path, spec)
-	testcheck.NoError(t, err)
+	imported := testcheck.Must(ImportBenchmark(t.Context(), store, path, spec))(t)
 	loaded, ok, err := benchmarkImportCodec.Read(t.Context(), store, imported.ID)
 	if err != nil || !ok || !reflect.DeepEqual(loaded, imported) {
 		t.Fatalf("loaded import = %+v, %v, %v", loaded, ok, err)
@@ -45,8 +44,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 	}
 	changed := spec
 	changed.Revision += "/changed"
-	changedImport, err := ImportBenchmark(t.Context(), store, path, changed)
-	testcheck.NoError(t, err)
+	changedImport := testcheck.Must(ImportBenchmark(t.Context(), store, path, changed))(t)
 	if changedImport.Profile == imported.Profile || changedImport.ID == imported.ID ||
 		changedImport.Records[0] == imported.Records[0] {
 		t.Fatal("source revision did not change import identities")

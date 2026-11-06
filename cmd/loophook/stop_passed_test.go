@@ -26,8 +26,7 @@ func TestAStopThatPassedOnRetryIsReportedNextTurn(t *testing.T) {
 		runPrompt(`{"session_id": "lead", "prompt": "` + prompt + `"}`)
 		os.Stdout = saved
 		_ = written.Close()
-		printed, err := io.ReadAll(read)
-		testcheck.NoError(t, err)
+		printed := testcheck.Must(io.ReadAll(read))(t)
 		return string(printed)
 	}
 	if got := stopHook("lead"); got != 2 {

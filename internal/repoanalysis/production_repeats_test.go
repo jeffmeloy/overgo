@@ -103,8 +103,7 @@ type bodySite struct {
 // linkedPackages loads the module at root and the import paths of the packages its commands link.
 func linkedPackages(t *testing.T, root string) (*moduleLoad, map[string]bool) {
 	t.Helper()
-	load, err := loadModule(t.Context(), root)
-	testcheck.NoError(t, err)
+	load := testcheck.Must(loadModule(t.Context(), root))(t)
 	linked := map[string]bool{}
 	for importPath, checked := range load.module {
 		if checked.listed.Name == "main" {

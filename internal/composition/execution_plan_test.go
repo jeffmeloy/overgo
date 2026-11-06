@@ -26,13 +26,11 @@ func TestCompositionResidencyPlan(t *testing.T) {
 	if _, err := compile(); err == nil {
 		t.Fatal("unactivated composition compiled")
 	}
-	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/plan-activate", nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/plan-activate", nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := compile()
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(compile())(t)
 	repeated, err := compile()
 	if err != nil || repeated.ID != plan.ID || repeated.CacheIdentity != plan.CacheIdentity {
 		t.Fatalf("repeated plan = %s/%s, want %s/%s: %v", repeated.ID, repeated.CacheIdentity, plan.ID, plan.CacheIdentity, err)
@@ -89,25 +87,21 @@ func TestCompositionResidencyPlan(t *testing.T) {
 func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
-	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/cache-activate", nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/cache-activate", nil))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := composition.CompileCompositionExecutionPlan(
+	plan := testcheck.Must(composition.CompileCompositionExecutionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	firstInput := testutil.ArtifactID(t, artifact.KindOutput, "captured representation one")
 	secondInput := testutil.ArtifactID(t, artifact.KindOutput, "captured representation two")
-	first, err := plan.TransformedRepresentationCacheIdentity(firstInput)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(plan.TransformedRepresentationCacheIdentity(firstInput))(t)
 	repeated, err := plan.TransformedRepresentationCacheIdentity(firstInput)
 	if err != nil || repeated != first {
 		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, first, err)
 	}
-	second, err := plan.TransformedRepresentationCacheIdentity(secondInput)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(plan.TransformedRepresentationCacheIdentity(secondInput))(t)
 	if first == second {
 		t.Fatal("distinct captured representations shared one transformed cache identity")
 	}

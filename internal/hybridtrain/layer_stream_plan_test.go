@@ -21,10 +21,8 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 		Heads: 2, KVHeads: 1, HeadDim: 4, RopeDim: 4, RopeTheta: 10000,
 		GDNKeyHeads: 2, GDNValueHeads: 2, GDNHeadDim: 4, GDNConvK: 3,
 	}
-	m, err := BuildModel(cfg, 7)
-	testcheck.NoError(t, err)
-	plans, err := m.layerStreamPlans()
-	testcheck.NoError(t, err)
+	m := testcheck.Must(BuildModel(cfg, 7))(t)
+	plans := testcheck.Must(m.layerStreamPlans())(t)
 	if len(plans) != len(cfg.Types) {
 		t.Fatalf("plans cover %d layers, want %d", len(plans), len(cfg.Types))
 	}
@@ -49,8 +47,7 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 		t.Fatalf("vector windows cover %d of %d elements", vecNext, m.VectorParamCount())
 	}
 
-	budget, err := m.LayerStreamedBudget()
-	testcheck.NoError(t, err)
+	budget := testcheck.Must(m.LayerStreamedBudget())(t)
 	maxLayer := 0
 	for _, p := range plans {
 		maxLayer = max(maxLayer, p.matSize)

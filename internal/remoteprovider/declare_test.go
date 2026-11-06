@@ -18,13 +18,11 @@ func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
 	provider := Provider{Name: "history", KeyEnvironment: "HISTORY_KEY", Model: "model"}
 	for _, endpoint := range []string{"https://old.example", "https://older.example"} {
 		provider.Endpoint = endpoint
-		declaration, err := Declare(t.Context(), store, provider, testCodeCommit)
-		testcheck.NoError(t, err)
+		declaration := testcheck.Must(Declare(t.Context(), store, provider, testCodeCommit))(t)
 		testcheck.NoError(t, Retire(t.Context(), store, 1, declaration.Location, testCodeCommit, "provider endpoint replaced"))
 	}
 	provider.Endpoint = "https://current.example"
-	current, err := Declare(t.Context(), store, provider, testCodeCommit)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(Declare(t.Context(), store, provider, testCodeCommit))(t)
 	listed, err := List(t.Context(), store, 1)
 	if err != nil || len(listed) != 1 || listed[0].Model != current.Model {
 		t.Fatalf("active listing after retired history = %+v, %v", listed, err)
@@ -55,8 +53,7 @@ func TestDeclareListsTheRemoteModelWithItsRefusal(t *testing.T) {
 	provider := Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1/", KeyEnvironment: "OVERGO_REMOTE_PROVIDER_TEST_KEY", Model: "vendor/model",
 	}
-	declaration, err := Declare(t.Context(), store, provider, testCodeCommit)
-	testcheck.NoError(t, err)
+	declaration := testcheck.Must(Declare(t.Context(), store, provider, testCodeCommit))(t)
 	if declaration.Location != "remote://fake/vendor/model" || declaration.Model.Kind() != artifact.KindModel ||
 		declaration.Recipe.Task != recipe.TaskInference || declaration.Provider.Endpoint != "https://fake.example/api/v1" {
 		t.Fatalf("declaration = %+v", declaration)

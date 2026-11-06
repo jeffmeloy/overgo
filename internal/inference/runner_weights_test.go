@@ -45,12 +45,9 @@ func TestNativeExpertBankTensors(t *testing.T) {
 	if names := slices.Sorted(maps.Keys(got)); !slices.Equal(names, want) {
 		t.Fatalf("native expert banks = %v, want %v", names, want)
 	}
-	expert, err := gguf.NewTensorInfo("experts", dtype.BF16, []uint64{2, 2, 4})
-	testcheck.NoError(t, err)
-	dense, err := gguf.NewTensorInfo("dense", dtype.F32, []uint64{2})
-	testcheck.NoError(t, err)
-	converted, err := gguf.NewTensorInfo("converted", dtype.BF16, []uint64{2})
-	testcheck.NoError(t, err)
+	expert := testcheck.Must(gguf.NewTensorInfo("experts", dtype.BF16, []uint64{2, 2, 4}))(t)
+	dense := testcheck.Must(gguf.NewTensorInfo("dense", dtype.F32, []uint64{2}))(t)
+	converted := testcheck.Must(gguf.NewTensorInfo("converted", dtype.BF16, []uint64{2}))(t)
 	for _, tc := range []struct {
 		available uint64
 		backed    int

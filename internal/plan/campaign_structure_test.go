@@ -120,8 +120,7 @@ func loadCampaignPlan(t *testing.T) Plan {
 	// The tree is found from the directory the test runs in, its package's, and never from the path
 	// the test was compiled at, which a trimmed build replaces with the import path.
 	root := filepath.Join("..", "..")
-	document, err := Load(filepath.Join(root, filepath.FromSlash(Path)))
-	testcheck.NoError(t, err)
+	document := testcheck.Must(Load(filepath.Join(root, filepath.FromSlash(Path))))(t)
 	if err := Validate(document); err != nil {
 		t.Fatalf("validate campaign plan: %v", err)
 	}

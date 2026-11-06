@@ -17,11 +17,9 @@ func TestAgentTaskContractIdentity(t *testing.T) {
 		Verification:   []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "gate")}, Budget: testutil.ArtifactID(t, artifact.KindEvidence, "budget"),
 		PauseConditions: []string{"unresolved mutation target"},
 	}
-	first, err := NewAgentTaskContract(contract)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewAgentTaskContract(contract))(t)
 	contract.Scope[0], contract.Scope[1] = contract.Scope[1], contract.Scope[0]
-	second, err := NewAgentTaskContract(contract)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewAgentTaskContract(contract))(t)
 	if first.ID != second.ID || len(first.Lineage()) == 0 {
 		t.Fatalf("task identities differ: %s %s", first.ID, second.ID)
 	}

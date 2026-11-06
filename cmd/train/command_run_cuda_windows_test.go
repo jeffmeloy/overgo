@@ -35,8 +35,7 @@ func TestWorkbenchRewardRunTrainsInItsOwnProcessOnTheDevice(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRewardCommandFixture(t)
 	t.Setenv(commandChildEnvironment, childDevice)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	held := device.NewAllocationSet(worker)
 	defer held.Close(ctx)
@@ -48,8 +47,7 @@ func TestWorkbenchRewardRunTrainsInItsOwnProcessOnTheDevice(t *testing.T) {
 	}
 
 	request := fixture.request("trained")
-	result, err := trainingworkflow.ExecuteInCommand(ctx, os.Args[0], fixture.storePath, request)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(trainingworkflow.ExecuteInCommand(ctx, os.Args[0], fixture.storePath, request))(t)
 	if len(result.GRPO) != 1 || !result.GRPO[0].Valid() || result.Checkpoint.Optimizer.Step != 1 {
 		t.Fatalf("the run returned the steps %+v and a checkpoint at step %d; want the one step the device took", result.GRPO, result.Checkpoint.Optimizer.Step)
 	}

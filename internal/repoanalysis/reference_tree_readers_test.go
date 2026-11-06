@@ -45,12 +45,10 @@ func TestNoTestReadsAdaptiveNew(t *testing.T) {
 			t.Fatalf("namesReferenceTree(%q) = %v, want %v", value, !want, want)
 		}
 	}
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd"))(t)
 	var found []string
 	for _, file := range snapshot.Files {
-		syntax, err := file.Syntax()
-		testcheck.NoError(t, err)
+		syntax := testcheck.Must(file.Syntax())(t)
 		ast.Inspect(syntax, func(node ast.Node) bool {
 			literal, ok := node.(*ast.BasicLit)
 			if !ok || literal.Kind != token.STRING || slices.Contains(found, file.Path) {

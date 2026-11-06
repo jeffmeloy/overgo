@@ -269,8 +269,7 @@ func swapRun(t *testing.T, seed uint64) (string, []string) {
 	var lifecycle *swapLifecycle
 	synctest.Test(t, func(t *testing.T) {
 		world := &swapWorld{}
-		supervisor, err := New(world, swapIdle)
-		testcheck.NoError(t, err)
+		supervisor := testcheck.Must(New(world, swapIdle))(t)
 		rng := rand.New(rand.NewPCG(seed, seed))
 		lifecycle = &swapLifecycle{rng: rng, world: world, supervisor: supervisor}
 		closeAt := rng.IntN(swapSteps * swapCloseOdds)

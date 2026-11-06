@@ -23,8 +23,7 @@ func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, modelID)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskForecast, modelID))(t)
 	if _, _, err := modelrecipe.PublishCandidate(
 		ctx, store, "fixture/workflow/candidate", definition,
 	); err != nil {
@@ -35,17 +34,14 @@ func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(
+	verification := testcheck.Must(modelrecipetest.PublishVerification(
 		ctx, store, "fixture/workflow/verification", definition.ID,
-	)
-	testcheck.NoError(t, err)
-	evaluation, err := runrecord.NewEvaluation(
+	))(t)
+	evaluation := testcheck.Must(runrecord.NewEvaluation(
 		definition.ID, verification.Run, datasetID,
 		[]runrecord.Metric{{Name: "quality", Value: 1, Direction: runrecord.DirectionMaximize}},
-	)
-	testcheck.NoError(t, err)
-	batch, err := evaluation.Batch("fixture/workflow/evaluation")
-	testcheck.NoError(t, err)
+	))(t)
+	batch := testcheck.Must(evaluation.Batch("fixture/workflow/evaluation"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}

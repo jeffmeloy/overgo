@@ -132,15 +132,13 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	testskip.Short(t, "cost attribution reads the private snapshot and model metadata")
 	root := testutil.RepoRoot(t)
 	var cost mediaCostProfile
-	data, err := os.ReadFile(filepath.Join(root, "docs/image_video_costs.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_costs.json")))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(data, imageVideoCostProfileSHA256))
 	testcheck.NoError(t, jsonfile.Decode(filepath.Join(root, "docs/image_video_costs.json"), &cost))
 	var inventory imageVideoInventory
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory))
 	testcheck.NoError(t, checkMediaCostCoverage(cost, inventory))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, p := range cost.Pipelines {
 		active, found, err := modelrecipe.ActiveRecord(t.Context(), store, p.Model, p.Task)
@@ -161,10 +159,8 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 		}
 	}
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
-	profile, err := latentvideo.ResolveProfile(directory)
-	testcheck.NoError(t, err)
-	config, err := latentvideo.LoadDenoiserConfig(directory, profile.Policy)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(directory))(t)
+	config := testcheck.Must(latentvideo.LoadDenoiserConfig(directory, profile.Policy))(t)
 	testcheck.NoError(t, checkMediaCostBytes(cost, profile, config))
 	for _, defect := range []string{"missing stage", "duplicate cell", "omitted cell", "changed quality"} {
 		bad := cost
@@ -191,8 +187,7 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	var changed map[string]any
 	testcheck.NoError(t, json.Unmarshal(data, &changed))
 	changed["boundaries"] = nil
-	changedData, err := json.Marshal(changed)
-	testcheck.NoError(t, err)
+	changedData := testcheck.Must(json.Marshal(changed))(t)
 	if checkMediaProtocolIdentity(changedData, imageVideoCostProfileSHA256) == nil {
 		t.Fatal("accepted omitted lifetime and copy attribution")
 	}

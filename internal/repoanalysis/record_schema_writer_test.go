@@ -710,8 +710,7 @@ func TestEveryProcessRecordSchemaHasAProductionWriter(t *testing.T) {
 		for name, content := range row.files {
 			contents[name] = []byte(content)
 		}
-		snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-		testcheck.NoError(t, err)
+		snapshot := testcheck.Must(gosyntax.Snapshot{}.Overlay(contents))(t)
 		if found, _, _, err := unwrittenRecordSchemas(snapshot, nil); err != nil || !slices.Equal(found, row.want) {
 			t.Errorf("%s: unwritten = %q, %v, want %q", row.rule, found, err, row.want)
 		}

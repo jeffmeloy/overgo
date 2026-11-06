@@ -87,8 +87,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	settle(`!!captureSlot('Audio').value && document.querySelector('.attachment-row').dataset.state==='ready'`)
 	var audioBase64 string
 	testcheck.NoError(t, browser.Evaluate(ctx, `(async()=>{const blob=await overgo.api.blob('/artifacts/content?id='+encodeURIComponent(captureSlot('Audio').value));return btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())));})()`, &audioBase64))
-	wave, err := base64.StdEncoding.DecodeString(audioBase64)
-	testcheck.NoError(t, err)
+	wave := testcheck.Must(base64.StdEncoding.DecodeString(audioBase64))(t)
 	decoded, _, err := media.DecodeAudio(ctx, wave, 2048)
 	if err != nil {
 		t.Fatalf("browser WAV: %v", err)

@@ -36,11 +36,9 @@ func TestPastHeldoutVerdictsAreReadAsTheStoreStood(t *testing.T) {
 		t.Helper()
 		candidate := forecast.score(t, offset, "falling")
 		commit(key+"-report", candidate.Batch)
-		verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, candidate, session)
-		testcheck.NoError(t, err)
+		verdict := testcheck.Must(JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, candidate, session))(t)
 		commit(key, verdict.Batch)
-		content, err := verdict.Content()
-		testcheck.NoError(t, err)
+		content := testcheck.Must(verdict.Content())(t)
 		return verdict.ID, content.Descriptor.Size
 	}
 	first, firstBytes := judge("first", 1)

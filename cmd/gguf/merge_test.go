@@ -40,8 +40,7 @@ func TestMergeWritesCanonicalCopyWithoutOverwriting(t *testing.T) {
 	testcheck.NoError(t, err)
 
 	testcheck.NoError(t, merge(inputPath, outputPath))
-	output, err := gguf.Open(outputPath)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(gguf.Open(outputPath))(t)
 	defer output.Close()
 	got := make([]byte, len(payload))
 	testcheck.NoError(t, output.ReadTensorData(output.Tensors[0], got))

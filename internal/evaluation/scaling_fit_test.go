@@ -21,7 +21,7 @@ func TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing(t *testing.T) 
 			Uncertainty: scalingUncertaintyEnvelope{Lower: rational(lower), Upper: rational(upper)}, Covered: true,
 		}
 	}
-	fit, err := scalingFitCodec.New(scalingFit{
+	fit := testcheck.Must(scalingFitCodec.New(scalingFit{
 		Version: artifact.InitialDocumentVersion, Study: id(artifact.KindEvidence, "study"),
 		CostAxis: scalingCostActiveParameters, QualityEvaluator: id(artifact.KindProfile, "quality evaluator"),
 		FitEvaluator: id(artifact.KindProfile, "fit evaluator"),
@@ -37,8 +37,7 @@ func TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing(t *testing.T) 
 			Name: "single observed regime", Evidence: id(artifact.KindEvidence, "assumption evidence"),
 			ReopenTrigger: id(artifact.KindRecipe, "assumption reopen"),
 		}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := scalingFitCodec.Content(fit)
 	if err != nil || content.Descriptor.ID != fit.ID || fit.FitPoints[0].CostDecimal != "100" || len(scalingFitLineage(fit)) != 22 {
 		t.Fatalf("scaling fit = (%+v, %v)", fit, err)

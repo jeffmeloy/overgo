@@ -12,10 +12,8 @@ import (
 
 func TestCompositionAPIWorkflow(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
+	handler := testcheck.Must(New(Config{Repository: store}, &fakeGenerator{}))(t)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()
@@ -39,10 +37,8 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	handler, err := New(Config{Repository: store}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
+	handler := testcheck.Must(New(Config{Repository: store}, &fakeGenerator{}))(t)
 	t.Cleanup(func() {
 		_ = handler.Close()
 		_ = store.Close()

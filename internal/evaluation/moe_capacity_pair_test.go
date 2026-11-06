@@ -11,7 +11,7 @@ import (
 func TestCapacityEvaluationPairsConstrainedAndDroplessRuns(t *testing.T) {
 	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
-	pair, err := moeCapacityPairCodec.New(moeCapacityPair{
+	pair := testcheck.Must(moeCapacityPairCodec.New(moeCapacityPair{
 		Version: artifact.InitialDocumentVersion,
 		Model:   id(artifact.KindModel, "model"), Dataset: id(artifact.KindDataset, "dataset"),
 		Split: id(artifact.KindDatasetShard, "split"), Checkpoint: id(artifact.KindCheckpoint, "checkpoint"),
@@ -26,8 +26,7 @@ func TestCapacityEvaluationPairsConstrainedAndDroplessRuns(t *testing.T) {
 			Evaluation: id(artifact.KindEvidence, "dropless-evaluation"), Total: 20, Admitted: true,
 		},
 		DropQualityGap: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := moeCapacityPairCodec.Content(pair)
 	if err != nil || content.Descriptor.ID != pair.ID || len(moeCapacityPairLineage(pair)) != 14 {
 		t.Fatalf("capacity pair = (%+v, %v)", pair, err)

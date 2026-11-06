@@ -91,8 +91,7 @@ func TestPrototypeRecipeLifecycleAndRollback(t *testing.T) {
 		}
 		completed := fixture.terminal
 		completed.Previous = fixture.running.ID
-		completed, err = runrecord.NewStageReceipt(completed)
-		testcheck.NoError(t, err)
+		completed = testcheck.Must(runrecord.NewStageReceipt(completed))(t)
 		for name, id := range map[string]artifact.ID{"event": event.ID, "terminal receipt": completed.ID} {
 			if _, present, lookupErr := fixture.store.Artifact(t.Context(), id); lookupErr != nil || present {
 				t.Fatalf("%s survived rolled-back batch = (%v, %v)", name, present, lookupErr)
@@ -203,54 +202,46 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 		t.Fatal(err)
 	}
 	evaluation := publishVerificationFact(t, store, "candidate-evaluation")
-	decision, err := recipe.NewDecision(
+	decision := testcheck.Must(recipe.NewDecision(
 		definition.ID, recipe.DecisionAccepted, recipe.EvidenceVerified, "held-out candidate improvement accepted",
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: evaluation}, []artifact.ID{evaluation},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	publishVerificationDecision(t, store, decision)
 	task := publishVerificationTask(t, store, definition.ID, evaluation)
-	arguments, err := verificationArguments(definition.ID, decision.ID, statusAlias(definition.ID))
-	testcheck.NoError(t, err)
+	arguments := testcheck.Must(verificationArguments(definition.ID, decision.ID, statusAlias(definition.ID)))(t)
 	commitContent(t, store, "fixture/supervised/arguments", arguments, nil)
-	mutation, err := invocation.NewEffect(invocation.Effect{
+	mutation := testcheck.Must(invocation.NewEffect(invocation.Effect{
 		Manual: definition.ID, Arguments: arguments.Descriptor.ID, Class: invocation.ClassMutation,
 		Targets: []invocation.Target{{Scope: invocation.ScopeRepository, Value: statusAlias(definition.ID)}}, Known: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	publishInvocationEffect(t, store, "fixture/supervised/mutation", mutation)
 	inspectionFact := publishVerificationFact(t, store, "candidate-status-inspection")
-	inspectionEffect, err := invocation.NewEffect(invocation.Effect{
+	inspectionEffect := testcheck.Must(invocation.NewEffect(invocation.Effect{
 		Manual: definition.ID, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection,
 		Targets: []invocation.Target{{Scope: invocation.ScopeRepository, Value: statusAlias(definition.ID)}}, Known: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	publishInvocationEffect(t, store, "fixture/supervised/inspection-effect", inspectionEffect)
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "supervised-verification-operation")
 	testutil.PublishArtifact(t, store, operation)
 	head, _ := store.Head()
-	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
+	selection := testcheck.Must(dataset.SelectInteractions(dataset.InteractionSelectionBounds{
 		MaxTokens: 1, MaxBytes: 1, MaxDocuments: 1, MaxDepth: 1, MaxResults: 1,
 	}, head, []dataset.InteractionSelectionSource{{
 		Source: arguments.Descriptor.ID, CausalRoot: operation,
 		Tokens: 1, Bytes: 1, Documents: 1, Depth: 1,
-	}}, nil)
-	testcheck.NoError(t, err)
-	stimulus, err := runrecord.PublishAttemptStimulus(ctx, store, runrecord.AttemptStimulusBoundary{
+	}}, nil))(t)
+	stimulus := testcheck.Must(runrecord.PublishAttemptStimulus(ctx, store, runrecord.AttemptStimulusBoundary{
 		Operation: operation, Attempt: 1, Manual: definition.ID, Class: invocation.ClassMutation,
 		Arguments: arguments.Descriptor.ID, Effect: mutation.ID,
 		Inspection: inspectionFact, InspectionEffect: inspectionEffect.ID,
 		Ceiling: task.ID, CausalContext: inspectionFact, Prior: inspectionFact, Selection: selection,
-	}, nil)
-	testcheck.NoError(t, err)
+	}, nil))(t)
 	action := operatoraction.Action{
 		Code: string(invocation.MutationPromotion), Summary: string(invocation.MutationPromotion),
 		Argv: invocation.ApprovalArguments(definition.ID, arguments.Descriptor.ID, mutation.ID, stimulus.ID),
 	}
-	request, err := operatoraction.NewApprovalRequest(operation, task.ID, action, artifact.ID{})
-	testcheck.NoError(t, err)
-	human, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
-	testcheck.NoError(t, err)
+	request := testcheck.Must(operatoraction.NewApprovalRequest(operation, task.ID, action, artifact.ID{}))(t)
+	human := testcheck.Must(runrecord.NewHumanDecision(request, operatoraction.AnswerGrant))(t)
 	testcheck.NoError(t, runrecord.PublishHumanDecision(ctx, store, request, human))
 	binding := invocation.ReceiptBinding{
 		Boundary: invocation.BoundaryInternal, Kind: invocation.MutationPromotion, Action: string(invocation.MutationPromotion),
@@ -261,16 +252,14 @@ func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Tas
 	input := []runrecord.StageBinding{{
 		Port: recipe.PortName(recipe.StatusVerified), Artifacts: []artifact.ID{decision.ID},
 	}}
-	admitted, err := runrecord.PublishStageReceipt(ctx, store, runrecord.StageReceipt{
+	admitted := testcheck.Must(runrecord.PublishStageReceipt(ctx, store, runrecord.StageReceipt{
 		Recipe: task.ID, Node: recipe.NodeID(invocation.MutationPromotion), Operation: operation,
 		Attempt: 1, State: runrecord.StageAdmitted, Inputs: input, Invocation: &binding,
-	}, nil, nil)
-	testcheck.NoError(t, err)
-	running, err := runrecord.PublishStageReceipt(ctx, store, runrecord.StageReceipt{
+	}, nil, nil))(t)
+	running := testcheck.Must(runrecord.PublishStageReceipt(ctx, store, runrecord.StageReceipt{
 		Recipe: task.ID, Node: recipe.NodeID(invocation.MutationPromotion), Operation: operation,
 		Attempt: 1, State: runrecord.StageRunning, Inputs: input, Invocation: &binding,
-	}, nil, nil)
-	testcheck.NoError(t, err)
+	}, nil, nil))(t)
 	if running.Previous != admitted.ID {
 		t.Fatalf("running receipt previous = %s, want %s", running.Previous, admitted.ID)
 	}
@@ -301,16 +290,14 @@ func publishVerificationFact(t *testing.T, store artifact.Repository, name strin
 	contract := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: verificationEvidenceMediaType, Schema: verificationEvidenceSchema,
 	}
-	content, err := contract.ContentBytes([]byte(`{"passed":true,"subject":"` + name + `"}`))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentBytes([]byte(`{"passed":true,"subject":"` + name + `"}`)))(t)
 	commitContent(t, store, "fixture/supervised/fact/"+name, content, nil)
 	return content.Descriptor.ID
 }
 
 func publishVerificationDecision(t *testing.T, store artifact.Repository, decision recipe.Decision) {
 	t.Helper()
-	content, err := decision.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(decision.Content())(t)
 	commitContent(t, store, "fixture/supervised/decision", content, decision.Lineage())
 }
 
@@ -322,7 +309,7 @@ func publishVerificationTask(
 	t.Helper()
 	budget := publishVerificationFact(t, store, "candidate-verification-budget")
 	verifier := publishVerificationFact(t, store, "candidate-verification-criterion")
-	task, err := recipe.NewAgentTaskContract(recipe.AgentTaskContract{
+	task := testcheck.Must(recipe.NewAgentTaskContract(recipe.AgentTaskContract{
 		Agent: agent, Objective: "Verify one candidate without serving it.",
 		Scope: []string{statusAlias(agent)}, AllowedEffects: []string{string(invocation.MutationPromotion)},
 		Acceptance: []recipe.AcceptanceCriterion{{
@@ -330,18 +317,15 @@ func publishVerificationTask(
 		}},
 		Verification: []artifact.ID{evidence}, Budget: budget,
 		PauseConditions: []string{"Operator declines the exact mutation."},
-	})
-	testcheck.NoError(t, err)
-	content, err := task.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(task.Content())(t)
 	commitContent(t, store, "fixture/supervised/task", content, task.Lineage())
 	return task
 }
 
 func publishInvocationEffect(t *testing.T, store artifact.Repository, key string, effect invocation.Effect) {
 	t.Helper()
-	content, err := effect.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(effect.Content())(t)
 	commitContent(t, store, key, content, effect.Lineage())
 }
 
@@ -353,8 +337,7 @@ func commitContent(
 	lineage []artifact.Lineage,
 ) {
 	t.Helper()
-	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, lineage, nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(artifact.NewDocumentBatch(key, []artifact.Content{content}, lineage, nil))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}

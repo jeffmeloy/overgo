@@ -16,13 +16,10 @@ import (
 
 func TestGenerationMeasurementClock(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 16)
-	program, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
-	testcheck.NoError(t, err)
-	runner, err := inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	program := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))(t)
+	runner := testcheck.Must(inference.OpenWithProgram(t.Context(), &program, inference.OpenOptions{}))(t)
 	defer runner.Close()
-	before, err := processmeasure.Counter()
-	testcheck.NoError(t, err)
+	before := testcheck.Must(processmeasure.Counter())(t)
 	generated, err := Run(t.Context(), runner, []tokenizer.TokenID{1, 4}, 3, GuardContinuation)
 	after, clockErr := processmeasure.Counter()
 	if err != nil || clockErr != nil {

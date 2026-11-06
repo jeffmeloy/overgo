@@ -173,8 +173,7 @@ func writeFixture(t *testing.T, random *rand.Rand, tensors []fixtureTensor, note
 	inputs := make([]gguf.TensorData, len(tensors))
 	payloads := make(map[string][]byte, len(tensors))
 	for index, spec := range tensors {
-		info, err := gguf.NewTensorInfo(spec.name, spec.kind, spec.shape)
-		testcheck.NoError(t, err)
+		info := testcheck.Must(gguf.NewTensorInfo(spec.name, spec.kind, spec.shape))(t)
 		payloads[spec.name] = randomBytes(random, info.Size)
 		inputs[index] = gguf.TensorData{Name: spec.name, Shape: spec.shape, Type: spec.kind, Data: bytes.NewReader(payloads[spec.name])}
 	}
@@ -190,8 +189,7 @@ func writeFixture(t *testing.T, random *rand.Rand, tensors []fixtureTensor, note
 
 func (f fixture) parse(t *testing.T) *gguf.File {
 	t.Helper()
-	file, err := gguf.Parse(bytes.NewReader(f.data), uint64(len(f.data)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(f.data), uint64(len(f.data)), gguf.DefaultOptions()))(t)
 	return file
 }
 
@@ -250,8 +248,7 @@ func (f fixture) check(t *testing.T, file *gguf.File, s stores, read func(*testi
 				t.Fatalf("raw tensor %q differs from its file bytes (found %t)", spec.name, found)
 			}
 		}
-		decoded, err := model.DecodeHostTensor(info, f.payloads[spec.name])
-		testcheck.NoError(t, err)
+		decoded := testcheck.Must(model.DecodeHostTensor(info, f.payloads[spec.name]))(t)
 		for _, converted := range []struct {
 			wanted bool
 			store  *DeviceConvertedWeights
@@ -477,8 +474,7 @@ func TestLoaderReadsEachByteOnce(t *testing.T) {
 	source := mixedFixture(t, random)
 	for _, claimed := range []bool{true, false} {
 		recorder := &readRecorder{source: bytes.NewReader(source.data)}
-		file, err := gguf.Parse(recorder, uint64(len(source.data)), gguf.DefaultOptions())
-		testcheck.NoError(t, err)
+		file := testcheck.Must(gguf.Parse(recorder, uint64(len(source.data)), gguf.DefaultOptions()))(t)
 		recorder.ranges = nil
 		device := newFakeDevice()
 		s := newStores(device)
@@ -674,8 +670,7 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 	var claim []artifact.ID
 	for index := range paths {
 		paths[index] = name(uint16(index), shards)
-		onDisk, err := os.ReadFile(paths[index])
-		testcheck.NoError(t, err)
+		onDisk := testcheck.Must(os.ReadFile(paths[index]))(t)
 		claim = append(claim, identity(t, onDisk))
 	}
 	load := func(t *testing.T, expect []artifact.ID) (error, *fakeDevice, stores) {
@@ -705,8 +700,7 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 	})
 	for index := range paths {
 		t.Run(fmt.Sprintf("shard %d changed", index), func(t *testing.T) {
-			onDisk, err := os.ReadFile(paths[index])
-			testcheck.NoError(t, err)
+			onDisk := testcheck.Must(os.ReadFile(paths[index]))(t)
 			changed := slices.Clone(onDisk)
 			position := len(changed) - 1
 			if index == 0 {

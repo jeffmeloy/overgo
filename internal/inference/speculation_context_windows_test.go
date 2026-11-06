@@ -21,8 +21,7 @@ import (
 func TestSpeculationStopsAtTheContextLimit(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	prompt := []tokenizer.TokenID{1, 4, 5}
 	flashNext := writeHermeticFlashNextGGUF(t)
 	for _, draft := range []struct {
@@ -34,8 +33,7 @@ func TestSpeculationStopsAtTheContextLimit(t *testing.T) {
 		{"nextn", writeHermeticQwen35GGUF(t), OpenOptions{}, int(hermeticContext)},
 		{"mtp", flashNext, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, flashNext, true)}, int(flashNextContext)},
 	} {
-		runner, err := openFixtureRunnerWithResidency(draft.path, draft.options, recipe.ResidencyDeviceF32)
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(openFixtureRunnerWithResidency(draft.path, draft.options, recipe.ResidencyDeviceF32))(t)
 		t.Cleanup(func() {
 			if err := runner.Close(); err != nil {
 				t.Error(err)

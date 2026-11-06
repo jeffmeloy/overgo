@@ -23,24 +23,21 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 			embeddingNorm := builder.Input("enorm", dtype.F32, tensor.MustShape(8))
 			hiddenNorm := builder.Input("hnorm", dtype.F32, tensor.MustShape(8))
 			projection := builder.Input("eh", dtype.F32, tensor.MustShape(16, 8))
-			current, err := draft.BuildDraftInput(
+			current := testcheck.Must(draft.BuildDraftInput(
 				builder, token, hidden, embeddingNorm, hiddenNorm, projection,
-			)
-			testcheck.NoError(t, err)
+			))(t)
 			weightSpec := spec
 			weightSpec.Architecture = "qwen35"
 			plan := draft.Layer()
-			block, err := draft.Build(CachedBlockContext{
+			block := testcheck.Must(draft.Build(CachedBlockContext{
 				Builder: builder, Input: current, Positions: []uint32{7}, Layer: plan.Layer,
-			}, qwen35AttentionInputs(builder, weightSpec))
-			testcheck.NoError(t, err)
+			}, qwen35AttentionInputs(builder, weightSpec)))(t)
 			outputNorm := builder.Input("output_norm", dtype.F32, tensor.MustShape(8))
 			head := builder.Input("head", dtype.F32, tensor.MustShape(8, 13))
 			logits, nextHidden, err := draft.BuildDraftOutputs(builder, block.Output, outputNorm, head)
 			testcheck.NoError(t, err)
 			outputs := []*tensor.Tensor{logits, nextHidden, block.Key, block.Value}
-			nodes, err := tensor.Topological(outputs...)
-			testcheck.NoError(t, err)
+			nodes := testcheck.Must(tensor.Topological(outputs...))(t)
 			feeds := make(map[*tensor.Tensor]reference.Value)
 			for _, node := range nodes {
 				if node.Op != tensor.OpInput {
@@ -56,8 +53,7 @@ func TestBuildQwen35MTPPipeline(t *testing.T) {
 				}
 				feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 			}
-			results, err := reference.Execute(outputs, feeds)
-			testcheck.NoError(t, err)
+			results := testcheck.Must(reference.Execute(outputs, feeds))(t)
 			if !results[logits].Shape.Equal(tensor.MustShape(13, 1)) ||
 				!results[nextHidden].Shape.Equal(tensor.MustShape(8, 1)) ||
 				!results[block.Key].Shape.Equal(tensor.MustShape(4, 1, 1)) {

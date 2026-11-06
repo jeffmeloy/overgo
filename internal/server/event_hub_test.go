@@ -24,8 +24,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 	defer hub.close()
 	var sessions atomic.Int64
 	hub.pump(func() runtimeSessionsResponse { sessions.Add(1); return runtimeSessionsResponse{} })
-	manager, err := operation.NewManager(8)
-	testcheck.NoError(t, err)
+	manager := testcheck.Must(operation.NewManager(8))(t)
 	defer manager.Close()
 	var last atomic.Uint64
 	manager.Notify(func(event operation.Event) { last.Store(event.Sequence); hub.observeOperation(event) })
@@ -39,13 +38,12 @@ func TestEventHubFansOutOnce(t *testing.T) {
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "event hub recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "event hub run")
-	id, err := manager.Submit(t.Context(), operation.Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+	id := testcheck.Must(manager.Submit(t.Context(), operation.Request{Task: recipe.TaskGeneration, Recipe: recipeID},
 		func(_ context.Context, reporter operation.Reporter) (operation.Completion, error) {
 			reporter.Metric(operation.Metric{Name: "loss", Value: 1})
 			reporter.Publishing()
 			return operation.Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if _, err := manager.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}

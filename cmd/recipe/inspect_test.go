@@ -19,10 +19,8 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	output := filepath.Join(t.TempDir(), "inspection.json")
 	testcheck.NoError(t, inspectModel([]string{"-output", output, path}))
-	expected, err := modelintake.InspectImport(t.Context(), path, "")
-	testcheck.NoError(t, err)
-	actual, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	expected := testcheck.Must(modelintake.InspectImport(t.Context(), path, ""))(t)
+	actual := testcheck.Must(os.ReadFile(output))(t)
 	if !bytes.Equal(bytes.TrimSpace(actual), expected.Content.Data) {
 		t.Fatal("CLI does not use canonical inspection")
 	}
@@ -32,8 +30,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	}
 	store := overgodbtest.Open(t, t.TempDir())
 	for range 2 {
-		receipt, err := libraryintake.Register(t.Context(), store, model, projector)
-		testcheck.NoError(t, err)
+		receipt := testcheck.Must(libraryintake.Register(t.Context(), store, model, projector))(t)
 		if receipt["inspection"] != expected.Content.Descriptor.ID || receipt["recipe"] != nil || receipt["activation"] != nil {
 			t.Fatalf("source import acquired serving authority: %+v", receipt)
 		}

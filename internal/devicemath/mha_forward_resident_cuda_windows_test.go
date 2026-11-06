@@ -18,8 +18,7 @@ import (
 // scale folded into q upstream so scores use scale 1).
 func TestMultiHeadAttentionForwardResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 24, 8, 2, 16
@@ -28,8 +27,7 @@ func TestMultiHeadAttentionForwardResidentMatchesHost(t *testing.T) {
 	k := randSlice(rng, seq*nkv*hd)
 	v := randSlice(rng, seq*nkv*hd)
 
-	got, err := MultiHeadAttentionForwardResident(worker, q, k, v, seq, nh, nkv, hd)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(MultiHeadAttentionForwardResident(worker, q, k, v, seq, nh, nkv, hd))(t)
 	want := make([]float32, seq*nh*hd)
 	hostmath.CausalAttention(want, q, k, v, seq, nh, nkv, hd)
 

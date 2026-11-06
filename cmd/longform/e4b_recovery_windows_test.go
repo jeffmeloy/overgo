@@ -34,11 +34,9 @@ func TestE4BResourceRecovery(t *testing.T) {
 		return
 	}
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	ctx := t.Context()
-	observer, err := device.New(0)
-	testcheck.NoError(t, err)
+	observer := testcheck.Must(device.New(0))(t)
 	defer func() {
 		if err := observer.Close(); err != nil {
 			t.Error(err)
@@ -57,26 +55,20 @@ func TestE4BResourceRecovery(t *testing.T) {
 		return free
 	}
 	store := overgodbtest.OpenReadOnly(t, roots.Store)
-	weights, err := artifact.ParseID("tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
-	testcheck.NoError(t, err)
-	path, err := artifact.AvailablePath(ctx, store, weights, artifact.LocationFile)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(artifact.ParseID("tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501"))(t)
+	path := testcheck.Must(artifact.AvailablePath(ctx, store, weights, artifact.LocationFile))(t)
 	const requiredContext = 32768 // Explicit E4B resource acceptance scope in the plan.
-	corpus, err := longform.Corpus(root, corpusBytesPerToken*(requiredContext+longform.DeclaredFloors().ScoreTokens))
-	testcheck.NoError(t, err)
+	corpus := testcheck.Must(longform.Corpus(root, corpusBytesPerToken*(requiredContext+longform.DeclaredFloors().ScoreTokens)))(t)
 	expected := make(map[int][]tokenizer.TokenID)
 	var ceiling driver.MemoryStats
 	for reload := range 3 {
-		runner, err := modelcli.OpenRunner(ctx, roots.Store, path, inference.OpenOptions{})
-		testcheck.NoError(t, err)
+		runner := testcheck.Must(modelcli.OpenRunner(ctx, roots.Store, path, inference.OpenOptions{}))(t)
 		// Loaded footprint: weights, module and load-time buffers before any
 		// generation allocates workspace. Every later retained byte must be
 		// this footprint plus a named executor owner; an unattributed excess
 		// is a retained buffer no owner accounts for.
-		loaded, err := runner.DeviceMemoryStats(ctx)
-		testcheck.NoError(t, err)
-		loadMetrics, err := runner.ExecutionMetrics(ctx)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(runner.DeviceMemoryStats(ctx))(t)
+		loadMetrics := testcheck.Must(runner.ExecutionMetrics(ctx))(t)
 		loadedFootprint := loaded.CurrentBytes - attributedOwners(loadMetrics)
 		var owned, beforeClose uint64
 		func() {
@@ -134,8 +126,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 				if err != nil || !slices.Equal(got, expected[1024]) {
 					t.Fatalf("post-error recovery changed output: %v, %v", got, err)
 				}
-				memory, err := runner.DeviceMemoryStats(ctx)
-				testcheck.NoError(t, err)
+				memory := testcheck.Must(runner.DeviceMemoryStats(ctx))(t)
 				if reload == 0 && cycle == 0 {
 					ceiling = memory
 				} else if memory.CurrentBytes > ceiling.CurrentBytes || memory.Allocations > ceiling.Allocations {
@@ -147,8 +138,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 				// alignment not individually surfaced. Every retained byte is
 				// attributed, so a future untracked context-scaled buffer fails
 				// here instead of silently inflating the empirical ceiling.
-				metrics, err := runner.ExecutionMetrics(ctx)
-				testcheck.NoError(t, err)
+				metrics := testcheck.Must(runner.ExecutionMetrics(ctx))(t)
 				owners := attributedOwners(metrics)
 				budget := retainedBudget(loadedFootprint, metrics)
 				unattributed := int64(memory.CurrentBytes) - int64(loadedFootprint) - int64(owners)

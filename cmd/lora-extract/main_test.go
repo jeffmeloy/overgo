@@ -35,10 +35,8 @@ func writeRequest(t *testing.T, tensorName string) (path, store string, base, tu
 	layout := tensor.MustShape(3, 2)
 	compiler := modelmerge.Compiler{}
 	definition := testutil.ArtifactID(t, artifact.KindModelDefinition, "lora-extract definition")
-	baseSnapshot, err := compiler.Seal(definition, artifact.ID{}, map[string]modelmerge.Weight{tensorName: {Layout: layout, Values: base}})
-	testcheck.NoError(t, err)
-	tunedSnapshot, err := compiler.Seal(definition, baseSnapshot.ID, map[string]modelmerge.Weight{tensorName: {Layout: layout, Values: tuned}})
-	testcheck.NoError(t, err)
+	baseSnapshot := testcheck.Must(compiler.Seal(definition, artifact.ID{}, map[string]modelmerge.Weight{tensorName: {Layout: layout, Values: base}}))(t)
+	tunedSnapshot := testcheck.Must(compiler.Seal(definition, baseSnapshot.ID, map[string]modelmerge.Weight{tensorName: {Layout: layout, Values: tuned}}))(t)
 	request := extractionRequest{
 		Base:  extractionSnapshot{ID: baseSnapshot.ID, Definition: definition, Tensors: baseSnapshot.Tensors},
 		Tuned: extractionSnapshot{ID: tunedSnapshot.ID, Definition: definition, Base: baseSnapshot.ID, Tensors: tunedSnapshot.Tensors},
@@ -49,8 +47,7 @@ func writeRequest(t *testing.T, tensorName string) (path, store string, base, tu
 	path = filepath.Join(t.TempDir(), "request.json")
 	testcheck.NoError(t, jsonfile.Write(path, request, 0o600))
 	store = t.TempDir()
-	opened, err := overgodb.Create(store)
-	testcheck.NoError(t, err)
+	opened := testcheck.Must(overgodb.Create(store))(t)
 	parents := artifact.Batch{Key: "lora-extract/parents", Artifacts: []artifact.Descriptor{{ID: definition}, {ID: baseSnapshot.ID}, {ID: tunedSnapshot.ID}}}
 	if _, err := opened.Commit(t.Context(), parents); err != nil {
 		t.Fatal(err)
@@ -66,14 +63,12 @@ func TestExtractWritesThePEFTAdapter(t *testing.T) {
 	request, store, base, tuned := writeRequest(t, queryModule+".weight")
 	directory := filepath.Join(t.TempDir(), "adapter")
 	testcheck.NoError(t, extract([]string{"-request", request, "-record", store, "-peft", directory}))
-	adapter, err := peft.Load(directory)
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(peft.Load(directory))(t)
 	module, found := adapter.Modules[queryModule]
 	if !found || len(adapter.Modules) != 1 || module.Rank != 1 || module.In != 3 || module.Out != 2 || adapter.Config.Rank != 1 || adapter.Config.Alpha != 1 {
 		t.Fatalf("adapter = %+v, want one rank-one module of two rows and three columns whose scale is one", adapter)
 	}
-	delta, err := adapter.Delta(queryModule)
-	testcheck.NoError(t, err)
+	delta := testcheck.Must(adapter.Delta(queryModule))(t)
 	for index := range delta {
 		if math.Abs(float64(delta[index]-(tuned[index]-base[index]))) > 1e-4 {
 			t.Fatalf("update[%d] = %v, want the fine-tune's %v", index, delta[index], tuned[index]-base[index])

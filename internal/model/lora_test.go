@@ -26,11 +26,9 @@ func TestLoadLoRAValidatesProjectionAndEmbeddingPairs(t *testing.T) {
 		loRATensor("token_embd.weight.lora_a", []uint64{1, 4}, []float32{7, 8, 9, 10}),
 		loRATensor("token_embd.weight.lora_b", []uint64{1, 2}, []float32{11, 12}),
 	})
-	base, err := gguf.Open(basePath)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(gguf.Open(basePath))(t)
 	defer base.Close()
-	adapter, err := LoadLoRA(t.Context(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}})
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(LoadLoRA(t.Context(), adapterPath, base, Spec{CommonSpec: CommonSpec{Architecture: "llama"}}))(t)
 	if adapter.Alpha != 4 || len(adapter.Weights) != 2 || !adapter.Weights["token_embd.weight"].Embedding {
 		t.Fatalf("unexpected adapter: %+v", adapter)
 	}

@@ -20,8 +20,7 @@ func TestCheckpointGenerationsSurviveATornWrite(t *testing.T) {
 	head, _, _ := copyScaleCorpus(t, root)
 	anchored := func() string {
 		t.Helper()
-		store, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(root))(t)
 		defer store.Close()
 		if replay := store.SnapshotReplay(); !replay.Loaded || replay.Fallback != "" {
 			t.Fatalf("open was not anchored at a checkpoint generation: %+v", replay)
@@ -35,8 +34,7 @@ func TestCheckpointGenerationsSurviveATornWrite(t *testing.T) {
 
 	complete := newestCheckpoints(t, root)
 	parent := filepath.Dir(complete)
-	member, err := os.ReadFile(filepath.Join(complete, "aliases"+checkpointExtension))
-	testcheck.NoError(t, err)
+	member := testcheck.Must(os.ReadFile(filepath.Join(complete, "aliases"+checkpointExtension)))(t)
 	torn := filepath.Join(parent, checkpointGeneration(^uint64(0)))
 	testcheck.NoError(t, os.MkdirAll(torn, storeDirectoryMode))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(torn, "aliases"+checkpointExtension), member, storeFileMode))
@@ -44,8 +42,7 @@ func TestCheckpointGenerationsSurviveATornWrite(t *testing.T) {
 		t.Fatal("the generation before a torn one answered differently")
 	}
 
-	members, err := os.ReadDir(complete)
-	testcheck.NoError(t, err)
+	members := testcheck.Must(os.ReadDir(complete))(t)
 	for _, entry := range members {
 		testcheck.NoError(t, os.Rename(filepath.Join(complete, entry.Name()), filepath.Join(parent, entry.Name())))
 	}
@@ -54,8 +51,7 @@ func TestCheckpointGenerationsSurviveATornWrite(t *testing.T) {
 		t.Fatal("the flat set of a store written before generations answered differently")
 	}
 
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	if _, err := store.Snapshot(t.Context()); err != nil {
 		t.Fatal(err)
 	}

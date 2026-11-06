@@ -45,16 +45,14 @@ func TestSlowPublicationProcess(t *testing.T) {
 	}
 	// Both streams feed the parser, so the fixture announces its drained
 	// output by connecting to the parent's listener.
-	connection, err := net.Dial("tcp", announce)
-	testcheck.NoError(t, err)
+	connection := testcheck.Must(net.Dial("tcp", announce))(t)
 	_ = connection.Close()
 	os.Exit(0)
 }
 
 func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	ctx := t.Context()
-	drained, err := net.Listen("tcp", "127.0.0.1:0")
-	testcheck.NoError(t, err)
+	drained := testcheck.Must(net.Listen("tcp", "127.0.0.1:0"))(t)
 	defer drained.Close()
 	release, entered, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
@@ -83,8 +81,7 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	}
 	// The fixture drains its whole output while the first publication is
 	// still held; its connection proves the output was never blocked.
-	connection, err := drained.Accept()
-	testcheck.NoError(t, err)
+	connection := testcheck.Must(drained.Accept())(t)
 	_ = connection.Close()
 	select {
 	case <-done:

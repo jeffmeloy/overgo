@@ -189,8 +189,7 @@ func TestMOSSGoldenContract(t *testing.T) {
 		source := mossGolden(t, name)
 		entry := cases[name]
 		for _, meta := range source.Metadata {
-			data, err := json.Marshal(meta)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(meta))(t)
 			hash := sha256.Sum256(data)
 			if hex.EncodeToString(hash[:]) != entry.MetadataSHA256 {
 				t.Fatal("portable reference metadata changed")
@@ -280,8 +279,7 @@ func TestMOSSGoldenContract(t *testing.T) {
 		func(c *mossOracleContract) { c.Comparison.RepeatabilityAbsolute = 1 },
 		func(c *mossOracleContract) { c.Comparison.FiniteOnly = false },
 	} {
-		raw, err := json.Marshal(contract)
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(contract))(t)
 		var changed mossOracleContract
 		testcheck.NoError(t, json.Unmarshal(raw, &changed))
 		change(&changed)

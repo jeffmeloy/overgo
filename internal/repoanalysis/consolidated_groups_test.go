@@ -294,16 +294,14 @@ func fixtureSnapshot(t *testing.T, fixtures ...map[string]string) gosyntax.Snaps
 			contents[name] = []byte(source)
 		}
 	}
-	snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(gosyntax.Snapshot{}.Overlay(contents))(t)
 	return snapshot
 }
 
 // holdConsolidated holds planted groups to the expected repeats in a fixture.
 func holdConsolidated(t *testing.T, fixture gosyntax.Snapshot, reading shapeReading, planted []consolidatedGroup, want []string) {
 	t.Helper()
-	repeats, err := consolidatedRepeats(fixture, reading, planted)
-	testcheck.NoError(t, err)
+	repeats := testcheck.Must(consolidatedRepeats(fixture, reading, planted))(t)
 	if !slices.Equal(repeats, want) {
 		t.Errorf("the fixture's repeats =\n%s\nwant\n%s", strings.Join(repeats, "\n"), strings.Join(want, "\n"))
 	}
@@ -327,8 +325,7 @@ func handWrittenClones(t *testing.T, snapshot gosyntax.Snapshot) map[string]bool
 		if strings.HasSuffix(source.Path, "_test.go") || !bytes.Contains(source.Data, []byte("Clone")) {
 			continue
 		}
-		file, err := source.Syntax()
-		testcheck.NoError(t, err)
+		file := testcheck.Must(source.Syntax())(t)
 		ast.Inspect(file, func(node ast.Node) bool {
 			var clone ast.Expr
 			switch node := node.(type) {

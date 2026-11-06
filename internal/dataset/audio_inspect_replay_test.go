@@ -45,8 +45,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 			for _, shape := range []string{"fresh", "historical-without-source", "historical-with-source"} {
 				t.Run(shape, func(t *testing.T) {
 					path := t.TempDir()
-					store, err := overgodb.Create(path)
-					testcheck.NoError(t, err)
+					store := testcheck.Must(overgodb.Create(path))(t)
 					t.Cleanup(func() { _ = store.Close() })
 					publishInspectionSource(t, store, []byte("replay-container"))
 					publishInspectionSource(t, store, data)
@@ -85,8 +84,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 							t.Fatalf("historical receipt changed: %v", err)
 						}
 						testcheck.NoError(t, store.Close())
-						reopened, err := overgodb.Create(path)
-						testcheck.NoError(t, err)
+						reopened := testcheck.Must(overgodb.Create(path))(t)
 						store = reopened
 					}
 					conflict := capture.batch

@@ -24,15 +24,12 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 		for _, layer := range []uint32{1, 3} {
 			value := base
 			value.Step, value.Layer = step+5, layer
-			identified, err := NewMoERouterObservation(value)
-			testcheck.NoError(t, err)
+			identified := testcheck.Must(NewMoERouterObservation(value))(t)
 			observations = append(observations, identified)
 		}
 	}
-	chunk, err := NewMoERouterObservationChunk(observations, artifact.ID{})
-	testcheck.NoError(t, err)
-	coverage, err := NewMoERouterObservationCoverage(chunk, 5, 2, []uint32{3, 1})
-	testcheck.NoError(t, err)
+	chunk := testcheck.Must(NewMoERouterObservationChunk(observations, artifact.ID{}))(t)
+	coverage := testcheck.Must(NewMoERouterObservationCoverage(chunk, 5, 2, []uint32{3, 1}))(t)
 	if coverage.Run != run || coverage.FirstStep != 5 || coverage.Steps != 2 ||
 		coverage.Chunk != chunk.ID || coverage.ObservationCount != uint64(len(observations)) || coverage.ObservationBytes == 0 {
 		t.Fatalf("coverage = %+v", coverage)
@@ -41,15 +38,13 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	incomplete, err := NewMoERouterObservationChunk(observations[:len(observations)-1], artifact.ID{})
-	testcheck.NoError(t, err)
+	incomplete := testcheck.Must(NewMoERouterObservationChunk(observations[:len(observations)-1], artifact.ID{}))(t)
 	if _, err := NewMoERouterObservationCoverage(incomplete, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("missing layer observation accepted")
 	}
 	duplicate := append([]MoERouterObservation(nil), observations...)
 	duplicate[len(duplicate)-1] = duplicate[0]
-	duplicateChunk, err := NewMoERouterObservationChunk(duplicate, artifact.ID{})
-	testcheck.NoError(t, err)
+	duplicateChunk := testcheck.Must(NewMoERouterObservationChunk(duplicate, artifact.ID{}))(t)
 	if _, err := NewMoERouterObservationCoverage(duplicateChunk, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("duplicate observation accepted")
 	}
@@ -85,11 +80,9 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 			value := base
 			value.Step, value.Layer = changed[1].Step, changed[1].Layer
 			testCase.mutate(&value)
-			identified, err := NewMoERouterObservation(value)
-			testcheck.NoError(t, err)
+			identified := testcheck.Must(NewMoERouterObservation(value))(t)
 			changed[1] = identified
-			changedChunk, err := NewMoERouterObservationChunk(changed, artifact.ID{})
-			testcheck.NoError(t, err)
+			changedChunk := testcheck.Must(NewMoERouterObservationChunk(changed, artifact.ID{}))(t)
 			if _, err := NewMoERouterObservationCoverage(changedChunk, 5, 2, []uint32{1, 3}); err == nil {
 				t.Fatal("mixed observation scope accepted")
 			}

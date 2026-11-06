@@ -135,8 +135,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	history := []bool{false, true, false, false, true, false}
 	targets := driverTargets(5)
 	slices.Reverse(targets)
-	report, err := RunCompositionImprovementLoop(ctx, store, targets, stages, history)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(RunCompositionImprovementLoop(ctx, store, targets, stages, history))(t)
 	if report.Budget != 3 || report.Stop != DriverStopBudget || len(report.Attempts) != 3 || spy.scored != 3 {
 		t.Fatalf("driver report = %+v scored=%d", report, spy.scored)
 	}
@@ -164,8 +163,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	withheld.Promote = func(context.Context, CompositionTarget, composition.CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error) {
 		return testutil.ArtifactID(t, artifact.KindEvidence, "driver-withheld-promotion"), nil
 	}
-	refused, err := RunCompositionImprovementLoop(ctx, store, driverTargets(1), withheld, history)
-	testcheck.NoError(t, err)
+	refused := testcheck.Must(RunCompositionImprovementLoop(ctx, store, driverTargets(1), withheld, history))(t)
 	if attempt := refused.Attempts[0]; attempt.Promoted || attempt.Promotion.Valid() ||
 		!strings.HasPrefix(attempt.Refusal, "promote: ") || !strings.Contains(attempt.Refusal, "not committed") {
 		t.Fatalf("uncommitted promotion attempt = %+v", attempt)
@@ -199,8 +197,7 @@ func TestCompositionLoopSaturationStops(t *testing.T) {
 	// History with a recovered two-failure streak: saturation = 3, budget =
 	// ceil(5/1) = 5, so saturation is the binding stop for an unfit run.
 	history := []bool{false, false, true, false, false}
-	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(6), stages, history)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(RunCompositionImprovementLoop(ctx, store, driverTargets(6), stages, history))(t)
 	if report.Saturation != 3 || report.Stop != DriverStopSaturation || len(report.Attempts) != 3 {
 		t.Fatalf("saturated report = %+v", report)
 	}

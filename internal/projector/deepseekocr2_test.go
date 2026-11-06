@@ -12,34 +12,28 @@ import (
 )
 
 func TestDeepSeekOCR2TinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32))))(t)
 	if !output.Shape.Equal(mustShape(3, 2)) || !slices.Equal(output.Data, make([]float32, 6)) {
 		t.Fatalf("output = shape %v values %v", output.Shape, output.Data)
 	}
 }
 
 func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
-	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{}))(t)
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 128, 64)))
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 128, 64))))(t)
 	if !output.Shape.Equal(mustShape(3, 4)) {
 		t.Fatalf("output shape = %v", output.Shape)
 	}
 }
 
 func TestDeepSeekOCR2PromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{}))(t)
 	defer runner.Close()
 	tok := &recordingPromptTokenizer{pad: DeepSeekOCRImagePad}
-	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false))(t)
 	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 2)+"after" {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}

@@ -17,13 +17,11 @@ import (
 
 func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(text string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(text))(t)
 		return id
 	}
 	read := func(id artifact.ID, target any) {
@@ -55,8 +53,7 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 	if acquisition.Profile != profile || len(acquisition.Cells) != 541 {
 		t.Fatal("raw acquisition denominator changed")
 	}
-	prior, err := RequireEvaluationEvidence(t.Context(), store, acquisition.Prior)
-	testcheck.NoError(t, err)
+	prior := testcheck.Must(RequireEvaluationEvidence(t.Context(), store, acquisition.Prior))(t)
 	var old InstructionRulesReport
 	readRetainedEvidence(t, store, prior.Report, &old)
 	retained := map[string]string{}
@@ -92,11 +89,9 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 
 func TestNativeIFEvalInputBinding(t *testing.T) {
 	t.Parallel()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
-	id, err := artifact.ParseID("evidence:sha256:1850c0aa24d39471d3a36a1a528760c953a8c4ed17619dc24bb2b73c3e46b37d")
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.ParseID("evidence:sha256:1850c0aa24d39471d3a36a1a528760c953a8c4ed17619dc24bb2b73c3e46b37d"))(t)
 	var original nativeIFEvalInput
 	readRetainedEvidence(t, store, id, &original)
 	testcheck.NoError(t, checkNativeIFEvalCases(t.Context(), store, original))

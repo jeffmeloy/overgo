@@ -59,8 +59,7 @@ func TestReplayRunsNoStageItsOutputDoesNotNeed(t *testing.T) {
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
 	inputs := map[recipe.PortName]Value{"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}}}
 	served := func(runs map[recipe.NodeID]int, fail bool) *Runtime {
-		runtime, err := NewForProgram(store, program)
-		testcheck.NoError(t, err)
+		runtime := testcheck.Must(NewForProgram(store, program))(t)
 		countingAdapters(t, runtime, runs, fail)
 		return runtime
 	}
@@ -76,8 +75,7 @@ func TestReplayRunsNoStageItsOutputDoesNotNeed(t *testing.T) {
 	if err != nil || again.Run.ID != first.Run.ID || len(again.NodeWalls) != 0 || runs["tokenize"] != 1 || runs["generate"] != 1 || runs["detokenize"] != 1 {
 		t.Fatalf("the request served again ran %v over %+v, run %s (%v); want no stage run and the first run %s", runs, again.NodeWalls, again.Run.ID, err, first.Run.ID)
 	}
-	unbound, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	unbound := testcheck.Must(NewForProgram(store, program))(t)
 	replayed, held, err := unbound.Replay(ctx, key, operation, program, inputs)
 	text, single := replayed.Outputs["text"].Single()
 	if err != nil || !held || replayed.Run.ID != first.Run.ID || !single || text.Content == nil || string(text.Content.Data) != "HELLO" {

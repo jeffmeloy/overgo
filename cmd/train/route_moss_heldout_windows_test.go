@@ -62,13 +62,11 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 		t.Fatalf("a held-out copy = %v, want it refused before preparation", err)
 	}
 	scheduler := filepath.Join(root, "scheduler", "scheduler_config.json")
-	raw, err := os.ReadFile(scheduler)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(scheduler))(t)
 	var config map[string]any
 	testcheck.NoError(t, json.Unmarshal(raw, &config))
 	config["training_shift"] = 3
-	shifted, err := json.Marshal(config)
-	testcheck.NoError(t, err)
+	shifted := testcheck.Must(json.Marshal(config))(t)
 	write(scheduler, string(shifted))
 	if err := route(); err == nil || !strings.Contains(err.Error(), "training_shift") {
 		t.Fatalf("a shifted training grid = %v, want it refused before preparation", err)

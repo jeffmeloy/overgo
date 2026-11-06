@@ -23,8 +23,7 @@ import (
 // asked for is refused.
 func TestRouteAdapterResumesItsCheckpoint(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	model := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	if _, err := os.Stat(model); err != nil {
 		testskip.NotApplicable(t, "Gemma E4B's converted GGUF is absent: "+model)
@@ -45,17 +44,13 @@ func TestRouteAdapterResumesItsCheckpoint(t *testing.T) {
 	}{{whole, 2, nil}, {part, 1, nil}, {resumed, 2, []string{"-resume", part}}} {
 		testcheck.NoError(t, train(run.out, run.steps, run.more...))
 	}
-	wholeWeights, err := os.ReadFile(filepath.Join(whole, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
-	resumedWeights, err := os.ReadFile(filepath.Join(resumed, trainingprogram.CheckpointWeights))
-	testcheck.NoError(t, err)
+	wholeWeights := testcheck.Must(os.ReadFile(filepath.Join(whole, trainingprogram.CheckpointWeights)))(t)
+	resumedWeights := testcheck.Must(os.ReadFile(filepath.Join(resumed, trainingprogram.CheckpointWeights)))(t)
 	if !bytes.Equal(wholeWeights, resumedWeights) {
 		t.Fatal("the resumed run's weights differ from the uninterrupted run's")
 	}
-	wholeCheckpoint, err := trainingprogram.LoadCheckpoint(whole)
-	testcheck.NoError(t, err)
-	resumedCheckpoint, err := trainingprogram.LoadCheckpoint(resumed)
-	testcheck.NoError(t, err)
+	wholeCheckpoint := testcheck.Must(trainingprogram.LoadCheckpoint(whole))(t)
+	resumedCheckpoint := testcheck.Must(trainingprogram.LoadCheckpoint(resumed))(t)
 	if !reflect.DeepEqual(wholeCheckpoint.Optimizer, resumedCheckpoint.Optimizer) || wholeCheckpoint.Stream != resumedCheckpoint.Stream {
 		t.Fatal("the resumed run's optimizer state or stream differs from the uninterrupted run's")
 	}

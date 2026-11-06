@@ -25,13 +25,12 @@ func TestWebUIBrowserNamesFirst(t *testing.T) {
 		return map[string]any{"model": model, "location": location, "present": true, "recipe": "recipe:" + model,
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:" + model, "tier": "verified"}}}
 	}
-	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
+	catalog := testcheck.Must(json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
 		entry("model:flux", "C:/models/flux-dev/transformer/model.safetensors"),
 		entry("model:turbo", "C:/models/sd-turbo/transformer/model.safetensors"),
 		entry("model:shard", "C:/models/big-model/model-00001-of-00008.safetensors"),
 		entry("model:solo", "C:/models/solo.gguf"),
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#library")

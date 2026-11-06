@@ -25,13 +25,10 @@ func TestCompileRopePlanSenseNovaRealArtifact(t *testing.T) {
 		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir(t), err)
 	}
 	binding := SenseNovaBinding()
-	cfg, err := LoadConfig(senseNovaDir(t), binding)
-	testcheck.NoError(t, err)
-	src, err := safetensors.OpenSource(senseNovaDir(t))
-	testcheck.NoError(t, err)
+	cfg := testcheck.Must(LoadConfig(senseNovaDir(t), binding))(t)
+	src := testcheck.Must(safetensors.OpenSource(senseNovaDir(t)))(t)
 	defer src.Close()
-	plan, err := CompileRopePlan(src, cfg, binding)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileRopePlan(src, cfg, binding))(t)
 	want := []RopeSection{
 		{Width: 64, Theta: 5e6, Axis: AxisTime},
 		{Width: 32, Theta: 1e4, Axis: AxisHeight},
@@ -89,13 +86,11 @@ func TestRopePlanDegenerateBitIdentical(t *testing.T) {
 		RMSNormEps:  1e-6,
 		RopeScaling: map[string]any{"type": "dynamic", "alpha": 4.0},
 	}
-	plan, err := ropePlanFromConfig(cfg)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(ropePlanFromConfig(cfg))(t)
 	if len(plan.Sections) != 1 || plan.Sections[0].Width != cfg.HeadDim || plan.Sections[0].Axis != AxisTime {
 		t.Fatalf("degenerate plan sections %+v", plan.Sections)
 	}
-	base, err := RopeInvFreqBase(cfg)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(RopeInvFreqBase(cfg))(t)
 	invFreq := hostmath.RopeInvFreq(base, cfg.HeadDim)
 	rng := rand.New(rand.NewSource(11))
 	for _, pos := range []int{0, 1, 17, 4095} {

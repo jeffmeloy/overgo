@@ -303,16 +303,14 @@ func blockSeams(result model.ConditionedDiffusionBlockResult) []blockSeam {
 func newGoldenDenoiserProgram(t *testing.T, manifest goldenDenoiseManifest) *DenoiserProgram {
 	t.Helper()
 	config, weights := denoiserFixture(t)
-	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)
-	testcheck.NoError(t, err)
+	geometry := testcheck.Must(config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height))(t)
 	shape := manifest.LatentShape
 	if geometry.Channels != shape.Channels || geometry.LatentFrames != shape.LatentFrames ||
 		geometry.LatentHeight != shape.LatentHeight || geometry.LatentWidth != shape.LatentWidth ||
 		geometry.Seq != shape.SeqLen {
 		t.Fatalf("latent geometry %+v differs from golden %+v", geometry, shape)
 	}
-	program, err := CompileDenoiserProgram(config, weights, geometry)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileDenoiserProgram(config, weights, geometry))(t)
 	return program
 }
 
@@ -342,8 +340,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	testcheck.NoError(t, err)
 	headE, blockE, err := CompileTimestepConditioning([]float64{float64(timesteps[0])}, program.weights.TimestepWeights(config))
 	testcheck.NoError(t, err)
-	patchTokens, err := program.PatchifyLatent(sampleIn)
-	testcheck.NoError(t, err)
+	patchTokens := testcheck.Must(program.PatchifyLatent(sampleIn))(t)
 
 	// Step-0 per-branch probes: block-0 seams, all block outputs, head.
 	seams := blockSeams(program.Blocks[0])
@@ -365,10 +362,8 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	worstBlockIndex := -1
 	blockMax := make([]float64, len(program.Blocks))
 	for _, branch := range branches {
-		projection, err := program.ProjectContext(run, branch.context)
-		testcheck.NoError(t, err)
-		values, err := program.Forward(run, patchTokens, blockE, headE, projection, outputs)
-		testcheck.NoError(t, err)
+		projection := testcheck.Must(program.ProjectContext(run, branch.context))(t)
+		values := testcheck.Must(program.Forward(run, patchTokens, blockE, headE, projection, outputs))(t)
 		for _, seam := range seams {
 			name := fmt.Sprintf("step_00_block_00_%s_%s", branch.name, seam.name)
 			stat := requireParity(t, name, values[seam.node].Data, manifest.trace(t, dir, name), goldenSeamTolerance)
@@ -392,8 +387,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 				t.Fatalf("%s max abs diff %.6g > %.6g", name, stat.Max, goldenBlockOutputTolerance)
 			}
 		}
-		branchOut, err := program.UnpatchifyLatent(values[program.Head].Data)
-		testcheck.NoError(t, err)
+		branchOut := testcheck.Must(program.UnpatchifyLatent(values[program.Head].Data))(t)
 		name := "step_00_branch_output_" + branch.name
 		requireParity(t, name, branchOut, manifest.trace(t, dir, name), goldenBranchTolerance)
 	}
@@ -403,15 +397,14 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	}
 
 	// Full guided trajectory from the captured initial sample.
-	result, err := program.Denoise(run, DenoiseRequest{
+	result := testcheck.Must(program.Denoise(run, DenoiseRequest{
 		Steps: manifest.Request.Steps, Shift: manifest.Request.Shift,
 		GuideScale:    manifest.Request.GuideScale,
 		CondContext:   condContext,
 		UncondContext: uncondContext,
 		InitialSample: sampleIn,
 		TraceSteps:    true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	for i, step := range result.Steps {
 		prefix := fmt.Sprintf("step_%02d_", i)
 		requireParity(t, prefix+"sample_in", step.SampleIn, manifest.trace(t, dir, prefix+"sample_in"), goldenSampleTolerance)
@@ -437,15 +430,14 @@ func TestDenoiserGoldenDenoiseG4(t *testing.T) {
 	uncondContext := loadRawContext(t, dir, manifest.Request.UncondContext, contextElements)
 	sampleIn := manifest.trace(t, dir, "step_00_sample_in")
 
-	result, err := program.Denoise(run, DenoiseRequest{
+	result := testcheck.Must(program.Denoise(run, DenoiseRequest{
 		Steps: manifest.Request.Steps, Shift: manifest.Request.Shift,
 		GuideScale:    manifest.Request.GuideScale,
 		CondContext:   condContext,
 		UncondContext: uncondContext,
 		InitialSample: sampleIn,
 		TraceSteps:    true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Timesteps) != len(manifest.Timesteps) {
 		t.Fatalf("timesteps %d want %d", len(result.Timesteps), len(manifest.Timesteps))
 	}

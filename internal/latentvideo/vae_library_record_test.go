@@ -22,8 +22,7 @@ import (
 // takes, and are not read back here.
 func TestCodecPathRecordStatesTheRuleTheCodeApplies(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "video-codec-convolution-paths.txt"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "video-codec-convolution-paths.txt")))(t)
 	fields := map[string]string{}
 	for line := range strings.Lines(string(raw)) {
 		if key, value, found := strings.Cut(strings.TrimSpace(line), ": "); found && !strings.Contains(key, " ") {

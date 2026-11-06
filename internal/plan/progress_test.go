@@ -25,8 +25,7 @@ func TestAcceptedProgressReadsLandingsFromGit(t *testing.T) {
 	checkpoint := git(t, repository, "rev-parse", "HEAD")
 	progress := func() bool {
 		t.Helper()
-		moved, err := AcceptedProgressSince(t.Context(), repository, document, "row", "second", checkpoint)
-		testcheck.NoError(t, err)
+		moved := testcheck.Must(AcceptedProgressSince(t.Context(), repository, document, "row", "second", checkpoint))(t)
 		return moved
 	}
 	land := func(message string) {

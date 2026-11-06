@@ -56,10 +56,8 @@ func TestGemmaNativeIFEvalAcceptance(t *testing.T) {
 
 func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, expectedModel string) {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(retainedReferenceStore(roots.Store)))(t)
 	defer store.Close()
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	// The immutable request fixes the producer, model, recipe and cumulative budget.
@@ -130,8 +128,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 		Evidence artifact.ID `json:"evaluation_evidence"`
 	}
 	readRetainedEvidence(t, store, nativeID, &scores)
-	record, err := RequireEvaluationEvidence(t.Context(), store, scores.Evidence)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(RequireEvaluationEvidence(t.Context(), store, scores.Evidence))(t)
 	if record.CodeCommit != request.Producer || record.ModelDefinition != request.ModelDefinition ||
 		record.Recipe != request.Recipe || record.Report != scores.Selection ||
 		scores.Prompts != request.Cases || scores.Instructions != request.Instructions {
@@ -156,8 +153,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 		}
 		t.Logf("continuation preserved %d exact completed responses", len(retained.Outputs))
 	}
-	plan, err := loadEvidencePlan(t.Context(), store, record.Plan)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(loadEvidencePlan(t.Context(), store, record.Plan))(t)
 	protocol, err := ReadExecutionPolicy(t.Context(), store, plan.Execution())
 	if err != nil || protocol.Prompting != PromptingChatTemplate || plan.body.CaseProfile != scores.Profile {
 		t.Fatalf("instruction protocol or case profile differs: %v", err)
@@ -184,8 +180,7 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 		if !found || testCase.MaxTokens != 1280 || row.Generated < 0 || row.Generated > testCase.MaxTokens || row.Prompt <= 0 {
 			t.Fatalf("response or native token bound differs: %s", testCase.Name)
 		}
-		caseID, err := artifact.JSONID(artifact.KindDatasetShard, testCase)
-		testcheck.NoError(t, err)
+		caseID := testcheck.Must(artifact.JSONID(artifact.KindDatasetShard, testCase))(t)
 		alias := "evaluation/instruction-generations/" + plan.Identity().String() + "/" + caseID.String()
 		saved, found, err := loadInstructionGeneration(t.Context(), store, alias, plan, caseID, testCase)
 		if err != nil || !found || saved.Result.Text != row.Raw || saved.Result.PromptTokens != row.Prompt || saved.Result.GeneratedTokens != row.Generated {

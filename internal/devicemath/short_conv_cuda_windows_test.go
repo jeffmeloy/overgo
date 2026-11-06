@@ -18,8 +18,7 @@ import (
 // path and the nil-bias path (kernel has_bias==0 -> no bias add, dBias nil).
 func TestShortConvBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	cases := []struct {

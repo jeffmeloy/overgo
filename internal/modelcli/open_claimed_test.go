@@ -74,8 +74,7 @@ func capturedStderr(t *testing.T, open func()) string {
 	open()
 	os.Stderr = original
 	testcheck.NoError(t, writer.Close())
-	text, err := io.ReadAll(reader)
-	testcheck.NoError(t, err)
+	text := testcheck.Must(io.ReadAll(reader))(t)
 	return string(text)
 }
 
@@ -103,21 +102,18 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 		testcheck.NoError(t, err)
 	}
 	identityOf := func(file string) artifact.ID {
-		inventory, err := modelartifact.FromGGUFPath(file)
-		testcheck.NoError(t, err)
+		inventory := testcheck.Must(modelartifact.FromGGUFPath(file))(t)
 		return inventory.Manifest.ID
 	}
 	original, replacement := identityOf(path), identityOf(rewritten)
-	canonical, err := pathidentity.Canonical(path)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(pathidentity.Canonical(path))(t)
 	memo := discovery.NewMemo()
 	if _, err := discovery.WeightsIdentity(canonical, memo); err != nil {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, discovery.PublishMemo(ctx, store, memo))
 	testcheck.NoError(t, store.Close())
-	modified, err := os.Stat(path)
-	testcheck.NoError(t, err)
+	modified := testcheck.Must(os.Stat(path))(t)
 	open := func(file string) (*inference.Runner, error, string) {
 		var runner *inference.Runner
 		var openErr error
@@ -136,8 +132,7 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 
 	// The same size and modification time over other bytes: the memo cannot tell.
 	replaceInPlace := func(source string) {
-		data, err := os.ReadFile(source)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(source))(t)
 		testcheck.NoError(t, os.WriteFile(path, data, 0o600))
 		testcheck.NoError(t, os.Chtimes(path, modified.ModTime(), modified.ModTime()))
 	}
@@ -171,18 +166,15 @@ func TestAnOpenRemembersTheFileItHashed(t *testing.T) {
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, os.WriteFile(copied, data, 0o600))
 	ctx := t.Context()
-	store, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(storeRoot))(t)
 	if err := servingtest.PublishActiveGGUFWithPolicy(
 		ctx, store, path, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
 	); err != nil {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	inventory, err := modelartifact.FromGGUFPath(path)
-	testcheck.NoError(t, err)
-	runner, err := OpenRunner(ctx, storeRoot, copied, inference.OpenOptions{})
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(modelartifact.FromGGUFPath(path))(t)
+	runner := testcheck.Must(OpenRunner(ctx, storeRoot, copied, inference.OpenOptions{}))(t)
 	if runner.ModelID() != inventory.Manifest.ID {
 		t.Fatalf("the copy served as %s, want the registered model %s", runner.ModelID(), inventory.Manifest.ID)
 	}
@@ -191,8 +183,7 @@ func TestAnOpenRemembersTheFileItHashed(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	canonical, err := pathidentity.Canonical(copied)
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(pathidentity.Canonical(copied))(t)
 	if id, size, claimed := discovery.LoadMemo(ctx, store).Claim(canonical); !claimed || size != uint64(len(data)) || id != inventory.Components[0].ID {
 		t.Fatalf("after its open the memo claims the copy %t as %s of %d bytes, want %s of %d", claimed, id, size, inventory.Components[0].ID, len(data))
 	}

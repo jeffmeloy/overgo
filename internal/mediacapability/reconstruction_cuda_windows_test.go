@@ -39,13 +39,10 @@ func TestPictureRoundTripsThroughAnInstalledAutoencoder(t *testing.T) {
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	capability := Catalog[recipe.TaskReconstruction]
-	source, err := capability.Resolve(t.Context(), directory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(capability.Resolve(t.Context(), directory))(t)
 	modelID := source.Inventory.Manifest.ID
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
 	execution := modelrecipetest.CandidateExecution(t, store, program)
@@ -53,17 +50,14 @@ func TestPictureRoundTripsThroughAnInstalledAutoencoder(t *testing.T) {
 		t.Helper()
 		var encoded bytes.Buffer
 		testcheck.NoError(t, png.Encode(&encoded, picture))
-		request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()})
-		testcheck.NoError(t, err)
-		output, err := capability.Execute(t.Context(), store, directory, execution, string(request))
-		testcheck.NoError(t, err)
+		request := testcheck.Must(json.Marshal(latentvideo.ReconstructionRequest{Image: encoded.Bytes()}))(t)
+		output := testcheck.Must(capability.Execute(t.Context(), store, directory, execution, string(request)))(t)
 		reconstruction, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
 		if !ok {
 			t.Fatalf("reconstruction output type=%T", output)
 		}
 		height, width := picture.Bounds().Dy(), picture.Bounds().Dx()
-		decoded, err := png.Decode(bytes.NewReader(reconstruction.Data))
-		testcheck.NoError(t, err)
+		decoded := testcheck.Must(png.Decode(bytes.NewReader(reconstruction.Data)))(t)
 		if reconstruction.Height != height || reconstruction.Width != width || decoded.Bounds() != picture.Bounds() {
 			t.Fatalf("a %dx%d picture came back as %dx%d, PNG %v", height, width, reconstruction.Height, reconstruction.Width, decoded.Bounds())
 		}

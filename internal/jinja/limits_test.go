@@ -24,8 +24,7 @@ var testLimits = Limits{Steps: 200_000, Bytes: 4 << 20}
 // them: each a context a served template renders.
 func servedContexts(t testing.TB) []map[string]any {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(servedTemplates, "conversations.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(servedTemplates, "conversations.json")))(t)
 	var battery struct {
 		BOS           string                     `json:"bos_token"`
 		EOS           string                     `json:"eos_token"`
@@ -42,16 +41,14 @@ func servedContexts(t testing.TB) []map[string]any {
 	}
 	var contexts []map[string]any
 	for _, conversation := range battery.Conversations {
-		messages, err := DecodeJSON(conversation.Messages)
-		testcheck.NoError(t, err)
+		messages := testcheck.Must(DecodeJSON(conversation.Messages))(t)
 		context := map[string]any{
 			"bos_token": battery.BOS, "eos_token": battery.EOS, "messages": messages,
 			"add_generation_prompt": conversation.AddGenerationPrompt, "enable_thinking": conversation.EnableThinking,
 		}
 		var tools []any
 		for _, name := range conversation.Tools {
-			tool, err := DecodeJSON(battery.Tools[name])
-			testcheck.NoError(t, err)
+			tool := testcheck.Must(DecodeJSON(battery.Tools[name]))(t)
 			tools = append(tools, tool)
 		}
 		if tools != nil {
@@ -71,8 +68,7 @@ func servedSources(t testing.TB) map[string]string {
 	}
 	sources := map[string]string{}
 	for _, path := range paths {
-		source, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(os.ReadFile(path))(t)
 		sources[filepath.Base(path)] = string(source)
 	}
 	return sources

@@ -28,12 +28,10 @@ type fakeProcess struct {
 
 func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
 	launcher := &fakeLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	first := Servable{Name: "shared", Model: "first", Location: "first/weights"}
-	firstLease, err := supervisor.Acquire(t.Context(), first)
-	testcheck.NoError(t, err)
+	firstLease := testcheck.Must(supervisor.Acquire(t.Context(), first))(t)
 	release := firstLease.Release
 	defer release()
 	original := launcher.processes[first.Name]
@@ -57,8 +55,7 @@ func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
 		t.Fatal("canceled swap disturbed the active model")
 	}
 	release()
-	leaseNext, err := supervisor.Acquire(t.Context(), next)
-	testcheck.NoError(t, err)
+	leaseNext := testcheck.Must(supervisor.Acquire(t.Context(), next))(t)
 	leaseNext.Release()
 	if len(launcher.launched) != 2 || !original.stopped.Load() {
 		t.Fatal("same display name hid changed artifact identity")
@@ -122,8 +119,7 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 func TestModelSwapSupervisor(t *testing.T) {
 	ctx := t.Context()
 	launcher := &fakeLauncher{}
-	supervisor, err := New(launcher, 50*time.Millisecond)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 50*time.Millisecond))(t)
 	defer supervisor.Close()
 
 	firstLease, err := supervisor.Acquire(ctx, Servable{Name: "alpha"})
@@ -212,14 +208,12 @@ func TestModelSwapSupervisor(t *testing.T) {
 // that did not swap is told nothing.
 func TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	ctx := t.Context()
-	supervisor, err := New(&fakeLauncher{}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(&fakeLauncher{}, 0))(t)
 	defer supervisor.Close()
 	supervisor.mu.Lock()
 	supervisor.grace = time.Hour
 	supervisor.mu.Unlock()
-	stream, err := supervisor.Acquire(ctx, Servable{Name: "alpha"})
-	testcheck.NoError(t, err)
+	stream := testcheck.Must(supervisor.Acquire(ctx, Servable{Name: "alpha"}))(t)
 	stream.HoldOpen()
 	stream.HoldOpen()
 	finishing, err := supervisor.Acquire(ctx, Servable{Name: "alpha"})
@@ -268,18 +262,15 @@ func TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 func TestAnExitedChildIsLaunchedAgain(t *testing.T) {
 	t.Parallel()
 	launcher := &fakeLauncher{}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	defer supervisor.Close()
 	model := Servable{Name: "alpha"}
-	first, err := supervisor.Acquire(t.Context(), model)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(supervisor.Acquire(t.Context(), model))(t)
 	close(launcher.processes[model.Name].ended)
 	if _, running := supervisor.Status(); running {
 		t.Fatal("a child that ended still reads as running")
 	}
-	second, err := supervisor.Acquire(t.Context(), model)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(supervisor.Acquire(t.Context(), model))(t)
 	defer second.Release()
 	first.Release()
 	if len(launcher.launched) != 2 {
@@ -292,8 +283,7 @@ func TestAnExitedChildIsLaunchedAgain(t *testing.T) {
 func TestStatusAnswersDuringALoad(t *testing.T) {
 	t.Parallel()
 	launcher := &fakeLauncher{loading: make(chan struct{}), started: make(chan struct{}, 1)}
-	supervisor, err := New(launcher, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(launcher, 0))(t)
 	model := Servable{Name: "alpha"}
 	acquired := make(chan error, 2)
 	acquire := acquirer(t, supervisor, model, acquired)
@@ -314,8 +304,7 @@ func TestStatusAnswersDuringALoad(t *testing.T) {
 	}
 
 	closing := &fakeLauncher{loading: make(chan struct{}), started: make(chan struct{}, 1)}
-	late, err := New(closing, 0)
-	testcheck.NoError(t, err)
+	late := testcheck.Must(New(closing, 0))(t)
 	go func() {
 		_, err := late.Acquire(t.Context(), model)
 		acquired <- err
@@ -341,8 +330,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 		refusal := errors.New("the child died before serving")
 		model := Servable{Name: "alpha"}
 		launcher := &fakeLauncher{loading: make(chan struct{}), unready: map[string]error{model.Name: refusal}}
-		supervisor, err := New(launcher, 0)
-		testcheck.NoError(t, err)
+		supervisor := testcheck.Must(New(launcher, 0))(t)
 		defer supervisor.Close()
 		answers := make(chan error, queued+1)
 		acquire := acquirer(t, supervisor, model, answers)
@@ -364,8 +352,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 
 		// A load its own request gave up on refused nothing: the request queued on it launches its own.
 		abandoned := &fakeLauncher{loading: make(chan struct{})}
-		resumed, err := New(abandoned, 0)
-		testcheck.NoError(t, err)
+		resumed := testcheck.Must(New(abandoned, 0))(t)
 		defer resumed.Close()
 		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
@@ -394,8 +381,7 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 			other, refusals := Servable{Name: "beta"}, make(chan error, 2)
 			long := make(chan struct{})
 			raced := &fakeLauncher{loading: make(chan struct{}), unready: map[string]error{model.Name: refusal}, held: map[string]chan struct{}{other.Name: long}}
-			swapped, err := New(raced, 0)
-			testcheck.NoError(t, err)
+			swapped := testcheck.Must(New(raced, 0))(t)
 			go func() { _, err := swapped.Acquire(t.Context(), model); refusals <- err }()
 			synctest.Wait()
 			served := make(chan error, 1)

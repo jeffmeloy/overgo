@@ -76,8 +76,7 @@ func ownCodeClip(t *testing.T) (reference clipRoundTrip, clip SourceVideo, want 
 	}
 	read := func(tensor clipRoundTripTensor) []float32 {
 		t.Helper()
-		raw, err := os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File)))
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(os.ReadFile(filepath.Join(fixtures, filepath.FromSlash(tensor.File))))(t)
 		sum := sha256.Sum256(raw)
 		values := 1
 		for _, extent := range tensor.Shape {
@@ -263,17 +262,13 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 	checkpoint := AutoencoderWeights(directory)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	testcheck.NoError(t, err)
-	profile, err := ResolveProfile(directory)
-	testcheck.NoError(t, err)
-	encoderGraph, err := CompileVAEEncoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
-	decoderPlan, err := CompileVAEDecoderPlan(catalog.Tensors)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(ResolveProfile(directory))(t)
+	encoderGraph := testcheck.Must(CompileVAEEncoderPlan(catalog.Tensors))(t)
+	decoderPlan := testcheck.Must(CompileVAEDecoderPlan(catalog.Tensors))(t)
 	// A half asked to route a clip through the library says whether the machine
 	// has one. The library it loads is released with it, and the process loads
 	// it again, so the first repetition's time below still has the loading in it.
-	probe, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-	testcheck.NoError(t, err)
+	probe := testcheck.Must(NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal()))(t)
 	probe.adoptLibrary(0)
 	err = probe.routeClip(t.Context(), 0)
 	absent := probe.route.absent
@@ -284,11 +279,10 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 	const height, width, repetitions = 480, 832, 3
 	for _, frames := range []int{21, 81} {
 		t.Run(fmt.Sprintf("%d frames", frames), func(t *testing.T) {
-			plan, err := CompileSourceCodecBoundary(SourceCodecProfile{
+			plan := testcheck.Must(CompileSourceCodecBoundary(SourceCodecProfile{
 				InputChannels: encoderGraph.InputChannels, LatentChannels: encoderGraph.LatentChannels,
 				Stride: encoderGraph.Stride, LatentStats: profile.LatentStats,
-			}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width})
-			testcheck.NoError(t, err)
+			}, SourceVideoShape{Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}))(t)
 			plane := height * width
 			source := make([]float32, media.RGBChannels*frames*plane)
 			for channel := range media.RGBChannels {
@@ -312,15 +306,13 @@ func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 			var latent []float32
 			run := func(library bool) (result codecRun) {
 				t.Helper()
-				encoder, err := newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal())
-				testcheck.NoError(t, err)
+				encoder := testcheck.Must(newVAEEncoderCUDASession(checkpoint, encoderGraph, device.DefaultOrdinal()))(t)
 				defer func() {
 					if err := encoder.Close(); err != nil {
 						t.Error(err)
 					}
 				}()
-				decoder, err := NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
-				testcheck.NoError(t, err)
+				decoder := testcheck.Must(NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal()))(t)
 				defer func() {
 					if err := decoder.Close(); err != nil {
 						t.Error(err)

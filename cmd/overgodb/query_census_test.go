@@ -23,13 +23,11 @@ func TestRecordCensus(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	mint := func(schema, body string) artifact.Content {
 		t.Helper()
 		contract := artifact.DocumentContract{Kind: artifact.KindOutput, MediaType: "application/json", Schema: schema}
-		content, err := contract.ContentBytes([]byte(body))
-		testcheck.NoError(t, err)
+		content := testcheck.Must(contract.ContentBytes([]byte(body)))(t)
 		return content
 	}
 	var templated []artifact.Content

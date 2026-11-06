@@ -20,8 +20,7 @@ func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 	testcheck.NoError(t, err)
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatSafetensors)
 	root := qualificationAssets(t)
-	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, root)
-	testcheck.NoError(t, err)
+	qualification := testcheck.Must(QualifyAudioArtifact(t.Context(), election, inventory, root))(t)
 	if !qualification.Loadable || len(qualification.Passed) != len(qualificationChecks) || len(qualification.Refusals) != 0 {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -33,8 +32,7 @@ func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 		t.Fatalf("input tensor = %+v", input)
 	}
 
-	batch, err := election.Batch("audio/qualification/exact-granite")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(election.Batch("audio/qualification/exact-granite"))(t)
 	testcheck.NoError(t, qualification.AugmentBatch(&batch, inventory, nil))
 	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
@@ -54,10 +52,8 @@ func TestAudioArtifactQualificationRejectsTensorShape(t *testing.T) {
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatSafetensors)
 	facts := inventory.TensorInventory.Tensors
 	facts[0].Shape[0]++
-	inventory.TensorInventory, err = modelartifact.NewTensorInventoryDocument(election.Model.ID, modelartifact.TensorFormatSafetensors, facts)
-	testcheck.NoError(t, err)
-	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t))
-	testcheck.NoError(t, err)
+	inventory.TensorInventory = testcheck.Must(modelartifact.NewTensorInventoryDocument(election.Model.ID, modelartifact.TensorFormatSafetensors, facts))(t)
+	qualification := testcheck.Must(QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t)))(t)
 	if qualification.Loadable || !hasQualificationRefusal(qualification, "tensor-schema:") {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -69,8 +65,7 @@ func TestIncompatibleAudioGGUFQualification(t *testing.T) {
 	recipe, _, err := graniteRecipe()
 	testcheck.NoError(t, err)
 	inventory := qualificationInventory(t, election, recipe, modelartifact.TensorFormatGGUF)
-	qualification, err := QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t))
-	testcheck.NoError(t, err)
+	qualification := testcheck.Must(QualifyAudioArtifact(t.Context(), election, inventory, qualificationAssets(t)))(t)
 	if qualification.Loadable || !hasQualificationRefusal(qualification, "container: parsed format \"gguf\"") {
 		t.Fatalf("qualification = %+v", qualification)
 	}
@@ -78,10 +73,8 @@ func TestIncompatibleAudioGGUFQualification(t *testing.T) {
 
 func qualificationElection(t *testing.T) Election {
 	t.Helper()
-	encoded, err := os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json"))
-	testcheck.NoError(t, err)
-	election, err := NormalizeElection(encoded)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json")))(t)
+	election := testcheck.Must(NormalizeElection(encoded))(t)
 	return election
 }
 
@@ -102,8 +95,7 @@ func qualificationInventory(
 		facts[index].Storage = "bf16"
 		facts[index].Bytes = 1
 	}
-	tensors, err := modelartifact.NewTensorInventoryDocument(election.Model.ID, format, facts)
-	testcheck.NoError(t, err)
+	tensors := testcheck.Must(modelartifact.NewTensorInventoryDocument(election.Model.ID, format, facts))(t)
 	return modelartifact.Inventory{Manifest: election.Model, TensorInventory: tensors}
 }
 

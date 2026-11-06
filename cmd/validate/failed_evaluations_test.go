@@ -31,8 +31,7 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 	if output.Len() != 0 {
 		t.Fatalf("recording the failure said %q", output.String())
 	}
-	failed, err := failedEvaluations(path)
-	testcheck.NoError(t, err)
+	failed := testcheck.Must(failedEvaluations(path))(t)
 	for _, read := range []struct {
 		model artifact.ID
 		suite string
@@ -49,8 +48,7 @@ func TestAFailedBenchmarkReachesItsPublication(t *testing.T) {
 
 	// The scorecard of the run reads the gap where the reading from before would read as holding.
 	reading := scorecard.Cell{Value: 0.5, Source: testutil.ArtifactID(t, artifact.KindEvaluation, "before"), Contract: scorecard.Contract{Suite: "store/mmlu-pro"}}
-	rows, err := withoutFailedEvaluations([]scorecard.Row{{Model: model, Cells: map[metric.Name]scorecard.Cell{metric.Quality: reading}}})
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(withoutFailedEvaluations([]scorecard.Row{{Model: model, Cells: map[metric.Name]scorecard.Cell{metric.Quality: reading}}}))(t)
 	if cell := rows[0].Cells[metric.Quality]; cell.Measured() || !strings.Contains(cell.Reason, "its evaluation on store/mmlu-pro failed") {
 		t.Fatalf("the failed evaluation's quality reads %+v", cell)
 	}

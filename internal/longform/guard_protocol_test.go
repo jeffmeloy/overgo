@@ -14,13 +14,11 @@ import (
 func TestGuardGenerationProtocol(t *testing.T) {
 	eog := []tokenizer.TokenID{2, 3}
 	logits := []float32{1, 2, 4, 3}
-	raw, err := generationOptions(RawContinuation, DeclaredFloors().OutputTokens)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(generationOptions(RawContinuation, DeclaredFloors().OutputTokens))(t)
 	if token, err := raw.Sampler.Sample(logits); err != nil || token != int(eog[0]) {
 		t.Fatalf("natural EOS changed: token=%d err=%v", token, err)
 	}
-	guard, err := generationOptions(GuardContinuation, DeclaredFloors().OutputTokens)
-	testcheck.NoError(t, err)
+	guard := testcheck.Must(generationOptions(GuardContinuation, DeclaredFloors().OutputTokens))(t)
 	if token, err := guard.Sampler.Sample(logits); err != nil || token != int(eog[0]) {
 		t.Fatalf("guard changed greedy selection: token=%d err=%v", token, err)
 	}
@@ -39,8 +37,7 @@ func TestGuardGenerationProtocol(t *testing.T) {
 		rawInputs.CorpusDigest != guardInputs.CorpusDigest || rawInputs.TokenDigest != guardInputs.TokenDigest {
 		t.Fatal("protocol failed to distinguish otherwise identical inputs")
 	}
-	data, err := json.Marshal(guardInputs)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(guardInputs))(t)
 	var decoded Inputs
 	if err := json.Unmarshal(data, &decoded); err != nil || decoded != guardInputs {
 		t.Fatalf("protocol identity changed in storage: %v", err)

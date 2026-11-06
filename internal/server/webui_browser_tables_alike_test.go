@@ -34,10 +34,8 @@ func TestWebUIBrowserTablesAlike(t *testing.T) {
 		if outcome == runrecord.OutcomeFailed {
 			failure = "fixture-failure"
 		}
-		run, err := runrecord.NewRun(recipeID, outcome, nil, []artifact.ID{outputID}, failure)
-		testcheck.NoError(t, err)
-		batch, err := run.Batch("fixture/run/" + string(outcome))
-		testcheck.NoError(t, err)
+		run := testcheck.Must(runrecord.NewRun(recipeID, outcome, nil, []artifact.ID{outputID}, failure))(t)
+		batch := testcheck.Must(run.Batch("fixture/run/" + string(outcome)))(t)
 		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}

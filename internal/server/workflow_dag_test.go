@@ -27,7 +27,7 @@ func TestWorkflowDAG(t *testing.T) {
 	moduleSecond := recipe.ModuleID("dag.second")
 	port := recipe.PortName("out")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "dag-model")
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 		[]recipe.Node{
@@ -37,10 +37,8 @@ func TestWorkflowDAG(t *testing.T) {
 		[]recipe.Edge{{From: recipe.Endpoint{Node: "first", Port: port}, To: recipe.Endpoint{Node: "second", Port: port}}},
 		nil,
 		[]recipe.Output{{Name: port, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: "second", Port: port}}},
-	)
-	testcheck.NoError(t, err)
-	definitionContent, err := definition.ArtifactContent()
-	testcheck.NoError(t, err)
+	))(t)
+	definitionContent := testcheck.Must(definition.ArtifactContent())(t)
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "dag-operation")
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:       "workflow-dag-fixture",

@@ -35,8 +35,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	head := append([]float32(nil), weights[embeddingName]...)
 	weights[headName] = head
 	shapes[headName] = append([]int(nil), shapes[embeddingName]...)
-	untied, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
-	testcheck.NoError(t, err)
+	untied := testcheck.Must(NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0))(t)
 	if untied.tensors.head.name != headName {
 		t.Fatalf("head name %q, want %s", untied.tensors.head.name, headName)
 	}

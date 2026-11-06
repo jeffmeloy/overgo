@@ -33,27 +33,21 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	writePipelineWeights(t, filepath.Join(modelDir, "text_encoder"), encoderWeights, EncoderTensorShapes(encoderSpec))
 	writePipelineWeights(t, filepath.Join(modelDir, "transformer"), transformerWeights, DenoiserTensorShapes(transformerSpec))
 
-	encoder, err := CompileEncoderProgram(
+	encoder := testcheck.Must(CompileEncoderProgram(
 		encoderSpec, float32(encoderSpec.RMSNormEps), fixtureSeq, dtype.F32,
-	)
-	testcheck.NoError(t, err)
-	fusion, err := CompileFusionProgram(transformerSpec, 1e-5, attendedTextMask(fixtureSeq), dtype.F32)
-	testcheck.NoError(t, err)
-	denoiser, err := CompileDenoiserProgram(
+	))(t)
+	fusion := testcheck.Must(CompileFusionProgram(transformerSpec, 1e-5, attendedTextMask(fixtureSeq), dtype.F32))(t)
+	denoiser := testcheck.Must(CompileDenoiserProgram(
 		transformerSpec, 1e-5, attendedTextMask(fixtureSeq), fixtureGrid, fixtureGrid, dtype.F32,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	vaeDecoder := syntheticVAEDecoder(t)
 	vaeExtent := fixtureGrid * fixturePatch
-	vae, err := CompileVAEProgram(vaeDecoder, vaeExtent, vaeExtent, dtype.F32)
-	testcheck.NoError(t, err)
+	vae := testcheck.Must(CompileVAEProgram(vaeDecoder, vaeExtent, vaeExtent, dtype.F32))(t)
 	ctx := t.Context()
-	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0)
-	testcheck.NoError(t, err)
+	pipeline := testcheck.Must(NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0))(t)
 	defer closeReporting(t, ctx, pipeline)
 	embed := f32slice(syntheticEncoderEmbed(fixtureSeq, encoderSpec.Hidden))
-	conditioning, err := pipeline.Condition(ctx, "a fixture", embed)
-	testcheck.NoError(t, err)
+	conditioning := testcheck.Must(pipeline.Condition(ctx, "a fixture", embed))(t)
 	defer conditioning.Release(ctx)
 	initial := make([]float32, transformerSpec.InChannels)
 	for index := range initial {
@@ -61,19 +55,15 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	}
 	testcheck.NoError(t, pipeline.Begin(ctx, initial))
 	testcheck.NoError(t, pipeline.Advance(ctx, fixtureSigma, fixtureDelta))
-	got, err := pipeline.Latent(ctx)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(pipeline.Latent(ctx))(t)
 
-	hidden, err := encoder.RunHostFeed(
+	hidden := testcheck.Must(encoder.RunHostFeed(
 		reference.Execute, func(name string) ([]float32, error) { return encoderWeights[name], nil }, embed,
-	)
-	testcheck.NoError(t, err)
-	host, err := NewDenoiser(transformerSpec, 1e-5, fixtureTimestepProgram(transformerSpec), transformerWeights)
-	testcheck.NoError(t, err)
-	velocity, err := denoiser.Forward(
+	))(t)
+	host := testcheck.Must(NewDenoiser(transformerSpec, 1e-5, fixtureTimestepProgram(transformerSpec), transformerWeights))(t)
+	velocity := testcheck.Must(denoiser.Forward(
 		reference.Execute, host, f64of(initial), hidden.Data, fixtureSigma,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	const deviceTolerance = 5e-3
 	for index, value := range got {
 		want := initial[index] + fixtureDelta*velocity.Velocity[index]
@@ -83,8 +73,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	}
 	pixels, height, width, err := pipeline.DecodeHWC(ctx)
 	testcheck.NoError(t, err)
-	unpacked, err := media.UnpackPlanar(got, vaeDecoder.ZDim, fixtureGrid, fixtureGrid, fixturePatch, media.PatchChannelsFirst)
-	testcheck.NoError(t, err)
+	unpacked := testcheck.Must(media.UnpackPlanar(got, vaeDecoder.ZDim, fixtureGrid, fixtureGrid, fixturePatch, media.PatchChannelsFirst))(t)
 	wantPixels, wantHeight, wantWidth, err := vaeDecoder.DecodeImage(unpacked, vaeExtent, vaeExtent)
 	testcheck.NoError(t, err)
 	if height != wantHeight || width != wantWidth {
@@ -149,8 +138,7 @@ func TestSelectedHiddenBridgePreservesTokenLayerOrder(t *testing.T) {
 		}
 		feeds[input] = reference.Value{Shape: input.Shape, Data: data}
 	}
-	results, err := reference.Execute([]*tensor.Tensor{output}, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, feeds))(t)
 	got := results[output].Data
 	want := []float32{0, 1, 4, 5, 8, 9, 2, 3, 6, 7, 10, 11}
 	if !slices.Equal(got, want) {
@@ -172,10 +160,9 @@ func TestSelectedHiddenBridgeDropsEncoderPrefix(t *testing.T) {
 	}
 	inputs, output, err := selectedHiddenBridge(program, outputSeq)
 	testcheck.NoError(t, err)
-	results, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	results := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		inputs[0]: {Shape: inputs[0].Shape, Data: []float32{0, 1, 2, 3, 4, 5}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	want := []float32{2, 3, 4, 5}
 	if !slices.Equal(results[output].Data, want) {
 		t.Fatalf("cropped output = %v, want %v", results[output].Data, want)

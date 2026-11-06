@@ -81,8 +81,7 @@ func captureStdout(t *testing.T, run func()) string {
 	defer func() { os.Stdout = original }()
 	run()
 	testcheck.NoError(t, write.Close())
-	data, err := io.ReadAll(read)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(io.ReadAll(read))(t)
 	testcheck.NoError(t, read.Close())
 	return string(data)
 }

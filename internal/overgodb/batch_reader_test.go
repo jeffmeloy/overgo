@@ -19,15 +19,13 @@ import (
 func TestHighFanoutReadsAreBatched(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 	const fanout = 48
 	ids := make([]artifact.ID, fanout)
 	for ordinal := range fanout {
 		payload := fmt.Appendf(nil, "fanout/%d", ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, payload))(t)
 		ids[ordinal] = id
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 		if _, err := store.Commit(ctx, artifact.Batch{
@@ -58,8 +56,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 		}
 	}
 
-	absent, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("fanout/absent"))
-	testcheck.NoError(t, err)
+	absent := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte("fanout/absent")))(t)
 	if err := artifact.ReadContents(ctx, counting, append(slices.Clip(ids[:4]), absent), func(artifact.Content) error {
 		return nil
 	}); err == nil {

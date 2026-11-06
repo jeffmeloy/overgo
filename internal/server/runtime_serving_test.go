@@ -202,8 +202,7 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 		}
 		reconnected.stop()
 		testcheck.NoError(t, handler.Close())
-		restarted, err := New(handler.config, handler.generator)
-		testcheck.NoError(t, err)
+		restarted := testcheck.Must(New(handler.config, handler.generator))(t)
 		t.Cleanup(func() { _ = restarted.Close() })
 		afterRestart := openRuntimeServingProbe(t, restarted)
 		restored := servingStreamInitial(t, afterRestart)

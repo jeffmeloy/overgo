@@ -11,8 +11,7 @@ import (
 
 func TestCampaignWaitHonorsCancellation(t *testing.T) {
 	root := t.TempDir()
-	owner, err := authoritylock.Acquire(root)
-	testcheck.NoError(t, err)
+	owner := testcheck.Must(authoritylock.Acquire(root))(t)
 	defer owner.Close()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(nil)

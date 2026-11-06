@@ -29,8 +29,7 @@ func TestIQ3SRowsInWideLanes(t *testing.T) {
 	for index := range values {
 		values[index] = float32(draws.NormFloat64()) * 0.02
 	}
-	weights, err := quant.Quantize(dtype.IQ3S, values)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(quant.Quantize(dtype.IQ3S, values))(t)
 	var activations [tokensPerKernel][]byte
 	var pointers [tokensPerKernel]*byte
 	for token := range activations {
@@ -42,8 +41,7 @@ func TestIQ3SRowsInWideLanes(t *testing.T) {
 		testcheck.NoError(t, quantizeQ8K(input, activations[token]))
 		pointers[token] = &activations[token][0]
 	}
-	decoded, err := quant.Dequantize(dtype.IQ3S, weights, uint64(len(values)))
-	testcheck.NoError(t, err)
+	decoded := testcheck.Must(quant.Dequantize(dtype.IQ3S, weights, uint64(len(values))))(t)
 	rowBytes, blocks := len(weights)/rows, depth/superBlockValues
 	for row := range rows {
 		weight := weights[row*rowBytes : (row+1)*rowBytes]

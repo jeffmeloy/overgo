@@ -35,28 +35,22 @@ import (
 func TestVideoPromptIsEncodedWhileItsModelLoads(t *testing.T) {
 	cudatest.Require(t)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
 	if _, err := os.Stat(latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "wan-prompt-beside-load")
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
-	raw, err := json.Marshal(latentvideo.WanRequest{
+	definition := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
+	raw := testcheck.Must(json.Marshal(latentvideo.WanRequest{
 		Prompt: "a grey heron lifts off over still water at first light, held for the load test",
 		Seed:   47, Frames: 5, Width: 32, Height: 16, Steps: 2,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	// serve gives the request to a capability and a store of its own, as a process that has served nothing does.
 	serve := func(name string) ([]byte, string) {
 		t.Helper()
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 		defer store.Close()
 		publishArtifactExtent(t, store, modelID, wan)
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/video-prompt-load-profile", Contents: []artifact.Content{profileContent}}); err != nil {

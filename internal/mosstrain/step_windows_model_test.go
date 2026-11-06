@@ -24,22 +24,19 @@ import (
 func TestMOSSAdapterStepOnTheCheckpoint(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f")
-	spec, err := latentimage.ReadRotaryTransformer(root)
-	testcheck.NoError(t, err)
-	source, err := safetensors.OpenSource(filepath.Join(root, "transformer"))
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(latentimage.ReadRotaryTransformer(root))(t)
+	source := testcheck.Must(safetensors.OpenSource(filepath.Join(root, "transformer")))(t)
 	defer source.Close()
 	options := Options{Rank: 16, Alpha: 16}
 	config := optimizer.Config{BaseLearningRate: 1e-3, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
 	started := time.Now()
-	trainer, err := New(t.Context(), spec, options, func(name string) ([]float32, error) {
+	trainer := testcheck.Must(New(t.Context(), spec, options, func(name string) ([]float32, error) {
 		tensor, ok := source.Tensors[name]
 		if !ok {
 			return nil, context.Canceled
 		}
 		return safetensors.ReadF32(tensor)
-	}, InitialAdapter(spec, options, 42), config)
-	testcheck.NoError(t, err)
+	}, InitialAdapter(spec, options, 42), config))(t)
 	defer trainer.Close()
 	t.Logf("placed in %.1fs", time.Since(started).Seconds())
 	for _, extent := range []int{32, 64} {
@@ -60,18 +57,15 @@ func TestMOSSAdapterStepOnTheCheckpoint(t *testing.T) {
 		noised, target := FlowPath(latent, noise, 0.5)
 		testcheck.NoError(t, trainer.Clear())
 		started = time.Now()
-		loss, err := trainer.Accumulate(t.Context(), example, noised, target, 500)
-		testcheck.NoError(t, err)
+		loss := testcheck.Must(trainer.Accumulate(t.Context(), example, noised, target, 500))(t)
 		forwardBackward := time.Since(started)
-		norm, err := trainer.Gather(1)
-		testcheck.NoError(t, err)
+		norm := testcheck.Must(trainer.Gather(1))(t)
 		started = time.Now()
 		if _, err := trainer.Apply(loss, norm); err != nil {
 			t.Fatal(err)
 		}
 		applied := time.Since(started)
-		after, err := trainer.Loss(t.Context(), example, noised, target, 500)
-		testcheck.NoError(t, err)
+		after := testcheck.Must(trainer.Loss(t.Context(), example, noised, target, 500))(t)
 		var peak uint64
 		if err := trainer.worker.Do(t.Context(), func(state *device.State) error {
 			peak = state.Driver.MemoryStats().PeakBytes

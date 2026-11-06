@@ -16,8 +16,7 @@ import (
 // the way, in order.
 func stepCheckpoints(t *testing.T, output string) []string {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Dir(output))
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(filepath.Dir(output)))(t)
 	var names []string
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), filepath.Base(output)+stepCheckpointInfix) {
@@ -31,10 +30,8 @@ func stepCheckpoints(t *testing.T, output string) []string {
 // publishedWeights is the bytes of the weights a run published at output.
 func publishedWeights(t *testing.T, output string) []byte {
 	t.Helper()
-	path, err := trainingprogram.CheckpointWeightsPath(output)
-	testcheck.NoError(t, err)
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(trainingprogram.CheckpointWeightsPath(output))(t)
+	data := testcheck.Must(os.ReadFile(path))(t)
 	return data
 }
 
@@ -208,10 +205,8 @@ func TestCheckpointRetention(t *testing.T) {
 		whole := run(t, "lora-whole", TextHeldoutRequest{Average: 0.9, LoRA: lora()})
 		run(t, "lora-interrupted", TextHeldoutRequest{Average: 0.9, LoRA: lora(), CheckpointEvery: 4, CheckpointKeep: 3})
 		resumed := run(t, "lora-resumed", TextHeldoutRequest{Average: 0.9, LoRA: lora(), Resume: filepath.Join(text.root, "lora-interrupted"+stepCheckpointInfix+"000004")})
-		wholeAdapter, err := peft.Load(filepath.Join(whole, LoRAAdapterDirectory))
-		testcheck.NoError(t, err)
-		resumedAdapter, err := peft.Load(filepath.Join(resumed, LoRAAdapterDirectory))
-		testcheck.NoError(t, err)
+		wholeAdapter := testcheck.Must(peft.Load(filepath.Join(whole, LoRAAdapterDirectory)))(t)
+		resumedAdapter := testcheck.Must(peft.Load(filepath.Join(resumed, LoRAAdapterDirectory)))(t)
 		for name, module := range wholeAdapter.Modules {
 			other := resumedAdapter.Modules[name]
 			if !slices.Equal(module.Down, other.Down) || !slices.Equal(module.Up, other.Up) {

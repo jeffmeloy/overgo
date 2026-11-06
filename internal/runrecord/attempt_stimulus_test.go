@@ -20,28 +20,23 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "stimulus-operation")
-	arguments, err := AttemptArgumentContent([]byte(`{"query":"before"}`))
-	testcheck.NoError(t, err)
-	effect, err := invocation.NewEffect(invocation.Effect{
+	arguments := testcheck.Must(AttemptArgumentContent([]byte(`{"query":"before"}`)))(t)
+	effect := testcheck.Must(invocation.NewEffect(invocation.Effect{
 		Manual: manual, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection, Known: true,
-	})
-	testcheck.NoError(t, err)
-	effectContent, err := effect.Content()
-	testcheck.NoError(t, err)
+	}))(t)
+	effectContent := testcheck.Must(effect.Content())(t)
 	head, _ := store.Head()
-	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
+	selection := testcheck.Must(dataset.SelectInteractions(dataset.InteractionSelectionBounds{
 		MaxTokens: arguments.Descriptor.Size, MaxBytes: arguments.Descriptor.Size,
 		MaxDocuments: 1, MaxDepth: 1, MaxResults: 1,
 	}, head, []dataset.InteractionSelectionSource{{
 		Source: arguments.Descriptor.ID, CausalRoot: operation, Tokens: arguments.Descriptor.Size,
 		Bytes: arguments.Descriptor.Size, Documents: 1, Depth: 1,
-	}}, nil)
-	testcheck.NoError(t, err)
-	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
+	}}, nil))(t)
+	boundary := testcheck.Must(PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
 		Operation: operation, Attempt: 1, Manual: manual, Class: invocation.ClassInspection,
 		Arguments: arguments.Descriptor.ID, Effect: effect.ID, Ceiling: ceiling, Selection: selection,
-	}, []artifact.Content{arguments, effectContent})
-	testcheck.NoError(t, err)
+	}, []artifact.Content{arguments, effectContent}))(t)
 	late := testutil.ArtifactID(t, artifact.KindEvidence, "late-stimulus")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "stimulus/late", Artifacts: []artifact.Descriptor{{ID: late}}}); err != nil {
 		t.Fatal(err)
@@ -51,11 +46,10 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 		len(resolved.Selection.Sources) != 1 || resolved.Selection.Sources[0].Source != arguments.Descriptor.ID {
 		t.Fatalf("resolved boundary = (%+v, %t, %v)", resolved, found, err)
 	}
-	changedSelection, err := dataset.SelectInteractions(selection.Bounds, head, []dataset.InteractionSelectionSource{{
+	changedSelection := testcheck.Must(dataset.SelectInteractions(selection.Bounds, head, []dataset.InteractionSelectionSource{{
 		Source: late, CausalRoot: operation, Tokens: arguments.Descriptor.Size,
 		Bytes: arguments.Descriptor.Size, Documents: 1, Depth: 1,
-	}}, nil)
-	testcheck.NoError(t, err)
+	}}, nil))(t)
 	changed := boundary
 	changed.Selection = changedSelection
 	if _, err := PublishAttemptStimulus(ctx, store, changed, nil); err == nil {

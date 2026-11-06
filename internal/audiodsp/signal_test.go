@@ -32,8 +32,7 @@ func TestAudioSignalIntegrity(t *testing.T) {
 		{"finite-extreme", []float32{math.MaxFloat32, -math.MaxFloat32}, 2, 0, 2, math.MaxFloat32, math.MaxFloat32, 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			p, err := MeasureSignal(t.Context(), source, media.DecodedAudio{Format: format, Samples: test.samples}, 1)
-			testcheck.NoError(t, err)
+			p := testcheck.Must(MeasureSignal(t.Context(), source, media.DecodedAudio{Format: format, Samples: test.samples}, 1))(t)
 			if p.SampleCount != uint64(len(test.samples)) || p.FrameCount != uint64(len(test.samples)/2) || p.FiniteSampleCount != test.finite || p.NonFiniteSampleCount != test.nonfinite || p.ClippedSampleCount != test.clipped || p.PeakAbsolute != test.peak || p.RootMeanSquare != test.rms || p.DCOffset != test.dc {
 				t.Fatalf("profile=%+v", p)
 			}

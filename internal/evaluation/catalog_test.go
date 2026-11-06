@@ -33,19 +33,16 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 			},
 		}
 	}
-	encoded, err := json.Marshal(manifest)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(manifest))(t)
 	manifestPath := filepath.Join(root, "catalog.json")
 	testcheck.NoError(t, os.WriteFile(manifestPath, encoded, 0o600))
 	store := overgodbtest.Open(t, t.TempDir())
-	id, err := CatalogLocalBenchmarks(t.Context(), store, manifestPath)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(CatalogLocalBenchmarks(t.Context(), store, manifestPath))(t)
 	content, ok, err := artifact.ReadContent(t.Context(), store, id)
 	if err != nil || !ok {
 		t.Fatalf("catalog content = %v, %v", ok, err)
 	}
-	catalog, err := benchmarkCatalogCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
+	catalog := testcheck.Must(benchmarkCatalogCodec.Parse(content.Data))(t)
 	if len(catalog.Entries) != len(names) {
 		t.Fatalf("catalog entries = %d, want %d", len(catalog.Entries), len(names))
 	}

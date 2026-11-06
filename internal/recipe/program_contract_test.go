@@ -9,8 +9,7 @@ import (
 
 func TestCanonicalRecipeCompilationContract(t *testing.T) {
 	definition, catalog := fixtureRecipe(t)
-	program, err := CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileProgram(definition, catalog))(t)
 	if !program.UsesCatalog(catalog) {
 		t.Fatal("compiled program lost its immutable catalog authority")
 	}
@@ -29,10 +28,9 @@ func TestCanonicalRecipeCompilationContract(t *testing.T) {
 	base := program.Definition()
 	reidentify := func(value Definition) Definition {
 		t.Helper()
-		rebuilt, err := NewDefinitionWithDependencies(
+		rebuilt := testcheck.Must(NewDefinitionWithDependencies(
 			value.Task, value.Dependencies, value.Nodes, value.Edges, value.Inputs, value.Outputs,
-		)
-		testcheck.NoError(t, err)
+		))(t)
 		return rebuilt
 	}
 	tests := map[string]func(Definition, *Catalog) (Definition, *Catalog){
@@ -51,8 +49,7 @@ func TestCanonicalRecipeCompilationContract(t *testing.T) {
 					modules[index].Inputs[0].Data = DataImage
 				}
 			}
-			authority, err := NewCatalog(modules...)
-			testcheck.NoError(t, err)
+			authority := testcheck.Must(NewCatalog(modules...))(t)
 			return value, authority
 		},
 		"unreachable node": func(value Definition, authority *Catalog) (Definition, *Catalog) {
@@ -72,8 +69,7 @@ func TestCanonicalRecipeCompilationContract(t *testing.T) {
 
 	nodes := slices.Clone(base.Nodes)
 	slices.Reverse(nodes)
-	rebuilt, err := NewDefinitionWithDependencies(base.Task, base.Dependencies, nodes, base.Edges, base.Inputs, base.Outputs)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(NewDefinitionWithDependencies(base.Task, base.Dependencies, nodes, base.Edges, base.Inputs, base.Outputs))(t)
 	if rebuilt.ID != base.ID {
 		t.Fatalf("normalized definitions have different identities: %s != %s", rebuilt.ID, base.ID)
 	}

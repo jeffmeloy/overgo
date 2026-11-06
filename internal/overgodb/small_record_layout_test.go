@@ -22,8 +22,7 @@ import (
 func TestSmallRecordLayoutDecision(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	defer store.Close()
 
 	contract := artifact.DocumentContract{
@@ -35,15 +34,12 @@ func TestSmallRecordLayoutDecision(t *testing.T) {
 	}
 	record := func(index, pad int) (artifact.Descriptor, artifact.Content, artifact.AliasBinding) {
 		t.Helper()
-		data, err := json.Marshal(struct {
+		data := testcheck.Must(json.Marshal(struct {
 			Index int    `json:"index"`
 			Pad   string `json:"pad"`
-		}{index, strings.Repeat("x", pad)})
-		testcheck.NoError(t, err)
-		id, err := contract.Identify(data)
-		testcheck.NoError(t, err)
-		content, err := contract.Content(id, data)
-		testcheck.NoError(t, err)
+		}{index, strings.Repeat("x", pad)}))(t)
+		id := testcheck.Must(contract.Identify(data))(t)
+		content := testcheck.Must(contract.Content(id, data))(t)
 		return content.Descriptor, content, artifact.AliasBinding{Name: fmt.Sprintf("small-record/%d", index), Target: id}
 	}
 
@@ -83,8 +79,7 @@ func TestSmallRecordLayoutDecision(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "backup")
-	report, err := store.Backup(t.Context(), destination)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(store.Backup(t.Context(), destination))(t)
 	t.Logf("retained layout backup: files=%d bytes=%d (small=%d large=%d)", report.FilesCopied, report.BytesCopied, smallRecords, largeRecords)
 	// The decision is byte-based, not file-count-based: the store keys each
 	// immutable content by hash, so packing small records would cut the file
@@ -101,8 +96,7 @@ func TestSmallRecordLayoutDecision(t *testing.T) {
 	}
 
 	// Random lookup after a reopen stays exact for both a small and a large record.
-	replica, err := OpenReadOnly(destination)
-	testcheck.NoError(t, err)
+	replica := testcheck.Must(OpenReadOnly(destination))(t)
 	defer replica.Close()
 	for _, id := range []artifact.ID{firstSmall, lastSmall} {
 		if _, found, err := artifact.ReadContent(t.Context(), replica, id); err != nil || !found {

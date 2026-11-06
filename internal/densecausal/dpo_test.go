@@ -34,8 +34,7 @@ func dpoFixture(t *testing.T) (*Model, *Model, trainingdata.PreferencePair) {
 
 func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 	policy, _, pair := dpoFixture(t)
-	got, err := policy.SequenceLogProb(pair.Chosen)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(policy.SequenceLogProb(pair.Chosen))(t)
 	_, logits, err := policy.Loss(pair.Chosen.Tokens)
 	testcheck.NoError(t, err)
 	row := logits[(len(pair.Chosen.Tokens)-2)*policy.Dims.Vocab : (len(pair.Chosen.Tokens)-1)*policy.Dims.Vocab]
@@ -60,10 +59,8 @@ func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 
 func dpoMargin(t *testing.T, model *Model, pair trainingdata.PreferencePair) float64 {
 	t.Helper()
-	chosen, err := model.SequenceLogProb(pair.Chosen)
-	testcheck.NoError(t, err)
-	rejected, err := model.SequenceLogProb(pair.Rejected)
-	testcheck.NoError(t, err)
+	chosen := testcheck.Must(model.SequenceLogProb(pair.Chosen))(t)
+	rejected := testcheck.Must(model.SequenceLogProb(pair.Rejected))(t)
 	return chosen.LogProbability - rejected.LogProbability
 }
 
@@ -149,14 +146,12 @@ func TestPreferenceModesDescend(t *testing.T) {
 func preferenceLoss(t *testing.T, model, reference *Model, pair trainingdata.PreferencePair, policy trainingprogram.PreferencePolicy) float64 {
 	t.Helper()
 	score := func(scorer *Model, sequence trainingdata.PreferenceSequence) sequencescore.Score {
-		result, err := scorer.SequenceLogProb(sequence)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(scorer.SequenceLogProb(sequence))(t)
 		return result
 	}
-	result, err := policy.Loss(trainingprogram.PreferenceScores{
+	result := testcheck.Must(policy.Loss(trainingprogram.PreferenceScores{
 		PolicyChosen: score(model, pair.Chosen), PolicyRejected: score(model, pair.Rejected),
 		ReferenceChosen: score(reference, pair.Chosen), ReferenceRejected: score(reference, pair.Rejected),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return result.Loss
 }

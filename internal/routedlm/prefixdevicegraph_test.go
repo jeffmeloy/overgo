@@ -10,20 +10,18 @@ import (
 
 func TestDevicePrefixLayerUsesBlockCausalMultiAxisPlan(t *testing.T) {
 	cfg := generationGraphConfig()
-	rope, err := newRopePlan(cfg.HeadDim, []RopeSection{
+	rope := testcheck.Must(newRopePlan(cfg.HeadDim, []RopeSection{
 		{Width: 4, Theta: 5e6, Axis: AxisTime},
 		{Width: 2, Theta: 1e4, Axis: AxisHeight},
 		{Width: 2, Theta: 1e4, Axis: AxisWidth},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	positions := []RowPosition{
 		{Time: 0},
 		{Branch: 1, Time: 1, H: 0, W: 0},
 		{Branch: 1, Time: 1, H: 0, W: 1},
 		{Time: 2},
 	}
-	graph, err := BuildDevicePrefixLayer(cfg, rope, positions)
-	testcheck.NoError(t, err)
+	graph := testcheck.Must(BuildDevicePrefixLayer(cfg, rope, positions))(t)
 	if !graph.Output.Shape.Equal(tensor.MustShape(16, 4)) ||
 		!graph.KeyKV.Shape.Equal(tensor.MustShape(8, 1, 4)) {
 		t.Fatalf("prefix shapes output=%v key=%v", graph.Output.Shape, graph.KeyKV.Shape)

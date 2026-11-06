@@ -59,8 +59,7 @@ func (recorder *recordingPromptTokenizer) TokenizeText(text string, _, _ bool) (
 // requireOpensAs opens the projector written at path and requires it to be a Runner.
 func requireOpensAs[Runner any](t *testing.T, path string) {
 	t.Helper()
-	projector, err := OpenAs[Projector](t.Context(), path, OpenOptions{})
-	testcheck.NoError(t, err)
+	projector := testcheck.Must(OpenAs[Projector](t.Context(), path, OpenOptions{}))(t)
 	defer projector.Close()
 	if _, ok := projector.(Runner); !ok {
 		t.Fatalf("projector type = %T", projector)

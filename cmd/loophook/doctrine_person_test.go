@@ -35,8 +35,7 @@ func TestDoctrineNamesNoPerson(t *testing.T) {
 	root := filepath.Join("..", "..")
 	read := func(path string) string {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join(root, path))
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(filepath.Join(root, path)))(t)
 		return string(data)
 	}
 	texts := map[string]string{"skill.md": read("skill.md")}
@@ -54,15 +53,13 @@ func TestDoctrineNamesNoPerson(t *testing.T) {
 	}
 	for _, path := range doctrineSources {
 		files := token.NewFileSet()
-		file, err := parser.ParseFile(files, filepath.Join(root, path), nil, parser.ParseComments)
-		testcheck.NoError(t, err)
+		file := testcheck.Must(parser.ParseFile(files, filepath.Join(root, path), nil, parser.ParseComments))(t)
 		for _, group := range file.Comments {
 			texts[files.Position(group.Pos()).String()] = group.Text()
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
-				value, err := strconv.Unquote(literal.Value)
-				testcheck.NoError(t, err)
+				value := testcheck.Must(strconv.Unquote(literal.Value))(t)
 				texts[files.Position(literal.Pos()).String()] = value
 			}
 			return true

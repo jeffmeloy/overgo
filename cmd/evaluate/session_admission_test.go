@@ -12,11 +12,9 @@ import (
 
 func TestEvaluationSessionWriterCancellation(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	testcheck.NoError(t, store.Close())
-	lock, err := processlock.Acquire(root+".lock", 0o600)
-	testcheck.NoError(t, err)
+	lock := testcheck.Must(processlock.Acquire(root+".lock", 0o600))(t)
 	defer lock.Close()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)

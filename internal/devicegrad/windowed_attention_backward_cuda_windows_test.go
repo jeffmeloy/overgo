@@ -20,8 +20,7 @@ import (
 // golden exactly, guarding no regression of the pre-existing full-causal path.
 func TestWindowedCausalAttentionBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const seq, nh, nkv, hd = 7, 4, 2, 8

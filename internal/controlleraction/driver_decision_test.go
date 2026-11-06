@@ -16,8 +16,7 @@ import (
 // the typed evidence request crosses the action boundary, and the one derived
 // decision must publish with its causal context against that evidence head.
 func TestEvidenceDerivedSelection(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Errorf("close driver decision store: %v", err)
@@ -25,8 +24,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	root := testutil.ArtifactID(t, artifact.KindEvidence, "driver publication root")
 	testutil.PublishArtifact(t, store, root)
-	causal, err := runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, root)
-	testcheck.NoError(t, err)
+	causal := testcheck.Must(runrecord.NewCausalRoot(runrecord.TriggerControllerProposal, root))(t)
 	head, _ := store.Head()
 	if !head.Valid() {
 		t.Fatalf("driver publication head = %s", head)
@@ -43,8 +41,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 		Version: ActionVersion, Kind: KindDriverDecision,
 		Driver: &DriverDecisionAction{Request: request},
 	}
-	encoded, err := json.Marshal(action)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(action))(t)
 	parsed, err := ParseAction(encoded)
 	if err != nil || parsed.Driver.Request.Goal != request.Goal || parsed.Driver.Request.Head != head {
 		t.Fatalf("typed driver action round trip = (%+v, %v)", parsed, err)
@@ -55,8 +52,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	driver := document["driver"].(map[string]any)
 	driver["facts"] = driver["request"]
 	delete(driver, "request")
-	legacy, err := json.Marshal(document)
-	testcheck.NoError(t, err)
+	legacy := testcheck.Must(json.Marshal(document))(t)
 	if _, err := ParseAction(legacy); err == nil {
 		t.Fatal("raw driver-decision facts bypass remained representable")
 	}
@@ -65,8 +61,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 		Kind: artifact.KindEvidence, MediaType: "application/vnd.overgo.controller-driver-test+json",
 		Schema: "overgo/controller-driver-test/v1",
 	}
-	content, err := contract.ContentBytes([]byte(`{"version":1}`))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentBytes([]byte(`{"version":1}`)))(t)
 	newBatch := func() artifact.Batch {
 		t.Helper()
 		batch, batchErr := artifact.NewDocumentBatch("controller-action/driver-test", []artifact.Content{content}, nil, nil)

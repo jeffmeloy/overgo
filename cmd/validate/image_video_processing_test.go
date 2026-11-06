@@ -76,8 +76,7 @@ func TestMediaReportOwnersKeepTheMemo(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	for _, owner := range []string{"cmd/validate/media.go", "cmd/validate/samples.go"} {
-		current, err := os.ReadFile(filepath.Join(root, owner))
-		testcheck.NoError(t, err)
+		current := testcheck.Must(os.ReadFile(filepath.Join(root, owner)))(t)
 		testcheck.NoError(t, checkMediaMemoOptimisation(owner, current))
 		withoutMemo := bytes.ReplaceAll(current, []byte("discovery.LoadMemo(ctx, store)"), []byte("nil"))
 		if bytes.Equal(withoutMemo, current) {

@@ -37,10 +37,8 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	source := overgodbtest.Create(t, sourcePath)
 	commit := strings.Repeat("c", 40)
 	registerCensusModel(t, source, "frozen", true, true)
-	base, err := buildCapabilityCensus(ctx, source, commit, catalogLimit, discovery.NewMemo())
-	testcheck.NoError(t, err)
-	batch, err := capabilityCensusBatch(base)
-	testcheck.NoError(t, err)
+	base := testcheck.Must(buildCapabilityCensus(ctx, source, commit, catalogLimit, discovery.NewMemo()))(t)
+	batch := testcheck.Must(capabilityCensusBatch(base))(t)
 	if _, err := artifact.CommitBatch(ctx, source, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +50,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	if err := runArgs(ctx, []string{"-repo", sourcePath, "-check-census-binding", path, "-check-census-binding", path + ".missing"}, io.Discard); err == nil {
 		t.Fatal("second missing census binding was ignored")
 	}
-	beforeBinding, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	beforeBinding := testcheck.Must(os.ReadFile(path))(t)
 	rebuiltPath := filepath.Join(t.TempDir(), "rebuilt")
 	if _, err := overgodb.Rebuild(ctx, source, rebuiltPath, nil, runrecord.RetiredGateAliasesAtRest, false); err != nil {
 		t.Fatal(err)
@@ -63,8 +60,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	if err := acceptCensus(sourcePath, commit, path, "the same models", io.Discard); err == nil || !strings.Contains(err.Error(), "nothing to accept") {
 		t.Fatalf("accepting the same models on the store the census was taken on = %v, want it refused: there is nothing to accept", err)
 	}
-	rebuilt, err := overgodb.OpenReadOnly(rebuiltPath)
-	testcheck.NoError(t, err)
+	rebuilt := testcheck.Must(overgodb.OpenReadOnly(rebuiltPath))(t)
 	if _, err := readCensusVerifications(ctx, rebuilt, base); !errors.Is(err, errCensusCheckpointAbsent) {
 		t.Fatalf("reading the census's verifications on the rebuilt store = %v, want its checkpoint absent", err)
 	}
@@ -92,8 +88,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	if err := checkCensusDisposition(ctx, rebuilt, binding); err != nil {
 		t.Fatalf("the binding written on the rebuilt store fails the acceptance tests' check: %v", err)
 	}
-	current, err := capabilityCensusCodec.Require(ctx, rebuilt, binding.Current)
-	testcheck.NoError(t, err)
+	current := testcheck.Must(capabilityCensusCodec.Require(ctx, rebuilt, binding.Current))(t)
 	if binding.Base != base.ID || current.ID == base.ID || !sameCensusModels(base.Models, current.Models) {
 		t.Fatalf("the census taken again = %+v over base %s, want another census of the same models", binding, base.ID)
 	}

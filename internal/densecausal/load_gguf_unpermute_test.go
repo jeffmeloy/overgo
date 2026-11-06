@@ -37,10 +37,8 @@ func permuteRows(values []float32, rows, columns, heads int) []float32 {
 func TestLlamaGGUFLoadsItsAttentionRowsInCheckpointOrder(t *testing.T) {
 	t.Parallel()
 	path := testutil.HermeticLlamaGGUF(t, 64)
-	model, err := LoadGGUF(path)
-	testcheck.NoError(t, err)
-	file, err := gguf.Open(path)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(LoadGGUF(path))(t)
+	file := testcheck.Must(gguf.Open(path))(t)
 	defer file.Close()
 	stored := func(name string) []float32 {
 		t.Helper()
@@ -48,10 +46,8 @@ func TestLlamaGGUFLoadsItsAttentionRowsInCheckpointOrder(t *testing.T) {
 		info := file.Tensors[index]
 		raw := make([]byte, info.Size)
 		testcheck.NoError(t, file.ReadTensorData(info, raw))
-		elements, err := info.ElementCount()
-		testcheck.NoError(t, err)
-		values, err := quant.Dequantize(info.Type, raw, elements)
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(info.ElementCount())(t)
+		values := testcheck.Must(quant.Dequantize(info.Type, raw, elements))(t)
 		return values
 	}
 	for _, projection := range []struct {

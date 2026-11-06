@@ -33,20 +33,17 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 	for _, entries := range []int{0, 1} {
 		t.Run(fmt.Sprintf("prompt cache entries %d", entries), func(t *testing.T) {
 			for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
-				runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{PromptCacheEntries: entries}, residency)
-				testcheck.NoError(t, err)
+				runner := testcheck.Must(openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{PromptCacheEntries: entries}, residency))(t)
 				t.Cleanup(func() {
 					if err := runner.Close(); err != nil {
 						t.Error(err)
 					}
 				})
-				greedy, err := sampling.New(sampling.Config{Temperature: 0})
-				testcheck.NoError(t, err)
+				greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 				cached := entries != 0
 				generate := func(speculative bool, tokens int) ([]tokenizer.TokenID, uint64, uint64) {
 					t.Helper()
-					before, err := runner.cuda.Metrics(t.Context())
-					testcheck.NoError(t, err)
+					before := testcheck.Must(runner.cuda.Metrics(t.Context()))(t)
 					ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 						MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, PlainDecode: !speculative && !cached,
 						CachePrompt: cached, PromptTokenIDs: prompt, ContinueAfterEOG: true,
@@ -54,8 +51,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 					if err != nil {
 						t.Fatalf("%s: %v", residency, err)
 					}
-					after, err := runner.cuda.Metrics(t.Context())
-					testcheck.NoError(t, err)
+					after := testcheck.Must(runner.cuda.Metrics(t.Context()))(t)
 					return ids[len(prompt):], after.GraphCaptures - before.GraphCaptures, after.GraphCacheCapacity
 				}
 				if cached {
@@ -122,12 +118,10 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 					runner.mu.Lock()
 					defer runner.mu.Unlock()
 					ctx := t.Context()
-					boundary, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, prompt, nil, nil)
-					testcheck.NoError(t, err)
+					boundary := testcheck.Must(runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, prompt, nil, nil))(t)
 					text := []tokenizer.TokenID{boundary.Selected}
 					pending := []tokenizer.TokenID{boundary.Selected}
-					before, err := runner.cuda.Metrics(ctx)
-					testcheck.NoError(t, err)
+					before := testcheck.Must(runner.cuda.Metrics(ctx))(t)
 					var spans []span
 					for round, keep := range accepted {
 						next := plain[len(text)]
@@ -156,8 +150,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 						testcheck.NoError(t, result.Release(ctx))
 						pending = append(pending, correction)
 					}
-					after, err := runner.cuda.Metrics(ctx)
-					testcheck.NoError(t, err)
+					after := testcheck.Must(runner.cuda.Metrics(ctx))(t)
 					testcheck.NoError(t, boundary.Release(ctx))
 					return spans, after.GraphCaptures - before.GraphCaptures, text
 				}

@@ -23,8 +23,7 @@ const hostedTestCommit = "0123456789abcdef0123456789abcdef01234567"
 func declareHostedFixture(t *testing.T, keyEnvironment string, answers []string) (string, remoteprovider.Declaration) {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(repository))(t)
 	fake, _ := relaytest.Serve(t, "", "hosted-key", answers)
 	t.Setenv(keyEnvironment, "hosted-key")
 	declaration, err := remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
@@ -44,26 +43,22 @@ func declareHostedFixture(t *testing.T, keyEnvironment string, answers []string)
 // definition; without the key the session is refused.
 func TestHostedSessionScoresThroughRelay(t *testing.T) {
 	repository, declaration := declareHostedFixture(t, "OVERGO_EVALUATE_HOSTED_TEST_KEY", []string{"B"})
-	session, err := openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit},
-		modelRequest{Path: declaration.Location, Suites: []string{"derived"}})
-	testcheck.NoError(t, err)
+	session := testcheck.Must(openEvaluationSession(t.Context(), manifest{Repository: repository, CodeCommit: hostedTestCommit},
+		modelRequest{Path: declaration.Location, Suites: []string{"derived"}}))(t)
 	hosted, ok := session.(*hostedSession)
 	if !ok {
 		t.Fatalf("session = %T", session)
 	}
-	source, err := json.Marshal(evaluation.MultipleChoiceSuite{
+	source := testcheck.Must(json.Marshal(evaluation.MultipleChoiceSuite{
 		Kind: evaluation.MultipleChoiceKind, Schema: "test/hosted/v1", Source: "store/hosted",
 		Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy,
 		Cases: []evaluation.MultipleChoiceCase{
 			{Name: "one", Prompt: "Q1\nAnswer:", Candidates: []string{" A", " B"}, Answer: 1},
 			{Name: "two", Prompt: "Q2\nAnswer:", Candidates: []string{" A", " B"}, Answer: 0},
 		},
-	})
-	testcheck.NoError(t, err)
-	compiled, err := evaluation.CompileSuite(source, hosted.campaign.Authorities())
-	testcheck.NoError(t, err)
-	result, err := hosted.campaign.Evaluate(t.Context(), compiled)
-	testcheck.NoError(t, err)
+	}))(t)
+	compiled := testcheck.Must(evaluation.CompileSuite(source, hosted.campaign.Authorities()))(t)
+	result := testcheck.Must(hosted.campaign.Evaluate(t.Context(), compiled))(t)
 	var accuracy float64
 	for _, metric := range result.Metrics {
 		if metric.Name == "accuracy" {
@@ -77,8 +72,7 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 	if err != nil || policy.Prompting != evaluation.PromptingHostedChat {
 		t.Fatalf("execution policy = %+v, %v", policy, err)
 	}
-	evidence, err := evaluation.RequireEvaluationEvidence(t.Context(), hosted.store, result.Evidence)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(evaluation.RequireEvaluationEvidence(t.Context(), hosted.store, result.Evidence))(t)
 	environment, err := runrecord.RequireEnvironment(t.Context(), hosted.store, evidence.Environment)
 	if err != nil || environment.Reproducible() || environment.Backend != runrecord.BackendRemote {
 		t.Fatalf("environment = %+v, %v", environment, err)

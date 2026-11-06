@@ -34,12 +34,9 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 	}
 	generate := func(t testing.TB) generationFeatures {
 		t.Helper()
-		plan, err := generator.prepare(t.Context(), request)
-		testcheck.NoError(t, err)
-		features, err := generator.integrate(t.Context(), plan)
-		testcheck.NoError(t, err)
-		image, err := generator.decode(t.Context(), features)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(generator.prepare(t.Context(), request))(t)
+		features := testcheck.Must(generator.integrate(t.Context(), plan))(t)
+		image := testcheck.Must(generator.decode(t.Context(), features))(t)
 		checkImage(t, image)
 		return features
 	}
@@ -51,8 +48,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 			var plan *generationPlan
 			var err error
 			if phase == "integrate" {
-				plan, err = generator.prepare(t.Context(), request)
-				testcheck.NoError(t, err)
+				plan = testcheck.Must(generator.prepare(t.Context(), request))(t)
 			}
 			probe, cancel := cudatest.CancelAfterDeviceWork(t.Context(), library)
 			defer cancel(context.Canceled)
@@ -82,8 +78,7 @@ func TestSenseNovaCancellationRecovery(t *testing.T) {
 	if _, err := generator.decode(canceled, features); !errors.Is(err, context.Canceled) {
 		t.Fatal("decode ignored canceled request", err)
 	}
-	image, err := generator.decode(t.Context(), features)
-	testcheck.NoError(t, err)
+	image := testcheck.Must(generator.decode(t.Context(), features))(t)
 	checkImage(t, image)
 	if err := generator.Close(canceled); err != nil {
 		t.Fatal("close failed with canceled request context", err)

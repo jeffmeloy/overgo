@@ -26,44 +26,38 @@ func TestInventoryRecordsReadTheirFiles(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, name), []byte(content), 0o600))
 	}
 	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus)
-	testcheck.NoError(t, err)
+	registered := testcheck.Must(dataset.RegisterDirectoryDataset(ctx, store, "texts", corpus))(t)
 	source := registered.Dataset
 	records := []dataset.Record{
 		{ID: dataset.RecordID(source, dataset.InventoryAssetName, 0), Group: "only"},
 		{ID: dataset.RecordID(source, dataset.InventoryAssetName, 1), Group: "only"},
 	}
-	membership, err := dataset.NewMembership(source, 1, "all", records)
-	testcheck.NoError(t, err)
-	content, err := membership.Content()
-	testcheck.NoError(t, err)
+	membership := testcheck.Must(dataset.NewMembership(source, 1, "all", records))(t)
+	content := testcheck.Must(membership.Content())(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "test-membership", Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{membership.Lineage()},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	processor, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/inventory-asset-test/text"))
-	testcheck.NoError(t, err)
+	processor := testcheck.Must(artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/inventory-asset-test/text")))(t)
 	signature := recipecontract.ModalitySignature{
 		Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 	}
 	materialize := func() *Dataset {
 		t.Helper()
-		materialized, err := Materialize(ctx, store, Authority{
+		materialized := testcheck.Must(Materialize(ctx, store, Authority{
 			Dataset: source, Split: membership.ID, Processors: []artifact.ID{processor}, Signature: signature,
 		}, []ProcessorBinding{{
 			Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
 			Process: Passthrough(RoleInput, recipecontract.ModalityText, "utf-8"),
-		}})
-		testcheck.NoError(t, err)
+		}}))(t)
 		return materialized
 	}
 	materialized := materialize()
 	var read []string
 	for _, member := range materialized.members {
 		for _, record := range member.records {
-			data, err := record.read()
-			testcheck.NoError(t, err)
+			data := testcheck.Must(record.read())(t)
 			read = append(read, string(data))
 		}
 	}

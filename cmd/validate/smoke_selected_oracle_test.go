@@ -27,8 +27,7 @@ func TestSmokeDeclarationBindsTheLiveRecipe(t *testing.T) {
 		if err != nil || bound[model].Recipe != live {
 			t.Fatalf("%s: bound %+v, %v, want the live recipe %s", name, bound[model], err, live)
 		}
-		id, err := artifact.JSONID(artifact.KindProfile, bound[model])
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.JSONID(artifact.KindProfile, bound[model]))(t)
 		identities = append(identities, id)
 	}
 	if identities[0] == identities[1] {

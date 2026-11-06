@@ -25,8 +25,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 
 	openAndDigest := func(t *testing.T, expectLoaded bool, expectReason string) string {
 		t.Helper()
-		store, err := OpenReadOnly(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(OpenReadOnly(root))(t)
 		defer store.Close()
 		replay := store.SnapshotReplay()
 		if replay.Loaded != expectLoaded {
@@ -46,14 +45,12 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	corrupt := func(t *testing.T, name string, mutate func([]byte) []byte) {
 		t.Helper()
 		path := filepath.Join(newestCheckpoints(t, root), name+checkpointExtension)
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		testcheck.NoError(t, os.WriteFile(path, mutate(data), storeFileMode))
 	}
 	restore := func(t *testing.T) {
 		t.Helper()
-		store, err := Create(root)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(Create(root))(t)
 		if _, err := store.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -82,8 +79,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 			var header checkpointHeader
 			testcheck.NoError(t, json.Unmarshal(line, &header))
 			edit.header(&header)
-			mutated, err := json.Marshal(header)
-			testcheck.NoError(t, err)
+			mutated := testcheck.Must(json.Marshal(header))(t)
 			return append(append(mutated, '\n'), payload...)
 		})
 		if digest := openAndDigest(t, false, edit.reason); digest != baseline {
@@ -103,8 +99,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 func newestCheckpoints(t *testing.T, root string) string {
 	t.Helper()
 	parent := filepath.Join(root, checkpointDirectory)
-	entries, err := os.ReadDir(parent)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(parent))(t)
 	for index := len(entries) - 1; index >= 0; index-- {
 		if entries[index].IsDir() {
 			return filepath.Join(parent, entries[index].Name())

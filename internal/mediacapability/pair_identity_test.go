@@ -43,8 +43,7 @@ func oneWeight(t *testing.T, value float32) []byte {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "model.safetensors")
 	testcheck.NoError(t, safetensors.Save(path, map[string][]float32{"weight": {value}}, map[string][]int{"weight": {1}}, nil))
-	encoded, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(os.ReadFile(path))(t)
 	return encoded
 }
 
@@ -68,8 +67,7 @@ const (
 func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	models, err := pathidentity.Canonical(t.TempDir())
-	testcheck.NoError(t, err)
+	models := testcheck.Must(pathidentity.Canonical(t.TempDir()))(t)
 	write := func(data []byte, parts ...string) string {
 		t.Helper()
 		path := filepath.Join(append([]string{models}, parts...)...)
@@ -94,14 +92,12 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 
 	component := func(role artifact.ComponentRole, ordinal uint32, name, path string) artifact.Component {
 		t.Helper()
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		kind := artifact.KindFile
 		if role == artifact.ComponentWeights {
 			kind = artifact.KindTensorSet
 		}
-		id, err := artifact.IdentifyBytes(kind, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(kind, data))(t)
 		return artifact.Component{Role: role, Ordinal: ordinal, Name: name, Artifact: id}
 	}
 	served := func(directory string) artifact.ID {
@@ -125,8 +121,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// records the pair's own directory beside the parent the files share. A
 	// move of the layout that renamed or reordered one would shift the served
 	// and the trained model together, so this holds the served one in place.
-	source, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), pairDirectory)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Catalog[recipe.TaskReconstruction].Resolve(t.Context(), pairDirectory))(t)
 	want := []artifact.Component{
 		component(artifact.ComponentWeights, 0, "bridge", bridge),
 		component(artifact.ComponentWeights, 1, "decoder", decoder),
@@ -173,8 +168,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 		{"source encoder's image processor", sourceProcessor, []byte(`{"source":"other processor"}`)},
 		{"own encoder's image processor", ownProcessor, []byte(`{"own":"other processor"}`)},
 	} {
-		original, err := os.ReadFile(part.path)
-		testcheck.NoError(t, err)
+		original := testcheck.Must(os.ReadFile(part.path))(t)
 		testcheck.NoError(t, os.WriteFile(part.path, part.changed, 0o600))
 		servedAs, trainedAs := served(pairDirectory), trained(bridge)
 		if servedAs != trainedAs || seen[trainedAs] {
@@ -196,8 +190,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	}
 
 	// The same bytes under another root are the same model.
-	copied, err := pathidentity.Canonical(t.TempDir())
-	testcheck.NoError(t, err)
+	copied := testcheck.Must(pathidentity.Canonical(t.TempDir()))(t)
 	testcheck.NoError(t, os.CopyFS(copied, os.DirFS(models)))
 	if servedAs, trainedAs := served(filepath.Join(copied, "pair")), trained(filepath.Join(copied, "pair", filepath.Base(bridge))); servedAs != first || trainedAs != first {
 		t.Errorf("copied under another root the pair is served as %s and trains as %s, want %s", servedAs, trainedAs, first)
@@ -210,8 +203,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	for _, registered := range []bool{false, true} {
 		store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 		if registered {
-			registration, err := source.Inventory.Batch("registered/" + first.String())
-			testcheck.NoError(t, err)
+			registration := testcheck.Must(source.Inventory.Batch("registered/" + first.String()))(t)
 			if _, err := artifact.CommitBatch(ctx, store, registration); err != nil {
 				t.Fatal(err)
 			}
@@ -222,13 +214,11 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 				t.Fatalf("bootstrap %d over the pair (served first: %t): %v", run, registered, err)
 			}
 		}
-		definition, err := recipe.RequireDefinition(ctx, store, recipes[0])
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(recipe.RequireDefinition(ctx, store, recipes[0]))(t)
 		if definition.Model != first || recipes[1] != recipes[0] {
 			t.Errorf("served first: %t: the run's recipe %s names model %s and a second run got recipe %s, want one recipe for model %s", registered, recipes[0], definition.Model, recipes[1], first)
 		}
-		locations, err := store.Locations(ctx, first)
-		testcheck.NoError(t, err)
+		locations := testcheck.Must(store.Locations(ctx, first))(t)
 		if own := (artifact.Location{Artifact: first, Kind: artifact.LocationDirectory, Value: pairDirectory}); !slices.Contains(locations, own) {
 			t.Errorf("served first: %t: the store records no directory %s for the model the run trained: %+v", registered, pairDirectory, locations)
 		}
@@ -236,8 +226,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 
 	// The collection's own pair is still served by its five files, the own
 	// encoder's three among them.
-	collection, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), filepath.Join(models, "collection"))
-	testcheck.NoError(t, err)
+	collection := testcheck.Must(Catalog[recipe.TaskReconstruction].Resolve(t.Context(), filepath.Join(models, "collection")))(t)
 	own := filepath.Join(models, pairOwnEncoder)
 	if want := []artifact.Component{
 		component(artifact.ComponentWeights, 0, "decoder", decoder),

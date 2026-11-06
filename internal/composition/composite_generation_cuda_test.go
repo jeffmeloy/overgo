@@ -23,10 +23,8 @@ func TestCompositeGenerationCUDAEvidence(t *testing.T) {
 		Device:              id(artifact.KindEvidence, "CUDA device"), BridgeExecution: id(artifact.KindEvidence, "CUDA bridge execution"),
 		ExactOutputParity: true,
 	}
-	evidence, err := (CompositeGenerationCUDAAuthority{}).New(value)
-	testcheck.NoError(t, err)
-	content, err := evidence.Content()
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must((CompositeGenerationCUDAAuthority{}).New(value))(t)
+	content := testcheck.Must(evidence.Content())(t)
 	parsed, err := (CompositeGenerationCUDAAuthority{}).Parse(content.Data)
 	if err != nil || parsed.ID != evidence.ID || parsed.ValidateIdentity() != nil {
 		t.Fatalf("CUDA evidence round trip = %+v, %v", parsed, err)

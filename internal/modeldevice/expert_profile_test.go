@@ -39,8 +39,7 @@ func TestExpertProfile(t *testing.T) {
 		}
 		path := filepath.Join(t.TempDir(), "profile.strp")
 		testcheck.NoError(t, profile.Write(path))
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		// The header's 24 bytes, then the pairs' four bytes each, then each layer's experts' ranks, as Strata writes them.
 		const header, pair = 24, 4
 		ranks := make([]int32, 6)

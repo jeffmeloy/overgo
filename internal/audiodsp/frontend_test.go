@@ -22,8 +22,7 @@ func testFrontendConfig() FrontendConfig {
 }
 
 func TestSpectrumMatchesNumpyRFFT(t *testing.T) {
-	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	var workspace Workspace
 	source, frames, err := plan.prepare(t.Context(), [][]float32{samples[:1], samples[1:6], samples[6:]}, 8, &workspace)
@@ -45,8 +44,7 @@ func TestSpectrumMatchesNumpyRFFT(t *testing.T) {
 }
 
 func TestProcessIsChunkBoundaryInvariantAndReusesStorage(t *testing.T) {
-	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	var whole, split Workspace
 	want, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &whole, ProcessOptions{})
@@ -85,8 +83,7 @@ func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 	config.Geometry = recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 4, FeatureBins: 2}
 	config.Mel.MaxFrequency = 4
 	config.Normalize = &NormalizeConfig{Mode: "per-feature", Correction: 0, Epsilon: 1}
-	plan, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	var workspace Workspace
 	got, frames, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 4, 3, 2, 1}}, 8, &workspace, ProcessOptions{})
 	testcheck.NoError(t, err)
@@ -101,8 +98,7 @@ func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 }
 
 func TestFrontendRejectsBorrowedWorkspaceInput(t *testing.T) {
-	p, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	var w Workspace
 	values, _, err := p.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{})
 	testcheck.NoError(t, err)
@@ -117,8 +113,7 @@ func TestFrontendSnapshotsRecipeParameters(t *testing.T) {
 	config.Log.DynamicRange = &limit
 	config.Normalize = &NormalizeConfig{Mode: "all", Correction: 0, Epsilon: 1}
 	config.ResampleTaps = []float64{1}
-	p, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	limit = 0
 	config.Normalize.Epsilon = 0
 	config.ResampleTaps[0] = math.NaN()
@@ -131,8 +126,7 @@ func TestFrontendSlaneyFilterbankMatchesTorchAudio(t *testing.T) {
 	config := testFrontendConfig()
 	config.SampleRate = 8000
 	config.Mel = MelConfig{Scale: "slaney", MaxFrequency: 4000, AreaNormalize: true}
-	p, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	// torchaudio.functional.melscale_fbanks(5,0,4000,3,8000,
 	// norm="slaney",mel_scale="slaney"), computed by the installed CPU oracle.
 	want := []float64{0, 0, 0, .0005348663544282317, .0008510092739015818, 0, 0, .00023411086294800043, .0005793526652269065, 0, 0, .00039287295658141375, 0, 0, 0}
@@ -158,8 +152,7 @@ func TestFrontendNormalizationAndDynamicRangeDefinitions(t *testing.T) {
 	config := testFrontendConfig()
 	config.Geometry.FeatureBins = 2
 	config.Normalize = &NormalizeConfig{Mode: "per-feature", Correction: 0, Epsilon: 1}
-	p, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	p := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	values := []float32{1, 10, 3, 30}
 	testcheck.NoError(t, p.transform(t.Context(), values, 2))
 	want := []float32{-.5, -10.0 / 11, .5, 10.0 / 11}
@@ -173,8 +166,7 @@ func TestFrontendNormalizationAndDynamicRangeDefinitions(t *testing.T) {
 	config.Log.DynamicRange = &dynamicRange
 	config.Log.Scale = .25
 	config.Log.Bias = 1
-	p, err = NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	p = testcheck.Must(NewFrontend(config, 1<<20))(t)
 	values = []float32{-10, 0}
 	testcheck.NoError(t, p.transform(t.Context(), values, 1))
 	if values[0] != -1 || values[1] != 1 {
@@ -199,8 +191,7 @@ func FuzzFrontend(f *testing.F) {
 		if data[0]%2 == 0 {
 			config.Padding = "reflect"
 		}
-		p, err := NewFrontend(config, 1<<20)
-		testcheck.NoError(t, err)
+		p := testcheck.Must(NewFrontend(config, 1<<20))(t)
 		samples := make([]float32, len(data))
 		for i, v := range data {
 			samples[i] = float32(int(v)-128) / 128
@@ -233,8 +224,7 @@ func FuzzFrontend(f *testing.F) {
 }
 
 func TestFrontendSharedPlanSeparateWorkspaces(t *testing.T) {
-	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	for _, operation := range []string{"features", "inverse"} {
 		t.Run(operation, func(t *testing.T) {
@@ -268,8 +258,7 @@ func TestResamplingUsesDeclaredFIRAndTargetGrid(t *testing.T) {
 	config.Geometry = recipecontract.AudioFrameGeometry{WindowSamples: 2, HopSamples: 2, FeatureBins: 1}
 	config.Mel.MaxFrequency = 1
 	config.ResampleTaps = []float64{0, 1, 0}
-	plan, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	var workspace Workspace
 	_, frames, err := plan.Process(t.Context(), [][]float32{{1}, {2}}, 1, &workspace, ProcessOptions{})
 	testcheck.NoError(t, err)
@@ -308,8 +297,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 			}
 		})
 	}
-	plan, err := NewFrontend(base, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(base, 1<<20))(t)
 	var workspace Workspace
 	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4}}, 7, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want sample-rate refusal")
@@ -322,8 +310,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 	if _, _, err := plan.Process(cancelled, [][]float32{{1, 2, 3, 4}}, 8, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want cancellation")
 	}
-	other, err := NewFrontend(base, 1<<20)
-	testcheck.NoError(t, err)
+	other := testcheck.Must(NewFrontend(base, 1<<20))(t)
 	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace, ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -335,8 +322,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 	base.Geometry.WindowSamples, base.Geometry.FeatureBins = 2, 1
 	base.PadLeft, base.PadRight = 0, 0
 	base.Condition = &FrameCondition{Gain: math.MaxFloat64}
-	overflow, err := NewFrontend(base, 1<<20)
-	testcheck.NoError(t, err)
+	overflow := testcheck.Must(NewFrontend(base, 1<<20))(t)
 	if _, _, err := overflow.Process(t.Context(), [][]float32{{1, 1}}, 8, &Workspace{}, ProcessOptions{}); err == nil {
 		t.Fatal("accepted non-finite energy outside mel support")
 	}
@@ -349,8 +335,7 @@ func TestInverseRefusesUncoveredSamples(t *testing.T) {
 	config.Padding = "zero"
 	config.WindowOffset = 0
 	config.FrameSpan = 4
-	plan, err := NewFrontend(config, 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(config, 1<<20))(t)
 	var w Workspace
 	if values, err := plan.Reconstruct(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w); err == nil || values != nil {
 		t.Fatalf("uncovered inverse=%v error=%v", values, err)
@@ -358,8 +343,7 @@ func TestInverseRefusesUncoveredSamples(t *testing.T) {
 }
 
 func TestWorkspaceBudgetRefusesBeforeAllocation(t *testing.T) {
-	plan, err := NewFrontend(testFrontendConfig(), 1<<20)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(NewFrontend(testFrontendConfig(), 1<<20))(t)
 	plan.memoryBytes = plan.tableBytes
 	var w Workspace
 	if values, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{}); err == nil || values != nil {
@@ -415,8 +399,7 @@ func TestStandardSTFTInverseReconstructsSource(t *testing.T) {
 					return nil
 				}})
 				testcheck.NoError(t, err)
-				got, err := plan.Reconstruct(t.Context(), chunks, 8, &w)
-				testcheck.NoError(t, err)
+				got := testcheck.Must(plan.Reconstruct(t.Context(), chunks, 8, &w))(t)
 				if len(got) != len(samples) {
 					t.Fatalf("samples=%d want %d", len(got), len(samples))
 				}

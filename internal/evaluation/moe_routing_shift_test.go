@@ -37,11 +37,10 @@ func TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures(t *testing.T) {
 			segment("imbalanced-a", false, artifact.ID{}), segment("imbalanced-b", false, artifact.ID{}),
 		}},
 	}
-	evidence, err := moeRoutingShiftCodec.New(moeRoutingShiftEvidence{
+	evidence := testcheck.Must(moeRoutingShiftCodec.New(moeRoutingShiftEvidence{
 		Version: artifact.InitialDocumentVersion, BaselineMatrix: id(artifact.KindRecipe, "baseline-matrix"),
 		Cases: cases, HiddenStratumFailure: true, ControllerLag: true,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	content, err := moeRoutingShiftCodec.Content(evidence)
 	if err != nil || content.Descriptor.ID != evidence.ID || len(moeRoutingShiftLineage(evidence)) < 10 {
 		t.Fatalf("shift evidence = (%+v, %v)", evidence, err)

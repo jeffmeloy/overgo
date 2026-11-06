@@ -28,8 +28,7 @@ func TestPublishServedHoldsOneShardIndex(t *testing.T) {
 	first, second := "diffusion_pytorch_model-00001-of-00002.safetensors", "diffusion_pytorch_model-00002-of-00002.safetensors"
 	testcheck.NoError(t, safetensors.Save(filepath.Join(transformer, first), map[string][]float32{weight: {1, 2, 3, 4}}, map[string][]int{weight: {2, 2}}, nil))
 	testcheck.NoError(t, safetensors.Save(filepath.Join(transformer, second), map[string][]float32{last: {5}}, map[string][]int{last: {1}}, nil))
-	index, err := json.Marshal(map[string]any{"metadata": map[string]any{"total_size": 20}, "weight_map": map[string]string{weight: first, last: second}})
-	testcheck.NoError(t, err)
+	index := testcheck.Must(json.Marshal(map[string]any{"metadata": map[string]any{"total_size": 20}, "weight_map": map[string]string{weight: first, last: second}}))(t)
 	for path, data := range map[string][]byte{
 		filepath.Join(transformer, "diffusion_pytorch_model.safetensors.index.json"): index,
 		filepath.Join(transformer, "config.json"):                                    []byte("{}"),
@@ -42,11 +41,9 @@ func TestPublishServedHoldsOneShardIndex(t *testing.T) {
 		Modules: map[string]peft.Module{module: {Rank: 1, In: 2, Out: 2, Alpha: 1, Down: []float32{1, 0}, Up: []float32{1, 0}}},
 	}
 	testcheck.NoError(t, PublishServed(base, served, adapter))
-	source, err := safetensors.OpenSource(filepath.Join(served, transformerDirectory))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(filepath.Join(served, transformerDirectory)))(t)
 	defer source.Close()
-	merged, err := safetensors.ReadF32(source.Tensors[weight])
-	testcheck.NoError(t, err)
+	merged := testcheck.Must(safetensors.ReadF32(source.Tensors[weight]))(t)
 	if !slices.Equal(merged, []float32{2, 2, 3, 4}) {
 		t.Fatalf("merged weight %v", merged)
 	}

@@ -34,8 +34,7 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 		framePayloadLen = 80
 	)
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	for _, text := range []string{"first commit", "second commit"} {
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "repair/" + text, Contents: []artifact.Content{textContent(t, text)}}); err != nil {
 			t.Fatal(err)
@@ -43,8 +42,7 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 	}
 	testcheck.NoError(t, store.Close())
 	journal := filepath.Join(root, "overgodb.log")
-	clean, err := os.ReadFile(journal)
-	testcheck.NoError(t, err)
+	clean := testcheck.Must(os.ReadFile(journal))(t)
 	write := func(data []byte) {
 		t.Helper()
 		testcheck.NoError(t, os.WriteFile(journal, data, 0o644))
@@ -91,8 +89,7 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 			journalIs(damaged, name+" damage")
 		}
 	}
-	entries, err := os.ReadDir(root)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(root))(t)
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "overgodb.log.") {
 			t.Fatalf("repair left %s beside the journal", entry.Name())

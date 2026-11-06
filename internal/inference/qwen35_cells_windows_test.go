@@ -92,8 +92,7 @@ func TestQwen35CellsMatchF32Decoding(t *testing.T) {
 		}
 	}
 
-	greedy, err := sampling.New(sampling.Config{Temperature: 0})
-	testcheck.NoError(t, err)
+	greedy := testcheck.Must(sampling.New(sampling.Config{Temperature: 0}))(t)
 	drafted := 0
 	options := GenerateOptions{
 		MaxNewTokens: 24, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt[:8], SpeculativeDecode: true, ContinueAfterEOG: true,

@@ -59,8 +59,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		if len(capability.Artifacts) != 1 || len(capability.Corpora) != 1 || len(capability.Goldens) != 1 {
 			t.Fatalf("row %q evidence cardinality is not singular", capability.ID)
 		}
-		artifactPath, err := artifact.AvailablePath(t.Context(), store, capability.Artifacts[0].Identity, artifact.LocationFile)
-		testcheck.NoError(t, err)
+		artifactPath := testcheck.Must(artifact.AvailablePath(t.Context(), store, capability.Artifacts[0].Identity, artifact.LocationFile))(t)
 		assertFileIdentity(t, artifactPath, capability.Artifacts[0].Identity)
 		golden := testutil.FixturePath(t, goldenPaths[capability.ID])
 		assertFileIdentity(t, golden, capability.Corpora[0].Identity)
@@ -106,15 +105,12 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
 		recipe.TaskSpeech, recipe.TaskVQA,
 	} {
-		definition, err := modelrecipe.CapabilityDefinition(task, model)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(modelrecipe.CapabilityDefinition(task, model))(t)
 		definitions = append(definitions, definition)
 	}
-	oscillatorImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})
-	testcheck.NoError(t, err)
+	oscillatorImage := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{}))(t)
 	definitions = append(definitions, oscillatorImage)
-	latentImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, model, profile)
-	testcheck.NoError(t, err)
+	latentImage := testcheck.Must(modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, model, profile))(t)
 	definitions = append(definitions, latentImage)
 
 	required := []Contract{
@@ -127,8 +123,7 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		{Task: recipe.TaskVQA, Signature: Signature{Inputs: []Modality{ModalityImage, ModalityText}, Outputs: []Modality{ModalityText}}},
 		{Task: recipe.TaskVideoGen, Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityVideo}}},
 	}
-	rows, err := InferenceModalityMatrix(definitions, required)
-	testcheck.NoError(t, err)
+	rows := testcheck.Must(InferenceModalityMatrix(definitions, required))(t)
 	if len(rows) != len(required) {
 		t.Fatalf("matrix rows = %d, want %d", len(rows), len(required))
 	}

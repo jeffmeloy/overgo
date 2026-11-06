@@ -55,8 +55,7 @@ func verifySpeakerCommand(t *testing.T, directory, commit, storePath string, def
 		if !found || receipt.Inputs != len(cases) || receipt.Failed != failed {
 			t.Fatalf("command denominator: %s", output)
 		}
-		reader, err := overgodb.OpenReadOnly(storePath)
-		testcheck.NoError(t, err)
+		reader := testcheck.Must(overgodb.OpenReadOnly(storePath))(t)
 		func() {
 			defer reader.Close()
 			content, ok, err := artifact.ReadContent(t.Context(), reader, receipt.Report)

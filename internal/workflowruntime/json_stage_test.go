@@ -15,8 +15,7 @@ import (
 func TestContextPipelineCarriesRequestContext(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
 	type requestKey struct{}
 	marker := new(int)
 	ctx := context.WithValue(t.Context(), requestKey{}, marker)
@@ -56,8 +55,7 @@ func TestScalarStageCancellationBoundaries(t *testing.T) {
 		t.Run(boundary, func(t *testing.T) {
 			store, program := runtimeFixture(t)
 			defer store.Close()
-			runtime, err := NewForProgram(store, program)
-			testcheck.NoError(t, err)
+			runtime := testcheck.Must(NewForProgram(store, program))(t)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(context.Canceled)
 			computed, encoded := false, false

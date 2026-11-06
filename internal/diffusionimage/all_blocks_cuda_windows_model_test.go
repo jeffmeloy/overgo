@@ -26,8 +26,7 @@ func TestAllRealBlocksCUDAParity(t *testing.T) {
 	}
 	_, trace, err := model.forward(golden.X, 1, golden.H, golden.W, true)
 	testcheck.NoError(t, err)
-	device, err := executor.New(0)
-	testcheck.NoError(t, err)
+	device := testcheck.Must(executor.New(0))(t)
 	defer device.Close()
 	count := 0
 	checkLevels := func(family string, levels []level, traces []levelTrace) {

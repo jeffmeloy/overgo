@@ -30,8 +30,7 @@ func syntheticForwardInputs(t TransformerSpec, textSeq, imgSeq int) (latent, enc
 
 func TestIndexedMediaProgramBindings(t *testing.T) {
 	spec := syntheticSpec()
-	program, err := CompileDenoiserProgram(spec, syntheticEpsilon, []bool{true}, tensor.SingletonExtent, tensor.SingletonExtent, dtype.F32)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileDenoiserProgram(spec, syntheticEpsilon, []bool{true}, tensor.SingletonExtent, tensor.SingletonExtent, dtype.F32))(t)
 	first := program.weightInputs[0]
 	if program.weightInputs.Node(first.Name) != first {
 		t.Fatal("indexed binding does not resolve its compiled node")
@@ -47,10 +46,9 @@ func attendedTextMask(rows int) []bool {
 }
 
 func TestDenoiserProgramMasksTextPadding(t *testing.T) {
-	program, err := CompileDenoiserProgram(
+	program := testcheck.Must(CompileDenoiserProgram(
 		syntheticSpec(), 1e-5, []bool{true, false, true}, 1, 2, dtype.F32,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if program.keyBias == nil || len(program.keyData) != 5 ||
 		program.keyData[0] != 0 || program.keyData[1] != padKeyBias || program.keyData[2] != 0 ||
 		program.keyData[3] != 0 || program.keyData[4] != 0 {
@@ -114,13 +112,11 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 	}
 
 	const fixtureDelta = -0.125
-	feeds, err := prog.hostFeeds(d, goldenPatches, enc, sigma)
-	testcheck.NoError(t, err)
+	feeds := testcheck.Must(prog.hostFeeds(d, goldenPatches, enc, sigma))(t)
 	feeds[prog.InDelta] = reference.Value{
 		Shape: prog.InDelta.Shape, Data: []float32{fixtureDelta},
 	}
-	advanced, err := reference.Execute([]*tensor.Tensor{prog.NextLatent}, feeds)
-	testcheck.NoError(t, err)
+	advanced := testcheck.Must(reference.Execute([]*tensor.Tensor{prog.NextLatent}, feeds))(t)
 	for index, value := range advanced[prog.NextLatent].Data {
 		want := float32(goldenPatches[index]) + fixtureDelta*res.Velocity[index]
 		if value != want {

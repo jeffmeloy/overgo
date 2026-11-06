@@ -14,8 +14,7 @@ func TestFilesystemIdentityContract(t *testing.T) {
 	testcheck.NoError(t, os.Mkdir(child, 0o755))
 	file := filepath.Join(child, "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(file, []byte("weights"), 0o600))
-	canonical, err := Canonical(filepath.Join(root, ".", "models", "weights.gguf"))
-	testcheck.NoError(t, err)
+	canonical := testcheck.Must(Canonical(filepath.Join(root, ".", "models", "weights.gguf")))(t)
 	same, err := Same(file, canonical)
 	if err != nil || !same {
 		t.Fatalf("same file = (%t, %v)", same, err)

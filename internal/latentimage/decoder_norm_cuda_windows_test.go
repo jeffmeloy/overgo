@@ -26,8 +26,7 @@ func TestMOSSDecoderCUDAGolden(t *testing.T) {
 func TestMOSSDecoderSiLU(t *testing.T) {
 	cudatest.Require(t)
 	mossFixtureBytes(t, "silu.safetensors", "b5b6ab47e5878e4569e1b340fbbf515745f70323183b0b16e8883cd02c536006")
-	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "silu.safetensors"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "silu.safetensors")))(t)
 	defer source.Close()
 	run, _, close := cudaVAERunner(t)
 	defer close()
@@ -35,8 +34,7 @@ func TestMOSSDecoderSiLU(t *testing.T) {
 	b := tensor.NewBuilder()
 	x := b.Input("x", dtype.F32, tensor.MustShape(uint64(len(values))))
 	out := b.SiLUNative(x)
-	got, err := run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{x: {Shape: x.Shape, Data: values}})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{x: {Shape: x.Shape, Data: values}}))(t)
 	want := refinementValues(t, source, "output")
 	for i, value := range got[out].Data {
 		if math.Float32bits(value) != math.Float32bits(want[i]) {
@@ -48,8 +46,7 @@ func TestMOSSDecoderSiLU(t *testing.T) {
 func TestMOSSDecoderAttention(t *testing.T) {
 	cudatest.Require(t)
 	mossFixtureBytes(t, "attention-f32.safetensors", "9569524afb160ea282781917920afce959686dd2f8970104633882f76d381164")
-	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "attention-f32.safetensors"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "attention-f32.safetensors")))(t)
 	defer source.Close()
 	run, _, close := cudaVAERunner(t)
 	defer close()
@@ -95,8 +92,7 @@ func TestMOSSDecoderAttention(t *testing.T) {
 func TestMOSSDecoderGroupNormalization(t *testing.T) {
 	cudatest.Require(t)
 	mossFixtureBytes(t, "group-norm.safetensors", "8400b887c0ae03db7ed9585d2b6a153594e2920dc0efd548c621886263727511")
-	source, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "group-norm.safetensors"))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", "group-norm.safetensors")))(t)
 	defer source.Close()
 	run, _, close := cudaVAERunner(t)
 	defer close()

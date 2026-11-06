@@ -25,10 +25,8 @@ const (
 func TestE4BHostGradientsMatchFiniteDifference(t *testing.T) {
 	t.Parallel()
 	m := tinyModel(t, 1)
-	loss, err := m.differentiate(hostAttention)
-	testcheck.NoError(t, err)
-	evaluated, err := m.Loss()
-	testcheck.NoError(t, err)
+	loss := testcheck.Must(m.differentiate(hostAttention))(t)
+	evaluated := testcheck.Must(m.Loss())(t)
 	if loss != evaluated || !(loss > 0) {
 		t.Fatalf("loss through the gradient pass %v, evaluated %v", loss, evaluated)
 	}

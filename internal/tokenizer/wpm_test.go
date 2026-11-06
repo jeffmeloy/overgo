@@ -28,14 +28,12 @@ func TestWPMNormalizationGreedySegmentationAndSpecials(t *testing.T) {
 	vocab.Tokens[1].Type = TokenControl
 	vocab.Tokens[2].Type = TokenControl
 
-	got, err := vocab.Encode("Äpfel 中!", EncodeOptions{AddSpecial: true})
-	testcheck.NoError(t, err)
+	got := testcheck.Must(vocab.Encode("Äpfel 中!", EncodeOptions{AddSpecial: true}))(t)
 	want := []TokenID{1, 3, 4, 5, 6, 7, 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("WPM IDs = %v, want %v", got, want)
 	}
-	unknown, err := vocab.Encode("unrepresented", EncodeOptions{})
-	testcheck.NoError(t, err)
+	unknown := testcheck.Must(vocab.Encode("unrepresented", EncodeOptions{}))(t)
 	if !reflect.DeepEqual(unknown, []TokenID{0}) {
 		t.Fatalf("unknown IDs = %v", unknown)
 	}

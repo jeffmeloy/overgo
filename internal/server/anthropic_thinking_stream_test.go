@@ -53,11 +53,10 @@ func (thinker cancellableThinker) ParseChatOutput(
 // smallest thinking budget the Anthropic route accepts.
 func newThinkingHandler(t testing.TB, generator Generator) *Handler {
 	t.Helper()
-	handler, err := New(Config{
+	handler := testcheck.Must(New(Config{
 		ModelID: testModelID, MaxTokens: 2048,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
-	}, generator)
-	testcheck.NoError(t, err)
+	}, generator))(t)
 	return handler
 }
 

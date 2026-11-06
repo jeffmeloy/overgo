@@ -22,8 +22,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 		{name: "bonsai-hermes", model: bonsaiFixture},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
-			runner, err := openFixtureRunner(modeltest.Directory(t, fixture.model), 0)
-			testcheck.NoError(t, err)
+			runner := testcheck.Must(openFixtureRunner(modeltest.Directory(t, fixture.model), 0))(t)
 			defer runner.Close()
 			source, root, patterns, err := runner.ChatToolGrammar(
 				[]ChatTool{toolWeatherDefinition()},

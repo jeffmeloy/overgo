@@ -34,15 +34,11 @@ func TestVideoProductionActivation(t *testing.T) {
 	repo := testutil.RepoRoot(t)
 	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	edit := modeltest.Directory(t, "LiveEdit")
-	profile, err := latentvideo.ResolveProfile(wan)
-	testcheck.NoError(t, err)
-	profileContent, err := profile.Content()
-	testcheck.NoError(t, err)
+	profile := testcheck.Must(latentvideo.ResolveProfile(wan))(t)
+	profileContent := testcheck.Must(profile.Content())(t)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-production-activation")
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	testcheck.NoError(t, err)
-	program, err := modelrecipe.CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID))(t)
+	program := testcheck.Must(modelrecipe.CompileCapability(definition))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, edit)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -51,13 +47,11 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	base, err := latentvideo.LoadDenoiserConfig(wan, profile.Policy)
-	testcheck.NoError(t, err)
-	sigmas, err := latentvideo.CompileEditFlowSigmas(latentvideo.EditFlowConfig{
+	base := testcheck.Must(latentvideo.LoadDenoiserConfig(wan, profile.Policy))(t)
+	sigmas := testcheck.Must(latentvideo.CompileEditFlowSigmas(latentvideo.EditFlowConfig{
 		InferenceSteps: 2, TrainTimesteps: profile.Policy.NumTrainTimesteps,
 		Shift: 5, SigmaMin: 0, SigmaMax: 1, ExtraStep: true,
-	}, []int64{900})
-	testcheck.NoError(t, err)
+	}, []int64{900}))(t)
 	request := latentvideo.ReferenceEditRequest{
 		Condition: latentvideo.ReferenceEditCondition{
 			TextContext:  readVideoF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim),
@@ -69,20 +63,17 @@ func TestVideoProductionActivation(t *testing.T) {
 			Channels: 3, Frames: 5, Height: 16, Width: 32,
 		},
 	}
-	raw, err := json.Marshal(request)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(json.Marshal(request))(t)
 	capability := videoCapability()
 	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
-		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))
-		testcheck.NoError(t, err)
+		output := testcheck.Must(capability.Execute(t.Context(), store, edit, execution, string(raw)))(t)
 		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)
 		}
-		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-		testcheck.NoError(t, err)
+		animation := testcheck.Must(gif.DecodeAll(bytes.NewReader(video.Data)))(t)
 		if video.MediaType != "image/gif" || video.Frames != 5 || len(animation.Image) != 5 ||
 			video.Height != 16 || video.Width != 32 || video.ResidentRun != residentRun(run) {
 			t.Fatalf("run %d video=%+v decoded_frames=%d", run, video, len(animation.Image))
@@ -100,8 +91,7 @@ func TestVideoProductionActivation(t *testing.T) {
 
 func readVideoF32(t testing.TB, path string, elements int) []float32 {
 	t.Helper()
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	if len(raw) != elements*4 {
 		t.Fatalf("float fixture bytes=%d want=%d", len(raw), elements*4)
 	}
@@ -114,8 +104,7 @@ func readVideoF32(t testing.TB, path string, elements int) []float32 {
 
 func readVideoInitialNoise(t testing.TB) []float32 {
 	t.Helper()
-	raw, err := os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(testutil.FixturePath(t, "wan", "g4_denoise.json")))(t)
 	var fixture struct {
 		Final struct {
 			Values []float32 `json:"values"`

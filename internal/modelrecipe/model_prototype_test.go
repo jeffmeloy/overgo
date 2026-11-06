@@ -17,20 +17,17 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 		t.Fatal("model prototype test requires two compiled architectures")
 	}
 	profile := registeredProfileDocument(t, names[0])
-	prototype, err := NewModelPrototype(profile)
-	testcheck.NoError(t, err)
+	prototype := testcheck.Must(NewModelPrototype(profile))(t)
 	if prototype.ID().Kind() != artifact.KindRecipe || prototype.Architecture() != names[0] ||
 		prototype.Profile() != profile.ID || prototype.ValidateIdentity() != nil {
 		t.Fatal("model prototype does not bind the exact compiled profile")
 	}
 
-	second, err := NewModelPrototype(profile)
-	testcheck.NoError(t, err)
+	second := testcheck.Must(NewModelPrototype(profile))(t)
 	if second.ID() != prototype.ID() {
 		t.Fatal("identical compiled profile produced unstable prototype identity")
 	}
-	content, err := prototype.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(prototype.Content())(t)
 	if content.Descriptor.MediaType != ModelPrototypeMediaType || content.Descriptor.Schema != ModelPrototypeSchema {
 		t.Fatalf("unexpected prototype contract: %+v", content.Descriptor)
 	}
@@ -39,8 +36,7 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 			t.Fatalf("prototype copied lifecycle or runtime field %q", forbidden)
 		}
 	}
-	parsedDocument, err := modelPrototypeCodec.Parse(content.Data)
-	testcheck.NoError(t, err)
+	parsedDocument := testcheck.Must(modelPrototypeCodec.Parse(content.Data))(t)
 	parsed := ModelPrototype{document: parsedDocument}
 	if parsed.ID() != prototype.ID() || parsed.ValidateIdentity() != nil {
 		t.Fatal("model prototype did not round-trip with exact identity")
@@ -66,8 +62,7 @@ func TestModelPrototypeIdentityAndValidation(t *testing.T) {
 	}
 	for name, document := range invalidDocuments {
 		t.Run(name, func(t *testing.T) {
-			data, err := json.Marshal(document)
-			testcheck.NoError(t, err)
+			data := testcheck.Must(json.Marshal(document))(t)
 			if _, err := modelPrototypeCodec.Parse(data); err == nil {
 				t.Fatal("invalid model prototype accepted")
 			}
@@ -97,7 +92,6 @@ func registeredProfileDocument(t testing.TB, name string) ProfileDocument {
 	if !found {
 		t.Fatalf("compiled architecture %q absent", name)
 	}
-	document, err := NewProfileDocument(profile)
-	testcheck.NoError(t, err)
+	document := testcheck.Must(NewProfileDocument(profile))(t)
 	return document
 }

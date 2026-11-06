@@ -50,8 +50,7 @@ func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 	if again := intakeRequest(handler, "text/plain", "an attached note"); again.Code != http.StatusOK || !strings.Contains(again.Body.String(), stored.ID) {
 		t.Fatalf("second intake status=%d body=%s", again.Code, again.Body.String())
 	}
-	png, err := base64.StdEncoding.DecodeString(tinyPNGBase64(t))
-	testcheck.NoError(t, err)
+	png := testcheck.Must(base64.StdEncoding.DecodeString(tinyPNGBase64(t)))(t)
 	if image := intakeRequest(handler, "image/png", string(png)); image.Code != http.StatusOK || !strings.Contains(image.Body.String(), `"media_type":"image/png"`) {
 		t.Fatalf("image intake status=%d body=%s", image.Code, image.Body.String())
 	}
@@ -101,8 +100,7 @@ func TestArtifactIntakePreservesNativeAudio(t *testing.T) {
 			} else {
 				upload()
 			}
-			id, err := artifact.IdentifyBytes(artifact.KindFile, fixture.wave)
-			testcheck.NoError(t, err)
+			id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, fixture.wave))(t)
 			before, found, err := artifact.ReadContent(t.Context(), fixture.store, id)
 			if err != nil || !found {
 				t.Fatalf("original recording: %v", err)

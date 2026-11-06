@@ -27,8 +27,7 @@ var testRepeatDeferred = []string{"internal/cuda/driver", "internal/cuda/executo
 func boundTests(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	bound := map[string]bool{}
-	data, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join(root, "compatibility.json")))(t)
 	var manifest struct {
 		Claims []struct {
 			Evidence []struct {
@@ -42,11 +41,9 @@ func boundTests(t *testing.T, root string) map[string]bool {
 			bound[evidence.Path] = true
 		}
 	}
-	records, err := filepath.Glob(filepath.Join(root, "docs", "verification", "*.json"))
-	testcheck.NoError(t, err)
+	records := testcheck.Must(filepath.Glob(filepath.Join(root, "docs", "verification", "*.json")))(t)
 	for _, record := range records {
-		data, err := os.ReadFile(record)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(record))(t)
 		var pinned struct {
 			Inputs map[string]string `json:"Inputs"`
 		}

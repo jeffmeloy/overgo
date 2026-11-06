@@ -38,16 +38,13 @@ func TestRAEDiTVelocityMatchesReference(t *testing.T) {
 	fixtures := filepath.Join(root, "fixtures", "rae")
 	var reference ditReference
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(fixtures, "dit.json"), &reference))
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	checkpoint := filepath.Join(roots.ResolveModelPath("RAE-collections"), filepath.FromSlash(reference.Checkpoint))
 	if _, err := os.Stat(checkpoint); err != nil {
 		testskip.NotApplicable(t, "the RAE DiT checkpoint is absent: "+checkpoint)
 	}
-	model, err := loadDiT(checkpoint)
-	testcheck.NoError(t, err)
-	got, err := model.velocity(loadReference(t, fixtures, reference.Latent), reference.Time, reference.Label)
-	testcheck.NoError(t, err)
+	model := testcheck.Must(loadDiT(checkpoint))(t)
+	got := testcheck.Must(model.velocity(loadReference(t, fixtures, reference.Latent), reference.Time, reference.Label))(t)
 	worst, scale := compareReference(t, got, loadReference(t, fixtures, reference.Velocity))
 	t.Logf("max |predicted - reference| = %.3g against a largest reference value of %.3g", worst, scale)
 	if worst > 1e-3*max(scale, 1) {

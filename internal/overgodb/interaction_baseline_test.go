@@ -31,16 +31,14 @@ const (
 func TestInteractionEfficiencyBaseline(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	defer store.Close()
 	ctx := t.Context()
 	var work runrecord.InteractionWork
 	var lastID artifact.ID
 	for ordinal := range baselineCommits {
 		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, payload))(t)
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key:       fmt.Sprintf("baseline/%d", ordinal),
@@ -55,8 +53,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	}
 	for ordinal := range baselineReadSample {
 		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
-		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, payload))(t)
 		if _, found, err := store.Artifact(ctx, id); err != nil || !found {
 			t.Fatalf("artifact %d: found=%v err=%v", ordinal, found, err)
 		}
@@ -72,8 +69,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	}
 	work.BlobReads++
 
-	journal, err := os.ReadFile(filepath.Join(root, "overgodb.log"))
-	testcheck.NoError(t, err)
+	journal := testcheck.Must(os.ReadFile(filepath.Join(root, "overgodb.log")))(t)
 	work.Bytes = uint64(len(journal))
 
 	if work.Commits != baselineCommits || work.SemanticTransitions != baselineCommits ||
@@ -83,20 +79,16 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	}
 
 	digest := sha256.Sum256(journal)
-	evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, digest[:])
-	testcheck.NoError(t, err)
-	trace, err := runrecord.NewEfficiencyTrace(runrecord.EfficiencyTrace{
+	evidence := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, digest[:]))(t)
+	trace := testcheck.Must(runrecord.NewEfficiencyTrace(runrecord.EfficiencyTrace{
 		Surface:  runrecord.SurfaceStorage,
 		Task:     "storage baseline session",
 		Work:     work,
 		Result:   lastID,
 		Evidence: evidence,
-	})
-	testcheck.NoError(t, err)
-	content, err := trace.Content()
-	testcheck.NoError(t, err)
-	parsed, err := runrecord.ParseEfficiencyTrace(content.Data)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(trace.Content())(t)
+	parsed := testcheck.Must(runrecord.ParseEfficiencyTrace(content.Data))(t)
 	if parsed.Work != work {
 		t.Fatalf("trace work drifted: %+v vs %+v", parsed.Work, work)
 	}

@@ -16,8 +16,7 @@ func rawFields(t *testing.T, pairs map[string]any) map[string]json.RawMessage {
 	t.Helper()
 	fields := make(map[string]json.RawMessage, len(pairs))
 	for name, value := range pairs {
-		encoded, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(json.Marshal(value))(t)
 		fields[name] = encoded
 	}
 	return fields
@@ -125,8 +124,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 // the store alone.
 func TestDeriveStoreSuites(t *testing.T) {
 	t.Parallel()
-	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
-	testcheck.NoError(t, err)
+	fixture := testcheck.Must(os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow")))(t)
 	root := t.TempDir()
 	target := filepath.Join(root, "cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))

@@ -15,8 +15,7 @@ import (
 func TestGPUCapacityTransactionRecovery(t *testing.T) {
 	name := sharedAdmissionName(t)
 	owner := holdSharedAdmission(t, sharedAdmissionProbe{Name: name, Transaction: true})
-	encoded, err := syscall.UTF16PtrFromString("Global\\" + resourceObjectName(name) + ".Mutation")
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(syscall.UTF16PtrFromString("Global\\" + resourceObjectName(name) + ".Mutation"))(t)
 	handle, _, callErr := procCreateResourceMutex.Call(0, 0, uintptr(unsafe.Pointer(encoded)))
 	if handle == 0 {
 		t.Fatal(callErr)

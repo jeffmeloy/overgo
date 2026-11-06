@@ -22,8 +22,7 @@ func TestStageReceiptIdentity(t *testing.T) {
 			testutil.ArtifactID(t, artifact.KindFile, "stage-receipt-input"),
 		}}},
 	}
-	first, err := NewStageReceipt(fixture)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(NewStageReceipt(fixture))(t)
 	second, err := NewStageReceipt(fixture)
 	if err != nil || first.ID != second.ID {
 		t.Fatalf("stage receipt identity = (%s, %s, %v)", first.ID, second.ID, err)
@@ -44,8 +43,7 @@ func TestStageAdmittedCrashRecovers(t *testing.T) {
 		Node:   "execute", Operation: testutil.ArtifactID(t, artifact.KindEvidence, "stage-admitted-operation"),
 		Attempt: 1, State: StageAdmitted,
 	}
-	previous, err := NewStageReceipt(base)
-	testcheck.NoError(t, err)
+	previous := testcheck.Must(NewStageReceipt(base))(t)
 	retry := base
 	retry.Attempt, retry.State = 2, StageAdmitted
 	if !stageTransition(previous, retry) {
@@ -68,12 +66,9 @@ func TestStageAdmittedCrashRecovers(t *testing.T) {
 // returns the identity the store holds it by.
 func earlierStageReceipt(t *testing.T, store artifact.Repository, value StageReceipt) artifact.ID {
 	t.Helper()
-	receipt, err := NewStageReceipt(value)
-	testcheck.NoError(t, err)
-	present, err := stageReceiptCodec.Content(receipt)
-	testcheck.NoError(t, err)
-	earlier, err := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: StageReceiptMediaType, Schema: stageReceiptEarlierSchema}.ContentBytes(present.Data)
-	testcheck.NoError(t, err)
+	receipt := testcheck.Must(NewStageReceipt(value))(t)
+	present := testcheck.Must(stageReceiptCodec.Content(receipt))(t)
+	earlier := testcheck.Must(artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: StageReceiptMediaType, Schema: stageReceiptEarlierSchema}.ContentBytes(present.Data))(t)
 	if earlier.Descriptor.ID != receipt.ID {
 		t.Fatalf("an earlier receipt of the same bytes is %s, the present one %s; a receipt's identity is its bytes'", earlier.Descriptor.ID, receipt.ID)
 	}
@@ -123,8 +118,7 @@ func TestStageReceiptOfTheEarlierFormIsRead(t *testing.T) {
 	if err != nil || !found || tip.ID != next.ID {
 		t.Fatalf("the stage's alias resolves %s (found %t, %v); want the next receipt %s", tip.ID, found, err, next.ID)
 	}
-	timeline, err := DeriveOperatorTimeline(ctx, store, operation, 8)
-	testcheck.NoError(t, err)
+	timeline := testcheck.Must(DeriveOperatorTimeline(ctx, store, operation, 8))(t)
 	walked := map[artifact.ID]bool{}
 	for _, event := range timeline {
 		walked[event.Artifact] = true

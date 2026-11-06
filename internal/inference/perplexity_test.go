@@ -87,8 +87,7 @@ func TestAddOutputBiasBroadcastsAcrossTokens(t *testing.T) {
 }
 
 func TestNegativeLogProbability(t *testing.T) {
-	got, err := negativeLogProbability([]float32{1, 2, 3}, 2)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(negativeLogProbability([]float32{1, 2, 3}, 2))(t)
 	want := math.Log(math.Exp(-2) + math.Exp(-1) + 1)
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("negative log probability = %.15g, want %.15g", got, want)
@@ -96,8 +95,7 @@ func TestNegativeLogProbability(t *testing.T) {
 }
 
 func TestNegativeLogProbabilityIsStableAndRejectsInvalidData(t *testing.T) {
-	got, err := negativeLogProbability([]float32{10000, 9999}, 0)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(negativeLogProbability([]float32{10000, 9999}, 0))(t)
 	if math.Abs(got-math.Log1p(math.Exp(-1))) > 1e-12 {
 		t.Fatalf("stable negative log probability = %.15g", got)
 	}

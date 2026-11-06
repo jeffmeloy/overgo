@@ -19,14 +19,12 @@ func TestAStoreHoldsItsTensorsInOneAllocation(t *testing.T) {
 	cudatest.Require(t)
 	source := mixedFixture(t, rand.New(rand.NewPCG(41, 42)))
 	loaded := newDeviceStores(t)
-	before, err := loaded.worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	before := testcheck.Must(loaded.worker.MemoryStats(t.Context()))(t)
 	file := source.parse(t)
 	loader := NewLoader(file)
 	source.route(loader, loaded.stores, file)
 	testcheck.NoError(t, loader.Load(t.Context(), nil))
-	after, err := loaded.worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	after := testcheck.Must(loaded.worker.MemoryStats(t.Context()))(t)
 	if routed := source.check(t, file, loaded.stores, loaded.download); routed != loaded.loaded() {
 		t.Fatalf("stores hold %d tensors, want the %d routed", loaded.loaded(), routed)
 	}

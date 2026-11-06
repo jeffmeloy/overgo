@@ -14,8 +14,7 @@ import (
 )
 
 func TestKimiDeclaredSplit(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "kimi-declared-split.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join("testdata", "kimi-declared-split.json")))(t)
 	var fixture struct {
 		Source          string    `json:"source"`
 		SourceSHA256    string    `json:"source_sha256"`

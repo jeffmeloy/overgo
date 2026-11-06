@@ -17,16 +17,13 @@ import (
 
 func TestIFEvalTokenizerAcceptance(t *testing.T) {
 	t.Parallel()
-	tokenizer, err := compiledIFEvalTokenizer()
-	testcheck.NoError(t, err)
+	tokenizer := testcheck.Must(compiledIFEvalTokenizer())(t)
 	parse := func(text string) artifact.ID {
 		t.Helper()
-		id, err := artifact.ParseID(text)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.ParseID(text))(t)
 		return id
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var selection struct {
 		Oracle   artifact.ID
@@ -62,13 +59,11 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 	}
 	compare := func(name, raw string, want observation) {
 		t.Helper()
-		sentences, err := tokenizer.sentences(raw)
-		testcheck.NoError(t, err)
+		sentences := testcheck.Must(tokenizer.sentences(raw))(t)
 		if !slices.Equal(sentences, want.Sentences) {
 			t.Errorf("%s sentence tokens differ", name)
 		}
-		words, err := tokenizer.words(raw)
-		testcheck.NoError(t, err)
+		words := testcheck.Must(tokenizer.words(raw))(t)
 		if !slices.Equal(words, want.Words) {
 			t.Errorf("%s word tokens differ", name)
 		}

@@ -52,19 +52,16 @@ func TestCarriedContinuationScoresWhatAMemoryCarried(t *testing.T) {
 		{Name: "eight words", Text: "one two three four five six seven eight"},
 		{Name: "sixteen words", Text: "a b c d e f g h i j k l m n o p"},
 	}}
-	compiled, err := compileCarriedContinuation(suite)
-	testcheck.NoError(t, err)
-	plan, err := bindCarriedContinuation(compiled, ExactAuthorities{
+	compiled := testcheck.Must(compileCarriedContinuation(suite))(t)
+	plan := testcheck.Must(bindCarriedContinuation(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	var asked []string
-	report, err := evaluateCarriedContinuation(t.Context(), store, wordMemory{&asked}, compiled, plan)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(evaluateCarriedContinuation(t.Context(), store, wordMemory{&asked}, compiled, plan))(t)
 	// A token, the first document loses 4 fresh and 1 carried, the second 8 and
 	// 2: gains of 3 and 6, whose mean is 4.5 and whose standard error is 1.5.
 	near := func(got, want float64) bool { return math.Abs(got-want) < 1e-12 }

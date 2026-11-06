@@ -85,11 +85,9 @@ var workspaceFileAllowances = map[string][]string{
 // each production file reaches only the workspaces its allowance names.
 func TestWorkspaceDependencyBoundaries(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	dir := filepath.Join(root, "internal", "server")
-	entries, err := os.ReadDir(dir)
-	testcheck.NoError(t, err)
+	entries := testcheck.Must(os.ReadDir(dir))(t)
 	violations := []string{}
 	observed := map[string]map[string]bool{}
 	for _, entry := range entries {
@@ -97,8 +95,7 @@ func TestWorkspaceDependencyBoundaries(t *testing.T) {
 		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, name), nil, 0)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), filepath.Join(dir, name), nil, 0))(t)
 		for _, declaration := range parsed.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Recv == nil || len(function.Recv.List) != 1 {
@@ -168,10 +165,8 @@ func workspaceHandlerReceiver(function *ast.FuncDecl) bool {
 // starts a new commit chain cannot return unnoticed.
 func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
-	parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "overgodb", "retention.go"), nil, 0)
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
+	parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "overgodb", "retention.go"), nil, 0))(t)
 	var operations, committers []string
 	for _, declaration := range parsed.Decls {
 		function, ok := declaration.(*ast.FuncDecl)
@@ -199,15 +194,13 @@ func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
 // capability files of capabilityruntime to no runtime import.
 func TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode(t *testing.T) {
 	t.Parallel()
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	testcheck.NoError(t, err)
+	root := testcheck.Must(filepath.Abs(filepath.Join("..", "..")))(t)
 	forbidden := []string{
 		"overgo/internal/inference", "overgo/internal/server",
 		"overgo/internal/llamaserver", "overgo/internal/composition",
 	}
 	for _, file := range []string{"peer.go", "peer_invoke.go"} {
-		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "capabilityruntime", file), nil, parser.ImportsOnly)
-		testcheck.NoError(t, err)
+		parsed := testcheck.Must(parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "capabilityruntime", file), nil, parser.ImportsOnly))(t)
 		for _, imported := range parsed.Imports {
 			path := strings.Trim(imported.Path.Value, `"`)
 			if slices.Contains(forbidden, path) {

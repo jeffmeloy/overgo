@@ -39,8 +39,7 @@ func TestRankPairPromptUsesConfiguredSeparators(t *testing.T) {
 	vocab := &tokenizer.Vocab{
 		BOS: 1, EOS: 2, SEP: 3, AddBOS: true, AddEOS: true, AddSEP: true,
 	}
-	prompt, err := assembleRankPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5})
-	testcheck.NoError(t, err)
+	prompt := testcheck.Must(assembleRankPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5}))(t)
 	want := []tokenizer.TokenID{1, 4, 2, 3, 5, 2}
 	if len(prompt) != len(want) {
 		t.Fatalf("rank tokens = %v", prompt)
@@ -78,15 +77,13 @@ func TestProjectRankScoresHost(t *testing.T) {
 	}}, gguf.WriteOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions()))(t)
 	info, ok := file.Tensor("cls.output.weight")
 	if !ok {
 		t.Fatal("classifier tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{ClassifierOutput: &info}}}
-	scores, err := runner.projectRankScores(t.Context(), []float32{2, 3})
-	testcheck.NoError(t, err)
+	scores := testcheck.Must(runner.projectRankScores(t.Context(), []float32{2, 3}))(t)
 	if len(scores) != 2 || scores[0] != 2 || scores[1] != 3 {
 		t.Fatalf("scores = %v", scores)
 	}

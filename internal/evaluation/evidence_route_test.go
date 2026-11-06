@@ -29,8 +29,7 @@ func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 	if err != nil || loaded.ID != decision.ID {
 		t.Fatalf("loaded decision = %+v, %v", loaded, err)
 	}
-	parents, err := fixture.store.Parents(t.Context(), decision.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(fixture.store.Parents(t.Context(), decision.ID))(t)
 	if slices.ContainsFunc(parents, func(edge artifact.Lineage) bool { return edge.Parent == fixture.wantWinner }) {
 		t.Fatal("derived selection was published as document lineage")
 	}
@@ -65,10 +64,8 @@ func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
 	declaration.Description = "Inspect a capability that never entered the registered catalog."
 	declaration.Effect = agenttool.EffectInspection
 	declaration.Transport.Kind = agenttool.TransportBuiltin
-	manual, err := agenttool.NewManual(declaration)
-	testcheck.NoError(t, err)
-	data, err := manual.Content()
-	testcheck.NoError(t, err)
+	manual := testcheck.Must(agenttool.NewManual(declaration))(t)
+	data := testcheck.Must(manual.Content())(t)
 	content := artifact.Content{Descriptor: artifact.Descriptor{
 		ID: manual.ID, Size: uint64(len(data)), MediaType: agenttool.ManualMediaType, Schema: agenttool.ManualSchema,
 	}, Data: data}
@@ -128,8 +125,7 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 	fixtures := []*productionProbeFixture{&first, &second}
 	observations := make([]runrecord.ServingObservation, len(fixtures))
 	for index, fixture := range fixtures {
-		observations[index], err = runrecord.RequireServingAttemptObservation(t.Context(), store, fixture.request.Observation)
-		testcheck.NoError(t, err)
+		observations[index] = testcheck.Must(runrecord.RequireServingAttemptObservation(t.Context(), store, fixture.request.Observation))(t)
 	}
 	low, high := 0, 1
 	if observations[1].MeasuredNS < observations[0].MeasuredNS {
@@ -173,13 +169,12 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 		if err != nil {
 			t.Fatalf("publish route probe %d: %v", index, err)
 		}
-		manuals[index], err = agenttool.NewManual(agenttool.Manual{
+		manuals[index] = testcheck.Must(agenttool.NewManual(agenttool.Manual{
 			Name: "route.inspect." + string(rune('a'+index)), Description: "Inspect one exact production capability.",
 			Effect:     agenttool.EffectInspection,
 			Transport:  agenttool.Transport{Kind: agenttool.TransportBuiltin, Protocol: "probe-model/1"},
 			Capability: fixture.request.Placement.Capability.ID,
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 	}
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatalf("publish route manuals: %v", err)
@@ -187,13 +182,11 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 	derivation := testutil.ArtifactID(t, artifact.KindProfile, "route-policy")
 	testutil.PublishArtifact(t, store, derivation)
 	authorityEvidence := []artifact.ID{probes[0].ID, probes[1].ID, manuals[0].ID, manuals[1].ID}
-	authority, err := recipe.NewDecision(
+	authority := testcheck.Must(recipe.NewDecision(
 		first.testCase.ID, recipe.DecisionAccepted, recipe.EvidenceProduction, "",
 		recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation}, authorityEvidence,
-	)
-	testcheck.NoError(t, err)
-	authorityBatch, err := authority.Batch("route/authority")
-	testcheck.NoError(t, err)
+	))(t)
+	authorityBatch := testcheck.Must(authority.Batch("route/authority"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, authorityBatch); err != nil {
 		t.Fatalf("publish route authority: %v", err)
 	}
@@ -215,25 +208,22 @@ func publishRouteFailure(
 	maxAttempts uint32,
 ) runrecord.TerminalAttemptReceipt {
 	t.Helper()
-	observation, err := runrecord.PublishFailureObservation(t.Context(), store, runrecord.FailureObservation{
+	observation := testcheck.Must(runrecord.PublishFailureObservation(t.Context(), store, runrecord.FailureObservation{
 		Source: "evidence-route", Message: "connection refused", ObservedUnixNS: 1_700_000_000_000_000_001,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	normalization := runrecord.NormalizeFailureObservation(observation)
 	// Bind the requested deterministic cause without asking fallback callers to
 	// classify free-form errors. Tests use the classifier's own cause below.
 	if normalization.Cause != cause {
 		cause = normalization.Cause
 	}
-	normalization, err = runrecord.PublishFailureNormalization(t.Context(), store, normalization)
-	testcheck.NoError(t, err)
+	normalization = testcheck.Must(runrecord.PublishFailureNormalization(t.Context(), store, normalization))(t)
 	disposition := executionfailure.Decide(executionfailure.Situation{Cause: cause, Attempts: 1, MaxAttempts: maxAttempts})
-	receipt, err := runrecord.PublishTerminalAttemptReceipt(t.Context(), store, runrecord.TerminalAttemptReceipt{
+	receipt := testcheck.Must(runrecord.PublishTerminalAttemptReceipt(t.Context(), store, runrecord.TerminalAttemptReceipt{
 		Operation: operation, Capability: capability, Outcome: runrecord.OutcomeFailed,
 		FailureObservation: observation.ID, FailureNormalization: normalization.ID, Disposition: &disposition,
 		Gaps:           []string{runrecord.GapProcessTermination, runrecord.GapResources, runrecord.GapToolOutput, runrecord.GapTranscript},
 		ObservedUnixNS: 1_700_000_000_000_000_002,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	return receipt
 }

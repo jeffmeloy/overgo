@@ -26,10 +26,8 @@ func fixtureAttempt(t *testing.T) AttemptRecord {
 // TestAttemptRecordRoundTrip pins the attempt contract: a validated
 // record re-parses to the identical identity and observations.
 func TestAttemptRecordRoundTrip(t *testing.T) {
-	record, err := NewAttemptRecord(fixtureAttempt(t))
-	testcheck.NoError(t, err)
-	content, err := record.Content()
-	testcheck.NoError(t, err)
+	record := testcheck.Must(NewAttemptRecord(fixtureAttempt(t)))(t)
+	content := testcheck.Must(record.Content())(t)
 	parsed, err := attemptCodec.Parse(content.Data)
 	if err != nil || parsed.ID != record.ID || parsed.PlanItem != "attempt-records" ||
 		parsed.Selection.Excluded != 5 || parsed.Diff.Insertions != 40 {

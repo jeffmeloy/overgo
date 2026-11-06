@@ -15,8 +15,7 @@ import (
 // readings 5% lower files no row, and read 10% past that level files one, to be restored to the declared level.
 func TestADeclaredTradeIsNotFiledAgain(t *testing.T) {
 	t.Parallel()
-	trades, err := scorecard.DeclaredTrades()
-	testcheck.NoError(t, err)
+	trades := testcheck.Must(scorecard.DeclaredTrades())(t)
 	at := -1
 	for index, trade := range trades {
 		if trade.Name == "Qwen3.8-27B" && trade.Column == metric.PeakMemory {
@@ -42,8 +41,7 @@ func TestADeclaredTradeIsNotFiledAgain(t *testing.T) {
 		if _, err := improver.Propose(current, current.Gaps(scorecard.Reference(append(records, current)))); err != nil {
 			t.Fatal(err)
 		}
-		document, err := plan.Load(improver.plan)
-		testcheck.NoError(t, err)
+		document := testcheck.Must(plan.Load(improver.plan))(t)
 		// The row's other gaps, such as its path compared with no reference, are not the trade's.
 		declines := 0
 		for _, item := range document.Items {

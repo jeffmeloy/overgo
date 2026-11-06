@@ -14,8 +14,7 @@ import (
 // tests.
 func TestATestOnlyChangeRunsNoScorecardSlice(t *testing.T) {
 	t.Parallel()
-	reaches, err := discover(testutil.RepoRoot(t), slice)
-	testcheck.NoError(t, err)
+	reaches := testcheck.Must(discover(testutil.RepoRoot(t), slice))(t)
 	for _, change := range []struct {
 		path    string
 		reached bool
@@ -41,8 +40,7 @@ func TestATestOnlyChangeRunsNoScorecardSlice(t *testing.T) {
 		"support/support.go":    "package support\n\nvar Value = 2\n",
 	})
 	binary, tests := lane{packages: []string{"./tool"}, binary: true}, lane{packages: []string{"./tool"}}
-	fixtureReaches, err := discover(repo, binary, tests)
-	testcheck.NoError(t, err)
+	fixtureReaches := testcheck.Must(discover(repo, binary, tests))(t)
 	for _, change := range []struct {
 		path                 string
 		binary, testsReached bool

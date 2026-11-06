@@ -22,11 +22,9 @@ import (
 // scratch store at the landing.
 func TestMediaMeasurementRetainedProjection(t *testing.T) {
 	t.Parallel()
-	scope, err := resolveMediaReportScope("image-video")
-	testcheck.NoError(t, err)
+	scope := testcheck.Must(resolveMediaReportScope("image-video"))(t)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	retained := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_protocol.json"), &protocol))

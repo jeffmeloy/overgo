@@ -20,10 +20,9 @@ func incrementalSelectionFixture(t *testing.T, names ...string) InteractionSelec
 			Documents: 1, Depth: uint32(index + 1),
 		})
 	}
-	selection, err := SelectInteractions(InteractionSelectionBounds{
+	selection := testcheck.Must(SelectInteractions(InteractionSelectionBounds{
 		MaxTokens: 1000, MaxBytes: 10000, MaxDocuments: 10, MaxDepth: 10, MaxResults: 10,
-	}, artifact.CommitID{0x11}, sources, nil)
-	testcheck.NoError(t, err)
+	}, artifact.CommitID{0x11}, sources, nil))(t)
 	return selection
 }
 
@@ -35,8 +34,7 @@ func incrementalSelectionFixture(t *testing.T, names ...string) InteractionSelec
 func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	prior := incrementalSelectionFixture(t, "alpha", "beta")
 	current := incrementalSelectionFixture(t, "beta", "gamma")
-	delta, err := SelectIncremental(prior, current)
-	testcheck.NoError(t, err)
+	delta := testcheck.Must(SelectIncremental(prior, current))(t)
 	if len(delta.Reused) != 1 || len(delta.Fresh) != 1 {
 		t.Fatalf("delta decomposition = %+v", delta)
 	}
@@ -60,8 +58,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 		t.Fatal("foreign source set validated")
 	}
 
-	identical, err := SelectIncremental(prior, prior)
-	testcheck.NoError(t, err)
+	identical := testcheck.Must(SelectIncremental(prior, prior))(t)
 	if len(identical.Fresh) != 0 || identical.TransferBytes != 0 || len(identical.Reused) != len(prior.Sources) {
 		t.Fatalf("unchanged context still transfers bytes: %+v", identical)
 	}

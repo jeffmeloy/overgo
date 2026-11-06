@@ -60,8 +60,7 @@ func TestResolvedEnvironmentRejectsInvalidBinding(t *testing.T) {
 	for _, path := range []string{"", "relative"} {
 		roots := fallback(base)
 		roots.Models = path
-		raw, err := json.Marshal(environmentBinding{Base: base, Roots: roots})
-		testcheck.NoError(t, err)
+		raw := testcheck.Must(json.Marshal(environmentBinding{Base: base, Roots: roots}))(t)
 		t.Setenv(boundEnvironment, string(raw))
 		if _, err := Resolve(base); err == nil {
 			t.Fatalf("incomplete binding accepted: %s", raw)

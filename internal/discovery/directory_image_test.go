@@ -22,10 +22,9 @@ func TestADirectoryThatIsItsConversionsImageServesFromItself(t *testing.T) {
 	conversion, directory := filepath.Join(root, "Tiny-LM-f16.gguf"), filepath.Join(root, "Tiny-LM")
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte("tiny-lm"))
 	descriptor := artifact.Descriptor{ID: component, Size: 7}
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	batch := artifact.Batch{Key: "fixture/discovery/directory-image", Artifacts: []artifact.Descriptor{descriptor}, Manifests: []artifact.Manifest{manifest}}
 	for _, location := range []artifact.Location{
 		{Artifact: component, Kind: artifact.LocationFile, Value: conversion},

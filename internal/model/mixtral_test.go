@@ -24,8 +24,7 @@ func TestMixtralMetadataCatalogAndGraph(t *testing.T) {
 		metadata("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
 		metadata("llama.vocab_size", gguf.ValueTypeUint32, uint32(32)),
 	}}
-	spec, err := ReadSpec(file)
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(ReadSpec(file))(t)
 	if spec.ExpertFeedForward != 12 || spec.ExpertCount != 4 || spec.ExpertUsedCount != 2 {
 		t.Fatalf("unexpected Mixtral spec: %+v", spec)
 	}
@@ -37,8 +36,7 @@ func TestMixtralMetadataCatalogAndGraph(t *testing.T) {
 		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4), tensorInfo("blk.0.ffn_gate_exps.weight", 8, 12, 4),
 		tensorInfo("blk.0.ffn_up_exps.weight", 8, 12, 4), tensorInfo("blk.0.ffn_down_exps.weight", 12, 8, 4),
 	}
-	weights, err := readFixtureWeights(file, spec)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(readFixtureWeights(file, spec))(t)
 	if weights.Layers[0].FeedForwardRouter == nil {
 		t.Fatal("Mixtral expert catalog was not loaded")
 	}
@@ -52,8 +50,7 @@ func TestMixtralMetadataCatalogAndGraph(t *testing.T) {
 	graphWeights.FeedForwardGateExperts = b.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	graphWeights.FeedForwardUpExperts = b.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	graphWeights.FeedForwardDownExperts = b.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
-	output, err := buildFixtureDenseBlock(b, input, spec, graphWeights, []uint32{0, 1})
-	testcheck.NoError(t, err)
+	output := testcheck.Must(buildFixtureDenseBlock(b, input, spec, graphWeights, []uint32{0, 1}))(t)
 	nodes, _ := tensor.Topological(output)
 	for _, node := range nodes {
 		if node.Op == tensor.OpMoE && node.Attrs.(tensor.MoEAttributes).NormalizeTopKProb {

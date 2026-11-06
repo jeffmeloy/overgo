@@ -83,12 +83,11 @@ func TestDequantizeScalarStorageTypes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output, err := Dequantize(
+			output := testcheck.Must(Dequantize(
 				test.dataType,
 				test.source,
 				uint64(len(test.want)),
-			)
-			testcheck.NoError(t, err)
+			))(t)
 			if !slices.Equal(output, test.want) {
 				t.Fatalf("output = %v, want %v", output, test.want)
 			}
@@ -127,8 +126,7 @@ func TestDequantizeQ8_0(t *testing.T) {
 	for index := range 32 {
 		source[2+index] = byte(int8(index - 16))
 	}
-	output, err := Dequantize(dtype.Q8_0, source, 32)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q8_0, source, 32))(t)
 	for index, value := range output {
 		want := float32(index-16) * 0.5
 		if value != want {
@@ -149,8 +147,7 @@ func TestDequantizeQ4(t *testing.T) {
 	for index := range 16 {
 		q40[2+index] = byte(index) | byte(15-index)<<4
 	}
-	output, err := Dequantize(dtype.Q4_0, q40, 32)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q4_0, q40, 32))(t)
 	for index := range 16 {
 		if output[index] != float32(index-8) {
 			t.Fatalf("low output[%d] = %v", index, output[index])
@@ -164,8 +161,7 @@ func TestDequantizeQ4(t *testing.T) {
 	binary.LittleEndian.PutUint16(q41, 0x3800)     // 0.5
 	binary.LittleEndian.PutUint16(q41[2:], 0xc000) // -2
 	copy(q41[4:], q40[2:])
-	output, err = Dequantize(dtype.Q4_1, q41, 32)
-	testcheck.NoError(t, err)
+	output = testcheck.Must(Dequantize(dtype.Q4_1, q41, 32))(t)
 	if output[0] != -2 || output[15] != 5.5 || output[16] != 5.5 {
 		t.Fatalf("unexpected Q4_1 values: %v %v %v", output[0], output[15], output[16])
 	}
@@ -178,8 +174,7 @@ func TestDequantizeQ8_1(t *testing.T) {
 	for index := range 32 {
 		source[4+index] = byte(int8(index - 16))
 	}
-	output, err := Dequantize(dtype.Q8_1, source, 32)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q8_1, source, 32))(t)
 	if output[0] != -8 || output[16] != 0 || output[31] != 7.5 {
 		t.Fatalf("Q8_1 values = %v/%v/%v, want -8/0/7.5", output[0], output[16], output[31])
 	}
@@ -191,8 +186,7 @@ func TestDequantizeQ8K(t *testing.T) {
 	for index := range 256 {
 		source[4+index] = byte(int8(index%127 - 63))
 	}
-	output, err := Dequantize(dtype.Q8K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q8K, source, 256))(t)
 	if output[0] != -15.75 || output[63] != 0 || output[126] != 15.75 {
 		t.Fatalf("Q8_K values = %v/%v/%v", output[0], output[63], output[126])
 	}
@@ -202,8 +196,7 @@ func TestDequantizeQ1AndQ2(t *testing.T) {
 	q1 := make([]byte, 18)
 	binary.LittleEndian.PutUint16(q1, 0x4000) // 2
 	q1[2] = 0b00000101
-	output, err := Dequantize(dtype.Q1_0, q1, 128)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q1_0, q1, 128))(t)
 	want := []float32{2, -2, 2, -2}
 	for index := range want {
 		if output[index] != want[index] {
@@ -214,8 +207,7 @@ func TestDequantizeQ1AndQ2(t *testing.T) {
 	q2 := make([]byte, 18)
 	binary.LittleEndian.PutUint16(q2, 0x3c00) // 1
 	q2[2] = 0b11100100
-	output, err = Dequantize(dtype.Q2_0, q2, 64)
-	testcheck.NoError(t, err)
+	output = testcheck.Must(Dequantize(dtype.Q2_0, q2, 64))(t)
 	want = []float32{-1, 0, 1, 2}
 	for index := range want {
 		if output[index] != want[index] {
@@ -232,8 +224,7 @@ func TestDequantizeQ6K(t *testing.T) {
 		source[192+index] = 1
 	}
 	binary.LittleEndian.PutUint16(source[208:], 0x3c00) // 1
-	output, err := Dequantize(dtype.Q6K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q6K, source, 256))(t)
 	for index, want := range map[int]float32{
 		0:  -17,
 		32: -16,
@@ -255,8 +246,7 @@ func TestDequantizeQ6KScaleGroups(t *testing.T) {
 		source[192+index] = byte(int8(index + 1))
 	}
 	binary.LittleEndian.PutUint16(source[208:], 0x3800) // 0.5
-	output, err := Dequantize(dtype.Q6K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q6K, source, 256))(t)
 	for index, want := range map[int]float32{
 		0:   -16,
 		16:  -32,
@@ -280,8 +270,7 @@ func TestDequantizeQ2K(t *testing.T) {
 	source[16] = 0x03
 	binary.LittleEndian.PutUint16(source[80:], 0x3c00)
 	binary.LittleEndian.PutUint16(source[82:], 0x3c00)
-	output, err := Dequantize(dtype.Q2K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q2K, source, 256))(t)
 	if output[0] != 1 || output[1] != -2 || output[255] != -2 {
 		t.Fatalf("Q2_K values = %v/%v/%v, want 1/-2/-2", output[0], output[1], output[255])
 	}
@@ -297,8 +286,7 @@ func TestDequantizeQ3K(t *testing.T) {
 	}
 	source[0] = 0x01
 	binary.LittleEndian.PutUint16(source[108:], 0x3c00)
-	output, err := Dequantize(dtype.Q3K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q3K, source, 256))(t)
 	if output[0] != 0 || output[1] != -4 || output[255] != -4 {
 		t.Fatalf("Q3_K values = %v/%v/%v, want 0/-4/-4", output[0], output[1], output[255])
 	}
@@ -311,8 +299,7 @@ func TestDequantizeQ4K(t *testing.T) {
 	source[4] = 1
 	source[8] = 2
 	source[16] = 3
-	output, err := Dequantize(dtype.Q4K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q4K, source, 256))(t)
 	if output[0] != 1 || output[1] != -2 || output[32] != 0 {
 		t.Fatalf("Q4_K values = %v/%v/%v, want 1/-2/0", output[0], output[1], output[32])
 	}
@@ -326,8 +313,7 @@ func TestDequantizeQ5K(t *testing.T) {
 	source[8] = 2
 	source[16] = 1
 	source[48] = 3
-	output, err := Dequantize(dtype.Q5K, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.Q5K, source, 256))(t)
 	if output[0] != 17 || output[1] != -2 || output[32] != 0 {
 		t.Fatalf("Q5_K values = %v/%v/%v, want 17/-2/0", output[0], output[1], output[32])
 	}
@@ -340,8 +326,7 @@ func TestDequantizeIQ4XS(t *testing.T) {
 	binary.LittleEndian.PutUint16(source[2:], 0x0002)
 	source[4] = 0x01
 	source[8] = 0xf0
-	output, err := Dequantize(dtype.IQ4XS, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.IQ4XS, source, 256))(t)
 	if output[0] != -63.5 || output[16] != 56.5 || output[32] != 2032 {
 		t.Fatalf("IQ4_XS values = %v/%v/%v, want -63.5/56.5/2032", output[0], output[16], output[32])
 	}
@@ -351,8 +336,7 @@ func TestDequantizeIQ4NL(t *testing.T) {
 	source := make([]byte, 18)
 	binary.LittleEndian.PutUint16(source[0:], 0x3800) // 0.5
 	source[2] = 0xf0
-	output, err := Dequantize(dtype.IQ4NL, source, 32)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.IQ4NL, source, 32))(t)
 	if output[0] != -63.5 || output[16] != 56.5 ||
 		output[15] != -63.5 || output[31] != -63.5 {
 		t.Fatalf(
@@ -369,8 +353,7 @@ func TestDequantizeTQ2_0(t *testing.T) {
 	source := make([]byte, 66)
 	source[0] = 0xe4
 	binary.LittleEndian.PutUint16(source[64:], 0x3800) // 0.5
-	output, err := Dequantize(dtype.TQ2_0, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.TQ2_0, source, 256))(t)
 	if output[0] != -0.5 || output[32] != 0 ||
 		output[64] != 0.5 || output[96] != 1 ||
 		output[128] != -0.5 {
@@ -393,8 +376,7 @@ func TestDequantizeTQ1_0(t *testing.T) {
 	source[32] = 171
 	source[48] = 86
 	binary.LittleEndian.PutUint16(source[52:], 0x3800) // 0.5
-	output, err := Dequantize(dtype.TQ1_0, source, 256)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.TQ1_0, source, 256))(t)
 	if output[0] != -0.5 || output[1] != 0 || output[2] != 0.5 ||
 		output[32] != -0.5 || output[160] != 0.5 ||
 		output[240] != 0 || output[244] != -0.5 {
@@ -415,8 +397,7 @@ func TestDequantizeMXFP4(t *testing.T) {
 	source := make([]byte, 17)
 	source[0] = 128 // E8M0 half-scale = 1
 	source[1] = 0xf1
-	output, err := Dequantize(dtype.MXFP4, source, 32)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.MXFP4, source, 32))(t)
 	if output[0] != 1 || output[16] != -12 ||
 		output[1] != 0 || output[17] != 0 {
 		t.Fatalf(
@@ -428,8 +409,7 @@ func TestDequantizeMXFP4(t *testing.T) {
 		)
 	}
 	source[0] = 0
-	output, err = Dequantize(dtype.MXFP4, source, 32)
-	testcheck.NoError(t, err)
+	output = testcheck.Must(Dequantize(dtype.MXFP4, source, 32))(t)
 	if output[0] != math.Float32frombits(0x00200000) {
 		t.Fatalf("MXFP4 denormal scale value = %v", output[0])
 	}
@@ -443,8 +423,7 @@ func TestDequantizeNVFP4(t *testing.T) {
 	source[3] = 0x7f
 	source[4] = 0xf1
 	source[12] = 0x25
-	output, err := Dequantize(dtype.NVFP4, source, 64)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(Dequantize(dtype.NVFP4, source, 64))(t)
 	if output[0] != 1 || output[8] != -12 ||
 		output[16] != 6.75 || output[24] != 2.25 ||
 		output[32] != 0 || output[48] != 0 {
@@ -537,8 +516,7 @@ func TestDequantizeIQCodebooksMatchPinnedLlamaCPP(t *testing.T) {
 				source[53] = source[53]&0x0f | 0x30
 				source[55] &= 0x0f
 			}
-			output, err := Dequantize(test.dataType, source, 256)
-			testcheck.NoError(t, err)
+			output := testcheck.Must(Dequantize(test.dataType, source, 256))(t)
 			encoded := make([]byte, len(output)*4)
 			for index, value := range output {
 				binary.LittleEndian.PutUint32(

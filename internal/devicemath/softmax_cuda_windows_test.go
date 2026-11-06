@@ -39,8 +39,7 @@ func hostSoftmaxRows(s []float32, rows, d int) []float64 {
 // central finite differences of L = sum(dp ⊙ softmax(s)) w.r.t. s.
 func TestSoftmaxBackwardGradCheck(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const rows, d = 8, 12
@@ -53,8 +52,7 @@ func TestSoftmaxBackwardGradCheck(t *testing.T) {
 	for i := range pF64 {
 		p[i] = float32(pF64[i])
 	}
-	ds, err := SoftmaxBackward(worker, p, dp, rows, d)
-	testcheck.NoError(t, err)
+	ds := testcheck.Must(SoftmaxBackward(worker, p, dp, rows, d))(t)
 
 	loss := func() float64 {
 		pp := hostSoftmaxRows(s, rows, d)

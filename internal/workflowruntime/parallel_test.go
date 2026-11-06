@@ -138,8 +138,7 @@ func TestDeterministicParallelReceipts(t *testing.T) {
 	for range 2 {
 		fixture := newParallelFixture(t)
 		registerParallelAdapters(t, fixture, func(_ context.Context, value string) (string, error) { return value, nil })
-		result, err := fixture.execute(t.Context())
-		testcheck.NoError(t, err)
+		result := testcheck.Must(fixture.execute(t.Context()))(t)
 		if result.Outputs[parallelOutputPort].Items[0].Value != "left,right" {
 			t.Fatalf("nondeterministic output = %+v", result.Outputs)
 		}
@@ -187,7 +186,7 @@ func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.Modu
 	left := recipe.Node{ID: "left", Module: leftModule, Placement: recipe.PlacementHost}
 	right := recipe.Node{ID: "right", Module: rightModule, Placement: recipe.PlacementHost}
 	sink := recipe.Node{ID: "sink", Module: join.ID, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}},
 		[]recipe.Node{left, right, sink},
 		[]recipe.Edge{
@@ -199,16 +198,11 @@ func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.Modu
 			{Name: parallelRightPort, Data: recipe.DataText, Target: recipe.Endpoint{Node: right.ID, Port: "input"}},
 		},
 		[]recipe.Output{{Name: parallelOutputPort, Data: recipe.DataText, Source: recipe.Endpoint{Node: sink.ID, Port: parallelOutputPort}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := recipe.NewCatalog(modules...)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
-	runtime, err := NewForProgram(store, program)
-	testcheck.NoError(t, err)
-	operation, err := ExecutionID(definition.ID, "parallel")
-	testcheck.NoError(t, err)
+	))(t)
+	catalog := testcheck.Must(recipe.NewCatalog(modules...))(t)
+	program := testcheck.Must(recipe.CompileProgram(definition, catalog))(t)
+	runtime := testcheck.Must(NewForProgram(store, program))(t)
+	operation := testcheck.Must(ExecutionID(definition.ID, "parallel"))(t)
 	return parallelFixture{store: store, program: program, runtime: runtime, operation: operation}
 }
 

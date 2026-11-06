@@ -37,8 +37,7 @@ func TestDownloadReceipt(t *testing.T) {
 	output := filepath.Join(root, "source.json")
 	args := []string{"download", "-provider", "modelscope", "-endpoint", hub.URL, "-revision", revision, "-dest", destination, "-receipt", output, "openmoss/tiny"}
 	testcheck.NoError(t, runArguments(t.Context(), args))
-	data, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(output))(t)
 	var receipt hfrepo.SourceReceipt
 	testcheck.NoError(t, json.Unmarshal(data, &receipt))
 	if receipt.Source != hub.URL+"/openmoss/tiny.git" || receipt.Revision != revision || len(receipt.Files) != 1 {
@@ -48,8 +47,7 @@ func TestDownloadReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, runArguments(t.Context(), args))
-	repeat, err := os.ReadFile(output)
-	testcheck.NoError(t, err)
+	repeat := testcheck.Must(os.ReadFile(output))(t)
 	if !bytes.Equal(data, repeat) || transfers != 1 {
 		t.Fatalf("repeat changed receipt or redownloaded verified bytes: transfers=%d", transfers)
 	}

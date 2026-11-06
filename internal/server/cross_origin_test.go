@@ -88,11 +88,9 @@ func TestCrossOriginMutationProtection(t *testing.T) {
 		server := httptest.NewServer(newTestHandler(t, &fakeGenerator{}))
 		defer server.Close()
 		for _, host := range []string{"attacker.invalid", "localhost"} {
-			request, err := http.NewRequest(http.MethodGet, server.URL+"/v1/models", nil)
-			testcheck.NoError(t, err)
+			request := testcheck.Must(http.NewRequest(http.MethodGet, server.URL+"/v1/models", nil))(t)
 			request.Host = host
-			response, err := server.Client().Do(request)
-			testcheck.NoError(t, err)
+			response := testcheck.Must(server.Client().Do(request))(t)
 			response.Body.Close()
 			want := http.StatusForbidden
 			if host == "localhost" {

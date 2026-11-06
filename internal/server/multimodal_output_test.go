@@ -21,8 +21,7 @@ func TestMultimodalOutputProjection(t *testing.T) {
 	t.Parallel()
 	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator))(t)
 	defer handler.Close()
 	ctx := t.Context()
 	description, described := handler.interactionDescription()
@@ -30,8 +29,7 @@ func TestMultimodalOutputProjection(t *testing.T) {
 		t.Fatal("serving fixture lacks an interaction description")
 	}
 	pngBytes := []byte{0x89, 'P', 'N', 'G', 0, 1, 2, 3}
-	mediaID, err := artifact.IdentifyBytes(artifact.KindOutput, pngBytes)
-	testcheck.NoError(t, err)
+	mediaID := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, pngBytes))(t)
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key: "multimodal-output-fixture",
 		Contents: []artifact.Content{{

@@ -34,8 +34,7 @@ func TestWorkflowSubmissionCommand(t *testing.T) {
 			},
 		},
 	}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	submission := `{"task":"speech","recipe":"` + recipeID.String() + `","input":{"text":"it's here","seed":17}}`
 	answered := serveTestRequest(handler, http.MethodPost, "/generation/command", submission)

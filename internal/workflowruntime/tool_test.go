@@ -33,10 +33,8 @@ func TestTypedToolExecution(t *testing.T) {
 		func(_ context.Context, value toolArguments) (toolOutput, error) {
 			return toolOutput{Value: value.Left + value.Right}, nil
 		}))
-	call, err := recipe.NewToolCall("call", testToolModule, json.RawMessage(`{"left":2,"right":3}`))
-	testcheck.NoError(t, err)
-	result, err := executor.ExecuteTool(t.Context(), call)
-	testcheck.NoError(t, err)
+	call := testcheck.Must(recipe.NewToolCall("call", testToolModule, json.RawMessage(`{"left":2,"right":3}`)))(t)
+	result := testcheck.Must(executor.ExecuteTool(t.Context(), call))(t)
 	var output toolOutput
 	if err := json.Unmarshal(result.Output, &output); err != nil || output.Value != 5 {
 		t.Fatalf("output = %s, error = %v", result.Output, err)
@@ -51,8 +49,7 @@ func TestLongRunningToolOperation(t *testing.T) {
 			<-ctx.Done()
 			return toolOutput{}, ctx.Err()
 		}))
-	call, err := recipe.NewToolCall("long", testToolModule, json.RawMessage(`{}`))
-	testcheck.NoError(t, err)
+	call := testcheck.Must(recipe.NewToolCall("long", testToolModule, json.RawMessage(`{}`)))(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
@@ -71,8 +68,7 @@ func toolExecutorFixture(
 	execute func(context.Context, recipe.ToolCall) (recipe.ToolResult, error),
 ) *ToolExecutor {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	model := testutil.ArtifactID(t, artifact.KindModel, "tool-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "tool/model", Artifacts: []artifact.Descriptor{{ID: model}},
@@ -81,20 +77,16 @@ func toolExecutorFixture(
 	}
 	module := recipe.ToolModule(testToolModule, recipe.PlacementHost)
 	node := recipe.Node{ID: "execute", Module: module.ID, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}},
 		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: recipe.ToolCallPort, Data: recipe.DataToolCall, Target: recipe.Endpoint{Node: node.ID, Port: recipe.ToolCallPort}}},
 		[]recipe.Output{{Name: recipe.ToolResultPort, Data: recipe.DataToolResult, Source: recipe.Endpoint{Node: node.ID, Port: recipe.ToolResultPort}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := recipe.NewCatalog(module)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
-	executor, err := NewToolExecutor(store, program, testToolRetention, execute)
-	testcheck.NoError(t, err)
+	))(t)
+	catalog := testcheck.Must(recipe.NewCatalog(module))(t)
+	program := testcheck.Must(recipe.CompileProgram(definition, catalog))(t)
+	executor := testcheck.Must(NewToolExecutor(store, program, testToolRetention, execute))(t)
 	t.Cleanup(func() { executor.Close(); store.Close() })
 	return executor
 }

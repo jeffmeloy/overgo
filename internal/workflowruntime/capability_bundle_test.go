@@ -24,20 +24,16 @@ func (repository *countingRepository) OpenContent(ctx context.Context, id artifa
 
 func TestCapabilityResourceOnDemand(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	repository := &countingRepository{Repository: store, contentReads: make(map[artifact.ID]int)}
 	model := testutil.ArtifactID(t, artifact.KindModel, "bundle-tool-model")
 	contract := artifact.DocumentContract{Kind: artifact.KindFile, MediaType: "text/plain", Schema: "overgo/capability-resource/v1"}
-	instruction, err := contract.ContentBytes([]byte("instruction"))
-	testcheck.NoError(t, err)
-	resource, err := contract.ContentBytes([]byte("resource"))
-	testcheck.NoError(t, err)
-	bundle, err := artifact.NewManifest(artifact.KindProfile, []artifact.Component{
+	instruction := testcheck.Must(contract.ContentBytes([]byte("instruction")))(t)
+	resource := testcheck.Must(contract.ContentBytes([]byte("resource")))(t)
+	bundle := testcheck.Must(artifact.NewManifest(artifact.KindProfile, []artifact.Component{
 		{Role: artifact.ComponentInstruction, Name: "system", Artifact: instruction.Descriptor.ID},
 		{Role: artifact.ComponentResource, Name: "schema", Artifact: resource.Descriptor.ID},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testcheck.NoError(t, artifact.ValidateCapabilityBundle(bundle))
 	if _, err := repository.Commit(ctx, artifact.Batch{
 		Key: "bundle-tool/artifacts", Artifacts: []artifact.Descriptor{{ID: model}},
@@ -47,7 +43,7 @@ func TestCapabilityResourceOnDemand(t *testing.T) {
 	}
 	module := recipe.ToolModule(testToolModule, recipe.PlacementHost)
 	node := recipe.Node{ID: "execute", Module: module.ID, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference,
 		[]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: model},
@@ -56,19 +52,14 @@ func TestCapabilityResourceOnDemand(t *testing.T) {
 		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: recipe.ToolCallPort, Data: recipe.DataToolCall, Target: recipe.Endpoint{Node: node.ID, Port: recipe.ToolCallPort}}},
 		[]recipe.Output{{Name: recipe.ToolResultPort, Data: recipe.DataToolResult, Source: recipe.Endpoint{Node: node.ID, Port: recipe.ToolResultPort}}},
-	)
-	testcheck.NoError(t, err)
-	catalog, err := recipe.NewCatalog(module)
-	testcheck.NoError(t, err)
-	program, err := recipe.CompileProgram(definition, catalog)
-	testcheck.NoError(t, err)
-	executor, err := NewToolExecutor(repository, program, testToolRetention, typedToolAdapter(
+	))(t)
+	catalog := testcheck.Must(recipe.NewCatalog(module))(t)
+	program := testcheck.Must(recipe.CompileProgram(definition, catalog))(t)
+	executor := testcheck.Must(NewToolExecutor(repository, program, testToolRetention, typedToolAdapter(
 		func(context.Context, toolArguments) (toolOutput, error) { return toolOutput{}, nil },
-	))
-	testcheck.NoError(t, err)
+	)))(t)
 	t.Cleanup(func() { executor.Close(); _ = repository.Close() })
-	loaded, err := executor.LoadCapabilityComponent(ctx, bundle.ID, artifact.ComponentResource, "schema")
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(executor.LoadCapabilityComponent(ctx, bundle.ID, artifact.ComponentResource, "schema"))(t)
 	if loaded.Descriptor.ID != resource.Descriptor.ID || repository.contentReads[resource.Descriptor.ID] != 1 ||
 		repository.contentReads[instruction.Descriptor.ID] != 0 {
 		t.Fatalf("loaded=%s reads=%v", loaded.Descriptor.ID, repository.contentReads)

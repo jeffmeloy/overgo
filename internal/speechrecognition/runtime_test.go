@@ -22,11 +22,10 @@ func BenchmarkRecognizerWaveform(b *testing.B) {
 		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7_000},
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
-	model, err := LoadRecognizer(b.Context(), directory, RecognizerSpec{
+	model := testcheck.Must(LoadRecognizer(b.Context(), directory, RecognizerSpec{
 		Declaration: declaration, Frontend: frontend,
 		Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 400},
-	}, 1<<24)
-	testcheck.NoError(b, err)
+	}, 1<<24))(b)
 	request := TranscriptionRequest{Audio: transcriptionWAV(testWave(frontend.SampleRate)), MaximumSamples: uint64(frontend.SampleRate), MemoryBytes: 1 << 24}
 	want, err := model.Transcribe(b.Context(), request)
 	if err != nil || want == "" {
@@ -87,17 +86,14 @@ func TestRecognizerLoadAdmission(t *testing.T) {
 func TestTranscriptStageEncodesItsOutput(t *testing.T) {
 	t.Parallel()
 	for _, text := range []string{"a transcript", ""} {
-		content, err := transcriptContent(text)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(transcriptContent(text))(t)
 		testcheck.NoError(t, content.Validate())
 		if content.Descriptor.ID.Kind() != artifact.KindFile {
 			t.Fatalf("transcript identity kind = %q", content.Descriptor.ID.Kind())
 		}
 	}
-	first, err := transcriptContent("one")
-	testcheck.NoError(t, err)
-	second, err := transcriptContent("another")
-	testcheck.NoError(t, err)
+	first := testcheck.Must(transcriptContent("one"))(t)
+	second := testcheck.Must(transcriptContent("another"))(t)
 	if first.Descriptor.ID == second.Descriptor.ID {
 		t.Fatal("two transcripts share one identity")
 	}

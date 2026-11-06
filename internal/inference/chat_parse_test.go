@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseQwenJSONToolCalls(t *testing.T) {
-	message, err := parseChatOutput(
+	message := testcheck.Must(parseChatOutput(
 		`{{ tool_call.arguments | tojson }}`,
 		"<think>\ncheck weather\n</think>\n\nI will check.\n"+
 			"<tool_call>\n"+
@@ -18,8 +18,7 @@ func TestParseQwenJSONToolCalls(t *testing.T) {
 			`{"name":"time","arguments":{"zone":"UTC"}}`+
 			"\n</tool_call>",
 		nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if message.Role != "assistant" ||
 		message.ReasoningContent != "check weather" ||
 		message.Content != "I will check." ||
@@ -47,7 +46,7 @@ func TestParseHermesToolCallCoercesSchemaTypes(t *testing.T) {
 			},
 		},
 	}}
-	message, err := parseChatOutput(
+	message := testcheck.Must(parseChatOutput(
 		`<function=example_function_name>`,
 		"look it up\n</think>\n\n"+
 			"<tool_call>\n<function=weather>\n"+
@@ -57,8 +56,7 @@ func TestParseHermesToolCallCoercesSchemaTypes(t *testing.T) {
 			"<parameter=options>\n{\"hourly\":true}\n</parameter>\n"+
 			"</function>\n</tool_call>",
 		tools,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if message.ReasoningContent != "look it up" ||
 		message.Content != "" ||
 		len(message.ToolCalls) != 1 ||
@@ -112,8 +110,7 @@ func TestParseChatOutputRejectsMalformedTagsAndPayloads(t *testing.T) {
 
 func TestParseChatOutputLeavesPlainContentUntouched(t *testing.T) {
 	const output = "  ordinary answer\n"
-	message, err := parseChatOutput("", output, nil)
-	testcheck.NoError(t, err)
+	message := testcheck.Must(parseChatOutput("", output, nil))(t)
 	if message.Content != output || len(message.ToolCalls) != 0 {
 		t.Fatalf("parsed message = %+v", message)
 	}

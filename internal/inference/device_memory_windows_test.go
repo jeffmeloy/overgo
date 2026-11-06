@@ -24,17 +24,14 @@ import (
 func TestDeviceMemoryOwners(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	runner, err := openF32FixtureRunner(testutil.HermeticLlamaGGUF(t, hermeticContext), OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openF32FixtureRunner(testutil.HermeticLlamaGGUF(t, hermeticContext), OpenOptions{}))(t)
 	defer runner.Close()
 	ctx := t.Context()
 	if _, _, err := runner.Generate(ctx, "ab", GenerateOptions{MaxNewTokens: 4}); err != nil {
 		t.Fatal(err)
 	}
-	memory, err := runner.DeviceMemory(ctx)
-	testcheck.NoError(t, err)
-	stats, err := runner.DeviceMemoryStats(ctx)
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(runner.DeviceMemory(ctx))(t)
+	stats := testcheck.Must(runner.DeviceMemoryStats(ctx))(t)
 	var owned, weights uint64
 	for _, owner := range memory.Owners {
 		owned += owner.Bytes
@@ -63,8 +60,7 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 			banks = append(banks, info)
 		}
 	}
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	var weights *modeldevice.DeviceWeights
 	var cuda *executor.Executor
 	closed := false
@@ -85,8 +81,7 @@ func TestAcceleratorTeardownReclaimsPromptLoans(t *testing.T) {
 	testcheck.NoError(t, cuda.SetExpertBanks(weights))
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(64, 1))
-	graph, err := executor.Compile(builder.Add(builder.Multiply(input, input), input))
-	testcheck.NoError(t, err)
+	graph := testcheck.Must(executor.Compile(builder.Add(builder.Multiply(input, input), input)))(t)
 	retained, err := cuda.ExecuteRetainedCompiledOnce(ctx, graph, map[*tensor.Tensor]reference.Value{
 		input: {Shape: input.Shape, Data: make([]float32, 64)},
 	}, nil, nil, nil)

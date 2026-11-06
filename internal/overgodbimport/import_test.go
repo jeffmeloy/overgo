@@ -20,16 +20,13 @@ const importFixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestLegacyProfileUpgradeAddsCurrentProvenance(t *testing.T) {
 	profile, _ := model.LookupArchitecture("llama")
-	legacy, err := json.Marshal(struct {
+	legacy := testcheck.Must(json.Marshal(struct {
 		Version      uint16                    `json:"version"`
 		Architecture string                    `json:"architecture"`
 		Policy       model.ArchitectureProfile `json:"policy"`
-	}{Version: 1, Architecture: profile.Name, Policy: profile})
-	testcheck.NoError(t, err)
-	upgraded, err := upgradeLegacyProfile(legacy)
-	testcheck.NoError(t, err)
-	document, err := modelrecipe.ParseProfileDocument(upgraded)
-	testcheck.NoError(t, err)
+	}{Version: 1, Architecture: profile.Name, Policy: profile}))(t)
+	upgraded := testcheck.Must(upgradeLegacyProfile(legacy))(t)
+	document := testcheck.Must(modelrecipe.ParseProfileDocument(upgraded))(t)
 	if document.Version != modelrecipe.ProfileVersion || len(document.Provenance) == 0 {
 		t.Fatalf("upgraded profile = %+v", document)
 	}
@@ -51,8 +48,7 @@ func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 	}
 	input := importStream(t, records, nil)
 	store := overgodbtest.Open(t, t.TempDir())
-	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(importRecords(t.Context(), store, root, nil, bytes.NewReader(input)))(t)
 	if !result.Commit.Valid() || result.Source.Kind() != artifact.KindEvidence || len(result.Names) != 3 {
 		t.Fatalf("import result = %+v", result)
 	}
@@ -96,8 +92,7 @@ func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 	if _, err := importRecords(t.Context(), store, "", nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("empty artifact root accepted")
 	}
-	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(importRecords(t.Context(), store, root, nil, bytes.NewReader(input)))(t)
 	query, err := store.Query(t.Context(), overgodb.Query{
 		MaxResults: 10, FromSequence: 1, ToSequence: 1,
 		Projection: overgodb.ProjectCommits,
@@ -122,12 +117,10 @@ func TestExternalEvidenceImportDerivesNativeRunEvaluationLineage(t *testing.T) {
 		{Type: "artifact", Name: "evaluation", Kind: "evaluation", MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema, Document: json.RawMessage(`{"version":1,"recipe":{"$artifact":"recipe"},"run":{"$artifact":"run"},"dataset":{"$artifact":"dataset"},"metrics":[{"name":"score","value":1,"direction":"maximize"}]}`)},
 	}
 	store := overgodbtest.Open(t, t.TempDir())
-	result, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, nil)))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, nil))))(t)
 	requireParent := func(child, parent artifact.ID, relation artifact.Relation) {
 		t.Helper()
-		edges, err := store.Parents(t.Context(), child)
-		testcheck.NoError(t, err)
+		edges := testcheck.Must(store.Parents(t.Context(), child))(t)
 		for _, edge := range edges {
 			if edge.Parent == parent && edge.Relation == relation {
 				return
@@ -155,8 +148,7 @@ func importStream(t *testing.T, records []wireRecord, counts map[string]uint64) 
 	header := Header{Type: "manifest", Version: Version, SourceCommit: importFixtureCommit, Counts: counts}
 	var output bytes.Buffer
 	encode := func(value any) {
-		content, err := json.Marshal(value)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(json.Marshal(value))(t)
 		output.Write(content)
 		output.WriteByte('\n')
 	}

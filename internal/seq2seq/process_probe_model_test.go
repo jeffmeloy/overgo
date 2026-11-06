@@ -21,9 +21,7 @@ func TestSingleTokenProcessProbe(t *testing.T) {
 	if directory == "" {
 		testskip.NotApplicable(t, "child process probe requires OVERGO_NEEDLE_MODEL")
 	}
-	generator, err := LoadGenerator(directory)
-	testcheck.NoError(t, err)
-	output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: "hello", MaxTokens: 1})
-	testcheck.NoError(t, err)
+	generator := testcheck.Must(LoadGenerator(directory))(t)
+	output := testcheck.Must(generateThroughRecipe(t, generator, textgeneration.Request{Text: "hello", MaxTokens: 1}))(t)
 	fmt.Printf("NEEDLE_PROCESS_PROBE output=%q\n", output)
 }

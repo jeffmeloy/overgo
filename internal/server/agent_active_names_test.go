@@ -29,8 +29,7 @@ func TestActiveAgentNamesReadOnlyTheActivationRoot(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	names, err := fixture.handler.activeAgentNames(t.Context())
-	testcheck.NoError(t, err)
+	names := testcheck.Must(fixture.handler.activeAgentNames(t.Context()))(t)
 	if !slices.Equal(names, []string{"research-agent"}) {
 		t.Fatalf("active agent names = %v, want [research-agent]", names)
 	}

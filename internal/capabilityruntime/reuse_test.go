@@ -100,11 +100,9 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 		if fresh {
 			ctx = FreshRun(ctx)
 		}
-		got, err := model(ctx, store, "model", selection, `{"value":4}`)
-		testcheck.NoError(t, err)
+		got := testcheck.Must(model(ctx, store, "model", selection, `{"value":4}`))(t)
 		answer = got.(Measured).Output.(int)
-		got, err = scorer(t.Context(), store, "scorer", selection, `{"observation":`+strconv.Itoa(answer)+`,"protocol":"exact"}`)
-		testcheck.NoError(t, err)
+		got = testcheck.Must(scorer(t.Context(), store, "scorer", selection, `{"observation":`+strconv.Itoa(answer)+`,"protocol":"exact"}`))(t)
 		return answer, got.(Measured).Output.(int)
 	}
 	for _, build := range []struct {
@@ -127,8 +125,7 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 			testcheck.NoError(t, os.WriteFile(preprocessor, []byte("a longer vocabulary"), 0o644))
 		}, 3, 2, 8},
 		{"other bytes in that file, under the size and the time it had", func() {
-			before, err := os.Stat(preprocessor)
-			testcheck.NoError(t, err)
+			before := testcheck.Must(os.Stat(preprocessor))(t)
 			testcheck.NoError(t, os.WriteFile(preprocessor, []byte("a longer dictionary"), 0o644))
 			testcheck.NoError(t, os.Chtimes(preprocessor, before.ModTime(), before.ModTime()))
 			if after, err := os.Stat(preprocessor); err != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {

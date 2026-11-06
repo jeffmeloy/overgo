@@ -19,7 +19,7 @@ import (
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	batch := recipe.Node{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost}
-	definition, err := recipe.NewDefinitionWithDependencies(
+	definition := testcheck.Must(recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining,
 		[]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: testutil.ArtifactID(t, artifact.KindModel, "authority-model")},
@@ -27,8 +27,7 @@ func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 		},
 		[]recipe.Node{batch}, nil, nil,
 		[]recipe.Output{{Name: "batch", Data: recipe.DataBatch, Source: recipe.Endpoint{Node: batch.ID, Port: "batch"}}},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	counting := &repositorytest.CountingRepository{Repository: store}
 	runtime := &Runtime{store: counting}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "authority-operation")

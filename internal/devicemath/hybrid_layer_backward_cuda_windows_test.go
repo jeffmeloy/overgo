@@ -21,8 +21,7 @@ import (
 // GDN backward composition). Every grad group is compared to the host golden.
 func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 
 	const tol = 1e-3
@@ -58,8 +57,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 
 		_, c := hostmath.HybridDecoderLayerForward(x, w, d, nil)
 		want := hostmath.HybridDecoderLayerBackward(x, w, d, nil, dOut, c)
-		got, err := HybridDecoderLayerBackwardDevice(worker, x, w, d, nil, dOut)
-		testcheck.NoError(t, err)
+		got := testcheck.Must(HybridDecoderLayerBackwardDevice(worker, x, w, d, nil, dOut))(t)
 		verifyHybridCachedBackward(t, worker, x, w, d, nil, dOut, got)
 
 		check := func(name string, a, b []float32) {
@@ -120,8 +118,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 
 		_, c := hostmath.HybridDecoderLayerForward(x, w, d, state)
 		want := hostmath.HybridDecoderLayerBackward(x, w, d, state, dOut, c)
-		got, err := HybridDecoderLayerBackwardDevice(worker, x, w, d, state, dOut)
-		testcheck.NoError(t, err)
+		got := testcheck.Must(HybridDecoderLayerBackwardDevice(worker, x, w, d, state, dOut))(t)
 		verifyHybridCachedBackward(t, worker, x, w, d, state, dOut, got)
 		if !got.IsLinear {
 			t.Fatal("device grads not flagged IsLinear for the GDN mix")

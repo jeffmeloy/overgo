@@ -19,8 +19,7 @@ import (
 // agrees with its host oracle, whose direction is shorter than the 8+2 direction by the factor the update's size takes.
 func TestResidentScheduleIsRecordedAndJudged(t *testing.T) {
 	cudatest.Require(t)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
 	var ops *deviceOps
 	if err := worker.Do(context.Background(), func(state *device.State) error {
@@ -42,8 +41,7 @@ func TestResidentScheduleIsRecordedAndJudged(t *testing.T) {
 		"training": {NewResidentMatrixMuonTrainingPlan, residentSchedule},
 		"host":     {NewResidentMatrixMuonPlan, ""},
 	} {
-		plan, err := build.open(worker, matrices, config)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(build.open(worker, matrices, config))(t)
 		if got := plan.Schedule(); got != build.want {
 			t.Errorf("the %s plan names schedule %q, want %q", name, got, build.want)
 		}

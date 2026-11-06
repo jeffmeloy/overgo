@@ -16,12 +16,10 @@ import (
 func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(root))(t)
 	commit := func(key, mediaType string, data []byte) artifact.ID {
 		t.Helper()
-		id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.IdentifyBytes(artifact.KindFile, data))(t)
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 			Key:      key,
 			Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: mediaType}, Data: data}},
@@ -35,10 +33,8 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	newer := commit("server/gallery-newest/3", "image/jpeg", []byte("newer image"))
 	// A generated output carries the run that produced it, the record a gallery opens.
 	output := []byte("a generated image")
-	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, output)
-	testcheck.NoError(t, err)
-	producer, err := artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run"))
-	testcheck.NoError(t, err)
+	outputID := testcheck.Must(artifact.IdentifyBytes(artifact.KindOutput, output))(t)
+	producer := testcheck.Must(artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run")))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key:       "server/gallery-newest/4",
 		Artifacts: []artifact.Descriptor{{ID: producer, Size: 1}},
@@ -48,8 +44,7 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{OvergoDBPath: root, MaxStoredResponses: 8}, &fakeGenerator{}))(t)
 	t.Cleanup(func() { _ = handler.Close() })
 	list := func(query string) []artifact.ID {
 		t.Helper()

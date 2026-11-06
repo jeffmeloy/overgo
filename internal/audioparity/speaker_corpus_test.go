@@ -39,8 +39,7 @@ func verifySpeakerCorpus(t *testing.T, corpus speakerCorpus, publication *audioP
 	t.Helper()
 	root := filepath.Dir(corpus.path)
 	waveID := alignmentFileID(t, corpus.Source.SHA256)
-	data, err := os.ReadFile(corpus.path)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(corpus.path))(t)
 	audio, _, err := media.DecodeAudio(t.Context(), data, uint64(len(data)))
 	testcheck.NoError(t, err)
 	if audio.Format.SampleRate != 16000 || audio.Format.Channels != 1 || uint64(len(audio.Samples)) != corpus.SourceSamples {
@@ -101,8 +100,7 @@ func verifySpeakerCorpus(t *testing.T, corpus speakerCorpus, publication *audioP
 		if clip.Start != start || clip.End != start+window || !reflect.DeepEqual(clip.Segments, clipped) {
 			t.Fatal("pre-inference annotated election differs")
 		}
-		encoded, err := media.EncodeWAVPCM16(audio.Samples[clip.Start:clip.End], 16000)
-		testcheck.NoError(t, err)
+		encoded := testcheck.Must(media.EncodeWAVPCM16(audio.Samples[clip.Start:clip.End], 16000))(t)
 		id, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
 		if err != nil || id.DigestHex() != clip.SHA256 {
 			t.Fatal("crop differs from continuous source")

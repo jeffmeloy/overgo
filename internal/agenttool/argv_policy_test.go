@@ -15,12 +15,11 @@ import (
 func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	manual, err := NewManual(Manual{
+	manual := testcheck.Must(NewManual(Manual{
 		Name: "probe.exec", Description: "Run the fixture program.",
 		Effect:    EffectMutation,
 		Transport: Transport{Kind: TransportArgv, Program: "git", Args: []string{"status"}},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if _, err := PublishManualCatalog(ctx, store, []Manual{manual}); err == nil {
 		t.Fatal("argv manual published with NO committed policy")
 	}
@@ -48,11 +47,10 @@ func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
 		t.Fatal("invocation admitted a program the current policy dropped")
 	}
 	// Non-argv manuals never consult the policy.
-	builtin, err := NewManual(Manual{
+	builtin := testcheck.Must(NewManual(Manual{
 		Name: "probe.pure", Description: "Inspect nothing.",
 		Effect: EffectInspection, Transport: Transport{Kind: TransportBuiltin},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if err := CheckArgvAuthority(ctx, store, builtin); err != nil {
 		t.Fatalf("non-argv manual consulted the argv policy: %v", err)
 	}

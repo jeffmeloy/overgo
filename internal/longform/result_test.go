@@ -20,8 +20,7 @@ func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644))
-	weights, err := os.Open(weightsPath)
-	testcheck.NoError(t, err)
+	weights := testcheck.Must(os.Open(weightsPath))(t)
 	model, _, err := artifact.Identify(artifact.KindModel, weights)
 	weights.Close()
 	testcheck.NoError(t, err)
@@ -54,8 +53,7 @@ func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	passing.RealizedResidency = recipe.RealizedHostReference
 	passing.Measure.PromptTokensPerSecond = 2400
 	passing.Verdict = Judge(passing.Measure, passing.Short, floors)
-	record, err := Publish(ctx, store, model, passing)
-	testcheck.NoError(t, err)
+	record := testcheck.Must(Publish(ctx, store, model, passing))(t)
 	byLocation := LatestByLocation(ctx, store, 0)
 	summary, found := byLocation[Key(strings.ToUpper(filepath.ToSlash(weightsPath)))]
 	if !found || summary.Record != record || !summary.Result.Verdict.Passed || summary.Result.Measure.PromptTokensPerSecond != 2400 {

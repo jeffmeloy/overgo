@@ -30,23 +30,17 @@ func TestSpeculativeSampleMatchesCommittedSamplerState(t *testing.T) {
 	logits := []float32{0.2, 1.7, -0.4, 0.9}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sampler, err := New(test.config)
-			testcheck.NoError(t, err)
-			probe, err := sampler.SampleWithHistoryProbabilities(logits, []int{1}, len(logits))
-			testcheck.NoError(t, err)
+			sampler := testcheck.Must(New(test.config))(t)
+			probe := testcheck.Must(sampler.SampleWithHistoryProbabilities(logits, []int{1}, len(logits)))(t)
 			sampler.Reset()
-			selected, err := sampler.SampleWithHistory(logits, []int{1})
-			testcheck.NoError(t, err)
-			baseline, err := sampler.SaveState()
-			testcheck.NoError(t, err)
+			selected := testcheck.Must(sampler.SampleWithHistory(logits, []int{1}))(t)
+			baseline := testcheck.Must(sampler.SaveState())(t)
 			sampler.Reset()
-			result, err := sampler.SpeculativeSample(logits, []int{1}, probe.Top, selected)
-			testcheck.NoError(t, err)
+			result := testcheck.Must(sampler.SpeculativeSample(logits, []int{1}, probe.Top, selected))(t)
 			if !result.Accepted || result.Token != selected {
 				t.Fatalf("result = %+v, selected = %d", result, selected)
 			}
-			state, err := sampler.SaveState()
-			testcheck.NoError(t, err)
+			state := testcheck.Must(sampler.SaveState())(t)
 			if !bytes.Equal(state, baseline) {
 				t.Fatal("speculative commit diverged from ordinary sampling state")
 			}
@@ -55,17 +49,15 @@ func TestSpeculativeSampleMatchesCommittedSamplerState(t *testing.T) {
 }
 
 func TestSpeculativeSampleUsesResidualCorrection(t *testing.T) {
-	sampler, err := New(Config{
+	sampler := testcheck.Must(New(Config{
 		Temperature: 1, TopK: 1, TopP: 1, Seed: 7,
 		Samplers: []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
-	})
-	testcheck.NoError(t, err)
-	result, err := sampler.SpeculativeSample(
+	}))(t)
+	result := testcheck.Must(sampler.SpeculativeSample(
 		[]float32{0, 10}, nil,
 		[]TokenProbability{{ID: 0, Probability: 0.75}, {ID: 1, Probability: 0.25}},
 		0,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if result.Accepted || result.Token != 1 || result.TargetProbability != 0 ||
 		result.DraftProbability != 0.75 || len(result.Target) != 1 ||
 		result.Target[0] != (TokenProbability{ID: 1, Probability: 1}) {
@@ -74,14 +66,12 @@ func TestSpeculativeSampleUsesResidualCorrection(t *testing.T) {
 }
 
 func TestSpeculativeSampleRatioOracle(t *testing.T) {
-	sampler, err := New(Config{Temperature: 1, Seed: 1})
-	testcheck.NoError(t, err)
-	result, err := sampler.SpeculativeSample(
+	sampler := testcheck.Must(New(Config{Temperature: 1, Seed: 1}))(t)
+	result := testcheck.Must(sampler.SpeculativeSample(
 		[]float32{float32(math.Log(0.25)), float32(math.Log(0.75))}, nil,
 		[]TokenProbability{{ID: 0, Probability: 0.5}, {ID: 1, Probability: 0.5}},
 		0,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if math.Abs(result.TargetProbability-0.25) > 1e-7 || result.DraftProbability != 0.5 {
 		t.Fatalf("result = %+v", result)
 	}
@@ -91,8 +81,7 @@ func TestSpeculativeSampleRatioOracle(t *testing.T) {
 }
 
 func TestSpeculativeSampleRejectsInvalidDraft(t *testing.T) {
-	sampler, err := New(Config{Temperature: 1})
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(New(Config{Temperature: 1}))(t)
 	invalid := [][]TokenProbability{
 		nil,
 		{{ID: 0, Probability: 0.4}},

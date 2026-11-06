@@ -14,14 +14,12 @@ import (
 func TestSFTEvaluationViewIsHeldOutAndAuthorityBound(t *testing.T) {
 	t.Parallel()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "SFT view dataset")
-	training, err := fixtureMembership(datasetID, "fit", dataset.Record{ID: "training", Group: "training-group"})
-	testcheck.NoError(t, err)
-	heldout, err := fixtureMembership(datasetID, "heldout", dataset.Record{ID: "heldout", Group: "heldout-group"})
-	testcheck.NoError(t, err)
+	training := testcheck.Must(fixtureMembership(datasetID, "fit", dataset.Record{ID: "training", Group: "training-group"}))(t)
+	heldout := testcheck.Must(fixtureMembership(datasetID, "heldout", dataset.Record{ID: "heldout", Group: "heldout-group"}))(t)
 	processor := testutil.ArtifactID(t, artifact.KindProfile, "SFT view processor")
 	projector := testutil.ArtifactID(t, artifact.KindProjector, "SFT view projector")
 	codec := testutil.ArtifactID(t, artifact.KindProfile, "SFT view codec")
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+	objective := testcheck.Must(trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "held-out fixture", Kind: trainingprogram.ObjectiveOCR,
 		Signature: recipecontract.ModalitySignature{
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityImage},
@@ -34,17 +32,14 @@ func TestSFTEvaluationViewIsHeldOutAndAuthorityBound(t *testing.T) {
 		Metric:     trainingprogram.MetricTokenAccuracy,
 		Evidence:   []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "SFT view evidence")},
 		Authority:  trainingprogram.ObjectiveApproved,
-	})
-	testcheck.NoError(t, err)
-	view, err := CompileSFTEvaluationView(objective, training, heldout)
-	testcheck.NoError(t, err)
+	}))(t)
+	view := testcheck.Must(CompileSFTEvaluationView(objective, training, heldout))(t)
 	if view.Objective != objective.ID || view.TrainingMembership != training.ID || view.HeldoutMembership != heldout.ID ||
 		view.Signature.Inputs[0] != recipecontract.ModalityImage || view.Processors[0] != processor ||
 		view.Projectors[0] != projector || view.Codecs[0] != codec {
 		t.Fatalf("view authority = %+v", view)
 	}
-	overlap, err := fixtureMembership(datasetID, "overlap", dataset.Record{ID: "other", Group: training.Records[0].Group})
-	testcheck.NoError(t, err)
+	overlap := testcheck.Must(fixtureMembership(datasetID, "overlap", dataset.Record{ID: "other", Group: training.Records[0].Group}))(t)
 	if _, err := CompileSFTEvaluationView(objective, training, overlap); err == nil {
 		t.Fatal("group-overlapping held-out membership accepted")
 	}

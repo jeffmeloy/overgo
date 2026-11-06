@@ -8,10 +8,8 @@ import (
 )
 
 func TestProjectPaddedF32BroadcastsProjectedZeroRow(t *testing.T) {
-	projection, err := CompileTwoLayerProjectionF32(1, []float32{2}, []float32{0}, []float32{1}, []float32{3})
-	testcheck.NoError(t, err)
-	got, err := ProjectPaddedF32([]float32{1}, 1, 3, projection, false)
-	testcheck.NoError(t, err)
+	projection := testcheck.Must(CompileTwoLayerProjectionF32(1, []float32{2}, []float32{0}, []float32{1}, []float32{3}))(t)
+	got := testcheck.Must(ProjectPaddedF32([]float32{1}, 1, 3, projection, false))(t)
 	if got[1] != got[2] || reflect.DeepEqual(got, []float32{0, 0, 0}) {
 		t.Fatalf("projection = %v", got)
 	}

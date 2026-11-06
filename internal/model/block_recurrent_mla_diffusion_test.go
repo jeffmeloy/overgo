@@ -33,10 +33,8 @@ func TestBuildRefactExpertBlock(t *testing.T) {
 		if gated {
 			weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 16, 4))
 		}
-		result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0)
-		testcheck.NoError(t, err)
-		nodes, err := tensor.Topological(result.Output)
-		testcheck.NoError(t, err)
+		result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0))(t)
+		nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 		found := false
 		for _, node := range nodes {
 			found = found || node.Op == tensor.OpMoE
@@ -71,10 +69,8 @@ func TestBuildBERTMoEBlockUsesGateFreeGELUExperts(t *testing.T) {
 				FeedForwardPostNorm:     builder.Input("ffn_post_norm", dtype.F32, tensor.MustShape(8)),
 				FeedForwardPostNormBias: builder.Input("ffn_post_norm_bias", dtype.F32, tensor.MustShape(8)),
 			}
-			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
-			testcheck.NoError(t, err)
-			nodes, err := tensor.Topological(result.Output)
-			testcheck.NoError(t, err)
+			result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1))(t)
+			nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 			var moe, rope int
 			for _, node := range nodes {
 				if node.Op == tensor.OpMoE {
@@ -101,8 +97,7 @@ func TestBuildDreamBlockUsesNonCausalAttentionAndRejectsCache(t *testing.T) {
 	weights.AttentionKNorm = nil
 	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
 	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(output)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(output))(t)
 	found := false
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention {
@@ -148,10 +143,8 @@ func TestBuildLLaDABlocksUseNonCausalAttention(t *testing.T) {
 				weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
 				weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
 			}
-			result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0)
-			testcheck.NoError(t, err)
-			nodes, err := tensor.Topological(result.Output)
-			testcheck.NoError(t, err)
+			result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 0))(t)
+			nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 			var attention *tensor.Tensor
 			var normal, neoX int
 			for _, node := range nodes {
@@ -195,10 +188,8 @@ func TestBuildRND1BlockUsesNonCausalMoE(t *testing.T) {
 	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 12, 4))
 	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(12, 8, 4))
-	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2})
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(output)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1, 2}))(t)
+	nodes := testcheck.Must(tensor.Topological(output))(t)
 	var nonCausal, moe bool
 	for _, node := range nodes {
 		if node.Op == tensor.OpAttention {
@@ -244,10 +235,8 @@ func TestBuildLagunaMoEBlockUsesYaRNGateAndSharedExpert(t *testing.T) {
 		FeedForwardSharedUp:    builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 10)),
 		FeedForwardSharedDown:  builder.Input("shared_down", dtype.F32, tensor.MustShape(10, 8)),
 	}
-	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1, 2}, nil, nil, 1))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	var moe *tensor.Tensor
 	var softplus, yarn bool
 	for _, node := range nodes {
@@ -296,8 +285,7 @@ func TestBuildLagunaSlidingLayerUsesPlainRoPEAndPerHeadGate(t *testing.T) {
 		FeedForwardUp:       builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1))(t)
 	nodes, _ := tensor.Topological(result.Output)
 	var window, plainRoPE, broadcastGate bool
 	for _, node := range nodes {
@@ -337,10 +325,9 @@ func TestBuildLFM2ShortConvolutionBlock(t *testing.T) {
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
 	plan := bindFixtureSpec(spec).PlanLayer(0, true)
-	result, err := buildFixtureLayerWithPlan(
+	result := testcheck.Must(buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1}, state, reserved, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(state.Shape) ||
 		!result.Value.Shape.Equal(reserved.Shape) {
 		t.Fatalf("unexpected LFM2 result: %+v", result)
@@ -375,16 +362,14 @@ func TestBuildLFM2CenteredShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := buildFixtureLayerWithPlan(
+	result := testcheck.Must(buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1, 2}, state, reserved,
 		bindFixtureSpec(spec).PlanLayer(0, true),
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(state.Shape) {
 		t.Fatalf("unexpected centered LFM2 result: %+v", result)
 	}
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	var convolution *tensor.Tensor
 	for _, node := range nodes {
 		if node.Op == tensor.OpSSMConv {
@@ -412,14 +397,12 @@ func TestBuildLFM2CenteredShortConvolutionSupportsEvenKernel(t *testing.T) {
 		FeedForwardUp:   builder.Input("ffn_up", dtype.F32, tensor.MustShape(4, 6)),
 		FeedForwardDown: builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 	}
-	result, err := buildFixtureLayerWithPlan(
+	result := testcheck.Must(buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1},
 		builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(3, 4)),
 		builder.Input("reserved", dtype.F32, tensor.MustShape(1)), bindFixtureSpec(spec).PlanLayer(0, true),
-	)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	var convolution *tensor.Tensor
 	for _, node := range nodes {
 		if node.Op == tensor.OpSSMConv {
@@ -456,13 +439,11 @@ func TestBuildLFM2MoEShortConvolutionBlock(t *testing.T) {
 	}
 	state := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 4))
 	reserved := builder.Input("reserved", dtype.F32, tensor.MustShape(1))
-	result, err := buildFixtureLayerWithPlan(
+	result := testcheck.Must(buildFixtureLayerWithPlan(
 		builder, input, spec, weights, []uint32{0, 1}, state, reserved,
 		bindFixtureSpec(spec).PlanLayer(2, true),
-	)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	var moe *tensor.Tensor
 	var convolution bool
 	for _, node := range nodes {
@@ -500,8 +481,7 @@ func TestBuildPLMMLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false)))(t)
 	if !result.Output.Shape.Equal(input.Shape) ||
 		!result.Key.Shape.Equal(tensor.MustShape(6, 2, 2)) ||
 		!result.Value.Shape.Equal(tensor.MustShape(4, 2, 2)) {
@@ -550,19 +530,17 @@ func TestBuildMambaBlock(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := bindFixtureSpec(spec).PlanLayer(0, false)
-	result, err := executeCompiledLayer(blockDispatchOptions{
+	result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(convState.Shape) ||
 		!result.Value.Shape.Equal(ssmState.Shape) {
 		t.Fatalf("unexpected Mamba result shapes: output=%v conv=%v ssm=%v", result.Output.Shape, result.Key.Shape, result.Value.Shape)
 	}
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value))(t)
 	convolution, scan := false, false
 	for _, node := range nodes {
 		convolution = convolution || node.Op == tensor.OpSSMConv
@@ -592,19 +570,17 @@ func TestBuildMamba2Block(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := bindFixtureSpec(spec).PlanLayer(0, false)
-	result, err := executeCompiledLayer(blockDispatchOptions{
+	result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(convState.Shape) ||
 		!result.Value.Shape.Equal(ssmState.Shape) {
 		t.Fatalf("unexpected Mamba2 result shapes: output=%v conv=%v ssm=%v", result.Output.Shape, result.Key.Shape, result.Value.Shape)
 	}
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value))(t)
 	convolution, scan, groupedNorm := false, false, false
 	for _, node := range nodes {
 		convolution = convolution || node.Op == tensor.OpSSMConv
@@ -645,7 +621,7 @@ func TestBuildFalconH1Block(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := bindFixtureSpec(spec).PlanLayer(0, false)
-	result, err := executeCompiledLayer(blockDispatchOptions{
+	result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: fixturePositions,
@@ -654,8 +630,7 @@ func TestBuildFalconH1Block(t *testing.T) {
 				CacheStateSSM:         {Mode: CacheStateFixed, Value: ssmState},
 			},
 		},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	convResult := result.States[CacheStateConvolution]
 	ssmResult := result.States[CacheStateSSM]
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(2, 1, 2)) ||
@@ -664,8 +639,7 @@ func TestBuildFalconH1Block(t *testing.T) {
 		!convResult.Value.Shape.Equal(convState.Shape) || !ssmResult.Value.Shape.Equal(ssmState.Shape) {
 		t.Fatalf("unexpected Falcon-H1 result: %+v", result)
 	}
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value, convResult.Value, ssmResult.Value)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value, convResult.Value, ssmResult.Value))(t)
 	attention, convolution, scan, rope := false, false, false, false
 	for _, node := range nodes {
 		attention = attention || node.Op == tensor.OpAttention
@@ -706,16 +680,14 @@ func TestBuildGraniteHybridRecurrentMoEBlock(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 16))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := bindFixtureSpec(spec).PlanLayer(0, true)
-	result, err := executeCompiledLayer(blockDispatchOptions{
+	result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: weights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 			Recurrent: true,
 		},
-	})
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	testcheck.NoError(t, err)
+	}))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value))(t)
 	convolution, scan, moe, scales := false, false, false, 0
 	for _, node := range nodes {
 		convolution = convolution || node.Op == tensor.OpSSMConv
@@ -764,16 +736,14 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 	convState := builder.Input(string(CacheStateConvolution), dtype.F32, tensor.MustShape(2, 8))
 	ssmState := builder.Input(string(CacheStateSSM), dtype.F32, tensor.MustShape(2, 8))
 	plan := bindFixtureSpec(spec).PlanLayer(0, true)
-	recurrent, err := executeCompiledLayer(blockDispatchOptions{
+	recurrent := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Spec: spec, Weights: recurrentWeights, Plan: &plan,
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, PastKey: convState, PastValue: ssmState,
 			Recurrent: true,
 		},
-	})
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(recurrent.Output, recurrent.Key, recurrent.Value)
-	testcheck.NoError(t, err)
+	}))(t)
+	nodes := testcheck.Must(tensor.Topological(recurrent.Output, recurrent.Key, recurrent.Value))(t)
 	convolution, scan := false, false
 	for _, node := range nodes {
 		convolution = convolution || node.Op == tensor.OpSSMConv
@@ -797,10 +767,8 @@ func TestBuildPLaMo2HybridBlocks(t *testing.T) {
 		FeedForwardDown:     builder.Input("ffn_down", dtype.F32, tensor.MustShape(6, 4)),
 		FeedForwardPostNorm: builder.Input("ffn_post", dtype.F32, tensor.MustShape(4)),
 	}
-	attention, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, attentionWeights, []uint32{0, 1}, nil, nil, 1)
-	testcheck.NoError(t, err)
-	nodes, err = tensor.Topological(attention.Output, attention.Key, attention.Value)
-	testcheck.NoError(t, err)
+	attention := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, attentionWeights, []uint32{0, 1}, nil, nil, 1))(t)
+	nodes = testcheck.Must(tensor.Topological(attention.Output, attention.Key, attention.Value))(t)
 	attentionOp, rope := false, false
 	for _, node := range nodes {
 		attentionOp = attentionOp || node.Op == tensor.OpAttention
@@ -834,10 +802,8 @@ func TestBuildJambaAttentionMoEBlock(t *testing.T) {
 		FeedForwardUpExperts:   builder.Input("up", dtype.F32, tensor.MustShape(4, 6, 4)),
 		FeedForwardDownExperts: builder.Input("down", dtype.F32, tensor.MustShape(6, 4, 4)),
 	}
-	result, err := buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(builder, input, spec, weights, []uint32{0, 1}, nil, nil, 1))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value))(t)
 	attention, moe, rope := false, false, false
 	for _, node := range nodes {
 		attention = attention || node.Op == tensor.OpAttention
@@ -889,13 +855,11 @@ func testBuildDeepSeek2FamilyAbsorbedMLABlock(t *testing.T, architecture string)
 		FeedForwardSharedUp:       builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 6)),
 		FeedForwardSharedDown:     builder.Input("shared_down", dtype.F32, tensor.MustShape(6, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(1, false))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(1, false)))(t)
 	if !result.Key.Shape.Equal(tensor.MustShape(5, 1, 2)) || !result.Value.Shape.Equal(tensor.MustShape(3, 1, 2)) {
 		t.Fatalf("unexpected absorbed cache shapes: key=%v value=%v", result.Key.Shape, result.Value.Shape)
 	}
-	nodes, err := tensor.Topological(result.Output, result.Key, result.Value)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.Key, result.Value))(t)
 	grouped, moe, temperature := 0, false, false
 	attentionScale := float32(0)
 	for _, node := range nodes {
@@ -944,8 +908,7 @@ func TestBuildMiniCPM3MLABlock(t *testing.T) {
 		FeedForwardUp:    builder.Input("ffn_up", dtype.F32, tensor.MustShape(8, 12)),
 		FeedForwardDown:  builder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
-	result, err := buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(buildFixtureLayerWithPlan(builder, input, spec, weights, []uint32{0, 1}, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false)))(t)
 	if !result.Output.Shape.Equal(input.Shape) || !result.Key.Shape.Equal(tensor.MustShape(6, 2, 2)) ||
 		!result.Value.Shape.Equal(tensor.MustShape(4, 2, 2)) {
 		t.Fatalf("unexpected MiniCPM3 result: %+v", result)
@@ -1000,16 +963,14 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
-	full, err := buildFixtureLayerWithAuxiliary(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false))
-	testcheck.NoError(t, err)
+	full := testcheck.Must(buildFixtureLayerWithAuxiliary(builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false)))(t)
 	indexerState, hasIndexerState := full.States[CacheStateIndexerKey]
 	if full.Auxiliary == nil || !full.Auxiliary.Shape.Equal(tensor.MustShape(2, 2)) ||
 		!hasIndexerState || indexerState.Mode != CacheStateToken ||
 		!indexerState.Value.Shape.Equal(tensor.MustShape(8, 1, 2)) {
 		t.Fatalf("unexpected full indexer result: %+v", full)
 	}
-	nodes, err := tensor.Topological(full.Output, full.Auxiliary, indexerState.Value)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(full.Output, full.Auxiliary, indexerState.Value))(t)
 	var fwht, score, topK, sparse bool
 	for _, node := range nodes {
 		fwht = fwht || node.Op == tensor.OpFWHT
@@ -1039,8 +1000,7 @@ func TestBuildGLMDSAFullAndSharedIndexer(t *testing.T) {
 		FeedForwardDown:  sharedBuilder.Input("ffn_down", dtype.F32, tensor.MustShape(12, 8)),
 	}
 	previous := sharedBuilder.Input("top_k", dtype.F32, tensor.MustShape(2, 2))
-	shared, err := buildFixtureLayerWithAuxiliary(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, bindFixtureSpec(spec).PlanLayer(1, false))
-	testcheck.NoError(t, err)
+	shared := testcheck.Must(buildFixtureLayerWithAuxiliary(sharedBuilder, sharedInput, spec, sharedWeights, []uint32{0, 1}, nil, nil, nil, previous, bindFixtureSpec(spec).PlanLayer(1, false)))(t)
 	if shared.Auxiliary != previous || len(shared.States) != 0 {
 		t.Fatalf("unexpected shared indexer result: %+v", shared)
 	}
@@ -1083,12 +1043,10 @@ func TestBuildDeepSeek32FullIndexer(t *testing.T) {
 		IndexerAttentionK:  builder.Input("indexer_k", dtype.F32, tensor.MustShape(8, 8)),
 		IndexerAttentionQB: builder.Input("indexer_q", dtype.F32, tensor.MustShape(3, 16)),
 	}
-	result, err := buildFixtureLayerWithAuxiliary(
+	result := testcheck.Must(buildFixtureLayerWithAuxiliary(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, nil, nil, bindFixtureSpec(spec).PlanLayer(0, false),
-	)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output, result.States[CacheStateIndexerKey].Value)
-	testcheck.NoError(t, err)
+	))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output, result.States[CacheStateIndexerKey].Value))(t)
 	var neoX, affineLayerNorm, sparse int
 	for _, node := range nodes {
 		switch node.Op {
@@ -1166,19 +1124,17 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	}
 	positionState := builder.Input("positions", dtype.F32, tensor.MustShape(1, 1, 2))
 	plan := bindFixtureSpec(spec).PlanLayer(0, false)
-	result, err := executeCompiledLayer(blockDispatchOptions{
+	result := testcheck.Must(executeCompiledLayer(blockDispatchOptions{
 		Context: CachedBlockContext{
 			Builder: builder, Input: input, Positions: []uint32{0, 1}, TokenRows: []uint32{3, 4},
 			CurrentPositions: positionState,
 		},
 		Spec: spec, Weights: weights, Plan: &plan,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	compressorState := result.States[CacheStateCompressorKV]
 	indexerState := result.States[CacheStateIndexerCompressorKV]
 	outputs := []*tensor.Tensor{result.Output, result.Key, compressorState.Value, indexerState.Value}
-	nodes, err := tensor.Topological(outputs...)
-	testcheck.NoError(t, err)
+	nodes := testcheck.Must(tensor.Topological(outputs...))(t)
 	var attention, hcInit, hcPre, hcPost, hcHead int
 	var moe tensor.MoEAttributes
 	for _, node := range nodes {
@@ -1210,8 +1166,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		if node.Op != tensor.OpInput {
 			continue
 		}
-		elements, err := node.Shape.Elements()
-		testcheck.NoError(t, err)
+		elements := testcheck.Must(node.Shape.Elements())(t)
 		data := make([]float32, int(elements))
 		for index := range data {
 			data[index] = float32((index+int(node.ID))%7-3) * 0.05
@@ -1224,8 +1179,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 		hash.Data[2*row], hash.Data[2*row+1] = 0, 1
 	}
 	feeds[weights.FeedForwardHashExperts] = hash
-	executed, err := reference.Execute(outputs, feeds)
-	testcheck.NoError(t, err)
+	executed := testcheck.Must(reference.Execute(outputs, feeds))(t)
 	for _, output := range outputs {
 		for index, value := range executed[output].Data {
 			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
@@ -1251,12 +1205,10 @@ func TestBuildChameleonSandwichBlock(t *testing.T) {
 	weights.AttentionKNorm = builder.Input("attn_k_norm", dtype.F32, tensor.MustShape(4, 1))
 	weights.AttentionQNormBias = builder.Input("attn_q_norm_bias", dtype.F32, tensor.MustShape(4, 2))
 	weights.AttentionKNormBias = builder.Input("attn_k_norm_bias", dtype.F32, tensor.MustShape(4, 1))
-	result, err := buildFixtureDenseBlockCachedForLayer(
+	result := testcheck.Must(buildFixtureDenseBlockCachedForLayer(
 		builder, input, spec, weights, []uint32{0, 1}, nil, nil, 0,
-	)
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(result.Output)
-	testcheck.NoError(t, err)
+	))(t)
+	nodes := testcheck.Must(tensor.Topological(result.Output))(t)
 	var layerNorms, rmsNorms, normalRoPE int
 	for _, node := range nodes {
 		switch node.Op {
@@ -1292,10 +1244,8 @@ func TestBuildDenseQwen2BlockUsesNeoXAndProjectionBiases(t *testing.T) {
 	weights.AttentionQBias = builder.Input("attn_q.bias", dtype.F32, tensor.MustShape(8))
 	weights.AttentionKBias = builder.Input("attn_k.bias", dtype.F32, tensor.MustShape(4))
 	weights.AttentionVBias = builder.Input("attn_v.bias", dtype.F32, tensor.MustShape(4))
-	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-	testcheck.NoError(t, err)
-	nodes, err := tensor.Topological(output)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1}))(t)
+	nodes := testcheck.Must(tensor.Topological(output))(t)
 	var neoxCount int
 	found := map[string]bool{}
 	for _, node := range nodes {
@@ -1347,10 +1297,8 @@ func TestBuildDenseInternLM2EXAONEAndXVERSEUseExpectedRoPE(t *testing.T) {
 					tensor.MustShape(2),
 				)
 			}
-			output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-			testcheck.NoError(t, err)
-			nodes, err := tensor.Topological(output)
-			testcheck.NoError(t, err)
+			output := testcheck.Must(buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1}))(t)
+			nodes := testcheck.Must(tensor.Topological(output))(t)
 			var ropeCount int
 			for _, node := range nodes {
 				if node.Op == test.want {

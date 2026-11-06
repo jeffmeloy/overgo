@@ -15,8 +15,7 @@ func TestTensorPackRestoreIsAtomic(t *testing.T) {
 		}
 	}
 	weights := map[string][]float32{"a": {1, 2}, "b": {3, 4}}
-	pack, err := NewTensorPack(weights, MatrixGeometry(map[string][2]int{"a": {2, 1}, "b": {1, 2}}))
-	testcheck.NoError(t, err)
+	pack := testcheck.Must(NewTensorPack(weights, MatrixGeometry(map[string][2]int{"a": {2, 1}, "b": {1, 2}})))(t)
 	for name, replacement := range map[string]map[string][]float32{
 		"missing":  {"a": {5, 6}},
 		"extra":    {"a": {5, 6}, "b": {7, 8}, "c": {}},

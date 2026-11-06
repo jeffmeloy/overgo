@@ -16,8 +16,7 @@ import (
 func mustTestRepositoryBinding(t *testing.T, document plan.Plan) (string, string) {
 	t.Helper()
 	root := initializePlanTestRepository(t, document)
-	headRaw, err := commandInput(root, nil, "git", "rev-parse", "HEAD")
-	testcheck.NoError(t, err)
+	headRaw := testcheck.Must(commandInput(root, nil, "git", "rev-parse", "HEAD"))(t)
 	return root, strings.TrimSpace(string(headRaw))
 }
 
@@ -37,8 +36,7 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 			t.Fatal(err)
 		}
 	}
-	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(filepath.Join(root, "overgodb-store")))(t)
 	testcheck.NoError(t, store.Close())
 	return root
 }

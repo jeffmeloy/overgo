@@ -26,8 +26,7 @@ func newResidentFixture(
 	outputs ...*tensor.Tensor,
 ) *residentFixture {
 	t.Helper()
-	runtime, err := graphruntime.NewResidentSession(0)
-	testcheck.NoError(t, err)
+	runtime := testcheck.Must(graphruntime.NewResidentSession(0))(t)
 	graph, err := compileResidentWeights(ctx, runtime, label, source, inputs, nil, outputs...)
 	if err != nil {
 		_ = runtime.Close(context.WithoutCancel(ctx))
@@ -48,8 +47,7 @@ func (f *residentFixture) execute(
 	feeds map[*tensor.Tensor]reference.Value,
 ) map[*tensor.Tensor]reference.Value {
 	t.Helper()
-	results, err := f.runtime.Execute(ctx, f.graph, feeds)
-	testcheck.NoError(t, err)
+	results := testcheck.Must(f.runtime.Execute(ctx, f.graph, feeds))(t)
 	return results
 }
 
@@ -59,17 +57,15 @@ func residentEncode(t *testing.T, ctx context.Context, fixture *residentFixture,
 	if program.keyBias != nil {
 		feeds[program.keyBias] = reference.Value{Shape: program.keyBias.Shape, Data: program.keyBiasData}
 	}
-	result, err := program.assemble(fixture.execute(t, ctx, feeds))
-	testcheck.NoError(t, err)
+	result := testcheck.Must(program.assemble(fixture.execute(t, ctx, feeds)))(t)
 	return result
 }
 
 func residentFuse(t *testing.T, ctx context.Context, fixture *residentFixture, program *FusionProgram, hidden []float32) []float32 {
 	t.Helper()
-	result, err := program.assemble(fixture.execute(t, ctx, map[*tensor.Tensor]reference.Value{
+	result := testcheck.Must(program.assemble(fixture.execute(t, ctx, map[*tensor.Tensor]reference.Value{
 		program.InEncoder: {Shape: program.InEncoder.Shape, Data: hidden},
-	}))
-	testcheck.NoError(t, err)
+	})))(t)
 	return result
 }
 

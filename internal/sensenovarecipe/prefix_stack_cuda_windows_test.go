@@ -71,18 +71,13 @@ func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 	var generation generationTextOracle
 	testcheck.NoError(t, jsonfile.Decode(senseNovaGenerationGold, &generation))
 	binding := routedlm.SenseNovaBinding()
-	cfg, err := routedlm.LoadConfig(senseNovaModelDir, binding)
-	testcheck.NoError(t, err)
-	source, err := safetensors.OpenSource(senseNovaModelDir)
-	testcheck.NoError(t, err)
+	cfg := testcheck.Must(routedlm.LoadConfig(senseNovaModelDir, binding))(t)
+	source := testcheck.Must(safetensors.OpenSource(senseNovaModelDir))(t)
 	defer source.Close()
-	rope, err := routedlm.CompileRopePlan(source, cfg, binding)
-	testcheck.NoError(t, err)
-	worker, err := device.New(0)
-	testcheck.NoError(t, err)
+	rope := testcheck.Must(routedlm.CompileRopePlan(source, cfg, binding))(t)
+	worker := testcheck.Must(device.New(0))(t)
 	defer worker.Close()
-	cuda, err := executor.NewWithWorker(worker)
-	testcheck.NoError(t, err)
+	cuda := testcheck.Must(executor.NewWithWorker(worker))(t)
 	defer cuda.Close()
 	started := time.Now()
 	states := make(map[string]*routedlm.PrefixState)
@@ -96,8 +91,7 @@ func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 			t.Fatalf("%s prefix state is incomplete", name)
 		}
 	}
-	memory, err := worker.MemoryStats(t.Context())
-	testcheck.NoError(t, err)
+	memory := testcheck.Must(worker.MemoryStats(t.Context()))(t)
 	t.Logf("SenseNova neutral prefix stack: branches=2 layers=%d wall=%.3fs peak=%.3fGiB",
 		cfg.NumHiddenLayers, time.Since(started).Seconds(), float64(memory.PeakBytes)/(1<<30))
 }
@@ -122,21 +116,16 @@ func runSenseNovaPrefixBranch(
 	for index := range positions {
 		positions[index] = routedlm.RowPosition{Time: index}
 	}
-	graph, err := routedlm.BuildDevicePrefixLayer(cfg, rope, positions)
-	testcheck.NoError(t, err)
-	compiled, err := executor.Compile(graph.Output, graph.KeyKV, graph.ValueKV)
-	testcheck.NoError(t, err)
-	row, err := routedlm.EmbeddingRows(source, cfg, binding, ids)
-	testcheck.NoError(t, err)
-	state, err := routedlm.NewPrefixState(
+	graph := testcheck.Must(routedlm.BuildDevicePrefixLayer(cfg, rope, positions))(t)
+	compiled := testcheck.Must(executor.Compile(graph.Output, graph.KeyKV, graph.ValueKV))(t)
+	row := testcheck.Must(routedlm.EmbeddingRows(source, cfg, binding, ids))(t)
+	state := testcheck.Must(routedlm.NewPrefixState(
 		len(ids), cfg.NumKeyValueHeads, cfg.HeadDim, oracle.ImageTime, cfg.NumHiddenLayers,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	binder := prefixWeightBinder{worker: worker}
 	defer binder.free()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		weights, err := routedlm.LoadLayerWeights(source, cfg, binding, layer)
-		testcheck.NoError(t, err)
+		weights := testcheck.Must(routedlm.LoadLayerWeights(source, cfg, binding, layer))(t)
 		feeds := make(map[*tensor.Tensor]driver.DevicePtr)
 		testcheck.NoError(t, binder.bind(feeds, graph.Weights, weights))
 		inputs := compiled.NewDeviceInputs()

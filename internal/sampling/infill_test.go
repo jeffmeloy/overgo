@@ -16,8 +16,7 @@ func TestInfillKeepsOnlyEOGWhenMassIsHigh(t *testing.T) {
 		EOS:    3,
 	}
 	candidates := infillCandidates([]float64{0.25, 0.25, 0.25, 0.25})
-	got, err := new(Sampler).applyInfill(candidates, vocabulary)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(new(Sampler).applyInfill(candidates, vocabulary))(t)
 	if len(got) != 1 || got[0].id != 3 {
 		t.Fatalf("infill candidates = %+v, want EOG only", got)
 	}
@@ -31,8 +30,7 @@ func TestInfillCombinesCommonPrefixes(t *testing.T) {
 		EOS:    3,
 	}
 	candidates := infillCandidates([]float64{0.15, 0.25, 0.599, 0.001})
-	got, err := new(Sampler).applyInfill(candidates, vocabulary)
-	testcheck.NoError(t, err)
+	got := testcheck.Must(new(Sampler).applyInfill(candidates, vocabulary))(t)
 	ids := make([]int, len(got))
 	for index, item := range got {
 		ids[index] = item.id
@@ -53,7 +51,7 @@ func TestInfillFallsBackToEOT(t *testing.T) {
 	pieces[9] = "</s>"
 	eog[9] = true
 	probabilities[9] = 0.01
-	got, err := new(Sampler).applyInfill(
+	got := testcheck.Must(new(Sampler).applyInfill(
 		infillCandidates(probabilities),
 		&InfillVocabulary{
 			Pieces: pieces,
@@ -61,8 +59,7 @@ func TestInfillFallsBackToEOT(t *testing.T) {
 			EOT:    9,
 			EOS:    -1,
 		},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(got) != 1 || got[0].id != 9 {
 		t.Fatalf("infill fallback = %+v, want EOT", got)
 	}
@@ -75,8 +72,7 @@ func TestInfillStageRequiresVocabulary(t *testing.T) {
 	}); err == nil {
 		t.Fatal("infill sampler without vocabulary was accepted")
 	}
-	order, err := ParseSamplerOrder("top_k;infill")
-	testcheck.NoError(t, err)
+	order := testcheck.Must(ParseSamplerOrder("top_k;infill"))(t)
 	if !slices.Equal(order, []SamplerStage{SamplerTopK, SamplerInfill}) {
 		t.Fatalf("order = %v", order)
 	}

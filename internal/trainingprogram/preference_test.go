@@ -11,8 +11,7 @@ import (
 )
 
 func TestDPOProgramRequiresReferenceAndScale(t *testing.T) {
-	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}}))(t)
 	reference := testutil.ArtifactID(t, artifact.KindModel, "reference")
 	spec := ProgramSpec{
 		Objective: ObjectiveDPO,
@@ -25,8 +24,7 @@ func TestDPOProgramRequiresReferenceAndScale(t *testing.T) {
 		Optimizer:  plan,
 		Preference: &PreferencePolicy{Reference: reference, Scale: 0.1},
 	}
-	program, err := CompileTrainingProgram(spec)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(CompileTrainingProgram(spec))(t)
 	policy, ok := program.Preference()
 	if !ok || policy.Reference != reference || policy.Scale != spec.Preference.Scale {
 		t.Fatalf("preference policy = (%+v, %v)", policy, ok)

@@ -17,22 +17,18 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	}
 	newBinding := func() *GBNFVocabulary {
 		t.Helper()
-		vocabulary, err := NewGBNFVocabulary(pieces, []int{len(pieces) - 1}, nil)
-		testcheck.NoError(t, err)
+		vocabulary := testcheck.Must(NewGBNFVocabulary(pieces, []int{len(pieces) - 1}, nil))(t)
 		return vocabulary
 	}
 	state := func(grammar *GBNFGrammar) []byte {
 		t.Helper()
-		sampler, err := New(Config{GBNF: grammar, Seed: 17})
-		testcheck.NoError(t, err)
-		encoded, err := sampler.SaveState()
-		testcheck.NoError(t, err)
+		sampler := testcheck.Must(New(Config{GBNF: grammar, Seed: 17}))(t)
+		encoded := testcheck.Must(sampler.SaveState())(t)
 		return encoded
 	}
 	vocabulary := newBinding()
 	const source = `root ::= "a"`
-	first, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
-	testcheck.NoError(t, err)
+	first := testcheck.Must(vocabulary.Compile(source, "", GBNFLazyOptions{}))(t)
 	wantState := state(first)
 	for range 8 {
 		warm, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
@@ -48,8 +44,7 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 		t.Fatalf("reused signature differs from fresh binding: %v", err)
 	}
 	lazy := GBNFLazyOptions{Enabled: true, Tokens: []int{1}}
-	lazyGrammar, err := vocabulary.Compile(source, "", lazy)
-	testcheck.NoError(t, err)
+	lazyGrammar := testcheck.Must(vocabulary.Compile(source, "", lazy))(t)
 	freshLazy, err := newBinding().Compile(source, "", lazy)
 	if err != nil || !bytes.Equal(state(lazyGrammar), state(freshLazy)) || bytes.Equal(state(lazyGrammar), wantState) {
 		t.Fatalf("lazy options collided with ordinary grammar: %v", err)
@@ -59,8 +54,7 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	}
 	for index := range gbnfSignatureCacheCapacity + 9 {
 		source := fmt.Sprintf("root ::= \"a\"%s", bytes.Repeat([]byte{' '}, index))
-		grammar, err := vocabulary.Compile(source, "", GBNFLazyOptions{})
-		testcheck.NoError(t, err)
+		grammar := testcheck.Must(vocabulary.Compile(source, "", GBNFLazyOptions{}))(t)
 		if freshGrammar, err := newBinding().Compile(source, "", GBNFLazyOptions{}); err != nil || !bytes.Equal(state(grammar), state(freshGrammar)) {
 			t.Fatalf("grammar %d differs from fresh binding: %v", index, err)
 		}

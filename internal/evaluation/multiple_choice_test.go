@@ -24,32 +24,29 @@ func (s fixedContinuationScorer) ScoreContinuations(
 
 func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
 	t.Parallel()
-	compiled, err := CompileMultipleChoice(MultipleChoiceSuite{
+	compiled := testcheck.Must(CompileMultipleChoice(MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "fixture/v1", Source: "fixture",
 		Normalization: sequencescore.NormalizationMean, Aggregation: AggregationAccuracy,
 		Cases: []MultipleChoiceCase{{
 			Name: "choice", Prompt: "prompt", Candidates: []string{" first", " second"}, Answer: 0,
 		}},
-	})
-	testcheck.NoError(t, err)
-	plan, err := BindMultipleChoice(compiled, ExactAuthorities{
+	}))(t)
+	plan := testcheck.Must(BindMultipleChoice(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit:      planTestCommit,
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := evaluateMultipleChoice(
+	report := testcheck.Must(evaluateMultipleChoice(
 		t.Context(), store,
 		fixedContinuationScorer{scores: []sequencescore.Score{
 			{LogProbability: -4, Tokens: 2}, {LogProbability: -3, Tokens: 1},
 		}},
 		compiled, plan,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	observation := report.Observations[0]
 	if report.Accuracy != 1 || observation.Selected != 0 || observation.Tied ||
 		observation.Values[0] != -2 || observation.Values[1] != -3 {

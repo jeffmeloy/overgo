@@ -122,8 +122,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	// Stopped while it waits for its turn.
 	one.write("a.txt", "the first worktree's\n")
 	holder := &landing{Options: Options{Repo: fixture.repo, Log: io.Discard}}
-	held, err := holder.holdTurn(ctx)
-	testcheck.NoError(t, err)
+	held := testcheck.Must(holder.holdTurn(ctx))(t)
 	stopping, stop := context.WithCancel(ctx)
 	defer stop()
 	where := one.git("rev-parse", "HEAD")

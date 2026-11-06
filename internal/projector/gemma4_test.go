@@ -58,8 +58,7 @@ func (gemma4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.T
 
 func TestGemma4RunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*Gemma4Runner](path, OpenOptions{}))(t)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	for y := range 3 {
@@ -67,8 +66,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeImage(t.Context(), input))(t)
 	rows := output.GridH * output.GridW
 	if rows <= 0 || rows > 280 || !output.Embeddings.Shape.Equal(mustShape(2, uint64(rows))) {
 		t.Fatalf("output = grid %dx%d shape %v", output.GridH, output.GridW, output.Embeddings.Shape)
@@ -82,23 +80,20 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 
 func TestGemma4ArtifactAdmitsAudioContract(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenAs[Projector](t.Context(), path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(OpenAs[Projector](t.Context(), path, OpenOptions{}))(t)
 	runner.Close()
 }
 
 func TestGemma4MultipleImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	profile := fixtureMediaAttention(t, "vision").preprocess
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile}))(t)
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	prompt, err := testSession(t, runner).BuildImagesPrompt(
+	prompt := testcheck.Must(testSession(t, runner).BuildImagesPrompt(
 		t.Context(), gemma4PromptTokenizer{}, []image.Image{input, input},
 		[]string{"", "", "Compare."}, PromptOptions{},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(prompt.AttentionBlocks) != 2 || len(prompt.EmbeddingTokenIndices) == 0 ||
 		len(prompt.Embeddings) != len(prompt.EmbeddingTokenIndices)*prompt.EmbeddingWidth {
 		t.Fatalf("multi-image prompt = blocks %v indices %d embeddings %d", prompt.AttentionBlocks, len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings))
@@ -121,21 +116,15 @@ func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
-	wantImage, err := cpu.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
-	gotImage, err := cuda.EncodeImage(t.Context(), input)
-	testcheck.NoError(t, err)
+	wantImage := testcheck.Must(cpu.EncodeImage(t.Context(), input))(t)
+	gotImage := testcheck.Must(cuda.EncodeImage(t.Context(), input))(t)
 	compareExactFloat32(t, "image", gotImage.Embeddings.Data, wantImage.Embeddings.Data)
-	wantVideo, err := cpu.EncodeVideoFrames(t.Context(), []image.Image{input, input})
-	testcheck.NoError(t, err)
-	gotVideo, err := cuda.EncodeVideoFrames(t.Context(), []image.Image{input, input})
-	testcheck.NoError(t, err)
+	wantVideo := testcheck.Must(cpu.EncodeVideoFrames(t.Context(), []image.Image{input, input}))(t)
+	gotVideo := testcheck.Must(cuda.EncodeVideoFrames(t.Context(), []image.Image{input, input}))(t)
 	compareExactFloat32(t, "video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data)
 	samples := []float32{1, 2, 3, 4}
-	wantAudio, err := cpu.EncodeAudio(t.Context(), samples)
-	testcheck.NoError(t, err)
-	gotAudio, err := cuda.EncodeAudio(t.Context(), samples)
-	testcheck.NoError(t, err)
+	wantAudio := testcheck.Must(cpu.EncodeAudio(t.Context(), samples))(t)
+	gotAudio := testcheck.Must(cuda.EncodeAudio(t.Context(), samples))(t)
 	compareExactFloat32(t, "audio", gotAudio.Embeddings.Data, wantAudio.Embeddings.Data)
 }
 
@@ -154,14 +143,12 @@ func compareExactFloat32(t *testing.T, name string, got, want []float32) {
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
 	profile := fixtureMediaAttention(t, "vision").preprocess
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile}))(t)
 	defer runner.Close()
 	frame := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	prompt, err := testSession(t, runner).BuildVideoPrompt(
+	prompt := testcheck.Must(testSession(t, runner).BuildVideoPrompt(
 		t.Context(), gemma4PromptTokenizer{}, []image.Image{frame, frame}, "", "Describe.", 2, false,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if len(prompt.AttentionBlocks) != 2 {
 		t.Fatalf("attention blocks = %v", prompt.AttentionBlocks)
 	}
@@ -182,11 +169,9 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 
 func TestGemma4AudioTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openImageProjectorAs[*Gemma4Runner](path, OpenOptions{}))(t)
 	defer runner.Close()
-	spec, err := runner.AudioSpec()
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(runner.AudioSpec())(t)
 	if spec.SampleRate != fixtureAudioSampleRate || spec.SamplesPerToken != 3 || spec.Hidden != 2 {
 		t.Fatalf("audio spec = %+v", spec)
 	}
@@ -195,8 +180,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 	if rows != 2 || len(frames) != 6 || frames[3] != 4 || frames[4] != 0 || frames[5] != 0 {
 		t.Fatalf("audio frames = %v rows=%d", frames, rows)
 	}
-	output, err := runner.EncodeAudio(t.Context(), []float32{1, 2, 3, 4})
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeAudio(t.Context(), []float32{1, 2, 3, 4}))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(2, 2)) {
 		t.Fatalf("audio output shape = %v", output.Embeddings.Shape)
 	}
@@ -219,8 +203,7 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := preprocessGemma4Image(input, spec)
-	testcheck.NoError(t, err)
+	processed := testcheck.Must(preprocessGemma4Image(input, spec))(t)
 	if processed.GridH != 2 || processed.GridW != 2 || len(processed.PixelValues) != 48 {
 		t.Fatalf("processed = grid %dx%d values %d", processed.GridH, processed.GridW, len(processed.PixelValues))
 	}
@@ -252,12 +235,11 @@ func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
 }
 
 func TestOrderedVariableTokenRunsPreserveMediaKinds(t *testing.T) {
-	starts, err := orderedVariableTokenRuns(
+	starts := testcheck.Must(orderedVariableTokenRuns(
 		[]tokenizer.TokenID{1, 2, 2, 3, 4, 4, 4, 5},
 		[]tokenizer.TokenID{2, 4},
 		[]int{2, 3},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if !slices.Equal(starts, []int{1, 4}) {
 		t.Fatalf("starts = %v", starts)
 	}
@@ -300,19 +282,15 @@ func TestGemma4RealFixture(t *testing.T) {
 			EmbeddingProjection probeRecord `json:"embedding_projection"`
 		} `json:"projector_intermediates"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(goldenPath))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file, err := os.Open(imagePath)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(imagePath))(t)
 	input, err := png.Decode(file)
 	_ = file.Close()
 	testcheck.NoError(t, err)
-	runner, err := openGemma4Fixture(projectorPath)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openGemma4Fixture(projectorPath))(t)
 	defer runner.Close()
-	processed, err := preprocessGemma4Image(input, runner.Spec())
-	testcheck.NoError(t, err)
+	processed := testcheck.Must(preprocessGemma4Image(input, runner.Spec()))(t)
 	if len(golden.ImageHW) != 2 || processed.GridH != golden.ImageHW[0]/runner.Spec().ModelPatch ||
 		processed.GridW != golden.ImageHW[1]/runner.Spec().ModelPatch {
 		t.Fatalf("grid = %dx%d for image %v", processed.GridH, processed.GridW, golden.ImageHW)
@@ -340,13 +318,12 @@ func TestGemma4RealFixture(t *testing.T) {
 		"pre_projection_norm":  golden.ProjectorIntermediates.PreProjectionNorm,
 		"embedding_projection": golden.ProjectorIntermediates.EmbeddingProjection,
 	}
-	output, err := runner.encodeWithTrace(t.Context(), processed, func(name string, values []float32) {
+	output := testcheck.Must(runner.encodeWithTrace(t.Context(), processed, func(name string, values []float32) {
 		if name == "patch_ln1" {
 			values = gemma4InterleavePatchRows(values, runner.Spec().PatchWidth)
 		}
 		compareGemma4StageProbes(t, "Gemma 4 "+name, values, stages[name])
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(runner.Spec().Hidden), uint64(golden.NumImagePlaceholderTokens))) {
 		t.Fatalf("embedding shape = %v", output.Embeddings.Shape)
 	}
@@ -410,17 +387,13 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 		InputIDs                  []tokenizer.TokenID `json:"input_ids"`
 		NumImagePlaceholderTokens int                 `json:"num_image_placeholder_tokens"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(goldenPath))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file, err := gguf.Open(vocabPath)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(vocabPath))(t)
 	defer file.Close()
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	text := gemma4ImagePromptText("What color dominates this image? One word.", golden.NumImagePlaceholderTokens)
-	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true}))(t)
 	if len(ids) != len(golden.InputIDs) {
 		t.Fatalf("prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
 	}
@@ -451,11 +424,9 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 		InputFeatures      probeRecord            `json:"input_features"`
 		AudioIntermediates map[string]probeRecord `json:"audio_intermediates"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(goldenPath))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	raw, err := os.ReadFile(wavePath)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(wavePath))(t)
 	if len(raw)%4 != 0 {
 		t.Fatalf("wave byte count = %d", len(raw))
 	}
@@ -463,19 +434,16 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 	for index := range samples {
 		samples[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*4:]))
 	}
-	runner, err := openGemma4Fixture(projectorPath)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openGemma4Fixture(projectorPath))(t)
 	defer runner.Close()
-	spec, err := runner.AudioSpec()
-	testcheck.NoError(t, err)
+	spec := testcheck.Must(runner.AudioSpec())(t)
 	frames, rows, err := preprocessGemma4Audio(samples, spec)
 	testcheck.NoError(t, err)
 	if spec.SamplesPerToken != golden.SamplesPerToken || rows != golden.NumAudioTokens {
 		t.Fatalf("audio spec=%+v rows=%d, want width=%d rows=%d", spec, rows, golden.SamplesPerToken, golden.NumAudioTokens)
 	}
 	compareProbes(t, "Gemma 4 audio frames", frames, golden.InputFeatures, 1e-6)
-	output, err := runner.EncodeAudio(t.Context(), samples)
-	testcheck.NoError(t, err)
+	output := testcheck.Must(runner.EncodeAudio(t.Context(), samples))(t)
 	if !output.Embeddings.Shape.Equal(mustShape(uint64(spec.Hidden), uint64(rows))) {
 		t.Fatalf("audio embedding shape = %v", output.Embeddings.Shape)
 	}
@@ -501,17 +469,13 @@ func TestGemma4RealAudioPromptTokens(t *testing.T) {
 		InputIDs       []tokenizer.TokenID `json:"input_ids"`
 		NumAudioTokens int                 `json:"num_audio_placeholder_tokens"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(goldenPath))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file, err := gguf.Open(vocabPath)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Open(vocabPath))(t)
 	defer file.Close()
-	vocab, err := tokenizer.Load(file)
-	testcheck.NoError(t, err)
+	vocab := testcheck.Must(tokenizer.Load(file))(t)
 	text := gemma4AudioPromptText("What note do you hear? One word.", golden.NumAudioTokens, gemma4ClosedThought)
-	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
-	testcheck.NoError(t, err)
+	ids := testcheck.Must(vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true}))(t)
 	if len(ids) != len(golden.InputIDs) {
 		t.Fatalf("audio prompt tokens = %d, want %d", len(ids), len(golden.InputIDs))
 	}
@@ -540,19 +504,15 @@ func TestGemma4RealResizeFixture(t *testing.T) {
 		PixelValues probeRecord `json:"pixel_values"`
 		Positions   [][]int     `json:"image_position_ids"`
 	}
-	data, err := os.ReadFile(goldenPath)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(goldenPath))(t)
 	testcheck.NoError(t, json.Unmarshal(data, &golden))
-	file, err := os.Open(imagePath)
-	testcheck.NoError(t, err)
+	file := testcheck.Must(os.Open(imagePath))(t)
 	input, err := png.Decode(file)
 	_ = file.Close()
 	testcheck.NoError(t, err)
-	runner, err := openGemma4Fixture(projectorPath)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openGemma4Fixture(projectorPath))(t)
 	defer runner.Close()
-	processed, err := preprocessGemma4Image(input, runner.Spec())
-	testcheck.NoError(t, err)
+	processed := testcheck.Must(preprocessGemma4Image(input, runner.Spec()))(t)
 	if len(golden.ResizeOutHW) != 2 || processed.GridH*runner.Spec().ModelPatch != golden.ResizeOutHW[0] ||
 		processed.GridW*runner.Spec().ModelPatch != golden.ResizeOutHW[1] || processed.GridH*processed.GridW != golden.NumSoft {
 		t.Fatalf("resize = %dx%d grid %dx%d, want %v and %d tokens",

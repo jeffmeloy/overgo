@@ -18,15 +18,13 @@ func TestFrozenComponentImportRegistration(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	frozen := filepath.Join(t.TempDir(), "inspection.json")
 	testcheck.NoError(t, inspectModel([]string{"-output", frozen, path}))
-	expected, err := modelintake.InspectImport(t.Context(), path, "")
-	testcheck.NoError(t, err)
+	expected := testcheck.Must(modelintake.InspectImport(t.Context(), path, ""))(t)
 	repository := t.TempDir()
 	args := []string{"-repo", repository, "-inspection", frozen, path}
 	testcheck.NoError(t, registerModels(args))
 	readHead := func() artifact.CommitID {
 		t.Helper()
-		store, err := overgodb.OpenReadOnly(repository)
-		testcheck.NoError(t, err)
+		store := testcheck.Must(overgodb.OpenReadOnly(repository))(t)
 		defer store.Close()
 		retained, found, err := artifact.ReadContent(t.Context(), store, expected.Content.Descriptor.ID)
 		if err != nil || !found || !bytes.Equal(retained.Data, expected.Content.Data) {

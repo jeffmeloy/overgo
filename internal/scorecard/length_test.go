@@ -93,8 +93,7 @@ func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 func servedAttempts(t *testing.T, attempts []runrecord.ServingObservation) (artifact.ID, *servingSummary) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
 	model := testutil.ArtifactID(t, artifact.KindModel, "chat-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "chat-environment")
@@ -108,15 +107,12 @@ func servedAttempts(t *testing.T, attempts []runrecord.ServingObservation) (arti
 		if index == 0 {
 			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(time.Millisecond)}}
 		}
-		observation, err := runrecord.NewServingObservation(observation)
-		testcheck.NoError(t, err)
-		batch, err := observation.Batch("attempts/" + observation.ID.String())
-		testcheck.NoError(t, err)
+		observation := testcheck.Must(runrecord.NewServingObservation(observation))(t)
+		batch := testcheck.Must(observation.Batch("attempts/" + observation.ID.String()))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	summaries, err := servingByRecipe(ctx, store)
-	testcheck.NoError(t, err)
+	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	return model, summaries[served]
 }

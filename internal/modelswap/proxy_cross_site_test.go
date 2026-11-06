@@ -18,8 +18,7 @@ func TestProxyRefusesCrossSiteSwap(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "arguments")
 	t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 	t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
-	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
-	testcheck.NoError(t, err)
+	supervisor := testcheck.Must(New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0))(t)
 	defer supervisor.Close()
 	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
 	swap := func(fetchSite, origin string) *httptest.ResponseRecorder {

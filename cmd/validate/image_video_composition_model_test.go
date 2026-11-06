@@ -62,14 +62,12 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	var bundle mediaCompositionBundle
 	path := filepath.Join(root, "docs/image_video_composition.json")
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &bundle))
-	raw, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(path))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCompositionSHA256))
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || bundle.Scope == "" {
 		t.Fatal("incomplete composition bundle")
 	}
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
@@ -80,8 +78,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		return content.Data
 	}
 	for _, id := range []artifact.ID{bundle.NativeTest, bundle.OwnerTest} {
-		report, err := testevidence.GoTestJSONReport(string(read(id)))
-		testcheck.NoError(t, err)
+		report := testcheck.Must(testevidence.GoTestJSONReport(string(read(id))))(t)
 		testcheck.NoError(t, testevidence.RequireComplete(report))
 		if report.PassedTests == 0 {
 			t.Fatal("empty composition test")
@@ -120,8 +117,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		if err != nil || !found || active.Definition.ID != cell.Recipe {
 			t.Fatal("active recipe changed", err)
 		}
-		definition, err := recipe.RequireDefinition(t.Context(), store, cell.Recipe)
-		testcheck.NoError(t, err)
+		definition := testcheck.Must(recipe.RequireDefinition(t.Context(), store, cell.Recipe))(t)
 		if scope[index].Model != cell.Model || scope[index].Recipe != cell.Recipe || !slices.Equal(scope[index].Dependencies, definition.Dependencies) {
 			t.Fatal("retained scope differs from actual dependencies")
 		}
@@ -167,8 +163,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 				members = append(members, member)
 			}
 		}
-		expected, err := artifact.NewManifest(artifact.KindModel, members)
-		testcheck.NoError(t, err)
+		expected := testcheck.Must(artifact.NewManifest(artifact.KindModel, members))(t)
 		child, found, err := store.Manifest(t.Context(), component.Model)
 		if err != nil || !found {
 			t.Fatal("child manifest missing", err)
@@ -187,10 +182,8 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if err != nil || rebuilt.ID != composed.ID {
 		t.Fatal("typed ports, stage binding or profile differ from native chain", err)
 	}
-	program, err := modelrecipe.CompileCapability(composed)
-	testcheck.NoError(t, err)
-	workflow, err := workflowruntime.NewForProgram(store, program)
-	testcheck.NoError(t, err)
+	program := testcheck.Must(modelrecipe.CompileCapability(composed))(t)
+	workflow := testcheck.Must(workflowruntime.NewForProgram(store, program))(t)
 	stages := program.Stages()
 	if len(stages) != len(bindings) {
 		t.Fatal("unexpected conversion stage")
@@ -217,8 +210,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if protocol.Source != bundle.Source || protocol.Model != composed.Model || protocol.Recipe != composed.ID || protocol.Quality != imageVideoProtocolSHA256 || protocol.RetainedRun != bundle.RetainedRun || protocol.RetainedAcquisition != bundle.RetainedAcquisition || protocol.Acceptance == "" || protocol.Harness != fmt.Sprintf("%x", sha256.Sum256(read(bundle.Harness))) {
 		t.Fatal("native comparison protocol changed")
 	}
-	retained, err := runrecord.RequireExactRun(t.Context(), store, bundle.RetainedRun)
-	testcheck.NoError(t, err)
+	retained := testcheck.Must(runrecord.RequireExactRun(t.Context(), store, bundle.RetainedRun))(t)
 	if retained.Recipe != composed.ID || retained.Outcome != runrecord.OutcomeSucceeded || !slices.Equal(retained.Inputs, []artifact.ID{protocol.Input}) || !slices.Equal(retained.Outputs, []artifact.ID{protocol.Output}) {
 		t.Fatal("native comparison uses unrelated input or output")
 	}

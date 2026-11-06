@@ -72,11 +72,10 @@ func TestWebUIBrowserServingStream(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "stream/run", Artifacts: []artifact.Descriptor{{ID: runID}}}); err != nil {
 		t.Fatal(err)
 	}
-	operationID, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskInference, Recipe: recipeID},
+	operationID := testcheck.Must(handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskInference, Recipe: recipeID},
 		func(context.Context, operation.Reporter) (operation.Completion, error) {
 			return operation.Completion{Run: runID}, nil
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if status, err := handler.operations.Wait(ctx, operationID); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("fixture operation=%+v, %v", status, err)
 	}

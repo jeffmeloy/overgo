@@ -13,12 +13,11 @@ import (
 func TestMutationRequiresBoundPreflightInspection(t *testing.T) {
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "preflight-operation")
 	arguments := testutil.ArtifactID(t, artifact.KindEvidence, "preflight-arguments")
-	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
+	selection := testcheck.Must(dataset.SelectInteractions(dataset.InteractionSelectionBounds{
 		MaxTokens: 1, MaxBytes: 1, MaxDocuments: 1, MaxDepth: 1, MaxResults: 1,
 	}, artifact.CommitID{1}, []dataset.InteractionSelectionSource{{
 		Source: arguments, CausalRoot: operation, Tokens: 1, Bytes: 1, Documents: 1, Depth: 1,
-	}}, nil)
-	testcheck.NoError(t, err)
+	}}, nil))(t)
 	boundary := AttemptStimulusBoundary{
 		Version: artifact.InitialDocumentVersion, Operation: operation, Attempt: 1,
 		Manual: testutil.ArtifactID(t, artifact.KindRecipe, "preflight-manual"),
@@ -62,8 +61,7 @@ func TestRSIMutationEffectApprovalReceiptRatchet(t *testing.T) {
 		Node:   "promote", Operation: testutil.ArtifactID(t, artifact.KindEvidence, "receipt-operation"),
 		Attempt: 1, State: StageAdmitted, Invocation: &binding,
 	}
-	identified, err := NewStageReceipt(receipt)
-	testcheck.NoError(t, err)
+	identified := testcheck.Must(NewStageReceipt(receipt))(t)
 	for name, mutate := range map[string]func(*invocation.ReceiptBinding){
 		"effect":     func(value *invocation.ReceiptBinding) { value.Effect = artifact.ID{} },
 		"preflight":  func(value *invocation.ReceiptBinding) { value.Preflight = artifact.ID{} },

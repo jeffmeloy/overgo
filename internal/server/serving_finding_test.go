@@ -47,17 +47,15 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":1}`), &recordingReporter{}); err == nil {
 		t.Fatal("the refused generation succeeded")
 	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, &fakeGenerator{}))(t)
 	defer handler.Close()
-	operationID, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskImageGen, Recipe: recipeID},
+	operationID := testcheck.Must(handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskImageGen, Recipe: recipeID},
 		func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 			return handler.executeObservedOperation(ctx, reporter, recipe.TaskImageGen, recipeID, modelID,
 				func(context.Context, operation.Reporter) (operation.Completion, error) {
 					return operation.Completion{}, errors.New("device lost")
 				})
-		})
-	testcheck.NoError(t, err)
+		}))(t)
 	if _, err := handler.operations.Wait(ctx, operationID); err != nil {
 		t.Fatal(err)
 	}

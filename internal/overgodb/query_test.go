@@ -15,15 +15,13 @@ import (
 
 func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	tensorID := testutil.ArtifactID(t, artifact.KindTensorSet, "tensor")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+	manifest := testcheck.Must(artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: tensorID,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/query/base",
 		Artifacts: []artifact.Descriptor{
@@ -45,36 +43,32 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	models, err := store.Query(t.Context(), Query{
+	models := testcheck.Must(store.Query(t.Context(), Query{
 		Kind: artifact.KindModel, MaxResults: 10, Projection: ProjectCatalog,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(models.Artifacts) != 1 || models.Artifacts[0].ID != manifest.ID ||
 		len(models.Manifests) != 1 || len(models.Aliases) != 1 {
 		t.Fatalf("model query = %+v", models)
 	}
 
-	followed, err := store.Query(t.Context(), Query{
+	followed := testcheck.Must(store.Query(t.Context(), Query{
 		Alias: "model/active", Follow: FollowBoth, MaxDepth: 2, MaxResults: 10, Projection: ProjectCatalog,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(followed.Artifacts) != 3 || len(followed.Lineage) != 2 || followed.Truncated {
 		t.Fatalf("follow query = %+v", followed)
 	}
 
-	produced, err := store.Query(t.Context(), Query{
+	produced := testcheck.Must(store.Query(t.Context(), Query{
 		Artifact: &manifest.ID, Relation: artifact.RelationProducedBy,
 		Follow: FollowChildren, MaxDepth: 1, MaxResults: 10, Projection: ProjectCatalog,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(produced.Artifacts) != 2 || len(produced.Lineage) != 1 || produced.Lineage[0].Child != outputID {
 		t.Fatalf("relation query = %+v", produced)
 	}
 
-	commits, err := store.Query(t.Context(), Query{
+	commits := testcheck.Must(store.Query(t.Context(), Query{
 		FromSequence: 2, ToSequence: 2, MaxResults: 10, Projection: ProjectCatalog,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(commits.Commits) != 1 || commits.Commits[0].Key != "fixture/query/output" || len(commits.Artifacts) != 0 {
 		t.Fatalf("commit query = %+v", commits)
 	}
@@ -83,8 +77,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	ctx := t.Context()
 	introduced := fixtureDescriptor(t, artifact.KindEvidence, "introduced")
 	content := artifact.Content{Descriptor: introduced, Data: []byte("introduced")}
@@ -96,10 +89,9 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	if authority, found, err := store.ArtifactIntroduction(ctx, introduced.ID); err != nil || found {
 		t.Fatalf("descriptor reservation established introduction: (%+v, %v, %v)", authority, found, err)
 	}
-	contentCommit, err := store.Commit(ctx, artifact.Batch{
+	contentCommit := testcheck.Must(store.Commit(ctx, artifact.Batch{
 		Key: "fixture/introduction/content", Contents: []artifact.Content{content},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	other := artifact.Content{
 		Descriptor: fixtureDescriptor(t, artifact.KindEvidence, "introduced-later"),
 		Data:       []byte("introduced-later"),
@@ -130,8 +122,7 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	}
 	testcheck.NoError(t, store.Close())
 
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	if replay := store.SnapshotReplay(); !replay.Loaded || replay.Path != filepath.Join(root, checkpointDirectory) {
 		t.Fatalf("content checkpoint was not replayed: %+v", replay)
 	}
@@ -139,16 +130,14 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	testcheck.NoError(t, store.Close())
 
 	testcheck.NoError(t, os.RemoveAll(filepath.Join(root, checkpointDirectory)))
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	if replay := store.SnapshotReplay(); replay.Loaded || replay.Fallback == "" {
 		t.Fatalf("an open with no checkpoint generation did not replay the journal: %+v", replay)
 	}
 	requireIntroduction(t, store)
 	testcheck.NoError(t, store.Close())
 
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	if replay := store.SnapshotReplay(); replay.Loaded {
 		t.Fatalf("journal replay unexpectedly used an anchor: %+v", replay)
@@ -158,8 +147,7 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 
 func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	parent := testutil.ArtifactID(t, artifact.KindEvidence, "parent")
 	child := testutil.ArtifactID(t, artifact.KindEvidence, "child")
@@ -180,8 +168,7 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	}); !errors.Is(err, ErrLineageCycle) {
 		t.Fatalf("cycle error = %v", err)
 	}
-	result, err := store.Query(t.Context(), Query{MaxResults: 1, Projection: ProjectArtifacts})
-	testcheck.NoError(t, err)
+	result := testcheck.Must(store.Query(t.Context(), Query{MaxResults: 1, Projection: ProjectArtifacts}))(t)
 	if len(result.Artifacts) != 1 || !result.Truncated {
 		t.Fatalf("bounded query = %+v", result)
 	}
@@ -197,8 +184,7 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 
 func TestServingObservationDescriptorIndexes(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	const (
 		servingMedia  = "application/vnd.overgo.serving-observation+json"
@@ -214,11 +200,10 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(t.Context(), Query{
+	result := testcheck.Must(store.Query(t.Context(), Query{
 		Kind: artifact.KindEvidence, MediaType: servingMedia, Schema: servingSchema, MaxResults: 2,
 		Projection: ProjectArtifacts,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if len(result.Artifacts) != 1 || result.Artifacts[0] != serving || result.Truncated {
 		t.Fatalf("descriptor query = %+v", result)
 	}
@@ -230,8 +215,7 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 func TestQueryCursorBindsHeadAndContract(t *testing.T) {
 	t.Parallel()
 	const pageSize = 2
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	descriptors := []artifact.Descriptor{
 		fixtureDescriptor(t, artifact.KindEvidence, "cursor-a"),
@@ -269,8 +253,7 @@ func TestQueryCursorBindsHeadAndContract(t *testing.T) {
 
 func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
 	t.Parallel()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	defer store.Close()
 	content := artifact.Content{
 		Descriptor: fixtureDescriptor(t, artifact.KindEvidence, fixturePayload),
@@ -333,8 +316,7 @@ func TestNewestFirstCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	query.Cursor, got = nil, nil
 	_, err = store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
@@ -367,16 +349,14 @@ func TestAliasPrefix(t *testing.T) {
 
 func documentQueryFixture(t *testing.T) (*Store, artifact.DocumentContract, []artifact.Content) {
 	t.Helper()
-	store, err := Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Open(t.TempDir()))(t)
 	contract := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: "application/vnd.overgo.query-fixture+json", Schema: "overgo/query-fixture/v1",
 	}
 	contents := make([]artifact.Content, 2)
 	keys := []string{"fixture/document-query/first", "fixture/document-query/second"}
 	for index, payload := range []string{`{"value":"first"}`, `{"value":"second"}`} {
-		contents[index], err = contract.ContentBytes([]byte(payload))
-		testcheck.NoError(t, err)
+		contents[index] = testcheck.Must(contract.ContentBytes([]byte(payload)))(t)
 		batch := artifact.Batch{Key: keys[index], Contents: []artifact.Content{contents[index]}}
 		if index == len(contents)-1 {
 			batch.Aliases = []artifact.AliasBinding{{Name: "fixture/active/current", Target: contents[index].Descriptor.ID}}

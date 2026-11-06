@@ -16,8 +16,7 @@ const simpleDiffusionProcessRuns = 3
 
 func TestSimpleDiffusionProcessLeadership(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	adaptiveGo := filepath.Join(filepath.Dir(roots.Models), "go")
 	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {
 		t.Fatalf("UNAVAILABLE: adaptive Go source absent at %s", adaptiveGo)

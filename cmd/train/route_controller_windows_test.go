@@ -29,10 +29,8 @@ func TestControllerRoutePublishesCheckpoint(t *testing.T) {
 	testcheck.NoError(t, jsonfile.Write(path, spec, 0o600))
 	const seed = 17
 	checkpoint, _ := requireRoutePublishes(t, "controller", "-corpus", path, "-seed", fmt.Sprint(seed))
-	corpus, err := controllertrain.Compile(spec)
-	testcheck.NoError(t, err)
-	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: routeTestSteps}, scratchmodeltest.Profile(t))
-	testcheck.NoError(t, err)
+	corpus := testcheck.Must(controllertrain.Compile(spec))(t)
+	construction := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: routeTestSteps}, scratchmodeltest.Profile(t)))(t)
 	scratch := construction.Authority()
 	if checkpoint.Model != scratch.InitializedModel() || checkpoint.Dataset != scratch.Dataset() || checkpoint.Split != scratch.Split() ||
 		checkpoint.Program != construction.Program().ID() ||

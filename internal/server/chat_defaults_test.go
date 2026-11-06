@@ -34,8 +34,7 @@ func TestChatDefaults(t *testing.T) {
 	post := func(body map[string]any) map[string]any {
 		t.Helper()
 		body["model"] = testModelID
-		data, err := json.Marshal(body)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(json.Marshal(body))(t)
 		response := serveTestRequest(handler, http.MethodPost, "/v1/responses", string(data))
 		var decoded map[string]any
 		if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil || response.Code != http.StatusOK {
@@ -49,12 +48,10 @@ func TestChatDefaults(t *testing.T) {
 		if err != nil || !found {
 			t.Fatalf("interaction %s found=%v err=%v", id, found, err)
 		}
-		transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
-		testcheck.NoError(t, err)
+		transcript := testcheck.Must(runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message))(t)
 		ids := []uint32{}
 		if interaction.Context.Valid() {
-			tokens, err := runrecord.RequireInteractionContext(t.Context(), store, interaction.Context)
-			testcheck.NoError(t, err)
+			tokens := testcheck.Must(runrecord.RequireInteractionContext(t.Context(), store, interaction.Context))(t)
 			for _, token := range tokens.Tokens {
 				ids = append(ids, uint32(token))
 			}

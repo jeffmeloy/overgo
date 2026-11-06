@@ -54,12 +54,10 @@ func product(module Module, scale float64) []float64 {
 func TestDeltaIsTheScaledProduct(t *testing.T) {
 	adapter := testAdapter()
 	module := adapter.Modules[queryModule]
-	delta, err := adapter.Delta(queryModule)
-	testcheck.NoError(t, err)
+	delta := testcheck.Must(adapter.Delta(queryModule))(t)
 	testutil.RequireElementsWithin(t, "delta", delta, product(module, 4.0/2), 1e-6)
 	adapter.Config.RSLoRA = true
-	delta, err = adapter.Delta(queryModule)
-	testcheck.NoError(t, err)
+	delta = testcheck.Must(adapter.Delta(queryModule))(t)
 	testutil.RequireElementsWithin(t, "rank-stabilized delta", delta, product(module, 4/math.Sqrt(2)), 1e-6)
 	if _, err := adapter.Delta("model.layers.9.self_attn.q_proj"); err == nil {
 		t.Fatal("a module the adapter lacks gave an update")
@@ -71,8 +69,7 @@ func TestDeltaIsTheScaledProduct(t *testing.T) {
 // of another size to a refusal that leaves it untouched.
 func TestAddDeltaAddsTheUpdateInPlace(t *testing.T) {
 	adapter := testAdapter()
-	delta, err := adapter.Delta(queryModule)
-	testcheck.NoError(t, err)
+	delta := testcheck.Must(adapter.Delta(queryModule))(t)
 	weight := make([]float32, len(delta))
 	want := make([]float32, len(delta))
 	for index := range weight {
@@ -145,8 +142,7 @@ func TestSaveWritesWhatPEFTWrites(t *testing.T) {
 	if got, _ := json.Marshal(config["target_modules"]); string(got) != `["q_proj","v_proj"]` {
 		t.Fatalf("target_modules = %s, want the adapted layer names, sorted", got)
 	}
-	source, err := safetensors.OpenFile(filepath.Join(directory, weightsFile))
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenFile(filepath.Join(directory, weightsFile)))(t)
 	defer source.Close()
 	wantNames := []string{
 		"base_model.model." + queryModule + ".lora_A.weight", "base_model.model." + queryModule + ".lora_B.weight",
@@ -161,8 +157,7 @@ func TestSaveWritesWhatPEFTWrites(t *testing.T) {
 	if shape := source.Tensors[wantNames[1]].Shape; !slices.Equal(shape, []uint64{3, 2}) {
 		t.Fatalf("lora_B shape = %v, want outputs by rank", shape)
 	}
-	loaded, err := Load(directory)
-	testcheck.NoError(t, err)
+	loaded := testcheck.Must(Load(directory))(t)
 	if loaded.Config.Rank != 2 || loaded.Config.Alpha != 4 || loaded.Config.Dropout != 0.05 || loaded.Config.BaseModel != "base/model" ||
 		!slices.Equal(loaded.Config.TargetModules, []string{"q_proj", "v_proj"}) || len(loaded.Modules) != 2 {
 		t.Fatalf("loaded config = %+v with %d modules", loaded.Config, len(loaded.Modules))
@@ -214,8 +209,7 @@ func writeRaw(t *testing.T, path string, tensors map[string]rawTensor) {
 		header[name] = map[string]any{"dtype": raw.dtype, "shape": raw.shape, "data_offsets": []int{len(body), len(body) + len(raw.data)}}
 		body = append(body, raw.data...)
 	}
-	encoded, err := json.Marshal(header)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(header))(t)
 	prefix := make([]byte, 8)
 	binary.LittleEndian.PutUint64(prefix, uint64(len(encoded)))
 	testcheck.NoError(t, os.WriteFile(path, append(append(prefix, encoded...), body...), 0o600))
@@ -225,8 +219,7 @@ func writeConfig(t *testing.T, directory string, fields map[string]any) {
 	t.Helper()
 	config := map[string]any{"peft_type": "LORA", "r": 2, "lora_alpha": 4, "target_modules": []string{"q_proj"}, "bias": "none"}
 	maps.Copy(config, fields)
-	data, err := json.Marshal(config)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(config))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(directory, configFile), data, 0o600))
 }
 
@@ -246,8 +239,7 @@ func TestLoadReadsHalfPrecisionFactorsAndSuffixPatterns(t *testing.T) {
 		"rank_pattern": map[string]int{"v_proj": 1}, "alpha_pattern": map[string]float64{"self_attn.v_proj": 1},
 		"eva_config": nil, "exclude_modules": nil, "target_modules": "q_proj|v_proj",
 	})
-	adapter, err := Load(directory)
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(Load(directory))(t)
 	query, value := adapter.Modules[queryModule], adapter.Modules[valueModule]
 	if query.Rank != 2 || query.Alpha != 4 || value.Rank != 1 || value.Alpha != 1 || !slices.Equal(query.Down, []float32{1, 2, 3, 4, 5, 6}) {
 		t.Fatalf("modules = %+v and %+v, want ranks 2 and 1, alphas 4 and 1, the BF16 values exact", query, value)
@@ -351,10 +343,8 @@ func TestMergeAddsTheUpdateAndKeepsTheCheckpoint(t *testing.T) {
 		if err != nil || report.Tensors != 4 || report.Merged != 2 {
 			t.Fatalf("%s: merge = %+v, %v, want four tensors with two merged", storage, report, err)
 		}
-		source, err := safetensors.OpenSource(merged)
-		testcheck.NoError(t, err)
-		original, err := safetensors.OpenSource(base)
-		testcheck.NoError(t, err)
+		source := testcheck.Must(safetensors.OpenSource(merged))(t)
+		original := testcheck.Must(safetensors.OpenSource(base))(t)
 		for name, tensor := range original.Tensors {
 			got, found := source.Tensors[name]
 			if !found || got.DType != tensor.DType || !slices.Equal(got.Shape, tensor.Shape) {
@@ -370,8 +360,7 @@ func TestMergeAddsTheUpdateAndKeepsTheCheckpoint(t *testing.T) {
 					want[index] = float64(dtype.RoundBF16(float32(want[index])))
 				}
 			}
-			got, err := safetensors.ReadF32(source.Tensors[module+".weight"])
-			testcheck.NoError(t, err)
+			got := testcheck.Must(safetensors.ReadF32(source.Tensors[module+".weight"]))(t)
 			testutil.RequireElementsWithin(t, storage+" merged "+module, got, want, 1e-5)
 		}
 		for _, name := range []string{"model.layers.0.input_layernorm.weight", "model.layers.0.self_attn.k_proj.weight"} {
@@ -398,16 +387,14 @@ func TestMergeKeepsTheShardLayout(t *testing.T) {
 	writeRaw(t, filepath.Join(base, second), map[string]rawTensor{
 		valueModule + ".weight": {"F32", []int{2, 4}, f32Bytes(-1, -2, -3, -4, -5, -6, -7, -8)}, "lm_head.weight": {"F32", []int{2}, f32Bytes(1, 1)},
 	})
-	index, err := json.Marshal(map[string]any{"metadata": map[string]any{"total_size": 4 * 22}, "weight_map": map[string]string{
+	index := testcheck.Must(json.Marshal(map[string]any{"metadata": map[string]any{"total_size": 4 * 22}, "weight_map": map[string]string{
 		queryModule + ".weight": first, valueModule + ".weight": second, "lm_head.weight": second,
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	testcheck.NoError(t, os.WriteFile(filepath.Join(base, "model.safetensors.index.json"), index, 0o600))
 	if _, err := Merge(testAdapter(), base, merged); err != nil {
 		t.Fatal(err)
 	}
-	source, err := safetensors.OpenSource(merged)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(merged))(t)
 	defer source.Close()
 	if !slices.Equal(source.Shards(), []string{first, second}) || source.Tensors[valueModule+".weight"].Shard != second || !source.Indexed() {
 		t.Fatalf("merged shards = %v (indexed %t), want the base's two", source.Shards(), source.Indexed())
@@ -459,16 +446,12 @@ func TestMergeRefusesTheStagedPartialOfAnotherAdapter(t *testing.T) {
 	base, merged := filepath.Join(root, "base"), filepath.Join(root, "merged")
 	writeBase(t, base, "F32")
 	first := testAdapter()
-	source, err := safetensors.OpenSource(base)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(base))(t)
 	defer source.Close()
-	plan, err := mergePlan(source, first)
-	testcheck.NoError(t, err)
-	interrupted, err := safetensors.NewStreamingWriter(merged, plan)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(mergePlan(source, first))(t)
+	interrupted := testcheck.Must(safetensors.NewStreamingWriter(merged, plan))(t)
 	name := queryModule + moduleWeight
-	payload, err := mergedPayload(first, queryModule, source.Tensors[name])
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(mergedPayload(first, queryModule, source.Tensors[name]))(t)
 	testcheck.NoError(t, interrupted.WriteTensor(name, uint64(len(payload)), bytes.NewReader(payload)))
 
 	other := testAdapter()
@@ -504,13 +487,10 @@ func TestMergeRefusesTheStagedPartialOfAnotherBase(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(second, 0o755))
 	testcheck.NoError(t, safetensors.Save(filepath.Join(second, "model.safetensors"), changed, shapes, nil))
 	adapter := testAdapter()
-	source, err := safetensors.OpenSource(first)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(safetensors.OpenSource(first))(t)
 	defer source.Close()
-	plan, err := mergePlan(source, adapter)
-	testcheck.NoError(t, err)
-	interrupted, err := safetensors.NewStreamingWriter(merged, plan)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(mergePlan(source, adapter))(t)
+	interrupted := testcheck.Must(safetensors.NewStreamingWriter(merged, plan))(t)
 	for _, name := range []string{"model.layers.0.input_layernorm.weight", "model.layers.0.self_attn.k_proj.weight"} {
 		tensor := source.Tensors[name]
 		testcheck.NoError(t, interrupted.WriteTensor(name, uint64(tensor.Size()), tensor.Reader()))
@@ -525,8 +505,7 @@ func TestMergeRefusesTheStagedPartialOfAnotherBase(t *testing.T) {
 	if _, err := Merge(adapter, first, fresh); err != nil {
 		t.Fatal(err)
 	}
-	resumed, err := os.ReadFile(filepath.Join(merged, "model.safetensors"))
-	testcheck.NoError(t, err)
+	resumed := testcheck.Must(os.ReadFile(filepath.Join(merged, "model.safetensors")))(t)
 	uninterrupted, err := os.ReadFile(filepath.Join(fresh, "model.safetensors"))
 	if err != nil || !bytes.Equal(resumed, uninterrupted) {
 		t.Fatalf("the resumed merge differs from an uninterrupted merge of the same base (%v)", err)

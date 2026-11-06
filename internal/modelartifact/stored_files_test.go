@@ -16,11 +16,9 @@ func TestReinspectStoredFilesRefusesPhysicalDrift(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "model.safetensors")
 	writeSafetensor(t, path, "first")
-	inventory, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}})
-	testcheck.NoError(t, err)
+	inventory := testcheck.Must(FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}}))(t)
 	store := overgodbtest.Open(t, t.TempDir())
-	batch, err := inventory.Batch("test/model")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(inventory.Batch("test/model"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}

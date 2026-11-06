@@ -17,10 +17,8 @@ func TestWebUIBrowserTurnLimit(t *testing.T) {
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Partial answer", " continued"}}))
 	server := httptest.NewServer(handler)
 	defer func() { _ = handler.Close(); server.Close() }()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
-	browser, err := webuilane.Open(t.Context(), path, server.URL)
-	testcheck.NoError(t, err)
+	path := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
+	browser := testcheck.Must(webuilane.Open(t.Context(), path, server.URL))(t)
 	defer browser.Close()
 	settle := func(predicate string) {
 		t.Helper()

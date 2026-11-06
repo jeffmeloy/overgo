@@ -26,11 +26,9 @@ import (
 func TestMediaEvidenceBinding(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(root)
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(root))(t)
 	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
-	testcheck.NoError(t, err)
+	raw := testcheck.Must(os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json")))(t)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256))
 	var inputs struct {
 		Bundle     mediaCapacityBundle
@@ -45,8 +43,7 @@ func TestMediaEvidenceBinding(t *testing.T) {
 	}
 	identify := func(value any) artifact.ID {
 		t.Helper()
-		id, err := artifact.JSONID(artifact.KindEvidence, value)
-		testcheck.NoError(t, err)
+		id := testcheck.Must(artifact.JSONID(artifact.KindEvidence, value))(t)
 		return id
 	}
 	inputID := identify(inputs)
@@ -126,11 +123,9 @@ func (r verificationContentFaultReader) OpenContent(ctx context.Context, id arti
 func TestMediaReceiptProvenance(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "producer")
-	store, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Create(path))(t)
 	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "text/plain", Schema: "overgo/source/v1"}
-	content, err := contract.ContentBytes([]byte("package fixture\n"))
-	testcheck.NoError(t, err)
+	content := testcheck.Must(contract.ContentBytes([]byte("package fixture\n")))(t)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-overlay", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
@@ -138,8 +133,7 @@ func TestMediaReceiptProvenance(t *testing.T) {
 	relocated := filepath.Join(root, "consumer")
 	testcheck.NoError(t, os.Rename(path, relocated))
 	store = overgodbtest.OpenReadOnly(t, relocated)
-	missing, err := contract.Identify([]byte("unresolved overlay"))
-	testcheck.NoError(t, err)
+	missing := testcheck.Must(contract.Identify([]byte("unresolved overlay")))(t)
 	const producerPath = "C:/retired/worktree/fixture_test.go"
 	valid := mediaValidationCheck{
 		Source:      strings.Repeat("a", 40),

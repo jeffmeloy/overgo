@@ -17,22 +17,19 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 
 	contextContent := audioParentContent(t, artifact.KindProfile, "context")
 	stateContent := audioParentContent(t, artifact.KindCheckpoint, "state")
-	parents, err := artifact.NewDocumentBatch(
+	parents := testcheck.Must(artifact.NewDocumentBatch(
 		"fixture/audio-contract-parents", []artifact.Content{contextContent, stateContent}, nil, nil,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, parents); err != nil {
 		t.Fatal(err)
 	}
-	contract, err := audioContractCodec.NewInitial(AudioContractDocument{
+	contract := testcheck.Must(audioContractCodec.NewInitial(AudioContractDocument{
 		Format:  recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		Frame:   recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 80},
 		Context: contextContent.Descriptor.ID,
 		State:   stateContent.Descriptor.ID,
-	})
-	testcheck.NoError(t, err)
-	batch, err := contract.Batch("fixture/audio-contract")
-	testcheck.NoError(t, err)
+	}))(t)
+	batch := testcheck.Must(contract.Batch("fixture/audio-contract"))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -73,22 +70,18 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 		artifact.ID{}, artifact.ID{},
 	)
 	testcheck.NoError(t, err)
-	contractContent, err := contract.Content()
-	testcheck.NoError(t, err)
+	contractContent := testcheck.Must(contract.Content())(t)
 	model := audioParentContent(t, artifact.KindModel, "transcription-model")
 	processor := audioParentContent(t, artifact.KindProfile, "transcription-processor")
 	tokenizer := audioParentContent(t, artifact.KindTokenizer, "transcription-tokenizer")
 	inventory := audioParentContent(t, artifact.KindTensorInventory, "transcription-tensors")
-	dependencies, err := artifact.NewDocumentBatch("fixture/transcription/dependencies",
-		[]artifact.Content{model, contractContent, processor, tokenizer, inventory}, nil, nil)
-	testcheck.NoError(t, err)
+	dependencies := testcheck.Must(artifact.NewDocumentBatch("fixture/transcription/dependencies",
+		[]artifact.Content{model, contractContent, processor, tokenizer, inventory}, nil, nil))(t)
 	if _, err = artifact.CommitBatch(t.Context(), store, dependencies); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := TranscriptionDefinition(model.Descriptor.ID, contract.ID, processor.Descriptor.ID, tokenizer.Descriptor.ID, inventory.Descriptor.ID)
-	testcheck.NoError(t, err)
-	program, err := CompileCapability(definition)
-	testcheck.NoError(t, err)
+	definition := testcheck.Must(TranscriptionDefinition(model.Descriptor.ID, contract.ID, processor.Descriptor.ID, tokenizer.Descriptor.ID, inventory.Descriptor.ID))(t)
+	program := testcheck.Must(CompileCapability(definition))(t)
 	if program.Definition().ID != definition.ID || len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleTranscribeAudio ||
 		definition.Nodes[0].Placement != recipe.PlacementHost || definition.Nodes[0].Session != recipe.SessionCapacity ||
 		definition.Nodes[0].Residency != recipe.ResidencyHostCache {
@@ -97,8 +90,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	if _, _, err = PublishCandidate(t.Context(), store, "fixture/transcription/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(t.Context(), definition.ID)
-	testcheck.NoError(t, err)
+	parents := testcheck.Must(store.Parents(t.Context(), definition.ID))(t)
 	for _, dependency := range definition.Dependencies {
 		edge := artifact.Lineage{Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn}
 		if !slices.Contains(parents, edge) {
@@ -110,8 +102,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 		t.Fatalf("loaded audio contract = %+v, %v", loaded, err)
 	}
 	checkpoint := audioParentContent(t, artifact.KindCheckpoint, "adapter")
-	adapted, err := AdaptedTranscriptionDefinition(definition, checkpoint.Descriptor.ID)
-	testcheck.NoError(t, err)
+	adapted := testcheck.Must(AdaptedTranscriptionDefinition(definition, checkpoint.Descriptor.ID))(t)
 	if _, err := CompileCapability(adapted); err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +121,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	if _, err := AdaptedTranscriptionDefinition(altered, checkpoint.Descriptor.ID); err == nil {
 		t.Fatal("mutated base topology accepted")
 	}
-	resident, err := DeviceTranscriptionDefinition(definition)
-	testcheck.NoError(t, err)
+	resident := testcheck.Must(DeviceTranscriptionDefinition(definition))(t)
 	if _, err := CompileCapability(resident); err != nil {
 		t.Fatal(err)
 	}
@@ -148,16 +138,13 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	contextID := testutil.ArtifactID(t, artifact.KindProfile, "missing-context")
-	contract, err := audioContractCodec.NewInitial(AudioContractDocument{
+	contract := testcheck.Must(audioContractCodec.NewInitial(AudioContractDocument{
 		Format:  recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		Frame:   recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160},
 		Context: contextID,
-	})
-	testcheck.NoError(t, err)
-	content, err := contract.Content()
-	testcheck.NoError(t, err)
-	unbound, err := artifact.NewDocumentBatch("fixture/unbound-audio-contract", []artifact.Content{content}, nil, nil)
-	testcheck.NoError(t, err)
+	}))(t)
+	content := testcheck.Must(contract.Content())(t)
+	unbound := testcheck.Must(artifact.NewDocumentBatch("fixture/unbound-audio-contract", []artifact.Content{content}, nil, nil))(t)
 	if _, err := artifact.CommitBatch(t.Context(), store, unbound); err != nil {
 		t.Fatal(err)
 	}
@@ -174,9 +161,7 @@ func audioParentContent(t *testing.T, kind artifact.Kind, name string) artifact.
 		Kind: kind, MediaType: "application/vnd.overgo.test-audio-parent+json", Schema: "overgo/test-audio-parent/v1",
 	}
 	data := []byte(`{"name":"` + name + `"}`)
-	id, err := contract.Identify(data)
-	testcheck.NoError(t, err)
-	content, err := contract.Content(id, data)
-	testcheck.NoError(t, err)
+	id := testcheck.Must(contract.Identify(data))(t)
+	content := testcheck.Must(contract.Content(id, data))(t)
 	return content
 }

@@ -63,8 +63,7 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	// working edits the lead's working plan in place, uncommitted.
 	working := func(edit func(*plan.Plan)) {
 		t.Helper()
-		document, err := plan.Load(fixture.planPath())
-		testcheck.NoError(t, err)
+		document := testcheck.Must(plan.Load(fixture.planPath()))(t)
 		edit(&document)
 		testcheck.NoError(t, plan.Save(fixture.planPath(), document))
 	}

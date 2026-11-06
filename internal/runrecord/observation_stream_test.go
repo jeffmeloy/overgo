@@ -68,7 +68,7 @@ func TestLoadObservationStream(t *testing.T) {
 	}
 
 	observedZero := InteractionWork{}
-	first, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
+	first := testcheck.Must(NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
 		{Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken, Measures: []ResourceMeasure{
 			{Metric: ResourceCostUnits, Value: 0},
 			{Metric: ResourcePeakHostBytes, Value: 100},
@@ -77,20 +77,16 @@ func TestLoadObservationStream(t *testing.T) {
 		{Ordinal: 2, ElapsedNS: 20, Kind: ObservationSampleHardware, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 80},
 		}, Interactions: &observedZero},
-	})
-	testcheck.NoError(t, err)
-	firstSummary, err := commitObservationChunk(t, ctx, store, first)
-	testcheck.NoError(t, err)
+	}))(t)
+	firstSummary := testcheck.Must(commitObservationChunk(t, ctx, store, first))(t)
 	observedWork := InteractionWork{Failures: 1, Retries: 2}
-	second, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{
+	second := testcheck.Must(NewObservationChunk(scope, firstSummary.ID, []ObservationSample{
 		{Ordinal: 3, ElapsedNS: 30, Kind: observationSampleMessage, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 120},
 			{Metric: ResourceWallNS, Value: 7},
 		}, Interactions: &observedWork},
-	})
-	testcheck.NoError(t, err)
-	secondSummary, err := commitObservationChunk(t, ctx, store, second)
-	testcheck.NoError(t, err)
+	}))(t)
+	secondSummary := testcheck.Must(commitObservationChunk(t, ctx, store, second))(t)
 
 	wantSummaryIDs := []artifact.ID{firstSummary.ID, secondSummary.ID}
 	wantChunkIDs := []artifact.ID{firstSummary.Chunk, secondSummary.Chunk}
@@ -170,8 +166,7 @@ func TestLoadObservationStream(t *testing.T) {
 		t.Fatalf("missing stream with exhausted bound = (%v, %v)", found, err)
 	}
 
-	secondContent, err := second.Content()
-	testcheck.NoError(t, err)
+	secondContent := testcheck.Must(second.Content())(t)
 	secondContent.Data[0] ^= byte(traceSequenceStart)
 	corrupt := observationStreamOverrideReader{
 		Reader: store, contents: map[artifact.ID]artifact.Content{second.ID: secondContent},
@@ -194,18 +189,14 @@ func TestLoadObservationStream(t *testing.T) {
 	}
 	for _, refusal := range refusals {
 		t.Run("refuses "+refusal.name+" discontinuity", func(t *testing.T) {
-			forgedChunk, err := NewObservationChunk(refusal.scope, firstSummary.ID, []ObservationSample{{
+			forgedChunk := testcheck.Must(NewObservationChunk(refusal.scope, firstSummary.ID, []ObservationSample{{
 				Ordinal: refusal.first, ElapsedNS: second.Samples[0].ElapsedNS,
 				Kind:     ObservationSampleExecution,
 				Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}},
-			}})
-			testcheck.NoError(t, err)
-			forgedSummary, err := SummarizeObservationChunk(forgedChunk)
-			testcheck.NoError(t, err)
-			chunkContent, err := forgedChunk.Content()
-			testcheck.NoError(t, err)
-			summaryContent, err := forgedSummary.Content()
-			testcheck.NoError(t, err)
+			}}))(t)
+			forgedSummary := testcheck.Must(SummarizeObservationChunk(forgedChunk))(t)
+			chunkContent := testcheck.Must(forgedChunk.Content())(t)
+			summaryContent := testcheck.Must(forgedSummary.Content())(t)
 			reader := observationStreamOverrideReader{
 				Reader: store,
 				aliases: map[string]artifact.ID{
@@ -222,11 +213,10 @@ func TestLoadObservationStream(t *testing.T) {
 		})
 	}
 
-	third, err := NewObservationChunk(scope, secondSummary.ID, []ObservationSample{{
+	third := testcheck.Must(NewObservationChunk(scope, secondSummary.ID, []ObservationSample{{
 		Ordinal: 4, ElapsedNS: 40, Kind: ObservationSampleExecution,
 		Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 100}},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	if _, err := commitObservationChunk(t, ctx, store, third); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +234,7 @@ func TestLoadObservationStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	interactionsOnly := InteractionWork{ToolCalls: 1}
-	hardwareChunk, err := NewObservationChunk(hardwareScope, artifact.ID{}, []ObservationSample{
+	hardwareChunk := testcheck.Must(NewObservationChunk(hardwareScope, artifact.ID{}, []ObservationSample{
 		{
 			Ordinal: traceSequenceStart, Kind: ObservationSampleHardware,
 			Interactions: &interactionsOnly,
@@ -257,10 +247,8 @@ func TestLoadObservationStream(t *testing.T) {
 			Ordinal: traceSequenceStart + 2, Kind: ObservationSampleHardware,
 			Measures: []ResourceMeasure{{Metric: resourceCPUNS, Value: 0}},
 		},
-	})
-	testcheck.NoError(t, err)
-	hardwareSummary, err := commitObservationChunk(t, ctx, store, hardwareChunk)
-	testcheck.NoError(t, err)
+	}))(t)
+	hardwareSummary := testcheck.Must(commitObservationChunk(t, ctx, store, hardwareChunk))(t)
 	hardwareStream, found, err := LoadObservationStream(ctx, store, hardwareScope.Attempt, ObservationStreamBounds{
 		MaxChunks: 1, MaxRawBytes: hardwareSummary.Stats.Bytes,
 	})

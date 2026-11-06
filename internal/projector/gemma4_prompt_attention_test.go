@@ -40,13 +40,10 @@ func TestGemma4TowerCausalMediaPrompts(t *testing.T) {
 			}
 			picture := image.NewRGBA(image.Rect(0, 0, 1, 1))
 			program := compileGemma4ImageProgram(source)
-			images, err := executeImagePromptPlan(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, []string{"", "", "Count."}, program.Default, program.Encode)
-			testcheck.NoError(t, err)
+			images := testcheck.Must(executeImagePromptPlan(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, []string{"", "", "Count."}, program.Default, program.Encode))(t)
 			media := compileGemma4MediaProgram(source)
-			mixed, err := media.History(t.Context(), gemma4PromptTokenizer{}, []MediaInput{{Kind: MediaImage, Image: picture}, {Kind: MediaAudio, Audio: []float32{1}}}, []string{"before", "between", "after"})
-			testcheck.NoError(t, err)
-			video, err := media.Video(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, "", "Describe.", 1, false)
-			testcheck.NoError(t, err)
+			mixed := testcheck.Must(media.History(t.Context(), gemma4PromptTokenizer{}, []MediaInput{{Kind: MediaImage, Image: picture}, {Kind: MediaAudio, Audio: []float32{1}}}, []string{"before", "between", "after"}))(t)
+			video := testcheck.Must(media.Video(t.Context(), gemma4PromptTokenizer{}, []image.Image{picture, picture}, "", "Describe.", 1, false))(t)
 			for name, prompt := range map[string]MultimodalPrompt{"images": images, "mixed": mixed, "video": video} {
 				if len(prompt.Embeddings) == 0 || len(prompt.TokenIDs) == 0 {
 					t.Fatalf("%s omitted media", name)
@@ -85,13 +82,11 @@ func TestGemma4TowerCausalMediaPrompts(t *testing.T) {
 
 func fixtureMediaAttention(t *testing.T, attention string) mediaPreprocessOwner {
 	t.Helper()
-	config, err := modelartifact.NewModelConfigDocument(
+	config := testcheck.Must(modelartifact.NewModelConfigDocument(
 		testutil.ArtifactID(t, artifact.KindModel, "prompt-attention-model"), nil,
 		&modelartifact.GenerationEssentials{ImageAttention: attention},
 		[]modelartifact.ConfigSource{{Name: "config.json", SHA256: strings.Repeat("a", 64)}},
-	)
-	testcheck.NoError(t, err)
-	profile, err := (MediaPreprocessProfile{Version: artifact.InitialDocumentVersion}).BindModelConfig(config)
-	testcheck.NoError(t, err)
+	))(t)
+	profile := testcheck.Must((MediaPreprocessProfile{Version: artifact.InitialDocumentVersion}).BindModelConfig(config))(t)
 	return mediaPreprocessOwner{preprocess: profile}
 }

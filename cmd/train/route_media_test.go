@@ -29,8 +29,7 @@ func TestTrainRoutesReachTheMediaTrainers(t *testing.T) {
 				picture.Set(x, y, color.RGBA{R: uint8(x * tinyImageStride), G: uint8(y * tinyImageStride), B: uint8((x + y) * tinyImageStride), A: math.MaxUint8})
 			}
 		}
-		file, err := os.Create(filepath.Join(root, "gradient.png"))
-		testcheck.NoError(t, err)
+		file := testcheck.Must(os.Create(filepath.Join(root, "gradient.png")))(t)
 		testcheck.NoError(t, png.Encode(file, picture))
 		testcheck.NoError(t, file.Close())
 		manifest := filepath.Join(root, "manifest.txt")
@@ -54,10 +53,8 @@ func requireRoutePublishes(t *testing.T, route string, args ...string) (training
 	if err := runRoute(t.Context(), args); err != nil {
 		t.Fatalf("%s route: %v", route, err)
 	}
-	checkpoint, err := trainingprogram.LoadCheckpoint(out)
-	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(storePath)
-	testcheck.NoError(t, err)
+	checkpoint := testcheck.Must(trainingprogram.LoadCheckpoint(out))(t)
+	store := testcheck.Must(overgodb.OpenReadOnly(storePath))(t)
 	defer store.Close()
 	if _, recorded, err := store.Artifact(t.Context(), checkpoint.ID()); err != nil || !recorded || checkpoint.Optimizer.Step != routeTestSteps {
 		t.Fatalf("checkpoint %s at step %d recorded %t (%v), want the route's %d steps recorded", checkpoint.ID(), checkpoint.Optimizer.Step, recorded, err, routeTestSteps)

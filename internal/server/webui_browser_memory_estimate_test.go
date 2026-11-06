@@ -19,11 +19,10 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the memory estimate leg uses Chromium through cmd/webui-lane")
 	fixture := newDPOTrainingFixture(t)
-	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{}))(t)
 	defer handler.Close()
 	const gibibyte = 1 << 30
-	catalog, err := json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
+	catalog := testcheck.Must(json.Marshal(map[string]any{"truncated": false, "models": []map[string]any{
 		{
 			"model": "model:measured", "location": "C:/models/measured.gguf", "present": true, "recipe": "recipe:measured",
 			"memory": map[string]any{
@@ -33,8 +32,7 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 			},
 		},
 		{"model": "model:unmeasured", "location": "C:/models/unmeasured.gguf", "present": true, "recipe": "recipe:unmeasured"},
-	}})
-	testcheck.NoError(t, err)
+	}}))(t)
 	server := httptest.NewServer(http.HandlerFunc(catalogOverride(handler, catalog)))
 	defer server.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)

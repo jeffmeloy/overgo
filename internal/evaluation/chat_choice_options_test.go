@@ -107,8 +107,7 @@ func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
 	for index := range wide.Cases[0].Candidates {
 		wide.Cases[0].Candidates[index] = fmt.Sprintf(" option %d", index)
 	}
-	compiled, err := CompileMultipleChoice(wide)
-	testcheck.NoError(t, err)
+	compiled := testcheck.Must(CompileMultipleChoice(wide))(t)
 	templated := ListingAuthorities()
 	templated.Execution.Prompting = PromptingChatTemplate
 	if _, err := BindMultipleChoice(compiled, templated); err == nil {

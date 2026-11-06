@@ -36,8 +36,7 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 			t.Fatalf("assemble: dropped=%d error=%v", dropped, err)
 		}
 		suite := assembled.(instructionRulesSuite)
-		compiled, err := compileInstructionRules(suite)
-		testcheck.NoError(t, err)
+		compiled := testcheck.Must(compileInstructionRules(suite))(t)
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("one instruction must produce one verdict")
 		}
@@ -50,8 +49,7 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		legacy.Cases = slices.Clone(suite.Cases)
 		legacy.Cases[0].Rules = slices.Clone(suite.Cases[0].Rules)
 		legacy.Cases[0].Rules[0].Kind = legacyKinds[c.Instruction]
-		prior, err := compileInstructionRules(legacy)
-		testcheck.NoError(t, err)
+		prior := testcheck.Must(compileInstructionRules(legacy))(t)
 		if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 			t.Fatal("scorer correction reused prior identity")
 		}

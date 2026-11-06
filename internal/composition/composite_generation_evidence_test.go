@@ -12,14 +12,12 @@ import (
 func TestCompositeGenerationEvidence(t *testing.T) {
 	value := compositeGenerationEvidenceFixture(t)
 	authority := CompositeGenerationEvidenceAuthority{}
-	evidence, err := authority.New(value)
-	testcheck.NoError(t, err)
+	evidence := testcheck.Must(authority.New(value))(t)
 	if evidence.ID.Kind() != artifact.KindEvidence || evidence.Trials[0].Seed != 7 ||
 		evidence.Trials[0].Arm != CompositeGenerationTargetBaseline {
 		t.Fatalf("evidence = %+v", evidence)
 	}
-	content, err := evidence.Content()
-	testcheck.NoError(t, err)
+	content := testcheck.Must(evidence.Content())(t)
 	parsed, err := authority.Parse(content.Data)
 	if err != nil || parsed.ID != evidence.ID || !slices.Equal(parsed.Trials, evidence.Trials) {
 		t.Fatalf("round trip = %+v, %v", parsed, err)
@@ -63,8 +61,7 @@ func TestCompositeGenerationAblationArms(t *testing.T) {
 func TestCompositeGenerationIdentity(t *testing.T) {
 	value := compositeGenerationEvidenceFixture(t)
 	authority := CompositeGenerationEvidenceAuthority{}
-	first, err := authority.New(value)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(authority.New(value))(t)
 	slices.Reverse(value.Trials)
 	second, err := authority.New(value)
 	if err != nil || first.ID != second.ID {

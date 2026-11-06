@@ -23,8 +23,7 @@ func TestSpeechOutputIsItsWAV(t *testing.T) {
 	const rate = 24000
 	// Silence, half scale either way, and a sample past each end of the range.
 	audio := speechsynth.Audio{PCM: []float32{0, 0.5, -0.5, 2, -2}, SampleRate: rate, Channels: 1, Complete: true}
-	content, err := OutputContent(audio)
-	testcheck.NoError(t, err)
+	content := testcheck.Must(OutputContent(audio))(t)
 	descriptor := content.Descriptor
 	if descriptor.ID.Kind() != artifact.KindOutput || descriptor.MediaType != media.WAVMediaType || descriptor.Schema != "overgo.encoded-audio.wav.v1" {
 		t.Fatalf("speech is published as %s %q under %q", descriptor.ID.Kind(), descriptor.MediaType, descriptor.Schema)
@@ -41,8 +40,7 @@ func TestSpeechOutputIsItsWAV(t *testing.T) {
 	}
 	var stored speechsynth.Audio
 	testcheck.NoError(t, stored.DecodeContent(content))
-	again, err := OutputContent(stored)
-	testcheck.NoError(t, err)
+	again := testcheck.Must(OutputContent(stored))(t)
 	if !bytes.Equal(again.Data, content.Data) || again.Descriptor != content.Descriptor {
 		t.Fatal("a recording read back from its WAV is published as other bytes")
 	}

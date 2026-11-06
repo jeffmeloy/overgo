@@ -9,8 +9,7 @@ import (
 
 func testManuals(t *testing.T) []Manual {
 	t.Helper()
-	search, err := NewManual(validManual())
-	testcheck.NoError(t, err)
+	search := testcheck.Must(NewManual(validManual()))(t)
 	write := Manual{
 		Name:        "repo.write",
 		Description: "Write one file under the workspace root.",
@@ -21,8 +20,7 @@ func testManuals(t *testing.T) []Manual {
 		},
 		Transport: Transport{Kind: TransportBuiltin},
 	}
-	mutation, err := NewManual(write)
-	testcheck.NoError(t, err)
+	mutation := testcheck.Must(NewManual(write))(t)
 	return []Manual{search, mutation}
 }
 
@@ -30,23 +28,19 @@ func TestPublishManualCatalogIsAtomicAndIdempotent(t *testing.T) {
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
 	manuals := testManuals(t)
-	empty, err := InspectManualCatalog(ctx, store, manuals)
-	testcheck.NoError(t, err)
+	empty := testcheck.Must(InspectManualCatalog(ctx, store, manuals))(t)
 	if empty.Complete || empty.Published != 0 || empty.Registered != len(manuals) {
 		t.Fatalf("empty coverage = %+v", empty)
 	}
-	published, err := PublishManualCatalog(ctx, store, manuals)
-	testcheck.NoError(t, err)
+	published := testcheck.Must(PublishManualCatalog(ctx, store, manuals))(t)
 	if !published.Changed || !published.Coverage.Complete || published.Coverage.Published != len(manuals) {
 		t.Fatalf("publication = %+v", published)
 	}
-	repeated, err := PublishManualCatalog(ctx, store, manuals)
-	testcheck.NoError(t, err)
+	repeated := testcheck.Must(PublishManualCatalog(ctx, store, manuals))(t)
 	if repeated.Changed {
 		t.Fatalf("repeat publication changed the store: %+v", repeated)
 	}
-	resolved, err := ResolveRegisteredManual(ctx, store, "repo.write")
-	testcheck.NoError(t, err)
+	resolved := testcheck.Must(ResolveRegisteredManual(ctx, store, "repo.write"))(t)
 	if resolved.ID != manuals[1].ID || resolved.Effect != EffectMutation {
 		t.Fatalf("resolved = %+v, want the published mutation manual", resolved)
 	}
@@ -64,21 +58,17 @@ func TestPublishManualCatalogSupersedesStaleBindings(t *testing.T) {
 	}
 	revised := validManual()
 	revised.Description = "Search the repository for a pattern, bounded."
-	updated, err := NewManual(revised)
-	testcheck.NoError(t, err)
+	updated := testcheck.Must(NewManual(revised))(t)
 	manuals[0] = updated
-	stale, err := InspectManualCatalog(ctx, store, manuals)
-	testcheck.NoError(t, err)
+	stale := testcheck.Must(InspectManualCatalog(ctx, store, manuals))(t)
 	if stale.Complete || stale.Entries[0].Status != CatalogEntryMismatched {
 		t.Fatalf("stale coverage = %+v, want the revised manual mismatched", stale)
 	}
-	published, err := PublishManualCatalog(ctx, store, manuals)
-	testcheck.NoError(t, err)
+	published := testcheck.Must(PublishManualCatalog(ctx, store, manuals))(t)
 	if !published.Changed || !published.Coverage.Complete {
 		t.Fatalf("supersede publication = %+v", published)
 	}
-	resolved, err := ResolveRegisteredManual(ctx, store, "repo.search")
-	testcheck.NoError(t, err)
+	resolved := testcheck.Must(ResolveRegisteredManual(ctx, store, "repo.search"))(t)
 	if resolved.ID != updated.ID {
 		t.Fatalf("resolved %s, want the superseding manual %s", resolved.ID, updated.ID)
 	}

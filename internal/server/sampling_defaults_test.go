@@ -52,8 +52,7 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 	if len(biased.LogitBiases) != 1 {
 		t.Fatalf("logit bias resolved as %+v", biased.LogitBiases)
 	}
-	sampler, err := sampling.New(biased)
-	testcheck.NoError(t, err)
+	sampler := testcheck.Must(sampling.New(biased))(t)
 	// The bias lands on the vocabulary's top logit, so the draw must move to the next one, every time.
 	logits := make([]float32, 64)
 	for index := range logits {
@@ -65,8 +64,7 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 		want = 62
 	}
 	for range 8 {
-		token, err := sampler.Sample(logits)
-		testcheck.NoError(t, err)
+		token := testcheck.Must(sampler.Sample(logits))(t)
 		if token != want {
 			t.Fatalf("temperature 0 with a logit bias drew token %d, want the biased argmax %d under %+v", token, want, biased)
 		}
@@ -137,8 +135,7 @@ func TestRequestSamplingPresence(t *testing.T) {
 				t.Run(variant.name, func(t *testing.T) {
 					var request samplingParameters
 					testcheck.NoError(t, json.Unmarshal([]byte(variant.body), &request))
-					sampler, err := handler.newSampler(request)
-					testcheck.NoError(t, err)
+					sampler := testcheck.Must(handler.newSampler(request))(t)
 					value := reflect.ValueOf(sampler.Config()).FieldByName(field.field)
 					got := value.Convert(reflect.TypeFor[float64]()).Float()
 					if got != variant.want {

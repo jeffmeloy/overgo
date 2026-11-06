@@ -16,8 +16,7 @@ import (
 // nothing checks, so it cannot be added.
 func TestManifestHoldsOnlyDecodedSections(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join("..", "..", manifestPath))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(os.ReadFile(filepath.Join("..", "..", manifestPath)))(t)
 	var sections map[string]json.RawMessage
 	testcheck.NoError(t, json.Unmarshal(data, &sections))
 	decoded := map[string]bool{}

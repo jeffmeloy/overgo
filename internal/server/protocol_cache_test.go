@@ -125,8 +125,7 @@ func TestProtocolPromptCacheReuse(t *testing.T) {
 		inspected := &protocolCacheGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), supported: true}
 		handler := newTestHandler(t, inspected)
 		selected := &fakeGenerator{}
-		sessions, err := capabilityruntime.NewResidentModelSessionDirector[Generator]("inference", "compiled", 1, selected)
-		testcheck.NoError(t, err)
+		sessions := testcheck.Must(capabilityruntime.NewResidentModelSessionDirector[Generator]("inference", "compiled", 1, selected))(t)
 		handler.sessions = sessions
 		response := serveTestRequest(handler, http.MethodPost, "/v1/chat/completions", `{"messages":[{"role":"user","content":"hi"}],"max_tokens":1}`)
 		if response.Code != http.StatusOK || selected.cachePrompt {

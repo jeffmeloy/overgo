@@ -22,16 +22,14 @@ func TestHostLayerGraphInputsAliasLoadedTensors(t *testing.T) {
 	}
 
 	data := hostTensorFixture(t, "weight", 4)
-	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
-	testcheck.NoError(t, err)
+	file := testcheck.Must(gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions()))(t)
 	info := file.Tensors[0]
 	layer := LayerWeights{
 		AttentionQ:     &info,
 		AttentionQNorm: &info, FeedForwardRouterBias: &info,
 		SSMQueryConv: &info, TimeMixW1: &info, ShortConvKernel: &info,
 	}
-	host, err := LoadHostLayer(t.Context(), file, layer)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(LoadHostLayer(t.Context(), file, layer))(t)
 	if host.AttentionQ == nil || len(host.AttentionQ.Data) != 4 || host.AttentionK != nil {
 		t.Fatalf("host layer loaded %+v", host.AttentionQ)
 	}

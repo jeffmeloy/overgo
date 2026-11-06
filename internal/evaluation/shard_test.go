@@ -13,22 +13,19 @@ const shardCaseCount = 5
 
 func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
 	t.Parallel()
-	exact, err := CompileExact(exactFixture())
-	testcheck.NoError(t, err)
-	plan, err := BindExact(exact, ExactAuthorities{
+	exact := testcheck.Must(CompileExact(exactFixture()))(t)
+	plan := testcheck.Must(BindExact(exact, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit:      planTestCommit,
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleIsolated},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	cases := make([]artifact.ID, shardCaseCount)
 	for index := range cases {
 		cases[index] = planID(t, artifact.KindDatasetShard, fmt.Sprintf("case-%d", index))
 	}
-	shards, err := compileCaseShards(plan, cases)
-	testcheck.NoError(t, err)
+	shards := testcheck.Must(compileCaseShards(plan, cases))(t)
 	if len(shards) != len(cases) || len(shards[0].Cases) != 1 || shards[0].Cases[0] != cases[0] {
 		t.Fatalf("shards = %+v", shards)
 	}
@@ -40,8 +37,7 @@ func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
 		metric := metricState{Name: "exact-accuracy"}
 		for caseIndex, caseID := range shard.Cases {
 			text := "raw-" + caseID.String()
-			output, err := newTextOutput(plan.Identity(), caseID, text)
-			testcheck.NoError(t, err)
+			output := testcheck.Must(newTextOutput(plan.Identity(), caseID, text))(t)
 			passed := (shardIndex+caseIndex)%2 == 0
 			observations[caseIndex] = caseObservation{Case: caseID, Output: output.ID, Passed: passed}
 			value := float64(0)
@@ -51,16 +47,13 @@ func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
 			}
 			testcheck.NoError(t, metric.observe(value))
 		}
-		reports[shardIndex], err = newShardReport(shard, observations, []metricState{metric})
-		testcheck.NoError(t, err)
+		reports[shardIndex] = testcheck.Must(newShardReport(shard, observations, []metricState{metric}))(t)
 	}
 
 	reversed := slices.Clone(reports)
 	slices.Reverse(reversed)
-	first, err := mergeShardReports(reports)
-	testcheck.NoError(t, err)
-	second, err := mergeShardReports(reversed)
-	testcheck.NoError(t, err)
+	first := testcheck.Must(mergeShardReports(reports))(t)
+	second := testcheck.Must(mergeShardReports(reversed))(t)
 	if first.ID != second.ID || first.Cases != uint64(len(cases)) || len(first.Metrics) != 1 ||
 		first.Metrics[0].Count != uint64(len(cases)) || first.Metrics[0].Sum != float64(passedCount) {
 		t.Fatalf("merged report = %+v / %+v", first, second)

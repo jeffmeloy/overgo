@@ -19,10 +19,8 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
-	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})
-	testcheck.NoError(t, err)
-	batch, err := platform.Batch("scored/environment")
-	testcheck.NoError(t, err)
+	platform := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"}))(t)
+	batch := testcheck.Must(platform.Batch("scored/environment"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -44,15 +42,12 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 		}
 		run, err := runrecord.NewBoundRun(recipe, runrecord.OutcomeSucceeded, []artifact.ID{plan}, []artifact.ID{output}, "", strings.Repeat(commit, 40), platform.ID, 1, nil)
 		testcheck.NoError(t, err)
-		content, err := run.Content()
-		testcheck.NoError(t, err)
-		batch, err := artifact.NewDocumentBatch("scored/run/"+commit, []artifact.Content{content}, run.Lineage(), nil)
-		testcheck.NoError(t, err)
+		content := testcheck.Must(run.Content())(t)
+		batch := testcheck.Must(artifact.NewDocumentBatch("scored/run/"+commit, []artifact.Content{content}, run.Lineage(), nil))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
-		record, err := runrecord.NewEvaluation(recipe, run.ID, dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
-		testcheck.NoError(t, err)
+		record := testcheck.Must(runrecord.NewEvaluation(recipe, run.ID, dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}}))(t)
 		if batch, err = record.Batch("scored/evaluation/" + commit); err != nil {
 			t.Fatal(err)
 		}
@@ -65,13 +60,11 @@ func TestScoredCommitIsUnknownForAnUnreadableReceipt(t *testing.T) {
 	// receipt schema whose content the store does not hold.
 	readable := func(label string, carried artifact.ID) artifact.ID {
 		t.Helper()
-		document, err := replayReceiptCodec.NewInitial(ReplayReceipt{
+		document := testcheck.Must(replayReceiptCodec.NewInitial(ReplayReceipt{
 			Version: artifact.InitialDocumentVersion, Plan: plan, Carried: carried,
 			Report: planID(t, artifact.KindEvaluation, label+" report"), Replay: planID(t, artifact.KindEvaluation, label+" replay"), Cases: []int{0, 3},
-		})
-		testcheck.NoError(t, err)
-		batch, err := replayReceiptCodec.Batch("scored/receipt/"+label, document, nil, nil)
-		testcheck.NoError(t, err)
+		}))(t)
+		batch := testcheck.Must(replayReceiptCodec.Batch("scored/receipt/"+label, document, nil, nil))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}

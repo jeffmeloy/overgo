@@ -33,11 +33,9 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 	path := testutil.HermeticGemma4CellsGGUF(t, 1024)
 	open := func(cells bool) *Runner {
 		t.Helper()
-		loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity,
-			recipe.ResidencyDeviceF32)
-		testcheck.NoError(t, err)
-		runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity,
+			recipe.ResidencyDeviceF32))(t)
+		runner := testcheck.Must(OpenWithProgram(t.Context(), &loaded, OpenOptions{}))(t)
 		t.Cleanup(func() { _ = runner.Close() })
 		if !slices.Equal(runner.cellLayers, []bool{true, true}) {
 			t.Fatalf("the fixture at gemma-4-12B's layer kinds holds cells %v, want both layers", runner.cellLayers)
@@ -106,8 +104,7 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 		return fed[len(fed)-1]
 	})
 	cellRunner := open(true)
-	before, err := cellRunner.DeviceExecutionStats(t.Context())
-	testcheck.NoError(t, err)
+	before := testcheck.Must(cellRunner.DeviceExecutionStats(t.Context()))(t)
 	cellLogits, cellBytes := run(cellRunner, func(step int, _ []float32) tokenizer.TokenID { return fed[step] })
 	// The decode steps replay their captured graphs, each step's cells read from its staged step record.
 	if after, err := cellRunner.DeviceExecutionStats(t.Context()); err != nil || after.GraphLaunches == before.GraphLaunches {

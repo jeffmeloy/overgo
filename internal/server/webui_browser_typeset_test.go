@@ -22,10 +22,8 @@ import (
 func TestWebUIBrowserTypeset(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the typeset leg runs through cmd/webui-lane")
-	stylesheet, err := os.ReadFile("webui/style.css")
-	testcheck.NoError(t, err)
-	design, err := webuilane.ParseDesign(string(stylesheet))
-	testcheck.NoError(t, err)
+	stylesheet := testcheck.Must(os.ReadFile("webui/style.css"))(t)
+	design := testcheck.Must(webuilane.ParseDesign(string(stylesheet)))(t)
 	var scale []float64
 	for _, value := range design.Type {
 		size, err := strconv.ParseFloat(strings.TrimSuffix(value, "px"), 64)
@@ -36,8 +34,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	}
 	slices.Sort(scale)
 	encodedScale, _ := json.Marshal(scale)
-	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	testcheck.NoError(t, err)
+	browserPath := testcheck.Must(webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")))(t)
 	repository := overgodbtest.Open(t, t.TempDir())
 	reply := strings.Repeat("A reply long enough to fill several lines of the conversation, so the reading measure decides its width. ", 8)
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{reply}}), path: writeTensorFixture(t)})
@@ -45,8 +42,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
-	testcheck.NoError(t, err)
+	browser := testcheck.Must(webuilane.Open(ctx, browserPath, httpServer.URL+"/"))(t)
 	defer browser.Close()
 	settle := browserSettle(t, ctx, browser)
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)

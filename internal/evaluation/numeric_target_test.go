@@ -13,9 +13,8 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 	for _, modality := range []recipecontract.Modality{recipecontract.ModalityTimeSeries, recipecontract.ModalityTable} {
 		view := textTargetView(t, modality)
 		view.Signature.Outputs[0] = modality
-		view, err := sftEvaluationViewCodec.New(view)
-		testcheck.NoError(t, err)
-		plan, err := compileNumericTargetPlan(view, numericTargetSuite{
+		view = testcheck.Must(sftEvaluationViewCodec.New(view))(t)
+		plan := testcheck.Must(compileNumericTargetPlan(view, numericTargetSuite{
 			Scorers: []numericScorerSpec{
 				{Kind: numericAbsoluteError, Unit: "declared-unit"},
 				{Kind: numericQuantileLoss, Unit: "declared-unit", Quantile: &quantile},
@@ -26,8 +25,7 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 				Record: "heldout", Values: []float64{-1000, 2, 3.5}, Label: "class-b",
 				Assumptions: []numericAssumption{{Name: "target-order", Value: "dataset-declared"}},
 			}},
-		})
-		testcheck.NoError(t, err)
+		}))(t)
 		report, err := scoreNumericTargets(plan, []numericTargetObservation{{
 			Record: "heldout", Values: []float64{-999, 4, -7}, Label: "class-b",
 		}})

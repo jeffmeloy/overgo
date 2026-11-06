@@ -39,8 +39,7 @@ func TestWebUIBrowserSpeechSendsNoFrameLimit(t *testing.T) {
 	generator := &speechSurfaceGenerator{retired: true, generationWorkspaceGenerator: &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-limit"), capability: capability,
 	}}
-	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(New(Config{Repository: store, Workflows: generator}, generator))(t)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()

@@ -13,13 +13,10 @@ import (
 func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	base := fixtureBatch(t)
-	first, err := store.Commit(t.Context(), base)
-	testcheck.NoError(t, err)
-	snapshot, err := store.Snapshot(t.Context())
-	testcheck.NoError(t, err)
+	first := testcheck.Must(store.Commit(t.Context(), base))(t)
+	snapshot := testcheck.Must(store.Snapshot(t.Context()))(t)
 	if snapshot.Sequence != 1 || snapshot.Head != first {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
@@ -28,13 +25,11 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 		t.Fatalf("repeated snapshot = (%+v, %v)", again, err)
 	}
 	tail := fixtureDescriptor(t, artifact.KindOutput, "snapshot-tail")
-	second, err := store.Commit(t.Context(), artifact.Batch{
+	second := testcheck.Must(store.Commit(t.Context(), artifact.Batch{
 		Key: "snapshot/tail", Artifacts: []artifact.Descriptor{tail},
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	head, headSequence := store.Head()
 	if head != second || headSequence != 2 {
@@ -48,17 +43,14 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	t.Parallel()
 	sourceRoot := t.TempDir()
-	source, err := Create(sourceRoot)
-	testcheck.NoError(t, err)
+	source := testcheck.Must(Create(sourceRoot))(t)
 	if _, err := source.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := source.Snapshot(t.Context())
-	testcheck.NoError(t, err)
+	snapshot := testcheck.Must(source.Snapshot(t.Context()))(t)
 	testcheck.NoError(t, source.Close())
 	targetRoot := t.TempDir()
-	target, err := Create(targetRoot)
-	testcheck.NoError(t, err)
+	target := testcheck.Must(Create(targetRoot))(t)
 	targetArtifact := fixtureDescriptor(t, artifact.KindModel, "target-model")
 	if _, err := target.Commit(t.Context(), artifact.Batch{
 		Key: "snapshot/target", Artifacts: []artifact.Descriptor{targetArtifact},
@@ -69,8 +61,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	// A generation of another store carries anchors this journal does not
 	// hold; it must cost a replay, never answers from the wrong catalog.
 	testcheck.NoError(t, os.CopyFS(filepath.Join(targetRoot, checkpointDirectory, filepath.Base(snapshot.Path)), os.DirFS(snapshot.Path)))
-	target, err = OpenReadOnly(targetRoot)
-	testcheck.NoError(t, err)
+	target = testcheck.Must(OpenReadOnly(targetRoot))(t)
 	defer target.Close()
 	if _, ok, err := target.Artifact(t.Context(), targetArtifact.ID); err != nil || !ok {
 		t.Fatalf("target artifact = (%v, %v)", ok, err)
@@ -80,8 +71,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 func TestSnapshotRejectsInvalidStoreModeAndState(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Create(root)
-	testcheck.NoError(t, err)
+	store := testcheck.Must(Create(root))(t)
 	if _, err := store.Snapshot(t.Context()); err == nil {
 		t.Fatal("empty snapshot accepted")
 	}
@@ -89,8 +79,7 @@ func TestSnapshotRejectsInvalidStoreModeAndState(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = OpenReadOnly(root)
-	testcheck.NoError(t, err)
+	store = testcheck.Must(OpenReadOnly(root))(t)
 	defer store.Close()
 	if _, err := store.Snapshot(t.Context()); !errors.Is(err, ErrReadOnly) {
 		t.Fatalf("read-only snapshot error = %v", err)

@@ -47,16 +47,14 @@ func downloadFixtureForFile(t *testing.T, file RepoFile, transfer http.HandlerFu
 		transfer(w, r)
 	}))
 	t.Cleanup(hub.Close)
-	client, err := New(hub.URL, "")
-	testcheck.NoError(t, err)
+	client := testcheck.Must(New(hub.URL, ""))(t)
 	return client, DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Revision: "main", Destination: t.TempDir()}
 }
 
 // bookkeepingFor: the file's bookkeeping path, its directory made.
 func bookkeepingFor(t *testing.T, request DownloadRequest, file RepoFile) string {
 	t.Helper()
-	book, err := bookkeepingPath(request.Destination, file.Path)
-	testcheck.NoError(t, err)
+	book := testcheck.Must(bookkeepingPath(request.Destination, file.Path))(t)
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(book), 0o755))
 	return book
 }

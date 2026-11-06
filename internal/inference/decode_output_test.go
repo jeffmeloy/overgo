@@ -28,8 +28,7 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 		{mode: deviceOutputTopK, topK: candidateCount, want: graph.candidates},
 	}
 	for _, test := range tests {
-		plan, err := compileDeviceOutputPlan(test.mode, test.topK, vocabulary)
-		testcheck.NoError(t, err)
+		plan := testcheck.Must(compileDeviceOutputPlan(test.mode, test.topK, vocabulary))(t)
 		if plan.graphOutput(graph) != test.want {
 			t.Fatalf("mode %d selected the wrong graph output", test.mode)
 		}

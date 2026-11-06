@@ -26,13 +26,11 @@ func recordRecipeRoutingDecision(
 			testutil.PublishArtifact(t, store, id)
 		}
 	}
-	decision, err := DeriveRecipeRoutingDecision(RoutingSignal{
+	decision := testcheck.Must(DeriveRecipeRoutingDecision(RoutingSignal{
 		Task: recipe.TaskInference, Capability: "replay-capability",
 		QualityThreshold: threshold, ThresholdEvidence: thresholdEvidence,
-	}, candidates)
-	testcheck.NoError(t, err)
-	batch, err := decision.Batch("routing/replay-fixture/" + name)
-	testcheck.NoError(t, err)
+	}, candidates))(t)
+	batch := testcheck.Must(decision.Batch("routing/replay-fixture/" + name))(t)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +61,7 @@ func TestRoutingCounterfactualReplay(t *testing.T) {
 	})
 	corpus := []artifact.ID{first.ID, second.ID}
 
-	report, err := ReplayRoutingDecisions(ctx, store, RoutingDerivationBestQualityEligible, corpus)
-	testcheck.NoError(t, err)
+	report := testcheck.Must(ReplayRoutingDecisions(ctx, store, RoutingDerivationBestQualityEligible, corpus))(t)
 	if report.Changed != 1 || report.Coverage != 2 ||
 		report.QualityDelta != costly.Quality-cheap.Quality ||
 		report.ResourceDelta != int64(costly.ResourceBytes)-int64(cheap.ResourceBytes) {

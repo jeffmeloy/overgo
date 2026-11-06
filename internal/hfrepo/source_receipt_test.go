@@ -30,10 +30,8 @@ func TestSourceReceipt(t *testing.T) {
 		first, a := makeSource(t)
 		second, b := makeSource(t)
 		slices.Reverse(b.Files)
-		a, err := a.Verify(t.Context(), first)
-		testcheck.NoError(t, err)
-		b, err = b.Verify(t.Context(), second)
-		testcheck.NoError(t, err)
+		a = testcheck.Must(a.Verify(t.Context(), first))(t)
+		b = testcheck.Must(b.Verify(t.Context(), second))(t)
 		left, _ := json.Marshal(a)
 		right, _ := json.Marshal(b)
 		if string(left) != string(right) {

@@ -174,21 +174,18 @@ func TestDoctrineParagraphsNameWhatTheyGovern(t *testing.T) {
 	t.Run("the one string converts to standing paragraphs word for word", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "plan.json")
 		testcheck.NoError(t, os.WriteFile(path, []byte(before), 0o644))
-		held, err := Load(path)
-		testcheck.NoError(t, err)
+		held := testcheck.Must(Load(path))(t)
 		converted := standingDoctrine(held)
 		if err := Save(path, converted); err != nil {
 			t.Fatalf("saving the converted plan: %v", err)
 		}
-		data, err := os.ReadFile(path)
-		testcheck.NoError(t, err)
+		data := testcheck.Must(os.ReadFile(path))(t)
 		var keys map[string]json.RawMessage
 		testcheck.NoError(t, json.Unmarshal(data, &keys))
 		if _, old := keys["doctrine"]; old || keys["paragraphs"] == nil {
 			t.Fatalf("the saved plan holds the keys of %s, want paragraphs and no doctrine string", data)
 		}
-		loaded, err := Load(path)
-		testcheck.NoError(t, err)
+		loaded := testcheck.Must(Load(path))(t)
 		if err := Validate(loaded); err != nil || !reflect.DeepEqual(loaded, converted) {
 			t.Fatalf("the saved plan loads as %+v (%v), want what was saved: %+v", loaded, err, converted)
 		}

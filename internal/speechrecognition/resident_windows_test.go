@@ -52,8 +52,7 @@ func TestASRResidentCUDA(t *testing.T) {
 				return nil
 			})
 			testcheck.NoError(t, err)
-			logits, err := e.Project(t.Context(), hidden, frames, &w)
-			testcheck.NoError(t, err)
+			logits := testcheck.Must(e.Project(t.Context(), hidden, frames, &w))(t)
 			testutil.RequireWithin(t, "logits", logits, tc.Logits, tolerance)
 			if e.resident.session.StaticBytes() != static {
 				t.Fatal("changing frame count duplicated resident weights")

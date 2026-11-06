@@ -65,10 +65,8 @@ func TestInterleavedRowsKeepTheProcessorsRange(t *testing.T) {
 	picture.SetRGBA(1, 1, color.RGBA{0, 0, 0, 255})
 	var encoded bytes.Buffer
 	testcheck.NoError(t, png.Encode(&encoded, picture))
-	example, err := trainingdata.ImageProcessor(trainingdata.RoleTarget)(t.Context(), trainingdata.RawRecord{ID: "picture", Group: "picture", Data: encoded.Bytes()})
-	testcheck.NoError(t, err)
-	rows, err := interleavedRows(example.Values[0], 2)
-	testcheck.NoError(t, err)
+	example := testcheck.Must(trainingdata.ImageProcessor(trainingdata.RoleTarget)(t.Context(), trainingdata.RawRecord{ID: "picture", Group: "picture", Data: encoded.Bytes()}))(t)
+	rows := testcheck.Must(interleavedRows(example.Values[0], 2))(t)
 	const channels = 3
 	for channel := range channels {
 		if white, black := rows[channel], rows[len(rows)-channels+channel]; white != 1 || black != -1 {
@@ -93,14 +91,12 @@ func TestMOSSRoute(t *testing.T) {
 	arguments := []string{"moss", "-model", root, "-pictures", manifest, "-size", fmt.Sprint(mossRouteSize), "-rank", "2", "-alpha", "2", "-steps", "6", "-store", store, "-out", out, "-adapter", adapterOut, "-served", served}
 	heldout, report := filepath.Join(filepath.Dir(manifest), "heldout.tsv"), filepath.Join(scratch, "heldout.json")
 	testcheck.NoError(t, os.WriteFile(heldout, []byte("held-0.png\ta red square\n"), 0o600))
-	picture, err := os.ReadFile(filepath.Join(filepath.Dir(manifest), "picture-0.png"))
-	testcheck.NoError(t, err)
+	picture := testcheck.Must(os.ReadFile(filepath.Join(filepath.Dir(manifest), "picture-0.png")))(t)
 	// A byte past its end leaves the pixels the reading is pinned to and makes it another file: a copy is refused.
 	testcheck.NoError(t, os.WriteFile(filepath.Join(filepath.Dir(manifest), "held-0.png"), append(picture, 0), 0o600))
 	arguments = append(arguments, "-heldout", heldout, "-report", report)
 	testcheck.NoError(t, runRoute(t.Context(), arguments))
-	adapter, err := peft.Load(adapterOut)
-	testcheck.NoError(t, err)
+	adapter := testcheck.Must(peft.Load(adapterOut))(t)
 	if len(adapter.Modules) == 0 {
 		t.Fatal("the adapter holds no modules")
 	}
@@ -113,18 +109,14 @@ func TestMOSSRoute(t *testing.T) {
 	if !moved {
 		t.Fatal("training moved no up factor")
 	}
-	base, err := safetensors.OpenSource(filepath.Join(root, "transformer"))
-	testcheck.NoError(t, err)
+	base := testcheck.Must(safetensors.OpenSource(filepath.Join(root, "transformer")))(t)
 	defer base.Close()
-	trained, err := safetensors.OpenSource(filepath.Join(served, "transformer"))
-	testcheck.NoError(t, err)
+	trained := testcheck.Must(safetensors.OpenSource(filepath.Join(served, "transformer")))(t)
 	defer trained.Close()
 	changed, kept := 0, 0
 	for name, tensor := range base.Tensors {
-		before, err := safetensors.ReadF32(tensor)
-		testcheck.NoError(t, err)
-		after, err := safetensors.ReadF32(trained.Tensors[name])
-		testcheck.NoError(t, err)
+		before := testcheck.Must(safetensors.ReadF32(tensor))(t)
+		after := testcheck.Must(safetensors.ReadF32(trained.Tensors[name]))(t)
 		same := len(before) == len(after)
 		for index := 0; same && index < len(before); index++ {
 			same = before[index] == after[index]

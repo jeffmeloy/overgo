@@ -54,8 +54,7 @@ func TestModelScopeDownload(t *testing.T) {
 				serveDownloadBytes(w, r, payload)
 			}))
 			defer hub.Close()
-			client, err := NewModelScope(hub.URL, "")
-			testcheck.NoError(t, err)
+			client := testcheck.Must(NewModelScope(hub.URL, ""))(t)
 			request := DownloadRequest{Kind: KindModel, Repository: "openmoss/tiny", Revision: modelScopeTestRevision, Destination: t.TempDir()}
 			if mode == "resume" {
 				partial := client.partialPath(bookkeepingFor(t, request, file), request, modelScopeTestRevision, file)
@@ -128,8 +127,7 @@ func TestModelScopeInventoryRefusals(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{"Code": 200, "Success": failure != "envelope", "Data": map[string]any{"Files": entries}})
 			}))
 			defer hub.Close()
-			client, err := NewModelScope(hub.URL, "")
-			testcheck.NoError(t, err)
+			client := testcheck.Must(NewModelScope(hub.URL, ""))(t)
 			revision := modelScopeTestRevision
 			kind := KindModel
 			if failure == "mutable" {

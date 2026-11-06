@@ -26,18 +26,15 @@ func TestDescendantBeatsParent(t *testing.T) {
 	cudatest.Require(t)
 	commit := controllerSourceCommit(t)
 	verifyControllerSources(t, commit)
-	corpus, err := controllertrain.Compile(controllertrain.Spec{
+	corpus := testcheck.Must(controllertrain.Compile(controllertrain.Spec{
 		Train: controllerRecords(commit, false), Holdout: controllerRecords(commit, true),
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	const steps = 800
 	runs := make([]controllertrain.SeedRun, 3)
 	profile := scratchmodeltest.Profile(t)
 	for index, seed := range []int64{17, 29, 43} {
-		construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: steps}, profile)
-		testcheck.NoError(t, err)
-		runs[index], err = controllertrain.TrainSeed(corpus, construction, trainingprogram.BuiltinOptimizerPolicy(), steps)
-		testcheck.NoError(t, err)
+		construction := testcheck.Must(scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: steps}, profile))(t)
+		runs[index] = testcheck.Must(controllertrain.TrainSeed(corpus, construction, trainingprogram.BuiltinOptimizerPolicy(), steps))(t)
 		t.Logf("seed %d: loss %.6f -> %.6f; action %.3f -> %.3f; modality %.3f -> %.3f",
 			seed, runs[index].Evidence.Initial.Loss, runs[index].Evidence.Final.Loss,
 			runs[index].Evidence.Initial.ActionAccuracy, runs[index].Evidence.Final.ActionAccuracy,
@@ -66,17 +63,14 @@ func TestDescendantBeatsParent(t *testing.T) {
 	for index := range runs {
 		initial[index] = runs[index].Evidence.Initial
 	}
-	noise, err := controllertrain.ObservedNoise(initial)
-	testcheck.NoError(t, err)
+	noise := testcheck.Must(controllertrain.ObservedNoise(initial))(t)
 	evaluator := pretrainedEvidence(t, "heldout-evaluator")
-	budget, err := runrecord.NewBudget("queries", corpus.Split(), uint64(len(runs)), pretrainedEvidence(t, "budget-authority"))
-	testcheck.NoError(t, err)
+	budget := testcheck.Must(runrecord.NewBudget("queries", corpus.Split(), uint64(len(runs)), pretrainedEvidence(t, "budget-authority")))(t)
 	charges := make([]runrecord.BudgetCharge, len(runs))
 	for index := range charges {
-		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
-		testcheck.NoError(t, err)
+		charges[index] = testcheck.Must(runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index)))(t)
 	}
-	decision, err := controllertrain.Decide(controllertrain.DecisionSpec{
+	decision := testcheck.Must(controllertrain.Decide(controllertrain.DecisionSpec{
 		Dataset: corpus.Dataset(), Split: corpus.Split(),
 		CurrentChampion: runs[0].InitialModel, Candidate: runs[0].Evidence.Model,
 		Seeds: controllertrain.SeedEvidenceFrom(runs),
@@ -87,8 +81,7 @@ func TestDescendantBeatsParent(t *testing.T) {
 			{Name: "qwen2.5", Pretrained: true, Model: pretrained("qwen2.5"), Refusal: "controller-scorer-unavailable"},
 		},
 		Evaluator: evaluator, ObservedNoise: noise, Stochastic: true, Budget: budget, Charges: charges,
-	})
-	testcheck.NoError(t, err)
+	}))(t)
 	if decision.State != controllertrain.DecisionPromote || decision.Rollback != runs[0].InitialModel {
 		t.Fatalf("controller promotion = %s; rollback = %s", decision.State, decision.Rollback)
 	}
@@ -97,8 +90,7 @@ func TestDescendantBeatsParent(t *testing.T) {
 
 func pretrainedEvidence(t *testing.T, name string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(name))
-	testcheck.NoError(t, err)
+	id := testcheck.Must(artifact.IdentifyBytes(artifact.KindEvidence, []byte(name)))(t)
 	return id
 }
 
@@ -157,8 +149,7 @@ func verifyControllerSources(t *testing.T, commit string) {
 	t.Helper()
 	command := exec.Command("git", "show", commit+":internal/workflowrecipe/catalog.go")
 	command.Dir = "../.."
-	output, err := command.Output()
-	testcheck.NoError(t, err)
+	output := testcheck.Must(command.Output())(t)
 	for _, module := range []recipe.ModuleID{
 		workflowrecipe.ModuleGenerate, workflowrecipe.ModuleProjectImage,
 		workflowrecipe.ModuleProjectAudio, workflowrecipe.ModuleProjectVideo,
@@ -180,11 +171,9 @@ func publishControllerEvidence(
 ) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
+	store := testcheck.Must(overgodb.Open(t.TempDir()))(t)
 	defer store.Close()
-	batch, err := corpus.PublicationBatch("controller/corpus")
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(corpus.PublicationBatch("controller/corpus"))(t)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -208,14 +197,12 @@ func publishControllerEvidence(
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "controller/facts", Artifacts: facts}); err != nil {
 		t.Fatal(err)
 	}
-	budgetBatch, err := budget.Batch("controller/budget")
-	testcheck.NoError(t, err)
+	budgetBatch := testcheck.Must(budget.Batch("controller/budget"))(t)
 	if _, err := store.Commit(ctx, budgetBatch); err != nil {
 		t.Fatal(err)
 	}
 	for index, charge := range charges {
-		batch, err := charge.Batch(fmt.Sprintf("controller/budget/charge-%d", index))
-		testcheck.NoError(t, err)
+		batch := testcheck.Must(charge.Batch(fmt.Sprintf("controller/budget/charge-%d", index)))(t)
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
@@ -229,20 +216,17 @@ func publishControllerEvidence(
 			{"initial", run.InitialRun.Batch, run.InitialEvaluation.Batch},
 			{"final", run.Run.Batch, run.Evaluation.Batch},
 		} {
-			runBatch, err := value.runBatch(fmt.Sprintf("controller/seed-%d/%s/run", index, value.suffix))
-			testcheck.NoError(t, err)
+			runBatch := testcheck.Must(value.runBatch(fmt.Sprintf("controller/seed-%d/%s/run", index, value.suffix)))(t)
 			if _, err := store.Commit(ctx, runBatch); err != nil {
 				t.Fatal(err)
 			}
-			evaluationBatch, err := value.evalBatch(fmt.Sprintf("controller/seed-%d/%s/evaluation", index, value.suffix))
-			testcheck.NoError(t, err)
+			evaluationBatch := testcheck.Must(value.evalBatch(fmt.Sprintf("controller/seed-%d/%s/evaluation", index, value.suffix)))(t)
 			if _, err := store.Commit(ctx, evaluationBatch); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	decisionBatch, err := decision.Batch("controller/promotion")
-	testcheck.NoError(t, err)
+	decisionBatch := testcheck.Must(decision.Batch("controller/promotion"))(t)
 	if _, err := store.Commit(ctx, decisionBatch); err != nil {
 		t.Fatal(err)
 	}

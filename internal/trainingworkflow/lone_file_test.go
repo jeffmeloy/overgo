@@ -44,15 +44,11 @@ func TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation(t *testing.T) {
 	first := shard("model", "model-00001-of-00002.safetensors", "first", 1)
 
 	stubExecutableCodeCommit(t, strings.Repeat("c0", 20))
-	lone, err := identifyAndRecordWeights(ctx, store, first)
-	testcheck.NoError(t, err)
-	recipeID, err := BootstrapRecipe(ctx, store, first, []byte("the text a run reads"), TokenContract)
-	testcheck.NoError(t, err)
-	observer, err := NewObserver(store, true)
-	testcheck.NoError(t, err)
+	lone := testcheck.Must(identifyAndRecordWeights(ctx, store, first))(t)
+	recipeID := testcheck.Must(BootstrapRecipe(ctx, store, first, []byte("the text a run reads"), TokenContract))(t)
+	observer := testcheck.Must(NewObserver(store, true))(t)
 	testcheck.NoError(t, observer.Admit(ctx, lone, recipeID))
-	observation, err := observer.Finish(ctx, lone, recipeID, nil, 1)
-	testcheck.NoError(t, err)
+	observation := testcheck.Must(observer.Finish(ctx, lone, recipeID, nil, 1))(t)
 	testcheck.NoError(t, observer.Verify(ctx, recipeID, observation))
 	// active says whether the lone file's model has an active training recipe, and which.
 	active := func() (artifact.ID, bool) {

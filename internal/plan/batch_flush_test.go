@@ -23,8 +23,7 @@ func TestBatchFlushDeclarations(t *testing.T) {
 	document := batchPlanFixture()
 	flush := flushFixture()
 	document.Items[0].Steps[0].VerificationBatch.Flush = &flush
-	data, err := json.Marshal(document)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(json.Marshal(document))(t)
 	parsed, err := Parse(data)
 	if err != nil || !reflect.DeepEqual(parsed, document) {
 		t.Fatalf("flush declaration round trip = %+v, %v", parsed, err)
@@ -146,12 +145,10 @@ func TestBatchFlushRestartAndBoundary(t *testing.T) {
 	if err != nil || ready {
 		t.Fatalf("seed: %+v %v %v", pending, ready, err)
 	}
-	encoded, err := json.Marshal(pending)
-	testcheck.NoError(t, err)
+	encoded := testcheck.Must(json.Marshal(pending))(t)
 	var restored BatchState
 	testcheck.NoError(t, json.Unmarshal(encoded, &restored))
-	interval, err := declaration.Interval()
-	testcheck.NoError(t, err)
+	interval := testcheck.Must(declaration.Interval())(t)
 	state, ready, reason, err := declaration.Advance(restored, nil, origin.Add(interval), false)
 	if err != nil || !ready || reason != FlushInterval || state.Size != 1 || state.Bytes != 1 || !state.StartedAt.Equal(origin) {
 		t.Fatalf("elapsed-only restart: %+v %v %s %v", state, ready, reason, err)

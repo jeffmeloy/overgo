@@ -23,10 +23,8 @@ const fixtureCacheStateName model.CacheStateName = "fixture_state"
 func TestKVCacheStateRoundTrip(t *testing.T) {
 	runner := cacheTestRunner()
 	cache := cacheTestValue(t)
-	data, err := runner.SaveCache(cache)
-	testcheck.NoError(t, err)
-	loaded, err := runner.LoadCache(data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveCache(cache))(t)
+	loaded := testcheck.Must(runner.LoadCache(data))(t)
 	if !reflect.DeepEqual(loaded, cache) {
 		t.Fatalf("loaded cache = %+v, want %+v", loaded, cache)
 	}
@@ -35,23 +33,19 @@ func TestKVCacheStateRoundTrip(t *testing.T) {
 func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 	runner := cacheTestRunner()
 	cache := cacheTestValue(t)
-	tokenState, err := reference.NewValue(
+	tokenState := testcheck.Must(reference.NewValue(
 		tensor.MustShape(1, 1, 2), []float32{11, 12},
-	)
-	testcheck.NoError(t, err)
-	fixedState, err := reference.NewValue(
+	))(t)
+	fixedState := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2), []float32{21, 22},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	cache.Layers[0].States = LayerStates{
 		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
 		model.CacheStateConvolution: {Mode: CacheStateFixed, Value: fixedState},
 		fixtureCacheStateName:       {Mode: CacheStateFixed, Value: fixedState},
 	}
-	payload, err := runner.SaveCache(cache)
-	testcheck.NoError(t, err)
-	restored, err := runner.LoadCache(payload)
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(runner.SaveCache(cache))(t)
+	restored := testcheck.Must(runner.LoadCache(payload))(t)
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
 	}
@@ -62,14 +56,12 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 		model.CacheStateIndexerKey:  {Mode: CacheStateToken, Value: tokenState},
 		fixtureCacheStateName:       {Mode: CacheStateFixed, Value: fixedState},
 	}
-	reorderedPayload, err := runner.SaveCache(reordered)
-	testcheck.NoError(t, err)
+	reorderedPayload := testcheck.Must(runner.SaveCache(reordered))(t)
 	if !reflect.DeepEqual(reorderedPayload, payload) {
 		t.Fatal("named cache serialization depends on map insertion order")
 	}
 
-	trimmed, err := runner.RemoveCacheRange(restored, 0, 1)
-	testcheck.NoError(t, err)
+	trimmed := testcheck.Must(runner.RemoveCacheRange(restored, 0, 1))(t)
 	if got := trimmed.Layers[0].States[model.CacheStateIndexerKey].Value.Data; !reflect.DeepEqual(got, []float32{12}) {
 		t.Fatalf("trimmed token state = %v, want [12]", got)
 	}
@@ -83,10 +75,8 @@ func TestKVCacheNamedStatesRoundTripAndEdit(t *testing.T) {
 }
 
 func TestKVCacheNamedStateValidation(t *testing.T) {
-	fixed, err := reference.NewValue(tensor.MustShape(1), []float32{1})
-	testcheck.NoError(t, err)
-	token, err := reference.NewValue(tensor.MustShape(1, 1, 1), []float32{1})
-	testcheck.NoError(t, err)
+	fixed := testcheck.Must(reference.NewValue(tensor.MustShape(1), []float32{1}))(t)
+	token := testcheck.Must(reference.NewValue(tensor.MustShape(1, 1, 1), []float32{1}))(t)
 	tests := []struct {
 		name  string
 		state LayerStates
@@ -117,10 +107,8 @@ func TestMistral4AbsorbedCacheValidation(t *testing.T) {
 
 func TestDeepSeek32CacheStateRoundTrip(t *testing.T) {
 	runner, cache := deepSeek32CacheFixture()
-	payload, err := runner.SaveCache(cache)
-	testcheck.NoError(t, err)
-	restored, err := runner.LoadCache(payload)
-	testcheck.NoError(t, err)
+	payload := testcheck.Must(runner.SaveCache(cache))(t)
+	restored := testcheck.Must(runner.LoadCache(payload))(t)
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
 	}
@@ -134,8 +122,7 @@ func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 	runner, cache := deepSeek32CacheFixture()
 	builder := tensor.NewBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
-	host, err := runner.hostLayerCacheInputs(builder, 0, &cache.Layers[0], hostFeeds)
-	testcheck.NoError(t, err)
+	host := testcheck.Must(runner.hostLayerCacheInputs(builder, 0, &cache.Layers[0], hostFeeds))(t)
 	hostIndexer := host.states[model.CacheStateIndexerKey]
 	if hostIndexer.Mode != model.CacheStateToken ||
 		!reflect.DeepEqual(hostFeeds[hostIndexer.Value], cache.Layers[0].States[model.CacheStateIndexerKey].Value) {
@@ -159,10 +146,9 @@ func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 		}},
 	}
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
-	device, err := runner.deviceBatchLayerCacheInputs(
+	device := testcheck.Must(runner.deviceBatchLayerCacheInputs(
 		builder, "fixture.", 0, deviceCache, hostFeeds, &deviceFeeds,
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	deviceIndexer := device.states[model.CacheStateIndexerKey]
 	if deviceIndexer.Mode != model.CacheStateToken || len(deviceFeeds) != 3 ||
 		deviceFeeds[2].Node != deviceIndexer.Value || deviceFeeds[2].Value != indexerPointer {
@@ -212,8 +198,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	}}}, Tokens: 2, Position: 2}
 	payload, err := runner.SaveCache(cache)
 	testcheck.NoError(t, err)
-	restored, err := runner.LoadCache(payload)
-	testcheck.NoError(t, err)
+	restored := testcheck.Must(runner.LoadCache(payload))(t)
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
 	}
@@ -222,8 +207,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	missing.Layers = []LayerCache{cache.Layers[0]}
 	missing.Layers[0].States = maps.Clone(cache.Layers[0].States)
 	delete(missing.Layers[0].States, model.CacheStatePositions)
-	unpositioned, err := marshalCache(&missing)
-	testcheck.NoError(t, err)
+	unpositioned := testcheck.Must(marshalCache(&missing))(t)
 	if restored, err = runner.LoadCache(unpositioned); err != nil || !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("a cache without positions restored as %+v (%v), want %+v", restored, err, cache)
 	}
@@ -257,8 +241,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 		state.Value, _ = reference.NewValue(tensor.MustShape(width, 1, 4), data)
 		cache.Layers[0].States[name] = state
 	}
-	edited, err := runner.RemoveCacheRange(cache, 1, 1)
-	testcheck.NoError(t, err)
+	edited := testcheck.Must(runner.RemoveCacheRange(cache, 1, 1))(t)
 	if got := edited.Layers[0].States[model.CacheStatePositions].Value.Data; !reflect.DeepEqual(got, []float32{0, 2, 3}) {
 		t.Fatalf("DeepSeek 4 edited positions = %v", got)
 	}
@@ -275,8 +258,7 @@ func TestMambaCacheValidation(t *testing.T) {
 	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
 	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}}, Tokens: 2, Position: 2}
 	testcheck.NoError(t, runner.validateCache(cache))
-	trimmed, err := runner.RemoveCacheRange(cache, 0, 1)
-	testcheck.NoError(t, err)
+	trimmed := testcheck.Must(runner.RemoveCacheRange(cache, 0, 1))(t)
 	if trimmed.Tokens != 1 || !trimmed.Layers[0].Key.Shape.Equal(conv.Shape) ||
 		!trimmed.Layers[0].Value.Shape.Equal(ssm.Shape) {
 		t.Fatalf("trimmed Mamba cache = %+v", trimmed)
@@ -332,8 +314,7 @@ func TestT5CacheValidation(t *testing.T) {
 	if err := runner.validateEncoderDecoderCache(cache, 3); err == nil {
 		t.Fatal("mismatched T5 encoder extent was accepted")
 	}
-	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
-	testcheck.NoError(t, err)
+	shifted := testcheck.Must(runner.RemoveCacheRange(cache, 0, 1))(t)
 	if shifted.Tokens != 1 || shifted.Position != 1 ||
 		!shifted.Layers[0].Key.Shape.Equal(tensor.MustShape(2, 1, 1)) ||
 		!shifted.Layers[0].Value.Shape.Equal(tensor.MustShape(3, 1, 1)) {
@@ -448,10 +429,8 @@ func TestRWKV7CacheValidation(t *testing.T) {
 			auxiliary, _ := reference.NewValue(tensor.MustShape(8, 2), make([]float32, 16))
 			cache := &KVCache{Layers: []LayerCache{{Key: shift, Value: state, Auxiliary: &auxiliary}}, Tokens: 2, Position: 2}
 			testcheck.NoError(t, runner.validateCache(cache))
-			payload, err := runner.SaveCache(cache)
-			testcheck.NoError(t, err)
-			restored, err := runner.LoadCache(payload)
-			testcheck.NoError(t, err)
+			payload := testcheck.Must(runner.SaveCache(cache))(t)
+			restored := testcheck.Must(runner.LoadCache(payload))(t)
 			if restored.Layers[0].Auxiliary != nil {
 				t.Fatal("WKV7 transient value residual was serialized")
 			}
@@ -489,17 +468,15 @@ func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
 		LayerKVHeadCounts: []uint32{0}},
 	}}}
 	runner = attachFixtureProgram(runner)
-	sentinel, err := reference.NewValue(
+	sentinel := testcheck.Must(reference.NewValue(
 		tensor.MustShape(1, 1, 3), []float32{1, 2, 3},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	cache := &KVCache{
 		Layers: []LayerCache{{Key: sentinel, Value: sentinel}},
 		Tokens: 3, Position: 3,
 	}
 	testcheck.NoError(t, runner.validateCache(cache))
-	trimmed, err := runner.RemoveCacheRange(cache, 1, 1)
-	testcheck.NoError(t, err)
+	trimmed := testcheck.Must(runner.RemoveCacheRange(cache, 1, 1))(t)
 	wantShape := tensor.MustShape(1, 1, 2)
 	if !trimmed.Layers[0].Key.Shape.Equal(wantShape) ||
 		!trimmed.Layers[0].Value.Shape.Equal(wantShape) ||
@@ -510,8 +487,7 @@ func TestDeciSentinelCacheValidationAndRangeRemoval(t *testing.T) {
 
 func TestKVCacheStateRejectsTruncationAndTrailingData(t *testing.T) {
 	runner := cacheTestRunner()
-	data, err := runner.SaveCache(cacheTestValue(t))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveCache(cacheTestValue(t)))(t)
 	for _, length := range []int{0, 15, 16, 19, 20, 63, len(data) - 1} {
 		if _, loadErr := runner.LoadCache(data[:length]); loadErr == nil {
 			t.Fatalf("truncated length %d was accepted", length)
@@ -538,8 +514,7 @@ func TestShiftCacheDropsAttentionPrefixAndPreservesPosition(t *testing.T) {
 	runner := cacheTestRunner()
 	cache := cacheTestValue(t)
 	cache.Position = 7
-	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
-	testcheck.NoError(t, err)
+	shifted := testcheck.Must(runner.RemoveCacheRange(cache, 0, 1))(t)
 	if shifted.Tokens != 1 || shifted.Position != 7 {
 		t.Fatalf(
 			"shifted count/position = %d/%d, want 1/7",
@@ -561,23 +536,20 @@ func TestShiftCacheDropsAttentionPrefixAndPreservesPosition(t *testing.T) {
 
 func TestRemoveCacheRangePreservesPrefixAndSuffix(t *testing.T) {
 	runner := cacheTestRunner()
-	key, err := reference.NewValue(
+	key := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2, 1, 4),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8},
-	)
-	testcheck.NoError(t, err)
-	value, err := reference.NewValue(
+	))(t)
+	value := testcheck.Must(reference.NewValue(
 		tensor.MustShape(3, 1, 4),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	cache := &KVCache{
 		Layers:   []LayerCache{{Key: key, Value: value}},
 		Tokens:   4,
 		Position: 9,
 	}
-	edited, err := runner.RemoveCacheRange(cache, 1, 2)
-	testcheck.NoError(t, err)
+	edited := testcheck.Must(runner.RemoveCacheRange(cache, 1, 2))(t)
 	if edited.Tokens != 2 || edited.Position != 9 {
 		t.Fatalf("edited count/position = %d/%d, want 2/9",
 			edited.Tokens, edited.Position)
@@ -604,8 +576,7 @@ func TestShiftHybridCacheRetainsIndependentRecurrentState(t *testing.T) {
 	runner := hybridCacheTestRunner()
 	cache := hybridCacheTestValue(t)
 	cache.Position = 9
-	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
-	testcheck.NoError(t, err)
+	shifted := testcheck.Must(runner.RemoveCacheRange(cache, 0, 1))(t)
 	if !reflect.DeepEqual(shifted.Layers[0], cache.Layers[0]) {
 		t.Fatal("hybrid recurrent state changed during attention shift")
 	}
@@ -623,13 +594,11 @@ func TestCacheForAppendShiftsOnlyWhenEnabled(t *testing.T) {
 	runner.spec.ContextLength = 2
 	cache := cacheTestValue(t)
 	cache.Position = 5
-	unchanged, err := runner.cacheForAppendKeeping(cache, 1, false, 0, -1)
-	testcheck.NoError(t, err)
+	unchanged := testcheck.Must(runner.cacheForAppendKeeping(cache, 1, false, 0, -1))(t)
 	if unchanged != cache {
 		t.Fatal("disabled context shift replaced the cache")
 	}
-	shifted, err := runner.cacheForAppendKeeping(cache, 1, true, 0, -1)
-	testcheck.NoError(t, err)
+	shifted := testcheck.Must(runner.cacheForAppendKeeping(cache, 1, true, 0, -1))(t)
 	if shifted.Tokens != 1 || shifted.Position != 5 {
 		t.Fatalf(
 			"auto-shifted count/position = %d/%d, want 1/5",
@@ -642,23 +611,20 @@ func TestCacheForAppendShiftsOnlyWhenEnabled(t *testing.T) {
 func TestCacheForAppendPreservesRequestedPrefix(t *testing.T) {
 	runner := cacheTestRunner()
 	runner.spec.ContextLength = 4
-	key, err := reference.NewValue(
+	key := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2, 1, 4),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8},
-	)
-	testcheck.NoError(t, err)
-	value, err := reference.NewValue(
+	))(t)
+	value := testcheck.Must(reference.NewValue(
 		tensor.MustShape(3, 1, 4),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	cache := &KVCache{
 		Layers:   []LayerCache{{Key: key, Value: value}},
 		Tokens:   4,
 		Position: 7,
 	}
-	edited, err := runner.cacheForAppendKeeping(cache, 1, true, 2, 0)
-	testcheck.NoError(t, err)
+	edited := testcheck.Must(runner.cacheForAppendKeeping(cache, 1, true, 2, 0))(t)
 	if got := edited.Layers[0].Key.Data; !reflect.DeepEqual(
 		got,
 		[]float32{1, 2, 3, 4, 7, 8},
@@ -689,14 +655,13 @@ func TestContextDiscardCount(t *testing.T) {
 		{"clamp-leave-suffix", 8, 1, 8, 3, 99, 4},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := contextDiscardCount(
+			got := testcheck.Must(contextDiscardCount(
 				test.tokens,
 				test.incoming,
 				test.context,
 				test.keep,
 				test.requested,
-			)
-			testcheck.NoError(t, err)
+			))(t)
 			if got != test.want {
 				t.Fatalf("discard = %d, want %d", got, test.want)
 			}
@@ -736,8 +701,7 @@ func TestEffectiveKeepTokens(t *testing.T) {
 
 func TestKVCacheStateRejectsWrongModelShape(t *testing.T) {
 	source := cacheTestRunner()
-	data, err := source.SaveCache(cacheTestValue(t))
-	testcheck.NoError(t, err)
+	data := testcheck.Must(source.SaveCache(cacheTestValue(t)))(t)
 	other := cacheTestRunner()
 	other.spec.KeyLength = 4
 	other = attachFixtureProgram(other)
@@ -749,10 +713,8 @@ func TestKVCacheStateRejectsWrongModelShape(t *testing.T) {
 func TestHybridCacheStateRoundTrip(t *testing.T) {
 	runner := hybridCacheTestRunner()
 	cache := hybridCacheTestValue(t)
-	data, err := runner.SaveCache(cache)
-	testcheck.NoError(t, err)
-	loaded, err := runner.LoadCache(data)
-	testcheck.NoError(t, err)
+	data := testcheck.Must(runner.SaveCache(cache))(t)
+	loaded := testcheck.Must(runner.LoadCache(data))(t)
 	if !reflect.DeepEqual(loaded, cache) {
 		t.Fatalf("loaded hybrid cache = %+v, want %+v", loaded, cache)
 	}
@@ -769,26 +731,22 @@ func hybridCacheTestRunner() *Runner {
 
 func hybridCacheTestValue(t *testing.T) *KVCache {
 	t.Helper()
-	conv, err := reference.NewValue(
+	conv := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2, 8),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-	)
-	testcheck.NoError(t, err)
-	ssm, err := reference.NewValue(
+	))(t)
+	ssm := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2, 2, 2, 1),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8},
-	)
-	testcheck.NoError(t, err)
-	key, err := reference.NewValue(
+	))(t)
+	key := testcheck.Must(reference.NewValue(
 		tensor.MustShape(4, 1, 2),
 		[]float32{1, 2, 3, 4, 5, 6, 7, 8},
-	)
-	testcheck.NoError(t, err)
-	value, err := reference.NewValue(
+	))(t)
+	value := testcheck.Must(reference.NewValue(
 		tensor.MustShape(4, 1, 2),
 		[]float32{8, 7, 6, 5, 4, 3, 2, 1},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return &KVCache{
 		Layers: []LayerCache{
 			{Key: conv, Value: ssm},
@@ -810,16 +768,14 @@ func cacheTestRunner() *Runner {
 
 func cacheTestValue(t testing.TB) *KVCache {
 	t.Helper()
-	key, err := reference.NewValue(
+	key := testcheck.Must(reference.NewValue(
 		tensor.MustShape(2, 1, 2),
 		[]float32{1, 2, 3, 4},
-	)
-	testcheck.NoError(t, err)
-	value, err := reference.NewValue(
+	))(t)
+	value := testcheck.Must(reference.NewValue(
 		tensor.MustShape(3, 1, 2),
 		[]float32{5, 6, 7, 8, 9, 10},
-	)
-	testcheck.NoError(t, err)
+	))(t)
 	return &KVCache{
 		Layers:   []LayerCache{{Key: key, Value: value}},
 		Tokens:   2,

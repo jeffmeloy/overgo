@@ -14,8 +14,7 @@ func TestIdleAudioWorkspace(t *testing.T) {
 	store := overgodbtest.Open(t, t.TempDir())
 	// Exercise the actual launcher composition across the server package boundary.
 	// One entry is enough to prove an empty catalog does not invent a runnable task.
-	handler, err := idleWorkbench(store, server.LibraryIntake{}, 1)
-	testcheck.NoError(t, err)
+	handler := testcheck.Must(idleWorkbench(store, server.LibraryIntake{}, 1))(t)
 	defer handler.Close()
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workspace/manifest", nil))

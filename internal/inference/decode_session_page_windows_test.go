@@ -46,8 +46,7 @@ func TestDecodeSessionServesOnlyItsOwnPastPage(t *testing.T) {
 
 func openPagePairRunner(t *testing.T, path string) *Runner {
 	t.Helper()
-	runner, err := openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHybridNative)
-	testcheck.NoError(t, err)
+	runner := testcheck.Must(openFixtureRunnerWithResidency(path, OpenOptions{}, recipe.ResidencyHybridNative))(t)
 	if runner.spec.ContextLength != pagePairContext {
 		t.Fatalf("fixture context = %d, want %d", runner.spec.ContextLength, pagePairContext)
 	}

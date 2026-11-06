@@ -13,16 +13,14 @@ import (
 )
 
 func TestLiveEditSourceCodecGraph(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	testcheck.NoError(t, err)
+	roots := testcheck.Must(dataroot.Resolve(testutil.RepoRoot(t)))(t)
 	checkpoint := filepath.Join(roots.ResolveModelPath("Wan2.1-T2V-1.3B"), "Wan2.1_VAE.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Wan VAE metadata: %v", err)
 	}
 	metas := catalog.Tensors
-	plan, err := CompileVAEEncoderPlan(metas)
-	testcheck.NoError(t, err)
+	plan := testcheck.Must(CompileVAEEncoderPlan(metas))(t)
 	prefixes := plan.Names()
 	if plan.InputChannels != 3 || plan.LatentChannels != 16 || plan.MomentChannels != 32 ||
 		plan.Stride != [3]int{4, 8, 8} || len(plan.Operations) != 17 ||

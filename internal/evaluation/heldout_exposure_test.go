@@ -101,8 +101,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	refused := func(step string, pool HeldoutPool, name string) {
 		t.Helper()
 		before := prepared
-		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID))(t)
 		_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
 		testcheck.NoError(t, err)
 		_, _, err = ConfirmOnPool(ctx, store, pool.Acceptance.ID, candidate(name), reading)
@@ -154,10 +153,8 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	weighed := first
 	weighed.Weights = [poolPartCount]uint64{4, 2, 3, 2}
 	repartitioned := publishedPool(t, store, weighed, 6)
-	charged, err := partDocuments(ctx, store, original.Partition.Promotion)
-	testcheck.NoError(t, err)
-	moved, err := partDocuments(ctx, store, repartitioned.Partition.Promotion)
-	testcheck.NoError(t, err)
+	charged := testcheck.Must(partDocuments(ctx, store, original.Partition.Promotion))(t)
+	moved := testcheck.Must(partDocuments(ctx, store, repartitioned.Partition.Promotion))(t)
 	const spent = 4
 	left := uint64(6 - 1)
 	if slices.ContainsFunc(moved, func(document string) bool { return slices.Contains(charged, document) }) {
@@ -171,8 +168,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	// the charged part holds. A part that held it is charged what that content
 	// has answered, by content alone; a part of documents no charged part
 	// holds, by record or by content, starts whole.
-	contents, err := recordContents(ctx, store, objective.Dataset)
-	testcheck.NoError(t, err)
+	contents := testcheck.Must(recordContents(ctx, store, objective.Dataset))(t)
 	holds := func(part []string, record string) bool {
 		return slices.ContainsFunc(part, func(held string) bool { return contents[held] == contents[record] })
 	}
@@ -216,8 +212,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	one, two := first, first
 	one.Objective, two.Objective, two.Weights = contested, contested, [poolPartCount]uint64{4, 2, 3, 2}
 	lost, won := publishedPool(t, raced, one, 2), publishedPool(t, raced, two, 6)
-	shared, err := partDocuments(ctx, raced, won.Partition.Promotion)
-	testcheck.NoError(t, err)
+	shared := testcheck.Must(partDocuments(ctx, raced, won.Partition.Promotion))(t)
 	if mine, err := partDocuments(ctx, raced, lost.Partition.Promotion); err != nil || lost.Partition.Promotion == won.Partition.Promotion || !slices.ContainsFunc(mine, func(document string) bool { return slices.Contains(shared, document) }) {
 		t.Fatalf("the two pools' promotion parts are one part or share no document (%v); the test needs two that overlap", err)
 	}
@@ -250,10 +245,8 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	// contentsOf are the contents a pool's promotion part holds.
 	contentsOf := func(pool HeldoutPool) map[string]bool {
 		t.Helper()
-		named, err := recordContents(ctx, twice, pool.Partition.Dataset)
-		testcheck.NoError(t, err)
-		documents, err := partDocuments(ctx, twice, pool.Partition.Promotion)
-		testcheck.NoError(t, err)
+		named := testcheck.Must(recordContents(ctx, twice, pool.Partition.Dataset))(t)
+		documents := testcheck.Must(partDocuments(ctx, twice, pool.Partition.Promotion))(t)
 		held := map[string]bool{}
 		for _, document := range documents {
 			held[named[document]] = true
@@ -308,8 +301,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 
 	// Each charge is still the grant's it was made against.
 	for name, pool := range map[string]HeldoutPool{"first": original, "regained": regained, "rewindowed": rewindowed} {
-		granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID)
-		testcheck.NoError(t, err)
+		granted := testcheck.Must(runrecord.NewBudget(poolUnit, pool.Partition.Promotion, pool.Acceptance.Confirmations, pool.Acceptance.ID))(t)
 		if _, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID); err != nil || len(charges) != 1 {
 			t.Fatalf("the %s pool's grant holds %d charges (%v), want the one made against it", name, len(charges), err)
 		}
@@ -321,8 +313,7 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	if historical, err = poolAcceptanceCodec.NewInitial(historical); err != nil {
 		t.Fatal(err)
 	}
-	batch, err := poolAcceptanceCodec.Batch("pool-fixture/historical", historical, artifact.DependencyLineage(historical.ID, original.Partition.ID, objective.ID), nil)
-	testcheck.NoError(t, err)
+	batch := testcheck.Must(poolAcceptanceCodec.Batch("pool-fixture/historical", historical, artifact.DependencyLineage(historical.ID, original.Partition.ID, objective.ID), nil))(t)
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}

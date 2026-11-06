@@ -6,14 +6,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func TestDispositionSupersedesAnOpenFinding(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	original, batch, err := NewTextBatch("routing sizes are manifest sizes", SeverityHigh,
 		[]string{"internal/evaluation"}, []string{"cheapest chose the 12B"}, "price by component bytes", "grep size")
@@ -53,9 +51,7 @@ func TestDispositionSupersedesAnOpenFinding(t *testing.T) {
 }
 
 func TestDeferredDispositionIsAcknowledgedDebt(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	original, batch, err := NewTextBatch("vision tower absent", SeverityMedium,
 		[]string{"internal/modelrecipe"}, []string{"no mmproj bytes"}, "owner downloads the projector", "recipe status vqa")

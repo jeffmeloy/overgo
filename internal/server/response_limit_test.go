@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -31,9 +31,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 		for _, stream := range []bool{false, true} {
 			for _, stored := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/stream=%t/store=%t", tc.name, stream, stored), func(t *testing.T) {
-					store, err := overgodb.Open(t.TempDir())
-					testcheck.NoError(t, err)
-					defer store.Close()
+					store := overgodbtest.Open(t, t.TempDir())
 					handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 					input := map[string]any{"input": requestMessages, "max_output_tokens": tc.limit, "stream": stream, "store": stored}
 					if tc.stop != "" {

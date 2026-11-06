@@ -17,6 +17,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -150,9 +151,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	source, err := overgodb.Create(filepath.Join(t.TempDir(), "source"))
-	testcheck.NoError(t, err)
-	defer source.Close()
+	source := overgodbtest.Create(t, filepath.Join(t.TempDir(), "source"))
 	payload := []byte("retained record")
 	content := artifact.Content{Descriptor: artifact.Descriptor{ID: testutil.ArtifactBytesID(t, artifact.KindEvidence, payload), Size: uint64(len(payload)), MediaType: "text/plain"}, Data: payload}
 	if _, err := source.Commit(t.Context(), artifact.Batch{Key: "readiness/source", Contents: []artifact.Content{content}}); err != nil {

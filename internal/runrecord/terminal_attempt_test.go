@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -18,9 +18,7 @@ import (
 // blobs, and recovery lineage all resolve from the receipt alone --
 // and every absent optional measurement is named as an explicit gap.
 func TestTerminalAttemptReceiptClosure(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "terminal-operation")
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-capability-implementation")
@@ -148,9 +146,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 // Historical classifier output remains readable: reference closure verifies
 // the stored tuple and decision policy, not today's normalization rules.
 func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-reference-implementation")
@@ -371,9 +367,7 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 // to name the exact immutable prior receipt selected by the same operation's
 // preceding attempt alias. A recovered outcome cannot originate at attempt 0.
 func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-recovery-implementation")

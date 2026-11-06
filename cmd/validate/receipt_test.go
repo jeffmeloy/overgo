@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 )
@@ -26,9 +26,7 @@ func TestReceiptKeepsTheStreamThatProvesAPass(t *testing.T) {
 	store := t.TempDir()
 	id, err := publishReceipt(t.Context(), store, []byte(passing))
 	testcheck.NoError(t, err)
-	opened, err := overgodb.OpenReadOnly(store)
-	testcheck.NoError(t, err)
-	defer opened.Close()
+	opened := overgodbtest.OpenReadOnly(t, store)
 	content, found, err := artifact.ReadContent(t.Context(), opened, id)
 	if err != nil || !found || string(content.Data) != passing {
 		t.Fatalf("published receipt differs from the stream: found=%v err=%v", found, err)

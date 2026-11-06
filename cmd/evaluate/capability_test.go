@@ -16,7 +16,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/seriesforecast"
@@ -45,9 +45,7 @@ type capabilityDefiner func(model, profile artifact.ID) (recipe.Definition, erro
 func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, define capabilityDefiner, released error, explicit bool) *capabilityOpening {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("capability-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "capability-profile")
@@ -237,9 +235,7 @@ func TestACapabilitySessionReleasesTheRuntimeItLoadedExactlyOnce(t *testing.T) {
 // the model's own runner.
 func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	session, opened, err := openThoughtBankSession(t.Context(), store, manifest{}, t.TempDir())
 	if session != nil || opened || err != nil {
 		t.Fatalf("an empty directory opened (%v, %t, %v), want no session and no error", session, opened, err)

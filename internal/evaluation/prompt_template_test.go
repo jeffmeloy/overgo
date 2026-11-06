@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -16,9 +16,7 @@ import (
 func TestPromptTemplateAuthority(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "template-model")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/template/model", Artifacts: []artifact.Descriptor{{ID: model}},
@@ -71,9 +69,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	}
 	plan, err := bindSequenceScoring(compiled, authorities)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := &prefixedFixtureScorer{prefix: "<dna>"}
 	scorer.scores = []sequencescore.Score{{LogProbability: -4, Tokens: 4}}

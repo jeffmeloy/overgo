@@ -7,6 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -79,9 +80,7 @@ func TestBridgeTrainingFreezesModels(t *testing.T) {
 func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "dataset-source")
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "dataset-target")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "dataset-training-policy")

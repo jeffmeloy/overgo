@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
@@ -76,9 +76,7 @@ func TestFunctionCallSuiteScoresAGeneratorAndRefusesWhatItCannotCompile(t *testi
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateFunctionCall(t.Context(), store, textGenerator(`[{"name":"calculate_triangle_area","arguments":{"base":10,"height":5}}]`), compiled, plan)
 	testcheck.NoError(t, err)

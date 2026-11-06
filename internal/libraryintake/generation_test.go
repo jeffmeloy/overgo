@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -19,9 +19,8 @@ import (
 
 func TestMOSSGenerationRegistration(t *testing.T) {
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	python := []byte("# Source metadata reuse fixture\n")
 	if err = os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), python, 0600); err != nil {
 		t.Fatal(err)

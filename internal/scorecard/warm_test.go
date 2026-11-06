@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -25,9 +25,7 @@ import (
 func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "warm-model")
 	served := testutil.ArtifactID(t, artifact.KindRecipe, "warm-recipe")
 	here := testutil.ArtifactID(t, artifact.KindEvidence, "warm-environment")

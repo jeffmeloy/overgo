@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"path/filepath"
@@ -38,9 +38,7 @@ func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
 	observation := protocol.Cases[index].Observations[0]
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	content, found, err := artifact.ReadContent(t.Context(), store, bundle.Cases[0].Output)
 	if err != nil || !found {
 		t.Fatalf("Wan output %s: found=%t err=%v", bundle.Cases[0].Output, found, err)

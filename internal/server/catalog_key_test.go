@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -18,9 +19,7 @@ import (
 // writes to the store on the request's path: each answers while the memo's publication is held, which then runs by itself.
 func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store,
 		Scorecard: func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return nil, nil },
@@ -69,9 +68,7 @@ func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
 // for it, so close returns once the publication sees its cancellation.
 func TestACloseCancelsAPendingMemoPublication(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store}, &fakeGenerator{})
 	testcheck.NoError(t, err)
 	waiting := make(chan struct{})

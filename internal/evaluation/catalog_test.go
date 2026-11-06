@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -37,9 +37,7 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 	testcheck.NoError(t, err)
 	manifestPath := filepath.Join(root, "catalog.json")
 	testcheck.NoError(t, os.WriteFile(manifestPath, encoded, 0o600))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id, err := CatalogLocalBenchmarks(t.Context(), store, manifestPath)
 	testcheck.NoError(t, err)
 	content, ok, err := artifact.ReadContent(t.Context(), store, id)

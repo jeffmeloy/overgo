@@ -7,15 +7,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func TestStableCapabilityProxy(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	target, err := NewManual(Manual{Name: "echo.value", Description: "Return exact arguments.", Effect: EffectInspection,
 		Arguments: []Field{{Name: "value", Kind: FieldString, Required: true}}, Transport: Transport{Kind: TransportBuiltin}})
 	testcheck.NoError(t, err)
@@ -44,9 +42,7 @@ func TestStableCapabilityProxy(t *testing.T) {
 
 func TestCapabilityProxyRechecksArgvAuthority(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	target, err := NewManual(Manual{
 		Name: "policy.probe", Description: "Exercise current argv authority.", Effect: EffectInspection,
 		Transport: Transport{Kind: TransportArgv, Program: "overgo-probe"},

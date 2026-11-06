@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -14,9 +14,7 @@ import (
 // and the second session's observation must publish against the stored
 // environment instead of refusing on a no-op batch.
 func TestObserverRepeatsEnvironmentCommit(t *testing.T) {
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	testcheck.NoError(t, err)
 	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))

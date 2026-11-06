@@ -11,7 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -119,9 +119,7 @@ func TestRegisteredProfileSemanticDigest(t *testing.T) {
 
 func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	profile, _ := model.LookupArchitecture("llama")
 	document, err := NewProfileDocument(profile)
 	testcheck.NoError(t, err)
@@ -144,9 +142,7 @@ func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
 
 func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	profile, _ := model.LookupArchitecture("llama")
 	provenance, err := CatalogProfileProvenance(profile)
 	testcheck.NoError(t, err)

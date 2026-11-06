@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"slices"
@@ -51,9 +51,7 @@ func TestMuSRNativeNormalization(t *testing.T) {
 			}
 			plan, err := BindGroupedChoice(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 			testcheck.NoError(t, err)
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			publishPlanFixtureAuthorities(t, store, plan)
 			report, err := EvaluateGroupedChoice(t.Context(), store, fixedContinuationScorer{scores: scores}, compiled, plan)
 			testcheck.NoError(t, err)
@@ -148,9 +146,7 @@ func TestMuSRNativeNormalization(t *testing.T) {
 		if legacy.choice.identity == native.choice.identity || oldPlan.identity == newPlan.identity {
 			t.Fatal("changed scoring reused prior authority")
 		}
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Open(t, t.TempDir())
 		if _, err := EvaluateGroupedChoice(t.Context(), store, fixedContinuationScorer{}, native, oldPlan); err == nil {
 			t.Fatal("native scoring accepted a legacy plan")
 		}

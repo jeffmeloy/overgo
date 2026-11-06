@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/hfgguf"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -61,9 +61,7 @@ func TestDeterministicComponentImportDescription(t *testing.T) {
 	if bytes.Contains(first.Content.Data, []byte(firstRoot)) {
 		t.Fatal("identity contains local root")
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, RegisterImport(t.Context(), store, first))
 	before, _ := store.Head()
 	testcheck.NoError(t, RegisterImport(t.Context(), store, first))

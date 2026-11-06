@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -20,9 +20,7 @@ import (
 func TestADeltaEnvelopeNamesTheDeltaItCarries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, root)
 	ctx := t.Context()
 	first := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "delta-first"), Size: 1}
 	if _, err := store.Commit(ctx, artifact.Batch{

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -85,9 +86,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 		t.Fatalf("required gate result = (%+v, %v)", required, err)
 	}
 	testcheck.NoError(t, store.Close())
-	store, err = overgodb.Create(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.Create(t, repository)
 	content, ok, err := artifact.ReadContent(ctx, store, record.Run.ID)
 	if err != nil || !ok {
 		t.Fatalf("terminal run content = (%t, %v)", ok, err)
@@ -117,9 +116,8 @@ func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
 
 func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "verified-recipe")
 	environmentID := publishGateTestEnvironment(t, ctx, store, "verified-environment")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -159,9 +157,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 
 func TestVerifyFailedGateRun(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "failed-recipe")
 	environmentID := publishGateTestEnvironment(t, ctx, store, "failed-environment")
 	testutil.PublishArtifact(t, store, recipeID)
@@ -185,9 +181,7 @@ func TestVerifyFailedGateRun(t *testing.T) {
 
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "relevant-environment-recipe")
 	foreignRecipeID := testutil.ArtifactID(t, artifact.KindRecipe, "foreign-environment-recipe")

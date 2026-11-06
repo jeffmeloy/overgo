@@ -15,7 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/objectstore"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testcheck"
@@ -33,9 +33,7 @@ import (
 func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, directory)
 	configured := func(config *Config) { config.OvergoDBPath = directory }
 	serveRunner := func(runner *inference.Runner, configure ...func(*Config)) *Handler {
 		t.Helper()

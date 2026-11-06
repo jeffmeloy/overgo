@@ -15,7 +15,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -53,9 +53,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	var retained struct {
 		Inputs       map[string]artifact.ID

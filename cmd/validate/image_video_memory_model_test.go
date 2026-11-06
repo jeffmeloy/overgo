@@ -16,7 +16,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -146,9 +146,7 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
 		if id.Kind() != artifact.KindEvidence {

@@ -16,7 +16,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
@@ -30,9 +30,7 @@ import (
 func TestImageEmbeddingCapability(t *testing.T) {
 	t.Parallel()
 	directory := modeltest.Directory(t, "webssl-dino300m-full2b-224")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	capability := Catalog[recipe.TaskImageEmbedding]
 	embed := func(t *testing.T, directory string, encoded []byte) ([]float32, error) {
 		t.Helper()

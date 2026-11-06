@@ -16,7 +16,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -79,9 +79,7 @@ func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	autoencoder := &levelShift{levels: map[string]uint8{"one.mp4": 1, "ten.mp4": 10}}
 	report, err := evaluateReconstruction(t.Context(), store, autoencoder, compiled, plan)
@@ -144,9 +142,7 @@ func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
 		"floats shown as the same bytes": {&levelShift{nudge: 1e-4}, [2]float64{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/autoencoder", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
 				t.Fatal(err)
 			}
@@ -231,9 +227,7 @@ func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
 		"what came back as no number":                {oneTrip{trip: RoundTrip{Source: went, Output: []float32{0, float32(math.NaN())}, LatentValues: 1}}, "not finite"},
 		"a clip of no values":                        {oneTrip{trip: RoundTrip{LatentValues: 1}}, "0 values went in and 0 came back"},
 	} {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { store.Close() })
+		store := overgodbtest.Open(t, t.TempDir())
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := evaluateReconstruction(t.Context(), store, &test.autoencoder, compiled, plan)
 		if err == nil || !strings.Contains(err.Error(), test.says) || test.autoencoder.err != nil && !errors.Is(err, failed) {

@@ -13,7 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -23,9 +23,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)

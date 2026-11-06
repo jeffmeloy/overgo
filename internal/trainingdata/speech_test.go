@@ -9,16 +9,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestSpeechLatentMaterialization(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, text string) artifact.ID { return testutil.ArtifactID(t, kind, text) }
 	profile := SpeechLatentProfile{Model: id(artifact.KindModel, "base"), Tokenizer: id(artifact.KindFile, "tokens"),
 		Codec: id(artifact.KindTensorSet, "codec"), Transform: id(artifact.KindProfile, "normalization"),

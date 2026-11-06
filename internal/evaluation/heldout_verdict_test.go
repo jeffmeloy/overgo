@@ -12,6 +12,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -315,9 +316,7 @@ func TestAVerdictNeedsAGainItsCasesSupport(t *testing.T) {
 func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
 	commit := heldoutCommitter(t, store)
 	forecast.publishObjective(commit)

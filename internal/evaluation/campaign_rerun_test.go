@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -17,9 +17,7 @@ import (
 func TestEvaluationAtAnUnchangedPlanReusesItsCampaign(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "rerun model"),
 		Definition: planID(t, artifact.KindModelDefinition, "rerun definition"),

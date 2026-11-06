@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processlock"
 	"overgo/internal/testcheck"
 )
@@ -54,9 +55,7 @@ func TestPublicationStoreLifetime(t *testing.T) {
 	if _, err := retained(t.Context(), record.Inputs.Model, record); !errors.Is(err, overgodb.ErrClosed) {
 		t.Fatalf("publisher outlived command scope: %v", err)
 	}
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	latest := longform.LatestByLocation(t.Context(), store, 0)
 	for _, result := range []longform.Result{record, otherRecord} {
 		if _, found := latest[longform.Key(result.ModelPath)]; !found {

@@ -16,7 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -80,9 +80,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	coverage := map[artifact.ID]int{}
 	for _, cell := range inventory.Cells {
 		coverage[cell.Recipe] = 0

@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -58,9 +58,7 @@ func (training *steppedTraining) ExecuteWorkflow(ctx context.Context, _ Workflow
 func TestWebUIBrowserTrainingLive(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the training live leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	training := &steppedTraining{
 		capability: WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stepped-training-recipe"), Name: "stepped DPO",

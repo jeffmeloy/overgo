@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -22,9 +22,7 @@ import (
 // activated model names none.
 func TestTheCatalogSaysWhatAnUnactivatedModelRuns(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := func(name string) string {
 		location := filepath.Join(t.TempDir(), name)
 		testcheck.NoError(t, os.WriteFile(location, []byte(name), 0o600))

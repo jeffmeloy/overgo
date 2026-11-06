@@ -16,7 +16,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
@@ -149,9 +149,7 @@ func TestStoredResponseDisconnectFinalization(t *testing.T) {
 	for _, event := range []string{"response.created", "response.output_item.added", "response.output_text.done"} {
 		for _, ending := range []struct{ tokens, status string }{{"2", "incomplete"}, {"3", "completed"}} {
 			t.Run(event+"/"+ending.status, func(t *testing.T) {
-				store, err := overgodb.Open(t.TempDir())
-				testcheck.NoError(t, err)
-				defer store.Close()
+				store := overgodbtest.Open(t, t.TempDir())
 				handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 				ctx, cancelCause := context.WithCancelCause(t.Context())
 				cancel := func() { cancelCause(io.ErrClosedPipe) }
@@ -198,9 +196,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 	t.Parallel()
 	for _, action := range []string{"cancel", "opaque cancel", "shutdown", "failure"} {
 		t.Run(action, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			generator := &responseControlGenerator{
 				recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}),
 				starts:                   make(chan context.Context), release: make(chan error), prefix: "Partial answer",
@@ -280,9 +276,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 
 func TestStoredResponseUnconfirmedRestart(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	if err := handler.publishResponseInteraction(t.Context(), "resp_9", artifact.ID{},
 		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive, "", turnRecord{}); err != nil {

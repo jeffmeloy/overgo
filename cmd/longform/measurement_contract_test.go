@@ -14,7 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/longform"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
@@ -131,9 +131,7 @@ func TestCampaignMeasurementContract(t *testing.T) {
 		if !errors.Is(err, context.Canceled) || calls != 1 || !strings.Contains(output.String(), "UNFINISHED: unfinished.gguf") {
 			t.Fatalf("calls=%d err=%v output=%s", calls, err, output.String())
 		}
-		store, err := overgodb.OpenReadOnly(repository)
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.OpenReadOnly(t, repository)
 		if _, found := longform.LatestByLocation(t.Context(), store, 0)[longform.Key(record.ModelPath)]; !found {
 			t.Fatal("completed model evidence was lost")
 		}

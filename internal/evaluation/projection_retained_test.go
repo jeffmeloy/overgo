@@ -12,7 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -40,9 +40,7 @@ func TestRetainedProjectionResults(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, fixture := range fixtures {
 		t.Run(fixture.Name, func(t *testing.T) {
 			var retained struct {

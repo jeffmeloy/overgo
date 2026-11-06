@@ -16,6 +16,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
@@ -39,9 +40,7 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 		t.Fatalf("unregistered corpus accepted: %v", err)
 	}
 
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
@@ -93,9 +92,7 @@ func TestObjectiveMatrixListsRegisteredPairs(t *testing.T) {
 	}
 	var out bytes.Buffer
 	testcheck.NoError(t, run([]string{"-repo", repository, "-matrix"}, &out))
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	var want []string
 	for _, output := range []recipecontract.Modality{recipecontract.ModalityImage, recipecontract.ModalityVideo} {
 		id, found, err := store.ResolveAlias(ctx, registeredObjectivePrefix+"text-"+string(output))
@@ -150,9 +147,7 @@ func TestPublishObjectiveBindsTrainingMembership(t *testing.T) {
 		}
 	}
 	testcheck.NoError(t, run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard))
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)
@@ -233,9 +228,7 @@ func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
 	ctx := t.Context()
 	repository := registerClipCorpus(t)
 	testcheck.NoError(t, run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard))
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
 	if err != nil || !found {
 		t.Fatalf("objective alias = (%t, %v)", found, err)

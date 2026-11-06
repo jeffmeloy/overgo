@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -69,9 +69,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 		}
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	static := []artifact.ID{valid.Parents[0], valid.Parents[1], valid.Child, valid.Components[0],
 		valid.Bridge, valid.TrainingPlan, valid.Dataset, valid.Split, valid.Evaluator, valid.Code,
 		valid.Environment, valid.Budget, valid.Run, valid.Decision}

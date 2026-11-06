@@ -7,6 +7,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -31,9 +32,7 @@ func TestTensorPassSurvivesPublishFailure(t *testing.T) {
 	path := writeTensorFixture(t)
 	inventory := tensorFixtureInventory(t, path)
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "server/tensor-pass-model", Artifacts: []artifact.Descriptor{{ID: inventory.Owner, Size: 1}},
 	}); err != nil {

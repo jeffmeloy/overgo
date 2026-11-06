@@ -6,7 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -19,9 +19,7 @@ import (
 func TestAReadingFromAnUnverifiedModelSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "attempted-model")
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "attempted-profile")
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "attempted-definition")

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -52,9 +53,7 @@ func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 		t.Fatalf("derived hygiene = %+v", fixture.hygiene)
 	}
 	testcheck.NoError(t, fixture.store.Close())
-	reopened, err := overgodb.Create(fixture.path)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, fixture.path)
 	cold, err := requireKnowledgePromotionEvidence(t.Context(), reopened, evidence.ID)
 	if err != nil || cold.ID != evidence.ID {
 		t.Fatalf("cold promotion = %+v, %v", cold, err)
@@ -179,9 +178,7 @@ func newKnowledgePromotionFixture(t *testing.T) knowledgePromotionFixture {
 func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool) knowledgePromotionFixture {
 	t.Helper()
 	path := t.TempDir()
-	store, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, path)
 	closeOnError := func(err error) {
 		store.Close()
 		t.Fatal(err)

@@ -29,7 +29,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -115,9 +115,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	testcheck.NoError(t, err)
 	storeRoot := cmp.Or(os.Getenv("OVERGO_E4B_PUBLISH_STORE"), roots.Store)
 	ctx := t.Context()
-	store, err := overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, storeRoot)
 	var paths []string
 	for _, input := range []struct {
 		id   string
@@ -230,9 +228,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 		testcheck.NoError(t, err)
 		identity, err := loaded.Identity()
 		testcheck.NoError(t, err)
-		writer, err := overgodb.Create(storeRoot)
-		testcheck.NoError(t, err)
-		defer writer.Close()
+		writer := overgodbtest.Create(t, storeRoot)
 		testcheck.NoError(t, modelintake.RegisterProjectionCandidate(ctx, writer, projectionCandidate))
 		evidence := fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%x;model_definition=%s;cases=18", sha256.Sum256(oracleBytes), identity.Definition)
 		proof, err := modelintake.PublishVerification(ctx, writer, projectionCandidate.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence)

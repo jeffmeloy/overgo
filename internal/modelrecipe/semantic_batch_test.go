@@ -5,7 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -16,9 +16,7 @@ import (
 // lands as exactly one atomic batch.
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("semantic-batch-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/pathidentity"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -21,9 +21,7 @@ import (
 func TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	parent, err := pathidentity.Canonical(t.TempDir())
 	testcheck.NoError(t, err)
 	child, dead := filepath.Join(parent, "LiveEdit"), filepath.Join(parent, "Moved")

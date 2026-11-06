@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -74,9 +74,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := evidenceReader(t, store, "lifecycle evidence")
 	var protocol struct {
 		Source     string   `json:"source_base"`

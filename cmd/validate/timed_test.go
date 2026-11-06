@@ -14,7 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -127,9 +127,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 	}
 	t.Run("publication survives cancellation", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := overgodb.Create(root)
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, root)
 		model := testutil.ArtifactID(t, artifact.KindModel, "measured")
 		environment := testutil.ArtifactID(t, artifact.KindEvidence, "environment")
 		recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")

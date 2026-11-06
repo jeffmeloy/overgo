@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -34,9 +34,7 @@ func (r *mediaInputRuntime) ProducingRun() artifact.ID { return r.producer }
 
 func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture",
 	})

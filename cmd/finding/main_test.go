@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/finding"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -26,9 +27,7 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 	if !strings.Contains(output.String(), "FINDING parked: evidence:sha256:") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, repository)
 	result, err := store.Query(t.Context(), overgodb.Query{
 		Kind: artifact.KindEvidence, MaxResults: 100, Projection: overgodb.ProjectArtifacts,
 	})

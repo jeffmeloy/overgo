@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -47,9 +47,7 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 
 func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	source := testutil.ArtifactID(t, artifact.KindDataset, "source")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/source", Artifacts: []artifact.Descriptor{{ID: source}},

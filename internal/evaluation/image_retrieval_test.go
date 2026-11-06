@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
@@ -77,9 +77,7 @@ func TestImageRetrievalScoresASessionAndPicksItsClips(t *testing.T) {
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	embedder := vectorEmbedder{
 		"a1.png": {1, 0, 0}, "a2.png": {0.9, 0.1, 0}, "b1.png": {0, 1, 0}, "b2.png": {0, 0.9, 0.1}, "solo.png": {0, 0, 1},

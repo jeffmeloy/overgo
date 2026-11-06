@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -323,9 +324,7 @@ func TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged(t *testing.T) {
 
 	plan, err := BindGroupedChoice(compiled, raw)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	var prompts []string
 	var candidates [][]string

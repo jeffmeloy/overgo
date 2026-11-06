@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -66,9 +67,7 @@ func TestMediaExperimentResume(t *testing.T) {
 
 	// Reopen the store and resume: retained cells are reused without any acquire.
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, directory)
 	resumed, err := ResumeMediaExperiment(t.Context(), reopened, experiment, poison)
 	testcheck.NoError(t, err)
 	if resumed.ID != report.ID || resumed.Reused != cells || resumed.Acquired != 0 {
@@ -78,9 +77,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	// An interrupted acquisition checkpoints its completed cells; recovery
 	// re-acquires only the missing cell.
 	partialDirectory := t.TempDir()
-	partialStore, err := overgodb.Create(partialDirectory)
-	testcheck.NoError(t, err)
-	defer partialStore.Close()
+	partialStore := overgodbtest.Create(t, partialDirectory)
 	partial := build(t, partialStore)
 	interrupted := 0
 	if _, err := ResumeMediaExperiment(t.Context(), partialStore, partial, acquirer(partialStore, &interrupted, cells-1)); err == nil {

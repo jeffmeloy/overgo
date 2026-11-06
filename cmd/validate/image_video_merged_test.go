@@ -11,7 +11,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -47,9 +47,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, check := range value.Checks {
 		content, found, err := artifact.ReadContent(t.Context(), store, check.Evidence)
 		if err != nil || !found {

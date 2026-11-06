@@ -10,7 +10,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -25,9 +25,7 @@ func TestDenseModelsServePromptTensorCores(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	claim := discovery.LoadMemo(t.Context(), store).Claim
 	for _, served := range []struct {
 		path     string

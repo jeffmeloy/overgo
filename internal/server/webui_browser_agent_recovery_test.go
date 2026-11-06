@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -16,9 +16,7 @@ import (
 func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	// Serial: the fixture sets PATH.
 	requireWebUILane(t, "the agent recovery leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	fixture, release := streamingAgentFixture(t, store)
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()

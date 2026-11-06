@@ -10,14 +10,13 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Store)) *Handler {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/serving-identity",

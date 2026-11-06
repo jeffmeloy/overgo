@@ -12,7 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -50,9 +50,7 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 	if !membership.ID.Valid() {
 		t.Fatal("nonempty membership absent")
 	}
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	batch, err := plan.PublicationBatch("split", nil)
 	testcheck.NoError(t, err)
 	content, err := version.Content()

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -41,9 +41,7 @@ func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the training evidence leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "training evidence recipe")
 	// publish stores one run with its checkpoint and the DPO trace it produced.
 	publish := func(label string, observations []trainingEvidenceObservation) {

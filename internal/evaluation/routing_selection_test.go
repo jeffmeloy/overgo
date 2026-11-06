@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -116,9 +116,7 @@ func publishSelectionEvaluation(
 func TestRoutingEvidenceDerivedSelection(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	baseline, _ := publishSelectionEvidence(t, store, "incumbent", 8192, 0.5)
 	cheapStrong, cheapDefinition := publishSelectionEvidence(t, store, "cheap-strong", 2048, 0.6)
 	costlyStrong, _ := publishSelectionEvidence(t, store, "costly-strong", 16384, 0.9)
@@ -173,9 +171,7 @@ func TestRoutingEvidenceDerivedSelection(t *testing.T) {
 func TestRoutingResourceIsRecordedBytesNotManifestSize(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	baseline, _ := publishSelectionEvidence(t, store, "incumbent", 8192, 0.5)
 	cheapStrong, cheapDefinition := publishSelectionEvidence(t, store, "cheap-strong", 2048, 0.6)
 	manifestModel := publishSelectionManifestModel(t, store, "manifest-model", 4096)

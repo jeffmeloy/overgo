@@ -6,7 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -17,9 +17,7 @@ import (
 // stands behind the match here, so a lookup that reads past it fails.
 func TestTensorMeasurementLookupStopsAtItsMatch(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	older := []byte(`{"schema":"not a measurement"}`)
 	olderID, err := artifact.IdentifyBytes(artifact.KindTensorInventory, older)
 	testcheck.NoError(t, err)

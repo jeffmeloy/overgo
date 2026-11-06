@@ -20,7 +20,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -64,9 +64,7 @@ func TestE4BImageMaskCausality(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, modelPath)
@@ -207,9 +205,7 @@ func TestE4BImageMaskCausality(t *testing.T) {
 		content, err := environment.Content()
 		testcheck.NoError(t, err)
 		batch.Contents = append(batch.Contents, content)
-		writer, err := overgodb.Create(roots.Store)
-		testcheck.NoError(t, err)
-		defer writer.Close()
+		writer := overgodbtest.Create(t, roots.Store)
 		if _, err := artifact.CommitBatch(t.Context(), writer, batch); err != nil {
 			t.Fatal(err)
 		}

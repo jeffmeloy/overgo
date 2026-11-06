@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -25,9 +25,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		Format: BenchmarkFormatJSONL, Conversion: conversion,
 		Fields: []FieldBinding{{Target: "answer", Source: "label"}, {Target: "prompt", Source: "query"}},
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	imported, err := ImportBenchmark(t.Context(), store, path, spec)
 	testcheck.NoError(t, err)
 	loaded, ok, err := benchmarkImportCodec.Read(t.Context(), store, imported.ID)

@@ -20,6 +20,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -48,9 +49,7 @@ func (fixture *mossGenerationFixture) requests() []latentimage.Request {
 func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, artifact.Repository, modelrecipe.CapabilityEvidenceSelection, latentimage.Request) error) *mossGenerationFixture {
 	t.Helper()
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	fixture := &mossGenerationFixture{store: store, root: root}
 	image := tinyPNG(t)
 	inputContract := artifact.JSONContract(artifact.KindFile, "overgo.test-moss-request.v1")

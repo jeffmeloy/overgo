@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -22,9 +23,7 @@ import (
 func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the what got better leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	rows := testScorecard(t)
 	serve := func(read ScorecardHistoryReader) *httptest.Server {
 		return httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {

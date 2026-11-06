@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -22,9 +22,7 @@ func TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers(t *testing.T) {
 	content, err := census.Content()
 	testcheck.NoError(t, err)
 	descriptors := []artifact.Descriptor{{ID: assessment.Mechanism}, {ID: assessment.Owner}, {ID: assessment.Gap}, {ID: assessment.Falsifier}}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/mechanism-census", Artifacts: descriptors, Contents: []artifact.Content{content}, Lineage: census.Lineage(),
 	}); err != nil {

@@ -12,7 +12,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -48,9 +48,7 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 	second := filepath.Join(root, "b-state.txt")
 	empty := filepath.Join(root, "empty.txt")
 	absent := filepath.Join(root, "new.txt")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manual, err := agenttool.NewManual(agenttool.Manual{Name: "file.write", Description: "Write workspace files.", Effect: agenttool.EffectMutation,
 		Arguments: []agenttool.Field{{Name: "path", Kind: agenttool.FieldString, Required: true}},
 		Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeWorkspace, Argument: "path"}, {Scope: agenttool.EffectScopeWorkspace, Value: second}, {Scope: agenttool.EffectScopeWorkspace, Value: empty}, {Scope: agenttool.EffectScopeWorkspace, Value: absent}}}, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}})

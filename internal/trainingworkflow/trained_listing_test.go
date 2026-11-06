@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -38,9 +38,7 @@ func TestATrainedModelIsListedWhenItsTrainingEnds(t *testing.T) {
 			model := base(t)
 			dataset := filepath.Join(root, "dataset.txt")
 			testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("abcd"), 64), 0o600))
-			store, err := overgodb.Create(filepath.Join(root, "store"))
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Create(t, filepath.Join(root, "store"))
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}

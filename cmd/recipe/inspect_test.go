@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/libraryintake"
 	"overgo/internal/modelintake"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -30,9 +30,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	if err != nil || model != path || projector != "" {
 		t.Fatalf("library directory route: %s %s %v", model, projector, err)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	for range 2 {
 		receipt, err := libraryintake.Register(t.Context(), store, model, projector)
 		testcheck.NoError(t, err)

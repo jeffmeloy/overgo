@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -16,9 +16,7 @@ import (
 func TestWebUIBrowserToolOutputKeepsAPiecesTail(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the tool output leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer server.Close()
 	ctx, browser, check, settle := openBrowserLeg(t, server.URL)

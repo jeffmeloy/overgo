@@ -15,6 +15,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/quant"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -85,9 +86,7 @@ func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
 func TestModelBuilderMergeRun(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	base, tuned := mergeFixture(t, store)
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
@@ -144,9 +143,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 func TestModelBuilderTellsModelsOfOneFileNameApart(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	base := testutil.HermeticLlamaGGUF(t, 64)
 	first, second := writeTunedGGUF(t, base, 1), writeTunedGGUF(t, base, 2)
 	for _, path := range []string{base, first, second} {

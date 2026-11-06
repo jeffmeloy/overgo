@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -17,9 +17,7 @@ import (
 // a parent chain longer than a page, and an independently identified model.
 func conversationHistoryFixture(t testing.TB) (*Handler, string, string) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	h := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Stored answer"}}))
 	h.config.MaxStoredResponses = 2
 	respond := func(input, previous string) string {
@@ -146,14 +144,10 @@ func TestConversationHistoryPaging(t *testing.T) {
 func TestConversationHistoryRefresh(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer writer.Close()
+	writer := overgodbtest.Create(t, root)
 	generator := responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"External answer"}})
 	producer := newTestHandlerForRepository(t, writer, generator)
-	reader, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer reader.Close()
+	reader := overgodbtest.Create(t, root)
 	consumer := newTestHandlerForRepository(t, reader, generator)
 	response := serveTestRequest(producer, http.MethodPost, "/v1/responses", `{"input":"External conversation","max_output_tokens":1}`)
 	var turn responsesResponse

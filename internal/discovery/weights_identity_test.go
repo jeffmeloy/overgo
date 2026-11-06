@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -43,9 +43,7 @@ func TestWeightsIdentityReusesPersistedTensorDigest(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "weights.gguf")
 	payload := []byte("registered tensor bytes")
 	testcheck.NoError(t, os.WriteFile(path, payload, 0o600))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	memo := NewMemo()
 	identity := identifyLocation(path, artifact.KindTensorSet, map[string]fileIdentity{}, memo)
 	if !identity.present {

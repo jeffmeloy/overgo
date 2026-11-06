@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -36,9 +36,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 		"-record", storePath, "-out", out, "-steps", "1", "-window", "4"}); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storePath)
 	for _, seed := range graftSeeds {
 		checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(out, fmt.Sprintf("seed-%d", seed)))
 		testcheck.NoError(t, err)
@@ -55,9 +53,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 // graph is queryable -- child lineage present, verdict outcome preserved,
 // refusals recorded as loudly as ships.
 func TestProbeRejectsUncompiledGenerationRecord(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	config := trainingworkflow.GraftConfig{
 		TargetDir: "fixture/target", DonorDir: "fixture/donor",
 		Seeds: []int64{7, 11, 13}, Steps: 6,

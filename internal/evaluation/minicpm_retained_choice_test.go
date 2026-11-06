@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
@@ -21,9 +21,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	model := parse("model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32")
 	// The conversion's activation is retired since MiniCPM5-1B is served from its own files

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -19,9 +19,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"model_type":"unregistered","architectures":["RemoteModel"]}`), 0600))
 	weights := filepath.Join(path, "model.safetensors")
 	testcheck.NoError(t, safetensors.Save(weights, map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model, projector, err := ModelFiles(path, "")
 	testcheck.NoError(t, err)
 	initial, _ := store.Head()
@@ -55,9 +53,7 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 // it registers by, as a trained model's directory must to have its measurement.
 func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}

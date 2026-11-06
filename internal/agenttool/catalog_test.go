@@ -3,7 +3,7 @@ package agenttool
 import (
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -28,9 +28,7 @@ func testManuals(t *testing.T) []Manual {
 
 func TestPublishManualCatalogIsAtomicAndIdempotent(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manuals := testManuals(t)
 	empty, err := InspectManualCatalog(ctx, store, manuals)
 	testcheck.NoError(t, err)
@@ -59,9 +57,7 @@ func TestPublishManualCatalogIsAtomicAndIdempotent(t *testing.T) {
 
 func TestPublishManualCatalogSupersedesStaleBindings(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manuals := testManuals(t)
 	if _, err := PublishManualCatalog(ctx, store, manuals); err != nil {
 		t.Fatal(err)
@@ -90,9 +86,7 @@ func TestPublishManualCatalogSupersedesStaleBindings(t *testing.T) {
 
 func TestPublishManualCatalogRefusesDuplicatesAndEmpty(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := PublishManualCatalog(ctx, store, nil); err == nil {
 		t.Fatal("empty catalog published")
 	}

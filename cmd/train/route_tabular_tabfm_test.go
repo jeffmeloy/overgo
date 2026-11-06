@@ -17,7 +17,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/tabularicl"
 	"overgo/internal/testcheck"
@@ -69,9 +69,7 @@ func TestTabFMObjectiveApprovesOnHeldOutRows(t *testing.T) {
 	tables, groups := tabfmRequests(t, table)
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	registerTableSplit(t, ctx, store, root, tables, groups, trainingprogram.MetricTableAccuracy)
 	result, err := trainTableObjective(ctx, store, tableObjectiveAlias, model, filepath.Join(root, "trained"), tabfmSteps, artifact.ID{}, false)
 	testcheck.NoError(t, err)

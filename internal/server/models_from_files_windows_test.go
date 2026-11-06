@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -55,9 +56,7 @@ func TestModelsRunFromTheirOwnFiles(t *testing.T) {
 			runner, err := modelcli.OpenRunner(t.Context(), root, path, inference.OpenOptions{})
 			testcheck.NoError(t, err)
 			defer runner.Close()
-			store, err := overgodb.Open(root)
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, root)
 			handler, err := New(Config{
 				ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 				Analysis: testAnalysisPolicy, Repository: store,

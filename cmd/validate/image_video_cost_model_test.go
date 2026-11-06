@@ -21,7 +21,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
@@ -141,9 +141,7 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	testcheck.NoError(t, checkMediaCostCoverage(cost, inventory))
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	for _, p := range cost.Pipelines {
 		active, found, err := modelrecipe.ActiveRecord(t.Context(), store, p.Model, p.Task)
 		if err != nil || !found {

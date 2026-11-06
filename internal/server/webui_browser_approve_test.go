@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -18,9 +17,7 @@ import (
 func TestWebUIBrowserApproveInPlace(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the approve in place leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "approve-in-place-recipe")
 	for _, approval := range []struct{ code, summary string }{

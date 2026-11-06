@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -203,9 +204,7 @@ func bootstrappedRewardSession(t *testing.T, model string) Request {
 	root := t.TempDir()
 	prompts := filepath.Join(root, "prompts.json")
 	testcheck.NoError(t, os.WriteFile(prompts, []byte(rewardPrompts), 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}

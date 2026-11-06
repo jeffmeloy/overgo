@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -34,9 +35,7 @@ func TestUnpromotedBundleRefusal(t *testing.T) {
 func capabilityBundleFixture(t *testing.T) (*overgodb.Store, artifact.ID, recipe.Definition, artifact.Manifest) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("bundle-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{

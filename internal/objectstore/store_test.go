@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -51,9 +51,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("large stream is installed before catalog publication", func(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
-		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
-		testcheck.NoError(t, err)
-		defer repository.Close()
+		repository := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 		objectRoot := filepath.Join(root, "objects")
 		observed := observedRepository{Repository: repository, beforeCommit: func(batch artifact.Batch) error {
 			for _, location := range batch.Locations {
@@ -91,9 +89,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("small streams preserve idempotence and refuse failed publication", func(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
-		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
-		testcheck.NoError(t, err)
-		defer repository.Close()
+		repository := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 		objectRoot := filepath.Join(root, "objects")
 		store, err := New(objectRoot, repository)
 		testcheck.NoError(t, err)

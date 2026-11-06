@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentvideo"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/pathidentity"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
@@ -208,9 +208,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// model runs from. That holds whether or not serving recorded the pair
 	// first under a key of its own.
 	for _, registered := range []bool{false, true} {
-		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 		if registered {
 			registration, err := source.Inventory.Batch("registered/" + first.String())
 			testcheck.NoError(t, err)

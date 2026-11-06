@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -93,9 +93,7 @@ func TestFailureRateCountsTheAttemptsOfItsWindow(t *testing.T) {
 
 	// An attempt says what code it ran, which all of the above reads.
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "attempted model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "attempted recipe")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "attempted environment")
@@ -116,9 +114,7 @@ func TestFailureRateCountsTheAttemptsOfItsWindow(t *testing.T) {
 func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "video model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "video recipe")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "video environment")

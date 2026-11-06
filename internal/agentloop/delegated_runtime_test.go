@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -20,9 +20,7 @@ import (
 // only narrow -- a read-only grant refuses every non-inspection dispatch.
 func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manual, err := agenttool.NewManual(agenttool.Manual{
 		Name: "repo.read", Description: "Read repository state.",
 		Effect: agenttool.EffectInspection, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},

@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
@@ -28,9 +28,7 @@ func TestGeneratedSuiteUsesDeclaredChatPrompt(t *testing.T) {
 			authorities := ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate}}
 			suite, err := CompileSuite(raw, authorities)
 			testcheck.NoError(t, err)
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			publishPlanFixtureAuthorities(t, store, suite.plan)
 			chat := &instructionChatFixture{answer: "4"}
 			if _, err := suite.execute(t.Context(), store, chat); err != nil {

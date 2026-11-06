@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
@@ -35,9 +35,7 @@ var componentProfileFixtureCodec = artifact.JSONDocumentCodec(
 
 func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	roles := []recipe.DependencyRole{
 		recipe.DependencyProcessorProfile,
@@ -73,9 +71,7 @@ func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 
 func TestResolvedProfileDocumentDependencyRequiresStoredDerivationLineage(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	profile, _ := model.LookupArchitecture("llama")
 	document, err := NewProfileDocument(profile)
 	testcheck.NoError(t, err)

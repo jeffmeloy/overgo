@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -27,9 +28,7 @@ import (
 func TestWebUIBrowserScorecardView(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the scorecard leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// Two trained models: a perplexity under its base's beats it (lower is better), an accuracy under its base's falls below it (higher is better).
 	perplexityBase, accuracyBase := 10.4, 0.4
 	trained := func(name string, cell ScorecardCell) ScorecardRow {

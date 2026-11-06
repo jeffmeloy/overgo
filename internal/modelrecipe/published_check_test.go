@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -19,9 +19,7 @@ import (
 // moved under a published document.
 func TestStoredDocumentsDecodeUnderCurrentSchema(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "published-chain-model")
 	if err := VerifyPublishedChain(ctx, store, modelID, recipe.TaskInference); err == nil {
 		t.Fatal("chain with no activation alias verified")

@@ -5,16 +5,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestEvidenceDriverDecisionContract(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	goal := testutil.ArtifactID(t, artifact.KindEvidence, "driver-goal")
 	causal, err := NewCausalRoot(

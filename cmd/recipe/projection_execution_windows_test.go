@@ -11,7 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelintake"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -30,9 +30,7 @@ func TestProjectionExecutionE4B(t *testing.T) {
 	cudatest.Require(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	var paths []string
 	for _, reference := range []string{
 		"tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",

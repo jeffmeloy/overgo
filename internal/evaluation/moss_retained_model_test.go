@@ -22,6 +22,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -101,9 +102,7 @@ func TestMOSSRetainedEvidence(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	t.Run("complete", func(t *testing.T) {
 		t.Parallel()
 		checkMOSSComplete(t, root, roots, store)

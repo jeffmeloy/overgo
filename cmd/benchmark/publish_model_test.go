@@ -10,7 +10,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -35,9 +35,7 @@ func TestBenchmarkPublishesUnderTheRunnersModel(t *testing.T) {
 	if closeErr := source.Close(); err != nil || closeErr != nil {
 		t.Fatal(err, closeErr)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}

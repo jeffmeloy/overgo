@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -13,9 +13,7 @@ import (
 const interactionTestNode recipe.NodeID = "respond"
 
 func TestInteractionTerminalReservation(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	value := Interaction{Response: "reserved", Node: interactionTestNode,
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "reserved-recipe"),
 		Model:  testutil.ArtifactID(t, artifact.KindModel, "reserved-model")}
@@ -75,9 +73,7 @@ func TestInteractionIdentity(t *testing.T) {
 }
 
 func TestInteractionLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-model")
 	parentID := testutil.ArtifactID(t, artifact.KindEvidence, "parent-interaction")
@@ -101,9 +97,7 @@ func TestInteractionLineage(t *testing.T) {
 }
 
 func TestCurrentTurnProjection(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-projection-model")
 	const (
 		moduleID recipe.ModuleID = "interaction.respond"

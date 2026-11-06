@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -36,9 +36,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
 	testcheck.NoError(t, err)
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "tier0/chain-models",
 		Artifacts: []artifact.Descriptor{{ID: modelA}, {ID: modelB}},

@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -36,9 +36,7 @@ func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 	batch, err := election.Batch("audio/qualification/exact-granite")
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, qualification.AugmentBatch(&batch, inventory, nil))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}

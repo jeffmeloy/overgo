@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -23,9 +23,7 @@ import (
 // mutation gate nor forks the interaction chain.
 func TestAgentSessionList(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	stray := testutil.ArtifactID(t, artifact.KindEvidence, "not-an-interaction")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -77,9 +75,7 @@ func TestAgentSessionList(t *testing.T) {
 // it, so a list on a long-lived store costs a read of each session's end.
 func TestListingAgentSessionsRestoresNone(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "agent/session-list-restores-none", Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},

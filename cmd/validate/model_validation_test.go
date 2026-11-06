@@ -14,7 +14,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -49,9 +49,7 @@ func (validationFixtureRuntime) ScoreContinuations(context.Context, string, []st
 
 func TestE4BValidationAcceptanceContract(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	model, projector, definition := id(artifact.KindModel, "model"), id(artifact.KindProjector, "projector"), id(artifact.KindModelDefinition, "definition")
 	projection, err := modelrecipe.ProjectionDefinition(model, projector, artifact.ID{}, recipe.DataImage)

@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -16,9 +16,7 @@ import (
 )
 
 func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
@@ -93,9 +91,7 @@ func TestRequestFormAndBudget(t *testing.T) {
 	if budget := (Request{Image: imageID, Question: "what?", MaxTokens: 3}).Budget(); budget != 3 {
 		t.Fatalf("typed budget = %d", budget)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := ReadImage(t.Context(), store, imageID); err == nil || !strings.Contains(err.Error(), "absent") {
 		t.Fatalf("an absent image read: %v", err)
 	}

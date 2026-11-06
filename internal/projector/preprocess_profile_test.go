@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -32,9 +32,7 @@ func TestMediaPreprocessProfileCatalog(t *testing.T) {
 }
 
 func TestImageAttentionRecipePinsConfig(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "attention-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "attention-projector")
 	base, found, err := catalogMediaPreprocessProfile(gemma4VisionTowerProjectorType)

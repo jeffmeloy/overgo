@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -72,9 +72,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	static := []artifact.ID{
 		proposal.ID(), proposal.Incumbent(), proposal.Candidate(), parent, child, dataset, development, promotion,
 		recipeID, code, proposer, evaluator, authority, decider, environment, output,

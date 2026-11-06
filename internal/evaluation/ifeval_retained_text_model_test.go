@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -18,9 +19,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	parse := func(text string) artifact.ID {
 		t.Helper()
 		id, err := artifact.ParseID(text)
@@ -95,9 +94,7 @@ func TestNativeIFEvalInputBinding(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	id, err := artifact.ParseID("evidence:sha256:1850c0aa24d39471d3a36a1a528760c953a8c4ed17619dc24bb2b73c3e46b37d")
 	testcheck.NoError(t, err)
 	var original nativeIFEvalInput

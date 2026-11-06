@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 	"overgo/internal/webuilane"
@@ -68,9 +68,7 @@ func (generator *sessionGenerator) Generate(ctx context.Context, _ string, optio
 func TestWebUIBrowserSessionContinuation(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the session continuation leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := &sessionGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), blocked: make(chan struct{})}
 	generator.armed.Store(true)
 	handler := newTestHandlerForRepository(t, store, generator)

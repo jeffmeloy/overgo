@@ -13,6 +13,7 @@ import (
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -27,9 +28,7 @@ import (
 func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	derived := derivedIdentity(t, "overgo/heldout-run-test/")
 	source := derived(artifact.KindDataset, "dataset")
 	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)
@@ -149,9 +148,7 @@ func recordedCheckpoint(t *testing.T, store *overgodb.Store, model, source, spli
 func TestAnObjectiveRunChargesExposureBeforeItReads(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	derived := derivedIdentity(t, "overgo/heldout-charge-test/")
 	source := derived(artifact.KindDataset, "dataset")
 	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)

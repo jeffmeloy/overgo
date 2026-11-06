@@ -11,6 +11,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -49,9 +50,7 @@ func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 		{Type: "alias", Name: "models/active", Target: "definition"},
 	}
 	input := importStream(t, records, nil)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
 	testcheck.NoError(t, err)
 	if !result.Commit.Valid() || result.Source.Kind() != artifact.KindEvidence || len(result.Names) != 3 {
@@ -70,9 +69,7 @@ func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 func TestImportRejectsCountDriftPathEscapeAndReferenceCycle(t *testing.T) {
 	records := []wireRecord{{Type: "artifact", Name: "weights", Kind: "file", Path: "../weights.bin"}}
 	input := importStream(t, records, nil)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("escaping path accepted")
 	}
@@ -95,9 +92,7 @@ func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 	input := importStream(t, []wireRecord{{
 		Type: "artifact", Name: "value", Kind: "file", Path: "value.bin",
 	}}, nil)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := importRecords(t.Context(), store, "", nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("empty artifact root accepted")
 	}
@@ -126,9 +121,7 @@ func TestExternalEvidenceImportDerivesNativeRunEvaluationLineage(t *testing.T) {
 		{Type: "artifact", Name: "run", Kind: "run", MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema, Document: json.RawMessage(`{"version":2,"recipe":{"$artifact":"recipe"},"outcome":"succeeded","inputs":[{"$artifact":"plan"}],"outputs":[{"$artifact":"report"}],"code_commit":"0123456789abcdef0123456789abcdef01234567","environment":{"$artifact":"environment"},"measured_ns":10,"phases":[{"phase":"validate","duration_ns":10}]}`)},
 		{Type: "artifact", Name: "evaluation", Kind: "evaluation", MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema, Document: json.RawMessage(`{"version":1,"recipe":{"$artifact":"recipe"},"run":{"$artifact":"run"},"dataset":{"$artifact":"dataset"},"metrics":[{"name":"score","value":1,"direction":"maximize"}]}`)},
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	result, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, nil)))
 	testcheck.NoError(t, err)
 	requireParent := func(child, parent artifact.ID, relation artifact.Relation) {

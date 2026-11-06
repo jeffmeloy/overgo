@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -17,9 +17,7 @@ import (
 // the claim stays exact, and an unchanged memo does not republish.
 func TestIdentityMemoPersistence(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	path := filepath.Join(t.TempDir(), "model.bin")
 	payload := []byte("model bytes that would normally cost a full hash pass")

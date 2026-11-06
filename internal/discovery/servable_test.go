@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -23,9 +24,7 @@ import (
 // stale entry is reported and never measured.
 func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publish := func(name string, payloads ...string) artifact.ID {
 		if len(payloads) == 0 {
 			payloads = []string{"discovery-weights-" + name}
@@ -128,9 +127,7 @@ func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID arti
 
 func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	oldPayload, currentPayload := []byte("old-weights"), []byte("current-weights")
 	oldComponent := testutil.ArtifactBytesID(t, artifact.KindTensorSet, oldPayload)
 	location := filepath.Join(t.TempDir(), "weights.gguf")
@@ -205,9 +202,7 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 func TestEveryPresentModelListsWithItsState(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	register := func(name string, kind artifact.LocationKind, present bool) artifact.ID {
 		payload := []byte("catalog-weights-" + name)
 		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)

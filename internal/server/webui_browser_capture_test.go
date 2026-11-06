@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/media"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -16,9 +16,7 @@ import (
 func TestWebUIBrowserMediaCapture(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "media capture runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Capture fixture"}}))
 	handler.config.APIKey = testAPIKey
 	server := httptest.NewServer(handler)

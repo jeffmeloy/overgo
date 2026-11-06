@@ -14,7 +14,7 @@ import (
 	"overgo/internal/controllertrain"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostoptimizer"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/scratchmodel"
@@ -33,9 +33,8 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	aggregate := objectiveCorpus(t, append(slices.Clone(baseRecords), addedRecords...), holdout)
 
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
+	var err error
 	for index, corpus := range []controllertrain.Corpus{base, added, aggregate} {
 		batch, err := corpus.PublicationBatch(fmt.Sprintf("objective-corpus-%d", index))
 		testcheck.NoError(t, err)

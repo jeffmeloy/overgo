@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -12,9 +12,7 @@ import (
 
 func TestCapabilityIdentityContract(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "tool-capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "tool-capability-schema")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "tool/capability/authority", Artifacts: []artifact.Descriptor{{ID: implementation}, {ID: schema}}}); err != nil {

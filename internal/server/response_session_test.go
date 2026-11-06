@@ -14,7 +14,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
@@ -85,9 +85,7 @@ func openTemplateRunner(t *testing.T, contextLength uint32, template string, ada
 // sampler state, is refused with why.
 func TestContinuationRestoresSamplerState(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	runner := &stoppingRunner{Runner: openSessionRunner(t, 64), stopAt: 3, reached: make(chan struct{})}
 	handler := newTestHandlerForRepository(t, store, runner)
 	post := func(target *Handler, body map[string]any) (int, map[string]any) {

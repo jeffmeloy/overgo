@@ -11,7 +11,7 @@ import (
 	"overgo/internal/longform"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -19,9 +19,7 @@ import (
 
 func TestSelectedGuardAdmissionScope(t *testing.T) {
 	repository := t.TempDir()
-	store, err := overgodb.Create(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, repository)
 	r := guardResult(t)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: r.Inputs.Model}})
 	testcheck.NoError(t, err)

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechsynth"
@@ -31,9 +32,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 	t.Helper()
 	root := t.TempDir()
 	directory := writeTinySpeech(t, filepath.Join(root, "model"))
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	commit := func(batch artifact.Batch) {
 		t.Helper()
 		if _, err := artifact.Publish(t.Context(), store, batch); err != nil {

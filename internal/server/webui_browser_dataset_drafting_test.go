@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -26,9 +26,7 @@ import (
 func TestWebUIBrowserDatasetDrafting(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the dataset drafting leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	datasets := t.TempDir()
 	const question, answer = "What is wide?", "The sea."
 	generator := &fakeGenerator{pieces: []string{`{"question": `, `"` + question + `", `, `"answer": `, `"` + answer + `"}`}}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -13,9 +14,7 @@ import (
 
 func audioCursorFixture(t *testing.T) (*overgodb.Store, recipecontract.AudioReference, AudioStreamResult, *AudioStreamCursor) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "stream-model")
 	source := recipecontract.AudioReference{Audio: testutil.ArtifactID(t, artifact.KindFile, "source")}
 	result := AudioStreamResult{

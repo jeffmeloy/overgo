@@ -4,8 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestWebUIBrowserMarkdownLineEnds holds the message renderer to every line ending a model can write. A heading or a
@@ -15,9 +14,7 @@ import (
 func TestWebUIBrowserMarkdownLineEnds(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the markdown leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer server.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)

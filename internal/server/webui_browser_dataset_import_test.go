@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -20,9 +20,7 @@ import (
 func TestWebUIBrowserDatasetImport(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the dataset import leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	sources := t.TempDir()
 	chats := filepath.Join(sources, "chats.jsonl")
 	if err := os.WriteFile(chats, []byte(`{"instruction":"Add","input":"2 and 3","output":"5"}`+"\n"+

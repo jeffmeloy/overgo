@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -47,9 +47,7 @@ func TestDraftBesideTheModel(t *testing.T) {
 // naming the model before the store records anything or a runner opens.
 func TestADraftVerifiesOnlyOverAVerifiedTrunk(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	directory := testutil.Qwen35Directory(t)
 	_, active, err := validateDraft(t.Context(), store, directory, filepath.Join(directory, "draft.gguf"), "revision", nil, 1)
 	if err == nil || active || !strings.Contains(err.Error(), "only over a verified model") || !strings.Contains(err.Error(), directory) {

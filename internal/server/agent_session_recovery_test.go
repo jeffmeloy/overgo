@@ -15,6 +15,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -95,9 +96,7 @@ func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceF
 // whole output, and the session's thread lists the step beside its turns.
 func TestAgentSessionRecoveryAndStreaming(t *testing.T) {
 	// Serial: the fixture sets PATH.
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	fixture, release := streamingAgentFixture(t, store)
 	events, unsubscribe, err := fixture.handler.events.subscribe(64)
 	testcheck.NoError(t, err)
@@ -151,9 +150,7 @@ func TestAgentSessionRecoveryAndStreaming(t *testing.T) {
 // one's stays out of it.
 func TestAgentThreadSurvivesRestart(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	first := newAgentWorkspaceFixture(t, store, nil, nil)
 	activateAgentFromAPI(t, first.handler, publishAgentFromAPI(t, first, nil))
 	chat := func(fixture agentWorkspaceFixture, session string, messages ...string) {

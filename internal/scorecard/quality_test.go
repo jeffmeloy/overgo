@@ -15,6 +15,7 @@ import (
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -91,9 +92,7 @@ func TestQualityKeepsExecutionAlternatives(t *testing.T) {
 func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	projection, timed := id(artifact.KindRecipe, "projection"), id(artifact.KindRecipe, "timed")
 	first, second, timing := id(artifact.KindDataset, "caption-matching-a"), id(artifact.KindDataset, "caption-matching-b"), id(artifact.KindDataset, "smoke-timing")
@@ -205,9 +204,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 func TestQualityReadsTranscriptionReports(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	set, split, transcriber := id(artifact.KindDataset, "librispeech"), id(artifact.KindDatasetShard, "test-clean"), id(artifact.KindRecipe, "transcriber")
 	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/server"
@@ -20,9 +20,7 @@ const (
 // listing under a typed key or a declared variable, each model with its
 // declared context length; an undeclared variable and an absent key refuse.
 func TestIntakeListsProviderModels(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	fake, _ := relaytest.ServeListing(t, "", "intake-key", []string{"unused"}, []relaytest.Model{{ID: "vendor/listed", Name: "Listed", ContextLength: 2048}})
 	intake := Intake{CatalogLimit: 8}
 	declared := server.ProviderListing{Endpoint: fake.URL + "/", KeyEnvironment: intakeTestVariable}

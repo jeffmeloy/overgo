@@ -7,7 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -15,9 +15,7 @@ import (
 )
 
 func TestProjectionFactsPublicationBindsCompleteCandidate(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	inventory := func(kind artifact.Kind, name string) modelartifact.Inventory {
 		t.Helper()
 		weights := testutil.ArtifactID(t, artifact.KindTensorSet, name)

@@ -4,8 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 const documentModelLimit = 16
@@ -14,9 +13,7 @@ const documentModelLimit = 16
 // declaration per model over the one provider, in order; an empty model
 // list is refused.
 func TestDeclareDocumentDeclaresEveryModel(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_DOCUMENT_TEST_KEY", "")
 	document := Document{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_DOCUMENT_TEST_KEY",

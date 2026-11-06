@@ -7,7 +7,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -376,9 +376,7 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	testcheck.NoError(t, err)
 	batch, err := artifact.NewDocumentBatch("fixture/recipe/publish", []artifact.Content{content}, nil, nil)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

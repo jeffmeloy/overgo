@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -18,9 +18,7 @@ import (
 )
 
 func TestTrainSpeechDatasetPreview(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	wave := testutil.MonoPCM16WAV(16000, []int16{8192, -8192})
 	audio, _ := artifact.IdentifyBytes(artifact.KindFile, wave)
 	path := filepath.Join(t.TempDir(), "source.wav")

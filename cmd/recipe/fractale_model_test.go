@@ -12,7 +12,7 @@ import (
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/thoughtbank"
@@ -21,9 +21,7 @@ import (
 func TestFractaleRecipeActivation(t *testing.T) {
 	modelPath := modeltest.Directory(t, "Fractale-350M-base")
 	ctx := context.Background()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	capability := mediacapability.Catalog[recipe.TaskGeneration]
 	modelID, definition, err := mediacapability.Prepare(ctx, store, modelPath, recipe.TaskGeneration, capability)
 	testcheck.NoError(t, err)

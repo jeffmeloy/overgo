@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -48,9 +48,7 @@ func requestTensors(t *testing.T, handler *Handler, query string) analyzeTensors
 func TestAnalyzeTensorsIsBounded(t *testing.T) {
 	// Serial: it swaps the package measurement function.
 	passes := countFullPasses(t, nil)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	path := writeTensorFixture(t)
 	serving := newTestHandlerForRepository(t, store, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
 	defer serving.Close()

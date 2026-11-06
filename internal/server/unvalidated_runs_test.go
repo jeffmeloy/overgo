@@ -13,7 +13,7 @@ import (
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -24,9 +24,7 @@ import (
 // executes that candidate and publishes its output under it, as an activated model's run does.
 func TestAnUnvalidatedModelRunsWithItsStateShown(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	location := filepath.Join(t.TempDir(), "model.safetensors")
 	testcheck.NoError(t, os.WriteFile(location, []byte("oscillator-weights"), 0o600))
 	model, candidate := candidateModelAt(t, store, location, oscillatorImageDefinition)

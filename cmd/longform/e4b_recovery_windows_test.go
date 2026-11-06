@@ -16,7 +16,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/longform"
 	"overgo/internal/modelcli"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -56,9 +56,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 		}
 		return free
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	weights, err := artifact.ParseID("tensor-set:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
 	testcheck.NoError(t, err)
 	path, err := artifact.AvailablePath(ctx, store, weights, artifact.LocationFile)

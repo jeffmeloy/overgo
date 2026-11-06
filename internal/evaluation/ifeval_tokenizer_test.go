@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 
 	"github.com/dlclark/regexp2/v2"
@@ -51,9 +51,7 @@ func TestIFEvalTokenizerRefusals(t *testing.T) {
 		compiled.rules[0][0].tokenizer = &broken
 		plan, err := bindInstructionRules(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 		testcheck.NoError(t, err)
-		local, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer local.Close()
+		local := overgodbtest.Open(t, t.TempDir())
 		publishPlanFixtureAuthorities(t, local, plan)
 		report, err := evaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"x"}}, compiled, plan)
 		if !errors.Is(err, regexp2.ErrBacktrackingStackLimit) || report.ID.Valid() {

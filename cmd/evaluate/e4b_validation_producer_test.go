@@ -11,16 +11,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestE4BValidationProducer(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
 	source := id(artifact.KindDataset, "registered validation")
 	inventory := id(artifact.KindDatasetShard, "source inventory")

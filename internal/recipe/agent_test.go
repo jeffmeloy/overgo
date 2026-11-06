@@ -4,15 +4,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAgentDefinitionAuthority(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	definition := agentDefinitionFixture(t)
 	content, err := definition.ArtifactContent()
 	testcheck.NoError(t, err)

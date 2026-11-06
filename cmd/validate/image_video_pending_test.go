@@ -11,7 +11,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -94,9 +94,7 @@ func TestMediaPendingAdditions(t *testing.T) {
 	testcheck.NoError(t, err)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	live, truncated, err := discovery.RegisteredCatalog(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store))
 	if err != nil || truncated {
 		t.Fatalf("live registered catalog: truncated=%t: %v", truncated, err)

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -64,9 +64,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	if err != nil || parsed.Identity() != plan.Identity() {
 		t.Fatalf("parsed plan = (%s, %v)", parsed.Identity(), err)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	testcheck.NoError(t, publishAuthorities(t.Context(), store, exact, plan))
 	stored, err := loadEvidencePlan(t.Context(), store, plan.Identity())

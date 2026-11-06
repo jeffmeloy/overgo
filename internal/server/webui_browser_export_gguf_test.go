@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/export"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testcheck"
@@ -24,9 +24,7 @@ func TestWebUIBrowserExportGGUF(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the export gguf leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")

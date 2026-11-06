@@ -6,16 +6,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAttemptStimulusBoundary(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	manual := testutil.ArtifactID(t, artifact.KindRecipe, "stimulus-manual")
 	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "stimulus-ceiling")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "stimulus/authority", Artifacts: []artifact.Descriptor{{ID: manual}, {ID: ceiling}}}); err != nil {

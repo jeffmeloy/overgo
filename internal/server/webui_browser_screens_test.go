@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
@@ -34,9 +34,7 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	requireWebUILane(t, "browser screens run through cmd/webui-lane")
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	testcheck.NoError(t, err)
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_SCREENS_TEST_KEY", "screens-key")
 	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
 		Name: "screens", Endpoint: "https://screens.example/api/v1", KeyEnvironment: "OVERGO_SCREENS_TEST_KEY", Model: "vendor/screens-model",

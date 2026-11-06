@@ -17,7 +17,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -64,9 +64,7 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 		t.Fatalf("the served DiT %s is not the one the generation golden sampled with, %s", collection.Checkpoint, want)
 	}
 	testskip.Short(t, "samples with the collection's DiT and decodes with its 1.7 GB decoder")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	capability := Catalog[recipe.TaskImageGen]
 	source, err := capability.Resolve(t.Context(), directory)
 	testcheck.NoError(t, err)

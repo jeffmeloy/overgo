@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -21,9 +21,7 @@ import (
 func TestWebUIBrowserReliability(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "browser reliability runs through cmd/webui-lane")
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer repository.Close()
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	var started, cancelled, followed, authorized atomic.Int32

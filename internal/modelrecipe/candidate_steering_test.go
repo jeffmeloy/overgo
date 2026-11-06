@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
@@ -31,9 +32,7 @@ type steeringCandidateOptions struct {
 func newSteeringCandidateFixture(t *testing.T, options steeringCandidateOptions) (steeringCandidateFixture, error) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	fail := func(err error) {
 		t.Helper()
 		t.Fatal(err)

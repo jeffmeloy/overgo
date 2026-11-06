@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestLibraryRegisterDeclaresProvidersThroughTheIntake: the provider kind
@@ -17,9 +17,7 @@ import (
 // refusal is the route's.
 func TestLibraryRegisterDeclaresProvidersThroughTheIntake(t *testing.T) {
 	t.Parallel()
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	body := `{"kind":"provider","name":"fake","endpoint":"https://fake.example/api/v1","key_environment":"OVERGO_LIBRARY_TEST_KEY","models":["vendor/one","vendor/two"],"context_length":4096}`
 	if absent := serveTestRequest(handler, http.MethodPost, "/library/register", body); absent.Code != http.StatusNotImplemented {

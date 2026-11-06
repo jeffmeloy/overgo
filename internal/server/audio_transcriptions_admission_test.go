@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognitiontest"
@@ -19,18 +19,14 @@ import (
 )
 
 func testAudioTranscriptionsLifecycle(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	candidate := speechrecognitiontest.Publish(t, store, "../speechrecognition/testdata/encoder.json")
 	policy := TranscriptionPolicy{Recipe: candidate.Definition.ID, MemoryBytes: 1 << 20, Inspection: candidate.Policy}
 	if workspace, err := NewTranscriptionWorkspace(t.Context(), store, policy, transcriptionHTTPCommit); err == nil || workspace != nil {
 		t.Fatalf("unverified candidate served: workspace=%v err=%v", workspace, err)
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
-	writer, err := overgodb.Create(fixture.storePath)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { writer.Close() })
+	writer := overgodbtest.Create(t, fixture.storePath)
 	definition := fixture.workspace.program.Definition()
 	failed, err := runrecord.NewGateRecord(definition.ID, fixture.workspace.environment, transcriptionHTTPCommit,
 		runrecord.OutcomeFailed, "fixture-retirement", 1, []runrecord.GateStep{{Name: "fixture-retirement",

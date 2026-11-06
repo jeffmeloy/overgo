@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -13,9 +13,7 @@ import (
 func TestActivationCaseRegistry(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	contract := testutil.ArtifactID(t, artifact.KindRecipe, "activation-task-contract")
 	input := testutil.ArtifactID(t, artifact.KindDataset, "activation-case-input")
 	check := testutil.ArtifactID(t, artifact.KindProfile, "activation-evidence-check")

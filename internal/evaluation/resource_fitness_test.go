@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -102,9 +102,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		{name: "cancellation", failure: context.Canceled, outcome: runrecord.OutcomeCancelled},
 	} {
 		t.Run("terminal "+terminal.name, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			definition := planID(t, artifact.KindModelDefinition, "resource definition "+terminal.name)
 			if _, err := store.Commit(t.Context(), artifact.Batch{
 				Key: "fixture/resource-" + terminal.name,

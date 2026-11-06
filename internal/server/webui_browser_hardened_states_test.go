@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -53,9 +53,7 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	requireWebUILane(t, "hardened states run through cmd/webui-lane")
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	testcheck.NoError(t, err)
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), path: writeTensorFixture(t)})
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)

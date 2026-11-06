@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -131,9 +131,7 @@ func TestDeriveStoreSuites(t *testing.T) {
 	target := filepath.Join(root, "cais___mmlu", "abstract_algebra", "0.0.0", "aa11", "mmlu-test.arrow")
 	testcheck.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
 	testcheck.NoError(t, os.WriteFile(target, fixture, 0o644))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	if _, _, err := CatalogHFCacheBenchmarks(ctx, store, root); err != nil {
 		t.Fatal(err)

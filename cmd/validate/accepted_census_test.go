@@ -12,7 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -29,9 +29,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	// The binding file names its own base, the historical census held below
 	// by its producer and counts, so no identity is typed here or by whoever
 	// accepts a new census into the file.

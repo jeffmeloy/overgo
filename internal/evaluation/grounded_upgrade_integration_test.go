@@ -8,6 +8,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -92,9 +93,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 	}
 
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(knowledge.path)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, knowledge.path)
 	requireColdGroundedReplayResult(t, reopened, request, result)
 }
 

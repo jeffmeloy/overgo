@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -96,9 +97,7 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 		t.Fatalf("receipt omitted replay evidence: %+v", stored)
 	}
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, directory)
 	cold, err := RequireConsumedRetrievalReceipt(t.Context(), reopened, receipt.ID)
 	if err != nil || cold.ID != receipt.ID || !slices.Equal(cold.Results[0].Structure, []string{"chapter", "section"}) {
 		t.Fatalf("cold retrieval receipt = %+v, %v", cold, err)

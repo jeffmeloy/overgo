@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -44,9 +45,7 @@ func servePictures(t *testing.T, name string) servedPictures {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, directory)
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/" + name, Contents: []artifact.Content{profileContent}}); err != nil {
 		t.Fatal(err)

@@ -20,7 +20,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -76,9 +76,7 @@ func servedReconstruction(t *testing.T, directory string) servedPictures {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
 	return servedPictures{store: store, directory: directory, execution: modelrecipetest.CandidateExecution(t, store, program)}
 }

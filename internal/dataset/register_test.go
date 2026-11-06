@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -28,9 +29,7 @@ func registerFixture(t *testing.T) string {
 // idempotent, and coverage reports the dataset available on disk.
 func TestRegisterDirectoryDataset(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	legacyRoot, legacyContent := legacyCatalogFixture(t)
 	if _, err := PublishLegacyCatalog(ctx, store, legacyRoot, legacyContent); err != nil {
 		t.Fatal(err)
@@ -101,9 +100,7 @@ func TestRegisterContentIdentity(t *testing.T) {
 // an idempotent no-op, because identity follows bytes alone.
 func TestRegisterTouchDoesNotReidentify(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	root := t.TempDir()
 	path := filepath.Join(root, "clip.mp4")
 	testcheck.NoError(t, os.WriteFile(path, bytes.Repeat([]byte{0xCC}, 4096), 0o600))
@@ -144,9 +141,7 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 		return CatalogEntry{}
 	}
 
-	declaredStore, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer declaredStore.Close()
+	declaredStore := overgodbtest.Open(t, t.TempDir())
 	if _, err := RegisterDirectoryDatasetAs(ctx, declaredStore, "corpus", mixedCorpus(), "video"); err != nil {
 		t.Fatal(err)
 	}
@@ -158,9 +153,7 @@ func TestRegisterModalitySetAndDeclaration(t *testing.T) {
 		t.Fatal("declared modality absent from the corpus was accepted")
 	}
 
-	undeclaredStore, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer undeclaredStore.Close()
+	undeclaredStore := overgodbtest.Open(t, t.TempDir())
 	if _, err := RegisterDirectoryDataset(ctx, undeclaredStore, "corpus", mixedCorpus()); err != nil {
 		t.Fatal(err)
 	}

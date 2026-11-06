@@ -24,7 +24,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -43,9 +43,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, edit)
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/video-profile", Contents: []artifact.Content{profileContent},

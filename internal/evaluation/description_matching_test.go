@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -57,9 +57,7 @@ func TestDescriptionMatchingScoresTheShareOfDescriptionsThatMatchTheirClip(t *te
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateDescriptionMatching(t.Context(), store, textGenerator("A white polar bear walking on the snow"), compiled, plan)
 	testcheck.NoError(t, err)

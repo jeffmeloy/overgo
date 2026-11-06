@@ -16,7 +16,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -52,9 +52,7 @@ func TestPictureRoundTripsThroughABridgedPair(t *testing.T) {
 	if entry := program.Stages()[0].Module.ID; entry != modelrecipe.ModuleReconstructRepresentation {
 		t.Fatalf("the bridged pair compiles to entry module %s", entry)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	const side = 256
 	picture := image.NewRGBA(image.Rect(0, 0, side, side))
 	for y := range side {

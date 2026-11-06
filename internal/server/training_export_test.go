@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -55,9 +55,7 @@ func (generator *trainingExportGenerator) ExecuteWorkflow(
 
 func TestGUITrainingAndExportShareServices(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	capability := func(kind WorkflowKind) WorkflowCapability {
 		return WorkflowCapability{
 			Task:     recipe.TaskTraining,

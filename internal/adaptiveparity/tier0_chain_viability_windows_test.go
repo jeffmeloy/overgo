@@ -9,7 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
@@ -56,9 +56,7 @@ func TestTier0ChainViability(t *testing.T) {
 		tokens[span : 2*span],
 		tokens[2*span : 3*span],
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	config := trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: tier0ChainPrefix, Draft: tier0ChainDraft, Target: tier0ChainTarget,

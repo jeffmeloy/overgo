@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -24,9 +24,8 @@ import (
 func TestWebUIBrowserArtifactLinks(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "artifact links run through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	ids := make([]artifact.ID, 2)
 	contents := make([]artifact.Content, 2)
 	for index, shade := range []uint8{40, 200} {

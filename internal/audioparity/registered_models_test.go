@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -30,9 +31,7 @@ func TestCanonicalAudioModelRegistration(t *testing.T) {
 		t.Fatal("accepted an empty catalog")
 	}
 	testcheck.NoError(t, empty.Close())
-	store, err := overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, storeRoot)
 	testcheck.NoError(t, verifyRegisteredAudioModels(t.Context(), store, root, data))
 	t.Log("registration accepted: 4/4 exact models, 1287/1287 tensor declarations; physical components and source/license lineage verified; native Nemotron Safetensors selected; Q8 and AED excluded; no runtime activation, task-quality, training or streaming claim")
 }

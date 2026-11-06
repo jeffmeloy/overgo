@@ -8,6 +8,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -51,9 +52,7 @@ func incrementalStimulusBoundary(t *testing.T, store *overgodb.Store, attempt ui
 // still observes every admitted stimulus; unidentified or identical
 // boundaries refuse.
 func TestIncrementalContextPreservesEvidence(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "incremental/seed",
 		Artifacts: []artifact.Descriptor{

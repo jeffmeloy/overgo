@@ -6,14 +6,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	compilation, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
 	testcheck.NoError(t, err)
 	source, err := compilation.SourceContent()
@@ -41,9 +40,7 @@ func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 
 func TestCandidateGrantRejectsDrift(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	compilation, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
 	testcheck.NoError(t, err)
 	source, err := compilation.SourceContent()
@@ -90,9 +87,7 @@ func TestCandidateGrantRejectsDrift(t *testing.T) {
 
 func TestActiveCatalogExcludesStaleRegisteredAliases(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	first := catalogSearchManual(t, "first.tool", "Inspect the first surface.", "query")
 	second := catalogSearchManual(t, "second.tool", "Inspect the second surface.", "query")
 	activateTestCandidate(t, store, first, "first source")

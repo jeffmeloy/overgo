@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -23,9 +23,7 @@ func TestComponentImportSourceBinding(t *testing.T) {
 			testcheck.NoError(t, err)
 			info, err := os.Stat(path)
 			testcheck.NoError(t, err)
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			before, sequence := store.Head()
 			ctx := t.Context()
 			var repository artifact.Repository = store
@@ -73,9 +71,7 @@ func TestComponentImportSourceBinding(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "model_index.json"), []byte(`{"_class_name":"Fixture","encoder":["upstream","LlamaForCausalLM"]}`), 0600))
 		code := []byte("# retained upstream source\n")
 		testcheck.NoError(t, os.WriteFile(filepath.Join(root, "upstream.py"), code, 0600))
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Open(t, t.TempDir())
 		id, err := artifact.IdentifyBytes(artifact.KindFile, code)
 		testcheck.NoError(t, err)
 		original := artifact.Descriptor{ID: id, Size: uint64(len(code)), MediaType: "text/plain"}

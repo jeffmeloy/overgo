@@ -74,16 +74,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 24,
-        "reason": "param-folds folds test bodies of a few values repeated across packages into shared test support the gate counts as production: testcheck.Must, testutil.Map, testutil.HubModelInfo and the doc of testutil.WriteJSON, testutil's own JSON writer now exported."
+        "nodes": 0,
+        "reason": "store-helper folds the tests' throwaway store openings into internal/overgodbtest, whose Open, Create and OpenReadOnly the gate counts as production, being test support."
       },
       "steps": [
         {
-          "id": "statement-folds",
-          "title": "Fold runs of statements repeated in the tests",
+          "id": "call-checks",
+          "title": "A test takes a call's value and checks its error in one expression",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestStatementRunRepeatsThreeTimes$'",
-          "rationale": "compact-tests/param-folds folded the test bodies of a few values that stood three times or more, read whole as exact-folds reads them, and left what its own estimate counted beyond them: 227 folds and about 20,312 nodes net, mostly runs of statements repeated inside bodies that differ elsewhere, the largest a response's status check followed by the decode of its body, 58 sites in internal/server.\nChange: a run of statements of twenty syntax nodes or more that stands three times or more across the module's tests, alike or differing in at most parameterLeast values, folds into one helper its sites call; TestNoTestStatementRunRepeatsThreeTimes reads each body's runs of consecutive statements by the bodyShape the repeat checks use and refuses any that stands more than twice, with the same exclusions as the body checks. Drop any fold whose parameter is a behaviour, since that is two meanings in one body.\nServes: development velocity and test-code size.\nDisappears: repeated statement runs.\nEvidence: test-code nodes on the gate's line.\nBatch: per package, host lane, leaving the files whose change runs the device lane in full."
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestATestTakesACallsValueInOneExpression$'",
+          "rationale": "compact-tests/statement-folds measured the module's tests' repeated runs of statements and found idioms rather than copied logic, the most common a call's value taken and its error checked in two lines, about 8,700 sites.\nChange: a value-then-check pair, v, err := f() followed by testcheck.NoError(t, err), says it in one expression, v := testcheck.Must(f())(t), wherever err is not read again, by a one-shot rewrite over the type-checked syntax kept out of the tree; the owner chose the rewrite for less test code over the more familiar two-line form. TestATestTakesACallsValueInOneExpression counts the pairs of the module's tests, read from their syntax, and holds them to what stays: pairs whose err is read again, those of files a claim or a pinned record binds, and those of the tests whose change runs the device lane in full.\nServes: development velocity and test-code size.\nDisappears: about 8,700 lines of error checks.\nEvidence: test-code nodes on the gate's line.\nBatch: host lane, with the device packages whose tests it touches in the device lane, leaving the files whose change runs it in full."
         }
       ]
     },

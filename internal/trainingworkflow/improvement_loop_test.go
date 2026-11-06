@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -125,9 +126,7 @@ func driverAttemptRecords(t *testing.T, store *overgodb.Store) int {
 // stop. A promotion the store never received is refused, not cited.
 func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindModel, "driver-donor"))
 	stopped := false
 	stages, spy := driverStages(t, store, func(int) bool { return true }, &stopped)
@@ -193,9 +192,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 // is never overridden.
 func TestCompositionLoopSaturationStops(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindModel, "driver-donor"))
 	stopped := false
 	stages, _ := driverStages(t, store, func(int) bool { return false }, &stopped)

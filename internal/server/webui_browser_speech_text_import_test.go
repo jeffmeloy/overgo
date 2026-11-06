@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -15,9 +15,7 @@ import (
 func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "graphical speech form probe")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := &speechSurfaceGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-surface"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},

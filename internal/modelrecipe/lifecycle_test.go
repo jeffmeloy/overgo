@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -16,9 +16,7 @@ const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestAtomicEvidenceGatedActivation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "atomic-activation-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
@@ -77,9 +75,7 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 
 func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "activation-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
@@ -129,9 +125,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "decision-model")
 	derivationID := testutil.ArtifactID(t, artifact.KindEvidence, "decision-derivation")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -200,9 +194,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 
 func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "legacy-intent-model")
 	intentID := testutil.ArtifactID(t, artifact.KindEvidence, "activation-intent")
 	testutil.PublishArtifact(t, store, modelID)

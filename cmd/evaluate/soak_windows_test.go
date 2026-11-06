@@ -16,6 +16,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -53,9 +54,7 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 		t.Skip("data root is not resolvable: " + err.Error())
 	}
 	ctx := t.Context()
-	store, err := overgodb.Create(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, roots.Store)
 	path := soakModelPath(t, ctx, store)
 	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, path)
 	testcheck.NoError(t, err)

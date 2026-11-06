@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -67,9 +68,7 @@ func activatedForecaster(t *testing.T, store *overgodb.Store) (artifact.Manifest
 // that hashed nothing publishes nothing, so the alias does not move.
 func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manifest, _, location := activatedForecaster(t, store)
 	if _, bound, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias); err != nil || bound {
 		t.Fatalf("a store nothing has listed holds identity evidence (%t, %v)", bound, err)
@@ -106,9 +105,7 @@ func TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite(t *testing.T) {
 	testcheck.NoError(t, err)
 	manifest, _, _ := activatedForecaster(t, store)
 	testcheck.NoError(t, store.Close())
-	reader, err := overgodb.OpenReadOnly(root)
-	testcheck.NoError(t, err)
-	defer reader.Close()
+	reader := overgodbtest.OpenReadOnly(t, root)
 	entries, _, err := RememberedCapabilityCatalog(ctx, reader, 100)
 	if err != nil || len(entries) != 1 || entries[0].Model != manifest.ID || !entries[0].Present {
 		t.Fatalf("a read-only listing = (%+v, %v), want the forecast model present", entries, err)
@@ -125,9 +122,7 @@ func TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite(t *testing.T) {
 // its task and tier.
 func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manifest, definition, location := activatedForecaster(t, store)
 	servable, err := Servable(ctx, store, 10)
 	testcheck.NoError(t, err)
@@ -249,9 +244,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 // discarded by its caller.
 func TestCapabilityCatalogForTasksSkipsUnselectedPresence(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	forecastModel, forecastLocation := publishCatalogCapability(t, store, "forecast", recipe.TaskForecast)
 	tabularModel, tabularLocation := publishCatalogCapability(t, store, "tabular", recipe.TaskTabular)

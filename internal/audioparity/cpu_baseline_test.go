@@ -18,7 +18,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -38,9 +38,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	declarationPath := filepath.Join(root, "internal", "audioparity", "testdata", "registered_models.json")
 	baselineCommand(t, root, "go", "run", "./cmd/recipe", "register", "-repo", storeRoot,
 		"-root", filepath.Join(dataRoot, "models"), "-spec", declarationPath)
-	store, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storeRoot)
 	commitBatch := func(batch artifact.Batch, err error) {
 		t.Helper()
 		testcheck.NoError(t, err)
@@ -205,9 +203,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			break
 		}
 	}
-	store, err = overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.OpenReadOnly(t, storeRoot)
 	content, err := artifact.RequireTypedContent(t.Context(), store, reportID)
 	testcheck.NoError(t, err)
 	var report evaluation.TranscriptionResourceReport

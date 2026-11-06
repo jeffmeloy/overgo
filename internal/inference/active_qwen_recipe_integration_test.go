@@ -13,7 +13,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
@@ -22,9 +22,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := modeltest.GGUF(t, "qwen35")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	definition := publishActiveGGUFRecipe(t, store, path)
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, path)
 	testcheck.NoError(t, err)

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -26,9 +27,7 @@ import (
 func TestServingFailureBecomesAFinding(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
 	if err != nil || !found {

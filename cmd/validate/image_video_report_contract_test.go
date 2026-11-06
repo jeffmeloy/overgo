@@ -14,7 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -38,9 +38,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storePath)
 	writeEmptyAcceptedCoverage(t, root)
 	register := func(task recipe.Task) recipe.Definition {
 		t.Helper()

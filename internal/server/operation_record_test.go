@@ -18,6 +18,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
@@ -141,9 +142,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 	t.Parallel()
 	const retention = 4
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "operation record "+name)
 	}
@@ -396,9 +395,7 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 //   - the same workflow completes once its execution commits the run
 func TestACompletionTheStoreDoesNotHoldFailsItsOperation(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	workflow := newRecordWorkflow(t, store, "unheld completion")
 	handler, err := New(Config{Repository: store, Workflows: workflow}, &fakeGenerator{})
 	testcheck.NoError(t, err)

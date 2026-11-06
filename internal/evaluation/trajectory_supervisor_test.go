@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -145,9 +146,7 @@ type trajectoryBase struct {
 
 func newTrajectorySupervisorFixture(t *testing.T) trajectorySupervisorFixture {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	return newTrajectorySupervisorFixtureInStore(t, store)
 }
 

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -29,9 +30,7 @@ import (
 func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
 	if err != nil || !found {
@@ -104,9 +103,7 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 func TestGenerationAttemptCitesTheRunItsExecutorMade(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := activatedImageModel(t, store)
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
 	if err != nil || !found {
@@ -226,9 +223,7 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			modelID := activatedImageModel(t, store)
 			catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 				Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, _ string) (any, error) {
@@ -257,9 +252,7 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 // completion with no run would read as a generic failure.
 func TestGenerationCancelledAtPublicationRecordsItsRun(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	activatedImageModel(t, store)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

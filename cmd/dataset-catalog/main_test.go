@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingdata"
@@ -23,9 +23,7 @@ func TestPublishDatasetCatalogCommand(t *testing.T) {
 	var output bytes.Buffer
 	args := []string{"-repo", repository, "-legacy", legacyRoot, "-root", contentRoot}
 	testcheck.NoError(t, run(args, &output))
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	coverage, err := dataset.InspectCatalog(t.Context(), store)
 	testcheck.NoError(t, err)
 	if !coverage.Complete || coverage.Registered != 1 || coverage.Available != coverage.Registered ||
@@ -54,9 +52,7 @@ func TestCatalogPublishesAMixture(t *testing.T) {
 	if err := run([]string{"-repo", repository, "-mixture", "bad", "-members", "alpha=6,absent=2"}, io.Discard); err == nil {
 		t.Fatal("a mixture of an unregistered dataset published")
 	}
-	store, err := overgodb.OpenReadOnly(repository)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, repository)
 	ctx := t.Context()
 	mixture, found, err := dataset.Resolve(ctx, store, dataset.RegisteredAliasPrefix+"mix")
 	if err != nil || !found || mixture.Type != dataset.TypeMixture || !strings.Contains(output.String(), mixture.ID.String()) {

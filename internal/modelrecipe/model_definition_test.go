@@ -11,7 +11,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -77,9 +77,7 @@ func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profileDocument, err := NewProfileDocument(profile)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	var definition artifact.ID
 	for _, path := range []string{filepath.Join(t.TempDir(), "definition.gguf"), filepath.Join(t.TempDir(), "definition.gguf")} {
@@ -131,9 +129,7 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 	testcheck.NoError(t, err)
 	profiles := []model.ArchitectureProfile{base, base}
 	profiles[1].LayerTopology = model.LayerTopologyCausalPostQKNormSkip
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	for _, profile := range profiles {
 		profileDocument, err := NewProfileDocument(profile)
 		testcheck.NoError(t, err)

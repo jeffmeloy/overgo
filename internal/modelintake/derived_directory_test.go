@@ -7,7 +7,7 @@ import (
 	// gguf.Open serves a directory through the view the converter registers.
 	_ "overgo/internal/hfconvert"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -17,9 +17,7 @@ import (
 // and says it is not verified; a directory whose model type nothing maps to a prototype is refused by that name.
 func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	directory := testutil.Qwen35Directory(t)
 	testutil.WriteTextFile(t, directory, "generation_config.json", `{"do_sample":true,"temperature":0.25}`)
 	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)

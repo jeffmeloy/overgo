@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -37,9 +38,7 @@ type consumedRetrievalFixture struct {
 
 func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	fixture := publishConsumedRetrieval(t, store, "metrics", []string{"target alpha", "target beta"}, 2,
 		map[string]float64{"target alpha": 1, "target beta": 2}, false)
 	if len(fixture.search.Results) != 2 {

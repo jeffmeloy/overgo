@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -15,9 +15,7 @@ import (
 func TestWebUIBrowserMobileInteraction(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "mobile interaction runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := &responseControlGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Final response."}}), starts: make(chan context.Context), release: make(chan error), prefix: strings.Repeat("Read this earlier line without losing your place.\n", 80)}
 	handler := newTestHandlerForRepository(t, store, generator)
 	defer handler.Close()

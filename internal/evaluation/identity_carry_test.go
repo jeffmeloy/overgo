@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -41,9 +41,7 @@ type carriedModel struct{}
 func TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	const cases = observedPending + 3
 	suite := MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/identity-carry/v1", Source: "store/identity-carry",

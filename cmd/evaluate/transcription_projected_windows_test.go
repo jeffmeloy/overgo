@@ -16,7 +16,7 @@ import (
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -34,12 +34,8 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	ctx := t.Context()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	canonical, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer canonical.Close()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	canonical := overgodbtest.OpenReadOnly(t, roots.Store)
+	store := overgodbtest.Open(t, t.TempDir())
 	parse := func(value string) artifact.ID { return testutil.ParseID(t, value) }
 	location := func(value string, kind artifact.LocationKind) string {
 		t.Helper()

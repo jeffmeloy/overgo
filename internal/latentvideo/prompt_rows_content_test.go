@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
@@ -145,9 +145,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		map[string][]int{projectionTensorNames[0]: {4, 4}, projectionTensorNames[1]: {4}, projectionTensorNames[2]: {4, 4}, projectionTensorNames[3]: {4}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	spec.Common, spec.Kept, spec.KeptUnder = "world", store, "identity"
 	request := WanRequest{Prompt: "hello world", NegativePrompt: spec.Common}
 
@@ -341,9 +339,7 @@ func TestTextPipelineNamesItsCheckpointThroughTheStore(t *testing.T) {
 	testcheck.NoError(t, os.MkdirAll(spec.TokenizerDir, 0o755))
 	writeSyntheticTokenizer(t, spec.TokenizerDir)
 	testcheck.NoError(t, os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// named is what a process names the pipeline, with the store or without one, before it ends and lets the checkpoint go.
 	named := func(store artifact.Repository) string {
 		t.Helper()

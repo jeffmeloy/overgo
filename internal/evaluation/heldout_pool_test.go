@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -34,9 +35,7 @@ const (
 // records. It returns the store, the objective and both memberships.
 func poolObjective(t *testing.T) (*overgodb.Store, trainingprogram.ObjectiveDocument, dataset.Membership, dataset.Membership) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	objective, training, heldout := poolObjectiveOver(t, store, "pool-corpus", poolFixtureDocuments)
 	return store, objective, training, heldout
 }
@@ -222,9 +221,7 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 func TestRecordedGainsReadTheVerdictsOnRecord(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
 	commit := heldoutCommitter(t, store)
 	forecast.publishObjective(commit)

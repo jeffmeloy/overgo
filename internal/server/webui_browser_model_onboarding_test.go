@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -35,9 +36,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	weights := filepath.Join(t.TempDir(), "lane.gguf")
 	testcheck.NoError(t, os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644))
 	hub := hubFixtureServer(t, weights)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "onboarding-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "onboarding-run")
 	intake := LibraryIntake{

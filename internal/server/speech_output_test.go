@@ -17,7 +17,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechsynth"
@@ -36,9 +36,7 @@ type speechOutputFixture struct {
 
 func newSpeechOutputFixture(t *testing.T) (*Handler, *speechOutputFixture) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	var pcm []float32
 	for index := range 6 {
 		pcm = append(pcm, speechFixtureChunk(index).PCM...)

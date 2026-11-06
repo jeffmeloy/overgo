@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -38,9 +38,7 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	encodedScale, _ := json.Marshal(scale)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	testcheck.NoError(t, err)
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	reply := strings.Repeat("A reply long enough to fill several lines of the conversation, so the reading measure decides its width. ", 8)
 	handler := newTestHandlerForRepository(t, repository, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{reply}}), path: writeTensorFixture(t)})
 	defer handler.Close()

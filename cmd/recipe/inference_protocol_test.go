@@ -12,7 +12,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -130,9 +130,7 @@ func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 	for _, wrong := range []string{"", "43"} {
 		t.Run("wrong="+wrong, func(t *testing.T) {
 			ctx := t.Context()
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 				t.Fatal(err)
 			}

@@ -16,7 +16,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -52,9 +52,7 @@ func TestTrainingProofChild(t *testing.T) {
 	var result modelrecipe.Verification
 	testcheck.NoError(t, json.Unmarshal([]byte(os.Getenv("OVERGO_TEST_PROOF_PAIR")), &result))
 	if mode == "fresh" || mode == "missing-with-concurrent-proof" {
-		store, err := overgodb.Create(os.Getenv("OVERGO_TEST_PROOF_STORE"))
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, os.Getenv("OVERGO_TEST_PROOF_STORE"))
 		id, err := artifact.ParseID(os.Getenv("OVERGO_TEST_PROOF_RECIPE"))
 		testcheck.NoError(t, err)
 		result, err = modelrecipetest.PublishVerification(t.Context(), store, "fixture/child/fresh", id)
@@ -81,9 +79,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 	for _, mode := range []string{"missing", "stale", "wrong", "malformed", "missing-with-concurrent-proof", "fresh"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
-			writer, err := overgodb.Create(filepath.Join(root, "store"))
-			testcheck.NoError(t, err)
-			defer writer.Close()
+			writer := overgodbtest.Create(t, filepath.Join(root, "store"))
 			selected := testutil.ArtifactID(t, artifact.KindRecipe, "selected")
 			other := testutil.ArtifactID(t, artifact.KindRecipe, "other")
 			if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "recipes", Artifacts: []artifact.Descriptor{{ID: selected}, {ID: other}}}); err != nil {
@@ -97,9 +93,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 			testcheck.NoError(t, err)
 			encoded, err := json.Marshal(pair)
 			testcheck.NoError(t, err)
-			reader, err := overgodb.OpenReadOnly(filepath.Join(root, "store"))
-			testcheck.NoError(t, err)
-			defer reader.Close()
+			reader := overgodbtest.OpenReadOnly(t, filepath.Join(root, "store"))
 			_, before := reader.Head()
 			err = acquireTraining(t.Context(), io.Discard, root, reader, ModelValidation{Recipe: selected}, executable,
 				[]string{"-test.run=^TestTrainingProofChild$", "-out", filepath.Join(root, "shared", "checkpoint")},
@@ -132,9 +126,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 func TestTrainingAcquisitionRetainsPrivateScratchUntilCompletion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	executable, err := os.Executable()
 	testcheck.NoError(t, err)
 	control, err := net.Listen("tcp", "127.0.0.1:0")

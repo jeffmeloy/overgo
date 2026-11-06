@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -56,9 +57,7 @@ func resolveObservationChunkSummary(
 func TestObservationChunkPublication(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "source"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "source"))
 
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		t.Helper()

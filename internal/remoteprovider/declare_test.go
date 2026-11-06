@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
@@ -14,9 +14,7 @@ import (
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	provider := Provider{Name: "history", KeyEnvironment: "HISTORY_KEY", Model: "model"}
 	for _, endpoint := range []string{"https://old.example", "https://older.example"} {
 		provider.Endpoint = endpoint
@@ -52,9 +50,7 @@ func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
 // declaration's environment is not reproducible; and declaring again is a
 // no-op returning the same identities.
 func TestDeclareListsTheRemoteModelWithItsRefusal(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_REMOTE_PROVIDER_TEST_KEY", "")
 	provider := Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1/", KeyEnvironment: "OVERGO_REMOTE_PROVIDER_TEST_KEY", Model: "vendor/model",

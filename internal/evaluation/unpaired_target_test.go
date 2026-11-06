@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
@@ -26,9 +26,7 @@ import (
 func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	derived := func(kind artifact.Kind, role string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "overgo/unpaired-heldout-test/"+role)
 	}

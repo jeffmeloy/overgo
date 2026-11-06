@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/executionfailure"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -17,9 +17,7 @@ const failureFixtureObservedNS = int64(1_700_000_000_000_000_000)
 // under a newer classifier lands a sibling record while the raw bytes
 // stay identical.
 func TestFailureNormalizationCorpus(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 
 	corpus := []struct {

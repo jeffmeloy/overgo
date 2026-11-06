@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
@@ -78,9 +79,7 @@ func (tally *choiceTally) ScoreContinuations(_ context.Context, prompt string, _
 func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	const cases = observedPending + 8
 	suite := MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/scoring-fix/v1", Source: "scoring-fix",
@@ -228,9 +227,7 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	identity := modelrecipe.ProgramIdentity{
 		Model: planID(t, artifact.KindModel, "outcomes model"), Definition: planID(t, artifact.KindModelDefinition, "outcomes definition"), Recipe: planID(t, artifact.KindRecipe, "outcomes recipe"),
 	}

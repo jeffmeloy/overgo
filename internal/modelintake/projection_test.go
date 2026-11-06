@@ -11,6 +11,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -63,9 +64,7 @@ func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
 	modelPath, projectorPath, stored := storedProjectionPair(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	candidate, err := PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath)
 	testcheck.NoError(t, err)
 	if candidate.Definition.ID != stored.ID {

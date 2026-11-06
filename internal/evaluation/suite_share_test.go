@@ -13,7 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -122,9 +122,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	// Through the store: twenty-five prompts of IFEval, of which a run scores a tenth, rounded up.
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	var raw []byte
 	const prompts = 25
 	for prompt := range prompts {

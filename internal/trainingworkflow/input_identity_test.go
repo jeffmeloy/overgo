@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -69,9 +69,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 		t.Fatal("empty directory identified")
 	}
 	t.Run("registered-gguf", func(t *testing.T) {
-		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 		registration, err := inventory.Batch("registered/" + expected.String())
 		testcheck.NoError(t, err)
 		if _, err := artifact.CommitBatch(t.Context(), store, registration); err != nil {
@@ -108,9 +106,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	})
 	t.Run("split-gguf", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := overgodb.Create(filepath.Join(root, "store"))
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, filepath.Join(root, "store"))
 		base := writeTrainedFixtureBase(t, root)
 		directory := filepath.Join(root, "split")
 		testcheck.NoError(t, os.Mkdir(directory, 0o755))

@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -45,9 +45,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
 	}
 	snapshot := textStructuredSnapshot(t)
-	store, err := overgodb.Create(filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
 	goldenPaths := map[string]string{
 		"dense-carbon": "carbon_serving_golden.json", "dense-minicpm5": "minicpm5_serving_golden.json",
 		"dense-qwen25": "qwen25_serving_golden.json", "hybrid-qwen35": "qwen35_4b_serving_golden.json",

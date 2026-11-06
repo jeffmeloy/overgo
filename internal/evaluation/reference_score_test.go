@@ -5,15 +5,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func TestReferenceScoresDeclareMergeAndLoad(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model, err := artifact.NewID(artifact.KindModel, sha256.Sum256([]byte("reference model")))
 	testcheck.NoError(t, err)
 	ctx := t.Context()

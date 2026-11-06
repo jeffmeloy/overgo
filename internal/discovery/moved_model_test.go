@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -19,9 +19,7 @@ import (
 // Serial: sets OVERGO_DATA_ROOT.
 func TestMovedModelResolvesByIdentity(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	payload := []byte("moved-model-weights")
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	recorded := filepath.Join(t.TempDir(), "models", "family-1.0", "head", "model.safetensors")

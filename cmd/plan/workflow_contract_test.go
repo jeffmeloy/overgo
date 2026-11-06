@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/plan"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -99,9 +100,7 @@ func TestPromptReadsWithoutWriting(t *testing.T) {
 			t.Fatalf("prompt for %s did not project the task:\n%s", worker, out)
 		}
 	}
-	store, err = overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.OpenReadOnly(t, filepath.Join(root, "overgodb-store"))
 	if after, count := store.Head(); after != head || count != sequence {
 		t.Fatal("prompt wrote to the store")
 	}

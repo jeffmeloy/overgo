@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -20,9 +20,7 @@ func TestTransducerCapturePublication(t *testing.T) {
 	t.Parallel()
 	// Synthetic publication evidence only: this test does not claim ASR parity.
 	election := qualificationElection(t)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	batch, err := election.Batch("transducer-capture-test/model")
 	testcheck.NoError(t, err)
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {

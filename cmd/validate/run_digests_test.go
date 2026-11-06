@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -22,9 +22,7 @@ import (
 // again and sees the change. A file that could not be hashed keeps no digest.
 func TestARunHashesEachModelFileOnce(t *testing.T) {
 	// Serial: it names the measurement run's record in the process environment.
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "overgodb-store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "overgodb-store"))
 	weights := filepath.Join(t.TempDir(), "model.gguf")
 	testcheck.NoError(t, os.WriteFile(weights, []byte("weights"), 0o600))
 	model := creditModel(t, store, weights)

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -43,9 +44,7 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("curve-%02d.json", curve)), []byte(data), 0o600))
 	}
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "curves", corpus)
 	testcheck.NoError(t, err)
 	var records []dataset.Record

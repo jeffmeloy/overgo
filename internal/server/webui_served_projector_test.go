@@ -14,6 +14,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -60,9 +61,7 @@ func TestModelJourneyServedProjector(t *testing.T) {
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
 	testcheck.NoError(t, err)
 	defer supervisor.Close()
-	repository, err := overgodb.OpenReadOnly(store)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.OpenReadOnly(t, store)
 	proxy := &modelswap.Proxy{
 		Supervisor: supervisor, Resolver: &modelswap.CatalogResolver{Store: repository, Limit: 256},
 		Default: modelswap.Servable{Name: name, Location: location},

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -64,9 +65,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 
 func TestMediaMeasurementProjection(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "media projection")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})

@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -25,9 +25,7 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	read := func(id artifact.ID, target any) { testutil.ReadTypedJSON(t, store, id, target) }
 	id, err := artifact.ParseID("evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c")
 	testcheck.NoError(t, err)

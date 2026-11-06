@@ -16,6 +16,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/speechactivity"
 	"overgo/internal/testcheck"
 )
@@ -144,9 +145,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 		t.Fatal("VAD oracle identities or denominator differ")
 	}
 	storeRoot := resolveReferenceRoots(t).store
-	store, err := overgodb.OpenReadOnly(storeRoot)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.OpenReadOnly(t, storeRoot)
 	var existing ctcTrainingRecord
 	readAudioFixtureJSON(t, "testdata/ctc_training_record.json", &existing)
 	record := reference.Corpus

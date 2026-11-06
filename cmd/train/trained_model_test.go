@@ -15,7 +15,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testcheck"
@@ -80,9 +80,7 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 	dataset := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
 	storeRoot := filepath.Join(root, "store")
-	store, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storeRoot)
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)

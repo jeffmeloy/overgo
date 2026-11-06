@@ -4,8 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/webuilane"
 )
 
@@ -16,9 +15,7 @@ import (
 func TestWebUIBrowserChatDefaults(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the chat defaults leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := &sessionGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), blocked: make(chan struct{})}
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, generator, func(config *Config) { config.MaxTokens = 48 }))
 	defer server.Close()

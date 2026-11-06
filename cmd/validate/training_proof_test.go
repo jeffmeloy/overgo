@@ -16,7 +16,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -60,9 +60,8 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	t.Parallel()
 	ctx, root, models := t.Context(), testutil.RepoRoot(t), t.TempDir()
 	const selected = "C:/stores/selected"
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	publish := func(content artifact.Content, err error) artifact.ID {
 		t.Helper()
 		if err == nil {

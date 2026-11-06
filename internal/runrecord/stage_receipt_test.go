@@ -5,7 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/invocation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -97,9 +97,7 @@ func earlierStageReceipt(t *testing.T, store artifact.Repository, value StageRec
 // that contract could not write, is refused.
 func TestStageReceiptOfTheEarlierFormIsRead(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "earlier-receipt-recipe")
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "earlier-receipt-operation")
 	output := testutil.ArtifactID(t, artifact.KindOutput, "earlier-receipt-output")

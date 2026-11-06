@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -20,9 +20,7 @@ type evidenceBatchDocument interface {
 func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	exact, plan := ledgerFixture(t, "evidence environment")
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil)

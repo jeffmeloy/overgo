@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -77,9 +77,7 @@ func TestArrowStreamRefusesOutsideSubset(t *testing.T) {
 // land as records with the bound fields, and the import document
 // counts every row.
 func TestArrowBenchmarkImport(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	path := filepath.Join("testdata", "mmlu-dev.arrow")
 	digest, err := HashFile(path)
 	testcheck.NoError(t, err)

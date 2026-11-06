@@ -15,7 +15,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
@@ -40,9 +40,7 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 	if _, err := os.Stat(reference); errors.Is(err, fs.ErrNotExist) {
 		testskip.NotApplicable(t, "no audio reference store holds the activity model's registration here")
 	}
-	registrations, err := overgodb.OpenReadOnly(reference)
-	testcheck.NoError(t, err)
-	defer registrations.Close()
+	registrations := overgodbtest.OpenReadOnly(t, reference)
 	var policy struct {
 		Source struct {
 			Weights string `json:"offline_weights_sha256"`
@@ -58,9 +56,7 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 	root := filepath.Dir(offline)
 	recording, err := os.ReadFile(filepath.Join(root, "FireRedVAD", "assets", "hello_en.wav"))
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	capability := Catalog[recipe.TaskActivityDetection]
 	detect := func(t *testing.T, directory, policy string) ([]recipecontract.ActivitySegment, error) {
 		t.Helper()

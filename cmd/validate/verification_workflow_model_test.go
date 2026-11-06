@@ -16,7 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
@@ -34,9 +34,7 @@ func TestStructuredMediaReportProjection(t *testing.T) {
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
 	storePath := retainedReferenceStore(roots.Store)
-	store, err := overgodb.OpenReadOnly(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, storePath)
 	t.Run("shared retained projection", func(t *testing.T) {
 		assertStructuredMediaReport(t, root, storePath)
 	})
@@ -157,9 +155,7 @@ func TestMediaReceiptRetainedContracts(t *testing.T) {
 	testcheck.NoError(t, err)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var bindings map[string]map[string][]string
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &bindings))
 	seen := map[string]bool{}

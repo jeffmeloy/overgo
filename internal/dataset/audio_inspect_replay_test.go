@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 )
@@ -33,9 +34,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 	} {
 		t.Run(signal.name, func(t *testing.T) {
 			data := floatWAV(signal.samples)
-			fresh, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer fresh.Close()
+			fresh := overgodbtest.Open(t, t.TempDir())
 			container := publishInspectionSource(t, fresh, []byte("replay-container"))
 			origin := AudioPayloadOrigin{Container: container, Column: "bytes"}
 			capture := &inspectionBatchCapture{Repository: fresh}
@@ -113,9 +112,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 				})
 			}
 			t.Run("immutable-source-size", func(t *testing.T) {
-				store, err := overgodb.Open(t.TempDir())
-				testcheck.NoError(t, err)
-				defer store.Close()
+				store := overgodbtest.Open(t, t.TempDir())
 				publishInspectionSource(t, store, []byte("replay-container"))
 				if _, err := store.Commit(t.Context(), artifact.Batch{
 					Key:       "fixture/wrong-source-size",

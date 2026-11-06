@@ -11,7 +11,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -63,9 +63,7 @@ func TestTrainedModelKeepsUnchangedTensorsAsStored(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := writeTrainedFixtureBase(t, root)
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	trained := map[string][]float32{"unchanged.weight": {1, 2, 3, 4}, "changed.weight": {5, 6}}
 	directory := filepath.Join(root, "trained")
 	testcheck.NoError(t, os.Mkdir(directory, 0o755))
@@ -113,9 +111,7 @@ func TestTrainedLlamaModelKeepsItsAttentionRowsInTheBaseOrder(t *testing.T) {
 	base := testutil.QuantizedLlamaGGUF(t, 1)
 	model, err := densecausal.LoadGGUF(base)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	directory := filepath.Join(root, "trained")
 	testcheck.NoError(t, os.Mkdir(directory, 0o755))
 	testcheck.NoError(t, WriteTrainedModel(t.Context(), store, base, directory, len(model.Weights), trainedGGUFTensors(model)))
@@ -139,9 +135,7 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	root := t.TempDir()
 	base := writeTrainedFixtureBase(t, root)
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	publish := func(name string, store artifact.Reader, changed float32) string {
 		directory := filepath.Join(root, name)
 		testcheck.NoError(t, os.Mkdir(directory, 0o755))
@@ -181,9 +175,7 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	// A store whose only copy of the frozen shard is a file holding other
 	// bytes records no copy.
 	frozen := inventory.Components[1]
-	stale, err := overgodb.Create(filepath.Join(root, "stale"))
-	testcheck.NoError(t, err)
-	defer stale.Close()
+	stale := overgodbtest.Create(t, filepath.Join(root, "stale"))
 	other, err := artifact.CanonicalLocalLocation(frozen.ID, artifact.LocationFile, filepath.Join(first, trainingprogram.CheckpointModel))
 	testcheck.NoError(t, err)
 	if _, err := artifact.Publish(ctx, stale, artifact.Batch{

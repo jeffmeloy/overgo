@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -110,9 +111,7 @@ const scalarModule recipe.ModuleID = "test.scalar"
 
 func capabilityFixture(t *testing.T, name string, sessions ...recipe.SessionPolicy) (*overgodb.Store, artifact.ID, recipe.Program) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte(name + "-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
@@ -603,9 +602,7 @@ func (m *mappedVideoModel) Close(context.Context) error {
 
 func TestVideoProductionActivation(t *testing.T) {
 	const module recipe.ModuleID = "test.video-compose"
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("mapped-video-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID}})

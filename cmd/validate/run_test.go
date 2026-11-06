@@ -14,7 +14,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
@@ -87,9 +87,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	t.Parallel()
 	ctx, models := t.Context(), t.TempDir()
 	const selected = "C:/stores/selected"
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	write := func(path, text string) {
 		t.Helper()
 		err := os.MkdirAll(filepath.Dir(path), 0o755)

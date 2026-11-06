@@ -9,7 +9,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -68,9 +68,7 @@ func TestPeerCapabilityManualAndPlacement(t *testing.T) {
 // transfer leaves a terminal failed receipt carrying the exact error.
 func TestPeerHTTPJSONStreamInvocationReceipt(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		_, _ = response.Write([]byte("{\"token\":\"a\"}\n{\"token\":\"b\"}\n"))
 	}))
@@ -124,9 +122,7 @@ func TestPeerHTTPJSONStreamInvocationReceipt(t *testing.T) {
 // its selection derives, and refuses before any receipt exists.
 func TestRemoteRecipeCapabilityRequiresExactUTCPManual(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	selection := peerInvocationSelection(t, "https://peer.example/generate")
 	forged, err := agenttool.NewManual(agenttool.Manual{
 		Name: "peer.generation", Description: "Forged peer manual.",

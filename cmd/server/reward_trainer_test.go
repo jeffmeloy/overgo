@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingworkflow"
@@ -38,9 +38,7 @@ func TestRewardTrainerIsFoundOrRefused(t *testing.T) {
 	if run == nil {
 		t.Fatal("a path that names a file gave no way to run a reward session")
 	}
-	store, err := overgodb.Create(filepath.Join(directory, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(directory, "store"))
 	request := trainingworkflow.Request{
 		Repository: store, Observations: store, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "reward trainer recipe"),
 		ModelDirectory: filepath.Join(directory, "model"), DatasetPath: filepath.Join(directory, "rollouts.jsonl"),

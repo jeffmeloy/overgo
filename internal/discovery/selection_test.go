@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -21,9 +21,7 @@ func TestSelectedServableScope(t *testing.T) {
 				}
 				return strings.ToUpper(filepath.ToSlash(path))
 			}
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			paths := make([]string, 0, 2)
 			models := make([]artifact.ID, 0, 2)
 			for _, name := range []string{"selected", "unrelated"} {

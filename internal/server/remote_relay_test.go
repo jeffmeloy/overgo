@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
@@ -47,9 +48,7 @@ func newRelayHandler(t *testing.T, pieces []string) (*Handler, *overgodb.Store) 
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
 	}
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	// The interaction's lineage names the served recipe: declared in the store, as a declaration commits it.
 	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
 	testcheck.NoError(t, err)

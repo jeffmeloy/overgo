@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
@@ -94,9 +95,7 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 	writeServingFixture(t, unknown, 200)
 
 	ctx := t.Context()
-	store, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storeRoot)
 	for _, published := range []string{path, rewritten} {
 		err := servingtest.PublishActiveGGUFWithPolicy(
 			ctx, store, published, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,

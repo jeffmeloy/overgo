@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/longform"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
@@ -27,9 +27,7 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	const acceptedSurface = "d3ff45edf061f7a2f8833d9625a6154532e1760fd08878cb89343f46a728341f"
 	const acceptedCommit = "e4b9d1e6b1b46626f1b934a7360db76c960277ce"
 	fixtures := []struct {

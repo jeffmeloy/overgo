@@ -13,7 +13,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -67,9 +67,7 @@ func TestRecordExactSuiteReplays(t *testing.T) {
 func TestMeasuredVerificationRequestBinding(t *testing.T) {
 	ctx := t.Context()
 	path := t.TempDir()
-	store, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, path)
 	model := testutil.ArtifactID(t, artifact.KindModel, "verification request fixture")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, model)
@@ -121,9 +119,7 @@ func TestMeasuredVerificationRequestBinding(t *testing.T) {
 		t.Fatalf("legacy publication invented a request: %v", err)
 	}
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.OpenReadOnly(path)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.OpenReadOnly(t, path)
 	for i, verified := range records {
 		run, err := runrecord.RequireExactRun(ctx, reopened, verified.Run)
 		if err != nil || !slices.Equal(run.Inputs, []artifact.ID{inputs[i].Descriptor.ID}) {

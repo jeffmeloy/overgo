@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
 )
@@ -26,9 +27,7 @@ func TestIFEvalProfileIsPublishedFromItsFile(t *testing.T) {
 	ctx := t.Context()
 	open := func() *overgodb.Store {
 		t.Helper()
-		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { store.Close() })
+		store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 		return store
 	}
 	var records ifevalParameterRecords

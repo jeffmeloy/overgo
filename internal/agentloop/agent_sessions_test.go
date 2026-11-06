@@ -15,6 +15,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -55,9 +56,7 @@ type agentWorld struct {
 func newAgentWorld(t *testing.T) *agentWorld {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Create(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, t.TempDir())
 	world := &agentWorld{store: store}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "agent-session-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "agent-session-model")

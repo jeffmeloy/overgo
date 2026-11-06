@@ -17,7 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -100,9 +100,7 @@ func TestServedGenerationMatchesTheModelsOwnClip(t *testing.T) {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/own-generation", Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, wan)}}, Contents: []artifact.Content{profileContent},
 	}); err != nil {

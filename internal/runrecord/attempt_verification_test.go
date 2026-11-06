@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -112,9 +113,7 @@ func commitAttemptGateChain(
 
 func TestGateFinalizationForPreparation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	chain := newAttemptGateChain(t, ctx, store, []GateStep{
 		{Name: "acceptance", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 1},
 		{Name: "commit", Phase: phasePackage, Outcome: StepSucceeded, DurationNS: 1},
@@ -129,9 +128,7 @@ func TestGateFinalizationForPreparation(t *testing.T) {
 
 func TestGateFinalizationForPreparationRejectsConflict(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	chain := newAttemptGateChain(t, ctx, store, []GateStep{{
 		Name: "commit", Phase: phasePackage, Outcome: StepSucceeded, DurationNS: 1,
 	}})

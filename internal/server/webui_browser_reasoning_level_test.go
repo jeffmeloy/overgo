@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -19,9 +19,7 @@ import (
 func TestWebUIBrowserReasoningLevel(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the reasoning level leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recorder := &promptRecorder{Runner: openTemplateRunner(t, 64, reasoningTemplate)}
 	reasoned := httptest.NewServer(newTestHandlerForRepository(t, store, recorder))
 	defer reasoned.Close()

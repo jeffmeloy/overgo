@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/tensor"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -16,9 +17,7 @@ import (
 
 func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	base := publishOfflineModel(t, store, "base", offlineTensorWidth, false)
 	trained := publishOfflineModel(t, store, "trained", offlineTensorWidth, false)
@@ -57,9 +56,7 @@ func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 		t.Fatalf("inventory drift accepted: %v", err)
 	}
 
-	brokenStore, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer brokenStore.Close()
+	brokenStore := overgodbtest.Open(t, t.TempDir())
 	broken := publishOfflineModel(t, brokenStore, "broken-lineage", offlineTensorWidth, true)
 	if _, err := CompileOfflineArtifactPlan(ctx, brokenStore, OfflineArtifactExactPassthrough,
 		[]OfflineArtifactInput{{Definition: broken, Coefficient: 1}}); err == nil ||

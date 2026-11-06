@@ -17,7 +17,7 @@ import (
 	"overgo/internal/graphruntime"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
@@ -229,9 +229,7 @@ func TestMOSSGeneratorWorkflow(t *testing.T) {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	content, err := profile.Content()
 	testcheck.NoError(t, err)
 	batch, err := inventory.Batch(t.Name())

@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -64,9 +64,7 @@ func (generator *generationWorkspaceGenerator) ExecuteWorkflow(
 
 func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "generation-workspace-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "generation-workspace-run")
 	generator := &generationWorkspaceGenerator{
@@ -119,9 +117,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 
 func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "workflow recovery recipe")
 	generator := &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{}, repository: store,

@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
@@ -64,9 +64,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	}
 	plan, err := bindInstructionRules(compiled, authorities)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	chat := &instructionChatFixture{answer: "HELLO"}
 	report, err := evaluateInstructionRules(t.Context(), store, chat, compiled, plan)

@@ -3,7 +3,7 @@ package agenttool
 import (
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -14,9 +14,7 @@ import (
 // manual at invocation admission.
 func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manual, err := NewManual(Manual{
 		Name: "probe.exec", Description: "Run the fixture program.",
 		Effect:    EffectMutation,

@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/benchmarkrecord"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -25,9 +25,7 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 	for _, mode := range []string{"known", "legacy", "foreign-code", "foreign-environment", "foreign-model", "missing-workload", "foreign-workload", "foreign-options", "malformed-options", "missing-protocol", "missing-order", "missing-eog"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			weights := []byte("benchmark producer weights")
 			model, err := artifact.IdentifyBytes(artifact.KindModel, weights)
 			testcheck.NoError(t, err)
@@ -120,9 +118,7 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 	for _, mode := range []string{"raw", "hosted", "missing-run", "missing-input", "missing-plan", "missing-policy", "missing-environment", "foreign-source", "foreign-recipe", "foreign-dataset", "foreign-environment", "invalid-policy"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			platform, err := runrecord.NewEnvironment(runrecord.Environment{
 				Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture",
 			})
@@ -244,9 +240,7 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 // its own comparable result. Case and scorer changes also retain alternatives.
 func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	exact, err := CompileExact(exactFixture())
 	testcheck.NoError(t, err)
 	authorities := ListingAuthorities()
@@ -363,9 +357,7 @@ func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 // long-form guard was refused for want of one in every cycle from 2026-10-25.
 func TestASplitModelsBenchmarkIsFoundUnderItsShards(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	batch := artifact.Batch{Key: "fixture/split-benchmark"}
 	var components []artifact.Component
 	var shards []string

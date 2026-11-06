@@ -5,16 +5,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestRequireActivitySegmentsForComposition(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	result := recipecontract.ActivitySegments{Source: recipecontract.AudioReference{Audio: testutil.ArtifactID(t, artifact.KindFile, "audio"), Profile: testutil.ArtifactID(t, artifact.KindProfile, "format")}, Segments: []recipecontract.ActivitySegment{{Span: recipecontract.SampleSpan{Start: 10, End: 20}, Confidence: .75}}}
 	content, err := artifact.JSONContent(activityContract, result)
 	testcheck.NoError(t, err)

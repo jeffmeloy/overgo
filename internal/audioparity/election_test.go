@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -33,9 +33,7 @@ func TestFirstASRArtifactElection(t *testing.T) {
 
 	batch, err := election.Batch("audio/oracle/granite-speech-5")
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

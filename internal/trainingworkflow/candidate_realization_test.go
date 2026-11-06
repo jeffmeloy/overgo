@@ -8,7 +8,7 @@ import (
 	"overgo/internal/bridgetrain"
 	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -58,9 +58,7 @@ func applyLinearMap(source [][]float64, adapter [][]float64, noise func(row, col
 // and activations that no longer admit the enumerated rung refuse.
 func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	donorID := testutil.ArtifactID(t, artifact.KindModel, "realization-donor")
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "realization-target")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "realization-training-policy")

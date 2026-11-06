@@ -12,6 +12,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -23,9 +24,7 @@ const fixtureSessionSteps = 2
 func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "agent-loop-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "agent-loop-model")
 	if _, err := store.Commit(ctx, artifact.Batch{

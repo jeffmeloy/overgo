@@ -17,7 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
 	"overgo/internal/testevidence"
@@ -93,9 +93,7 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	testcheck.NoError(t, checkMediaLoaderBaseline(baseline, inventory))
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(id artifact.ID) []byte {
 		t.Helper()
 		if id.Kind() != artifact.KindEvidence {

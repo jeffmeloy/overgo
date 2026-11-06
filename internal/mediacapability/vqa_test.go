@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -41,9 +41,7 @@ func TestVQAControlsDeclareImageQuestionAndBudget(t *testing.T) {
 // naming an image the store does not hold are refused by name, and the
 // catalog binds the executor to the vqa prepare module.
 func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "vqa-executor")
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
 	testcheck.NoError(t, err)

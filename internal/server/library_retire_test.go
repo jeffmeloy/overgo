@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestLibraryProviderRetireRetiresThroughTheIntake: the retirement route
@@ -16,9 +16,7 @@ import (
 // intake, then retires through it; the intake's refusal is the route's.
 func TestLibraryProviderRetireRetiresThroughTheIntake(t *testing.T) {
 	t.Parallel()
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	body := `{"location":"remote://fake/vendor/model","reason":"the endpoint closed"}`
 	if incomplete := serveTestRequest(handler, http.MethodPost, "/library/providers/retire", `{"location":"remote://fake/vendor/model"}`); incomplete.Code != http.StatusBadRequest {

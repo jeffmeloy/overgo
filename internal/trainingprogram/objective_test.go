@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
@@ -16,9 +16,7 @@ import (
 func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 
 	text := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityText, false)
 	image := objectiveFixture(t, recipecontract.ModalityImage, recipecontract.ModalityText, true)
@@ -61,9 +59,7 @@ func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 	objective := objectiveFixture(t, recipecontract.ModalityImage, recipecontract.ModalityText, true)
 	content, err := objective.Content()
 	testcheck.NoError(t, err)
@@ -117,9 +113,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 
 	objective := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityText, false)
 	objectiveContent, err := objective.Content()
@@ -250,9 +244,7 @@ func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
 func TestObjectiveMatrixRefusesUnstoredEvidence(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 	objective := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityAudio, false)
 	content, err := objective.Content()
 	testcheck.NoError(t, err)

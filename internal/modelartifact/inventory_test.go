@@ -15,7 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -84,9 +84,7 @@ func TestHFInventoryIsRelocationStable(t *testing.T) {
 		len(batch.Locations) != len(firstInventory.Locations) {
 		t.Fatalf("batch = %+v", batch)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}

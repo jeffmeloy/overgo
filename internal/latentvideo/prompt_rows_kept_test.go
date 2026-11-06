@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
@@ -33,9 +33,7 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 	if _, err := os.Stat(spec.EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	const own = "a heron stands in reeds at first light, held for the kept-rows test"
 	spec.Common, spec.Kept, spec.KeptUnder = referenceNegativePrompt, store, "identity-one"

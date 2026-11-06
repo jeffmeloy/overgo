@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -19,9 +19,7 @@ import (
 // image as an image, never as an opaque identity.
 func TestMultimodalOutputProjection(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
 	testcheck.NoError(t, err)

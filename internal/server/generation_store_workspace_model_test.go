@@ -12,6 +12,7 @@ import (
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -55,9 +56,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if tasks[recipe.TaskSpeech] == 0 || tasks[recipe.TaskVideoGen] == 0 {
 		t.Errorf("the store's speech and video activations are not listed: %v", tasks)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	activateModelAt(t, store, oscillator.Location, oscillatorImageDefinition)
 	workspace := NewStoreGenerationWorkspace(store, catalog, 256)
 	scratch, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)

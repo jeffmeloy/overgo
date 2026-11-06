@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -44,9 +44,7 @@ func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	canonical, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer canonical.Close()
+	canonical := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	read := func(value string, target any) {
 		t.Helper()
 		id, err := artifact.ParseID(value)
@@ -158,9 +156,7 @@ func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	authorities := evaluation.ExactAuthorities{ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "MuSR retained-score fixture"), RuntimeRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "MuSR retained-score fixture"), Environment: testutil.ArtifactID(t, artifact.KindEvidence, "MuSR retained-score fixture"), CodeCommit: "0123456789abcdef0123456789abcdef01234567", Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident}}
 	plan, err := evaluation.BindGroupedChoice(compiled, authorities)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err = store.Commit(t.Context(), artifact.Batch{Key: "musr/fixture-authorities", Artifacts: []artifact.Descriptor{{ID: authorities.ModelDefinition}, {ID: authorities.RuntimeRecipe}, {ID: authorities.Environment}}}); err != nil {
 		t.Fatal(err)
 	}

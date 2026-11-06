@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -19,9 +19,7 @@ import (
 // journal head.
 func TestPastHeldoutVerdictsQuery(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, root)
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindEvidence, "an earlier record"))
 	_, earlier := store.Head()
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindEvidence, "a later record"))

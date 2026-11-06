@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -16,9 +17,7 @@ import (
 
 func TestOfflineTensorExecutionPlan(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	base := publishOfflineModel(t, store, "execution-base", offlineTensorWidth, false)
 	trained := publishOfflineModel(t, store, "execution-trained", offlineTensorWidth, false)
@@ -54,9 +53,7 @@ func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
 	// The wider inventory exceeds the bounded writer buffer.
 	for _, width := range []uint64{offlineTensorWidth, 256} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 
 			definition := publishOfflineModel(t, store, "resource-derived", width, false)
 			artifactPlan := publishOfflineArtifactPlan(t, store, OfflineArtifactExactPassthrough, []OfflineArtifactInput{
@@ -86,9 +83,7 @@ func TestOfflinePlanRejectsLiteralPolicy(t *testing.T) {
 		t.Fatal("accepted an unsupported placement")
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	definition := publishOfflineModel(t, store, "resource-refusal", offlineTensorWidth, false)
 	artifactPlan := publishOfflineArtifactPlan(t, store, OfflineArtifactExactPassthrough, []OfflineArtifactInput{
 		{Definition: definition, Coefficient: 1},

@@ -5,7 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -17,9 +17,7 @@ import (
 // lands as exactly one atomic batch, and replays idempotently instead
 // of depending on interleaved store state.
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	batch := recipe.Node{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost}
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskTraining,

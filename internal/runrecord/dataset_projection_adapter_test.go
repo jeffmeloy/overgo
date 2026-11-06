@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -85,9 +86,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 		t.Fatalf("verified episode projection = (%s, %v)", stored.ID, err)
 	}
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, directory)
 	cold, err := RequireCapabilityEpisodeProjection(t.Context(), reopened, one.ID)
 	if err != nil || cold.ID != one.ID {
 		t.Fatalf("cold verified episode rebuild = (%s, %s, %v)", one.ID, cold.ID, err)
@@ -108,9 +107,8 @@ func TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority(t *testing.T) {
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
+			var err error
 			fixture := newProjectionAuthorityFixture(t, test.name, projectionFixtureEvents(t, test.name, "candidate/a"), nil)
 			foreign := test.mutate(t, &fixture)
 			fixtures := []projectionAuthorityFixture{fixture}
@@ -134,9 +132,7 @@ func TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority(t *testing.T) {
 }
 
 func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	fixture := newProjectionAuthorityFixture(t, "atomic", projectionFixtureEvents(t, "atomic", "candidate/a"), nil)
 	commitProjectionAuthorities(t, store, "interaction-arc/atomic", []projectionAuthorityFixture{fixture})
 	projection, arcs, err := BuildInteractionArcProjection(t.Context(), store, fixture.trace.ID, projectionArcBounds)
@@ -349,9 +345,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 		t.Fatalf("selection did not bind the repository head: first=%s second=%s err=%v", first.ID, second.ID, err)
 	}
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.Create(t, directory)
 	cold, err := RequireInteractionArcSelection(t.Context(), reopened, second.ID)
 	if err != nil || cold.ID != second.ID || cold.Head != second.Head {
 		t.Fatalf("cold interaction selection replay = (%s, %v)", cold.ID, err)

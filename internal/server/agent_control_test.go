@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -86,9 +87,7 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 
 func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "agent-retrieval-dataset")
 	model := testutil.ArtifactID(t, artifact.KindModel, "response-model")
 	policy := testutil.ArtifactID(t, artifact.KindProfile, "agent-rerank-policy")

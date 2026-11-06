@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testutil"
 )
 
@@ -43,9 +43,7 @@ func TestScorecardView(t *testing.T) {
 	if response := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/scorecard", ""); response.Code != http.StatusNotFound {
 		t.Fatalf("a server without a scorecard reader answered %d", response.Code)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	read := func(rows []ScorecardRow) (int, string, scorecardResponse) {
 		t.Helper()
 		handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {

@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -132,9 +132,7 @@ func TestTrainingBracket(t *testing.T) {
 		t.Fatalf("mmlu delta = %+v", deltas[1])
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	session := testutil.ArtifactID(t, artifact.KindEvidence, "bracket-session")
 	model := testutil.ArtifactID(t, artifact.KindModel, "bracket-model")

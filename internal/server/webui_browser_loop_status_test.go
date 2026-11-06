@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -17,9 +17,7 @@ import (
 func TestWebUIBrowserLoopStatus(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the loop status leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	loop := &fakeLoop{status: runningLoop()}
 	looped := httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) { config.Loop = loop }))
 	defer looped.Close()

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestProviderKeyRouteTakesTheLauncherIntake: the route answers that it
@@ -16,9 +16,7 @@ import (
 // the variable; the intake's refusal is the route's.
 func TestProviderKeyRouteTakesTheLauncherIntake(t *testing.T) {
 	t.Parallel()
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	body := `{"location":"remote://fake/vendor/model","key":"secret"}`
 	if absent := serveTestRequest(handler, http.MethodPost, "/providers/key", body); absent.Code != http.StatusNotImplemented {

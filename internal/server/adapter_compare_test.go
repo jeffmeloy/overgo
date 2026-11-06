@@ -11,7 +11,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -72,9 +72,7 @@ func responseText(t *testing.T, body []byte) (string, string) {
 // neither comparison run is stored, and an adapter not loaded is refused.
 func TestAdapterComparisonTurn(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, adapterSessionRunner(t))
 	listed := serveTestRequest(handler, http.MethodGet, "/lora-adapters", "")
 	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"path":`) || !strings.Contains(listed.Body.String(), `move-d.gguf`) {

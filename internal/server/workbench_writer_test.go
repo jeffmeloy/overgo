@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processlock"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
@@ -27,9 +28,7 @@ func TestWorkbenchTransactionWriter(t *testing.T) {
 	t.Run("served external evidence publication", testWorkbenchEvidencePublication)
 	t.Run("catalog observes activation and retirement", testWorkbenchCatalogRefresh)
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, root)
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, OvergoDBPath: root}, &fakeGenerator{})
 	testcheck.NoError(t, err)
 	defer handler.Close()

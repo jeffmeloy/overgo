@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -15,9 +15,7 @@ import (
 func TestActivationMatrixCoverage(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "matrix-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "matrix-schema")
 	contract := testutil.ArtifactID(t, artifact.KindRecipe, "matrix-contract")

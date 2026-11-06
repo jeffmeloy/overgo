@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -32,9 +32,7 @@ import (
 func TestServingCountsWhatUsersHit(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "served-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served-recipe")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "served-environment")
@@ -124,9 +122,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "measured-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "measured-environment")
 	measuredRecipe, served := testutil.ArtifactID(t, artifact.KindRecipe, "measured-recipe"), testutil.ArtifactID(t, artifact.KindRecipe, "served-recipe")
@@ -234,9 +230,7 @@ func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 func TestPeakMemoryReadsASampledZero(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	const wall, resident, peak = 2_000_000, 1 << 20, 3 << 20
 	attempts := map[string][]runrecord.ServingHardwareSample{
 		"host":      {{Stage: runrecord.ServingHardwareFinish, ElapsedNS: wall}},

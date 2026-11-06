@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -29,9 +29,7 @@ func intakeRequest(handler http.Handler, mediaType, body string) *httptest.Respo
 // oversized body, an empty one and a handler without a repository refuse.
 func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 	t.Parallel()
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
 	response := intakeRequest(handler, "text/plain; charset=utf-8", "an attached note")
 	var stored attachmentIntake

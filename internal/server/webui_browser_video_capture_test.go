@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -20,9 +20,7 @@ import (
 func TestWebUIBrowserVideoCapture(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "video capture runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Clip fixture"}}))
 	handler.config.APIKey = testAPIKey
 	defer handler.Close()

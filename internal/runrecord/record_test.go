@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -68,9 +68,7 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 
 func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
 	inputID := testutil.ArtifactID(t, artifact.KindFile, "input")
@@ -224,9 +222,7 @@ func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
 
 func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	environment, err := environmentCodec.New(Environment{
 		Version: artifact.InitialDocumentVersion, Host: "fixture-host", OS: "linux", Arch: "amd64",
 		Device: "A100", Backend: "cuda", Driver: "580.65", Runtime: "go1.25",

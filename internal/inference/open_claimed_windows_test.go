@@ -17,7 +17,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testcheck"
@@ -84,9 +84,7 @@ func TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad(t *testing.T) {
 	_, copyErr := io.Copy(copied, source)
 	testcheck.NoError(t, errors.Join(copyErr, source.Close(), copied.Close()))
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	err = servingtest.PublishActiveGGUFWithPolicy(
 		t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHybridNative,
 	)

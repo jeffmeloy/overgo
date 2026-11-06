@@ -8,9 +8,9 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
@@ -22,9 +22,7 @@ import (
 // the order the store introduced them.
 func TestStoreReadsScaleWithTheirAnswer(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "timeline recipe")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "timeline/recipe", Artifacts: []artifact.Descriptor{{ID: recipeID}}}); err != nil {

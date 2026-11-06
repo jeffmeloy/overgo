@@ -5,17 +5,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testutil"
 )
 
 // These IDs were retained from the evaluation-owned codec before relocation.
 // Reading metadata must not require linking model execution or change history.
 func TestEvaluationDomainIdentity(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "domain-model")
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/domain/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {
 		t.Fatal(err)

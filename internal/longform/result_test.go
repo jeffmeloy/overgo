@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -17,9 +17,7 @@ import (
 // record, whatever the spelling of the path.
 func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
 	testcheck.NoError(t, os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644))
 	weights, err := os.Open(weightsPath)

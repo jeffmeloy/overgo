@@ -12,7 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -40,9 +40,7 @@ func TestAcceptedE4BModalitiesNameTheServedDefinition(t *testing.T) {
 	}
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, checkModelValidation(t.Context(), store, spec, e4bValidationCells()))
 	served, active, err := modelrecipe.ActiveRecord(t.Context(), store, spec.Model, recipe.TaskInference)
 	if err != nil || !active {

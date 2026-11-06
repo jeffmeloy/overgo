@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -21,9 +21,7 @@ func inspectionPolicy() AudioInspectionPolicy {
 }
 
 func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	for _, test := range []struct {
 		name      string
 		samples   []float32
@@ -70,9 +68,7 @@ func TestAudioDecodeAdmissionAndExactLineage(t *testing.T) {
 }
 
 func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	valid := floatWAV([]float32{.5, -.5})
 	for _, test := range []struct {
 		name   string
@@ -116,9 +112,7 @@ func TestAudioDecodeQuarantinesFailuresAndRejectsUnboundSources(t *testing.T) {
 }
 
 func TestAudioDecodeEmbeddedSelectorLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	container := publishInspectionSource(t, store, []byte("parquet-container"))
 	data := floatWAV([]float32{.5, -.5})
 	first, err := InspectAudio(t.Context(), store, data, AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: 0}, inspectionPolicy())

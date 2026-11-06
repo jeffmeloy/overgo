@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -22,9 +22,7 @@ import (
 func TestWebUIBrowserPlainSummaries(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the plain summaries leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// One finished run, so the Runs tab shows its table.
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "summaries-recipe")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "summaries-output")

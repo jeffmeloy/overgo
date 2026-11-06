@@ -24,6 +24,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -124,9 +125,7 @@ func (r *recordingReporter) Publishing()              { r.published = true }
 // retain the digest memo while still rejecting changed model bytes.
 func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	activatedImageModel(t, store)
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
 	capabilities, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
@@ -169,9 +168,7 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := activatedImageModel(t, store)
 	var executedPath, executedInput string
 	// The executor records the request it decoded, as the runtime does, and

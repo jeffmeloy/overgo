@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sequencescore"
 	"overgo/internal/testcheck"
 )
@@ -34,9 +34,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 	}
 	plan, err := bindSequenceScoring(compiled, authorities)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 
 	// Two sequences of 4 tokens each at total log-probability -4 and -8:

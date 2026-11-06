@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -18,9 +18,7 @@ import (
 // contract is not a layer-input tap on the direction's own model.
 func TestToolCallResidualDirection(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	model := id(artifact.KindModel, "direction model")
 	definition := id(artifact.KindModelDefinition, "direction definition")

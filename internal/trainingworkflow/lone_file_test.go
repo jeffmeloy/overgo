@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
@@ -33,9 +33,7 @@ func TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation(t *testing.T) {
 	// Serial: it replaces how a run names its code revision.
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	shard := func(directory, file, tensor string, value float32) string {
 		t.Helper()
 		testcheck.NoError(t, os.MkdirAll(filepath.Join(root, directory), 0o700))

@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
@@ -34,9 +34,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		"go test ./internal/trainingworkflow -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
 		"bridge requires measured held-out evidence")
 	testcheck.NoError(t, err)
-	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 	rankerContent, _ := ranker.Content()
 	proposalContent, _ := proposal.Content()
 	if _, err := store.Commit(t.Context(), artifact.Batch{

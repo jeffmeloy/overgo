@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -22,9 +22,7 @@ import (
 func TestWebUIBrowserTablesAlike(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the tables leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// A succeeded run and a failed one, so the Runs table shows both tones.
 	for _, outcome := range []runrecord.Outcome{runrecord.OutcomeSucceeded, runrecord.OutcomeFailed} {
 		recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "tables-recipe-"+string(outcome))

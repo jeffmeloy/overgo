@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -13,9 +13,7 @@ import (
 
 func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)

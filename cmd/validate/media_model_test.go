@@ -9,7 +9,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -27,9 +27,7 @@ func TestMediaMeasurementRetainedProjection(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	retained, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer retained.Close()
+	retained := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	var protocol imageVideoProtocol
 	testcheck.NoError(t, jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_protocol.json"), &protocol))
 	var entries []discovery.CatalogEntry

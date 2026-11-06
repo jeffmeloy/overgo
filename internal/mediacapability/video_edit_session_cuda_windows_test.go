@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -69,9 +70,7 @@ func serveEdits(t *testing.T, name string, source latentvideo.SourceVideo) serve
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	publishArtifactExtent(t, store, modelID, edit)
 	clip, err := latentvideo.SourceFramesContent(source)
 	testcheck.NoError(t, err)

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -27,9 +28,7 @@ func TestMediaEvidenceBinding(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, retainedReferenceStore(roots.Store))
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256))
@@ -138,9 +137,7 @@ func TestMediaReceiptProvenance(t *testing.T) {
 	testcheck.NoError(t, store.Close())
 	relocated := filepath.Join(root, "consumer")
 	testcheck.NoError(t, os.Rename(path, relocated))
-	store, err = overgodb.OpenReadOnly(relocated)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.OpenReadOnly(t, relocated)
 	missing, err := contract.Identify([]byte("unresolved overlay"))
 	testcheck.NoError(t, err)
 	const producerPath = "C:/retired/worktree/fixture_test.go"

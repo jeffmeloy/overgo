@@ -8,8 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // fakeLoop is a loop whose status the test sets; a stop holds it with the
@@ -61,9 +60,7 @@ func TestLoopStatusAndStop(t *testing.T) {
 	if code, _ := status(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/loop/status"); code != http.StatusNotFound {
 		t.Fatalf("a server without a loop answered %d", code)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	loop := &fakeLoop{status: runningLoop()}
 	handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) { config.Loop = loop })
 	if code, read := status(handler, http.MethodGet, "/loop/status"); code != http.StatusOK || read != runningLoop() {

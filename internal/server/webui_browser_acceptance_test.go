@@ -14,7 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/testcheck"
@@ -364,9 +364,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	// A declared hosted model gives the picker a row (its key set, so the
 	// row serves); the generator holds every turn open until released, so
 	// a running turn is there for the Escape key to stop.
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_FRONT_PAGE_TEST_KEY", "front-key")
 	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
 		Name: "front", Endpoint: "https://front.example/api/v1", KeyEnvironment: "OVERGO_FRONT_PAGE_TEST_KEY", Model: "vendor/front-model",

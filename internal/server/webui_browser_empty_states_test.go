@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -20,9 +20,7 @@ import (
 func TestWebUIBrowserEmptyStates(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the empty states leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, screensGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), path: writeTensorFixture(t)}))
 	defer server.Close()
 	measured := httptest.NewServer(newTestHandler(t, &memoryOwnersGenerator{fakeGenerator: &fakeGenerator{}, memory: testDeviceMemory()}))

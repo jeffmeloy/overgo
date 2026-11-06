@@ -14,6 +14,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -23,9 +24,7 @@ import (
 func TestWebUIBrowserColdActivity(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "cold activity uses Chromium")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	idle := &IdleShell{Repository: store, Catalog: func(context.Context) ([]discovery.CatalogEntry, bool, error) { return nil, false, nil }, Intake: LibraryIntake{
 		ListProviderModels: func(_ context.Context, _ *overgodb.Store, listing ProviderListing) ([]ProviderModel, error) {
 			if listing.Key != "cold-typed-key" || listing.KeyEnvironment != "" {
@@ -63,9 +62,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "background work runs through cmd/webui-lane")
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, root)
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Background answer"}}))
 	handler.config.APIKey = testAPIKey
 	var registrations atomic.Int32

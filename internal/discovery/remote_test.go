@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/testcheck"
@@ -17,9 +17,7 @@ const remoteTestCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 // location, no bytes on disk; refused by key variable name without the
 // key; servable with it; retired -> gone from both listings.
 func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	t.Setenv("OVERGO_REMOTE_DISCOVERY_TEST_KEY", "")
 	declaration, err := remoteprovider.Declare(t.Context(), store, remoteprovider.Provider{
 		Name: "fake", Endpoint: "https://fake.example/api/v1", KeyEnvironment: "OVERGO_REMOTE_DISCOVERY_TEST_KEY", Model: "vendor/model",

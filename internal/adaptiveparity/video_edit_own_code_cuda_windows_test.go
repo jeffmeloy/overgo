@@ -26,6 +26,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -162,9 +163,7 @@ func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(la
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, edit)}}, Contents: []artifact.Content{profileContent},
 	}); err != nil {

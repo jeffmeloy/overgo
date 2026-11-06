@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -12,9 +12,7 @@ import (
 
 func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	target := testutil.ArtifactID(t, artifact.KindModel, "ranking-target")
 	bad := BridgeCandidate{
 		Donor:     testutil.ArtifactID(t, artifact.KindModel, "ranking-refused"),

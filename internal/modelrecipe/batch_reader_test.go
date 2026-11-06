@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/artifact/repositorytest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -18,9 +18,7 @@ import (
 // and per-item opens do not scale with the list.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	subject := testutil.ArtifactID(t, artifact.KindRecipe, "batched-subject")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "batched-derivation")
 	if _, err := store.Commit(ctx, artifact.Batch{

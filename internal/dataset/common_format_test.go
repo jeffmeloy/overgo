@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -50,9 +50,7 @@ func TestCommonFormatsConvert(t *testing.T) {
 		}
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	source := filepath.Join(t.TempDir(), "chats.jsonl")
 	testcheck.NoError(t, os.WriteFile(source, []byte(alpaca+"\n"+shareGPT+"\n"+openAI+"\n"), 0o644))
 	root := t.TempDir()

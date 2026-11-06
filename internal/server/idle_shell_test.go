@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -98,9 +99,7 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 func TestIdleShellWriterLifetime(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer writer.Close()
+	writer := overgodbtest.Create(t, root)
 	lock, err := processlock.Acquire(root+".lock", 0o644)
 	testcheck.NoError(t, err)
 	defer lock.Close()
@@ -162,9 +161,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	repository, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer repository.Close()
+	repository := overgodbtest.Create(t, root)
 	var declared, retired, registered int
 	shell := &IdleShell{
 		Repository: repository,

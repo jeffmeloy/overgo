@@ -6,17 +6,14 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "attachment workflow runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"File answer"}}))
 	handler.config.APIKey = testAPIKey
 	server := httptest.NewServer(handler)

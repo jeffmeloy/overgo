@@ -22,6 +22,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
@@ -89,9 +90,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// store's process lock, so the picker never waits behind other
 	// processes' transactions on the lane store, while the writer handle
 	// stays the idle shell's, whose refresh is its writer admission.
-	catalog, err := overgodb.OpenReadOnly(store)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = catalog.Close() })
+	catalog := overgodbtest.OpenReadOnly(t, store)
 	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	// No default: the journey opens on the cold proxy, as overgo_gui.bat
 	// without a model does, and chooses the first model from the picker.
@@ -845,9 +844,7 @@ func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
 	if first == "" || second != first {
 		t.Fatalf("fixture picker names: %q, %q", first, second)
 	}
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storePath)
 	declared, err := remoteprovider.List(t.Context(), store, 256)
 	if err != nil || len(declared) != 1 {
 		t.Fatalf("fixture declarations = %d, error = %v; want one current endpoint", len(declared), err)

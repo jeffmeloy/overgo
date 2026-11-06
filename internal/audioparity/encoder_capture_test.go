@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
 	"overgo/internal/testcheck"
@@ -52,9 +52,7 @@ func TestEncoderCapturePublication(t *testing.T) {
 		}
 	}
 	writeReport()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	batch, err := election.Batch("capture-test/election")
 	testcheck.NoError(t, err)
 	if _, err = artifact.CommitBatch(t.Context(), store, batch); err != nil {

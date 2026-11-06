@@ -11,7 +11,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
 )
@@ -32,9 +32,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 			t.Skipf("UNAVAILABLE: %s absent; composed artifact NOT verified", directory)
 		}
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 
 	scorerID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+scorerDir))

@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
@@ -42,9 +42,7 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 			"-schedule-index", "0", "-steps", "1", "-store", store, "-out", out})
 	}
 	t.Run("flow matching, text to video", func(t *testing.T) {
-		identities, err := overgodb.Create(filepath.Join(t.TempDir(), "identities"))
-		testcheck.NoError(t, err)
-		defer identities.Close()
+		identities := overgodbtest.Create(t, filepath.Join(t.TempDir(), "identities"))
 		recipeOf := func(contract trainingworkflow.RecipeContract) artifact.ID {
 			id, err := trainingworkflow.BootstrapRecipe(t.Context(), identities, weights, []byte(routeFixtureDataset), contract)
 			testcheck.NoError(t, err)
@@ -56,9 +54,8 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 		if ran == nil {
 			t.Fatal("the dit route trained a stand-in stack that loads no model")
 		}
-		store, err := overgodb.OpenReadOnly(storePath)
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.OpenReadOnly(t, storePath)
+		var err error
 		published := map[artifact.ID]bool{}
 		for _, id := range []artifact.ID{flow, token} {
 			if _, published[id], err = modelrecipe.Status(t.Context(), store, id); err != nil {

@@ -5,16 +5,14 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	audioID := testutil.ArtifactID(t, artifact.KindFile, "audio")
 	formatID := testutil.ArtifactID(t, artifact.KindProfile, "format")
@@ -72,9 +70,7 @@ func TestAudioSignalProfileAndAdmissionPublishExactLineage(t *testing.T) {
 }
 
 func TestAudioAdmissionDecisionRejectsUnprovedLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	decision, err := audioAdmissionDecisionCodec.NewInitial(AudioAdmissionDecisionDocument{
 		Signal:   testutil.ArtifactID(t, artifact.KindEvidence, "missing-signal"),
 		Policy:   testutil.ArtifactID(t, artifact.KindProfile, "missing-policy"),

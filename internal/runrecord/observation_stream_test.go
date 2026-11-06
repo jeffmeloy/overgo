@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -44,9 +44,7 @@ func (r observationStreamOverrideReader) OpenContent(
 
 func TestLoadObservationStream(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		t.Helper()

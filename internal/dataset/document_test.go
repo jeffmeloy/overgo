@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -97,9 +97,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 			t.Fatalf("parsed document = %+v, want %+v", parsed, document)
 		}
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	descriptors := []artifact.Descriptor{
 		{ID: assetA, Size: 7}, {ID: assetB, Size: 7}, {ID: selector, Size: 8},
 	}

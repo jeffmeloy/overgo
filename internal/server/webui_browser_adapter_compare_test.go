@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/tokenizer"
 	"overgo/internal/webuilane"
 )
@@ -47,9 +46,7 @@ func (adapterGenerator) Generate(_ context.Context, _ string, options inference.
 func TestWebUIBrowserAdapterCompare(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the adapter compare leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, adapterGenerator{responseRecipeGenerator(t, &fakeGenerator{})})
 	server := httptest.NewServer(handler)
 	defer server.Close()

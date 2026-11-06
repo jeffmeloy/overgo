@@ -23,7 +23,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -57,9 +57,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
 	ctx := t.Context()
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	var paths []string
 	for _, input := range []struct {
 		id   string
@@ -300,9 +298,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 		if err != nil || current != revision {
 			t.Fatalf("resource producer source changed: %v", err)
 		}
-		writer, err := overgodb.Create(roots.Store)
-		testcheck.NoError(t, err)
-		defer writer.Close()
+		writer := overgodbtest.Create(t, roots.Store)
 		testcheck.NoError(t, modelintake.RegisterProjectionCandidate(ctx, writer, candidate))
 		record, err := runrecord.NewGateRecord(candidate.Definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", uint64(time.Since(startedAll)), steps)
 		testcheck.NoError(t, err)

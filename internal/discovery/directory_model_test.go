@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -45,9 +45,7 @@ func TestADirectoryModelIsItsViewsIdentity(t *testing.T) {
 		t.Errorf("a directory gguf does not serve = %+v, want nothing", empty)
 	}
 	// A command that names the directory selects the model it serves, as one naming a file selects that file's.
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	batch := artifact.Batch{Key: "fixture/directory-model", Manifests: []artifact.Manifest{inventory.Manifest}, Artifacts: inventory.Components, Locations: make([]artifact.LocationEvent, 0, len(inventory.Locations))}
 	for _, location := range inventory.Locations {
 		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})

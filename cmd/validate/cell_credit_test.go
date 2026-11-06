@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -79,9 +80,7 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 		t.Error("the credit of the earlier commit survived a run of the next")
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	directory, kept := t.TempDir(), filepath.Join(t.TempDir(), "cycle_credit.json")
 	weights, beside := filepath.Join(directory, "model.bin"), filepath.Join(directory, "processor", "config.json")
 	write := func(path, text string) {
@@ -264,9 +263,7 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 	testcheck.NoError(t, err)
 	kept, weights := filepath.Join(t.TempDir(), "cycle_credit.json"), filepath.Join(t.TempDir(), "model.gguf")
 	t.Setenv(clioptions.CycleCreditEnvironment, kept)
-	store, err := overgodb.Create(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storeRoot)
 	testcheck.NoError(t, os.WriteFile(weights, []byte("weights"), 0o600))
 	model := creditModel(t, store, weights)
 	bound := func() Plan {
@@ -318,9 +315,7 @@ func creditView(t *testing.T, store *overgodb.Store, directory string) artifact.
 // and a view whose directory is gone earns none.
 func TestCellCreditCoversADirectoryView(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	directory := t.TempDir()
 	weights, config := filepath.Join(directory, "model.safetensors"), filepath.Join(directory, "config.json")
 	write := func(path, text string) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
@@ -13,9 +13,7 @@ import (
 )
 
 func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	contextContent := audioParentContent(t, artifact.KindProfile, "context")
 	stateContent := audioParentContent(t, artifact.KindCheckpoint, "state")
@@ -68,9 +66,7 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 }
 
 func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	contract, err := NewAudioContract(
 		recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
 		recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 80},
@@ -150,9 +146,7 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 }
 
 func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	contextID := testutil.ArtifactID(t, artifact.KindProfile, "missing-context")
 	contract, err := audioContractCodec.NewInitial(AudioContractDocument{
 		Format:  recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},

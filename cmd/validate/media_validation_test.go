@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -50,9 +50,7 @@ func TestMediaValidationRetainsFailures(t *testing.T) {
 func TestMediaValidationProjection(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "application/x-ndjson", Schema: "overgo/go-test-output/v1"}
 	data := []byte("{\"Action\":\"start\",\"Package\":\"fixture\"}\n{\"Action\":\"run\",\"Package\":\"fixture\",\"Test\":\"TestGeneration\"}\n{\"Action\":\"fail\",\"Package\":\"fixture\",\"Test\":\"TestGeneration\"}\n{\"Action\":\"fail\",\"Package\":\"fixture\"}\n")
 	content, err := contract.ContentBytes(data)

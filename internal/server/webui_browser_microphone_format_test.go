@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"overgo/internal/media"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 	"strconv"
@@ -15,9 +15,7 @@ import (
 func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "microphone format runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Capture fixture"}}))
 	front := httptest.NewServer(handler)
 	defer front.Close()

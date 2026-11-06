@@ -11,6 +11,7 @@ import (
 	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -101,9 +102,7 @@ func (probe *runtimeServingProbe) release(t *testing.T) {
 
 func servingStreamFixture(t *testing.T, limit int) (*Handler, *overgodb.Store) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"visible answer"}})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "stream/model", Artifacts: []artifact.Descriptor{{ID: generator.ModelID()}},

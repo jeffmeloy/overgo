@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -12,9 +12,7 @@ import (
 func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "draft lifecycle runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Stored answer"}}))
 	defer handler.Close()
 	server := httptest.NewServer(handler)

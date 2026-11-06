@@ -16,6 +16,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -35,9 +36,8 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	writeModel(t, model, weights, shapes)
 	dataset := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(dataset, []byte("ab"), 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
+	var err error
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "missing active recipe")
 	_, err = Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
@@ -349,9 +349,7 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 }
 
 func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "repodb"))
 	observer, err := NewObserver(store, true)
 	testcheck.NoError(t, err)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "observed model")

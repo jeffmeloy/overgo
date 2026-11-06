@@ -16,7 +16,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingprogram"
 )
@@ -42,9 +42,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 		document := strings.Repeat("abcd", 5)[:6+index]
 		testcheck.NoError(t, os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(document), 0o600))
 	}
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}

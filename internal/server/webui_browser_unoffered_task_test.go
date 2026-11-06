@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -38,9 +38,7 @@ func (generator *unofferedGenerator) WorkflowCapabilities(ctx context.Context, k
 func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the unoffered task leg runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	stages := []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}
 	controls := []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}}
 	image := WorkflowCapability{

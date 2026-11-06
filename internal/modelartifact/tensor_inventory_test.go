@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
@@ -75,9 +75,7 @@ func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
 	}
 	content, err := document.Content()
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	_, err = store.Commit(t.Context(), artifact.Batch{
 		Key: "test/projector-inventory", Artifacts: []artifact.Descriptor{{ID: owner}},
 		Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{{

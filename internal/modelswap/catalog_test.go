@@ -12,19 +12,15 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
 func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	root := t.TempDir()
-	writer, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer writer.Close()
-	reader, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer reader.Close()
+	writer := overgodbtest.Create(t, root)
+	reader := overgodbtest.Create(t, root)
 	resolver := CatalogResolver{Store: reader, Limit: 100}
 	if _, _, err := resolver.Catalog(t.Context()); err != nil {
 		t.Fatal(err)
@@ -86,12 +82,8 @@ func TestMatchServableRoutesRemoteLocations(t *testing.T) {
 
 func TestCatalogProgressNamesStagesAndKeepsSlowest(t *testing.T) {
 	root := t.TempDir()
-	writer, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer writer.Close()
-	reader, err := overgodb.OpenReadOnly(root)
-	testcheck.NoError(t, err)
-	defer reader.Close()
+	overgodbtest.Create(t, root)
+	reader := overgodbtest.OpenReadOnly(t, root)
 	resolver := CatalogResolver{Store: reader, Limit: 100}
 	if progress := resolver.Progress(); progress.Stage != "" || progress.Waiting != 0 || len(progress.Slowest) != 0 {
 		t.Fatalf("idle resolver reports %+v", progress)

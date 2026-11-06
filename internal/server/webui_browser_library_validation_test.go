@@ -17,7 +17,7 @@ import (
 	"overgo/internal/libraryintake"
 	"overgo/internal/modelswap"
 	"overgo/internal/operation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -96,9 +96,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	// nothing the journey writes reaches the data root.
 	storeDir := filepath.Join(t.TempDir(), "store")
 	testcheck.NoError(t, prepareBrowserJourneyStore(ctx, roots.Store, storeDir))
-	store, err := overgodb.Create(storeDir)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, storeDir)
 	intake := LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate}
 	workbench, err := New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
@@ -110,9 +108,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: storeDir, Dir: root}, 0)
 	testcheck.NoError(t, err)
 	defer supervisor.Close()
-	catalog, err := overgodb.OpenReadOnly(storeDir)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = catalog.Close() })
+	catalog := overgodbtest.OpenReadOnly(t, storeDir)
 	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	proxy := &modelswap.Proxy{
 		Supervisor: supervisor, Resolver: resolver, Keys: resolver,

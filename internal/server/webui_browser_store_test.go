@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -136,9 +137,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	source := t.TempDir()
-	store, err := overgodb.Create(source)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, source)
 	payload := []byte("browser fixture shared weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weights}})
@@ -185,9 +184,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	destination := t.TempDir()
 	testcheck.NoError(t, prepareBrowserJourneyStore(ctx, source, destination))
-	private, err := overgodb.Create(destination)
-	testcheck.NoError(t, err)
-	defer private.Close()
+	private := overgodbtest.Create(t, destination)
 	aliases := 0
 	if err := private.VisitAliases(ctx, "browser-fixture/alias/", func(alias overgodb.AliasView) error {
 		if alias.Target != manifest.ID {
@@ -221,9 +218,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	mutation := testutil.ArtifactID(t, artifact.KindModel, "private browser declaration")
 	testutil.PublishArtifact(t, private, mutation)
 	testcheck.NoError(t, private.Close())
-	reopened, err := overgodb.OpenReadOnly(destination)
-	testcheck.NoError(t, err)
-	defer reopened.Close()
+	reopened := overgodbtest.OpenReadOnly(t, destination)
 	if _, found, err := reopened.Artifact(ctx, mutation); err != nil || !found {
 		t.Fatalf("private result did not survive reopen: %t %v", found, err)
 	}
@@ -233,9 +228,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	if err := prepareBrowserJourneyStore(ctx, source, source); err == nil {
 		t.Fatal("source accepted as destination")
 	}
-	freshSource, err := overgodb.OpenReadOnly(source)
-	testcheck.NoError(t, err)
-	defer freshSource.Close()
+	freshSource := overgodbtest.OpenReadOnly(t, source)
 	if after, afterSequence := freshSource.Head(); after != before || afterSequence != sequence {
 		t.Fatal("browser preparation or mutation changed source history")
 	}

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 )
@@ -33,9 +34,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	sourcePath := t.TempDir()
-	source, err := overgodb.Create(sourcePath)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = source.Close() })
+	source := overgodbtest.Create(t, sourcePath)
 	commit := strings.Repeat("c", 40)
 	registerCensusModel(t, source, "frozen", true, true)
 	base, err := buildCapabilityCensus(ctx, source, commit, catalogLimit, discovery.NewMemo())
@@ -89,9 +88,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	}
 	var binding acceptedCensus
 	testcheck.NoError(t, jsonfile.DecodeStrict(path, &binding))
-	rebuilt, err = overgodb.OpenReadOnly(rebuiltPath)
-	testcheck.NoError(t, err)
-	defer rebuilt.Close()
+	rebuilt = overgodbtest.OpenReadOnly(t, rebuiltPath)
 	if err := checkCensusDisposition(ctx, rebuilt, binding); err != nil {
 		t.Fatalf("the binding written on the rebuilt store fails the acceptance tests' check: %v", err)
 	}

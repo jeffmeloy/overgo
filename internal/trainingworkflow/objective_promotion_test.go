@@ -13,6 +13,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -30,9 +31,7 @@ import (
 func TestPromoteObjectiveAdaptive(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	derived := derivedIdentity(t, "overgo/test-objective/")
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "test-pair", Kind: trainingprogram.ObjectiveFlowMatching,
@@ -95,9 +94,7 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	derived := derivedIdentity(t, "overgo/heldout-approval-test/")
 	source := derived(artifact.KindDataset, "dataset")
 	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)

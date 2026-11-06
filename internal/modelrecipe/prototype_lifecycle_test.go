@@ -13,6 +13,7 @@ import (
 	"overgo/internal/invocation"
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -55,9 +56,7 @@ func TestPrototypeRecipeLifecycleAndRollback(t *testing.T) {
 		}
 		assertSupervisedAliases(t, fixture.store, fixture, event)
 		testcheck.NoError(t, fixture.store.Close())
-		reopened, err := overgodb.Create(fixture.path)
-		testcheck.NoError(t, err)
-		t.Cleanup(func() { _ = reopened.Close() })
+		reopened := overgodbtest.Create(t, fixture.path)
 		assertSupervisedAliases(t, reopened, fixture, event)
 	})
 

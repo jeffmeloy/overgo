@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -15,9 +15,7 @@ import (
 func TestWebUIBrowserConversationLayout(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "browser layout runs through cmd/webui-lane")
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer repository.Close()
+	repository := overgodbtest.Open(t, t.TempDir())
 	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
 	defer close(blocking.release)
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, blocking))

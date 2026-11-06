@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -49,9 +50,7 @@ func TestFailedCheckNeverSwaps(t *testing.T) {
 // capability and refused to the plain door, so a mismatch between the two
 // names cannot wait for a real candidate to surface.
 func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	proof := overgodb.OperationProof{Checks: []check{{Name: "only", Passed: true}}}
 	proof.Verdict()
 	batch, err := proof.Batch(t.Context(), store)
@@ -199,9 +198,7 @@ func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	if err := conclude(&result, true, func() (string, error) { t.Fatal("refused candidate reached swap"); return "", nil }); err == nil {
 		t.Fatal("refused proof admitted swap")
 	}
-	source, err = overgodb.OpenReadOnly(sourcePath)
-	testcheck.NoError(t, err)
-	defer source.Close()
+	source = overgodbtest.OpenReadOnly(t, sourcePath)
 	if after, _ := source.Head(); after != head {
 		t.Fatalf("source head moved: %s != %s", after, head)
 	}

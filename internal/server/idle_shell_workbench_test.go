@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestIdleShellDelegatesWorkbenchRoutes: with a workbench behind it the
@@ -15,9 +14,7 @@ import (
 // while no model serves; without one those routes refuse as before.
 func TestIdleShellDelegatesWorkbenchRoutes(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	workbench := newTestHandlerForRepository(t, store, &fakeGenerator{})
 	defer workbench.Close()
 	shell := &IdleShell{Repository: store, Workbench: workbench}

@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 )
@@ -42,12 +42,8 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
-	publisher, err := overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer publisher.Close()
+	store := overgodbtest.Create(t, root)
+	publisher := overgodbtest.Create(t, root)
 	modelID := activateModel(t, publisher, sessionlessVQADefinition)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskVQA: {
 		Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {

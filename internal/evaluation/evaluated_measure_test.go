@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -18,9 +18,7 @@ import (
 // store does not hold names nothing.
 func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"),

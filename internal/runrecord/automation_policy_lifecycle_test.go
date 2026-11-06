@@ -2,17 +2,15 @@ package runrecord
 
 import (
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testutil"
 	"testing"
 )
 
 func TestAutomationPolicyLifecycle(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	policy := testutil.ArtifactID(t, artifact.KindProfile, "candidate-policy")
 	incumbent := testutil.ArtifactID(t, artifact.KindProfile, "incumbent-policy")
 	base := AutomationPolicyLifecycle{Name: "agent-harness", Policy: policy, Incumbent: incumbent, Rollback: incumbent,

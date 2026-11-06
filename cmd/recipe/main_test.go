@@ -24,6 +24,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
@@ -35,9 +36,7 @@ import (
 
 func TestExactVerificationCandidateBinding(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 32)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	if _, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err == nil {
 		t.Fatal("missing registered profile accepted")
@@ -156,9 +155,7 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 func TestModelFactsFollowTheModel(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}
@@ -228,9 +225,7 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 
 func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "recipe-verifier-model")
 	testutil.PublishArtifact(t, store, modelID)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, modelID)
@@ -467,9 +462,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	if len(attempts) != 7 {
 		t.Fatalf("serving attempts = %d; want each of the seven executions recorded", len(attempts))
 	}
-	store, err := overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, directory)
 	input := measuredContent(t, "overgo.forecast-input.v1", request)
 	output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "overgo.fixture-forecast.v1"), []float32{1, 2, 3})
 	testcheck.NoError(t, err)
@@ -492,9 +485,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	if len(attempts) != 9 || runs.Load() != 6 {
 		t.Fatalf("terminal attempts=%d, executed nodes=%d; want nine attempts and six executions", len(attempts), runs.Load())
 	}
-	store, err = overgodb.Create(directory)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.Create(t, directory)
 	for _, attempt := range attempts {
 		if attempt.Outcome == runrecord.OutcomeSucceeded {
 			continue
@@ -656,9 +647,7 @@ func activateMeasured(t *testing.T, directory string, task recipe.Task, inventor
 // serves, where the catalog may since have moved on.
 func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
 	path := testutil.HermeticLlamaGGUF(t, 32)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)

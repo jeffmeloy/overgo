@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 )
@@ -72,9 +72,7 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 		}
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	recorded := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Sampled answer"}}))
 	defer recorded.Close()
 	response := serveTestRequest(recorded, http.MethodPost, "/v1/responses", `{"input":"hi","max_output_tokens":1,"temperature":0.25}`)

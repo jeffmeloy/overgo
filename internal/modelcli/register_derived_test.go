@@ -8,6 +8,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 	"overgo/internal/servingattempt"
@@ -36,9 +37,7 @@ func TestAServedOpenRegistersWhatItsRecordsNeed(t *testing.T) {
 	}
 	testcheck.NoError(t, registerDerived(t.Context(), storeRoot, derivation))
 
-	store, err := overgodb.Open(storeRoot)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, storeRoot)
 	if _, err := servingattempt.RecordWholeOutput(t.Context(), store, servingattempt.WholeOutput{
 		Model: derivation.Inventory.Manifest.ID, Recipe: derivation.Definition.ID, Task: recipe.TaskInference,
 		Started: time.Now(), Wall: time.Millisecond,

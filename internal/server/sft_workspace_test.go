@@ -17,6 +17,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/peft"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -63,9 +64,7 @@ func newSFTFixture(t *testing.T) sftFixture {
 	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
 	})

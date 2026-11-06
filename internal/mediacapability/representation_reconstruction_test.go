@@ -19,7 +19,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -59,9 +59,7 @@ func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 	if stage := program.Stages()[0]; stage.Module.ID != modelrecipe.ModuleReconstructRepresentation || definition.Nodes[0].Placement != recipe.PlacementHost {
 		t.Fatalf("the pair compiles to entry module %s placed on %s", stage.Module.ID, definition.Nodes[0].Placement)
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// Two slow gradients under a bright disc, at the size the pair works at.
 	const side = 256
 	picture := image.NewRGBA(image.Rect(0, 0, side, side))

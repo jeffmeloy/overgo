@@ -5,14 +5,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
 func TestTextTransform(t *testing.T) {
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(t.TempDir(), "store"))
 	var identities []artifact.ID
 	for _, lowercase := range []bool{false, true} {
 		transform, err := NewTextTransform(lowercase)

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -31,9 +31,7 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 		{name: "tensor container", priorType: "text/plain", nextType: "text/markdown", kind: artifact.KindTensorSet, reject: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			data := []byte("# A license declaration\n")
 			id, err := artifact.IdentifyBytes(tc.kind, data)
 			testcheck.NoError(t, err)

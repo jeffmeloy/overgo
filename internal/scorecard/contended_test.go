@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -24,9 +24,7 @@ import (
 func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "contended-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "contended-environment")
 	served := testutil.ArtifactID(t, artifact.KindRecipe, "contended-recipe")

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -166,15 +167,11 @@ func verifySupervisedCompositeFirstWin(
 // after a cold reopen.
 func TestSupervisedCompositeFirstWin(t *testing.T) {
 	path := t.TempDir()
-	store, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Create(t, path)
 	proof := newSupervisedCompositeProof(t, store)
 	testcheck.NoError(t, verifySupervisedCompositeFirstWin(t.Context(), store, proof))
 	testcheck.NoError(t, store.Close())
-	reopened, err := overgodb.Create(path)
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = reopened.Close() })
+	reopened := overgodbtest.Create(t, path)
 	testcheck.NoError(t, verifySupervisedCompositeFirstWin(t.Context(), reopened, proof))
 }
 

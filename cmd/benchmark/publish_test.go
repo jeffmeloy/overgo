@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -61,9 +61,7 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	}
 	record, err := runrecord.NewModelVerification(model, result.ModelName, []runrecord.CapabilityClaim{claim})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath))
 
 	content, found, err := artifact.ReadContent(ctx, store, record.ID)

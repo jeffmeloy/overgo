@@ -16,7 +16,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -35,9 +35,7 @@ func TestMOSSResidentSession(t *testing.T) {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	batch, err := source.Inventory.Batch(t.Name())
 	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, facts...)

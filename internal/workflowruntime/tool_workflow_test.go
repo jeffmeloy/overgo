@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -35,9 +35,7 @@ func TestToolWorkflowExecutesCompiledOrderWithDurableRun(t *testing.T) {
 		{ID: "update", Manual: mutate.ID, After: []recipe.NodeID{"inspect"}},
 	}}, []agenttool.Manual{inspect, mutate})
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "tool-workflow/model", Artifacts: []artifact.Descriptor{{ID: model}},
 	}); err != nil {

@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -89,9 +89,7 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 	datasetPath := filepath.Join(root, "dataset.txt")
 	corpus := bytes.Repeat([]byte("a b c d "), 64)
 	testcheck.NoError(t, os.WriteFile(datasetPath, corpus, 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	ctx := t.Context()
 	// The trained model registers against the store's architecture profiles.
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {

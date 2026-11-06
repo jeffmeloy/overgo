@@ -12,7 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
@@ -46,9 +46,7 @@ func (runtime benchmarkFixtureRuntime) ScoreContinuations(_ context.Context, pro
 // inapplicable.
 func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	authorities := evaluation.ListingAuthorities()
 	data, err := json.Marshal(evaluation.MultipleChoiceSuite{
 		Kind: evaluation.MultipleChoiceKind, Schema: "fixture/benchmark", Source: "store/mmlu",

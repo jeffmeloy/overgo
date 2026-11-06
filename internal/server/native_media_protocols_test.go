@@ -21,6 +21,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -227,9 +228,7 @@ func TestAbortedContentResponsesReleaseTheirFiles(t *testing.T) {
 // controls once, so the declarations count the listings.
 func TestMediaRequestResolvesItsCapabilityOnce(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	activatedImageModel(t, store)
 	var listings, executions atomic.Int32
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {

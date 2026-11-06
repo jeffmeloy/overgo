@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/hfconvert"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -24,9 +24,7 @@ func TestEveryViewedTextModelServesFromItsDirectory(t *testing.T) {
 	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, roots.Store)
 	registered, err := registeredCells(t.Context(), store)
 	testcheck.NoError(t, err)
 	converted, err := convertedSources(t.Context(), store)

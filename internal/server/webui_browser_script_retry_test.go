@@ -6,8 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 )
 
 // TestWebUIBrowserRetriesAFailedScript fails the first fetch of one tab
@@ -16,9 +15,7 @@ import (
 func TestWebUIBrowserRetriesAFailedScript(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the script retry leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	const failed = "/mod/agent.js"
 	var failures atomic.Int32

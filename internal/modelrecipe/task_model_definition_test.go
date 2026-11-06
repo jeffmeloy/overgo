@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -43,9 +44,7 @@ func publishedGenerationRecipe(t *testing.T, store *overgodb.Store, name string)
 // recipe it was published for: it binds them, and binds no other.
 func TestTaskModelDefinitionOfAModelOnlyRecipeBindsItsModelAndRecipe(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	definition := publishedGenerationRecipe(t, store, "bound")
 	id, err := PublishTaskModelDefinition(t.Context(), store, definition.ID)
 	testcheck.NoError(t, err)
@@ -67,9 +66,7 @@ func TestTaskModelDefinitionOfAModelOnlyRecipeBindsItsModelAndRecipe(t *testing.
 // model has no definition.
 func TestTaskModelDefinitionRefusesARecipeOverAModelNoManifestHolds(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	definition, err := CapabilityDefinition(recipe.TaskGeneration, testutil.ArtifactID(t, artifact.KindModel, "unpublished-model"))
 	testcheck.NoError(t, err)
 	content, err := Content(definition)

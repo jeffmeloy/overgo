@@ -14,7 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/mosstrain"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/peft"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -53,9 +53,7 @@ func catalogPictures(t *testing.T, root string) servedPictures {
 	testcheck.NoError(t, err)
 	program, err := modelrecipe.CompileCapability(definition)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	batch, err := source.Inventory.Batch(t.Name())
 	testcheck.NoError(t, err)
 	batch.Contents = append(batch.Contents, facts...)

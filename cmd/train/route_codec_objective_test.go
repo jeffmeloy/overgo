@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/rae"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
@@ -74,9 +75,7 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	const pictures, side = 12, 8
 	objective, weights := registerPictureObjective(t, ctx, store, root, pictures, side)
 
@@ -263,9 +262,7 @@ func TestCodecCheckpointNamesEveryFileOfThePairItTrained(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	const pictures, side = 12, 8
 	objective, _ := registerPictureObjective(t, ctx, store, root, pictures, side)
 	data, _, err := codecPictures(ctx, store, objective, side)

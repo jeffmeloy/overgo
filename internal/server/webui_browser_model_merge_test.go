@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/export"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
 )
@@ -20,9 +20,7 @@ func TestWebUIBrowserModelMerge(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the model merge leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	mergeFixture(t, store)
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")

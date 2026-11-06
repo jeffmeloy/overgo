@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -17,9 +17,7 @@ import (
 // model; a local recipe is not a remote definition's subject.
 func TestPublishRemoteModelDefinitionBindsRelayRecipe(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "hosted-model")
 	providerID := testutil.ArtifactID(t, artifact.KindProfile, "hosted-provider")
 	testutil.PublishArtifact(t, store, modelID)

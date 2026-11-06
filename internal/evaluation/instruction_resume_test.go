@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
@@ -50,9 +51,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	if !errors.Is(runErr, context.Canceled) || len(interrupted.prompts) != 1 {
 		t.Fatalf("first attempt: err=%v prompts=%v", runErr, interrupted.prompts)
 	}
-	store, err = overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.Create(t, root)
 	resumed := &instructionChatFixture{answer: "OK"}
 	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
 	testcheck.NoError(t, err)

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -176,9 +177,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 			t.Fatalf("the first draw asked again = %+v (%v) after %d more calls, want the record %+v and nothing sampled", replayed, err, sampler.calls-calls, first)
 		}
 	}
-	elsewhere, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = elsewhere.Close() })
+	elsewhere := overgodbtest.Open(t, t.TempDir())
 	fresh, err := loadSampled(ctx, elsewhere, group)
 	testcheck.NoError(t, err)
 	sampler.ids, sampler.chances = apart, []float64{0.5, 0.25, 1}

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -23,9 +24,7 @@ type capabilitySelectorFixture struct {
 func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	weights := []byte("selector-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
@@ -191,9 +190,7 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 }
 
 func TestIncompatiblePeerRefusal(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		return testutil.ArtifactID(t, kind, label)
 	}

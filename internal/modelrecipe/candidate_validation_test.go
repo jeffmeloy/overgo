@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -40,9 +40,7 @@ func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 		}
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	definitionContent, err := Content(candidate)
 	testcheck.NoError(t, err)
@@ -69,9 +67,7 @@ func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing
 	testcheck.NoError(t, err)
 	definition, err := CapabilityDefinition(recipe.TaskForecast, modelContent.Descriptor.ID)
 	testcheck.NoError(t, err)
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "candidate/capability-model", Contents: []artifact.Content{modelContent},
 	}); err != nil {

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -121,9 +122,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			testcheck.NoError(t, err)
 			referenceStore = roots.Store
 		}
-		store, err := overgodb.OpenReadOnly(referenceStore)
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.OpenReadOnly(t, referenceStore)
 		catalog, err := store.Query(t.Context(), overgodb.Query{Kind: artifact.KindModel, MaxResults: 10_000, Projection: overgodb.ProjectManifests})
 		if err != nil || catalog.Truncated {
 			t.Fatalf("live catalog: %v; truncated=%t", err, catalog.Truncated)

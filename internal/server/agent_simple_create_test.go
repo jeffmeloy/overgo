@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -19,9 +19,7 @@ import (
 // unregistered tool name refuses creation outright.
 func TestAgentSimpleCreate(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/simple-create-identity",

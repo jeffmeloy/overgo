@@ -13,7 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
@@ -34,9 +34,7 @@ func TestBootstrapKeepsRecordedFileFacts(t *testing.T) {
 	testcheck.NoError(t, os.Remove(filepath.Join(root, "reference.safetensors")))
 	source := []byte("class MOSSImagePipeline:\n    pass\n")
 	testcheck.NoError(t, os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), source, 0o600))
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	id, err := artifact.IdentifyBytes(artifact.KindFile, source)
 	testcheck.NoError(t, err)
 	const recorded = "text/plain"
@@ -59,9 +57,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 	datasetPath := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
 	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("training data"), 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 
 	ctx := t.Context()
 	if _, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath); err != nil {
@@ -101,9 +97,7 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	modelPath := writeTrainingGGUF(t)
 	datasetPath := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(datasetPath, bytes.Repeat([]byte("a b c d "), 64), 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "store"))
 	ctx := t.Context()
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
@@ -169,16 +163,12 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	root, ctx := t.TempDir(), t.Context()
 	modelPath, data := filepath.Join(root, "model.safetensors"), []byte("training data")
 	testcheck.NoError(t, os.WriteFile(modelPath, []byte("weights"), 0o600))
-	source, err := overgodb.Create(filepath.Join(root, "source"))
-	testcheck.NoError(t, err)
-	defer source.Close()
+	source := overgodbtest.Create(t, filepath.Join(root, "source"))
 	recipeID, err := BootstrapRecipe(ctx, source, modelPath, data, TokenContract)
 	testcheck.NoError(t, err)
 	dataset, split, _, err := TextAuthority(data)
 	testcheck.NoError(t, err)
-	rebuilt, err := overgodb.Create(filepath.Join(root, "rebuilt"))
-	testcheck.NoError(t, err)
-	defer rebuilt.Close()
+	rebuilt := overgodbtest.Create(t, filepath.Join(root, "rebuilt"))
 	_, head := source.Head()
 	for sequence := uint64(1); sequence <= head; sequence++ {
 		delta, _, err := source.CommitDeltaAt(ctx, sequence)
@@ -212,9 +202,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	datasetPath := filepath.Join(root, "dataset.txt")
 	testcheck.NoError(t, os.WriteFile(modelPath, []byte("model"), 0o600))
 	testcheck.NoError(t, os.WriteFile(datasetPath, []byte("training data"), 0o600))
-	store, err := overgodb.Create(filepath.Join(root, "repodb"))
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, filepath.Join(root, "repodb"))
 
 	ctx := t.Context()
 	definitionID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)

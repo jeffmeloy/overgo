@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -16,9 +16,7 @@ import (
 // activation, and the entry bound alone decides truncation.
 func TestCapabilityCatalogReadsEveryActivation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	const bound = 64
 	descriptors := make([]artifact.Descriptor, 0, 4*bound)
 	for index := range 4 * bound {

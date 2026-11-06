@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -44,9 +44,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 		t.Fatalf("seeds = %+v", seeds)
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	// The musr seed binds fields the mmlu fixture bytes do not carry;
 	// importing it must refuse rather than fabricate, so the catalog
 	// publishes from the mmlu seed alone.

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -135,9 +135,7 @@ func TestHTTPJSONStreamManualInvokesCollected(t *testing.T) {
 		}, "", nil, "stream cancelled after 1 events"},
 	}
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	manuals := make([]Manual, len(rows))
 	for index, row := range rows {
 		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

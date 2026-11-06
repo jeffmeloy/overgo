@@ -18,6 +18,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
@@ -175,9 +176,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		root := t.TempDir()
 		base, dataset, storePath := writeServingFixture(t, root), filepath.Join(root, "dataset.txt"), filepath.Join(root, "store")
 		testcheck.NoError(t, os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600))
-		store, err := overgodb.Create(storePath)
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Create(t, storePath)
 		if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
 			t.Fatal(err)
 		}
@@ -329,9 +328,7 @@ func routeFixture(t *testing.T) (root string, store *overgodb.Store, modelPath, 
 	for path, data := range map[string]string{modelPath: "weights", datasetPath: routeFixtureDataset} {
 		testcheck.NoError(t, os.WriteFile(path, []byte(data), 0o600))
 	}
-	store, err := overgodb.Create(filepath.Join(root, "store"))
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store = overgodbtest.Create(t, filepath.Join(root, "store"))
 	return root, store, modelPath, datasetPath
 }
 

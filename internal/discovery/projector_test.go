@@ -11,6 +11,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -94,9 +95,7 @@ func TestActiveComponentsResolveDeclaredBytes(t *testing.T) {
 	for _, binding := range componentBindings {
 		t.Run(binding.name, func(t *testing.T) {
 			ctx := t.Context()
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			modelID, componentPath := componentFixture(t, store, binding, "bound")
 			location, ok, err := binding.resolve(ctx, store, modelID, LoadMemo(ctx, store))
 			if err != nil || !ok || location != componentPath {
@@ -113,9 +112,7 @@ func TestActiveComponentsResolveDeclaredBytes(t *testing.T) {
 
 func TestActiveComponentsAbsentWithoutActivation(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "text-only-model")
 	for _, binding := range componentBindings {
 		location, ok, err := binding.resolve(ctx, store, modelID, LoadMemo(ctx, store))

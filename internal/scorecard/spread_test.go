@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -33,9 +33,7 @@ import (
 func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "noisy-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "noisy-environment")
 	noisy, stepped := testutil.ArtifactID(t, artifact.KindRecipe, "noisy-recipe"), testutil.ArtifactID(t, artifact.KindRecipe, "stepped-recipe")

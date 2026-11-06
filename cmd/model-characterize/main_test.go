@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -18,9 +18,7 @@ import (
 func TestCharacterizeCatalogEmptyStore(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "store")
 	testcheck.NoError(t, os.MkdirAll(dir, 0o755))
-	store, err := overgodb.Create(dir)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, dir)
 
 	count, err := characterizeCatalog(
 		t.Context(), store, 4096,

@@ -9,7 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/trainingworkflow"
@@ -73,9 +73,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 			t.Fatalf("seed %d ran %d steps, want %d", outcome.Seed, len(outcome.TrainLosses), retrialSteps)
 		}
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	record, err := trainingworkflow.RecordGraftViability(store, config, result)
 	testcheck.NoError(t, err)
 	if record.Outcome != runrecord.OutcomeSucceeded && record.Outcome != runrecord.OutcomeFailed {

@@ -16,7 +16,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/sampling"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
@@ -53,9 +53,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if storePath == "" {
 		testskip.NotApplicable(t, "child process probe requires OVERGO_CARBON_REPODB")
 	}
-	store, err := overgodb.Create(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Create(t, storePath)
 	started := time.Now()
 	loaded, err := modelrecipe.ResolveActiveGGUF(context.Background(), store, modelPath)
 	testcheck.NoError(t, err)

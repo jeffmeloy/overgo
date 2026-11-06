@@ -13,7 +13,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
@@ -31,9 +31,7 @@ import (
 func TestExportQuantizedGGUF(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	source := testutil.HermeticLlamaGGUF(t, 64)
 	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, source, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	root := t.TempDir()
@@ -108,9 +106,7 @@ const ggufTestCommit = "0123456789abcdef0123456789abcdef01234567"
 func TestGGUFRunsBindTheirSource(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	exportRun := func(commit, output string) runrecord.Run {
 		t.Helper()
@@ -143,9 +139,7 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 func TestRepeatExportKeepsItsOutput(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
@@ -180,9 +174,7 @@ func TestRepeatExportKeepsItsOutput(t *testing.T) {
 func TestModelBuilderListsNothingWithoutAMerge(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	testcheck.NoError(t, servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference))
 	workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	if capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild); err != nil || len(capabilities) != 0 {

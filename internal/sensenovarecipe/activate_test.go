@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/testcheck"
@@ -25,9 +26,7 @@ const activationReason = "SenseNova compiled text request, retained prefix/body,
 // capability uses (modelrecipe.ResolveActiveCapability => ActiveRecord + CompileCapability).
 func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-u1-8b-mot-infographic-v3")
 	testutil.PublishArtifact(t, store, modelID)

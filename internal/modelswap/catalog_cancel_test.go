@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -29,9 +30,7 @@ func TestCatalogCanceledMemoLoadRetries(t *testing.T) {
 	writer, err := overgodb.Create(root)
 	testcheck.NoError(t, err)
 	testcheck.NoError(t, writer.Close())
-	reader, err := overgodb.OpenReadOnly(root)
-	testcheck.NoError(t, err)
-	defer reader.Close()
+	reader := overgodbtest.OpenReadOnly(t, root)
 	resolver := CatalogResolver{Store: reader, Limit: 100}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(nil)

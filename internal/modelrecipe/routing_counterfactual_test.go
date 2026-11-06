@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -48,9 +48,7 @@ func recordRecipeRoutingDecision(
 // instead of shrinking the measurement.
 func TestRoutingCounterfactualReplay(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	cheap := routingCandidateFixture(t, "first-cheap", 1024)
 	costly := RoutingCandidate{
 		Recipe:        testutil.ArtifactID(t, artifact.KindRecipe, "first-costly"),

@@ -6,6 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/model"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -49,9 +50,7 @@ func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 	}
 	_, sequence := store.Head()
 	testcheck.NoError(t, store.Close())
-	store, err = overgodb.Create(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.Create(t, root)
 	second, err := PublishArchitectureProfileCatalog(ctx, store)
 	testcheck.NoError(t, err)
 	_, repeatedSequence := store.Head()
@@ -62,9 +61,7 @@ func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 
 func TestPublishArchitectureProfileCatalogSupersedesStaleAlias(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	documents, err := compileArchitectureProfileCatalog()
 	testcheck.NoError(t, err)
 	stale, err := artifact.JSONContent(

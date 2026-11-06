@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
@@ -45,9 +45,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 				t.Fatalf("recipe binds model %s and inventory %s, want the checkpoint's Hugging Face %s and %s",
 					model, inventory, source.Inventory.Manifest.ID, source.Inventory.TensorInventory.ID)
 			}
-			store, err := overgodb.Open(t.TempDir())
-			testcheck.NoError(t, err)
-			defer store.Close()
+			store := overgodbtest.Open(t, t.TempDir())
 			registration, err := source.Inventory.Batch("transcription/registration")
 			testcheck.NoError(t, err)
 			registration.Contents = append(registration.Contents, facts...)

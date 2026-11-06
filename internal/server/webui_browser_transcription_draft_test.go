@@ -4,8 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/webuilane"
 )
 
@@ -17,9 +16,7 @@ import (
 func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "transcription draft runs through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Transcription fixture"}}))
 	defer handler.Close()
 	server := httptest.NewServer(handler)

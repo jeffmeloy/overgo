@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -43,9 +44,7 @@ func TestRunPublishesMechanismCensus(t *testing.T) {
 	}
 	census, err := trainingprogram.CompileMechanismCensus([]trainingprogram.MechanismAssessment{assessment})
 	testcheck.NoError(t, err)
-	store, err = overgodb.OpenReadOnly(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.OpenReadOnly(t, storePath)
 	if _, found, err := artifact.ReadContent(t.Context(), store, census.ID()); err != nil || !found {
 		t.Fatalf("published census = (%t, %v)", found, err)
 	}
@@ -117,9 +116,7 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 	if !strings.Contains(output.String(), "claims=4") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err = overgodb.OpenReadOnly(storePath)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store = overgodbtest.OpenReadOnly(t, storePath)
 	for _, source := range sources {
 		want, err := trainingprogram.NewMechanismEvidence(source.Role, mechanism, source.Source)
 		testcheck.NoError(t, err)

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/tokenizer"
 )
@@ -125,9 +126,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	exact, plan := ledgerFixture(t, "environment")
 
 	t.Run("resume", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Open(t, t.TempDir())
 		publishPlanFixtureAuthorities(t, store, plan)
 		generator := &countingExactGenerator{}
 		first, err := EvaluateExactSharded(ctx, store, generator, exact, plan, nil)
@@ -148,9 +147,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	})
 
 	t.Run("partial", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Open(t, t.TempDir())
 		shards, err := compileExactShards(exact, plan)
 		testcheck.NoError(t, err)
 		missing := planID(t, artifact.KindEvaluation, "missing-report")
@@ -168,9 +165,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	})
 
 	t.Run("foreign", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		testcheck.NoError(t, err)
-		defer store.Close()
+		store := overgodbtest.Open(t, t.TempDir())
 		shards, err := compileExactShards(exact, plan)
 		testcheck.NoError(t, err)
 		_, foreignPlan := ledgerFixture(t, "foreign-environment")

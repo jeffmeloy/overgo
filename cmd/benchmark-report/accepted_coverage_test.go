@@ -11,7 +11,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 )
@@ -61,9 +61,7 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	}
 	root, err := dataroot.StoreRoot("")
 	testcheck.NoError(t, err)
-	store, err := overgodb.OpenReadOnly(root)
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.OpenReadOnly(t, root)
 	ctx := t.Context()
 	names, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
 	if descriptors[mmluProSuite].Cases == 0 {

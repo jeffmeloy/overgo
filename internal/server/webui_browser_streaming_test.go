@@ -4,8 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"overgo/internal/overgodb"
-	"overgo/internal/testcheck"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/webuilane"
 )
 
@@ -21,9 +20,7 @@ import (
 func TestWebUIBrowserStreamingComposerAppendsInPlace(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "streaming composer runs through cmd/webui-lane")
-	repository, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = repository.Close() })
+	repository := overgodbtest.Open(t, t.TempDir())
 	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	server := httptest.NewServer(handler)

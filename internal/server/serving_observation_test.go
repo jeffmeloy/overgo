@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -29,9 +30,7 @@ func (*realizedServingGenerator) RealizedResidency() recipe.RealizedResidency {
 
 func TestServingObservationPublication(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "serving-publication-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "serving-publication-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "serving-publication-run")
@@ -105,9 +104,7 @@ func TestServingObservationPublication(t *testing.T) {
 
 func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "runtime-view-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "runtime-view-recipe")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
@@ -155,9 +152,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 
 func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "hardware-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "hardware-recipe")
 	if _, err := store.Commit(t.Context(), artifact.Batch{

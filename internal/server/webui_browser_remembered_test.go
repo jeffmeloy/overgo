@@ -9,7 +9,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/webuilane"
@@ -22,9 +22,7 @@ import (
 func TestWebUIBrowserRememberedSettings(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the remembered settings leg uses Chromium through cmd/webui-lane")
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	activatedImageModel(t, store)
 	// The executor records the request it decoded, as the runtime does: the record a past output reopens.
 	requestContract := artifact.JSONContract(artifact.KindFile, "overgo.test-image-gen-input.v1")

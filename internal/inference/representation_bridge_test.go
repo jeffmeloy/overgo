@@ -11,6 +11,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
@@ -241,9 +242,7 @@ func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition
 
 func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store, composition.CompositionAuthority) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-source-model")
 	targetModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-target-model")

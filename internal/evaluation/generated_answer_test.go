@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/testcheck"
 )
 
@@ -36,9 +36,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	if plan.Identity() == otherPlan.Identity() {
 		t.Fatal("normalization profile did not change evaluation identity")
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := evaluateGeneratedAnswer(
 		t.Context(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,

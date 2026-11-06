@@ -5,7 +5,7 @@ import (
 	"os"
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/parity"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
@@ -34,9 +34,7 @@ func TestParityCommandsRequireFreshExecution(t *testing.T) {
 		answered++
 		return vqaserve.Result{Generated: []int{answered}}, "there", nil
 	}
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	t.Cleanup(func() { _ = store.Close() })
+	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "vqa-model")
 	testutil.PublishArtifact(t, store, model)
 	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskVQA, model)

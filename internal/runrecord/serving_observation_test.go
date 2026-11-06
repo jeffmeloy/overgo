@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/overgodbtest"
 	"overgo/internal/recipe"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
@@ -52,9 +53,7 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 		t.Fatalf("parsed observation differs: %+v", parsed)
 	}
 
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 	parents := []artifact.ID{fixture.Model, fixture.Recipe, fixture.Environment}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
@@ -119,9 +118,8 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 // failed attempt is published after it, and a second attempt of the same ordinal, a branch, is refused.
 func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
+	var err error
 	first := servingObservationFixture(t)
 	first.Outcome, first.Failure = OutcomeFailed, "execution_failed"
 	alternateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "serving-alternate-recipe")
@@ -159,9 +157,7 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 
 func TestOperationBoundServingObservationRequiresCurrentAlias(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	testcheck.NoError(t, err)
-	defer store.Close()
+	store := overgodbtest.Open(t, t.TempDir())
 
 	fixture := servingObservationFixture(t)
 	parents := []artifact.ID{fixture.Model, fixture.Recipe, fixture.Environment}

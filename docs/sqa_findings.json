@@ -684,7 +684,7 @@
       "likely_effort": "Small correction in existing command/admission-test owners; fewer statements and no added abstraction.",
       "plan_references": [
         "native-reach/device-fresh",
-        "native-reach/device-bound"
+        "driver-bound/key"
       ],
       "plan_coverage": "The cache step is already complete and absent from the active plan. This is a new correctness follow-up, not an implementation-owned acceptance or a request to change the plan. Keep independent host reach reductions.",
       "closure_criteria": [
@@ -7824,7 +7824,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "34b3a7e72bf1ee54b6151054f93e231c5ef88a48",
+    "head": "e47e022de5b6e98387a988b6e0a394ae7369bbd4",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8589,9 +8589,9 @@
         "action": "implemented",
         "rows": [
           "native-reach/device-fresh",
-          "native-reach/device-bound"
+          "driver-bound/key"
         ],
-        "note": "Landed with native-reach/device-fresh: deviceTestStep runs every selected device test afresh, -count=1, the ineffective driver stat, its constants and claim are gone, and the -fresh flag, which nothing called, goes with them; measurement runs carry -count=1 once and the lane still prints each passed package's line. native-reach/device-bound restores reuse only once external inputs reach go test's key through the environment the tests read. Awaits the reviewer's closure."
+        "note": "Landed with native-reach/device-fresh: deviceTestStep runs every selected device test afresh, and the ineffective driver stat is gone. native-reach/device-bound is retired, measured: the device runs reach only packages whose binaries a change moved, and the data root's 159,716 files took 9m55s to walk, with store records naming models by absolute location. driver-bound/key binds the driver through the environment for the cuda lane, whose suites build their own inputs: the landing sets OVERGO_CUDA_DRIVER to the library's size and modification time and cudatest.Require reads it, which go test keys. Awaits the reviewer's closure."
       }
     }
   },

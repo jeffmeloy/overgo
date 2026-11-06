@@ -148,9 +148,9 @@ type Library struct {
 
 // Open: loads nvcuda.dll and resolves required entry points
 func Open() (*Library, error) {
-	dll, err := syscall.LoadDLL("nvcuda.dll")
+	dll, err := syscall.LoadDLL(libraryName)
 	if err != nil {
-		return nil, errors.New("load nvcuda.dll: " + err.Error())
+		return nil, errors.New("load " + libraryName + ": " + err.Error())
 	}
 
 	lib := &Library{dll: dll}

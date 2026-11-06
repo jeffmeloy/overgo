@@ -68,26 +68,6 @@
       ]
     },
     {
-      "id": "native-reach",
-      "title": "Let go test decide what a commit's checks rerun",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 50,
-        "reason": "claim-binding measured 546 production nodes, the reached-declarations binding of a claim's test-file evidence; device-fresh removes the ineffective driver stat and the -fresh flag, and device-bound is estimated when it is worked."
-      },
-      "steps": [
-        {
-          "id": "device-bound",
-          "title": "The device run replays a pass only when every input it read is bound",
-          "status": "open",
-          "verify": "go test ./cmd/device-lane -count=1 -run '^TestAnUnboundDeviceInputRerunsItsTest$'",
-          "rationale": "The device lane's tests take about 11 minutes on the commits that reach them, and go test's cache would replay those nothing they read has changed, but go test keys a test only on its binary, its flags, the environment values it reads and the files it opens or stats inside the module, GOPATH and GOROOT roots: the CUDA driver in the system directory and the models and store under the data root, which device tests read, are outside them, so native-reach/device-fresh runs them all afresh.\nChange: the lane names what each device test reads from outside the module in the environment the test reads, so go test's own key carries it: the driver library's size and modification time, and, for a test that opens a model or the store under the data root, the identity of what it opened, through the one helper that resolves it; the lane drops -count=1 from correctness runs only once every external input is so bound. TestAnUnboundDeviceInputRerunsItsTest holds, in a host fixture module, a test whose external file changes while its code and environment otherwise do not to running again, not replaying.\nServes: development velocity: each commit's checks.\nDisappears: reruns of device tests nothing they read has changed.\nEvidence: the device lane's executed and cached counts on the gate's line, and the test.\nBatch: host lane, then device lane."
-        }
-      ]
-    },
-    {
       "id": "compact-tests",
       "title": "Shrink the test code",
       "class": "consolidation",

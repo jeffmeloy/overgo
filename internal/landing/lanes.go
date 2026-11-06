@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/devicescope"
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
@@ -253,6 +254,12 @@ var modelPackages = []string{
 	"./internal/evaluation", "./internal/dataset", "./internal/rae", "./internal/vitencoder", "./internal/seriesforecast", "./internal/mosstrain",
 }
 
+// laneEnvironment is the environment a lane's command runs in: the gate's own, what the lane adds, and the CUDA
+// driver the host runs, which cudatest.Require reads so go test keys a cached CUDA pass on its driver.
+func laneEnvironment(candidate lane) []string {
+	return append(append(os.Environ(), candidate.environment...), driver.IdentityEnvironment+"="+driver.LibraryIdentity())
+}
+
 // CycleLane is one lane of the improvement cycle: the go command's arguments
 // that run it and the environment it adds.
 type CycleLane struct {
@@ -421,10 +428,7 @@ func (l *landing) lanes(ctx context.Context) error {
 		var mu sync.Mutex
 		run := func(candidate lane) {
 			fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
-			var environment []string
-			if len(candidate.environment) > 0 {
-				environment = append(os.Environ(), candidate.environment...)
-			}
+			environment := laneEnvironment(candidate)
 			began := time.Now()
 			arguments := candidate.arguments(changed.Name())
 			if tests := named[candidate.name]; len(tests) > 0 {

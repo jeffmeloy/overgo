@@ -26,6 +26,8 @@ const probeEnvironmentVariable = "OVERGO_PROBE_TEST"
 func Require(t testing.TB) {
 	t.Helper()
 	requireEnvironment(t, environmentVariable, "CUDA integration tests")
+	// The driver a lane runs on, which go test then keys the test on: a driver update reruns it.
+	_ = os.Getenv(driver.IdentityEnvironment)
 }
 
 // MeasurementProcess runs this test in an exclusive child process. The caller

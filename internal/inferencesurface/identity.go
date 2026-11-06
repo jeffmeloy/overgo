@@ -104,13 +104,16 @@ var resultSettings = []string{"CUBLAS_WORKSPACE_CONFIG", "CUDA_PATH", "CUDA_VISI
 // passes an agent tool the variables its manual names (internal/agenttool),
 // which reach that tool and no capability. Two are a command's own
 // (internal/clioptions): where it writes its final error, and whether it stops
-// at its preflight, before anything is computed.
+// at its preflight, before anything is computed. One places the CUDA driver
+// library whose identity a lane hands its tests (internal/cuda/driver), which
+// keys their cached passes and no capability's result; the library itself is
+// counted with the others below.
 // A read that is neither here nor a result setting leaves every identity that
 // reaches it uncounted, since nothing says whether an answer depends on it.
 var neutralReads = []string{
 	`"OVERGO_LEDGER_TRACE"`, `"OVERGO_MEMORY_PLAN"`, `"OVERGO_OP_COUNTS"`, `"OVERGO_VAE_PROFILE"`,
 	"CampaignEnvironment", "inheritedResourcesEnvironment", "Env", "boundEnvironment", "provider.KeyEnvironment", "toolVariable",
-	"ErrorFileEnvironment", "PreflightEnvironment",
+	"ErrorFileEnvironment", "PreflightEnvironment", "systemRootEnvironment",
 }
 
 // readers are the functions a setting is read from the environment with.

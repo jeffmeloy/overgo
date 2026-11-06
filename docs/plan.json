@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Measured: train adds 3,798 production nodes, about 1,000 for the frozen walk on the card and the host (the placed run, the frozen session, the layout it shares with the resident trainer, the input gradient), 1,850 for the caption-projector route and 350 for the bridge trainer's generalization, which the 1,000 to 1,300 estimate, written for the gradient alone, did not count; 400 stand for cache-identity, whose finding estimates 100 to 250, and run and judge add records and checks."
+        "nodes": 100,
+        "reason": "Measured: cache-identity adds 455 production nodes, the capture's inputs, each sample's key, its binding's admission and keeping, and the route's frame check, above the 400 kept for it, which rested on the finding's estimate of 100 to 250; 100 stand for run and judge, which add records and checks."
       },
       "steps": [
-        {
-          "id": "cache-identity",
-          "title": "Bind the capture's cached samples to the inputs that made them",
-          "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestCaptureCacheAdmitsOnlyItsOwnInputs$'",
-          "rationale": "SQA-321: seam-align -capture admits a cached sample by its clip's name and its length alone (cmd/seam-align/capture.go, capturedSample), and the frame tokens beside it by their existence, so a changed caption, clip, encoder or text model of the same widths returns the old representations under the current labels. The caption-projector route reads the same cached frame tokens by name and length.\nBind each cached sample to the inputs that made it, through the identities the repository already computes for content, and admit a hit only under those inputs and a full payload; the samples file names each sample's frame-token identity, and the training refuses a frame whose bytes are not the ones the capture recorded. A resumed capture still reuses what its inputs left unchanged.\nThis comes before the run, whose ranking and training read the capture.\nServes: evidence of the capture that the run's GPU-hours rest on.\nDisappears: the length-and-existence admission.\nEvidence: the capture fixture with a prewritten tiny cache, an unchanged binding reused, and a changed caption, identity or short payload refused.\nBatch: host lane."
-        },
         {
           "id": "run",
           "title": "Train the 0.5B composite on the ranked capture within its GPU-hours",

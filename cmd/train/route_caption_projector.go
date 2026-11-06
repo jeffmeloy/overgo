@@ -10,12 +10,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/hfbpe"
 	"overgo/internal/jsonfile"
+	"overgo/internal/media"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -46,10 +48,11 @@ type captionModel func(tokens []int, trained []bool, positions []int, rows []flo
 // the platform's build holds the card.
 var captionDevice func(model *densecausal.Model, length int) (captionModel, func() error, error)
 
-// captionSequence is one sample's training sequence: its clip, the prompt's tokens then its caption's, padded to the
-// run's length, and which tokens the loss reads.
+// captionSequence is one sample's training sequence: its clip and the identity of its frame's tokens, the prompt's
+// tokens then its caption's, padded to the run's length, and which tokens the loss reads.
 type captionSequence struct {
 	vid     string
+	frame   artifact.ID
 	tokens  []int
 	trained []bool
 }
@@ -151,9 +154,11 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 		samples := make([]rae.BridgeSample, *batch)
 		for at := range samples {
 			sequence := sequences[(step*(*batch)+at)%len(sequences)]
-			tokens, kept := readTokens(capture.Tokens, sequence.vid+captionTokensSuffix, rows*capture.EncoderWidth)
-			if !kept {
-				return nil, fmt.Errorf("%s: %s's frame tokens are absent or not %d rows", name, sequence.vid, rows)
+			raw, err := os.ReadFile(filepath.Join(capture.Tokens, sequence.vid+captionTokensSuffix))
+			frame, identifyErr := artifact.IdentifyBytes(artifact.KindFile, raw)
+			tokens, decodeErr := media.DecodeFloat32LE(raw)
+			if errors.Join(err, identifyErr, decodeErr) != nil || frame != sequence.frame || len(tokens) != rows*capture.EncoderWidth {
+				return nil, fmt.Errorf("%s: %s's frame tokens are not the %d rows the capture recorded", name, sequence.vid, rows)
 			}
 			samples[at] = rae.BridgeSample{Tokens: tokens, Loss: func(mapped []float32, _ bool) (float64, []float32, error) {
 				return frozen(sequence.tokens, sequence.trained, positions, mapped)
@@ -255,7 +260,7 @@ func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCap
 			caption = append(caption, *config.End)
 		}
 		caption = caption[:min(len(caption), captionTokens)]
-		sequence := captionSequence{vid: sample.Vid, tokens: make([]int, length), trained: make([]bool, length)}
+		sequence := captionSequence{vid: sample.Vid, frame: sample.Frame, tokens: make([]int, length), trained: make([]bool, length)}
 		for at, id := range built.TokenIDs {
 			sequence.tokens[at] = int(id)
 		}

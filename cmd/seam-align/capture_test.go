@@ -57,3 +57,43 @@ func TestCaptureHoldsTheTrainingSplit(t *testing.T) {
 		t.Error("the capture's samples do not follow its seed")
 	}
 }
+
+// TestCaptureCacheAdmitsOnlyItsOwnInputs holds the capture's cache to the inputs that made a sample: a sample kept
+// under its key is read back whole with its frame tokens' identity, and resumes; another caption, other bytes of the
+// clip or other capture inputs give another key, under which it is no hit; and frame tokens cut short or a binding
+// never written leave no hit either.
+func TestCaptureCacheAdmitsOnlyItsOwnInputs(t *testing.T) {
+	t.Parallel()
+	cache, clip := t.TempDir(), filepath.Join(t.TempDir(), "clip.mp4")
+	testcheck.NoError(t, os.WriteFile(clip, []byte("the clip"), 0o600))
+	key := testcheck.Must(sampleKey("the inputs", clip, "a caption"))(t)
+	values, tokens := []float32{1, 2, 3}, []float32{4, 5, 6, 7}
+	frame := testcheck.Must(keepSample(cache, "clip", key, values, tokens))(t)
+	held, heldFrame, kept := cachedSample(cache, "clip", key, len(values))
+	if !kept || !slices.Equal(held, values) || heldFrame != frame {
+		t.Fatalf("a sample kept under its key read back as %v, %v (%t); want %v and %v", held, heldFrame, kept, values, frame)
+	}
+	if _, _, kept := cachedSample(cache, "clip", key, len(values)+1); kept {
+		t.Error("a sample of another count of values was a hit")
+	}
+	others := map[string]string{
+		"another caption":      testcheck.Must(sampleKey("the inputs", clip, "another caption"))(t),
+		"other capture inputs": testcheck.Must(sampleKey("other inputs", clip, "a caption"))(t),
+	}
+	testcheck.NoError(t, os.WriteFile(clip, []byte("another clip"), 0o600))
+	others["other clip bytes"] = testcheck.Must(sampleKey("the inputs", clip, "a caption"))(t)
+	for change, other := range others {
+		if _, _, kept := cachedSample(cache, "clip", other, len(values)); other == key || kept {
+			t.Errorf("with %s the sample kept under the old inputs was a hit", change)
+		}
+	}
+	testcheck.NoError(t, writeFloats(filepath.Join(cache, "clip"+tokensSuffix), tokens[:2]))
+	if _, _, kept := cachedSample(cache, "clip", key, len(values)); kept {
+		t.Error("frame tokens cut short were a hit")
+	}
+	testcheck.Must(keepSample(cache, "unbound", key, values, tokens))(t)
+	testcheck.NoError(t, os.Remove(filepath.Join(cache, "unbound"+bindingSuffix)))
+	if _, _, kept := cachedSample(cache, "unbound", key, len(values)); kept {
+		t.Error("a sample whose binding was never written was a hit")
+	}
+}

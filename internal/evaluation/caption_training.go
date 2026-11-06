@@ -4,6 +4,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"overgo/internal/artifact"
 )
 
 // CaptionTrainingClip is a captioned clip a model may train on beside a caption-matching suite, with the source video
@@ -18,13 +20,20 @@ type CaptionTrainingClip struct {
 // and the text model it paired, the acceptance it serves, the directory holding each sample's frame tokens, the
 // encoder's token width and the text model's, and the samples in the capture's order.
 type CaptionTrainingCapture struct {
-	Encoder      string                `json:"encoder"`
-	TextModel    string                `json:"text_model"`
-	Acceptance   string                `json:"acceptance"`
-	Tokens       string                `json:"tokens"`
-	EncoderWidth int                   `json:"encoder_width"`
-	TextWidth    int                   `json:"text_width"`
-	Samples      []CaptionTrainingClip `json:"samples"`
+	Encoder      string            `json:"encoder"`
+	TextModel    string            `json:"text_model"`
+	Acceptance   string            `json:"acceptance"`
+	Tokens       string            `json:"tokens"`
+	EncoderWidth int               `json:"encoder_width"`
+	TextWidth    int               `json:"text_width"`
+	Samples      []CapturedCaption `json:"samples"`
+}
+
+// CapturedCaption is a captured sample: its clip, and the identity of the bytes of its frame's tokens as the capture
+// cached them.
+type CapturedCaption struct {
+	CaptionTrainingClip
+	Frame artifact.ID `json:"frame"`
 }
 
 // CaptionTrainingClips are the captioned clips of spec's directory a model may train on beside the suite spec builds:

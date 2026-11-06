@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
@@ -73,7 +74,10 @@ func TestEncoderBridgeTrainsACaptionProjector(t *testing.T) {
 		}
 		vid := "clip-" + strconv.Itoa(index)
 		testcheck.NoError(t, writeTokens(tokens, vid+captionTokensSuffix, frame))
-		capture.Samples = append(capture.Samples, evaluation.CaptionTrainingClip{Vid: vid, Source: "source-" + strconv.Itoa(index), Caption: caption})
+		capture.Samples = append(capture.Samples, evaluation.CapturedCaption{
+			CaptionTrainingClip: evaluation.CaptionTrainingClip{Vid: vid, Source: "source-" + strconv.Itoa(index), Caption: caption},
+			Frame:               testcheck.Must(artifact.IdentifyFile(artifact.KindFile, filepath.Join(tokens, vid+captionTokensSuffix)))(t),
+		})
 	}
 	capturePath := filepath.Join(work, "capture.samples.json")
 	testcheck.NoError(t, jsonfile.Write(capturePath, capture, 0o600))
@@ -165,5 +169,10 @@ func TestEncoderBridgeTrainsACaptionProjector(t *testing.T) {
 	// two backward passes round differently; what each makes of the samples does not.
 	if math.Abs(losses["card"]-losses["host"]) > 1e-3*losses["host"] {
 		t.Fatalf("the host scores the card's bridge %.6f and its own %.6f; want the card to train the bridge the host does", losses["card"], losses["host"])
+	}
+	// A frame's tokens rewritten after the capture recorded them are not trained on.
+	testcheck.NoError(t, writeTokens(tokens, "clip-0"+captionTokensSuffix, make([]float32, rows*encoderWidth)))
+	if err := runRoute(t.Context(), run(filepath.Join(work, "rewritten"), "-host")); err == nil || !strings.Contains(err.Error(), "the capture recorded") {
+		t.Fatalf("a run over a frame rewritten after its capture was not refused for it: %v", err)
 	}
 }

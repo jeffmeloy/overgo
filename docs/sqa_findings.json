@@ -7903,11 +7903,11 @@
     "head": "abbfbf8963a2988dfd14459844c6b6a73369bd32",
     "findings": {
       "SQA-321": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
           "vision-bridge/cache-identity"
         ],
-        "note": "Accepted. vision-bridge/cache-identity, before vision-bridge/run, binds each cached sample to the inputs that made it and admits a hit only under them and a full payload; the samples file the capture now writes names each frame's token identity, and the caption-projector route, which reads the same cache by name and length, refuses a frame whose bytes differ. No ranking or training reads the capture before it lands."
+        "note": "Landed with vision-bridge/cache-identity. A sample is kept under the capture's inputs (the identities of its own executable, of the encoder's and the text model's files through modelartifact.FromHFPath, and of the frame decoder), its clip's bytes and its caption; a binding beside the frame tokens, written after them, holds that key, the representations and the tokens' identity, and a hit needs the same key, a full count and the recorded token bytes. The samples file names each frame's identity and the caption-projector route refuses other bytes. An unchanged capture resumes (two real samples: 16 s, then 4 s from the cache). The acceptance is not an input: it chooses the samples, which the spec recomputes each run, and no representation depends on it. The capture that ran under the old admission was stopped and is recaptured. TestCaptureCacheAdmitsOnlyItsOwnInputs holds unchanged reuse and changed caption, clip, inputs, count, short tokens and missing binding. Awaits the reviewer's closure."
       },
       "SQA-004": {
         "action": "none",

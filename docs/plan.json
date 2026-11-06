@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 165,
+        "nodes": 32,
         "reason": "device-cache measured 168 nodes, the lane's -fresh flag, its printing of passed packages and the driver library cudatest stats, with their doc comments; runner-reach, test-only-slice and claim-binding are estimated at about 160 more."
       },
       "steps": [
-        {
-          "id": "test-only-slice",
-          "title": "A change of tests alone measures no speed",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestATestOnlyChangeRunsNoScorecardSlice$'",
-          "rationale": "internal/landing/scorecard.go runs the scorecard slice, the benchmark on Bonsai-27B, about 19 seconds, whenever its reach is touched, and a commit that changes only tests and the test support only tests import cannot move a speed figure: measure only what a change can move.\nChange: the slice's reach is the production files its benchmark's binary builds from, so a change of test files and test-support packages alone runs no slice. TestATestOnlyChangeRunsNoScorecardSlice holds a test-only change to no slice and a production change of the benchmark's closure to one.\nServes: development velocity and the doctrine that a change measures only what it can move.\nDisappears: speed runs a change cannot move.\nEvidence: the gate's line, which names the slice only when it runs.\nBatch: host lane."
-        },
         {
           "id": "claim-binding",
           "title": "A claim's evidence binds the test it names, not the whole file",

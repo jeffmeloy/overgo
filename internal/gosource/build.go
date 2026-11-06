@@ -28,6 +28,9 @@ type BuildSelection struct {
 	Packages map[string]string
 	// Dependencies is the toolchain's transitive import closure per package.
 	Dependencies map[string][]string
+	// BuildDependencies is each package's own import closure, as its binary builds it, without what a test
+	// variant of it imports for its tests.
+	BuildDependencies map[string][]string
 }
 
 // HostBuildSelection derives file membership through the Go toolchain so build
@@ -44,7 +47,9 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	selection := BuildSelection{Root: root, Files: map[string]bool{}, Packages: map[string]string{}, Dependencies: map[string][]string{}}
+	selection := BuildSelection{
+		Root: root, Files: map[string]bool{}, Packages: map[string]string{}, Dependencies: map[string][]string{}, BuildDependencies: map[string][]string{},
+	}
 	if context, err := goOutput(root, "env", "GOOS", "GOARCH"); err == nil {
 		selection.Context = strings.Join(strings.Fields(string(context)), "/")
 	}
@@ -71,7 +76,13 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 			if len(pkg.DepsErrors) != 0 {
 				return BuildSelection{}, fmt.Errorf("dependency source selection: %s: %s", pkg.ImportPath, pkg.DepsErrors[0].Err)
 			}
-			pkg.ImportPath, _, _ = strings.Cut(pkg.ImportPath, " [")
+			var variant bool
+			pkg.ImportPath, _, variant = strings.Cut(pkg.ImportPath, " [")
+			if !variant {
+				if relative, err := filepath.Rel(root, pkg.Dir); err == nil && filepath.IsLocal(relative) {
+					selection.BuildDependencies[pkg.ImportPath] = pkg.Deps
+				}
+			}
 			relative, err := filepath.Rel(root, pkg.Dir)
 			if err != nil || !filepath.IsLocal(relative) {
 				continue

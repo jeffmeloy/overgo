@@ -34,9 +34,11 @@ const trailerSeparator = "\x1f"
 const bytesPerMiB = 1 << 20
 
 // slice is what the scorecard slice depends on: the benchmark binary's
-// closure, which embeds the built kernels, and the document; the module
-// files reach every lane.
-var slice = lane{packages: []string{"./cmd/benchmark"}, prefixes: []string{sliceDocument}}
+// build closure, which embeds the built kernels, and the document; the module
+// files reach every lane. A change of tests alone, the test support only tests
+// import or a test's data cannot move what the binary measures, so it runs no
+// slice.
+var slice = lane{packages: []string{"./cmd/benchmark"}, prefixes: []string{sliceDocument}, binary: true}
 
 // timedMetrics are the timed cells, reported as measured: one run cannot
 // tell a change from noise.

@@ -48,6 +48,10 @@ type lane struct {
 	// what that package imports reaches just the tests whose files' own
 	// imports take it in, and the lane runs those alone.
 	tests, testPrefix string
+	// binary says the lane runs its packages' built binaries, not their
+	// tests: its reach is their build closure, so a test file, the test
+	// support only tests import and a test's data reach it nowhere.
+	binary bool
 }
 
 // reach is what a change reaches a lane by: the first changed path that
@@ -585,10 +589,16 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 		// one outside the repository has no directory.
 		for _, file := range slices.Sorted(maps.Keys(selection.Packages)) {
 			importPath := selection.Packages[file]
-			if !candidate.owns(path.Dir(file)) {
+			if !candidate.owns(path.Dir(file)) || candidate.binary && strings.HasSuffix(file, "_test.go") {
 				continue
 			}
-			for _, dependency := range slices.Concat([]string{importPath}, selection.Dependencies[importPath], selection.Dependencies[importPath+".test"]) {
+			imports, tested := selection.Dependencies[importPath], selection.Dependencies[importPath+".test"]
+			if candidate.binary {
+				// A test variant of the package imports what its tests do; the
+				// binary builds the package alone.
+				imports, tested = selection.BuildDependencies[importPath], nil
+			}
+			for _, dependency := range slices.Concat([]string{importPath}, imports, tested) {
 				dependency, _, _ = strings.Cut(dependency, " [")
 				if _, held := closure[directories[dependency]]; !held {
 					closure[directories[dependency]] = path.Dir(file)
@@ -606,6 +616,9 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 			// so it reaches the lane only when that package is the lane's and
 			// the lane's build compiles it; a deleted one no longer says
 			// which builds did, so its package's lane is reached.
+			if candidate.binary && (strings.HasSuffix(name, "_test.go") || slices.Contains(strings.Split(path.Dir(name), "/"), "testdata")) {
+				return "", "", ""
+			}
 			if strings.HasSuffix(name, "_test.go") {
 				_, absent := os.Stat(filepath.Join(repo, filepath.FromSlash(name)))
 				if candidate.owns(path.Dir(name)) && (selection.Files[name] || errors.Is(absent, fs.ErrNotExist)) {

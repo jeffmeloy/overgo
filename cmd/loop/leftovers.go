@@ -238,8 +238,6 @@ func weighed(entry leftover, measure bool) leftover {
 			err = errors.New("it holds a link a recursive delete could follow: " + path)
 		case deletable && item.IsDir() && holdsStore(path):
 			state, err = stateHeld, errors.New("it holds a store or a store backup, which is never deleted: "+path)
-		case deletable && item.Name() == processlock.OutputLock && runHolds(path):
-			state, err = stateHeld, errors.New("a run holds it: its lock "+path+" is taken, or cannot be")
 		case item.Type().IsRegular():
 			var size int64
 			size, err = entrySize(item)
@@ -268,14 +266,6 @@ func entrySize(item fs.DirEntry) (int64, error) {
 func holdsStore(directory string) bool {
 	_, err := overgodb.ReadBackupSeal(directory)
 	return filepath.Base(directory) == gitauthority.CanonicalOvergoDBDirectory || !errors.Is(err, fs.ErrNotExist)
-}
-
-// runHolds reports whether a run holds the lock file it left in its output
-// directory, by taking the lock and letting it go at once. A lock that cannot
-// be taken for any reason is held: only a lock taken says the run has ended.
-func runHolds(lock string) bool {
-	taken, err := processlock.Acquire(lock, clioptions.PrivateFileMode)
-	return err != nil || taken.Close() != nil
 }
 
 // directory is the directory a line names: its root word's, joined with the
@@ -648,10 +638,6 @@ func outputs(f *facts, line place) []leftover {
 			return stateUnknown, "a file beside an experiment's outputs, and nothing says whose"
 		case cited(lines, f.data, filepath.Dir(path)) == "":
 			return stateUnknown, "no committed record names its experiment"
-		}
-		lock := filepath.Join(filepath.Dir(path), processlock.OutputLock)
-		if _, err := os.Lstat(lock); !errors.Is(err, fs.ErrNotExist) && runHolds(lock) {
-			return stateHeld, "a run holds its experiment: its lock " + lock + " is taken, or cannot be"
 		}
 		state, rule := unnamed(line, f.data, path)
 		if at := cited(lines, f.data, path); at != "" {

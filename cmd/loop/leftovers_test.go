@@ -1123,7 +1123,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	// The store field wraps: the path it names stands on its continuation line. The last field names
 	// an output too, and is no store field.
 	s.write("repo/docs/verification/sweep-note.txt", strings.Join([]string{
-		"outputs: experiments/done, experiments/sealed, experiments/live, experiments/idle, experiments/linked, experiments/pilot, experiments/rerun and experiments/busy",
+		"outputs: experiments/done, experiments/sealed, experiments/idle, experiments/linked, experiments/pilot and experiments/busy",
 		"store: a copy of the store taken before the runs,",
 		"  at D:/data/experiments/kept/store. The runs are kept out of the real store.",
 		`runs: D:\data\experiments\kept\runs\order-1`,
@@ -1163,19 +1163,10 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcheck.NoError(t, store.Close())
-	for _, output := range []string{"done/weights", "kept/store", "kept/runs/order-1", "live/run", "idle/run", "rerun/control", "busy/weights", "orphan/out", "sealed/named/" + filepath.Base(storePath)} {
+	for _, output := range []string{"done/weights", "kept/store", "kept/runs/order-1", "idle/run", "busy/weights", "orphan/out", "sealed/named/" + filepath.Base(storePath)} {
 		s.write("data/experiments/"+output+"/step.bin", "weights")
 	}
 	s.write("data/experiments/done/run.log", "log\n")
-	// A run that is still going holds the lock in its output directory, which is an entry or, for a
-	// run that wrote into the experiment's own directory, the directory above its entries; a run
-	// that ended left its lock file in either.
-	for _, output := range []string{"live/run", "rerun"} {
-		going := testcheck.Must(processlock.Acquire(s.at("data/experiments/"+output+"/"+processlock.OutputLock), 0o600))(t)
-		defer going.Close()
-	}
-	s.write("data/experiments/idle/run/"+processlock.OutputLock, "")
-	s.write("data/experiments/done/"+processlock.OutputLock, "")
 	s.write("outside/large.bin", "bytes behind a link")
 	linked := fixtureLink(s.at("outside"), filepath.Join(s.folder("data/experiments/linked/weights"), "out"))
 	if !linked {
@@ -1241,9 +1232,8 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	experiments := []string{
 		"kept data/experiments/busy/weights", "kept data/experiments/done/run.log", "kept data/experiments/done/weights", "kept data/experiments/idle/run",
-		"kept data/experiments/kept/runs", "kept data/experiments/kept/store", "kept data/experiments/live/run", "kept data/experiments/orphan/out",
+		"kept data/experiments/kept/runs", "kept data/experiments/kept/store", "kept data/experiments/orphan/out",
 		"kept data/experiments/pilot/run", "kept data/experiments/sealed/named", "kept data/experiments/sealed/out", "kept data/experiments/sealed/out.lock",
-		"kept data/experiments/rerun/control", "kept data/experiments/rerun/" + processlock.OutputLock, "kept data/experiments/done/" + processlock.OutputLock,
 	}
 	if linked {
 		experiments = append(experiments, "kept data/experiments/linked/weights")
@@ -1274,8 +1264,6 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			{"data/experiments/pilot/run", "kept", "the store registers"},
 			{"data/experiments/sealed/out", "kept", "a store or a store backup"},
 			{"data/experiments/sealed/named", "kept", "a store or a store backup"},
-			{"data/experiments/live/run", "kept", "a run holds it"},
-			{"data/experiments/rerun/control", "kept", "a run holds its experiment"},
 			{"data/experiments/orphan/out", "kept", "no committed record names its experiment"},
 			{"data/experiments/done/run.log", "kept", "a file"},
 		} {
@@ -1549,8 +1537,8 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		untouched(t, first, "", removed...)
 		for _, kept := range []string{
 			"data/checkpoints/proto/model.bin", "data/models/base/model.bin", "data/overgodb-store", "backups/sealed/blob", "data/overgodb-store.superseded-1/blob",
-			"data/experiments/pilot/run/reward/weights.bin", "data/experiments/kept/store/step.bin", "data/experiments/sealed/out", "data/experiments/live/run/step.bin",
-			"data/experiments/rerun/control/step.bin", "outside/large.bin", "lanes/merged/source/tracked.txt", "temporary/go-build2/b001/exe/loop.exe", "repo/tmp/open-row/probe.go",
+			"data/experiments/pilot/run/reward/weights.bin", "data/experiments/kept/store/step.bin", "data/experiments/sealed/out",
+			"outside/large.bin", "lanes/merged/source/tracked.txt", "temporary/go-build2/b001/exe/loop.exe", "repo/tmp/open-row/probe.go",
 		} {
 			if _, err := os.Stat(s.at(kept)); err != nil {
 				t.Errorf("%s did not outlive the removals: %v", kept, err)

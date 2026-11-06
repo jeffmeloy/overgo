@@ -55,16 +55,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 47,
+        "nodes": 164,
         "reason": "Measured: package-digests removes 66 production nodes, the two go list decoders the surface and the trigger held, against the 300 estimated unmeasured; one-layer-walk and one-lock-each set their own when measured."
       },
       "steps": [
         {
-          "id": "one-lock-each",
-          "title": "Hold each resource by one lock",
+          "id": "host-lanes",
+          "title": "Run the lanes that need no device outside the lane turn",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEachResourceHasOneLock$'",
-          "rationale": "Measure first: list each lock with the resource it guards. About ten exist: gate.lock (internal/authoritylock), landing_turn.lock (internal/landing/turn.go:81), the cycle lock (cmd/loop/improve.go:381), two leftovers locks (cmd/loop/leftovers.go:273,1182), the campaign lock (internal/processcontrol/campaign.go:67), stop.lock (internal/plan/control.go:233), the lane turn (internal/landing/lanes.go:240-247), the device-lane lease (cmd/device-lane/admission.go:77) and the guard's holder file (all unverified). One landing waited 7h59m for a turn (e63fd568a).\nMerge the locks that guard the same resource (checkout, card, store, plan).\nServes: development velocity.\nDisappears: locks with no resource of their own.\nEvidence: the list, and turn waits across a week.\nBatch: host lane."
+          "verify": "go test ./internal/landing -count=1 -run '^TestAHostLaneRunsOutsideTheLaneTurn$'",
+          "rationale": "The lane turn (internal/landing/lanes.go, laneTurn) guards the card for a landing's device lanes and a measurement run's device phases, yet a landing takes it for every lane it reaches, host-only lanes too: splitLanes already runs those beside the device lanes, inside the turn. Measured by one-home/one-lock-each's inventory: over the seven days to 2026-11-06, 62 landings waited 9.7 h in all for the lane turn, the longest 7.99 h (e63fd568a), and that one's lanes were the webui lane alone, which needs no card. The commit turn's longest wait was about 17 minutes.\nRun the lanes that need no device outside the lane turn, holding the quiet machine's shared side as the host stages do, so a measurement's timed cell still runs alone; a landing that reaches no device lane neither waits for the turn nor lets its checkout go.\nThe inventory also found a narrow deadlock: letGo asks whether the lane turn is held and waits for it in two steps, so a landing that found it free can keep the commit turn while a measurement takes the lane turn, whose timed cell then waits on the quiet machine another landing holds while it waits for the commit turn. Each wait has no limit. Taking the lane turn only for device lanes narrows who can enter that cycle; the fix closes it by taking the turn's free check and the wait as one.\nServes: development velocity.\nDisappears: host-only landings' waits on the device's turn.\nEvidence: lane turn waits across a week, before and after."
         }
       ]
     },

@@ -6172,6 +6172,31 @@ extern "C" __global__ void repeat_heads_f32(
 	if (token < tokens) output[index] = input[(size_t) token * width + column];
 }
 
+// relative_position_bucket is the bucket of relative_bias that holds a key distance tokens from its query, the key's
+// position less the query's: exact under half the buckets, logarithmic out to 128 tokens beyond, and with bidirectional
+// set each direction its own half.
+__device__ __forceinline__ unsigned int relative_position_bucket(int distance, unsigned int buckets, unsigned int bidirectional) {
+    unsigned int bucket = 0;
+    if (bidirectional) {
+        buckets /= 2;
+        bucket = distance > 0 ? buckets : 0;
+    } else if (distance > 0) {
+        distance = 0;
+    }
+    const unsigned int max_exact = buckets / 2;
+    distance = distance < 0 ? -distance : distance;
+    if ((unsigned int) distance < max_exact) {
+        bucket += (unsigned int) distance;
+    } else {
+        unsigned int large = max_exact + (unsigned int) floorf(
+            logf((float) distance / (float) max_exact) *
+            (float) (buckets - max_exact) /
+            logf(128.0f / (float) max_exact));
+        bucket += large < buckets ? large : buckets - 1;
+    }
+    return bucket;
+}
+
 extern "C" __global__ void attention_f32(
         const float * query,
         const float * key,
@@ -6266,27 +6291,8 @@ extern "C" __global__ void attention_f32(
 			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
 		}
         if (relative_bias != nullptr) {
-			unsigned int buckets = relative_buckets;
-			int distance = (int) key_token - ((int) query_start + (int) query_token);
-			unsigned int bucket = 0;
-			if (relative_bidirectional) {
-				buckets /= 2;
-				bucket = distance > 0 ? buckets : 0;
-			} else if (distance > 0) {
-				distance = 0;
-			}
-			const unsigned int max_exact = buckets / 2;
-			distance = distance < 0 ? -distance : distance;
-            if ((unsigned int) distance < max_exact) {
-                bucket += (unsigned int) distance;
-            } else {
-                unsigned int large = max_exact + (unsigned int) floorf(
-                    logf((float) distance / (float) max_exact) *
-					(float) (buckets - max_exact) /
-					logf(128.0f / (float) max_exact));
-				bucket += large < buckets ? large : buckets - 1;
-            }
-            score += relative_bias[bucket * query_heads + query_head];
+            score += relative_bias[relative_position_bucket(
+                (int) key_token - ((int) query_start + (int) query_token), relative_buckets, relative_bidirectional) * query_heads + query_head];
         }
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
@@ -6314,27 +6320,8 @@ extern "C" __global__ void attention_f32(
 			score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
 		}
         if (relative_bias != nullptr) {
-			unsigned int buckets = relative_buckets;
-			int distance = (int) key_token - ((int) query_start + (int) query_token);
-			unsigned int bucket = 0;
-			if (relative_bidirectional) {
-				buckets /= 2;
-				bucket = distance > 0 ? buckets : 0;
-			} else if (distance > 0) {
-				distance = 0;
-			}
-			const unsigned int max_exact = buckets / 2;
-			distance = distance < 0 ? -distance : distance;
-            if ((unsigned int) distance < max_exact) {
-                bucket += (unsigned int) distance;
-            } else {
-                unsigned int large = max_exact + (unsigned int) floorf(
-                    logf((float) distance / (float) max_exact) *
-					(float) (buckets - max_exact) /
-					logf(128.0f / (float) max_exact));
-				bucket += large < buckets ? large : buckets - 1;
-            }
-            score += relative_bias[bucket * query_heads + query_head];
+            score += relative_bias[relative_position_bucket(
+                (int) key_token - ((int) query_start + (int) query_token), relative_buckets, relative_bidirectional) * query_heads + query_head];
         }
         if (softcap > 0.0f) {
             score = softcap * tanhf(score / softcap);
@@ -6738,27 +6725,8 @@ __device__ __forceinline__ void attention_online(
                     score -= (float) (distance < 0 ? -distance : distance) * alibi_slope;
                 }
                 if (relative_bias != nullptr) {
-                    unsigned int buckets = relative_buckets;
-                    int distance = (int) key_token - (int) query_position;
-                    unsigned int bucket = 0;
-                    if (relative_bidirectional) {
-                        buckets /= 2;
-                        bucket = distance > 0 ? buckets : 0;
-                    } else if (distance > 0) {
-                        distance = 0;
-                    }
-                    const unsigned int max_exact = buckets / 2;
-                    distance = distance < 0 ? -distance : distance;
-                    if ((unsigned int) distance < max_exact) {
-                        bucket += (unsigned int) distance;
-                    } else {
-                        unsigned int large = max_exact + (unsigned int) floorf(
-                            logf((float) distance / (float) max_exact) *
-                            (float) (buckets - max_exact) /
-                            logf(128.0f / (float) max_exact));
-                        bucket += large < buckets ? large : buckets - 1;
-                    }
-                    score += relative_bias[bucket * query_heads + query_head];
+                    score += relative_bias[relative_position_bucket(
+                        (int) key_token - (int) query_position, relative_buckets, relative_bidirectional) * query_heads + query_head];
                 }
                 if (softcap > 0.0f) score = softcap * tanhf(score / softcap);
                 if (key_bias != nullptr) score += key_bias[key_token];
@@ -8926,14 +8894,6 @@ __device__ unsigned int read_u16_le(const unsigned char * value) {
     return (unsigned int) value[0] | ((unsigned int) value[1] << 8);
 }
 
-__device__ unsigned int read_u32_le(const unsigned char * value) {
-    return
-        (unsigned int) value[0] |
-        ((unsigned int) value[1] << 8) |
-        ((unsigned int) value[2] << 16) |
-        ((unsigned int) value[3] << 24);
-}
-
 __device__ unsigned int iq_sign_mask(unsigned int index) {
     index &= 0x7f;
     unsigned int parity = index;
@@ -8965,8 +8925,8 @@ __device__ float dequant_iq2_xxs_value(
     const unsigned int sub_group = within / 8;
     const unsigned int lane = within % 8;
     const unsigned char * packed = block + 2 + group * 8;
-    const unsigned int first = read_u32_le(packed);
-    const unsigned int second = read_u32_le(packed + 4);
+    const unsigned int first = load_u32_le(packed);
+    const unsigned int second = load_u32_le(packed + 4);
     const unsigned int grid_index =
         (first >> (sub_group * 8)) & 0xff;
     const unsigned int signs = iq_sign_mask(
@@ -9030,7 +8990,7 @@ __device__ float dequant_iq3_xxs_value(
     const unsigned int within = column % 32;
     const unsigned int sub_group = within / 8;
     const unsigned int lane = within % 8;
-    const unsigned int packed = read_u32_le(block + 66 + group * 4);
+    const unsigned int packed = load_u32_le(block + 66 + group * 4);
     const unsigned int signs = iq_sign_mask(
         (packed >> (sub_group * 7)) & 0x7f);
     const unsigned int grid_index =
@@ -9501,92 +9461,37 @@ extern "C" __global__ void dequant_rows_q8_0_f16(
     output[index] = __float2half(scale * (float) quantized);
 }
 
-extern "C" __global__ void dequant_rows_q4_K_f16(
-        const unsigned char * weight,
-        __half * output,
-        unsigned int inner,
-        unsigned int start_row,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % inner;
-    const unsigned int row = start_row + index / inner;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 144;
-    output[index] = __float2half(dequant_q4_K_value(block, column % 256));
+// DEFINE_DEQUANT_ROWS_F16 expands rows of a weight of BLOCK_WIDTH-column blocks of BLOCK_BYTES bytes each to f16,
+// one column per thread, through its dequantizer.
+#define DEFINE_DEQUANT_ROWS_F16(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
+extern "C" __global__ void dequant_rows_##TAG##_f16( \
+        const unsigned char * weight, \
+        __half * output, \
+        unsigned int inner, \
+        unsigned int start_row, \
+        unsigned int count) { \
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x; \
+    if (index >= count) { \
+        return; \
+    } \
+    const unsigned int column = index % inner; \
+    const unsigned int row = start_row + index / inner; \
+    const unsigned int blocks_per_row = inner / BLOCK_WIDTH; \
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / BLOCK_WIDTH) * BLOCK_BYTES; \
+    output[index] = __float2half(DEQUANT(block, column % BLOCK_WIDTH)); \
 }
 
-extern "C" __global__ void dequant_rows_q5_K_f16(
-        const unsigned char * weight,
-        __half * output,
-        unsigned int inner,
-        unsigned int start_row,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % inner;
-    const unsigned int row = start_row + index / inner;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 176;
-    output[index] = __float2half(dequant_q5_K_value(block, column % 256));
-}
+DEFINE_DEQUANT_ROWS_F16(q4_K, 256, 144, dequant_q4_K_value)
 
-extern "C" __global__ void dequant_rows_q6_K_f16(
-        const unsigned char * weight,
-        __half * output,
-        unsigned int inner,
-        unsigned int start_row,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % inner;
-    const unsigned int row = start_row + index / inner;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 210;
-    output[index] = __float2half(dequant_q6_K_value(block, column % 256));
-}
+DEFINE_DEQUANT_ROWS_F16(q5_K, 256, 176, dequant_q5_K_value)
+
+DEFINE_DEQUANT_ROWS_F16(q6_K, 256, 210, dequant_q6_K_value)
 
 // dequant_rows_iq4_nl_f16 and dequant_rows_iq4_xs_f16 expand the non-linear 4-bit types the UD mixes carry beside
 // their K-quants, so those weights prefill on tensor cores with the rest instead of the per-row dot kernels.
-extern "C" __global__ void dequant_rows_iq4_nl_f16(
-        const unsigned char * weight,
-        __half * output,
-        unsigned int inner,
-        unsigned int start_row,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % inner;
-    const unsigned int row = start_row + index / inner;
-    const unsigned int blocks_per_row = inner / 32;
-    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 32) * 18;
-    output[index] = __float2half(dequant_iq4_nl_value(block, column % 32));
-}
+DEFINE_DEQUANT_ROWS_F16(iq4_nl, 32, 18, dequant_iq4_nl_value)
 
-extern "C" __global__ void dequant_rows_iq4_xs_f16(
-        const unsigned char * weight,
-        __half * output,
-        unsigned int inner,
-        unsigned int start_row,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % inner;
-    const unsigned int row = start_row + index / inner;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 136;
-    output[index] = __float2half(dequant_iq4_xs_value(block, column % 256));
-}
+DEFINE_DEQUANT_ROWS_F16(iq4_xs, 256, 136, dequant_iq4_xs_value)
 
 DEFINE_SMALL_QUANT_KERNELS(q6_K, 256, 210, dequant_q6_K_value)
 
@@ -10684,12 +10589,6 @@ __device__ __forceinline__ bool visit_q8_format(unsigned int storage, Visit visi
     }
 }
 
-// q8_row returns the first block of the row of a bank that starts at weight first.
-template <typename Format>
-__device__ __forceinline__ const unsigned char * q8_row(const void * bank, size_t first) {
-    return reinterpret_cast<const unsigned char *>(bank) + first / Format::width * Format::bytes;
-}
-
 // moe_q8_rows_dot adds a lane's share of two rows' dots with each of COLUMNS q8 columns to sums[row][column].
 //   - the lane takes sub-blocks first, first + step, ... of the rows
 //   - a column's sums do not depend on the other columns; the rows' reads and decode, alike for every column, are the
@@ -10784,8 +10683,8 @@ __device__ __forceinline__ void moe_q8_banks(
     const size_t first =
         (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden +
         (size_t) inner_index * hidden;
-    gate_row = q8_row<Format>(gate, first);
-    up_row = q8_row<Format>(up, first + (fused_gate_up ? (size_t) intermediate * hidden : 0));
+    gate_row = block_row<Format>(gate, first);
+    up_row = block_row<Format>(up, first + (fused_gate_up ? (size_t) intermediate * hidden : 0));
 }
 
 // moe_q8_columns stores routed row index's activation for each of the columns slots packs, its half warp's.
@@ -11171,7 +11070,7 @@ extern "C" __global__ void __launch_bounds__(MOE_DOWN_THREADS, MOE_DOWN_RESIDENT
                     if (normalize_top_k) weight /= fmaxf(selected_sum, 6.103515625e-5f);
                     weight *= expert_scale ? expert_scale[expert] : 1.0f;
                     const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
-                    const unsigned char * row = q8_row<Format>(
+                    const unsigned char * row = block_row<Format>(
                         bank, ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate);
                     const unsigned char * values = token_values + (size_t) (slot * row_subs + sub) * Q8_INPUT_BLOCK_BYTES;
                     int x[MOE_Q8_WORDS];
@@ -11222,14 +11121,6 @@ constexpr unsigned int MOE_TILE_COLUMNS = MOE_TILE_TOKENS / MOE_MMA_TOKENS;
 constexpr unsigned int MOE_TILE_STRIDE = MOE_TILE_DEPTH + 8;
 // MOE_MMA_ELEMENTS: the accumulators a lane holds of one mma tile, rows g and g + 8 by columns 2t and 2t + 1.
 constexpr unsigned int MOE_MMA_ELEMENTS = 4;
-
-// half_mma accumulates the product of a 16x16 f16 A fragment and a 16x8 f16 B fragment into a 16x8 F32 tile.
-__device__ __forceinline__ void half_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
-    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
-        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
-        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
-        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
-}
 
 // moe_tile_store writes four weights as f16.
 __device__ __forceinline__ void moe_tile_store(__half * at, const float * w) {
@@ -11360,8 +11251,8 @@ __device__ __forceinline__ void moe_tile_product(const __half * weights, const f
                 attention_ldx4(attention_shared_address(inputs +
                         (column * MOE_MMA_TOKENS + b_row) * MOE_TILE_STRIDE + k + b_column),
                     b0, b1, b2, b3);
-                half_mma(parts[column], a, b0, b1);
-                half_mma(parts[column + 1], a, b2, b3);
+                mma_f16_16x8x16(parts[column], a, b0, b1);
+                mma_f16_16x8x16(parts[column + 1], a, b2, b3);
             }
         }
         // A lane's elements 0 and 1 lie in row g and 2 and 3 in row g + 8.

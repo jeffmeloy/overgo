@@ -79,13 +79,6 @@
       },
       "steps": [
         {
-          "id": "near-copies",
-          "title": "Fold the kernels' remaining near copies",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestKernelNearCopiesHaveOneBody$'",
-          "rationale": "consolidate/quant-kernels folded the six get_rows and mul_mat pairs that were the small-quant macro's exact expansion, which compiled to the same PTX, and left what its text measured beyond them: the relative-bias code written three times in kernels/cuda/ops_f32.cu, load_u32_le beside read_u32_le, which reads the same little-endian word, the dequant_rows clusters, about 44 lines of one shape, and up to 1,016 lines of near copies that differ in more than names.\nChange: each fold that keeps its kernels' PTX byte-identical lands as such; a fold whose PTX moves keeps every kernel it touches at its parity tests on the device, and names the move. TestKernelNearCopiesHaveOneBody holds the relative-bias code and the little-endian word reader to one body each in the kernel sources.\nServes: less kernel code to keep right.\nDisappears: the relative-bias copies, the second word reader and the dequant_rows copies.\nEvidence: the test, the PTX hashes and the device lane's parity tests.\nBatch: device lane in full."
-        },
-        {
           "id": "split-ops",
           "title": "Split ops_f32.cu by include with identical compiled code",
           "status": "open",

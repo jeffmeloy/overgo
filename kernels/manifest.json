@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "488f8d38264e86f47bc903e203efd9e38fa6897f49958018b79bd37e7300083e",
+      "sourceSha256": "32779a0128ef19bdb23f5f9682cf1bb4d3d337c7d8f39ec73691c52820d10956",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",

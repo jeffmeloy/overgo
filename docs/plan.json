@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "test-reach",
-      "title": "Run the checks that exist but reach little",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Measured: race-wide adds processmeasure's Unix SelfPeakWorkingSet, 77 nodes, without which two packages' tests do not build on Linux, where the race job runs; the workflow and script changes add none."
-      },
-      "steps": [
-        {
-          "id": "fuzz-or-delete",
-          "title": "Run fuzz-smoke or remove it, and remove stall_check",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryFuzzTargetRunsInAScheduledJob$'",
-          "rationale": "Nothing calls scripts/fuzz-smoke.sh or scripts/stall_check.sh, so ten fuzz targets run only their seeds. Run alone, the script is wrong too: FuzzSessionStateNeverPanics exists nowhere and exits 0 ('no fuzz tests to fuzz'), and FuzzFrontend, FuzzTemplate and FuzzAudioDecode are left out, so 7 of 10 run (measured).\nDerive the list from the tree, add a scheduled job with a short duration, and delete stall_check.sh. The first check, a grep of the workflow, a comment could satisfy.\nServes: parser and template faults found by mutation.\nDisappears: one unused script and a hand-kept list.\nEvidence: a job log.\nBatch: CI only."
-        }
-      ]
-    },
-    {
       "id": "unattended-driver",
       "title": "Make the unattended driver start and keep working",
       "owner": "master-lead",

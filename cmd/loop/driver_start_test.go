@@ -29,7 +29,7 @@ func TestADriverStartsFromItsConfigAlone(t *testing.T) {
 		return run([]string{"-repo", absent})
 	}
 	testcheck.NoError(t, start(`{"worker": ["worker", "{prompt}"], "name": "fixture-worker", "prompt": "loop_prompt.md",
-		"max_attempts_per_step": 1, "max_invocations": 1, "worker_timeout_minutes": 1}`))
+		"max_attempts_per_step": 1, "max_invocations": 1}`))
 	if locator := string(testcheck.Must(os.ReadFile(filepath.Join(state, "loop_supervisor.json")))(t)); !strings.Contains(locator, `"fixture-worker"`) {
 		t.Fatalf("the campaign records %s, want the config's name", locator)
 	}

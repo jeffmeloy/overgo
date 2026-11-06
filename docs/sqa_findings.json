@@ -7960,6 +7960,18 @@
         "plan_steps": [
           "consolidate/cell-step-reads"
         ]
+      },
+      {
+        "comment": "Landed with unattended-driver/ownership-wait: after the cycle an emptied plan started, a dispatch that finds the row another worker's goes back to the top of Run, which ends the run as waiting and checks stops first; a real read error and the no-work completion stand. The driver started from loop.json (first-start) runs the cycle in its own process, so a run is supervised through its real exit rather than a detached launcher's, and its worker has no fixed timeout: it ends by its exit or a stop. TestARunThatFindsWorkWaitingSaysSo holds the run to waiting at a round's top, at a worker's exit and after a cycle.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestARunThatFindsWorkWaitingSaysSo",
+          "TestADriverStartsFromItsConfigAlone"
+        ],
+        "finding_id": "SQA-271",
+        "plan_steps": [
+          "unattended-driver/ownership-wait"
+        ]
       }
     ],
     "experiments": {
@@ -8001,7 +8013,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "1b907c644b218de7cc9f81d76382fd1c1654d2bf",
+    "head": "5cd51fbfa62c335c220ba31c0eff4f7a21f73a80",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8228,11 +8240,11 @@
         "note": "Moved with sqa-cycle/run-continuation to the owner SQA-271 names: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success. It waits on the driver-future decision."
       },
       "SQA-271": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
           "unattended-driver/ownership-wait"
         ],
-        "note": "Decision driver-future is answered: repair the driver. unattended-driver/first-start starts it from loop.json alone and leaves the waiting disposition and the supervision through a run's real exit to unattended-driver/ownership-wait, where this finding's change lands."
+        "note": "Landed with unattended-driver/ownership-wait: after the cycle an emptied plan started, a dispatch that finds the row another worker's goes back to the top of Run, which ends the run as waiting and checks stops first; a real read error and the no-work completion stand. The driver started from loop.json (first-start) runs the cycle in its own process, so a run is supervised through its real exit rather than a detached launcher's, and its worker has no fixed timeout: it ends by its exit or a stop. TestARunThatFindsWorkWaitingSaysSo holds the run to waiting at a round's top, at a worker's exit and after a cycle. Awaits the reviewer's resolution."
       },
       "SQA-268": {
         "action": "declined",

@@ -14,12 +14,12 @@
 //	  "name": "claude-master-lead",
 //	  "prompt": "loop_prompt.md",
 //	  "max_attempts_per_step": 3,
-//	  "max_invocations": 40,
-//	  "worker_timeout_minutes": 90
+//	  "max_invocations": 40
 //	}
 //
 // The prompt file, beside the config, opens every worker's prompt; the name is the
-// worker's identity, to which its landings are held; the two budgets bound the run.
+// worker's identity, to which its landings are held; the two budgets bound the run. A worker
+// runs until it exits or a stop ends it: a landing inside it can outlast any fixed bound.
 //
 // Pause by creating .overgo-runtime/loop_pause; delete it to resume.
 //
@@ -54,7 +54,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/dataroot"
@@ -85,7 +84,6 @@ type config struct {
 	Prompt string `json:"prompt"`
 	// Config is the run's two budgets: the attempts a step takes and the worker's invocations.
 	loop.Config
-	WorkerTimeoutMinutes int `json:"worker_timeout_minutes"`
 }
 
 func main() {
@@ -202,9 +200,6 @@ func run(args []string) error {
 	if len(loaded.Worker) == 0 || loaded.Prompt == "" {
 		return errors.New("config names no worker command or no prompt file")
 	}
-	if loaded.WorkerTimeoutMinutes <= 0 {
-		loaded.WorkerTimeoutMinutes = 90
-	}
 	prompt, err := os.ReadFile(filepath.Join(filepath.Dir(*configPath), loaded.Prompt))
 	if err != nil {
 		return fmt.Errorf("load prompt: %w", err)
@@ -318,7 +313,7 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	for index, argument := range w.config.Worker[1:] {
 		arguments[index] = strings.ReplaceAll(argument, "{prompt}", text)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(w.config.WorkerTimeoutMinutes)*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	watchDone := make(chan struct{})
 	if w.campaign != nil {

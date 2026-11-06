@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "unattended-driver",
-      "title": "Make the unattended driver start and keep working",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1204,
-        "reason": "Estimate. One init command and a wait in the existing driver. If decision driver-future chooses removal, this row deletes the driver instead."
-      },
-      "steps": [
-        {
-          "id": "ownership-wait",
-          "title": "End a run that finds work waiting as waiting, not as an error",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestARunThatFindsWorkWaitingSaysSo$'",
-          "rationale": "Partly repaired since filing: the driver waits on the lock (cmd/loop/main.go:290,321-323), and decisions no longer wait (internal/plan/dispatch.go:234-243). What remains is a stop, which Paused handles first, and another lane's rows (dispatch.go:246).\nThe live fault is after a worker exits: a dispatch found waiting there returns reason '' with 'loop: re-read plan: ...' (internal/loop/driver.go:240-243, measured), where :164-167 gives a waiting reason, and :179-181 reports plan-complete with an error. internal/loop/dispatch_wait_test.go:17 pins the current return. Wake on the plan's commit or a released lock, a signal and not a timer, as doctrine requires.\nWorkerTimeoutMinutes defaulting to 90 (main.go:213-215) is a fixed timer the same doctrine refuses, and a landing can outlast it: bound by the landing's own signals.\nSQA-258 and SQA-271 land here: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success and a finished or failed run is acted on without a nudge. sqa-cycle/run-continuation was retired into this step, as SQA-271 directs.\nServes: unattended runtime.\nDisappears: the 90-minute default.\nEvidence: a world that releases a row after one wait, and a waiting plan after a worker exits.\nBatch: loop lane."
-        }
-      ]
-    },
-    {
       "id": "vision-bridge",
       "title": "Test one composite model: give Qwen3.5-9B vision through a trained bridge",
       "owner": "master-lead",

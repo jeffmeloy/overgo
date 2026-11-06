@@ -31,7 +31,7 @@ func TestCampaignWorkerExitContinues(t *testing.T) {
 	}
 	root := t.TempDir()
 	t.Setenv(helperRoot, root)
-	world := &campaignWorkerWorld{root: root, runner: execWorld{promptPrefix: "Test campaign policy", config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignWorkerExitContinues$"}, WorkerTimeoutMinutes: 1}}}
+	world := &campaignWorkerWorld{root: root, runner: execWorld{promptPrefix: "Test campaign policy", config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignWorkerExitContinues$"}}}}
 	result, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 2, MaxInvocations: 3})
 	if err != nil || result.Reason != loop.ReasonPlanComplete || result.Invocations != 2 {
 		t.Fatalf("real worker continuation: %+v %v", result, err)

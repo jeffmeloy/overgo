@@ -156,8 +156,13 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, err
 			}
 			// A cycle files its rows when its scorecard is published, before its lanes
-			// run, so rows may be in the plan that this last proposal found already held.
-			if _, filed, readErr := world.Current(); added == 0 && (readErr != nil || !filed) {
+			// run, so rows may be in the plan that this last proposal found already held,
+			// and another worker may hold them by now, which the round's top says.
+			_, filed, readErr := world.Current()
+			if errors.Is(readErr, ErrWorkWaiting) {
+				continue
+			}
+			if added == 0 && (readErr != nil || !filed) {
 				outcome.Reason = ReasonPlanComplete
 				return outcome, readErr
 			}

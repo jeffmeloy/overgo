@@ -30,7 +30,7 @@ func TestCampaignActiveWorkerStop(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer campaign.Close()
 	t.Setenv(helperRoot, root)
-	world := &execWorld{campaign: campaign, config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignActiveWorkerStop$"}, WorkerTimeoutMinutes: 1}}
+	world := &execWorld{campaign: campaign, config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignActiveWorkerStop$"}}}
 	_, err = world.RunWorker(loop.Step{Item: "fixture", ID: "do"}, "fixture", "")
 	if err != nil || !world.Paused() {
 		t.Fatalf("active worker stop: %v", err)

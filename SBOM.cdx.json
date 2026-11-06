@@ -156,10 +156,175 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "32779a0128ef19bdb23f5f9682cf1bb4d3d337c7d8f39ec73691c52820d10956"
+          "content": "0ac2e90aecf219dad8af52eefc9579cf20cd91fd3e6e1b1cb58516d4edceb1b8"
         }
       ],
       "name": "kernels/cuda/ops_f32.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_activations.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1b66aa97d9c9e93fba9598d7fcc7951bc3f85d003a8bbc13e5ab1d0ce4205f66"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_activations.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_attention.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8e2f686d9e15748d471f00275c20017fbcf164fd0e613b3cbf25f07e79e67d10"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_attention.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_common.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "221b5257d563f925d043bdf446fa36fb73bedfc55328b08ac77946fef0e7d02b"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_common.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_elementwise.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "befcbdea18b1f265b8b813c8fded219af7ec612f380c423a14e0a48aeec6d6e9"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_elementwise.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_experts.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6ba6d5c97b16d28d42d9eab79441b7ea191fb2c5098d0c9009e86c0b40812573"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_experts.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_norms.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9d38ad98f76ace7387a98bcc18b34aadd98cebb449df7994feeb3a4f1dfcb645"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_norms.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_quant.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e0c6f9661663ee42738fb64ca765e8322b3a8ab2c01a91f3889c2fe5ba10fdb1"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_quant.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_recurrent.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "299ce360f67e0c997760f28a0eb8efe54424821512faa5ab33e6f35367289e51"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_recurrent.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_routing.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f8842842c89f8a9f8b607fe87bb835558afc71e94f61116ce401ae3d1d602472"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_routing.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_rows.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8f2c0d583308ea690cf0adbb67d60ec67ab1694ba400bfd4de402a0d869ffb95"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_rows.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_selection.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b0d6528204531a2fe5ffdf2a5caf8d7e62c5bf1efb44c659769a8f8ce6251c24"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_selection.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_tail.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a23a3a694a1706326d391e31beb73288ff63bd0720837bdaa23da125b59ece27"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_tail.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_unary.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7ce3a921ad89a03c7ba108e2097f950566308800254d50a21c407fdabc7c9ca6"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_unary.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_vae.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c63d3c3a6e08350b0c7d18176bace4ab09fbe0aa840226f8c321b548b3b52365"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_vae.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_f32_vision.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7ec9f93e3ba96961bdeb1129566aa3cb2ee916fc7eff720dc1d0bb9ee89479b3"
+        }
+      ],
+      "name": "kernels/cuda/ops_f32_vision.cuh",
       "type": "file"
     },
     {
@@ -387,7 +552,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "5e481f2b785c1bfc342600ee7ea1aaab488477d33eecb42e8778fcecf46f5fbc"
+          "content": "3133d0bc84c20e67b2d2608301b05bf22bf1e59d307b104f4c12f345d41721e5"
         }
       ],
       "name": "kernels/manifest.json",
@@ -536,6 +701,21 @@
         "file:kernels/cuda/bf16_pack.cuh",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/ops_f32_activations.cuh",
+        "file:kernels/cuda/ops_f32_attention.cuh",
+        "file:kernels/cuda/ops_f32_common.cuh",
+        "file:kernels/cuda/ops_f32_elementwise.cuh",
+        "file:kernels/cuda/ops_f32_experts.cuh",
+        "file:kernels/cuda/ops_f32_norms.cuh",
+        "file:kernels/cuda/ops_f32_quant.cuh",
+        "file:kernels/cuda/ops_f32_recurrent.cuh",
+        "file:kernels/cuda/ops_f32_routing.cuh",
+        "file:kernels/cuda/ops_f32_rows.cuh",
+        "file:kernels/cuda/ops_f32_selection.cuh",
+        "file:kernels/cuda/ops_f32_tail.cuh",
+        "file:kernels/cuda/ops_f32_unary.cuh",
+        "file:kernels/cuda/ops_f32_vae.cuh",
+        "file:kernels/cuda/ops_f32_vision.cuh",
         "file:kernels/cuda/ops_native.cu",
         "file:kernels/cuda/strata_fused_gr.cuh",
         "file:kernels/cuda/strata_gdn.cuh",

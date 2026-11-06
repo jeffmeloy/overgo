@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "32779a0128ef19bdb23f5f9682cf1bb4d3d337c7d8f39ec73691c52820d10956",
+      "sourceSha256": "0ac2e90aecf219dad8af52eefc9579cf20cd91fd3e6e1b1cb58516d4edceb1b8",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -77,6 +77,66 @@
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
           "sha256": "e40dee7da7aed613de7b1c291aa8dd10a9be046db10fdb00077bf4072e5d64e7"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_activations.cuh",
+          "sha256": "1b66aa97d9c9e93fba9598d7fcc7951bc3f85d003a8bbc13e5ab1d0ce4205f66"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_attention.cuh",
+          "sha256": "8e2f686d9e15748d471f00275c20017fbcf164fd0e613b3cbf25f07e79e67d10"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_common.cuh",
+          "sha256": "221b5257d563f925d043bdf446fa36fb73bedfc55328b08ac77946fef0e7d02b"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_elementwise.cuh",
+          "sha256": "befcbdea18b1f265b8b813c8fded219af7ec612f380c423a14e0a48aeec6d6e9"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_experts.cuh",
+          "sha256": "6ba6d5c97b16d28d42d9eab79441b7ea191fb2c5098d0c9009e86c0b40812573"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_norms.cuh",
+          "sha256": "9d38ad98f76ace7387a98bcc18b34aadd98cebb449df7994feeb3a4f1dfcb645"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_quant.cuh",
+          "sha256": "e0c6f9661663ee42738fb64ca765e8322b3a8ab2c01a91f3889c2fe5ba10fdb1"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_recurrent.cuh",
+          "sha256": "299ce360f67e0c997760f28a0eb8efe54424821512faa5ab33e6f35367289e51"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_routing.cuh",
+          "sha256": "f8842842c89f8a9f8b607fe87bb835558afc71e94f61116ce401ae3d1d602472"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_rows.cuh",
+          "sha256": "8f2c0d583308ea690cf0adbb67d60ec67ab1694ba400bfd4de402a0d869ffb95"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_selection.cuh",
+          "sha256": "b0d6528204531a2fe5ffdf2a5caf8d7e62c5bf1efb44c659769a8f8ce6251c24"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_tail.cuh",
+          "sha256": "a23a3a694a1706326d391e31beb73288ff63bd0720837bdaa23da125b59ece27"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_unary.cuh",
+          "sha256": "7ce3a921ad89a03c7ba108e2097f950566308800254d50a21c407fdabc7c9ca6"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_vae.cuh",
+          "sha256": "c63d3c3a6e08350b0c7d18176bace4ab09fbe0aa840226f8c321b548b3b52365"
+        },
+        {
+          "path": "kernels/cuda/ops_f32_vision.cuh",
+          "sha256": "7ec9f93e3ba96961bdeb1129566aa3cb2ee916fc7eff720dc1d0bb9ee89479b3"
         },
         {
           "path": "kernels/cuda/strata_qsa_native.cuh",

@@ -12,15 +12,22 @@ import (
 )
 
 // TestKernelNearCopiesHaveOneBody holds the kernel sources to one body for what consolidate/near-copies folded: no two
-// __device__ functions of one kernel source whose bodies are one once their parameters' names are set aside, as the two
-// little-endian word readers were, a struct's own members aside, which read its own constants, and a header kept in a
-// namespace of its own keeping its own helpers; the relative position bucket's arithmetic once, in
-// relative_position_bucket; and no hand-written dequant_rows_<tag>_f16 kernel that is, token for token,
-// DEFINE_DEQUANT_ROWS_F16's expansion.
+// __device__ functions of one kernel module, a source as its compiler reads it, whose bodies are one once their
+// parameters' names are set aside, as the two little-endian word readers were, a struct's own members aside, which read
+// its own constants, and a header kept in a namespace of its own keeping its own helpers; the relative position
+// bucket's arithmetic once, in relative_position_bucket; and no hand-written dequant_rows_<tag>_f16 kernel that is,
+// token for token, DEFINE_DEQUANT_ROWS_F16's expansion.
 func TestKernelNearCopiesHaveOneBody(t *testing.T) {
 	t.Parallel()
 	for _, path := range testcheck.Must(filepath.Glob(filepath.Join("..", "..", "kernels", "cuda", "*.cu*")))(t) {
+		// The ops_f32 module's family headers are read as the one text they compile in.
+		if strings.HasPrefix(filepath.Base(path), "ops_f32_") {
+			continue
+		}
 		source, seen := string(testcheck.Must(os.ReadFile(path))(t)), map[string]string{}
+		if filepath.Base(path) == "ops_f32.cu" {
+			source = moduleText(t)
+		}
 		for _, function := range deviceFunctions(source) {
 			if first, repeated := seen[function.shape]; repeated {
 				t.Errorf("%s: %s repeats %s's body", filepath.Base(path), function.name, first)
@@ -29,7 +36,7 @@ func TestKernelNearCopiesHaveOneBody(t *testing.T) {
 			seen[function.shape] = function.name
 		}
 	}
-	source := string(testcheck.Must(os.ReadFile(filepath.Join("..", "..", "kernels", "cuda", "ops_f32.cu")))(t))
+	source := moduleText(t)
 	bucket := cudaTokens("logf(128.0f / (float) max_exact)")
 	if found := tokenRuns(cudaTokens(source), bucket); found != 1 {
 		t.Errorf("ops_f32.cu takes the relative position bucket %d times, want once, in relative_position_bucket", found)

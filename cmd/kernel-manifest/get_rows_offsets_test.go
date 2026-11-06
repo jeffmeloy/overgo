@@ -15,7 +15,7 @@ import (
 // size_t offsets do not. Each read of the table, table[...] or table + ..., widens before it multiplies.
 func TestGetRowsAddressAWholeTable(t *testing.T) {
 	t.Parallel()
-	sources := testcheck.Must(filepath.Glob(filepath.Join("..", "..", "kernels", "cuda", "*.cu")))(t)
+	sources := testcheck.Must(filepath.Glob(filepath.Join("..", "..", "kernels", "cuda", "*.cu*")))(t)
 	kernels := 0
 	for _, path := range sources {
 		source := string(testcheck.Must(os.ReadFile(path))(t))

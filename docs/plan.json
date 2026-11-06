@@ -79,16 +79,6 @@
       },
       "steps": [
         {
-          "id": "split-ops",
-          "title": "Split ops_f32.cu by include with identical compiled code",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestOpsF32IsSplitByFamily$'",
-          "rationale": "One file of 12,603 lines and 554,877 bytes exists for its compiler flags, not its content. Includes by operation family leave the PTX bytes identical, which the pins prove once kernel-proof holds. It moves the surface as quant-kernels does.\nServes: reviewable kernels.\nDisappears: one 551 KB file.\nEvidence: unchanged asset hashes.\nBatch: one commit with the other surface moves, before one measurement run.",
-          "depends_on": [
-            "consolidate/quant-kernels"
-          ]
-        },
-        {
           "id": "unused-kernels",
           "title": "Remove kernels nothing launches",
           "status": "open",

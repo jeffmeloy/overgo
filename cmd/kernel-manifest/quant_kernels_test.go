@@ -15,13 +15,13 @@ import (
 // tag's pair stands.
 var smallQuantMacros = []string{"DEFINE_SMALL_QUANT_GET_ROWS", "DEFINE_SMALL_QUANT_MUL_MAT"}
 
-// TestSmallQuantKernelsHaveOneBody holds kernels/cuda/ops_f32.cu to one body for the small-quant get_rows and mul_mat
+// TestSmallQuantKernelsHaveOneBody holds the ops_f32 module, kernels/cuda/ops_f32.cu with its family headers, to one body for the small-quant get_rows and mul_mat
 // kernels, DEFINE_SMALL_QUANT_KERNELS: no hand-written get_rows_<tag>_f32 and mul_mat_<tag>_f32 pair is, token for
 // token, the macro's expansion for its tag, block width, block bytes and dequantizer, which the macro then compiles to
 // the same code.
 func TestSmallQuantKernelsHaveOneBody(t *testing.T) {
 	t.Parallel()
-	source := string(testcheck.Must(os.ReadFile(filepath.Join("..", "..", "kernels", "cuda", "ops_f32.cu")))(t))
+	source := moduleText(t)
 	var template []string
 	for _, name := range smallQuantMacros {
 		template = append(template, cudaTokens(macroBody(t, source, name))...)
@@ -50,6 +50,22 @@ func TestSmallQuantKernelsHaveOneBody(t *testing.T) {
 			t.Errorf("get_rows_%s_f32 and mul_mat_%s_f32 are written out by hand; say them as DEFINE_SMALL_QUANT_KERNELS(%s, %s, %s, %s)", tag, tag, tag, width, bytes, dequant)
 		}
 	}
+}
+
+// moduleText is kernels/cuda/ops_f32.cu as its compiler reads it: each family header it includes, ops_f32_*.cuh, in its
+// place.
+func moduleText(t *testing.T) string {
+	t.Helper()
+	directory := filepath.Join("..", "..", "kernels", "cuda")
+	var text strings.Builder
+	for line := range strings.SplitSeq(string(testcheck.Must(os.ReadFile(filepath.Join(directory, "ops_f32.cu")))(t)), "\n") {
+		if name, family := strings.CutPrefix(line, `#include "ops_f32_`); family {
+			text.Write(testcheck.Must(os.ReadFile(filepath.Join(directory, "ops_f32_"+strings.TrimSuffix(strings.TrimSpace(name), `"`))))(t))
+			continue
+		}
+		text.WriteString(line + "\n")
+	}
+	return text.String()
 }
 
 // macroBody is the replacement text of the #define of name, its continuation lines joined.

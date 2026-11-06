@@ -2,8 +2,8 @@
 // includes it once; it compiles only there.
 
 // Native chunk phases share the executor's bounded BLAS workspace.
-// The 64-token boundary follows transformers 5.14.1 torch_chunk_gated_delta_rule.
-// Scan and four-accumulator reduction orders follow pinned Torch CUDA owners.
+// A chunk is 64 tokens, the boundary transformers 5.14.1's chunked gated delta rule takes, so chunks split where its do.
+// The scan and the four-accumulator reductions each sum in one fixed order, which the parity tests pin.
 extern "C" __global__ void gated_delta_chunk_f32(
         const float * query, const float * key, const float * value,
         const float * gate, const float * beta, const float * initial,

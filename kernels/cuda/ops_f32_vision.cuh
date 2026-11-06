@@ -315,8 +315,8 @@ extern "C" __global__ void sam_attention_f32(
 	output[index] = result / sum;
 }
 
-// Torch WelfordOps and block_reduce.cuh at 7661cd9c define this reduction.
-// Reduction order follows planar channels while storage stays channel-innermost.
+// A group's moments combine by Welford's method, pairwise down each warp and then across the block's warps.
+// The reduction runs over planar channels while storage stays channel-innermost.
 struct group_moments_f32 {
 	float mean, m2, count;
 };

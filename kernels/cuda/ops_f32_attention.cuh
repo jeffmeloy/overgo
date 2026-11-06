@@ -782,9 +782,8 @@ extern "C" __global__ void attention_online_finalize_f32(
     }
 }
 
-// Fast F32 attention follows Torch 7661cd9c and CUTLASS da5e086d.
-// TF32x3 products retain the source small-big, big-small, big-big order.
-// Each 128-key panel has its own accumulator and source epilogue rescaling.
+// Fast F32 attention splits each operand into a TF32 high part and its remainder and sums the three products
+// small-big, then big-small, then big-big. Each 128-key panel has its own accumulator, rescaled in its epilogue.
 __device__ __forceinline__ void attention_tf32_split(float x, unsigned int &big, unsigned int &small) {
     big = __float_as_uint(x) & 0xffffe000u;
     const float residual = __fsub_rn(x, __uint_as_float(big));

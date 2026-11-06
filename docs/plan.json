@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "kernel-notices",
-      "title": "Settle the provenance of code that cites Torch and CUTLASS",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "Kernel licences in the bill are hard-coded (cmd/sbom/main.go:104-108), so naming a source needs a few lines of code."
-      },
-      "steps": [
-        {
-          "id": "notices",
-          "title": "Add the notices the answer requires",
-          "status": "open",
-          "verify": "go test ./cmd/sbom -count=1 -run '^TestEveryCitedKernelSourceHasANotice$'",
-          "rationale": "kernels/cuda/ops_f32.cu:1584,6579 and ops_native.cu:64 cite Torch 7661cd9c and CUTLASS da5e086d, ops_f32.cu:2366 names 'pinned Torch CUDA owners', and torch_cuda_randn.cu:1 reads 'Ported verbatim from adaptive_new'. licenses/ and SBOM.cdx.json hold no notice for either project. If code was copied, BSD terms require one. The answer belongs to decision kernel-provenance.\ngo run ./cmd/sbom -check exits 0 today (measured), so it proves nothing here; the new test reads the cited sources. Rewording a comment changes source hashes, so the manifest and bill update with it.\nServes: a clean release.\nDisappears: nothing.\nEvidence: the notice files and the regenerated bill of materials.\nBatch: claims lane."
-        }
-      ]
-    },
-    {
       "id": "one-home",
       "title": "Give each repeated mechanism one home",
       "class": "consolidation",

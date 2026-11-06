@@ -134,8 +134,8 @@ extern "C" __global__ void attention_native_softmax_f32(
         if (k < keys) scores[(size_t) row * keys + k] = __fdiv_rn(values[i], sum);
     }
 }
-// Native F32 math follows Torch's scalar functions and Reduce.cuh input-vector order.
-// Kernel callers derive the source lane geometry and refuse cross-CTA reductions.
+// Native F32 math calls CUDA's scalar functions and sums each input vector in lane order.
+// Kernel callers derive the lane geometry and refuse cross-CTA reductions.
 extern "C" __global__ void exp_native_f32(const float * input, float * output, unsigned int count) {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < count) output[i] = expf(input[i]);

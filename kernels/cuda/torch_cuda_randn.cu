@@ -1,7 +1,6 @@
-// torch_cuda_randn: PyTorch-bit-exact standard normal source. Ported verbatim
-// from adaptive_new go/extmodel (NewTorchCUDARandnCUDAStream). The Philox
-// counter-based generator plus curand's float4 Box-Muller fill-order is what
-// makes the output byte-match torch.randn(seed) on CUDA -- do NOT "improve" the
+// torch_cuda_randn: a standard normal source whose bits match torch.randn(seed)
+// on CUDA. The Philox counter-based generator plus curand's float4 Box-Muller
+// fill order is what makes the output byte-match -- do NOT "improve" the
 // algorithm or reorder the fill.
 //
 // ABI note: this module MUST be compiled WITHOUT -use_fast_math. curand_normal4

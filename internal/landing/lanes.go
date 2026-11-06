@@ -77,13 +77,18 @@ func splitLanes(reached []lane) (beside, shared []lane) {
 var lanes = []lane{
 	{
 		// The device lane runs its scopes' tests as its own processes, not as
-		// imports, so its reach is the closure of those packages.
-		name: "device", packages: append(devicePackages(), "./cmd/device-lane"), prefixes: []string{"kernels/"},
+		// imports, so its reach is the closure of those packages. Its runner's
+		// own files reach it, and what the runner alone imports does not: that
+		// cannot change a device result, and the runner's tests hold the
+		// commands it builds.
+		name: "device", packages: devicePackages(), prefixes: []string{"kernels/", "cmd/device-lane/"},
 		command: func(changed string) []string { return []string{"run", "./cmd/device-lane", "-paths-file", changed} },
 	},
 	{
-		// The page's assets, browser tests, lane and page declarations.
-		name: "webui", packages: []string{"./internal/server", "./internal/webuilane", "./cmd/webui-lane"},
+		// The page's assets, browser tests, lane and page declarations. Its
+		// runner's own files reach it, as a prefix, and what the runner alone
+		// imports does not.
+		name: "webui", packages: []string{"./internal/server", "./internal/webuilane"},
 		prefixes: []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
 			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json"},
 		command:  func(string) []string { return []string{"run", "./cmd/webui-lane"} },

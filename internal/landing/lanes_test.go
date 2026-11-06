@@ -468,3 +468,36 @@ func TestAudioLaneOptsIntoTheStoreAcceptance(t *testing.T) {
 		t.Fatal("audio cycle must build and freshly execute the resident device reference")
 	}
 }
+
+// TestARunnersImportsRunOnlyItsOwnTests holds the device and browser lanes' reach to their tests: each runner's own
+// files reach its lane, through a prefix of its directory, and what the runner alone imports does not, since that
+// cannot change a device or browser result and the runner's tests hold the commands it builds. A fixture module pins the
+// reading: a lane whose runner imports a package is reached by the runner's own file and not by that package.
+func TestARunnersImportsRunOnlyItsOwnTests(t *testing.T) {
+	t.Parallel()
+	for name, runner := range map[string]string{"device": "cmd/device-lane", "webui": "cmd/webui-lane"} {
+		index := slices.IndexFunc(lanes, func(candidate lane) bool { return candidate.name == name })
+		if index < 0 {
+			t.Fatalf("no %s lane", name)
+		}
+		if candidate := lanes[index]; slices.Contains(candidate.packages, "./"+runner) || !slices.Contains(candidate.prefixes, runner+"/") {
+			t.Errorf("the %s lane reaches through %v and prefixes %v, want its runner %s by its own files alone", name, candidate.packages, candidate.prefixes, runner)
+		}
+	}
+	repo := t.TempDir()
+	writeModule(t, repo, map[string]string{
+		"go.mod":             "module fixture\n\ngo 1.26\n",
+		"tests/tests.go":     "package tests\n",
+		"runner/main.go":     "package main\n\nimport \"fixture/options\"\n\nfunc main() { _ = options.Name }\n",
+		"options/options.go": "package options\n\nvar Name = \"lane\"\n",
+	})
+	candidate := lane{packages: []string{"./tests"}, prefixes: []string{"runner/"}}
+	reaches, err := discover(repo, candidate)
+	testcheck.NoError(t, err)
+	if got := reaches(candidate, []string{"runner/main.go"}).by; got != "runner/main.go" {
+		t.Errorf("a change to the runner's own file reached the lane for %q, want it", got)
+	}
+	if got := reaches(candidate, []string{"options/options.go"}).by; got != "" {
+		t.Errorf("a change to what the runner alone imports reached the lane for %q, want none", got)
+	}
+}

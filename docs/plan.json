@@ -55,17 +55,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -300,
-        "reason": "Estimate, unmeasured. The folds delete more than they add; package-digests and one-layer-walk move the inference surface and its pins."
+        "nodes": 0,
+        "reason": "Measured: package-digests removes 66 production nodes, the two go list decoders the surface and the trigger held, against the 300 estimated unmeasured; one-layer-walk and one-lock-each set their own when measured."
       },
       "steps": [
-        {
-          "id": "package-digests",
-          "title": "Compute every code identity from one package digest graph",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestEveryCodeIdentityReadsOneDigestGraph$'",
-          "rationale": "Measure first: list each computation's package set at HEAD; where they disagree is a finding. Five computations decide what a change reaches, each with its own roots, pruning and file rules: the surface digest (internal/inferencesurface/surface.go:28-50, recorded only by internal/longform), execution identities (internal/inferencesurface/identity.go:85-305), the run key's code scope (internal/capabilityruntime/run_key.go:26-65), the loop's cycle trigger (cmd/loop/trigger.go:25-61) and lane reach (internal/landing/lanes.go:494-556) (all unverified).\nOne go list -deps -test -json per commit gives each package a digest over its files and its dependencies' digests; each identity becomes a query over it. Identities move, so the census and pinned digests move with it in one commit.\nServes: development velocity.\nDisappears: four closure walks.\nEvidence: package sets before and after, equal except where a finding says why.\nBatch: one commit with the other surface moves, before one measurement run."
-        },
         {
           "id": "one-layer-walk",
           "title": "Walk a model's layers in one loop",

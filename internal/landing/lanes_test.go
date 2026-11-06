@@ -335,7 +335,7 @@ func TestReachInvariants(t *testing.T) {
 			case row.production:
 				production, listed := productions[candidate.name]
 				if !listed {
-					production = testcheck.Must(gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...))(t)
+					production = testcheck.Must(gosource.HostBuildClosure(repo, append([]string{"-tags", candidate.tags}, candidate.packages...)...))(t)
 					productions[candidate.name] = production
 				}
 				if !production.Files[row.path] {

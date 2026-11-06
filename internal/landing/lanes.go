@@ -560,7 +560,7 @@ func discover(repo string, candidates ...lane) (func(lane, []string) reach, erro
 	}
 	selections := map[string]gosource.BuildSelection{}
 	for tags, packages := range patterns {
-		selection, err := gosource.HostBuildSelection(repo, append([]string{"-tags", tags, "-deps", "-test"}, packages...)...)
+		selection, err := gosource.HostBuildClosure(repo, append([]string{"-tags", tags, "-test"}, packages...)...)
 		if err != nil {
 			return nil, err
 		}

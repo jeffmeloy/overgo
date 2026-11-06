@@ -6,19 +6,16 @@
 package inferencesurface
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
-	"overgo/internal/processcontrol"
+	"overgo/internal/gosource"
 )
 
 // surfaceRoots are the packages whose dependency closure is the
@@ -150,17 +147,9 @@ func kernelFiles(root string) ([]string, error) {
 	return files, nil
 }
 
-// Package is one module-local package of the inference closure: its directory
-// and the files it embeds, which are runtime inputs though they are not source,
-// with the patterns that name them.
-type Package struct {
-	Dir           string
-	ImportPath    string
-	Imports       []string
-	EmbedPatterns []string
-	EmbedFiles    []string
-	Module        *struct{ Path, Version string }
-}
+// Package is one module-local package of the inference closure, as the package graph lists it: its directory and the
+// files it embeds, which are runtime inputs though they are not source, with the patterns that name them.
+type Package = gosource.Package
 
 // Packages lists the module-local packages in the closure of the surface roots,
 // through the Go tool's own dependency resolution, without descending into
@@ -190,34 +179,20 @@ func closure(ctx context.Context, root string) ([]Package, []string, error) {
 	return packages, modules, nil
 }
 
-// list asks the Go tool for every package the roots depend on, themselves
+// list reads the package graph of every package the roots depend on, themselves
 // among them, by import path, with the path of the module at root. The
 // standard library belongs to the toolchain and is not listed.
 func list(ctx context.Context, root string, roots ...string) (map[string]Package, string, error) {
-	arguments := append([]string{"list", "-deps", "-json"}, roots...)
-	var stdout, stderr bytes.Buffer
-	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: arguments, Dir: root, Env: os.Environ(), Stdout: &stdout, Stderr: &stderr,
-	})
+	graph, err := gosource.ListGraph(ctx, root, true, roots...)
 	if err != nil {
-		return nil, "", fmt.Errorf("inference surface: go list: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	if receipt.ExitCode != 0 {
-		return nil, "", fmt.Errorf("inference surface: go list: exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
+		return nil, "", fmt.Errorf("inference surface: %w", err)
 	}
 	module, err := modulePath(root)
 	if err != nil {
 		return nil, "", err
 	}
 	listed := map[string]Package{}
-	decoder := json.NewDecoder(&stdout)
-	for {
-		var pkg Package
-		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, "", err
-		}
+	for _, pkg := range graph {
 		if pkg.Module != nil {
 			listed[pkg.ImportPath] = pkg
 		}

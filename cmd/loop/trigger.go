@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,6 +11,7 @@ import (
 	"strings"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/gosource"
 	"overgo/internal/plan"
 	"overgo/internal/scorecard"
 )
@@ -27,26 +25,15 @@ var (
 	surfacePrefixes = []string{"kernels/"}
 )
 
-// surfaceClosure lists cycle packages and resolved embedded files through the Go tool.
+// surfaceClosure lists cycle packages and resolved embedded files through the package graph.
 //   - declared patterns retain conservative coverage for deleted inputs
 func surfaceClosure(ctx context.Context, root string) (map[string]bool, error) {
-	var listed, diagnostics bytes.Buffer
-	command := append([]string{"go", "-C", root, "list", "-deps", "-json=ImportPath,EmbedFiles,EmbedPatterns"}, surfaceCommands...)
-	if err := runToolEnv(loopEnvironment(), nil, &listed, &diagnostics, command...); err != nil {
-		return nil, fmt.Errorf("go list the cycle's commands: %w: %s", err, strings.TrimSpace(diagnostics.String()))
+	graph, err := gosource.ListGraph(ctx, root, true, surfaceCommands...)
+	if err != nil {
+		return nil, fmt.Errorf("go list the cycle's commands: %w", err)
 	}
 	closure := map[string]bool{}
-	decoder := json.NewDecoder(&listed)
-	for {
-		var pkg struct {
-			ImportPath                string
-			EmbedFiles, EmbedPatterns []string
-		}
-		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
+	for _, pkg := range graph {
 		if inside, found := strings.CutPrefix(pkg.ImportPath, "overgo/"); found {
 			closure[inside] = true
 			for _, file := range pkg.EmbedFiles {

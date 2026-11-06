@@ -9285,57 +9285,7 @@ __device__ float dequant_q2_K_value(
         minimum * (float) (scales[group] >> 4);
 }
 
-extern "C" __global__ void get_rows_q2_K_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_q2_K_value(
-        table + block_index * 84,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_q2_K_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 84;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 84;
-        sum += dequant_q2_K_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(q2_K, 256, 84, dequant_q2_K_value)
 
 __device__ float dequant_q3_K_value(
         const unsigned char * block,
@@ -9364,57 +9314,7 @@ __device__ float dequant_q3_K_value(
     return scale * (float) group_scale * (float) value;
 }
 
-extern "C" __global__ void get_rows_q3_K_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_q3_K_value(
-        table + block_index * 110,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_q3_K_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 110;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 110;
-        sum += dequant_q3_K_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(q3_K, 256, 110, dequant_q3_K_value)
 
 __device__ void scale_min_k4(
         unsigned int index,
@@ -9455,57 +9355,7 @@ __device__ float dequant_q4_K_value(
         minimum * (float) group_minimum;
 }
 
-extern "C" __global__ void get_rows_q4_K_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_q4_K_value(
-        table + block_index * 144,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_q4_K_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 144;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 144;
-        sum += dequant_q4_K_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(q4_K, 256, 144, dequant_q4_K_value)
 
 __device__ float dequant_q5_K_value(
         const unsigned char * block,
@@ -9532,57 +9382,7 @@ __device__ float dequant_q5_K_value(
         minimum * (float) group_minimum;
 }
 
-extern "C" __global__ void get_rows_q5_K_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_q5_K_value(
-        table + block_index * 176,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_q5_K_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 176;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 176;
-        sum += dequant_q5_K_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(q5_K, 256, 176, dequant_q5_K_value)
 
 __device__ __constant__ float iq4nl_values[16] = {
     -127.0f, -104.0f, -83.0f, -65.0f,
@@ -9627,57 +9427,7 @@ __device__ float dequant_iq4_xs_value(
         iq4nl_values[value];
 }
 
-extern "C" __global__ void get_rows_iq4_xs_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_iq4_xs_value(
-        table + block_index * 136,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_iq4_xs_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 136;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 136;
-        sum += dequant_iq4_xs_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(iq4_xs, 256, 136, dequant_iq4_xs_value)
 
 __device__ float dequant_q6_K_value(
         const unsigned char * block,
@@ -9838,57 +9588,7 @@ extern "C" __global__ void dequant_rows_iq4_xs_f16(
     output[index] = __float2half(dequant_iq4_xs_value(block, column % 256));
 }
 
-extern "C" __global__ void get_rows_q6_K_f32(
-        const unsigned char * table,
-        const unsigned int * rows,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const unsigned int column = index % width;
-    const unsigned int output_row = index / width;
-    const unsigned int blocks_per_row = width / 256;
-    const unsigned int block_index =
-        rows[output_row] * blocks_per_row + column / 256;
-    output[index] = dequant_q6_K_value(
-        table + block_index * 210,
-        column % 256);
-}
-
-extern "C" __global__ void mul_mat_q6_K_f32(
-        const unsigned char * left,
-        const float * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
-    if (warp_index >= left_rows * right_rows) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int left_row = warp_index % left_rows;
-    const unsigned int right_row = warp_index / left_rows;
-    const unsigned int blocks_per_row = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * blocks_per_row * 210;
-    const float * input_row = right + (size_t) right_row * inner;
-    float sum = 0.0f;
-    for (unsigned int column = lane; column < inner; column += CUDA_WARP_WIDTH) {
-        const unsigned char * block = weight_row + (column / 256) * 210;
-        sum += dequant_q6_K_value(block, column % 256) * input_row[column];
-    }
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        sum += __shfl_down_sync(0xffffffffu, sum, offset);
-    }
-    if (lane == 0) {
-        output[warp_index] = sum;
-    }
-}
+DEFINE_SMALL_QUANT_KERNELS(q6_K, 256, 210, dequant_q6_K_value)
 
 // mul_mat_q4_K_input_f32: integer fast path for decode — per 32-column
 // group the contribution splits into d*scale*dot(q,x) minus

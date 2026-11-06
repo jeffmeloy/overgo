@@ -79,14 +79,11 @@
       },
       "steps": [
         {
-          "id": "quant-kernels",
-          "title": "Replace hand copies in the quantized kernels",
+          "id": "get-rows-offsets",
+          "title": "Every get_rows kernel addresses a whole table",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestSmallQuantKernelsHaveOneBody$'",
-          "rationale": "Six hand copies replicate DEFINE_SMALL_QUANT_KERNELS (kernels/cuda/ops_f32.cu:8839,8918,9009,9086,9181,9392), relative-bias code appears three times (:5978,6026,6391), load_u32_le repeats read_u32_le (:8198,8480), and get_rows uses 32-bit offsets (:7534,8339) where mul_mat uses size_t (:8359), which overflows at a 4 GiB table.\nMeasured: 344 lines of identical shape across 17 clusters (mul_mat_q*_K 125, get_rows_q*_K 70, dequant_rows_* 44), and up to 1,016 lines more of near copies.\nThe compiled code's hash must not move, except where the offset fix moves it, on purpose and in its own landing. Any change under kernels/cuda moves the inference surface even when the hash holds (internal/inferencesurface/surface.go:130, surface_test.go:219), so every evidence identity expires.\nServes: smaller kernel source.\nDisappears: several hundred lines of source.\nEvidence: unchanged asset hashes.\nBatch: one commit with the other surface moves, before one measurement run.",
-          "depends_on": [
-            "kernel-proof/include-scan"
-          ]
+          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestGetRowsAddressAWholeTable$'",
+          "rationale": "consolidate/quant-kernels found that the get_rows kernels address a table's block in 32 bits, block_index * BLOCK_BYTES in unsigned int (the small-quant macros, the legacy-quant macro and get_rows_q8_0_f32), while mul_mat widens to size_t before it multiplies: a token table past 4 GiB, as a large vocabulary's embedding in F32 reaches, wraps the offset and reads another row's bytes.\nChange: every get_rows kernel widens its block index to size_t before it multiplies, as mul_mat does, which moves the compiled code on purpose, in a landing of its own, so the parity a device test holds shows the fix alone. TestGetRowsAddressAWholeTable holds each get_rows kernel of the kernel sources to an offset taken in size_t.\nServes: failure-rate: a large table's rows read as themselves.\nDisappears: a 32-bit wrap in row reads.\nEvidence: the test, and the device lane's parity tests on the rebuilt kernels.\nBatch: device lane in full."
         },
         {
           "id": "split-ops",

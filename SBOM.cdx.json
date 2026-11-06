@@ -156,7 +156,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "e32d1f0b037f06486fc76a75c4ebe7e1fcd09cbd0466ee404dd0ef621da2eab8"
+          "content": "f990d3d33dca7c03a7209f212ac28fda512d85919fca58f03df2d4c3430afdb9"
         }
       ],
       "name": "kernels/cuda/ops_f32.cu",
@@ -387,7 +387,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "1880eab9cc96e8cb61db497af70a68fd8cc92612202bfe399d3203f3890f8c66"
+          "content": "f2ba9609a397342620e189d6c6e75ec0945ac403400e6dfd402ff27c7d552038"
         }
       ],
       "name": "kernels/manifest.json",

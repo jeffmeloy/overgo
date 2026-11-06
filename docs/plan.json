@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2876,
+        "nodes": 1408,
         "reason": "Measured: seam adds 1,329 production nodes, the held-out residual and seam-align's ranking, which the estimate of 1,000 to 1,300, written for the gradient through the frozen text model, did not count; that estimate stands for train, and capture and wire set theirs when measured."
       },
       "steps": [
-        {
-          "id": "capture",
-          "title": "Capture the training frames' encoder outputs and caption embeddings, and rank them",
-          "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestCaptureHoldsTheTrainingSplit$'",
-          "rationale": "seam-align -rank measures seams from a captured tensor file; nothing captures one yet. Capture, over the training side of docs/verification/vision-bridge-acceptance.json's split, each frame's DINO outputs and its caption's text embedding, and rank them before GPU-hours are spent.\nThe split: the suite's 256 clips, every other on-disk clip of their source videos and every clip whose caption is a wrong answer are held out; the rest of the 4,904 captioned clips, grouped by source video, are the training side. No split code exists; evaluation's captionRounds, which the suite builder uses, lists the cases and their wrong captions and is unexported.\nPer training clip: the middle frame as the suite cuts it, internal/vitencoder's forward once for its CLS output and its patch mean (Embed keeps only the CLS today, so one method returning every token serves both), and the caption's mean token embedding in Qwen2.5-0.5B (hfbpe, then safetensors.ReadTensorRowsF32 of model.embed_tokens.weight). Write them with the samples' source groups as one safetensors file whose metadata names the encoder, the text model and the acceptance's digest, cached per clip so a long run resumes.\nSamples: well above the encoder's width, since a fit over few more samples than its width reads low for any pairing: 4,096 for the 1024-wide webssl-dino at about 4.5 to 9.7 s a frame, or dinov2-with-registers-base at 768 wide and about a quarter of the time.\nServes: GPU-hours go only to likely connections.\nDisappears: nothing.\nEvidence: seam-align -rank's ranking of the captured DINO outputs, each held-out residual beside its unrelated pairing's, recorded under docs/verification."
-        },
         {
           "id": "train",
           "title": "Train the projector through the frozen text model",

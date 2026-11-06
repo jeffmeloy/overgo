@@ -37,12 +37,16 @@ func run() error {
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
+	capture := flags.String("capture", "", "capture specification JSON path: the training side of a caption-matching suite's split, the image encoder and the text model, written as a capture -rank reads")
 	rank := flags.String("rank", "", "captured seam representations, a safetensors file of target [N,t], groups [N] and source/<name> [N,w] each: rank each source by its held-out residual against the target, beside its pairing with another group's target")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(repoFlag); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*capture) != "" {
+		return captureSeams(context.Background(), *capture)
 	}
 	if strings.TrimSpace(*rank) != "" {
 		return rankSeams(*rank)

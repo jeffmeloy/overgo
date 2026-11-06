@@ -62,7 +62,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Server and inference race detector
+      # Every package that builds here, the device code under *_windows.go aside. A package's tests run slower
+      # under the detector, hence the timeout past go test's ten minutes.
+      - name: Race detector over every host package
         env:
           CGO_ENABLED: "1"
-        run: go test -race ./internal/server ./internal/inference
+        run: go test -timeout 30m -race ./...

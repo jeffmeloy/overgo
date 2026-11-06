@@ -12,16 +12,6 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// smallHybrid covers both mix operators.
-func smallHybrid() StackConfig {
-	return StackConfig{
-		Types:  []LayerKind{FullAttention, LinearAttention},
-		Tokens: 6, Hidden: 16, Inter: 24, Eps: 1e-6,
-		Heads: 2, KVHeads: 1, HeadDim: 8, RopeDim: 4, RopeTheta: 10000,
-		GDNKeyHeads: 2, GDNValueHeads: 2, GDNHeadDim: 4, GDNConvK: 3,
-	}
-}
-
 // TestHybridTrainHostMasterStreamedMatchesHost verifies the host-master
 // streamed lane reproduces the host trajectory (same 8+2 FP32 Newton-Schulz
 // schedule, so parity is tight).

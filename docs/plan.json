@@ -55,16 +55,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "Workflow and script changes; no production Go grows."
+        "reason": "Measured: race-wide adds processmeasure's Unix SelfPeakWorkingSet, 77 nodes, without which two packages' tests do not build on Linux, where the race job runs; the workflow and script changes add none."
       },
       "steps": [
-        {
-          "id": "race-wide",
-          "title": "Run the race detector over every host package",
-          "status": "open",
-          "verify": "grep -q 'race ./\\.\\.\\.' .github/workflows/test.yml",
-          "rationale": "-race appears only at .github/workflows/test.yml:68, on Ubuntu, for two packages. Commit checks never use it, and CI runs only when a push is asked for. Device code under *_windows.go (19,752 lines in 100 files) cannot compile there.\nWiden the job. For device code, weigh a cgo-enabled Windows run in a separate build; measure its wall before adding it.\nServes: concurrency faults found before a run.\nDisappears: nothing.\nEvidence: a full job log.\nBatch: CI only; goes with the next push."
-        },
         {
           "id": "fuzz-or-delete",
           "title": "Run fuzz-smoke or remove it, and remove stall_check",

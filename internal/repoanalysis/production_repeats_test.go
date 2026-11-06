@@ -35,12 +35,11 @@ const parameterCeiling = 1945
 
 // surfaceRepeatCeiling and surfaceParameterCeiling are the most syntax nodes the production bodies inside the inference
 // surface may repeat beyond one copy of each, alike and differing in at most parameterLeast values: what
-// compact-production/surface-folds left, repeats on a per-token path, which no fold takes without a benchmark, the
-// device cache's releases, which consolidate/release-storages folds once their callers' lifetimes are read, the CUDA
-// executor's and driver's, which consolidate/cell-step-reads folds once their full device lane can pass, and typed
-// accessors and constructors over different types, which a helper would not shorten.
+// compact-production/surface-folds and consolidate/release-storages left, repeats on a per-token path, which no fold
+// takes without a benchmark, the CUDA executor's and driver's, which consolidate/cell-step-reads folds once their full
+// device lane can pass, and typed accessors and constructors over different types, which a helper would not shorten.
 const (
-	surfaceRepeatCeiling    = 204
+	surfaceRepeatCeiling    = 142
 	surfaceParameterCeiling = 1493
 )
 

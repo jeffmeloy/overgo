@@ -218,27 +218,7 @@
 
       // The Library shows its models or, as a view the way Inspect's analyses are, the scorecard: one at a time, the
       // scorecard one choice away and with no navigation entry of its own.
-      const views = overgo.viewsOf("library");
-      const models = [...panel.children];
-      const viewHost = el("div", { class: "view-host" });
-      const chooser = el("div", { class: "row view-chooser", role: "tablist", "aria-label": "Library views" },
-        ...[{ id: "library", label: "Models" }, ...views].map((view) => el("button", { class: "chip", role: "tab", "data-view": view.id, text: view.label, onclick: () => show(view.id) })));
-      panel.prepend(chooser);
-      panel.append(viewHost);
-      function show(id) {
-        const view = views.find((item) => item.id === id);
-        for (const node of models) node.hidden = !!view;
-        for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : "library")));
-        history.replaceState(null, "", "#" + (view ? view.id : "library"));
-        if (view) overgo.embed(view.id, viewHost);
-        else {
-          if (viewHost.workspace) viewHost.workspace.release();
-          viewHost.workspace = null;
-          viewHost.replaceChildren();
-        }
-      }
-      overgo.listen(window, "overgo-view", (event) => { if (event.detail.owner === "library") show(event.detail.view); });
-      show(overgo.requestedView("library"));
+      overgo.viewChooser(panel, "library", "Models", "Library views", (node, hidden) => { node.hidden = hidden; });
 
       // Each showing reads the catalog again.
       overgo.whileActive(refreshCatalog);

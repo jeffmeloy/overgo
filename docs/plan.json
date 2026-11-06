@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 86,
         "reason": "catalog-choice measured -84 production nodes against its estimate of -60: one catalog choice where four stood and one lineage comparator where two did; the row's later steps carry their own measured deletions."
       },
       "steps": [
-        {
-          "id": "release-storages",
-          "title": "Fold repeated release and view code",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestReleaseStoragesHasOneBody$'",
-          "rationale": "releaseStorages appears three times, identical (internal/inference/device_cache.go:832,1124,1185), and the web view chooser nearly so at mod/api.js:62-83 and mod/discovery.js:216-236; mod/inspect.js:10-23 differs and stays. The first check passes today.\nDo not fold release code until the identity of each caller's lifetime is read. Yield about -45 nodes, an estimate.\nServes: less code to keep right.\nDisappears: two copies of release, one of the chooser.\nEvidence: existing tests.\nBatch: serving lane."
-        },
         {
           "id": "quant-kernels",
           "title": "Replace hand copies in the quantized kernels",

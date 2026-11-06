@@ -841,25 +841,18 @@ func (r *Runner) executeParameterizedDecodeSession(
 	if err != nil {
 		return nil, err
 	}
-	releaseStorages := func() error {
-		var errs []error
-		for _, storage := range storages {
-			errs = append(errs, storage.release(context.Background()))
-		}
-		return errors.Join(errs...)
-	}
 	slot, err := r.bindSpanSlot(ctx, session.execution.Graph, graphs, appends, plans, targets, session.program.identity.output)
 	if err == nil {
 		err = r.bindWindowRows(ctx, targets, graphs)
 	}
 	if err != nil {
-		return nil, errors.Join(err, releaseStorages())
+		return nil, errors.Join(err, releaseStorages(storages))
 	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(
 		ctx, session.execution.Graph, session.hostFeeds, session.execution.Inputs, targets, session.program.attributes,
 	)
 	if err != nil {
-		return nil, errors.Join(err, releaseStorages())
+		return nil, errors.Join(err, releaseStorages(storages))
 	}
 	next, err := r.assembleDeviceBatchCaches(
 		ctx, retained, storages, graphs, appends, plans, session.owners, session.hostFeeds,
@@ -1133,13 +1126,6 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	releaseStorages := func() error {
-		var errs []error
-		for _, storage := range storages {
-			errs = append(errs, storage.release(context.Background()))
-		}
-		return errors.Join(errs...)
-	}
 	// A prompt read writes its draft streams into the prompt's buffer, not beside the outputs the read's cache keeps.
 	var streams executor.DeviceValue
 	if plan.streams {
@@ -1147,7 +1133,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			err = targets.Set(graphs[0].hidden, streams)
 		}
 		if err != nil {
-			return nil, errors.Join(err, releaseStorages())
+			return nil, errors.Join(err, releaseStorages(storages))
 		}
 	}
 	slot, err := r.bindSpanSlot(ctx, execution.Graph, graphs, appends, targetPlans, targets, plan)
@@ -1155,7 +1141,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		err = r.bindWindowRows(ctx, targets, graphs)
 	}
 	if err != nil {
-		return nil, errors.Join(err, releaseStorages())
+		return nil, errors.Join(err, releaseStorages(storages))
 	}
 	execute := r.cuda.ExecuteRetainedCompiledOnce
 	if retainable {
@@ -1163,7 +1149,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	}
 	retained, err := execute(ctx, execution.Graph, hostFeeds, execution.Inputs, targets, nil)
 	if err != nil {
-		return nil, errors.Join(err, releaseStorages())
+		return nil, errors.Join(err, releaseStorages(storages))
 	}
 	next, err := r.assembleDeviceBatchCaches(
 		ctx, retained, storages, graphs, appends, targetPlans, sessions, hostFeeds, plan,
@@ -1194,15 +1180,8 @@ func (r *Runner) assembleDeviceBatchCaches(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
-	releaseStorages := func() error {
-		var errs []error
-		for _, storage := range storages {
-			errs = append(errs, storage.release(context.Background()))
-		}
-		return errors.Join(errs...)
-	}
 	fail := func(cause error) ([]*deviceKVCache, error) {
-		return nil, errors.Join(cause, retained.Release(context.Background()), releaseStorages())
+		return nil, errors.Join(cause, retained.Release(context.Background()), releaseStorages(storages))
 	}
 	if retained == nil || len(storages) != len(graphs) || len(appends) != len(graphs) ||
 		len(targetPlans) != len(graphs) {
@@ -1399,11 +1378,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 	storages := make([]*deviceCacheStorage, len(graphs))
 	used := make(map[*deviceCacheStorage]struct{})
 	fail := func(cause error) (*executor.RetainedTargets, []*deviceCacheStorage, error) {
-		errs := []error{cause}
-		for _, storage := range storages {
-			errs = append(errs, storage.release(context.Background()))
-		}
-		return nil, nil, errors.Join(errs...)
+		return nil, nil, errors.Join(cause, releaseStorages(storages))
 	}
 	for branch, graph := range graphs {
 		if branch >= len(plans) || len(plans[branch].layers) != len(graph.keys) {
@@ -2255,4 +2230,14 @@ func resizeDeviceValues(values []executor.DeviceValue, count int) []executor.Dev
 		return make([]executor.DeviceValue, count)
 	}
 	return values[:count]
+}
+
+// releaseStorages releases each of a failed step's cache storages, after the context that ran it, and joins what
+// their releases answer.
+func releaseStorages(storages []*deviceCacheStorage) error {
+	var errs []error
+	for _, storage := range storages {
+		errs = append(errs, storage.release(context.Background()))
+	}
+	return errors.Join(errs...)
 }

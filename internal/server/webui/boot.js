@@ -516,6 +516,32 @@
         clear(host);
         return tab.mount(host, host.workspace, seed);
       },
+      // viewChooser: the tab's own content in panel or, one at a time, a view it shows, each a chip of one row; base
+      // labels the tab's own, label the row, and hide hides or shows each of the tab's own nodes. The choice follows
+      // the hash and the views another tab asks for.
+      viewChooser(panel, owner, base, label, hide) {
+        const views = life.viewsOf(owner);
+        const own = [...panel.children];
+        const viewHost = el("div", { class: "view-host" });
+        const chooser = el("div", { class: "row view-chooser", role: "tablist", "aria-label": label },
+          ...[{ id: owner, label: base }, ...views].map((view) => el("button", { class: "chip", role: "tab", "data-view": view.id, text: view.label, onclick: () => show(view.id) })));
+        panel.prepend(chooser);
+        panel.append(viewHost);
+        function show(id) {
+          const view = views.find((item) => item.id === id);
+          for (const node of own) hide(node, !!view);
+          for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : owner)));
+          history.replaceState(null, "", "#" + (view ? view.id : owner));
+          if (view) life.embed(view.id, viewHost);
+          else {
+            if (viewHost.workspace) viewHost.workspace.release();
+            viewHost.workspace = null;
+            viewHost.replaceChildren();
+          }
+        }
+        life.listen(window, "overgo-view", (event) => { if (event.detail.owner === owner) show(event.detail.view); });
+        show(life.requestedView(owner));
+      },
       release() {
         if (lifetime.signal.aborted) return;
         life.setActive(false);

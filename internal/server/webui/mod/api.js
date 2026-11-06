@@ -59,28 +59,8 @@
 
       // The API tab shows its route explorer or, as a view the way the Library shows its scorecard, the requests the server
       // answered: one at a time, with no navigation entry of its own.
-      const views = overgo.viewsOf("api");
-      const explorer = [...panel.children];
-      const viewHost = el("div", { class: "view-host" });
-      const chooser = el("div", { class: "row view-chooser", role: "tablist", "aria-label": "API views" },
-        ...[{ id: "api", label: "Explorer" }, ...views].map((view) => el("button", { class: "chip", role: "tab", "data-view": view.id, text: view.label, onclick: () => show(view.id) })));
-      panel.prepend(chooser);
-      panel.append(viewHost);
-      function show(id) {
-        const view = views.find((item) => item.id === id);
-        // A class, not hidden: the route filter hides cards by hidden, which a view switch must leave as it was.
-        for (const node of explorer) node.classList.toggle("view-hidden", !!view);
-        for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : "api")));
-        history.replaceState(null, "", "#" + (view ? view.id : "api"));
-        if (view) overgo.embed(view.id, viewHost);
-        else {
-          if (viewHost.workspace) viewHost.workspace.release();
-          viewHost.workspace = null;
-          viewHost.replaceChildren();
-        }
-      }
-      overgo.listen(window, "overgo-view", (event) => { if (event.detail.owner === "api") show(event.detail.view); });
-      show(overgo.requestedView("api"));
+      // A class, not hidden: the route filter hides cards by hidden, which a view switch must leave as it was.
+      overgo.viewChooser(panel, "api", "Explorer", "API views", (node, hidden) => node.classList.toggle("view-hidden", hidden));
     },
   });
 })();

@@ -4,6 +4,7 @@ package executor
 
 import (
 	"context"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestQSALayerMatchesStrata holds the QSA attention operation - Strata's QSA layer between its projections, its
@@ -133,34 +135,25 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 			"indexer_norm":  {Shape: tensor.MustShape(tensor.QSAIndexerWidth), Data: norm},
 		}
 		attributes := tensor.QSAAttentionAttributes{Cells: cells, Capacity: capacity, Epsilon: strataRMSEpsilon}
-		build := func() (*tensor.Tensor, map[string]*tensor.Tensor, []*tensor.Tensor) {
-			builder := tensor.NewBuilder()
-			named := map[string]*tensor.Tensor{}
-			for _, name := range []string{"query", "key", "value", "indexer_key", "indexer_query", "indexer_norm"} {
-				named[name] = builder.Input(name, dtype.F32, inputs[name].Shape)
-			}
-			tail := builder.Input("indexer_tail", dtype.F32, tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSATailRows))
-			spare := builder.Input("indexer_spare", dtype.F32, tensor.MustShape(tensor.QSAIndexerWidth))
-			named["indexer_tail"], named["indexer_spare"] = tail, spare
-			state := make([]*tensor.Tensor, len(shapes))
-			for index, shape := range shapes {
-				state[index] = builder.Input(shape.name, shape.kind, shape.shape)
-			}
-			output := builder.QSAAttention(named["query"], named["key"], named["value"], named["indexer_key"], named["indexer_query"], named["indexer_norm"],
-				tail, spare, tensor.QSAState{
-					KeyCodes: state[0], ValueCodes: state[1], KeyScales: state[2], ValueScales: state[3], PageTable: state[4],
-					IndexerPooled: state[5], BlockPosition: state[6], Positions: state[7], RopeCos: state[8], RopeSin: state[9],
-				}, attributes)
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
-			return output, named, state
+		builder := tensor.NewBuilder()
+		named := map[string]*tensor.Tensor{}
+		for _, name := range []string{"query", "key", "value", "indexer_key", "indexer_query", "indexer_norm"} {
+			named[name] = builder.Input(name, dtype.F32, inputs[name].Shape)
 		}
-		fixedShapes := map[string]tensor.Shape{
-			"indexer_tail": tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSATailRows), "indexer_spare": tensor.MustShape(tensor.QSAIndexerWidth),
+		tail := builder.Input("indexer_tail", dtype.F32, tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSATailRows))
+		spare := builder.Input("indexer_spare", dtype.F32, tensor.MustShape(tensor.QSAIndexerWidth))
+		named["indexer_tail"], named["indexer_spare"] = tail, spare
+		state := make([]*tensor.Tensor, len(shapes))
+		for index, shape := range shapes {
+			state[index] = builder.Input(shape.name, shape.kind, shape.shape)
 		}
-		inputs["indexer_tail"], inputs["indexer_spare"] = reference.Value{Shape: fixedShapes["indexer_tail"], Data: deviceTail}, reference.Value{Shape: fixedShapes["indexer_spare"], Data: deviceSpare}
-		output, named, state := build()
+		output := builder.QSAAttention(named["query"], named["key"], named["value"], named["indexer_key"], named["indexer_query"], named["indexer_norm"],
+			tail, spare, tensor.QSAState{
+				KeyCodes: state[0], ValueCodes: state[1], KeyScales: state[2], ValueScales: state[3], PageTable: state[4],
+				IndexerPooled: state[5], BlockPosition: state[6], Positions: state[7], RopeCos: state[8], RopeSin: state[9],
+			}, attributes)
+		testcheck.NoError(t, builder.Err())
+		inputs["indexer_tail"], inputs["indexer_spare"] = reference.Value{Shape: tail.Shape, Data: deviceTail}, reference.Value{Shape: spare.Shape, Data: deviceSpare}
 		host := map[*tensor.Tensor]reference.Value{}
 		for name, node := range named {
 			host[node] = inputs[name]
@@ -169,33 +162,23 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 		for index, node := range state {
 			device[node] = devicePointers[index]
 		}
-		got, err := cuda.executeWithDeviceFeeds(ctx, []*tensor.Tensor{output}, host, device)
-		if err != nil {
-			t.Fatal(err)
-		}
-		inputs["indexer_tail"], inputs["indexer_spare"] = reference.Value{Shape: fixedShapes["indexer_tail"], Data: referenceTail}, reference.Value{Shape: fixedShapes["indexer_spare"], Data: referenceSpare}
-		referenceOutput, referenceNamed, referenceState := build()
-		feeds := map[*tensor.Tensor]reference.Value{}
-		for name, node := range referenceNamed {
-			feeds[node] = inputs[name]
-		}
-		for index, node := range referenceState {
+		got := testcheck.Must(cuda.executeWithDeviceFeeds(ctx, []*tensor.Tensor{output}, host, device))(t)
+		feeds := maps.Clone(host)
+		feeds[tail], feeds[spare] = reference.Value{Shape: tail.Shape, Data: referenceTail}, reference.Value{Shape: spare.Shape, Data: referenceSpare}
+		for index, node := range state {
 			feeds[node] = hostState[index]
 		}
-		want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
+		want := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, feeds))(t)
 		// The packed output: the attention, then the fixed state each side carries to its next step.
 		attentionValues := tensor.QSAHeadWidth * tensor.QSAQueryHeads * int(tokens)
-		gotFixed, wantFixed := got[output].Data[attentionValues:], want[referenceOutput].Data[attentionValues:]
+		gotFixed, wantFixed := got[output].Data[attentionValues:], want[output].Data[attentionValues:]
 		copy(deviceTail, gotFixed)
 		copy(deviceSpare, gotFixed[len(deviceTail):])
 		copy(referenceTail, wantFixed)
 		copy(referenceSpare, wantFixed[len(referenceTail):])
-		difference, _ := maxAbsDifference(t, got[output].Data[:attentionValues], want[referenceOutput].Data[:attentionValues])
+		difference, _ := maxAbsDifference(t, got[output].Data[:attentionValues], want[output].Data[:attentionValues])
 		scale := 0.0
-		for _, value := range want[referenceOutput].Data[:attentionValues] {
+		for _, value := range want[output].Data[:attentionValues] {
 			scale = max(scale, math.Abs(float64(value)))
 		}
 		// Both sides selected the same cells (rungs above), so the attention differs from the reference's by the kernels'

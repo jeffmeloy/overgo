@@ -14,8 +14,7 @@ import (
 
 // A replayed exec carries kernel parameters by value, so once device memory
 // a captured graph references is freed the exec must go: after two retained
-// executions the second replays, after the drop the next captures again, and
-// a compile after the drop matches only through its own serial.
+// executions the second replays, and after the drop the next captures again.
 func TestExecutorDropsGraphExecsBeforeFreedMemoryReplays(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -69,12 +68,5 @@ func TestExecutorDropsGraphExecsBeforeFreedMemoryReplays(t *testing.T) {
 	}
 	if after.GraphCaptures != 2 || after.GraphCacheHits != 1 || after.GraphCacheEntries != 1 {
 		t.Fatalf("post-drop metrics = %+v", after)
-	}
-	recompiled, err := Compile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if recompiled.serial == compiled.serial || recompiled.serial == 0 {
-		t.Fatalf("compiled serials %d and %d are not distinct", compiled.serial, recompiled.serial)
 	}
 }

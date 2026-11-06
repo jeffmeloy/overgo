@@ -77,11 +77,8 @@ func (CellAttentionAttributes) validFor(op Op) bool { return sameOp(op, OpCellAt
 func (a CellAttentionAttributes) steps() []uint32 {
 	words := make([]uint32, 0, QSAStepWords*len(a.Cells))
 	for _, cell := range a.Cells {
-		held, first := cell+1, uint32(0)
-		if a.Window > 0 && held > a.Window {
-			first = held - a.Window
-		}
-		words = append(words, cell, held, first, held-first)
+		first, count := a.Reads(cell)
+		words = append(words, cell, cell+1, first, count)
 	}
 	return words
 }

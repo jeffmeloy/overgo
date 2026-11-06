@@ -17,7 +17,7 @@ import (
 // compact-tests/fatal-check left, in tests that a compatibility claim or a pinned record binds, which change with a
 // verification of their own, in the CUDA executor's and driver's, which change with the next landing that runs the
 // device lane in full, and those whose init spans lines or assigns an err declared before it.
-const threeLineCheckCeiling = 1962
+const threeLineCheckCeiling = 1914
 
 // threeLineChecks counts the checks of a test file that say in three lines what testcheck.NoError says in one: an if
 // whose condition is err != nil, with no else and no else-if before it, and whose body is t.Fatal(err), tb's or b's,

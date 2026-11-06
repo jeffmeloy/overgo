@@ -156,7 +156,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 				}
 			}
 			if index == 0 {
-				deepSeekPositions = slices.Clone(positions)
+				deepSeekPositions = positions
 			} else {
 				for item := range positions {
 					if positions[item] != deepSeekPositions[item] {

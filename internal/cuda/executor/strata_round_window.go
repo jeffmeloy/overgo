@@ -33,18 +33,18 @@ func (w *strataRoundWindow) rt(token int64) driver.DevicePtr {
 	return at(w.residual, token*strataGRStreams*strataGREmbedding)
 }
 
-// onStream runs launches on stream, as a captured launch onto the window's side stream.
-func (w *strataRoundWindow) onStream(stream driver.Stream, launches func() error) error {
-	saved := w.state.Stream
-	w.state.Stream = stream
-	defer func() { w.state.Stream = saved }()
+// onStream runs launches on stream, as a captured launch onto a recording's side stream.
+func onStream(state *device.State, stream driver.Stream, launches func() error) error {
+	saved := state.Stream
+	state.Stream = stream
+	defer func() { state.Stream = saved }()
 	return launches()
 }
 
 // recordWindow is record_window for t tokens on the window's stream.
 func (r *StrataRound) recordWindow(state *device.State, functions functionSet, t int) error {
 	w := &strataRoundWindow{StrataRound: r, state: state, functions: functions, t: int64(t)}
-	return w.onStream(r.cs, w.record)
+	return onStream(state, r.cs, w.record)
 }
 
 func (w *strataRoundWindow) record() error {
@@ -425,7 +425,7 @@ func (w *strataRoundWindow) route(l int, layer StrataRoundLayer) error {
 	if err := w.state.Driver.WaitEvent(w.shCS, fork); err != nil {
 		return err
 	}
-	if err := w.onStream(w.shCS, func() error { return w.sharedExpert(layer) }); err != nil {
+	if err := onStream(w.state, w.shCS, func() error { return w.sharedExpert(layer) }); err != nil {
 		return err
 	}
 	join, err := w.state.Driver.RecordEvent(w.shCS)

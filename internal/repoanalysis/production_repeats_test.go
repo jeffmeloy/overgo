@@ -35,12 +35,12 @@ const parameterCeiling = 1945
 
 // surfaceRepeatCeiling and surfaceParameterCeiling are the most syntax nodes the production bodies inside the inference
 // surface may repeat beyond one copy of each, alike and differing in at most parameterLeast values: what
-// compact-production/surface-folds and consolidate/release-storages left, repeats on a per-token path, which no fold
-// takes without a benchmark, the CUDA executor's and driver's, which consolidate/cell-step-reads folds once their full
-// device lane can pass, and typed accessors and constructors over different types, which a helper would not shorten.
+// compact-production/surface-folds, consolidate/release-storages and consolidate/cell-step-reads left, repeats on a
+// per-token path, which no fold takes without a benchmark, and typed accessors and constructors over different types,
+// which a helper would not shorten.
 const (
-	surfaceRepeatCeiling    = 142
-	surfaceParameterCeiling = 1493
+	surfaceRepeatCeiling    = 111
+	surfaceParameterCeiling = 1429
 )
 
 // bodyShape reads a body as the checker resolves it: its skeleton, each node's kind and each operator, with each local

@@ -25,14 +25,6 @@ type strataDrafterRecord struct {
 	functions functionSet
 }
 
-// onStream runs launches on stream, as a captured launch onto the drafter's side stream.
-func (w *strataDrafterRecord) onStream(stream driver.Stream, launches func() error) error {
-	saved := w.state.Stream
-	w.state.Stream = stream
-	defer func() { w.state.Stream = saved }()
-	return launches()
-}
-
 // stepAt and posAt are a step row's record and positions.
 func (w *strataDrafterRecord) stepAt(row int64) driver.DevicePtr {
 	return w.dStep + driver.DevicePtr(row*strataDrafterStepWords*strataRoundWordBytes)
@@ -184,7 +176,7 @@ func (w *strataDrafterRecord) rest(stepRow int64) error {
 	if err := w.state.Driver.WaitEvent(w.side, fork); err != nil {
 		return err
 	}
-	if err := w.onStream(w.side, w.sharedExpert); err != nil {
+	if err := onStream(w.state, w.side, w.sharedExpert); err != nil {
 		return err
 	}
 	join, err := w.state.Driver.RecordEvent(w.side)
@@ -292,7 +284,7 @@ func (d *StrataDrafter) capture(state *device.State, functions functionSet, exec
 		return fmt.Errorf("mtp: begin capture: %w", err)
 	}
 	w := &strataDrafterRecord{StrataDrafter: d, state: state, functions: functions}
-	recorded := w.onStream(d.cs, func() error { return record(w) })
+	recorded := onStream(w.state, d.cs, func() error { return record(w) })
 	graph, ended := state.Driver.StreamEndCapture(d.cs)
 	if recorded != nil || ended != nil {
 		return errors.Join(recorded, ended, state.Driver.GraphDestroy(graph))

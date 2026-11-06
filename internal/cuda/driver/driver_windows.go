@@ -329,44 +329,20 @@ func (l *Library) Init() error {
 
 // DriverVersion: returns highest CUDA version supported by driver
 func (l *Library) DriverVersion() (Version, error) {
-	var version int32
-	var pinned runtime.Pinner
-	pinned.Pin(&version)
-	defer pinned.Unpin()
-	result, _, _ := l.cuDriverGetVersion.Call(uintptr(unsafe.Pointer(&version)))
-	if err := l.result("cuDriverGetVersion", result); err != nil {
-		return 0, err
-	}
-	return Version(version), nil
+	version, err := l.int32Out(l.cuDriverGetVersion)
+	return Version(version), err
 }
 
 // DeviceCount: returns number of CUDA devices visible to driver
 func (l *Library) DeviceCount() (int, error) {
-	var count int32
-	var pinned runtime.Pinner
-	pinned.Pin(&count)
-	defer pinned.Unpin()
-	result, _, _ := l.cuDeviceGetCount.Call(uintptr(unsafe.Pointer(&count)))
-	if err := l.result("cuDeviceGetCount", result); err != nil {
-		return 0, err
-	}
-	return int(count), nil
+	count, err := l.int32Out(l.cuDeviceGetCount)
+	return int(count), err
 }
 
 // Device: returns CUDA device handle for ordinal
 func (l *Library) Device(ordinal int) (Device, error) {
-	var device int32
-	var pinned runtime.Pinner
-	pinned.Pin(&device)
-	defer pinned.Unpin()
-	result, _, _ := l.cuDeviceGet.Call(
-		uintptr(unsafe.Pointer(&device)),
-		uintptr(ordinal),
-	)
-	if err := l.result("cuDeviceGet", result); err != nil {
-		return 0, err
-	}
-	return Device(device), nil
+	device, err := l.int32Out(l.cuDeviceGet, uintptr(ordinal))
+	return Device(device), err
 }
 
 // DeviceInfo: returns properties used by Go runtime
@@ -1215,19 +1191,21 @@ func (l *Library) ComputeCapability(device Device) (major, minor int, err error)
 }
 
 func (l *Library) deviceAttribute(device Device, attribute int) (int, error) {
+	value, err := l.int32Out(l.cuDeviceGetAttribute, uintptr(attribute), uintptr(device))
+	return int(value), err
+}
+
+// int32Out calls proc with a pinned int32 the driver writes as its first argument, then arguments, and returns the
+// value, or zero where the call fails.
+func (l *Library) int32Out(proc *syscall.Proc, arguments ...uintptr) (int32, error) {
 	var value int32
 	var pinned runtime.Pinner
 	pinned.Pin(&value)
 	defer pinned.Unpin()
-	result, _, _ := l.cuDeviceGetAttribute.Call(
-		uintptr(unsafe.Pointer(&value)),
-		uintptr(attribute),
-		uintptr(device),
-	)
-	if err := l.result("cuDeviceGetAttribute", result); err != nil {
+	if err := l.call(proc, append([]uintptr{uintptr(unsafe.Pointer(&value))}, arguments...)...); err != nil {
 		return 0, err
 	}
-	return int(value), nil
+	return value, nil
 }
 
 // call calls proc with arguments that hold no movable Go pointer, and reports its result.

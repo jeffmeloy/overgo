@@ -837,8 +837,6 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
-	// serial is this compilation's unique number; see compiledSerials.
-	serial        uint64
 	outputs       []*tensor.Tensor
 	outputIndexes map[*tensor.Tensor]int
 	outputViews   []retainedStorageView
@@ -1270,7 +1268,6 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	outputs := program.Outputs()
 	order := program.Order()
 	compiled := &CompiledGraph{
-		serial:          nextCompiledSerial(),
 		outputs:         slices.Clone(outputs),
 		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
 		outputViews:     make([]retainedStorageView, len(outputs)),

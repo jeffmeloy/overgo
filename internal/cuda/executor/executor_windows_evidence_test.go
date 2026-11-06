@@ -8,62 +8,8 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
-
-func TestGraphReplayMetrics(t *testing.T) {
-	ctx := t.Context()
-	builder := tensor.NewBuilder()
-	shape := tensor.MustShape(8)
-	input := builder.Input("input", dtype.F32, shape)
-	output := builder.Scale(input, 2)
-	compiled, err := Compile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cuda := newFixtureExecutor(t)
-	beforeDriver, err := cuda.worker.ExecutionStats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeds := map[*tensor.Tensor]reference.Value{
-		input: {Shape: shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
-	}
-	executions := graphExecCacheCapacity + 2
-	for range executions {
-		retained, executeErr := cuda.ExecuteRetainedCompiled(
-			ctx, compiled, feeds, nil, nil, nil,
-		)
-		if executeErr != nil {
-			t.Fatal(executeErr)
-		}
-		if releaseErr := retained.Release(ctx); releaseErr != nil {
-			t.Fatal(releaseErr)
-		}
-	}
-	metrics, err := cuda.Metrics(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	afterDriver, err := cuda.worker.ExecutionStats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if metrics.GraphCacheHits == 0 || metrics.GraphCacheMisses == 0 {
-		t.Fatalf("graph cache did not report both paths: %+v", metrics)
-	}
-	if metrics.GraphCaptures != metrics.GraphCacheMisses {
-		t.Fatalf("captures = %d, misses = %d", metrics.GraphCaptures, metrics.GraphCacheMisses)
-	}
-	if metrics.GraphInstantiations+metrics.GraphUpdates != metrics.GraphCaptures {
-		t.Fatalf("capture disposition is incomplete: %+v", metrics)
-	}
-	if metrics.GraphCacheEntries == 0 || metrics.GraphCacheEntries > metrics.GraphCacheCapacity {
-		t.Fatalf("graph cache occupancy is invalid: %+v", metrics)
-	}
-	if launches := afterDriver.GraphLaunches - beforeDriver.GraphLaunches; launches != uint64(executions) {
-		t.Fatalf("driver graph launches = %d, want %d", launches, executions)
-	}
-}
 
 func TestArenaMetrics(t *testing.T) {
 	ctx := t.Context()
@@ -111,6 +57,15 @@ func TestArenaMetrics(t *testing.T) {
 	if metrics.ArenaUnusedBytes != metrics.ArenaCommittedBytes-metrics.ArenaRequiredBytes {
 		t.Fatalf("arena unused bytes are invalid: %+v", metrics)
 	}
+	// A smaller graph prepared after the growth needs its own bytes and keeps the grown arena, its peak and its growths.
+	grown := metrics
+	testcheck.NoError(t, cuda.PrepareCompiled(ctx, small))
+	metrics = testcheck.Must(cuda.Metrics(ctx))(t)
+	if metrics.ArenaRequiredBytes != small.memory.ArenaSize || metrics.ArenaPeakRequiredBytes != grown.ArenaPeakRequiredBytes ||
+		metrics.ArenaCommittedBytes != grown.ArenaCommittedBytes || metrics.ArenaGrowths != grown.ArenaGrowths ||
+		metrics.ArenaUnusedBytes != metrics.ArenaCommittedBytes-metrics.ArenaRequiredBytes {
+		t.Fatalf("a smaller graph after the growth left arena evidence %+v, after %+v", metrics, grown)
+	}
 }
 
 func TestExecutorReplayMatchesReference(t *testing.T) {
@@ -136,7 +91,9 @@ func TestExecutorReplayMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	for range graphExecCacheCapacity + 2 {
+	beforeDriver := testcheck.Must(cuda.worker.ExecutionStats(ctx))(t)
+	executions := graphExecCacheCapacity + 2
+	for range executions {
 		retained, executeErr := cuda.ExecuteRetainedCompiled(
 			ctx, compiled, feeds, nil, nil, nil,
 		)
@@ -152,12 +109,22 @@ func TestExecutorReplayMatchesReference(t *testing.T) {
 			t.Fatal(releaseErr)
 		}
 	}
-	metrics, err := cuda.Metrics(ctx)
-	if err != nil {
-		t.Fatal(err)
+	metrics := testcheck.Must(cuda.Metrics(ctx))(t)
+	afterDriver := testcheck.Must(cuda.worker.ExecutionStats(ctx))(t)
+	if metrics.GraphCacheHits == 0 || metrics.GraphCacheMisses == 0 {
+		t.Fatalf("graph cache did not report both paths: %+v", metrics)
 	}
-	if metrics.GraphCacheHits == 0 {
-		t.Fatalf("parity exercised no replay: %+v", metrics)
+	if metrics.GraphCaptures != metrics.GraphCacheMisses {
+		t.Fatalf("captures = %d, misses = %d", metrics.GraphCaptures, metrics.GraphCacheMisses)
+	}
+	if metrics.GraphInstantiations+metrics.GraphUpdates != metrics.GraphCaptures {
+		t.Fatalf("capture disposition is incomplete: %+v", metrics)
+	}
+	if metrics.GraphCacheEntries == 0 || metrics.GraphCacheEntries > metrics.GraphCacheCapacity {
+		t.Fatalf("graph cache occupancy is invalid: %+v", metrics)
+	}
+	if launches := afterDriver.GraphLaunches - beforeDriver.GraphLaunches; launches != uint64(executions) {
+		t.Fatalf("driver graph launches = %d, want %d", launches, executions)
 	}
 }
 

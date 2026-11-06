@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestCellAttentionMatchesReference holds the cell attention operation (tensor.CellAttention) on the device to the
@@ -105,25 +107,19 @@ func cellAttentionParity(t *testing.T, cuda *Executor, width, heads, kvHeads, wi
 			{Shape: tensor.MustShape(width, kvHeads, tokens), Data: random(width * kvHeads * tokens)},
 			{Shape: tensor.MustShape(width, kvHeads, tokens), Data: random(width * kvHeads * tokens)},
 		}
-		build := func() (*tensor.Tensor, []*tensor.Tensor, []*tensor.Tensor) {
-			builder := tensor.NewBuilder()
-			var rows []*tensor.Tensor
-			for index, name := range []string{"query", "key", "value"} {
-				rows = append(rows, builder.Input(name, dtype.F32, inputs[index].Shape))
-			}
-			state := make([]*tensor.Tensor, len(kinds))
-			for index, part := range kinds {
-				state[index] = builder.Input([]string{"key_codes", "value_codes", "key_scales", "value_scales", "page_table"}[index], part.kind, part.shape)
-			}
-			output := builder.CellAttention(rows[0], rows[1], rows[2], tensor.CellState{
-				KeyCodes: state[0], ValueCodes: state[1], KeyScales: state[2], ValueScales: state[3], PageTable: state[4],
-			}, attributes)
-			if err := builder.Err(); err != nil {
-				t.Fatal(err)
-			}
-			return output, rows, state
+		builder := tensor.NewBuilder()
+		var rows []*tensor.Tensor
+		for index, name := range []string{"query", "key", "value"} {
+			rows = append(rows, builder.Input(name, dtype.F32, inputs[index].Shape))
 		}
-		output, rows, state := build()
+		state := make([]*tensor.Tensor, len(kinds))
+		for index, part := range kinds {
+			state[index] = builder.Input([]string{"key_codes", "value_codes", "key_scales", "value_scales", "page_table"}[index], part.kind, part.shape)
+		}
+		output := builder.CellAttention(rows[0], rows[1], rows[2], tensor.CellState{
+			KeyCodes: state[0], ValueCodes: state[1], KeyScales: state[2], ValueScales: state[3], PageTable: state[4],
+		}, attributes)
+		testcheck.NoError(t, builder.Err())
 		host := map[*tensor.Tensor]reference.Value{}
 		for index, node := range rows {
 			host[node] = inputs[index]
@@ -132,24 +128,14 @@ func cellAttentionParity(t *testing.T, cuda *Executor, width, heads, kvHeads, wi
 		for index, node := range state {
 			device[node] = devicePointers[index]
 		}
-		got, err := cuda.executeWithDeviceFeeds(ctx, []*tensor.Tensor{output}, host, device)
-		if err != nil {
-			t.Fatal(err)
-		}
-		referenceOutput, referenceRows, referenceState := build()
-		feeds := map[*tensor.Tensor]reference.Value{}
-		for index, node := range referenceRows {
-			feeds[node] = inputs[index]
-		}
-		for index, node := range referenceState {
+		got := testcheck.Must(cuda.executeWithDeviceFeeds(ctx, []*tensor.Tensor{output}, host, device))(t)
+		feeds := maps.Clone(host)
+		for index, node := range state {
 			feeds[node] = hostState[index]
 		}
-		want, err := reference.Execute([]*tensor.Tensor{referenceOutput}, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
+		want := testcheck.Must(reference.Execute([]*tensor.Tensor{output}, feeds))(t)
 		difference, outputScale := 0.0, 0.0
-		for index, value := range want[referenceOutput].Data {
+		for index, value := range want[output].Data {
 			difference = max(difference, math.Abs(float64(got[output].Data[index]-value)))
 			outputScale = max(outputScale, math.Abs(float64(value)))
 		}

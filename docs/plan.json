@@ -68,26 +68,6 @@
       ]
     },
     {
-      "id": "consolidate",
-      "title": "Remove duplicated and unused code",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 86,
-        "reason": "catalog-choice measured -84 production nodes against its estimate of -60: one catalog choice where four stood and one lineage comparator where two did; the row's later steps carry their own measured deletions."
-      },
-      "steps": [
-        {
-          "id": "cell-step-reads",
-          "title": "Take the cell step records' window from Reads",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run 'CellAttention'",
-          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads.\n\nSQA-217 and the CUDA folds compact-production/surface-folds held back join this step, since any change under internal/cuda/driver or internal/cuda/executor runs the device lane in full, which waits on compact-production/adaptiveparity-lane: the graph cache matches the retained compiled graph and the exact frame, compiledSerials and both serial fields going with the graph-drop test's second-compile tail; the two strata recorders' side-stream switch is one onStream over their device state; and the driver's version and device count read through one int32Out. TestSurfaceRepeatsStayUnderTheirCeiling's ceilings fall by what the folds remove.\n\nTestSurfaceRepeatsStayUnderTheirCeiling is now the subtest inside the inference surface of TestRepeatedProductionBodiesStayUnderTheirCeiling, which reads the checkout once for every repeat and forwarder ceiling; its two surface ceilings fall by what the folds remove.\n\nThe register's test reductions in internal/cuda/executor's tests join this step from compact-tests/sqa-reductions, since a change to them runs the device lane in full: SQA-204, the full-rank doorbell cases into the captured-execution table; SQA-209, replay metrics into the reference replay test; SQA-220, the smaller-after-growth arena check into the metrics test; SQA-166, the verify-span graph into the decode graph fixture; SQA-188, the prefill attention cases into the flash attention table; SQA-174, worker statistics in the MoE and read-back tests; and SQA-230, each QSA and cell parity graph built once for its two backends."
-        }
-      ]
-    },
-    {
       "id": "one-home",
       "title": "Give each repeated mechanism one home",
       "class": "consolidation",

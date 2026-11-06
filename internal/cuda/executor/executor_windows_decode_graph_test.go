@@ -18,12 +18,14 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
-// decodeStepGraph is one compiled decode step of Flash-Next's parts: a
-// token row, rotary positions, an in-place cache append, decode attention,
-// a block selection with sparse attention over the page, and routed experts
-// of IQ4_XS and Q8_0 banks.
+// decodeStepGraph is one compiled decode step of Flash-Next's parts: its
+// token rows (a speculative verify span's several), rotary positions,
+// in-place cache appends, causal attention over the page, a block selection
+// with sparse attention for each query, and routed experts of IQ4_XS and Q8_0
+// banks.
 type decodeStepGraph struct {
 	compiled                                  *CompiledGraph
 	inputs                                    map[string]*tensor.Tensor
@@ -34,16 +36,17 @@ type decodeStepGraph struct {
 	width, capacity, blockSize, experts, topK uint64
 }
 
-// buildDecodeStepGraph compiles the step of the token row at position, every attribute fixed in the graph.
-func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
+// buildDecodeStepGraph compiles the step of the token rows at position, every attribute fixed in the graph.
+func buildDecodeStepGraph(t *testing.T, rows []uint32, position uint32) decodeStepGraph {
 	t.Helper()
 	const (
 		// Two query heads of 128 channels fill one 256-weight IQ4_XS block of the hidden width.
 		width, heads, hidden, intermediate = 128, 2, 256, 256
-		// Eight blocks of four tokens; a budget of two blocks selects 11 tokens.
+		// Eight blocks of four tokens; a budget of two blocks selects up to 11 tokens a query.
 		capacity, blockSize, budget = 32, 4, 8
 		vocabulary, experts, topK   = 16, 8, 2
 	)
+	span := uint64(len(rows))
 	builder := tensor.NewBuilder()
 	builder.SetMulMatCompute(tensor.MulMatComputeNativeTensorCore)
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: position, CapacityTokens: capacity})
@@ -56,13 +59,17 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 	wq, wk, wv := input("wq", dtype.F32, hidden, hidden), input("wk", dtype.F32, hidden, width), input("wv", dtype.F32, hidden, width)
 	wout := input("output", dtype.F32, hidden, vocabulary)
 	keyCache, valueCache := input("cache_k", dtype.F32, width, 1, capacity), input("cache_v", dtype.F32, width, 1, capacity)
-	g.scores, g.selected = input("block_scores", dtype.F32, capacity/blockSize, 1), input("selected", dtype.F32, topK, 1)
+	g.scores, g.selected = input("block_scores", dtype.F32, capacity/blockSize, span), input("selected", dtype.F32, topK, span)
 	gate := input("gate", dtype.IQ4XS, hidden, intermediate, experts)
 	up := input("up", dtype.IQ4XS, hidden, intermediate, experts)
 	down := input("down", dtype.Q8_0, intermediate, hidden, experts)
+	positions := make([]uint32, span)
+	for index := range positions {
+		positions[index] = position + uint32(index)
+	}
 	rope := func(node *tensor.Tensor) *tensor.Tensor {
 		rotated := builder.RoPEWithOptions(node, tensor.RoPEOptions{
-			Layout: tensor.RoPELayoutNeoX, Positions: []uint32{position}, RotaryDimensions: width,
+			Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: width,
 			FrequencyBase: 10000, FrequencyScale: tensor.UnitFrequencyScale,
 		})
 		g.rotations = append(g.rotations, rotated)
@@ -73,28 +80,66 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 		g.appends = append(g.appends, appended)
 		return appended
 	}
-	g.embedded = builder.GetRows(table, []uint32{row})
-	query := rope(builder.Reshape(builder.MulMat(wq, g.embedded), width, heads, 1))
-	g.key = appendCache(keyCache, rope(builder.Reshape(builder.MulMat(wk, g.embedded), width, 1, 1)))
-	g.value = appendCache(valueCache, builder.Reshape(builder.MulMat(wv, g.embedded), width, 1, 1))
+	g.embedded = builder.GetRows(table, rows)
+	query := rope(builder.Reshape(builder.MulMat(wq, g.embedded), width, heads, span))
+	g.key = appendCache(keyCache, rope(builder.Reshape(builder.MulMat(wk, g.embedded), width, 1, span)))
+	g.value = appendCache(valueCache, builder.Reshape(builder.MulMat(wv, g.embedded), width, 1, span))
 	scale := float32(1 / math.Sqrt(width))
 	g.attention = builder.AttentionWithOptions(query, g.key, g.value, tensor.AttentionOptions{Scale: scale, Causal: true, QueryStart: position})
 	g.indices = builder.BlockTopK(g.scores, budget, blockSize, position, capacity)
 	g.sparse = builder.SparseAttentionWithOffset(query, g.key, g.value, g.indices, scale, true, position)
-	mixed := builder.Add(builder.Add(g.embedded, builder.Reshape(g.attention, hidden, 1)), builder.Reshape(g.sparse, hidden, 1))
+	mixed := builder.Add(builder.Add(g.embedded, builder.Reshape(g.attention, hidden, span)), builder.Reshape(g.sparse, hidden, span))
 	routed := builder.MoEWithOptions(mixed, router, up, down, tensor.MoEOptions{
 		Gate: gate, SelectedExperts: g.selected, TopK: topK, NormalizeTopKProb: true, Scale: 1,
 		Routing: tensor.MoERoutingSoftmax, Activation: tensor.MoEActivationSiLU, ExpertIndexDivisor: 1,
 	})
 	g.logits = builder.MulMat(wout, builder.Add(mixed, routed))
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
-	var err error
-	if g.compiled, err = Compile(g.logits, g.key, g.value); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.NoError(t, builder.Err())
+	g.compiled = testcheck.Must(Compile(g.logits, g.key, g.value))(t)
 	return g
+}
+
+// bindDecodeStep binds a step graph's inputs by name and its appended caches in place.
+func bindDecodeStep(t *testing.T, graph decodeStepGraph, pointers map[string]driver.DevicePtr) (*DeviceInputs, *RetainedTargets) {
+	t.Helper()
+	inputs, targets := graph.compiled.NewDeviceInputs(), graph.compiled.NewRetainedTargets()
+	for name, pointer := range pointers {
+		testcheck.NoError(t, inputs.Set(graph.inputs[name], pointer))
+	}
+	for _, cache := range []struct {
+		output *tensor.Tensor
+		name   string
+	}{{graph.key, "cache_k"}, {graph.value, "cache_v"}} {
+		size, _ := cache.output.Shape.Bytes(dtype.F32)
+		testcheck.NoError(t, targets.Set(cache.output, DeviceValue{Pointer: pointers[cache.name], Shape: cache.output.Shape, CapacityBytes: size}))
+	}
+	return inputs, targets
+}
+
+// readDecodeCaches reads a step's key and value caches back from the card, each as long as its values.
+func readDecodeCaches(t *testing.T, cuda *Executor, pointers map[string]driver.DevicePtr, values map[string][]byte) []byte {
+	t.Helper()
+	var held []byte
+	testcheck.NoError(t, cuda.worker.Do(t.Context(), func(state *device.State) error {
+		for _, name := range []string{"cache_k", "cache_v"} {
+			data := make([]byte, len(values[name]))
+			if err := state.Driver.MemcpyDtoH(data, pointers[name]); err != nil {
+				return err
+			}
+			held = append(held, data...)
+		}
+		return nil
+	}))
+	return held
+}
+
+// decodeLogits is a retained step's output bits, the step released.
+func decodeLogits(t *testing.T, retained *RetainedOutputs, err error, output *tensor.Tensor) []byte {
+	t.Helper()
+	testcheck.NoError(t, err)
+	host, copyErr := retained.CopyToHost(t.Context(), output)
+	testcheck.NoError(t, errors.Join(copyErr, retained.Release(t.Context())))
+	return bytes.Clone(driver.Bytes(host.Data))
 }
 
 // TestDecodeStepReplaysAsOneGraph decodes several tokens two ways. The
@@ -117,7 +162,7 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	// cpuLogitsShare bounds a token's logits, whose experts on host the CPU computed, as a relative RMS difference
 	// from the launched step's: about twice the largest seen.
 	const cpuLogitsShare = 0.01
-	replayedGraph := buildDecodeStepGraph(t, 0, past)
+	replayedGraph := buildDecodeStepGraph(t, []uint32{0}, past)
 	g := replayedGraph
 
 	// Every weight and the past caches hold the same values on both executors.
@@ -148,59 +193,6 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 			pointers[name] = copyFixtureDeviceBytes(t, cuda.worker, bytes)
 		}
 		return pointers
-	}
-	// bind binds a graph's inputs by name and its appended caches in place.
-	bind := func(graph decodeStepGraph, pointers map[string]driver.DevicePtr) (*DeviceInputs, *RetainedTargets) {
-		inputs, targets := graph.compiled.NewDeviceInputs(), graph.compiled.NewRetainedTargets()
-		for name, pointer := range pointers {
-			if err := inputs.Set(graph.inputs[name], pointer); err != nil {
-				t.Fatal(err)
-			}
-		}
-		for _, cache := range []struct {
-			output *tensor.Tensor
-			name   string
-		}{{graph.key, "cache_k"}, {graph.value, "cache_v"}} {
-			bytes, _ := cache.output.Shape.Bytes(dtype.F32)
-			if err := targets.Set(cache.output, DeviceValue{Pointer: pointers[cache.name], Shape: cache.output.Shape, CapacityBytes: bytes}); err != nil {
-				t.Fatal(err)
-			}
-		}
-		return inputs, targets
-	}
-	stats := func(cuda *Executor) driver.ExecutionStats {
-		var stats driver.ExecutionStats
-		if err := cuda.worker.Do(t.Context(), func(state *device.State) error { stats = state.Driver.ExecutionStats(); return nil }); err != nil {
-			t.Fatal(err)
-		}
-		return stats
-	}
-	readCaches := func(cuda *Executor, pointers map[string]driver.DevicePtr) []byte {
-		var held []byte
-		if err := cuda.worker.Do(t.Context(), func(state *device.State) error {
-			for _, name := range []string{"cache_k", "cache_v"} {
-				data := make([]byte, len(values[name]))
-				if err := state.Driver.MemcpyDtoH(data, pointers[name]); err != nil {
-					return err
-				}
-				held = append(held, data...)
-			}
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-		return held
-	}
-	logits := func(retained *RetainedOutputs, err error, output *tensor.Tensor) []byte {
-		t.Helper()
-		if err != nil {
-			t.Fatal(err)
-		}
-		host, copyErr := retained.CopyToHost(t.Context(), output)
-		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
-			t.Fatal(err)
-		}
-		return bytes.Clone(driver.Bytes(host.Data))
 	}
 
 	launched := newFixtureExecutor(t)
@@ -245,7 +237,7 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	inputs, targets := bind(g, replayedData)
+	inputs, targets := bindDecodeStep(t, g, replayedData)
 
 	// The runtime attributes point at values each token rewrites, as a decode session's do.
 	attributes := g.compiled.NewRuntimeAttributes()
@@ -301,14 +293,14 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 				graph.selected: {Shape: graph.selected.Shape, Data: []float32{float32(group%7 + 1), float32((group+3)%7 + 1)}},
 			}
 		}
-		fresh := buildDecodeStepGraph(t, row, position)
-		freshInputs, freshTargets := bind(fresh, launchedData)
+		fresh := buildDecodeStepGraph(t, []uint32{row}, position)
+		freshInputs, freshTargets := bindDecodeStep(t, fresh, launchedData)
 		retained, err := launched.ExecuteRetainedCompiledOnce(t.Context(), fresh.compiled, feed(fresh), freshInputs, freshTargets, nil)
-		want := logits(retained, err, fresh.logits)
-		before := stats(replayed)
+		want := decodeLogits(t, retained, err, fresh.logits)
+		before := testcheck.Must(replayed.worker.ExecutionStats(t.Context()))(t)
 		retained, err = replayed.ExecuteRetainedCompiled(t.Context(), g.compiled, feed(g), inputs, targets, attributes)
-		got := logits(retained, err, g.logits)
-		after := stats(replayed)
+		got := decodeLogits(t, retained, err, g.logits)
+		after := testcheck.Must(replayed.worker.ExecutionStats(t.Context()))(t)
 		// The first token's capture reads every expert where it is; later tokens hand those on host to the CPU, whose
 		// Q8_K activations moved the logits 0.2% to 0.5% (relative RMS) here.
 		if token == 0 && !bytes.Equal(got, want) {
@@ -338,7 +330,7 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 			moved = 0
 		}
 	}
-	if !bytes.Equal(readCaches(replayed, replayedData), readCaches(launched, launchedData)) {
+	if !bytes.Equal(readDecodeCaches(t, replayed, replayedData, values), readDecodeCaches(t, launched, launchedData, values)) {
 		t.Fatal("the replayed steps' caches differ from the launched steps'")
 	}
 }

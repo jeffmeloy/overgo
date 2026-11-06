@@ -24,6 +24,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // moePinnedOutputs: SHA-256 of each case's output bytes as the single-block
@@ -1115,33 +1116,12 @@ func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
 	if expertBytes > moeBatchBytes || 2*expertBytes <= moeBatchBytes {
 		t.Fatalf("an expert of %d bytes shares a copy buffer of %d bytes or overflows it", expertBytes, moeBatchBytes)
 	}
-	// run executes the node once and returns its output bits and the
-	// executor's stream waits and host-to-device bytes during the run.
 	run := func(offload bool) ([]byte, driver.ExecutionStats) {
 		t.Helper()
 		c.offload = offload
 		cuda := newFixtureExecutor(t)
 		output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
-		stats := func() (stats driver.ExecutionStats) {
-			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { stats = state.Driver.ExecutionStats(); return nil }); err != nil {
-				t.Fatal(err)
-			}
-			return stats
-		}
-		before := stats()
-		retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
-		if err != nil {
-			t.Fatal(err)
-		}
-		value, copyErr := retained.CopyToHost(t.Context(), output)
-		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
-			t.Fatal(err)
-		}
-		after := stats()
-		return bytes.Clone(driver.Bytes(value.Data)), driver.ExecutionStats{
-			StreamSynchronizations: after.StreamSynchronizations - before.StreamSynchronizations,
-			HostToDeviceBytes:      after.HostToDeviceBytes - before.HostToDeviceBytes,
-		}
+		return moeRunOnce(t, cuda, output, host, pointers)
 	}
 	card, cardStats := run(false)
 	host, hostStats := run(true)
@@ -1193,31 +1173,6 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 		c.limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
 		smallest = min(cmp.Or(smallest, expert), expert)
 	}
-	// run executes the node once and returns its output bits and the
-	// executor's stream waits and host-to-device bytes during the run.
-	run := func(t *testing.T, cuda *Executor, output *tensor.Tensor, host map[*tensor.Tensor]reference.Value, pointers map[*tensor.Tensor]driver.DevicePtr) ([]byte, driver.ExecutionStats) {
-		t.Helper()
-		var before, after driver.ExecutionStats
-		stats := func(into *driver.ExecutionStats) {
-			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { *into = state.Driver.ExecutionStats(); return nil }); err != nil {
-				t.Fatal(err)
-			}
-		}
-		stats(&before)
-		retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
-		if err != nil {
-			t.Fatal(err)
-		}
-		value, copyErr := retained.CopyToHost(t.Context(), output)
-		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
-			t.Fatal(err)
-		}
-		stats(&after)
-		return bytes.Clone(driver.Bytes(value.Data)), driver.ExecutionStats{
-			StreamSynchronizations: after.StreamSynchronizations - before.StreamSynchronizations,
-			HostToDeviceBytes:      after.HostToDeviceBytes - before.HostToDeviceBytes,
-		}
-	}
 	// Token t routes to experts t+1 and t+4, so none routes to expert 0.
 	reroute := func(host map[*tensor.Tensor]reference.Value) {
 		for node, value := range host {
@@ -1231,7 +1186,7 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
 	reroute(host)
-	resident, residentStats := run(t, cuda, output, host, pointers)
+	resident, residentStats := moeRunOnce(t, cuda, output, host, pointers)
 	c.offload = true
 	cuda = newFixtureExecutor(t)
 	output, host, pointers, _ = c.prepare(t, cuda, dtype.F32)
@@ -1247,7 +1202,7 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 		return floats
 	}
 	for attempt := range 4 {
-		got, stats := run(t, cuda, output, host, pointers)
+		got, stats := moeRunOnce(t, cuda, output, host, pointers)
 		if attempt == 0 && !bytes.Equal(got, resident) {
 			t.Fatalf("run %d: missed experts changed the resident output bits", attempt)
 		}
@@ -1268,6 +1223,21 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 		if attempt == 1 && stats.HostToDeviceBytes < smallest {
 			t.Fatalf("the run after the first routes moved %d bytes to the card, less than one expert", stats.HostToDeviceBytes)
 		}
+	}
+}
+
+// moeRunOnce executes output once and returns its output bits and the executor's stream waits and host-to-device
+// bytes during the run.
+func moeRunOnce(t *testing.T, cuda *Executor, output *tensor.Tensor, host map[*tensor.Tensor]reference.Value, pointers map[*tensor.Tensor]driver.DevicePtr) ([]byte, driver.ExecutionStats) {
+	t.Helper()
+	before := testcheck.Must(cuda.worker.ExecutionStats(t.Context()))(t)
+	retained := testcheck.Must(cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers))(t)
+	value, copyErr := retained.CopyToHost(t.Context(), output)
+	testcheck.NoError(t, errors.Join(copyErr, retained.Release(t.Context())))
+	after := testcheck.Must(cuda.worker.ExecutionStats(t.Context()))(t)
+	return bytes.Clone(driver.Bytes(value.Data)), driver.ExecutionStats{
+		StreamSynchronizations: after.StreamSynchronizations - before.StreamSynchronizations,
+		HostToDeviceBytes:      after.HostToDeviceBytes - before.HostToDeviceBytes,
 	}
 }
 

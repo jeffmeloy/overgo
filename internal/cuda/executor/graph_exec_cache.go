@@ -4,27 +4,18 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sync/atomic"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 )
 
 type graphExecEntry struct {
-	exec     driver.GraphExec
+	exec driver.GraphExec
+	// compiled is held while the entry stands, so its address names no later compile.
 	compiled *CompiledGraph
-	serial   uint64
 	frame    []driver.DevicePtr
 	used     uint64
 }
-
-// compiledSerials numbers every compiled graph once. The exec cache compares
-// the serial beside the pointer: a released graph's address can be reused by
-// a later compile, and a stale exec matched through that address would
-// replay kernels over memory the earlier graph owned.
-var compiledSerials atomic.Uint64
-
-func nextCompiledSerial() uint64 { return compiledSerials.Add(1) }
 
 // graphExecCache: retained instantiated graphs keyed by indexed replay frame. Retained
 // buffer leases alternate between a small set of pool slots, so steady-state
@@ -55,8 +46,7 @@ func (c *graphExecCache) match(
 ) (driver.GraphExec, bool) {
 	for index := range c.entries {
 		entry := &c.entries[index]
-		if entry.exec != 0 && entry.compiled == compiled && entry.serial == compiled.serial &&
-			slices.Equal(entry.frame, frame) {
+		if entry.exec != 0 && entry.compiled == compiled && slices.Equal(entry.frame, frame) {
 			c.tick++
 			c.hits++
 			entry.used = c.tick
@@ -110,7 +100,6 @@ func (c *graphExecCache) store(
 		c.instantiations++
 	}
 	entry.compiled = compiled
-	entry.serial = compiled.serial
 	entry.frame = append(entry.frame[:0], frame...)
 	c.tick++
 	entry.used = c.tick

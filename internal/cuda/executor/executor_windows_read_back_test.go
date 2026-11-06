@@ -6,12 +6,11 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testcheck"
 )
 
 // TestRetainedRunReadsBackItsNamedOutputs holds a retained run of a graph with a read-back output to the values the
@@ -42,11 +41,7 @@ func TestRetainedRunReadsBackItsNamedOutputs(t *testing.T) {
 	feeds := map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: data}}
 	copies := func() uint64 {
 		t.Helper()
-		var stats driver.ExecutionStats
-		if err := cuda.worker.Do(ctx, func(state *device.State) error { stats = state.Driver.ExecutionStats(); return nil }); err != nil {
-			t.Fatal(err)
-		}
-		return stats.DeviceToHostCopies
+		return testcheck.Must(cuda.worker.ExecutionStats(ctx))(t).DeviceToHostCopies
 	}
 	for run := range 2 {
 		retained, err := cuda.ExecuteRetainedCompiled(ctx, compiled, feeds, nil, nil, nil)

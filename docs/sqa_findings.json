@@ -7824,7 +7824,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "e47e022de5b6e98387a988b6e0a394ae7369bbd4",
+    "head": "7800f8f57615157c22703493774a8fd5325e7667",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8579,11 +8579,11 @@
         "note": "Landed with compact-tests/sqa-reductions. TestRepeatedProductionBodiesStayUnderTheirCeiling is the one owner: linkedPackages loads the checkout once, and productionBodies, localForwarders and testBodies take that load, the test bodies collected once for both test-body readings; the repeat fixture and the forwarder fixture load once each. The parameter, surface, forwarder and both test-body checks are its synchronous named subtests, every ceiling, diagnostic, exclusion and the reversed reading kept; cell-step-reads's text follows the retained name. Awaits the reviewer's closure."
       },
       "SQA-313": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
           "empty-added-token/refuse"
         ],
-        "note": "Filed as its own row after compact-tests, with the refusal in Tokenizer.encode the finding recommends and a test not yet written as its check. compact-tests/fatal-check touched the hfbpe tests it cites only to say their error checks in one call."
+        "note": "Landed with empty-added-token/refuse: Tokenizer.encode refuses, when it parses added tokens, a tokenizer whose added vocabulary holds an empty token, after the decoder, normalizer and pre-tokenizer refusals; Load's legacy form and LoadSplit's added_tokens.json both reach it, and literal encoding still encodes. TestAnEmptyAddedTokenIsRefused holds both loaders. Awaits the reviewer's closure."
       },
       "SQA-315": {
         "action": "implemented",

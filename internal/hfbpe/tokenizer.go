@@ -229,6 +229,10 @@ func (t *Tokenizer) encode(text string, parseAdded bool) ([]int, error) {
 	if (t.normalizeNFC || t.preTokenize != nil) && !utf8.ValidString(text) {
 		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
+	// An empty added token matches before every character, so the split around it would never shorten its span.
+	if _, empty := t.special[""]; empty && parseAdded {
+		return nil, fmt.Errorf("the tokenizer's added vocabulary holds an empty token, which no text can be split around")
+	}
 	var ids []int
 	for _, part := range t.addedParts(text, parseAdded) {
 		if part.added {

@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "empty-added-token",
-      "title": "Refuse an empty added token before hfbpe splits text on it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 30,
-        "reason": "One refusal in Tokenizer.encode and its fixture case."
-      },
-      "steps": [
-        {
-          "id": "refuse",
-          "title": "Encoding with an empty added token is refused",
-          "status": "open",
-          "verify": "go test ./internal/hfbpe -count=1 -run '^TestAnEmptyAddedTokenIsRefused$'",
-          "rationale": "SQA-313 (P2): hfbpe.Load refuses an empty added token only for a declared normalizer or pre-tokenizer, and LoadSplit admits the key \"\" of added_tokens.json; both reach splitAdded, where strings.Index(text, \"\") is 0, so the span never shortens and the split grows without end, with no cancellation in the loop. Callers that encode, among them cmd/train's mixture and thoughtbank routes, the chain viability and speech recognition's alignment, would spin on such a tokenizer.\nChange: Tokenizer.encode refuses, with its error, a tokenizer whose added vocabulary holds an empty token when it parses added tokens, before the split, after the decoder, normalizer and pre-tokenizer refusals; decoding and literal encoding keep their contracts. TestAnEmptyAddedTokenIsRefused loads a fixture of no declarations with one empty added token and holds Encode to an error.\nServes: failure-rate: a tokenizer that would hang encoding is refused.\nDisappears: an unbounded loop on malformed input.\nEvidence: the test.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "consolidate",
       "title": "Remove duplicated and unused code",
       "class": "consolidation",

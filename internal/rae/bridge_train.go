@@ -20,14 +20,24 @@ type BridgeExample struct {
 	Picture      []float32
 }
 
-// BridgeTrainer trains a bridge against the picture the decoder draws from
-// what it maps: the squared error between that picture and the frame is
-// carried back through the frozen decoder to the bridged tokens, and from
-// them to the bridge. Only the bridge moves; the encoder's tokens are given
-// and the decoder is read.
+// BridgeSample is one example a bridge is trained on through a frozen model:
+// the source encoder's tokens, which the bridge maps, and the model's loss of
+// what the bridge maps them to, which with backward also gives the loss's
+// gradient with respect to the mapped tokens.
+type BridgeSample struct {
+	Tokens []float32
+	Loss   func(mapped []float32, backward bool) (float64, []float32, error)
+}
+
+// BridgeTrainer trains a bridge against what a frozen model makes of what it
+// maps: the model's loss is carried back through it to the mapped tokens, and
+// from them to the bridge. Only the bridge moves; the encoder's tokens are
+// given and the model is read. A pair's trainer holds the pair's decoder,
+// whose picture against the frame is its examples' loss.
 type BridgeTrainer struct {
 	decoder   *vitDecoder
 	source    int
+	target    int
 	weights   []float32
 	gradients []float32
 	plan      optimizer.Plan
@@ -47,11 +57,26 @@ func NewBridgeTrainer(pair *BridgedAutoencoder, config optimizer.Config) (*Bridg
 	if pair == nil {
 		return nil, errors.New("rae: no bridged pair to train")
 	}
-	source, target := pair.bridge.widths()
+	trainer, err := NewEncoderBridgeTrainer(pair.bridge, config)
+	if err != nil {
+		return nil, err
+	}
+	trainer.decoder = pair.decoder
+	return trainer, nil
+}
+
+// NewEncoderBridgeTrainer starts training bridge from the weights it holds,
+// under an optimizer configuration, against the frozen model its samples'
+// losses read.
+func NewEncoderBridgeTrainer(bridge EncoderBridge, config optimizer.Config) (*BridgeTrainer, error) {
+	source, target := bridge.widths()
+	if source == 0 {
+		return nil, errors.New("rae: a bridge to train needs its weights and offsets")
+	}
 	matrix := target * source
 	weights := make([]float32, matrix+target)
-	copy(weights, pair.bridge.Weight)
-	copy(weights[matrix:], pair.bridge.Bias)
+	copy(weights, bridge.Weight)
+	copy(weights[matrix:], bridge.Bias)
 	plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{
 		{Name: bridgeWeightGroup, Start: 0, End: matrix, Rows: target, Cols: source},
 		{Name: bridgeBiasGroup, Start: matrix, End: len(weights), Rows: 1, Cols: target},
@@ -59,7 +84,7 @@ func NewBridgeTrainer(pair *BridgedAutoencoder, config optimizer.Config) (*Bridg
 	if err != nil {
 		return nil, err
 	}
-	trainer := &BridgeTrainer{decoder: pair.decoder, source: source, weights: weights, gradients: make([]float32, len(weights)), plan: plan}
+	trainer := &BridgeTrainer{source: source, target: target, weights: weights, gradients: make([]float32, len(weights)), plan: plan}
 	if trainer.stepper, err = optimizer.New(trainer.weights, trainer.gradients, plan, config); err != nil {
 		return nil, err
 	}
@@ -80,17 +105,25 @@ func (t *BridgeTrainer) GradientL2() float64 { return t.gradient }
 
 // Bridge is the bridge as trained so far.
 func (t *BridgeTrainer) Bridge() EncoderBridge {
-	matrix := t.decoder.latent * t.source
+	matrix := t.target * t.source
 	return EncoderBridge{Weight: append([]float32(nil), t.weights[:matrix]...), Bias: append([]float32(nil), t.weights[matrix:]...)}
 }
 
 // SaveWeights writes the trained bridge's two tensors to a safetensors file.
 func (t *BridgeTrainer) SaveWeights(path string) error {
-	bridge := t.Bridge()
-	_, target := bridge.widths()
+	return SaveBridgeWeights(path, t.Bridge())
+}
+
+// SaveBridgeWeights writes a bridge's two tensors to a safetensors file: its
+// weight, a row of source weights for each target channel, and its offsets.
+func SaveBridgeWeights(path string, bridge EncoderBridge) error {
+	source, target := bridge.widths()
+	if source == 0 {
+		return errors.New("rae: a bridge to save needs its weights and offsets")
+	}
 	return safetensors.Save(path,
 		map[string][]float32{bridgeWeightTensor: bridge.Weight, bridgeBiasTensor: bridge.Bias},
-		map[string][]int{bridgeWeightTensor: {target, t.source}, bridgeBiasTensor: {target}}, nil)
+		map[string][]int{bridgeWeightTensor: {target, source}, bridgeBiasTensor: {target}}, nil)
 }
 
 // SavePair writes the trained bridge as a bridged pair's directory, naming
@@ -102,13 +135,25 @@ func (t *BridgeTrainer) SavePair(directory, sourceEncoder, collection string) er
 // Loss is the mean squared error, over every value of every example's
 // picture, of what the decoder draws from the bridged tokens.
 func (t *BridgeTrainer) Loss(ctx context.Context, examples []BridgeExample) (float64, error) {
-	return t.pass(ctx, examples, false)
+	return t.LossThrough(ctx, t.drawnSamples(examples))
 }
 
 // Step takes one optimizer step on the examples as one batch and returns
 // the loss the step started from.
 func (t *BridgeTrainer) Step(ctx context.Context, examples []BridgeExample) (float64, error) {
-	loss, err := t.pass(ctx, examples, true)
+	return t.StepThrough(ctx, t.drawnSamples(examples))
+}
+
+// LossThrough is the mean over the samples of the loss each gives what the
+// bridge maps its tokens to.
+func (t *BridgeTrainer) LossThrough(ctx context.Context, samples []BridgeSample) (float64, error) {
+	return t.through(ctx, samples, false)
+}
+
+// StepThrough takes one optimizer step on the samples as one batch and
+// returns the mean loss the step started from.
+func (t *BridgeTrainer) StepThrough(ctx context.Context, samples []BridgeSample) (float64, error) {
+	loss, err := t.through(ctx, samples, true)
 	if err != nil {
 		return 0, err
 	}
@@ -116,54 +161,78 @@ func (t *BridgeTrainer) Step(ctx context.Context, examples []BridgeExample) (flo
 	return loss, nil
 }
 
-// pass runs the examples forward and, when asked, leaves the batch's mean
+// drawnSamples are a pair's examples as samples whose loss is the mean
+// squared error, over every value of the picture, of what the decoder draws.
+func (t *BridgeTrainer) drawnSamples(examples []BridgeExample) []BridgeSample {
+	samples := make([]BridgeSample, len(examples))
+	for index, example := range examples {
+		samples[index] = BridgeSample{Tokens: example.SourceTokens, Loss: func(mapped []float32, backward bool) (float64, []float32, error) {
+			if t.decoder == nil {
+				return 0, nil, errors.New("the trainer holds no decoder to draw its examples")
+			}
+			pixels, trace, err := t.decoder.decodeTraced(mapped)
+			if err != nil {
+				return 0, nil, err
+			}
+			if len(pixels) != len(example.Picture) {
+				return 0, nil, fmt.Errorf("the picture holds %d values, the decoder draws %d", len(example.Picture), len(pixels))
+			}
+			count := float64(len(pixels))
+			dPixels := make([]float32, len(pixels))
+			var squared float64
+			for at, value := range pixels {
+				difference := float64(value) - float64(example.Picture[at])
+				squared += difference * difference
+				dPixels[at] = float32((difference + difference) / count)
+			}
+			if !backward {
+				return squared / count, nil, nil
+			}
+			dTokens, err := t.decoder.backward(trace, dPixels, nil)
+			return squared / count, dTokens, err
+		}}
+	}
+	return samples
+}
+
+// through runs the samples forward and, when asked, leaves the batch's mean
 // gradient with respect to the bridge in the gradient buffer.
-func (t *BridgeTrainer) pass(ctx context.Context, examples []BridgeExample, backward bool) (float64, error) {
-	if len(examples) == 0 {
+func (t *BridgeTrainer) through(ctx context.Context, samples []BridgeSample, backward bool) (float64, error) {
+	if len(samples) == 0 {
 		return 0, errors.New("rae: no examples to train the bridge on")
 	}
-	target := t.decoder.latent
-	matrix := target * t.source
+	matrix := t.target * t.source
 	bridge := EncoderBridge{Weight: t.weights[:matrix], Bias: t.weights[matrix:]}
 	if backward {
 		clear(t.gradients)
 	}
+	// The loss is the mean over the batch, so a sample's gradient is its own
+	// over the batch's count.
+	share := float32(1) / float32(len(samples))
 	var total float64
-	for index, example := range examples {
+	for index, sample := range samples {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		mapped, err := bridge.Apply(example.SourceTokens)
+		mapped, err := bridge.Apply(sample.Tokens)
 		if err != nil {
 			return 0, fmt.Errorf("rae: example %d: %w", index, err)
 		}
-		pixels, trace, err := t.decoder.decodeTraced(mapped)
+		loss, dMapped, err := sample.Loss(mapped, backward)
 		if err != nil {
 			return 0, fmt.Errorf("rae: example %d: %w", index, err)
 		}
-		if len(pixels) != len(example.Picture) {
-			return 0, fmt.Errorf("rae: example %d's picture holds %d values, the decoder draws %d", index, len(example.Picture), len(pixels))
-		}
-		// The loss is the mean over the batch of each picture's mean squared
-		// error, so a value's share of it is its error over both counts.
-		share := float64(len(pixels)) * float64(len(examples))
-		dPixels := make([]float32, len(pixels))
-		var squared float64
-		for at, value := range pixels {
-			difference := float64(value) - float64(example.Picture[at])
-			squared += difference * difference
-			dPixels[at] = float32((difference + difference) / share)
-		}
-		total += squared / share
+		total += loss / float64(len(samples))
 		if !backward {
 			continue
 		}
-		dTokens, err := t.decoder.backward(trace, dPixels, nil)
-		if err != nil {
-			return 0, err
+		if len(dMapped) != len(mapped) {
+			return 0, fmt.Errorf("rae: example %d's loss gave %d gradient values for %d mapped", index, len(dMapped), len(mapped))
 		}
-		rows := len(mapped) / target
-		hostmath.LinearBackward(nil, t.gradients[:matrix], t.gradients[matrix:], example.SourceTokens, bridge.Weight, dTokens, rows, t.source, target, false)
+		for at := range dMapped {
+			dMapped[at] *= share
+		}
+		hostmath.LinearBackward(nil, t.gradients[:matrix], t.gradients[matrix:], sample.Tokens, bridge.Weight, dMapped, len(mapped)/t.target, t.source, t.target, false)
 	}
 	if math.IsNaN(total) || math.IsInf(total, 0) {
 		return 0, errors.New("rae: the bridge's loss is not finite")

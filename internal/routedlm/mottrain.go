@@ -229,20 +229,6 @@ func (t *ModalityTransformerTrainer) forward(hidden []float32, mask []int) ([]mo
 	return activations, nil
 }
 
-// branchLinear: rows of one branch through a frozen BF16 or trainable f32
-// weight — pack, project, scatter.
-func packRows(dst, src []float32, rows []int, width int) {
-	for i, token := range rows {
-		copy(dst[i*width:(i+1)*width], src[token*width:(token+1)*width])
-	}
-}
-
-func scatterRows(dst, src []float32, rows []int, width int) {
-	for i, token := range rows {
-		copy(dst[token*width:(token+1)*width], src[i*width:(i+1)*width])
-	}
-}
-
 func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, mask []int) (motActivations, error) {
 	cfg := t.cfg
 	d, inter := cfg.HiddenSize, cfg.IntermediateSize
@@ -280,7 +266,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			return
 		}
 		pack := make([]float32, len(rows)*d)
-		packRows(pack, a.normRows, rows, d)
+		hostmath.GatherRows(pack, a.normRows, rows, d)
 		outs := [3]int{qOut, kvOut, kvOut}
 		dsts := [3][]float32{a.qProj, a.kProj, a.vProj}
 		for i := range 3 {
@@ -290,7 +276,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			} else {
 				hostmath.Linear(projected, pack, t.view(master[i]), len(rows), d, outs[i])
 			}
-			scatterRows(dsts[i], projected, rows, outs[i])
+			hostmath.ScatterRows(dsts[i], projected, rows, outs[i])
 		}
 	}
 	project(zero, [3]BF16Matrix{frozen.textQ, frozen.textK, frozen.textV}, [3]int{})
@@ -358,7 +344,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			return
 		}
 		pack := make([]float32, len(rows)*d)
-		packRows(pack, a.context, rows, qOut)
+		hostmath.GatherRows(pack, a.context, rows, qOut)
 		projected := make([]float32, len(rows)*d)
 		if oText.Data != nil {
 			hostmath.LinearBF16(projected, pack, oText.Data, len(rows), qOut, d)
@@ -375,7 +361,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			hostmath.RMSNormInto(a.postNorm[token*d:(token+1)*d], residualRow, postWeight, 1, d, cfg.RMSNormEps)
 		}
 		groupPost := make([]float32, len(rows)*d)
-		packRows(groupPost, a.postNorm, rows, d)
+		hostmath.GatherRows(groupPost, a.postNorm, rows, d)
 		gateValues := make([]float32, len(rows)*inter)
 		upValues := make([]float32, len(rows)*inter)
 		if gateText.Data != nil {
@@ -385,8 +371,8 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			hostmath.Linear(gateValues, groupPost, t.view(gateM), len(rows), d, inter)
 			hostmath.Linear(upValues, groupPost, t.view(upM), len(rows), d, inter)
 		}
-		scatterRows(a.gatePre, gateValues, rows, inter)
-		scatterRows(a.upPre, upValues, rows, inter)
+		hostmath.ScatterRows(a.gatePre, gateValues, rows, inter)
+		hostmath.ScatterRows(a.upPre, upValues, rows, inter)
 		activated := make([]float32, len(gateValues))
 		for i := range gateValues {
 			activated[i] = float32(silu64(float64(gateValues[i]))) * upValues[i]
@@ -437,14 +423,14 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		// Recompute activated = silu(gate) * up for the down input.
 		gatePack := make([]float32, n*inter)
 		upPack := make([]float32, n*inter)
-		packRows(gatePack, a.gatePre, rows, inter)
-		packRows(upPack, a.upPre, rows, inter)
+		hostmath.GatherRows(gatePack, a.gatePre, rows, inter)
+		hostmath.GatherRows(upPack, a.upPre, rows, inter)
 		activated := make([]float32, n*inter)
 		for i := range activated {
 			activated[i] = float32(silu64(float64(gatePack[i]))) * upPack[i]
 		}
 		dOut := make([]float32, n*d)
-		packRows(dOut, dOutput, rows, d)
+		hostmath.GatherRows(dOut, dOutput, rows, d)
 		// output = residual + down(activated): dDown = dOut, dResidual += dOut.
 		dActivated := make([]float32, n*inter)
 		if trainable {
@@ -486,7 +472,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		for i := range dResidualPack {
 			dResidualPack[i] += dOut[i]
 		}
-		scatterRows(dResidual, dResidualPack, rows, d)
+		hostmath.ScatterRows(dResidual, dResidualPack, rows, d)
 		// o-projection backward: attnProjected = o(context); residual = input + attnProjected.
 		contextPack := packScratch(a.context, rows, qOut)
 		dContextPack := make([]float32, n*qOut)
@@ -496,7 +482,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		} else {
 			hostmath.LinearBF16BackwardInput(dContextPack, dResidualPack, frozen.textO.Data, n, qOut, d)
 		}
-		scatterRows(dContext, dContextPack, rows, qOut)
+		hostmath.ScatterRows(dContext, dContextPack, rows, qOut)
 	}
 	mlpBackward(zero, false)
 	mlpBackward(nonZero, true)
@@ -615,7 +601,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		}
 		for _, source := range sources {
 			dyPack := make([]float32, n*source.out)
-			packRows(dyPack, source.grad, rows, source.out)
+			hostmath.GatherRows(dyPack, source.grad, rows, source.out)
 			dx := make([]float32, n*d)
 			if trainable {
 				hostmath.Linear(dx, dyPack, hostmath.Transpose2D(t.view(source.master), source.out, d), n, source.out, d)
@@ -627,7 +613,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 				dNormPack[i] += dx[i]
 			}
 		}
-		scatterRows(dNormRows, dNormPack, rows, d)
+		hostmath.ScatterRows(dNormRows, dNormPack, rows, d)
 		inputPack := packScratch(a.input, rows, d)
 		dInputPack := make([]float32, n*d)
 		if trainable {
@@ -635,7 +621,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		} else {
 			hostmath.RMSNormBackward(dInputPack, nil, inputPack, frozen.textInputNorm, dNormPack, n, d, cfg.RMSNormEps, false)
 		}
-		scatterRows(dInput, dInputPack, rows, d)
+		hostmath.ScatterRows(dInput, dInputPack, rows, d)
 	}
 	projBackward(zero, false)
 	projBackward(nonZero, true)
@@ -733,6 +719,6 @@ func linearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 // packScratch: gather branch rows into a fresh packed block.
 func packScratch(src []float32, rows []int, width int) []float32 {
 	pack := make([]float32, len(rows)*width)
-	packRows(pack, src, rows, width)
+	hostmath.GatherRows(pack, src, rows, width)
 	return pack
 }

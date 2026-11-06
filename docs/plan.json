@@ -54,21 +54,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1408,
-        "reason": "Measured: seam adds 1,329 production nodes, the held-out residual and seam-align's ranking, which the estimate of 1,000 to 1,300, written for the gradient through the frozen text model, did not count; that estimate stands for train, and capture and wire set theirs when measured."
+        "nodes": 400,
+        "reason": "Measured: train adds 3,798 production nodes, about 1,000 for the frozen walk on the card and the host (the placed run, the frozen session, the layout it shares with the resident trainer, the input gradient), 1,850 for the caption-projector route and 350 for the bridge trainer's generalization, which the 1,000 to 1,300 estimate, written for the gradient alone, did not count; 400 stand for cache-identity, whose finding estimates 100 to 250, and run and judge add records and checks."
       },
       "steps": [
         {
-          "id": "train",
-          "title": "Train the projector through the frozen text model",
+          "id": "cache-identity",
+          "title": "Bind the capture's cached samples to the inputs that made them",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -count=1 -run '^TestEncoderBridgeTrainsACaptionProjector$'",
-          "rationale": "This needs a new training path. The encoder-bridge route fits an affine map to a decoder's tokens, with no gradient and no text model (cmd/train/route_encoder_bridge.go:316-319), and internal/bridgetrain takes the caller's Gradients (train.go:40-43), though it does train only the bridge and proves both models unchanged.\nThe loss is caption tokens through the frozen text model, the row's main technical risk: a backward pass through Q8_0 weights on the device. The hybrid-stack route computes one for 9B but updates weights as it walks (docs/verification/qwen35-9b-fullstack-training-run.txt:31-33), so the frozen walk is new.\nThe bridge starts at zero output, so the untrained composite equals the text model alone, as internal/densecausal/graft.go:14-22 does.\nMeasure one step, then hold the GPU-hours the terms fixed. Smallest first: Qwen2.5-0.5B, then 9B only if 0.5B gained.\nServes: the cheapest kind of training the system can judge, since only a small adapter changes.\nDisappears: nothing.\nEvidence: a fixture run, its checkpoint record and frozen-model proof.\nBatch: training lanes.",
-          "depends_on": [
-            "vision-bridge/terms",
-            "vision-bridge/seam",
-            "vision-bridge/wire"
-          ]
+          "verify": "go test ./cmd/seam-align -count=1 -run '^TestCaptureCacheAdmitsOnlyItsOwnInputs$'",
+          "rationale": "SQA-321: seam-align -capture admits a cached sample by its clip's name and its length alone (cmd/seam-align/capture.go, capturedSample), and the frame tokens beside it by their existence, so a changed caption, clip, encoder or text model of the same widths returns the old representations under the current labels. The caption-projector route reads the same cached frame tokens by name and length.\nBind each cached sample to the inputs that made it, through the identities the repository already computes for content, and admit a hit only under those inputs and a full payload; the samples file names each sample's frame-token identity, and the training refuses a frame whose bytes are not the ones the capture recorded. A resumed capture still reuses what its inputs left unchanged.\nThis comes before the run, whose ranking and training read the capture.\nServes: evidence of the capture that the run's GPU-hours rest on.\nDisappears: the length-and-existence admission.\nEvidence: the capture fixture with a prewritten tiny cache, an unchanged binding reused, and a changed caption, identity or short payload refused.\nBatch: host lane."
+        },
+        {
+          "id": "run",
+          "title": "Train the 0.5B composite on the ranked capture within its GPU-hours",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeRunHoldsItsTerms$'",
+          "rationale": "The caption-projector route trains the bridge through the frozen text model, and its fixture run is the train step's evidence; no bridge has been trained on the capture yet. Two steps of the 0.5B on the card took 3.16 s each at a batch of eight, and the first batch's loss fell from 3.74 to 2.11 (tmp/vision-bridge probe, scratch store), so the 2 GPU-hours the terms allow are about 2,280 steps, near four and a half passes over 4,096 samples.\nFirst rank the 4,096-sample capture with seam-align -rank and record each source's held-out residual beside its unrelated pairing's under docs/verification, before any step of the run. Then train the 0.5B composite from the zero-output bridge, a seeded share of the training sources held back to choose the checkpoint, and stop within the 2 GPU-hours. The run record under docs/verification names the acceptance's digest, the ranking, the checkpoint chosen, its held-back loss, the steps, the GPU-hours and the card's peak memory, and the check holds it to the terms.\nServes: the judgement, which reads a trained composite against the floor and the ceiling.\nDisappears: nothing.\nEvidence: the ranking and the run record, the checkpoint the store records.\nBatch: one device run by the row; the check is host lane."
         },
         {
           "id": "judge",

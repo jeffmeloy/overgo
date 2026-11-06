@@ -33,8 +33,10 @@ const (
 	// patch tokens.
 	captureCLS       = sourcePrefix + "dino-cls"
 	capturePatchMean = sourcePrefix + "dino-patch-mean"
-	// tokensSuffix ends the name of a sample's cached frame tokens.
-	tokensSuffix = ".tokens.f32"
+	// tokensSuffix ends the name of a sample's cached frame tokens, and samplesSuffix the name of the file beside the
+	// capture that names its samples for the bridge's training.
+	tokensSuffix  = ".tokens.f32"
+	samplesSuffix = ".samples.json"
 	// float32Bytes is the bytes of one cached value, encoderOutputs the encoder's outputs a sample holds before its
 	// caption's, and halfway what a clip's frame count is divided by for its middle frame.
 	float32Bytes   = 4
@@ -74,7 +76,8 @@ func captureSamples(spec captureSpec) ([]evaluation.CaptionTrainingClip, error) 
 }
 
 // captureSeams writes a capture of the encoder's class token and patch mean for each sample's middle frame beside its
-// caption's mean token embedding in the text model, each sample grouped by its source video.
+// caption's mean token embedding in the text model, each sample grouped by its source video, and beside the capture
+// the samples it read, with where their frame tokens are cached, as the bridge's training reads them.
 func captureSeams(ctx context.Context, specPath string) error {
 	var spec captureSpec
 	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
@@ -128,6 +131,11 @@ func captureSeams(ctx context.Context, specPath string) error {
 		fmt.Fprintf(os.Stderr, "seam-align: captured %d of %d\n", index+1, len(samples))
 	}
 	count := len(samples)
+	if err := jsonfile.Write(spec.Output+samplesSuffix, evaluation.CaptionTrainingCapture{
+		Encoder: spec.Encoder, TextModel: spec.TextModel, Acceptance: spec.Acceptance, Tokens: spec.Cache, EncoderWidth: hidden, TextWidth: width, Samples: samples,
+	}, clioptions.PrivateFileMode); err != nil {
+		return err
+	}
 	return safetensors.Save(spec.Output,
 		map[string][]float32{captureCLS: cls, capturePatchMean: patches, targetTensor: target, groupsTensor: groups},
 		map[string][]int{captureCLS: {count, hidden}, capturePatchMean: {count, hidden}, targetTensor: {count, width}, groupsTensor: {count}},

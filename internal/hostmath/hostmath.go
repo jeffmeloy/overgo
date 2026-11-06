@@ -20,6 +20,20 @@ func Sqrt32(value uint64) float32 { return float32(math.Sqrt(float64(value))) }
 // InvSqrt32: reciprocal Sqrt32.
 func InvSqrt32(value uint64) float32 { return 1 / Sqrt32(value) }
 
+// GatherRows copies the rows of src that rows names, each width wide, into dst in their order.
+func GatherRows(dst, src []float32, rows []int, width int) {
+	for i, row := range rows {
+		copy(dst[i*width:(i+1)*width], src[row*width:(row+1)*width])
+	}
+}
+
+// ScatterRows copies the rows of src, each width wide, into the rows of dst that rows names: GatherRows's inverse.
+func ScatterRows(dst, src []float32, rows []int, width int) {
+	for i, row := range rows {
+		copy(dst[row*width:(row+1)*width], src[i*width:(i+1)*width])
+	}
+}
+
 // Transpose2D materializes the transpose of a row-major matrix.
 func Transpose2D(x []float32, rows, columns int) []float32 {
 	out := make([]float32, len(x))

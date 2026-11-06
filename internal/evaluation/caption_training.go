@@ -9,7 +9,22 @@ import (
 // CaptionTrainingClip is a captioned clip a model may train on beside a caption-matching suite, with the source video
 // it groups under.
 type CaptionTrainingClip struct {
-	Vid, Source, Caption string
+	Vid     string `json:"vid"`
+	Source  string `json:"source"`
+	Caption string `json:"caption"`
+}
+
+// CaptionTrainingCapture is the training side a seam capture read, as a bridge's training reads it back: the encoder
+// and the text model it paired, the acceptance it serves, the directory holding each sample's frame tokens, the
+// encoder's token width and the text model's, and the samples in the capture's order.
+type CaptionTrainingCapture struct {
+	Encoder      string                `json:"encoder"`
+	TextModel    string                `json:"text_model"`
+	Acceptance   string                `json:"acceptance"`
+	Tokens       string                `json:"tokens"`
+	EncoderWidth int                   `json:"encoder_width"`
+	TextWidth    int                   `json:"text_width"`
+	Samples      []CaptionTrainingClip `json:"samples"`
 }
 
 // CaptionTrainingClips are the captioned clips of spec's directory a model may train on beside the suite spec builds:

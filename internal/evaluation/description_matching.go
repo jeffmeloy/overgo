@@ -31,12 +31,15 @@ const (
 	imageExtension      = ".png"
 	// frameDescriptionTokens bounds the description a model writes of a frame.
 	frameDescriptionTokens = 48
-	frameQuestion          = "Describe this image in detail."
 	// minimumCandidates is the fewest descriptions a case chooses among.
 	minimumCandidates = 2
 	// harmonicMeanFactor is the two in the harmonic mean of two shares.
 	harmonicMeanFactor = 2
 )
+
+// FrameQuestion is what the frame suite asks of each frame, the question a model learning to describe frames is
+// trained under.
+const FrameQuestion = "Describe this image in detail."
 
 var (
 	descriptionMatchingDatasetContract = artifact.DocumentContract{
@@ -251,7 +254,7 @@ func BuildFrameDescriptionMatching(spec CaptionMatchingSpec) (DescriptionMatchin
 		}
 		suite.Cases = append(suite.Cases, DescriptionMatchingCase{
 			Name:       suite.Source + "/" + round.vid,
-			Prompt:     mediaPrompt(MediaImage, round.vid+imageExtension, frameQuestion),
+			Prompt:     mediaPrompt(MediaImage, round.vid+imageExtension, FrameQuestion),
 			MaxTokens:  frameDescriptionTokens,
 			Candidates: candidates,
 			Answer:     slices.Index(round.options, round.vid),

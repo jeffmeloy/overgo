@@ -107,13 +107,36 @@ func NewCausalTrainingSession(
 // vector gradients; the matrix, final norm and (for a trained table) lexical
 // gradients stay resident, written over whatever the run before left there.
 func (s *CausalTrainingSession) Run(tokens []int, scales []float32, vectorWeights []LayerTrainVectors) (float64, []LayerTrainVectors, error) {
+	loss, vectors, _, err := s.run(tokens, scales, vectorWeights, nil, nil)
+	return loss, vectors, err
+}
+
+// RunPlaced is Run with rows put in place of the embeddings of the tokens at positions, a hidden-wide row each, under
+// a frozen table: it returns the loss's gradient with respect to those rows beside the loss, the backward a frozen
+// model gives an adapter that feeds its input. The layer gradients it writes are a frozen run's scratch.
+func (s *CausalTrainingSession) RunPlaced(tokens []int, scales []float32, vectorWeights []LayerTrainVectors, positions []int, rows []float32) (float64, []float32, error) {
+	if s == nil || !s.lexical.frozen() || len(rows) != len(positions)*s.hidden {
+		return 0, nil, fmt.Errorf("resident causal session: placed rows need a frozen table and a hidden-wide row a position")
+	}
+	for _, position := range positions {
+		if position < 0 || position >= s.seq {
+			return 0, nil, fmt.Errorf("resident causal session: placed row at %d outside %d tokens", position, s.seq)
+		}
+	}
+	loss, _, gradient, err := s.run(tokens, scales, vectorWeights, positions, rows)
+	return loss, gradient, err
+}
+
+// run takes one sequence's forward and backward, placing rows at positions after the lookup when there are any and
+// returning their gradient.
+func (s *CausalTrainingSession) run(tokens []int, scales []float32, vectorWeights []LayerTrainVectors, positions []int, rows []float32) (float64, []LayerTrainVectors, []float32, error) {
 	if s == nil || s.closed || len(tokens) != s.seq || len(vectorWeights) != len(s.offsets) || scales != nil && len(scales) != s.seq-1 {
-		return 0, nil, fmt.Errorf("resident causal session: invalid run input")
+		return 0, nil, nil, fmt.Errorf("resident causal session: invalid run input")
 	}
 	ids := make([]uint32, s.seq)
 	for index, token := range tokens {
 		if token < 0 || token >= s.vocab {
-			return 0, nil, fmt.Errorf("resident causal tail: token %d at %d outside vocab %d", token, index, s.vocab)
+			return 0, nil, nil, fmt.Errorf("resident causal tail: token %d at %d outside vocab %d", token, index, s.vocab)
 		}
 		ids[index] = uint32(token)
 	}
@@ -127,7 +150,7 @@ func (s *CausalTrainingSession) Run(tokens []int, scales []float32, vectorWeight
 			vectorGrads[index].VBias = make([]float32, dims.kvWidth)
 		}
 	}
-	lossRows := make([]float32, s.seq-1)
+	lossRows, gradient := make([]float32, s.seq-1), make([]float32, len(rows))
 	err := s.worker.Do(context.Background(), func(_ *device.State) error {
 		weights, gradients, err := residentLayerPointers(s.cuda, s.dW, s.dG, s.offsets, vectorWeights, dims)
 		if err != nil {
@@ -160,6 +183,12 @@ func (s *CausalTrainingSession) Run(tokens []int, scales []float32, vectorWeight
 			unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU)); err != nil {
 			return err
 		}
+		for index, position := range positions {
+			row := driver.Bytes(rows[index*s.hidden : (index+1)*s.hidden])
+			if err := s.cuda.state.Driver.MemcpyHtoDAsync(ptrAt(s.embeds, position*s.hidden), row, s.cuda.state.Stream); err != nil {
+				return err
+			}
+		}
 		lossPtr := driver.DevicePtr(0)
 		embeddingInput, err := s.ops.runStackDevice(s.embeds, weights, gradients, func(final driver.DevicePtr) (driver.DevicePtr, error) {
 			var dNormed driver.DevicePtr
@@ -191,16 +220,19 @@ func (s *CausalTrainingSession) Run(tokens []int, scales []float32, vectorWeight
 			}
 		}
 		downloads = append(downloads, cudaDownload{lossRows, lossPtr})
+		for index, position := range positions {
+			downloads = append(downloads, cudaDownload{gradient[index*s.hidden : (index+1)*s.hidden], ptrAt(embeddingInput, position*s.hidden)})
+		}
 		return s.cuda.finish(downloads...)
 	})
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	var loss float64
 	for _, value := range lossRows {
 		loss += float64(value)
 	}
-	return loss, vectorGrads, nil
+	return loss, vectorGrads, gradient, nil
 }
 
 // scatterEmbeddingGradient adds each position's embedding-input gradient

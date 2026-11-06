@@ -6124,6 +6124,7 @@
       "plan_references": [
         "vision-bridge/capture (landed4fb6f2c9)",
         "vision-bridge/train",
+        "vision-bridge/cache-identity",
         "standing: stored results only under unchanged code/model/recipe/data/settings/request identity"
       ],
       "plan_coverage": "Distinct from315native Go test cache/external-input freshness: different stored object and admission owner, so no canonical consolidation or double-counted savings.",
@@ -7899,8 +7900,15 @@
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "5cd51fbfa62c335c220ba31c0eff4f7a21f73a80",
+    "head": "abbfbf8963a2988dfd14459844c6b6a73369bd32",
     "findings": {
+      "SQA-321": {
+        "action": "scheduled",
+        "rows": [
+          "vision-bridge/cache-identity"
+        ],
+        "note": "Accepted. vision-bridge/cache-identity, before vision-bridge/run, binds each cached sample to the inputs that made it and admits a hit only under them and a full payload; the samples file the capture now writes names each frame's token identity, and the caption-projector route, which reads the same cache by name and length, refuses a frame whose bytes differ. No ranking or training reads the capture before it lands."
+      },
       "SQA-004": {
         "action": "none",
         "note": "Deferred with the retirement of preflight-gate-one-execution; trigger recorded."

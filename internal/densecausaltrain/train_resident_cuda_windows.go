@@ -133,55 +133,13 @@ func trainDeviceResident(m *densecausal.Model, worker *device.Worker, groups [][
 		return dtype.Float64SliceToFloat32(initialState.Momentum[start:end])
 	}
 
-	// Every group's index within the sorted plan buffer, by name.
-	groupIndex := make(map[string]int, plan.GroupCount())
-	for index, group := range plan.Groups() {
-		groupIndex[group.Name] = index
+	layout, err := newResidentLayout(d, plan)
+	if err != nil {
+		return nil, 0, err
 	}
-	group := func(name string) optimizer.Group { return plan.Groups()[groupIndex[name]] }
-	offset := func(name string) int { return group(name).Start }
-
-	// Layer block [layerStart, layerEnd): all "model.layers." tensors are contiguous
-	// in sorted order. The resident dW/dG/dM cover exactly this block (offsets rebased
-	// to layerStart); the lexical tensors take their own resident buffers.
-	layerStart, layerEnd := -1, 0
-	for _, group := range plan.Groups() {
-		if strings.HasPrefix(group.Name, "model.layers.") {
-			if layerStart < 0 {
-				layerStart = group.Start
-			}
-			layerEnd = max(layerEnd, group.End)
-		}
-	}
-	if layerStart < 0 {
-		return nil, 0, fmt.Errorf("densecausal resident training: no layer tensors")
-	}
+	groupIndex, group := layout.groupIndex, layout.group
+	layerStart, layerEnd, offsets, layerNames := layout.layerStart, layout.layerEnd, layout.offsets, layout.layerNames
 	layerElems := layerEnd - layerStart
-
-	// Per-layer tensor offsets (rebased to the layer block) for the resident stack.
-	offsets := make([]devicemath.LayerTensorOffsets, d.Layers)
-	layerNames := make([]densecausal.LayerTensorNames, d.Layers)
-	for i := range layerNames {
-		names := densecausal.DenseLayerTensorNames(i)
-		layerNames[i] = names
-		offsets[i] = devicemath.LayerTensorOffsets{
-			InLN:     offset(names.InLN) - layerStart,
-			PostLN:   offset(names.PostLN) - layerStart,
-			Q:        offset(names.Q) - layerStart,
-			K:        offset(names.K) - layerStart,
-			V:        offset(names.V) - layerStart,
-			O:        offset(names.O) - layerStart,
-			Gate:     offset(names.Gate) - layerStart,
-			Up:       offset(names.Up) - layerStart,
-			Down:     offset(names.Down) - layerStart,
-			AttnBias: d.AttnBias,
-		}
-		if d.AttnBias {
-			offsets[i].QBias = offset(names.QB) - layerStart
-			offsets[i].KBias = offset(names.KB) - layerStart
-			offsets[i].VBias = offset(names.VB) - layerStart
-		}
-	}
 
 	// Matrix Muon groups from the plan (device pointers filled once buffers exist).
 	type matGroup struct {
@@ -306,19 +264,7 @@ func trainDeviceResident(m *densecausal.Model, worker *device.Worker, groups [][
 		return nil, 0, err
 	}
 	defer session.Close()
-	vectorWeights := make([]devicemath.LayerTrainVectors, d.Layers)
-	for i, names := range layerNames {
-		inNorm, postNorm := offset(names.InLN), offset(names.PostLN)
-		vectorWeights[i] = devicemath.LayerTrainVectors{
-			InLN: weights[inNorm : inNorm+d.Hidden], PostLN: weights[postNorm : postNorm+d.Hidden],
-		}
-		if d.AttnBias {
-			query, key, value := offset(names.QB), offset(names.KB), offset(names.VB)
-			vectorWeights[i].QBias = weights[query : query+d.Heads*d.HeadDim]
-			vectorWeights[i].KBias = weights[key : key+d.KVHeads*d.HeadDim]
-			vectorWeights[i].VBias = weights[value : value+d.KVHeads*d.HeadDim]
-		}
-	}
+	vectorWeights := layout.vectorWeights(d, weights)
 	hostOwned := func(name string) bool {
 		_, deviceOwned := lexical[name]
 		return !isLayerMatrixName(name) && !deviceOwned

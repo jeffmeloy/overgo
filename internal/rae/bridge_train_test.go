@@ -49,7 +49,7 @@ func TestBridgeTrainsAgainstTheDecodersPicture(t *testing.T) {
 		t.Fatalf("the trainer holds %d weights in %d groups", trainer.TrainableParameterCount(), trainer.OptimizerPlan().GroupCount())
 	}
 	// The gradient of one pass against finite differences along a random direction.
-	if _, err := trainer.pass(t.Context(), examples, true); err != nil {
+	if _, err := trainer.through(t.Context(), trainer.drawnSamples(examples), true); err != nil {
 		t.Fatal(err)
 	}
 	gradient := append([]float32(nil), trainer.gradients...)

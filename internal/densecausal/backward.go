@@ -36,7 +36,7 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 // gives.
 func (m *Model) MaskedLossAndLayerGradsOf(tokens []int, trained []bool, train func(name string) bool, settle LayerSettler) (float64, Grads, error) {
 	skipped := m.skippedGradients(train)
-	loss, _, gradients, err := m.lossAndGradsSettled(tokens, trained, trained == nil, nil, skipped, settle)
+	loss, _, gradients, err := m.lossAndGradsSettled(tokens, trained, trained == nil, nil, skipped, settle, nil, nil)
 	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
 	return loss, gradients, err
 }
@@ -70,7 +70,7 @@ type routerObservationContext struct {
 // lossAndGrads accumulates into g, where a name held with a nil gradient is a
 // weight whose gradient is skipped.
 func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
-	return m.lossAndGradsSettled(tokens, trained, retainLogits, observation, g, nil)
+	return m.lossAndGradsSettled(tokens, trained, retainLogits, observation, g, nil, nil, nil)
 }
 
 // LayerSettler takes the gradients of one decoder layer's weights as that layer's
@@ -88,8 +88,10 @@ func (m *Model) releaseLayerGradients(index int, gradients Grads) {
 
 // lossAndGradsSettled is lossAndGrads that, when settle is set, hands it each layer's
 // gradients as that layer's backward finishes and releases them once it returns, so
-// the gradients held at once are one layer's and not every layer's.
-func (m *Model) lossAndGradsSettled(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads, settle LayerSettler) (float64, []float32, Grads, error) {
+// the gradients held at once are one layer's and not every layer's. place, when set,
+// puts rows of its own in place of some of the tokens' embeddings, and input, when
+// set, is handed the loss's gradient with respect to the stack's input.
+func (m *Model) lossAndGradsSettled(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads, settle LayerSettler, place, input func([]float32)) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -102,15 +104,18 @@ func (m *Model) lossAndGradsSettled(tokens []int, trained []bool, retainLogits b
 	if m.Dims.AttentionWindow > 0 && len(tokens) > m.Dims.AttentionWindow {
 		return 0, nil, nil, fmt.Errorf("densecausal: training sequence %d exceeds the declared attention window %d", len(tokens), m.Dims.AttentionWindow)
 	}
-	states, err := m.forwardStates(tokens, true)
+	states, err := m.placedForwardStates(tokens, true, place)
 	if err != nil {
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, g, func(
-		index int, input, outputGradient []float32, sequence int, gradients Grads,
+		index int, layerInput, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
-		dx, err := m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
+		dx, err := m.layerBackwardObserved(index, layerInput, outputGradient, invFreq, sequence, gradients, observation)
+		if err == nil && index == 0 && input != nil {
+			input(dx)
+		}
 		if err != nil || settle == nil {
 			return dx, err
 		}

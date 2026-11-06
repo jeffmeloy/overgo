@@ -24,20 +24,21 @@ func proofFlag(flags *flag.FlagSet) *bool {
 // and trains until its context ends. A route that needs a platform's device
 // registers itself from that platform's file.
 var trainRoutes = map[string]func(ctx context.Context, flags *flag.FlagSet, args []string) error{
-	"diffusionimage":  trainDiffusionImage,
-	"codec":           trainCodec,
-	"dit":             trainDiT,
-	"encoder-bridge":  trainEncoderBridge,
-	"flow-organ":      trainFlowOrgan,
-	"graft":           trainGraft,
-	"mixture":         trainMixture,
-	"mot":             trainMot,
-	"oscillatorimage": trainOscillatorImage,
-	"seq2seq":         trainSeq2Seq,
-	"seriesforecast":  trainSeriesForecast,
-	"speech":          trainSpeech,
-	"tabular":         trainTabular,
-	"thoughtbank":     trainThoughtBank,
+	"diffusionimage":    trainDiffusionImage,
+	"caption-projector": trainCaptionProjector,
+	"codec":             trainCodec,
+	"dit":               trainDiT,
+	"encoder-bridge":    trainEncoderBridge,
+	"flow-organ":        trainFlowOrgan,
+	"graft":             trainGraft,
+	"mixture":           trainMixture,
+	"mot":               trainMot,
+	"oscillatorimage":   trainOscillatorImage,
+	"seq2seq":           trainSeq2Seq,
+	"seriesforecast":    trainSeriesForecast,
+	"speech":            trainSpeech,
+	"tabular":           trainTabular,
+	"thoughtbank":       trainThoughtBank,
 }
 
 // runRoute dispatches args (the route name, then its flags) to the named

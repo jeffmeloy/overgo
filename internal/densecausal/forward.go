@@ -225,9 +225,15 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) e
 // stream. With retain, states[l] is layer l's input (checkpoint posture —
 // backward recomputes everything else); a score-only forward keeps none.
 func (m *Model) forwardStates(tokens []int, retain bool) ([][]float32, error) {
+	return m.placedForwardStates(tokens, retain, nil)
+}
+
+// placedForwardStates is forwardStates with place, when set, first putting rows of its own in place of some of the
+// tokens' embeddings.
+func (m *Model) placedForwardStates(tokens []int, retain bool, place func(x []float32)) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
-	return m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
+	return m.retainedForwardStates(tokens, retain, place, func(x []float32, index, seq int) error {
 		l, err := m.useLayer(index)
 		if err != nil {
 			return err
@@ -236,9 +242,12 @@ func (m *Model) forwardStates(tokens []int, retain bool) ([][]float32, error) {
 	})
 }
 
+// retainedForwardStates runs the layers over the tokens' embeddings, place, when set, first putting rows of its own in
+// place of some, and keeps each layer's input where retain asks.
 func (m *Model) retainedForwardStates(
 	tokens []int,
 	retain bool,
+	place func(x []float32),
 	forward func(x []float32, index, sequence int) error,
 ) ([][]float32, error) {
 	d := m.Dims
@@ -253,6 +262,9 @@ func (m *Model) retainedForwardStates(
 			return nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
 		}
 		copy(x[token*d.Hidden:(token+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
+	}
+	if place != nil {
+		place(x)
 	}
 	states := make([][]float32, d.Layers+1)
 	for index := range d.Layers {

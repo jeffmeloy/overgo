@@ -68,6 +68,40 @@
       ]
     },
     {
+      "id": "native-reach",
+      "title": "Let go test decide what a commit's checks rerun",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 162,
+        "reason": "device-cache measured 168 nodes, the lane's -fresh flag, its printing of passed packages and the driver library cudatest stats, with their doc comments; runner-reach, test-only-slice and claim-binding are estimated at about 160 more."
+      },
+      "steps": [
+        {
+          "id": "runner-reach",
+          "title": "A change to a lane's runner reruns that runner's tests alone",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestARunnersImportsRunOnlyItsOwnTests$'",
+          "rationale": "internal/landing/lanes.go gives the device lane the reach of ./cmd/device-lane beside its test packages, and the browser lane ./cmd/webui-lane's, so a change to what the runner imports runs the lane: five of the twenty device runs of the last 28 commits, about 55 minutes, came only through the runner's command-line options, run records, binary schema, safetensors writer and store, none of which can change a device result, and the browser tests run whole, about 2 minutes 50 seconds, when reached through their runner, against five tests in 8 seconds when reached through the server.\nChange: a lane's reach is its test packages' closure; a change to its runner's own package runs that package's tests, which hold the commands it builds, and a change to what the runner alone imports runs neither the lane nor its tests beyond the packages that change. TestARunnersImportsRunOnlyItsOwnTests holds the device and browser lanes' reach to a fixture whose runner imports a package that changes.\nServes: development velocity: each commit's checks.\nDisappears: lane runs no device or browser result can follow.\nEvidence: the lanes' reach on the gate's line.\nBatch: host lane."
+        },
+        {
+          "id": "test-only-slice",
+          "title": "A change of tests alone measures no speed",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestATestOnlyChangeRunsNoScorecardSlice$'",
+          "rationale": "internal/landing/scorecard.go runs the scorecard slice, the benchmark on Bonsai-27B, about 19 seconds, whenever its reach is touched, and a commit that changes only tests and the test support only tests import cannot move a speed figure: measure only what a change can move.\nChange: the slice's reach is the production files its benchmark's binary builds from, so a change of test files and test-support packages alone runs no slice. TestATestOnlyChangeRunsNoScorecardSlice holds a test-only change to no slice and a production change of the benchmark's closure to one.\nServes: development velocity and the doctrine that a change measures only what it can move.\nDisappears: speed runs a change cannot move.\nEvidence: the gate's line, which names the slice only when it runs.\nBatch: host lane."
+        },
+        {
+          "id": "claim-binding",
+          "title": "A claim's evidence binds the test it names, not the whole file",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAClaimBindsTheTestItNames$'",
+          "rationale": "compatibility.json's claims bind 72 test files whole by digest, so a change to any test of such a file stales its claim, and the one-call error rewrite and the repeat folds of compact-tests had to leave those files, duplicated code staying because a record pinned it. A passing test is the evidence; its file's other tests are not.\nChange: a claim's evidence digest covers the test function it names and the declarations of its file that function reaches, so a change elsewhere in the file leaves the claim current and a change to what the test runs stales it. docs/verification's records stay as the device evidence a host checkout cannot rerun; their inputs follow once claims bind by test. TestAClaimBindsTheTestItNames holds a fixture's claim current across a change to another test of its file and stale across a change to its own test or a helper it calls.\nServes: development velocity, and test code that can be folded where it repeats.\nDisappears: claims staled by changes that do not touch what they verified.\nEvidence: the test, and the claims re-verified once under the new binding.\nBatch: claims lane."
+        }
+      ]
+    },
+    {
       "id": "compact-tests",
       "title": "Shrink the test code",
       "class": "consolidation",

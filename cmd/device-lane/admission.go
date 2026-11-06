@@ -222,7 +222,11 @@ func splitTestStep(step, measurement []string) (correctness, measurementRun []st
 	}
 	only := "^(" + strings.Join(chosen, "|") + ")$"
 	correctness = append(slices.Clone(step), "-skip", only)
+	// A measurement measures; it never replays a cached pass.
 	measurementRun = append(slices.Clone(step), "-run", only)
+	if !slices.Contains(measurementRun, freshRun) {
+		measurementRun = append(measurementRun, freshRun)
+	}
 	return correctness, measurementRun
 }
 

@@ -9,6 +9,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -37,6 +38,7 @@ const deviceTestTimeout = "0"
 var (
 	pathsFlag     = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
 	pathsFileFlag = flag.String("paths-file", "", "file of newline-separated changed paths; overrides -paths (Windows caps the command line)")
+	freshFlag     = flag.Bool("fresh", false, "run every selected test again rather than replay a pass go test's cache holds, as after a change go test cannot see")
 )
 
 func main() {
@@ -95,6 +97,7 @@ func run() error {
 				Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
 				Stdout: &stdout, Stderr: &stderr,
 			})
+			fmt.Print(passedPackageLines(stdout.String()))
 			if err == nil && receipt.ExitCode == 0 {
 				err = verifyDeviceContracts(command, stdout.String())
 			}
@@ -211,8 +214,30 @@ func deviceSteps(plan devicescope.VerificationPlan) [][]string {
 	return append(steps, scoped...)
 }
 
+// deviceTestStep is the go test command of the device tests arguments select. Without -fresh it leaves go test's
+// cache to replay a pass whose binary, the files it opened or stat'd and the environment it read are unchanged, which
+// cudatest.Require extends to the driver library a driver update replaces.
 func deviceTestStep(arguments ...string) []string {
 	command := []string{"go", "test", "-json", "-p=1", "-timeout=" + deviceTestTimeout}
 	command = append(command, arguments...)
-	return append(command, "-count=1")
+	if *freshFlag {
+		command = append(command, freshRun)
+	}
+	return command
+}
+
+// freshRun is go test's flag that runs a test again whatever its cache holds.
+const freshRun = "-count=1"
+
+// passedPackageLines is go test's line for each package that passed in stream, a go test -json stream, so the
+// landing reads from the lane's output how many packages ran and how many go test replayed from its cache.
+func passedPackageLines(stream string) string {
+	var lines strings.Builder
+	for line := range strings.Lines(stream) {
+		var event struct{ Action, Output string }
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "output" && strings.HasPrefix(event.Output, "ok  \t") {
+			lines.WriteString(event.Output)
+		}
+	}
+	return lines.String()
 }

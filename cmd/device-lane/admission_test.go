@@ -258,12 +258,12 @@ func TestDeviceLaneMeasurementRunsOutsideSharedLease(t *testing.T) {
 	if !slices.Equal(correctness, append(slices.Clone(step), "-skip", "^(TestDeviceMeasured|TestMeasured)$")) {
 		t.Fatalf("correctness run = %v", correctness)
 	}
-	if !slices.Equal(measurement, append(slices.Clone(step), "-run", "^(TestDeviceMeasured|TestMeasured)$")) {
+	if !slices.Equal(measurement, append(slices.Clone(step), "-run", "^(TestDeviceMeasured|TestMeasured)$", freshRun)) {
 		t.Fatalf("measurement run = %v", measurement)
 	}
 	selected := deviceTestStep("-run", "Device", "./pkg")
 	correctness, measurement = splitTestStep(selected, names)
-	if !slices.Equal(correctness, append(slices.Clone(selected), "-skip", "^(TestDeviceMeasured)$")) || !slices.Equal(measurement, append(slices.Clone(selected), "-run", "^(TestDeviceMeasured)$")) {
+	if !slices.Equal(correctness, append(slices.Clone(selected), "-skip", "^(TestDeviceMeasured)$")) || !slices.Equal(measurement, append(slices.Clone(selected), "-run", "^(TestDeviceMeasured)$", freshRun)) {
 		t.Fatalf("selected split = %v / %v", correctness, measurement)
 	}
 	plain := deviceTestStep("./internal/cuda/kernel")

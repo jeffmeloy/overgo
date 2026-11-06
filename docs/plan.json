@@ -74,16 +74,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 32,
-        "reason": "device-cache measured 168 nodes, the lane's -fresh flag, its printing of passed packages and the driver library cudatest stats, with their doc comments; runner-reach, test-only-slice and claim-binding are estimated at about 160 more."
+        "nodes": 0,
+        "reason": "claim-binding measured 546 production nodes, the reached-declarations binding of a claim's test-file evidence; device-fresh removes the ineffective driver stat and the -fresh flag, and device-bound is estimated when it is worked."
       },
       "steps": [
         {
-          "id": "claim-binding",
-          "title": "A claim's evidence binds the test it names, not the whole file",
+          "id": "device-fresh",
+          "title": "The device run executes every test it selects until its external inputs are bound",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAClaimBindsTheTestItNames$'",
-          "rationale": "compatibility.json's claims bind 72 test files whole by digest, so a change to any test of such a file stales its claim, and the one-call error rewrite and the repeat folds of compact-tests had to leave those files, duplicated code staying because a record pinned it. A passing test is the evidence; its file's other tests are not.\nChange: a claim's evidence digest covers the test function it names and the declarations of its file that function reaches, so a change elsewhere in the file leaves the claim current and a change to what the test runs stales it. docs/verification's records stay as the device evidence a host checkout cannot rerun; their inputs follow once claims bind by test. TestAClaimBindsTheTestItNames holds a fixture's claim current across a change to another test of its file and stale across a change to its own test or a helper it calls.\nServes: development velocity, and test code that can be folded where it repeats.\nDisappears: claims staled by changes that do not touch what they verified.\nEvidence: the test, and the claims re-verified once under the new binding.\nBatch: claims lane."
+          "verify": "go test ./cmd/device-lane -count=1 -run '^TestADeviceRunRunsEverySelectedTestAfresh$'",
+          "rationale": "SQA-315 (P2): native-reach/device-cache let go test's cache replay the device lane's correctness runs and statted the CUDA driver library in cudatest.Require to bind a driver update, but go test's computeTestInputsID skips the stat and open entries of files outside the module, GOPATH and GOROOT roots, so neither the driver in the system directory nor the models and store under the data root, which device tests read, enter a test's cache key: a cached pass can outlive a driver replacement or a changed model.\nChange: deviceTestStep runs every selected test afresh again, -count=1, until the external inputs are bound for real; the ineffective stat, its constants and its claim go, and so does the -fresh flag, which nothing calls and which no longer changes anything. Measurement runs keep their one -count=1, and the lane keeps printing go test's line for each package that passed. TestADeviceRunRunsEverySelectedTestAfresh holds the default run and the measurement run to one -count=1 and the lane's printing to the passed packages' lines.\nServes: failure-rate: no device pass outlives the driver or the models it ran on.\nDisappears: device passes replayed over unbound external inputs.\nEvidence: the test.\nBatch: host lane."
+        },
+        {
+          "id": "device-bound",
+          "title": "The device run replays a pass only when every input it read is bound",
+          "status": "open",
+          "verify": "go test ./cmd/device-lane -count=1 -run '^TestAnUnboundDeviceInputRerunsItsTest$'",
+          "rationale": "The device lane's tests take about 11 minutes on the commits that reach them, and go test's cache would replay those nothing they read has changed, but go test keys a test only on its binary, its flags, the environment values it reads and the files it opens or stats inside the module, GOPATH and GOROOT roots: the CUDA driver in the system directory and the models and store under the data root, which device tests read, are outside them, so native-reach/device-fresh runs them all afresh.\nChange: the lane names what each device test reads from outside the module in the environment the test reads, so go test's own key carries it: the driver library's size and modification time, and, for a test that opens a model or the store under the data root, the identity of what it opened, through the one helper that resolves it; the lane drops -count=1 from correctness runs only once every external input is so bound. TestAnUnboundDeviceInputRerunsItsTest holds, in a host fixture module, a test whose external file changes while its code and environment otherwise do not to running again, not replaying.\nServes: development velocity: each commit's checks.\nDisappears: reruns of device tests nothing they read has changed.\nEvidence: the device lane's executed and cached counts on the gate's line, and the test.\nBatch: host lane, then device lane."
         }
       ]
     },

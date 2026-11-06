@@ -293,14 +293,7 @@ func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
 
 func writeEvidence(t *testing.T, root, path, data, contains string, role evidenceRole) evidence {
 	t.Helper()
-	testutil.WriteTextFile(t, root, path, data)
-	kind := artifact.KindFile
-	if role == roleArtifact {
-		kind = artifact.KindEvidence
-	}
-	id, err := artifact.IdentifyBytes(kind, []byte(data))
-	testcheck.NoError(t, err)
-	return evidence{Path: path, Contains: contains, Role: role, Identity: id.String()}
+	return writeSymbolEvidence(t, root, path, data, contains, "", role)
 }
 
 func writeSymbolEvidence(t *testing.T, root, path, data, contains, symbol string, role evidenceRole) evidence {

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -27,18 +26,7 @@ const probeEnvironmentVariable = "OVERGO_PROBE_TEST"
 func Require(t testing.TB) {
 	t.Helper()
 	requireEnvironment(t, environmentVariable, "CUDA integration tests")
-	// go test's cache keys a test's result on the files it opens or stats and the environment it reads, so statting
-	// the driver library reruns the device tests when a driver update replaces it.
-	_, _ = os.Stat(filepath.Join(os.Getenv(systemRootVariable), systemDirectory, driverLibrary))
 }
-
-// driverLibrary is the CUDA driver library the driver package loads by name, which Windows finds in its system
-// directory, systemDirectory under the root systemRootVariable names.
-const (
-	driverLibrary      = "nvcuda.dll"
-	systemDirectory    = "System32"
-	systemRootVariable = "SystemRoot"
-)
 
 // MeasurementProcess runs this test in an exclusive child process. The caller
 // returns when true; false means the child owns admission and runs the test body.

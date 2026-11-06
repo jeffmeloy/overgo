@@ -7824,7 +7824,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "a3532a25d9836d8e3d0735080af1aafc18374cb6",
+    "head": "34b3a7e72bf1ee54b6151054f93e231c5ef88a48",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8586,12 +8586,12 @@
         "note": "Filed as its own row after compact-tests, with the refusal in Tokenizer.encode the finding recommends and a test not yet written as its check. compact-tests/fatal-check touched the hfbpe tests it cites only to say their error checks in one call."
       },
       "SQA-315": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
           "native-reach/device-fresh",
           "native-reach/device-bound"
         ],
-        "note": "Confirmed in Go 1.26.2's computeTestInputsID: stat and open entries outside the module, GOPATH and GOROOT roots never enter the key, so the driver stat binds nothing, and the models and store under the data root are unbound too. native-reach/device-fresh, the next step, runs every selected device test afresh again and removes the stat; native-reach/device-bound restores reuse only once external inputs reach the key through the environment the tests read, held by a host fixture whose external file changes."
+        "note": "Landed with native-reach/device-fresh: deviceTestStep runs every selected device test afresh, -count=1, the ineffective driver stat, its constants and claim are gone, and the -fresh flag, which nothing called, goes with them; measurement runs carry -count=1 once and the lane still prints each passed package's line. native-reach/device-bound restores reuse only once external inputs reach go test's key through the environment the tests read. Awaits the reviewer's closure."
       }
     }
   },

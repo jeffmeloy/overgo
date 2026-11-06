@@ -38,7 +38,6 @@ const deviceTestTimeout = "0"
 var (
 	pathsFlag     = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
 	pathsFileFlag = flag.String("paths-file", "", "file of newline-separated changed paths; overrides -paths (Windows caps the command line)")
-	freshFlag     = flag.Bool("fresh", false, "run every selected test again rather than replay a pass go test's cache holds, as after a change go test cannot see")
 )
 
 func main() {
@@ -214,16 +213,12 @@ func deviceSteps(plan devicescope.VerificationPlan) [][]string {
 	return append(steps, scoped...)
 }
 
-// deviceTestStep is the go test command of the device tests arguments select. Without -fresh it leaves go test's
-// cache to replay a pass whose binary, the files it opened or stat'd and the environment it read are unchanged, which
-// cudatest.Require extends to the driver library a driver update replaces.
+// deviceTestStep is the go test command of the device tests arguments select, each run afresh: go test's cache keys
+// no file outside the module, so a cached pass would outlive a driver update or a changed model under the data root.
 func deviceTestStep(arguments ...string) []string {
 	command := []string{"go", "test", "-json", "-p=1", "-timeout=" + deviceTestTimeout}
 	command = append(command, arguments...)
-	if *freshFlag {
-		command = append(command, freshRun)
-	}
-	return command
+	return append(command, freshRun)
 }
 
 // freshRun is go test's flag that runs a test again whatever its cache holds.

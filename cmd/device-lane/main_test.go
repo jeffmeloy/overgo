@@ -23,11 +23,11 @@ func TestDevicePlan(t *testing.T) {
 	if len(steps) != 3 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-json", "-p=1", "-timeout=0", "./internal/cuda/kernel"}
+	want := []string{"go", "test", "-json", "-p=1", "-timeout=0", "./internal/cuda/kernel", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
-	optimizer := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestDeviceNewtonSchulzMatchesHost|TestDeviceMuonMatrixStepMatchesHost|TestDeviceMuonPlanResidentMatchesShared|TestDeviceMuonStepPlanMatchesHost)$", "./internal/optimizer"}
+	optimizer := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestDeviceNewtonSchulzMatchesHost|TestDeviceMuonMatrixStepMatchesHost|TestDeviceMuonPlanResidentMatchesShared|TestDeviceMuonStepPlanMatchesHost)$", "./internal/optimizer", "-count=1"}
 	if !slices.Equal(steps[2], optimizer) {
 		t.Fatalf("optimizer contracts = %v, want %v", steps[2], optimizer)
 	}
@@ -35,7 +35,7 @@ func TestDevicePlan(t *testing.T) {
 	if len(full) != 6 {
 		t.Fatalf("full steps=%v", full)
 	}
-	asr := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestASRResidentCUDA)$", "./internal/speechrecognition"}
+	asr := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestASRResidentCUDA)$", "./internal/speechrecognition", "-count=1"}
 	if !slices.ContainsFunc(full, func(step []string) bool { return slices.Equal(step, asr) }) {
 		t.Fatalf("full lane omits required ASR execution: %v", full)
 	}
@@ -52,7 +52,7 @@ func TestDevicePlan(t *testing.T) {
 func TestDeviceLaneRunsChangedTestPackage(t *testing.T) {
 	steps := deviceSteps(devicescope.VerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
 	want := []string{
-		"go", "test", "-json", "-p=1", "-timeout=0", "./internal/adaptiveparity",
+		"go", "test", "-json", "-p=1", "-timeout=0", "./internal/adaptiveparity", "-count=1",
 	}
 	if len(steps) != 2 || !slices.Equal(steps[1], want) {
 		t.Fatalf("selected test step = %v, want %v", steps, want)

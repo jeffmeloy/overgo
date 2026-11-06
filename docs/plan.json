@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 50,
         "reason": "claim-binding measured 546 production nodes, the reached-declarations binding of a claim's test-file evidence; device-fresh removes the ineffective driver stat and the -fresh flag, and device-bound is estimated when it is worked."
       },
       "steps": [
-        {
-          "id": "device-fresh",
-          "title": "The device run executes every test it selects until its external inputs are bound",
-          "status": "open",
-          "verify": "go test ./cmd/device-lane -count=1 -run '^TestADeviceRunRunsEverySelectedTestAfresh$'",
-          "rationale": "SQA-315 (P2): native-reach/device-cache let go test's cache replay the device lane's correctness runs and statted the CUDA driver library in cudatest.Require to bind a driver update, but go test's computeTestInputsID skips the stat and open entries of files outside the module, GOPATH and GOROOT roots, so neither the driver in the system directory nor the models and store under the data root, which device tests read, enter a test's cache key: a cached pass can outlive a driver replacement or a changed model.\nChange: deviceTestStep runs every selected test afresh again, -count=1, until the external inputs are bound for real; the ineffective stat, its constants and its claim go, and so does the -fresh flag, which nothing calls and which no longer changes anything. Measurement runs keep their one -count=1, and the lane keeps printing go test's line for each package that passed. TestADeviceRunRunsEverySelectedTestAfresh holds the default run and the measurement run to one -count=1 and the lane's printing to the passed packages' lines.\nServes: failure-rate: no device pass outlives the driver or the models it ran on.\nDisappears: device passes replayed over unbound external inputs.\nEvidence: the test.\nBatch: host lane."
-        },
         {
           "id": "device-bound",
           "title": "The device run replays a pass only when every input it read is bound",

@@ -197,15 +197,6 @@ func (run codecRun) trainer(parts codecParts) (trainingprogram.TrainingSessionPl
 	return plan, trainer, nil
 }
 
-// batchAt is a step's batch: the next run of the pictures, wrapping at their end.
-func (run codecRun) batchAt(examples []rae.BridgeExample, step int) []rae.BridgeExample {
-	chosen := make([]rae.BridgeExample, run.batch)
-	for at := range chosen {
-		chosen[at] = examples[(step*run.batch+at)%len(examples)]
-	}
-	return chosen
-}
-
 // savePair writes the trained bridge as a pair of its own when one was asked for.
 func (run codecRun) savePair(trainer *rae.BridgeTrainer) error {
 	if run.pairOut == "" {
@@ -262,13 +253,13 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 	config := plan.Optimizer()
 	return boundedRun{name: run.name, plan: plan, session: session,
 		step: func(step int) (optimizer.ObservedStepResult, error) {
-			loss, err := trainer.Step(ctx, run.batchAt(examples, step))
+			loss, err := trainer.Step(ctx, wrappedBatch(examples, step, run.batch))
 			return optimizer.ObservedStepResult{
 				Loss: loss, Step: step + tensor.SingletonExtent, LearningRate: config.LearningRate(step + tensor.SingletonExtent), GradientL2: trainer.GradientL2(),
 			}, err
 		},
 		// The run is held to the loss of the first batch, before and after.
-		loss: func() (float64, error) { return trainer.Loss(ctx, run.batchAt(examples, 0)) },
+		loss: func() (float64, error) { return trainer.Loss(ctx, wrappedBatch(examples, 0, run.batch)) },
 		publish: func(ctx context.Context) error {
 			if err := run.savePair(trainer); err != nil {
 				return err
@@ -330,7 +321,7 @@ func (run codecRun) judged(ctx context.Context, alias string, recipeID artifact.
 				examples[index] = rae.BridgeExample{SourceTokens: tokens[example.Record], Picture: dtype.ConvertSlice[float32](example.Target)}
 			}
 			for step := range plan.Updates() {
-				batch := run.batchAt(examples, step)
+				batch := wrappedBatch(examples, step, run.batch)
 				if proof {
 					// A proof read no tokens before training: it reads them
 					// here, for the pictures this step takes.

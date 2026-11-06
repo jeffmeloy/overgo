@@ -1,0 +1,67 @@
+{
+  "schema": "overgo/vision-bridge-run/v1",
+  "acceptance": "sha256:71ae28647e76a107a446090b2c0c6ce14754c5d7774855b2f7fca1adf542f480",
+  "comparison": "Qwen2.5-0.5B composite over the floor",
+  "capture": {
+    "file": "file:sha256:9b3af78ec5e9774a8a7ed2157363e688cfa8dba8d39eb2e5c495184e8735b1c5",
+    "samples": 4096,
+    "held_sources": 200,
+    "held_samples": 203
+  },
+  "ranking": [
+    {
+      "source": "dino-cls",
+      "width": 1024,
+      "samples": 4096,
+      "in_sample": 0.24692470425110352,
+      "held_out": 1.024014443998031,
+      "unrelated": 1.2158334164477245,
+      "rung": "bridge"
+    },
+    {
+      "source": "dino-patch-mean",
+      "width": 1024,
+      "samples": 4096,
+      "in_sample": 0.2503656974566641,
+      "held_out": 1.0456273158126308,
+      "unrelated": 1.2234433528569377,
+      "rung": "bridge"
+    }
+  ],
+  "segments": [
+    {
+      "from": "zero",
+      "steps": 450,
+      "batch": 8,
+      "checkpoint": "checkpoint:sha256:1788402ba9b9c18661b3b7578d84c397aae3e02cfb0dc193149ce98c3175b295",
+      "held_loss_before": 3.761217,
+      "held_loss_after": 1.473419,
+      "wall_seconds": 1338,
+      "peak_device_bytes": 4990291500
+    },
+    {
+      "from": "checkpoint:sha256:1788402ba9b9c18661b3b7578d84c397aae3e02cfb0dc193149ce98c3175b295",
+      "steps": 450,
+      "batch": 8,
+      "checkpoint": "checkpoint:sha256:a74fc08df635c9ea3c93fb7f7d326937a9619447f5e36e40163b282af9ff5a03",
+      "held_loss_before": 1.473419,
+      "held_loss_after": 1.402565,
+      "wall_seconds": 1250,
+      "peak_device_bytes": 4990291500
+    }
+  ],
+  "chosen": "checkpoint:sha256:a74fc08df635c9ea3c93fb7f7d326937a9619447f5e36e40163b282af9ff5a03",
+  "gpu_hours": 1.08,
+  "stopped": [
+    {
+      "from": "checkpoint:sha256:a74fc08df635c9ea3c93fb7f7d326937a9619447f5e36e40163b282af9ff5a03",
+      "steps": 450,
+      "batch": 8,
+      "checkpoint": "",
+      "held_loss_before": 1.402565,
+      "held_loss_after": 1.406586,
+      "wall_seconds": 1289,
+      "peak_device_bytes": 0
+    }
+  ]
+}

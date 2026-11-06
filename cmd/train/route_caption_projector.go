@@ -71,6 +71,7 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	batch := flags.Int("batch", 0, "samples a step is taken on")
 	steps := clioptions.IntOverride(flags, "steps", "required observed steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	held := flags.Int("held", 0, "source videos, the first in the capture's seeded order, whose samples no step trains on and whose loss scores the run before and after in place of its first batch")
 	host := flags.Bool("host", false, "run the frozen text model on the host instead of the card")
 	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained bridge's checkpoint publishes to")
@@ -88,8 +89,8 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	if err := jsonfile.DecodeStrict(*capturePath, &capture); err != nil {
 		return err
 	}
-	if capture.EncoderWidth <= 0 || capture.TextWidth <= 0 || len(capture.Samples) < *batch {
-		return fmt.Errorf("%s: the capture holds %d samples of widths %d and %d, for a batch of %d", name, len(capture.Samples), capture.EncoderWidth, capture.TextWidth, *batch)
+	if capture.EncoderWidth <= 0 || capture.TextWidth <= 0 || len(capture.Samples) == 0 {
+		return fmt.Errorf("%s: the capture holds %d samples of widths %d and %d", name, len(capture.Samples), capture.EncoderWidth, capture.TextWidth)
 	}
 	// The floor the acceptance reads is the composite whose bridge gives nothing: a run with no bridge starts there.
 	if _, statErr := os.Stat(*from); errors.Is(statErr, fs.ErrNotExist) {
@@ -149,11 +150,18 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	if err != nil {
 		return err
 	}
-	// A step's batch is the next run of the samples, wrapping at their end, each frame's tokens read as it is taken.
-	batchAt := func(step int) ([]rae.BridgeSample, error) {
-		samples := make([]rae.BridgeSample, *batch)
-		for at := range samples {
-			sequence := sequences[(step*(*batch)+at)%len(sequences)]
+	trained, scored := heldBack(capture.Samples, sequences, *held)
+	if len(trained) < *batch {
+		return fmt.Errorf("%s: %d samples are left to train on beside the held sources, fewer than a batch of %d", name, len(trained), *batch)
+	}
+	// With no source held, the run is held to the loss of its first batch, before and after.
+	if len(scored) == 0 {
+		scored = wrappedBatch(trained, 0, *batch)
+	}
+	// Each sample's frame tokens are read as it is taken.
+	samplesOf := func(chosen []captionSequence) ([]rae.BridgeSample, error) {
+		samples := make([]rae.BridgeSample, len(chosen))
+		for at, sequence := range chosen {
 			raw, err := os.ReadFile(filepath.Join(capture.Tokens, sequence.vid+captionTokensSuffix))
 			frame, identifyErr := artifact.IdentifyBytes(artifact.KindFile, raw)
 			tokens, decodeErr := media.DecodeFloat32LE(raw)
@@ -168,7 +176,7 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	}
 	return boundedRun{name: name, plan: plan, session: session,
 		step: func(step int) (optimizer.ObservedStepResult, error) {
-			samples, err := batchAt(step)
+			samples, err := samplesOf(wrappedBatch(trained, step, *batch))
 			if err != nil {
 				return optimizer.ObservedStepResult{}, err
 			}
@@ -177,9 +185,8 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 				Loss: loss, Step: step + tensor.SingletonExtent, LearningRate: config.LearningRate(step + tensor.SingletonExtent), GradientL2: trainer.GradientL2(),
 			}, err
 		},
-		// The run is held to the loss of the first batch, before and after.
 		loss: func() (float64, error) {
-			samples, err := batchAt(0)
+			samples, err := samplesOf(scored)
 			if err != nil {
 				return 0, err
 			}
@@ -190,6 +197,21 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 			return session.publishPlanned(ctx, *out, trainer, plan.Updates()*(*batch))
 		},
 	}.train(ctx)
+}
+
+// heldBack divides the samples' sequences into those a run trains on and those it holds back: every sample of the
+// first held source videos in the capture's order, which its seed shuffled.
+func heldBack(samples []evaluation.CapturedCaption, sequences []captionSequence, held int) (trained, scored []captionSequence) {
+	sources := map[string]bool{}
+	for index, sample := range samples {
+		if sources[sample.Source] || len(sources) < held {
+			sources[sample.Source] = true
+			scored = append(scored, sequences[index])
+		} else {
+			trained = append(trained, sequences[index])
+		}
+	}
+	return trained, scored
 }
 
 // captionFrameRows is the count of tokens the encoder gave the capture's first frame, the rows every frame's prompt

@@ -112,6 +112,15 @@ func (run boundedRun) descend(ctx context.Context) error {
 	return nil
 }
 
+// wrappedBatch is a step's batch of size items: the next run of them, wrapping at their end.
+func wrappedBatch[T any](items []T, step, size int) []T {
+	chosen := make([]T, size)
+	for at := range chosen {
+		chosen[at] = items[(step*size+at)%len(items)]
+	}
+	return chosen
+}
+
 // routeSession is a route's supervised model-session: the recipe the route
 // bootstrapped for its model, that recipe's resolved authority, the
 // model's weights, the dataset bytes the recipe grounds as the session read

@@ -22,53 +22,6 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// strategySpec names the authorities one published strategy binds: the
-// worker agent definition, the tool catalog, and the loop budgets.
-type strategySpec struct {
-	Worker  artifact.ID `json:"worker"`
-	Catalog artifact.ID `json:"catalog"`
-	Loop    loop.Config `json:"loop"`
-}
-
-// publishStrategy is the one production door that mints a strategy: it
-// resolves the exact worker definition, derives the content-addressed
-// strategy, and commits it with its lineage. The loop then runs it by
-// identity through the existing strategy_id configuration.
-func publishStrategy(root, specPath string, output io.Writer) error {
-	var spec strategySpec
-	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
-		return err
-	}
-	store, err := overgodb.Open(root)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	ctx := context.Background()
-	worker, err := recipe.RequireAgentDefinition(ctx, store, spec.Worker)
-	if err != nil {
-		return err
-	}
-	strategy, err := loop.NewStrategy(worker, spec.Catalog, spec.Loop)
-	if err != nil {
-		return err
-	}
-	content, err := strategy.Content()
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
-		Key:       "loop/strategy/" + strategy.ID.String(),
-		Artifacts: []artifact.Descriptor{content.Descriptor},
-		Contents:  []artifact.Content{content},
-		Lineage:   strategy.Lineage(),
-	}); err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "published strategy %s\n", strategy.ID)
-	return err
-}
-
 // mediaExperimentSpec binds one media experiment: the model and data
 // identities, the budget authority, and the per-cell acquisition requests.
 type mediaExperimentSpec struct {

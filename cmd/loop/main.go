@@ -11,9 +11,15 @@
 //
 //	{
 //	  "worker": ["claude", "-p", "{prompt}"],
-//	  "strategy_id": "profile:sha256:<digest>",
+//	  "name": "claude-master-lead",
+//	  "prompt": "loop_prompt.md",
+//	  "max_attempts_per_step": 3,
+//	  "max_invocations": 40,
 //	  "worker_timeout_minutes": 90
 //	}
+//
+// The prompt file, beside the config, opens every worker's prompt; the name is the
+// worker's identity, to which its landings are held; the two budgets bound the run.
 //
 // Pause by creating .overgo-runtime/loop_pause; delete it to resume.
 //
@@ -39,7 +45,6 @@ package main
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,15 +52,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
@@ -72,19 +76,16 @@ const (
 )
 
 type config struct {
+	// Worker is the command each dispatched prompt goes to, as {prompt} in its arguments and on its standard input.
 	Worker []string `json:"worker"`
-	// Strategy optionally names this worker configuration; attempt
-	// records carry it as display metadata. Unset derives a stable digest
-	// of the worker command.
-	Strategy string `json:"strategy"`
-	// StrategyID names the already-published, content-addressed strategy
-	// profile. Its Loop field is the sole retry, invocation, saturation,
-	// and closure-budget authority for this run.
-	StrategyID artifact.ID `json:"strategy_id"`
-	// Repository contains the strategy profile. Empty uses the same local
-	// default as gate.
-	Repository           string `json:"repository"`
-	WorkerTimeoutMinutes int    `json:"worker_timeout_minutes"`
+	// Name is the worker's stable identity: the campaign records it, and the worker's landings are held to the step
+	// dispatch names for it.
+	Name string `json:"name"`
+	// Prompt is the file, beside the config, whose text opens every worker's prompt.
+	Prompt string `json:"prompt"`
+	// Config is the run's two budgets: the attempts a step takes and the worker's invocations.
+	loop.Config
+	WorkerTimeoutMinutes int `json:"worker_timeout_minutes"`
 }
 
 func main() {
@@ -98,7 +99,6 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("loop", flag.ContinueOnError)
 	configPath := flags.String("config", "", "machine-local loop configuration (default .overgo-runtime/loop.json)")
 	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
-	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, repeat_runs, candidate_run, required_metrics}; repeat_runs are identical-protocol repeats of the baseline that set the measured noise envelope)")
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
@@ -164,8 +164,6 @@ func run(args []string) error {
 		added, err := loop.Improve(world)
 		fmt.Printf("loop: improvement cycle proposed=%d row(s)\n", added)
 		return err
-	case *publishStrategySpec != "":
-		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
 	case *resumeMediaExperimentSpec != "":
 		return resumeMediaExperiment(*repoPath, *resumeMediaExperimentSpec, os.Stdout)
 	case *resourceLanesSpec != "":
@@ -198,24 +196,36 @@ func run(args []string) error {
 		*configPath, _ = processlock.StateFile(".", processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
 	}
 	var loaded config
-	if err := jsonfile.Decode(*configPath, &loaded); err != nil {
+	if err := jsonfile.DecodeStrict(*configPath, &loaded); err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	if len(loaded.Worker) == 0 {
-		return errors.New("config names no worker command")
+	if len(loaded.Worker) == 0 || loaded.Prompt == "" {
+		return errors.New("config names no worker command or no prompt file")
 	}
 	if loaded.WorkerTimeoutMinutes <= 0 {
 		loaded.WorkerTimeoutMinutes = 90
 	}
-	strategy, prompt, err := resolveConfiguredStrategy(loaded, *repoPath)
+	prompt, err := os.ReadFile(filepath.Join(filepath.Dir(*configPath), loaded.Prompt))
 	if err != nil {
-		return err
+		return fmt.Errorf("load prompt: %w", err)
 	}
-	campaign, err := processcontrol.BeginCampaign(loopWorktree, strings.TrimSpace(os.Getenv(plan.AutomationWorkerEnvironment)))
+	campaign, err := processcontrol.BeginCampaign(loopWorktree, strings.TrimSpace(loaded.Name))
 	if err != nil {
 		return err
 	}
 	defer campaign.Close()
+	// The worker and every gate inside it act under the config's name.
+	priorWorker, workerPresent := os.LookupEnv(plan.AutomationWorkerEnvironment)
+	if err := os.Setenv(plan.AutomationWorkerEnvironment, strings.TrimSpace(loaded.Name)); err != nil {
+		return err
+	}
+	defer func() {
+		if workerPresent {
+			_ = os.Setenv(plan.AutomationWorkerEnvironment, priorWorker)
+		} else {
+			_ = os.Unsetenv(plan.AutomationWorkerEnvironment)
+		}
+	}()
 	priorSession, sessionPresent := os.LookupEnv(processcontrol.CampaignEnvironment)
 	_, session, _ := strings.Cut(campaign.Environment(), "=")
 	if err := os.Setenv(processcontrol.CampaignEnvironment, session); err != nil {
@@ -229,8 +239,8 @@ func run(args []string) error {
 		}
 	}()
 	// An empty plan runs the full scorecard and turns the gaps into the next rows.
-	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: prompt, campaign: campaign, improvement: improvementFor(*repoPath)}
-	outcome, err := loop.Run(world, strategy.Loop)
+	world := &execWorld{config: loaded, promptPrefix: string(prompt), campaign: campaign, improvement: improvementFor(*repoPath)}
+	outcome, err := loop.Run(world, loaded.Config)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
 	return err
@@ -248,33 +258,10 @@ func removalFlags(leftovers bool, place, directory, token string) error {
 	return nil
 }
 
-// resolveConfiguredStrategy reads the configured strategy and its prompt from the
-// store the configuration names, else from the store this command resolved.
-func resolveConfiguredStrategy(loaded config, resolved string) (loop.Strategy, string, error) {
-	if loaded.StrategyID.Kind() != artifact.KindProfile {
-		return loop.Strategy{}, "", errors.New("config requires an exact strategy_id profile")
-	}
-	store, err := overgodb.OpenReadOnly(cmp.Or(loaded.Repository, resolved))
-	if err != nil {
-		return loop.Strategy{}, "", fmt.Errorf("open strategy repository: %w", err)
-	}
-	defer store.Close()
-	strategy, err := loop.RequireStrategy(context.Background(), store, loaded.StrategyID)
-	if err != nil {
-		return loop.Strategy{}, "", fmt.Errorf("resolve strategy: %w", err)
-	}
-	prompt, found, err := artifact.ReadContent(context.Background(), store, strategy.Prompt)
-	if err != nil || !found {
-		return loop.Strategy{}, "", errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
-	}
-	return strategy, string(prompt.Data), nil
-}
-
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
 	improvement
 	config       config
-	strategy     loop.Strategy
 	promptPrefix string
 	campaign     *processcontrol.Campaign
 }
@@ -354,14 +341,10 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	}
 	var combined bytes.Buffer
 	output := io.MultiWriter(os.Stdout, &combined)
-	// The declared strategy identity reaches every gate run inside the
-	// worker, so each attempt record states which strategy produced it.
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: w.config.Worker[0],
-		Args: arguments,
-		Env: append(loopEnvironment(),
-			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy),
-			loop.StrategyIDEnvironment+"="+w.strategy.ID.String()),
+		Path:   w.config.Worker[0],
+		Args:   arguments,
+		Env:    loopEnvironment(),
 		Stdin:  strings.NewReader(text),
 		Stdout: output,
 		Stderr: output,

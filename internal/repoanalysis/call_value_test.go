@@ -13,7 +13,7 @@ import (
 // left, where the pair's err is read again or declared there and used again, where a comment stands between its two
 // statements, in the tests a pinned record of docs/verification binds whole, which change with a verification of their
 // own, and in the tests whose change runs the device lane in full.
-const valueThenCheckCeiling = 180
+const valueThenCheckCeiling = 179
 
 // valueThenChecks counts the pairs of a test file that take a call's value and check its error in two statements,
 // v, err := f() then testcheck.NoError(t, err), which testcheck.Must says in one expression.

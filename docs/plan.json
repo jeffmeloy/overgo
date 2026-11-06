@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 200,
+        "nodes": 1204,
         "reason": "Estimate. One init command and a wait in the existing driver. If decision driver-future chooses removal, this row deletes the driver instead."
       },
       "steps": [
-        {
-          "id": "first-start",
-          "title": "Start the driver from one config file",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestADriverStartsFromItsConfigAlone$'",
-          "rationale": "go run ./cmd/loop still does not start from a checkout. The store half is repaired (cmd/loop/main.go:144). It still needs .overgo-runtime/loop.json (:202-209) naming a worker (:210) and an exact profile strategy_id (:261), that strategy and its prompt in the store (:264-276), to publish it a spec (cmd/loop/evidence.go:27-31) naming an agent definition whose only door is the server (internal/server/agent_control.go:111,336-357) plus a catalog, a policy and a model recipe (internal/recipe/agent.go:71-75), and OVERGO_AUTOMATION_WORKER set (main.go:220, internal/processcontrol/campaign.go:57-59).\nSubtract instead of adding an -init. The driver uses only the strategy's Loop (:240), Prompt (:273) and ID, and nothing reads the ID's environment value (:364-371). Put a prompt file, the two budgets and the worker name in loop.json, and take -publish-strategy out of the start. The prompt already goes by argv and stdin (:337-340,372).\nObligationWorld has no non-test implementer (internal/loop/driver.go:72-81,145,152), yet skill.md:177 cites its test. Wire it or remove both.\nServes: setup-steps, and hours of unattended work.\nDisappears: the strategy record at start, OVERGO_STRATEGY and OVERGO_STRATEGY_ID, and the .cmd hand step.\nEvidence: a fixture start from an empty state directory.\nBatch: host lane."
-        },
         {
           "id": "ownership-wait",
           "title": "End a run that finds work waiting as waiting, not as an error",

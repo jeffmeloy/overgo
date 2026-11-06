@@ -367,7 +367,6 @@
       "likely_effort": "Small existing-driver branch repair and one existing-fixture extension; broader external supervisor handoff remains separately unverified within the same canonical obligation.",
       "plan_coverage": "The current ownership-wait row names this contract. Initial and post-worker paths are already handled; the newly traced post-improvement read is the concrete remaining code edge. first-start and actual exit/delivery remain open; no plan edit or dispatch authorized.",
       "plan_references": [
-        "unattended-driver/first-start",
         "unattended-driver/ownership-wait"
       ],
       "recommended_change": "A second interpretation of dispatch waiting is unnecessary. In the existing post-improvement Current branch, route errors.Is(readErr, ErrWorkWaiting) back to the top of Run, which already classifies waiting and checks stops; preserve real read/measurement errors and the no-work completion branch. A complete candidate parse adds nine production AST nodes and no helper or state. Extend the existing filingWorld/TestRowsFiledBeforeTheLanesKeepTheLoopGoing fixture with one after-publication ownership-wait case, keeping the free-row case. This fixes truthful disposition, not external wakeup delivery. For that remaining obligation, retain the actual process/task owner through real exit and use the existing driver/dispatch only when authority, stops and budgets permit. Keep one-shot commands one-shot; no scheduler, watcher, polling loop, extra record or notification framework.",
@@ -8002,7 +8001,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "b8faa765bf17484c94a020a3d0c5913a87367c2a",
+    "head": "1b907c644b218de7cc9f81d76382fd1c1654d2bf",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8229,12 +8228,11 @@
         "note": "Moved with sqa-cycle/run-continuation to the owner SQA-271 names: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success. It waits on the driver-future decision."
       },
       "SQA-271": {
-        "action": "filed",
+        "action": "scheduled",
         "rows": [
-          "unattended-driver/first-start",
           "unattended-driver/ownership-wait"
         ],
-        "note": "Read again: its prerequisite store-root landed at 31fd13011 and explicit-create at c4af5a1b6. The rest belongs to the unattended-driver row, as this finding says, and waits on the driver-future decision."
+        "note": "Decision driver-future is answered: repair the driver. unattended-driver/first-start starts it from loop.json alone and leaves the waiting disposition and the supervision through a run's real exit to unattended-driver/ownership-wait, where this finding's change lands."
       },
       "SQA-268": {
         "action": "declined",

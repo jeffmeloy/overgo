@@ -172,7 +172,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 
 ## Robustness
 
-- persist results and obligations (check: internal/runrecord TestCancelledGatePersistsTerminalTruth, cmd/validate TestCellCreditSurvivesAKilledRun, internal/loop TestObligationCompletionReplay)
+- persist results and obligations (check: internal/runrecord TestCancelledGatePersistsTerminalTruth, cmd/validate TestCellCreditSurvivesAKilledRun)
 - publish and retry = idempotent (check: internal/overgodb TestCommitIsIdempotentByKeyAndContent, internal/agenttool TestPublishManualCatalogIsAtomicAndIdempotent, internal/repoanalysis TestIdempotentCommitHasOneOwner)
 - recover from durable state (check: internal/workflowruntime TestWorkflowRestartSkipsCompletedStages, internal/overgodb TestCheckpointGenerationsSurviveATornWrite, cmd/loop TestInterruptedCycleResumesAtItsFirstUnpassedPhase)
 - retried failed write never becomes a pass (check: internal/evaluation TestInstructionResumeRetainsQualityFailure, internal/evaluation TestInstructionResumePublicationFailure, internal/overgodb TestAppendFaultClosesEveryStoreSurfaceUntilReopen)

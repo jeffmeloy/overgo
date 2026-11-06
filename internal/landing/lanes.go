@@ -369,10 +369,21 @@ func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
 	})
 }
 
+// inTurnFor runs work in the lane turn when one of shared needs the device, the resource the turn guards. Lanes that
+// need none run at once, the landing's side of the quiet machine held, so a measurement run's phases keep them waiting
+// for nothing they use: on 2026-10-31 a landing whose one lane was webui waited 7.99 h for a run's turn (e63fd568a).
+func (l *landing) inTurnFor(ctx context.Context, shared []lane, work func() error) error {
+	if len(shared) == 0 {
+		return work()
+	}
+	return l.inLaneTurn(ctx, work)
+}
+
 // lanes runs every lane the change reaches: the lanes that share the device one
-// after another, and the lanes that need none beside them. They run in the host's
-// lane turn, so another landing on this machine waits for it rather than running
-// its lanes beside these on the one GPU. A turn, not a claim on the device: a
+// after another, and the lanes that need none beside them. A change that reaches a
+// lane of the device runs them in the host's lane turn, so another landing on this
+// machine waits for it rather than running its lanes beside these on the one GPU;
+// one that reaches none takes no turn (inTurnFor). A turn, not a claim on the device: a
 // claim would make every lane process its member and erase the process
 // identities the device's own admission tests exercise. A lane that refuses the
 // landing cancels the others. The measurement says how long finding the reached
@@ -414,12 +425,15 @@ func (l *landing) lanes(ctx context.Context) error {
 		l.details["lanes"] = describeLanes(discovery, 0, nil, skipped)
 		return nil
 	}
-	if err := l.letGo(ctx); err != nil {
-		return err
+	beside, shared := splitLanes(reached)
+	if len(shared) > 0 {
+		if err := l.letGo(ctx); err != nil {
+			return err
+		}
+		fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
 	}
-	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
 	waiting := time.Now()
-	err = l.inLaneTurn(ctx, func() error {
+	err = l.inTurnFor(ctx, shared, func() error {
 		turnWait := time.Since(waiting).Round(time.Millisecond)
 		l.spent.Turn = turnWait
 		ctx, cancel := context.WithCancel(ctx)
@@ -448,7 +462,6 @@ func (l *landing) lanes(ctx context.Context) error {
 			entries[candidate.name], admission = describeLane(candidate.name, wall, output)
 			l.spent.Device += admission
 		}
-		beside, shared := splitLanes(reached)
 		var group sync.WaitGroup
 		for _, candidate := range beside {
 			group.Go(func() { run(candidate) })

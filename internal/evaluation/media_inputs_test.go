@@ -189,3 +189,38 @@ func TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod(t *testing.T) {
 		}
 	}
 }
+
+// TestACandidateReadingNamesItsBridge holds a frame suite read through a candidate composite, whose images reach the
+// model through a bridge adapter no recipe names yet, to compiling under that bridge, to another plan under another
+// bridge, and to refusal under a projection that is neither a recipe nor an adapter.
+func TestACandidateReadingNamesItsBridge(t *testing.T) {
+	t.Parallel()
+	store := overgodbtest.Open(t, t.TempDir())
+	environment := testcheck.Must(runrecord.NewEnvironment(runrecord.Environment{
+		Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture",
+	}))(t)
+	runtime := &mediaInputRuntime{}
+	campaign := testcheck.Must(NewCampaign(store, runtime, modelrecipe.ProgramIdentity{
+		Model:      planID(t, artifact.KindModel, "text model"),
+		Definition: planID(t, artifact.KindModelDefinition, "text model definition"),
+		Recipe:     planID(t, artifact.KindRecipe, "text model recipe"),
+	}, environment, planTestCommit))(t)
+	data := testcheck.Must(json.Marshal(GeneratedAnswerSuite{Kind: GeneratedAnswerKind, Schema: "fixture", Source: "fixture", Judge: "descriptive label",
+		Cases: []GeneratedAnswerCase{{Name: "frame", Prompt: mediaPrompt(MediaImage, "frame.png", FrameQuestion), MaxTokens: exactMaxTokens, Answers: []string{"ok"}}},
+	}))(t)
+	compile := func(projection artifact.ID) (CompiledSuite, error) {
+		runtime.input = MediaInput{
+			Content: planID(t, artifact.KindFile, "frame pixels"), Decode: MediaDecode{Format: "image"},
+			Runtime: MediaRuntime{Model: planID(t, artifact.KindModel, "text model"), Recipe: planID(t, artifact.KindRecipe, "text model recipe"), Projection: projection},
+		}
+		return campaign.CompileSuite(t.Context(), data)
+	}
+	trained := testcheck.Must(compile(planID(t, artifact.KindAdapter, "trained bridge")))(t)
+	floor := testcheck.Must(compile(planID(t, artifact.KindAdapter, "zero bridge")))(t)
+	if trained.plan.Identity() == floor.plan.Identity() {
+		t.Error("two bridges read under one plan")
+	}
+	if _, err := compile(planID(t, artifact.KindModel, "not a projection")); err == nil {
+		t.Error("a projection that is neither a recipe nor an adapter qualified")
+	}
+}

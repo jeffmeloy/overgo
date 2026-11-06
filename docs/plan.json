@@ -54,7 +54,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 100,
+        "nodes": 86,
         "reason": "Measured: candidate adds 389 production nodes, the candidate composite and its width checks in internal/inference, 257, and the request's reading of it, with the adapter parsing it shares and SQA-320's close, in cmd/evaluate, 132, above the 150 to 200 estimated; 100 stand for judge."
       },
       "steps": [

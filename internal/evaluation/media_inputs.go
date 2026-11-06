@@ -11,7 +11,8 @@ import (
 	"overgo/internal/strictjson"
 )
 
-// MediaRuntime names the loaded answering model and its admitted recipes.
+// MediaRuntime names the loaded answering model and its admitted recipes: Projection is the recipe its images reach it
+// through, or a candidate composite's bridge adapter, read before any recipe promotes it.
 type MediaRuntime struct {
 	Model      artifact.ID `json:"model"`
 	Recipe     artifact.ID `json:"recipe"`
@@ -51,7 +52,7 @@ func (input MediaInput) valid() bool {
 		(input.Decode.Format == "gif" && !input.Decode.Tool.Valid() || input.Decode.Format == "ffmpeg" && input.Decode.Tool.Kind() == artifact.KindFile)
 	return (generated || fixed) &&
 		input.Runtime.Model.Kind() == artifact.KindModel && input.Runtime.Recipe.Kind() == artifact.KindRecipe &&
-		(!input.Runtime.Projection.Valid() || input.Runtime.Projection.Kind() == artifact.KindRecipe) &&
+		(!input.Runtime.Projection.Valid() || input.Runtime.Projection.Kind() == artifact.KindRecipe || input.Runtime.Projection.Kind() == artifact.KindAdapter) &&
 		(image || video)
 }
 

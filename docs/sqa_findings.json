@@ -1,32 +1,33 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "One trivial test-wrapper removal established; existing306 cost refreshed. No additional production reduction or broad test retirement.",
+    "assessment": "SQA-324 identifies existing direct opening and remaining virtual-GGUF coupling; code/runtime savings remain unquantified pending complete replacement accounting.320 is resolved in committed source.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
         "SQA-271",
         "SQA-318",
         "SQA-319",
-        "SQA-320",
         "SQA-283",
         "SQA-277",
         "SQA-266",
-        "SQA-257"
+        "SQA-324",
+        "SQA-257",
+        "SQA-303"
       ],
     "declined_candidates": [
-        "Keep release retry/replay/refusal/reintroduction/child-retention tests: their failure states differ and already share releaseFixture/assertReleased.",
-        "Keep registry-only cancellation and real HTTP shutdown/resume/caller-budget coverage: state cancellation does not prove transfer unwind or verified-prefix resume.",
-        "Do not expand retentionContent's many-caller constructor migration without a complete contract/cost comparison; existing244 stays scoped.",
-        "Do not reinterpret BF16 fixture tolerances or measured model outcomes as universal distribution guarantees."
+        "Do not delete hfconvert or GGUF parsing/export wholesale: direct opening shares the converter's required mappings and actual export consumers remain.",
+        "Do not treat full view.go/test AST as deletable savings: tensor lifetime,source identity and numerical/layout behavior need retained owners.",
+        "Do not merge training F32 materialization with inference packed/device loading merely because both read model weights.",
+        "Do not rerun real-model parity for SQA or add a new abstraction/testing framework. Reuse existing native fixtures and retained numerical evidence."
       ],
-    "rank_basis": "New trivial P3 cleanup follows SQA-239; older relative ranks/severities unchanged. Correctness/recovery and evidence integrity retain priority."
+    "rank_basis": "324 follows existing automation/evidence-integrity priorities and precedes smaller isolated reductions; no measured benefit ranking asserted. Remove resolved320; other relative ranks unchanged."
   },
     "committed_plan": {
-    "git_blob": "30181772b681b956bcf1fb0215c8dfbcdffc1baf",
+    "git_blob": "7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8",
     "path": "docs/plan.json",
-    "revision": "ea40a706a7d8400121e9a0f5b6e64652bb66cec8",
-    "sha256": "0a2f0d3962ca8903c1441210e681f1af8ed105ec9a67b97e9869069f32a0a250",
+    "revision": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "sha256": "1559594628a95872c1f934e90a9b7a136c85db2a2f6d6eba0938fa02710550a2",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -6031,14 +6032,20 @@
       "comparison": "At ordinary implementation validation, extend TestSeamScoreComesFromMeasuredRepresentations with the one in-memory empty-width case: it fails by panic before repair and returns error afterward. Existing native success cases retain mapping/noise/planted-pair behavior. SQA runs no test."
     },
     {
-      "id": "SQA-320",
-      "status": "open",
-      "severity": "P2",
-      "category": "resource-lifetime",
-      "classification": "source-established-early-abandon-reader-leak",
-      "title": "Close the bridge source when adapter materialization fails",
-      "evidence_commit": "4fb6f2c9be44c65c0cb2568505ef1a52e4a47022",
-      "sources": [
+    "category": "resource-lifetime",
+    "classification": "resolved-lexical-source-reader-cleanup",
+    "evidence": "Closed by d3d15a111, rechecked at af0eef3c. compositionResources.BridgeWeights now immediately defers stream.Close when OpenContent returns an io.Closer, before CreateTemp or io.Copy can fail. Bounded copying, destination Close error, deferred removal and adapter validation remain. adapterWeights is retained by both the stored authority path and the new candidate path. Owner triage is now supported by committed source. No SQA execution or measured handle-exhaustion incident.",
+    "evidence_commit": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "expected_benefit": {
+        "outcome": "Missing lifetime obligation filled; no net reduction claimed. Local cleanup is the previously parsed+16production AST pattern. Complete broader candidate/reading interval2ab4bdd35->af0eef3c: composition.go1130->1251(+121),main.go3443->3450(+7),representation_bridge.go1094->1355(+261),representation_bridge_test2117->2595(+478): production+389/test+478,total7784->8651(+867). This includes candidate capability and shared adapter parsing, not just this fix. One added host-native candidate/promotion prompt/row/width fixture; no new static fixture file.",
+        "uncertainty": "Source closure verified; broader478test-node growth protects candidate versus promoted prompt/rows and width refusal and is not attributed as necessary for the trivial close. Existing blob lifetime tests retained. No new application/gate/model run or elapsed/memory measurement."
+      },
+    "id": "SQA-320",
+    "plan_references": [
+        "vision-bridge/wire (landed a9ce1f5b5)"
+      ],
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/evaluate/composition.go",
           "symbol": "openCompositionSession -> compositionResources.BridgeWeights; OpenContent before CreateTemp/io.Copy"
@@ -6060,26 +6067,9 @@
           "symbol": "openEvaluationSession; executeModel failure/Close"
         }
       ],
-      "evidence": "BridgeWeights acquires an OpenContent reader before creating its temporary adapter file. If CreateTemp fails, or io.Copy stops on a destination error before exhausting a loose blob/sealed-segment reader, no code closes stream. blobReader closes itself only at EOF/exhaustion and exposes Close for early abandonment; closing the store/runner is not ownership of this separately opened source handle. Admitted example: temp-directory creation is refused after a valid blob opens; alternatively a disk-full write stops a large adapter copy early. Source establishes a handle retained until finalization/process exit, not a measured exhaustion incident. The success path's adapter close and temporary-file removal remain correctly ordered.",
-      "recommended_change": "Reuse the exact conditional io.Closer/defer pattern already used by Store.materializeContent and VisitContents immediately after successful OpenContent. Keep bounded streaming, file.Close error handling and deferred removal. Whole-blob ReadAll or a new materialization abstraction is unnecessary. No wrapper/export/config/dependency, no change to caller authorization or numerical validation.",
-      "displaced_surface": "No code/test retirement is justified; the missing local lifetime obligation is filled. Complete parsed composition.go 1130->1146 AST,7805->7874 bytes (+16/+69); test AST0,helpers/wrappers0,fixtures0,setups0,gate phases0. Existing io.Closer implementations retain the lifetime mechanics; normal copy still reads once and holds the same buffer. Same pattern has two established store consumers, but it is only three local lines and does not justify extraction.",
-      "impact": "An early setup/copy failure leaves a separate content file open and can delay reclamation or Windows file operations. No current data loss or confidentiality breach is demonstrated. Preserve the original failure, successful EOF auto-close/idempotent Close, temporary-file ordering and current cancellation behavior; this repair does not claim to make io.Copy context-aware.",
-      "expected_benefit": {
-        "outcome": "Deterministic release on all early returns with +16 production AST and no new permanent test surface.",
-        "uncertainty": "Parsed exact local candidate, not application executed. No handle-count, elapsed, memory or platform failure measurement. There is no safe net code reduction in this repair."
-      },
-      "likely_effort": "Three local lines following the repository's existing reader ownership pattern.",
-      "plan_references": [
-        "vision-bridge/wire (landed a9ce1f5b5)"
-      ],
-      "plan_coverage": "Residual in newly wired adapter reader; distinct from zero-width capture parsing and historical content-release semantics.",
-      "closure_criteria": [
-        "A successfully acquired closable stream has lexical cleanup before both CreateTemp and io.Copy can return early.",
-        "Keep EOF/idempotent-close behavior, bounded copy and all adapter shape/identity/error checks.",
-        "Count the local growth; introduce no abstraction, new fixture suite or extra recurring work."
-      ],
-      "comparison": "This is trivial reuse of the existing io.Closer pattern, so no new test is needed. The deciding review is all-return-path ownership from OpenContent through temp creation/copy; retain existing blob lifetime and composition admission tests. If ordinary debugging needs an experiment, a single existing-fixture failed materialization suffices; no SQA execution."
-    },
+    "status": "resolved",
+    "title": "Close the bridge source when adapter materialization fails"
+  },
     {
     "category": "evidence-identity-and-resume",
     "classification": "implemented-input-bound-capture-resume",
@@ -6221,44 +6211,154 @@
         "All refusal cases and chain invariants remain; complete file retains the 13-node net reduction without new tests/helpers."
       ],
       "comparison": "Inspect the three callers and already-imported standard function; ordinary affected native validation when adopted is enough. Trivial reuse needs no additional test, SQA execution or confidence run."
+    },
+    {
+      "id": "SQA-324",
+      "status": "open",
+      "severity": "P2",
+      "category": "model-loading-and-automation-consolidation",
+      "classification": "source-established-format-coupling-with-unquantified-net-reduction",
+      "title": "Make storage format an input to the shared model loader and retire required conversion",
+      "evidence_commit": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "vision-bridge/judge: conversion prerequisite for Qwen2.5-0.5B; retain prompt-token parity"
+        },
+        {
+          "path": "internal/hfconvert/qwen35.go",
+          "symbol": "View/Viewed/viewed/init: qwen2,llama,qwen3_5,gemma4_unified directory opening"
+        },
+        {
+          "path": "internal/hfconvert/convert.go",
+          "symbol": "Convert/modelMetadata/profileTensors/modelTensors/viewProfile; shared actual mapping"
+        },
+        {
+          "path": "internal/hfgguf/catalog.go",
+          "symbol": "mappedTensorData/mappedViewTensors/openMapped; source tensor versus transformed stream"
+        },
+        {
+          "path": "internal/gemma4convert/convert.go",
+          "symbol": "ModelView/modelViewTensors; native FP8 policy"
+        },
+        {
+          "path": "internal/gguf/view.go",
+          "symbol": "View/ViewTensor/viewSource.ReadAt/tensorBytes/regionAt: synthetic header,offsets,padding,Parse and transformed-tensor lifetime"
+        },
+        {
+          "path": "internal/gguf/reader.go",
+          "symbol": "File/TensorInfo/Shards/RegisterDirectoryOpener/OpenWithOptions/ReadTensorRange"
+        },
+        {
+          "path": "internal/modelrecipe/loaded_program.go",
+          "symbol": "LoadedProgram/loadGGUFFacts/bindResolved -> model.ReadSpecWithProfile/ReadWeights"
+        },
+        {
+          "path": "internal/model/weights.go",
+          "symbol": "weightCatalog/newWeightCatalog/readWeightCatalog; typed shape/name binding"
+        },
+        {
+          "path": "internal/modeldevice/device_load.go",
+          "symbol": "Loader.Load/loadRun.pass/openShard/release; shared identity proof,uploads,cancellation and lifetime"
+        },
+        {
+          "path": "internal/modelartifact/inventory.go",
+          "symbol": "fromGGUFClaimed/fromView/identifyView/VerifyClaims; virtual-image-derived identities"
+        },
+        {
+          "path": "cmd/validate/onboard.go",
+          "symbol": "onboardingModel/onboarding.admit; existing native directory choice and remaining conversion branch"
+        },
+        {
+          "path": "cmd/gguf/convert.go",
+          "symbol": "convertCommand/viewCommand: public export and view command"
+        },
+        {
+          "path": "internal/hfconvert/view_test.go",
+          "symbol": "requireViewIsConversion; Qwen35/profile(qwen2,llama) fixtures"
+        },
+        {
+          "path": "internal/hfconvert/gemma4_view_test.go",
+          "symbol": "TestAGemma4DirectoryIsTheBytesItsConversionWrites; endpoint sample and scalar widening"
+        },
+        {
+          "path": "internal/gguf/view_release_test.go",
+          "symbol": "TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds"
+        },
+        {
+          "path": "internal/gguf/view_endpoint_test.go",
+          "symbol": "TestAViewTensorIsReleasedAtItsEnd"
+        },
+        {
+          "path": "internal/inference/native_safetensors_model_test.go",
+          "symbol": "TestQwen35ServesFromItsSafetensors; modeltest/device-gated numerical and decode owner"
+        }
+      ],
+      "evidence": "Two concrete storage callers already reach one inference path: physical GGUF -> gguf.Open, and HF directories -> hfconvert.View (profile qwen2/llama,Qwen3.5,Gemma4) -> gguf.View -> gguf.File -> LoadedProgram -> Runner/device loader. profileTensors supplies both modelTensors/Convert and viewProfile; mappedTensorData/mappedViewTensors likewise share mappings. Unsupported premise: every HF checkpoint must first be written as GGUF to use this runtime. Counterexample: Viewed recognizes qwen2, and onboardingModel returns a supported directory without conversion when it contains no GGUF; Qwen2.5-0.5B belongs to that profile. The committed judge paragraph still requires conversion, but source support does not by itself prove that particular model's prompt parity. Remaining coupling is real: View writes an in-memory GGUF header, computes offsets/padding, reparses through Parse and exposes synthetic byte regions solely to satisfy File-based model/load/identity consumers. Eliminating that indirection may reduce code/setup and memory work; net savings and faster opens are hypotheses, not measured findings.",
+      "recommended_change": "Use the existing direct-directory opening path for supported models and remove conversion as a workflow prerequisite after the existing prompt/identity admission holds. Keep actual export only for demonstrated consumers; do not remove the public command, unsupported-family fallback or projector conversion without replacing/explicitly retiring their callers. Then replace the format-specific boundary inside the existing model/modelrecipe loading owners with the minimum shared model facts and typed tensor readers needed by BOTH physical GGUF and HF callers. Reuse profileTensors, hfgguf mappings, Gemma4 mapping, safetensors readers, model shape validation and the existing host/device transfer owner. This must replace the simulated-file dependency, not add a parallel loader/framework around it. Retain format-specific parsing at the input edge and perform required dtype/layout transformations once at the existing load boundary; kernels still receive explicit layouts and quantization types. Route training through shared loading only where densecausal.Load/LoadGGUF's F32 materialization and inference's packed/device policies actually share a contract.",
+      "displaced_surface": "Immediate target: unnecessary model-sized intermediate files, conversion invocation/retry/registration steps for already supported native directories, and stale conversion-only prerequisite text through the implementation plan owner. Coordinated target after callers migrate: gguf.View's synthetic header->Parse roundtrip, region/padding emulation and directory-opener registration used only to masquerade as GGUF; viewProfile/viewed conversion-to-File glue. Keep required architecture mapping, tokenizer/config reading, real GGUF parser/writer, validated tensor reads, bounded transformed buffers and close ownership. Do not delete hfconvert wholesale. fromView currently hashes the virtual image and existing manifests/recipes/evidence depend on that identity: preserve exact old identities and verification, or use the existing artifact/derivation owner for an explicit migration without relabeling evidence. If a compatibility verifier still needs synthetic bytes, retain and charge it; full view deletion cannot then be claimed. SQA-303 and262 remain distinct current test cleanups; their savings are not additive to deleting their containing paths.",
+      "impact": "Can remove disk duplication and setup work where conversion still runs, and can reduce internal format coupling. Native directories already skip disk conversion, so no additional saved write is credited there. Removing shared mapping would break tensor order,RoPE,tokenization,quantized/FP8 execution or model identity. Preserve trust-boundary bounds, source integrity, cancellation, host-mapped lifetime and errors; do not replace bounded reads with whole-model F32 materialization. No current data loss/confidentiality defect or measured speedup is alleged.",
+      "expected_benefit": {
+        "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established.",
+        "uncertainty": "No candidate implementation, package build, application/model/device run,benchmark/profile or peak-memory measurement. parser-local/manual resolution only. Mandatory conversion removal saves a write only on paths still doing it; deferred transforms can increase open latency. Count source verification and repeated transformations, not just removed output bytes.",
+        "cost_contract": "Before/after must cover BOTH format readers, all migrated model/load/identity callers, retained compatibility/export paths and every moved test/helper. Proposed new dependency/framework/config/selector/schema/recurring workload:0. Reuse existing fixtures, target new static fixture bytes0, but actual fixture bytes and setup executions must be reported from the complete replacement. Existing profile parity performs three tiny conversion/view setups; migrated load parity should reuse those cases, with real-export checks retained only under the writer owner. Existing native Go caching and gate selection remain; do not add a parallel confidence suite or model campaign."
+      },
+      "likely_effort": "Small workflow prerequisite correction for already supported models; cross-package loader/identity migration is larger and not yet costed. Proceed only with a complete replacement/deletion account.",
+      "plan_references": [
+        "vision-bridge/judge (current conversion sentence and prompt-token/placeholder parity requirement)"
+      ],
+      "plan_coverage": "User-requested recommendation, not implementation authorization. Current judge acceptance remains unchanged; implementation owner reconciles the unnecessary prerequisite. No plan/skill edits by SQA.",
+      "closure_criteria": [
+        "Supported directory models reach the existing runner without writing a GGUF solely to serve/evaluate them; actual export remains explicit and every remaining conversion has a concrete consumer.",
+        "The shared loading owner accepts physical GGUF and HF facts/tensor sources; displaced virtual-file/glue paths are deleted where no longer needed, with no parallel runtime or speculative generic framework.",
+        "Exact model/source/recipe/evidence identities remain valid; any transition is owned by existing artifact provenance/admission and cannot silently reuse historical validation under a changed identity.",
+        "Tensor naming,axis/shape/strides,RoPE permutations,tied embeddings,dtype/quantization blocks,FP8 scaling,tokenizer/EOS/chat templates,errors/cancellation and resource lifetime retain established owners.",
+        "Complete before/after production/test AST,compatibility/helpers/wrappers/migration,fixture bytes,setups,gate work and maintenance establish a net reduction or explicitly justify necessary growth. Count303/262 savings once only.",
+        "Retire synthetic-header/padding assertions only when that runtime behavior disappears; move their unique tensor-content/bounds/lifetime requirements into retained loader fixtures. Keep real-format parser/export and independent numerical checks."
+      ],
+      "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "BF16 admission is derived from kernel-supported head widths, equal key/value widths, independent causal attention, no unsupported states/sinks/ALiBi/block/chunked modes, and persistent device ownership. Existing fallback stays F32. Fixture64-wide heads and212 tokens in100/100/12 chunks deliberately cross tensor-core/online paths; no arbitrary broader width support is claimed.",
-        "306's lead>2*maximum coordinate error implication applies to these finite paired vectors. The retained1%-of-spread tolerance is fixture-specific, independent of timing. No normality, independence or tail extrapolation is needed for the redundancy proof.",
-        "Retention roots, typed parents/children/manifests/causality and ExpectedHead protect liveness and concurrent writes. Frame admission drives recursive bisection; the divisor2 is partition arithmetic, not a tuning threshold.4KiB fixture padding intentionally makes a blob. Do not remove trust-boundary or data-loss checks to shrink tests.",
-        "Download1s is an explicit caller-budget fixture, not a throughput target. The positive case waits on the existing transfer owner; it is not merged with forced shutdown. Existing progress/display-percent code and source-bound partial-file resume remain.",
-        "Driver attempt/invocation budgets are caller inputs, and500/1000/2000 bound diagnostic feedback text rather than acceptance statistics. Real exit/stop/partial-result paths are distinct from printed completion."
+        "Storage format independence does not imply numerical-layout independence: qwen2 biases widen toF32,llama q/k rows permute for interleaved RoPE,Qwen3.5 mapped transforms and Gemma4 nativeFP8 scales remain explicit.",
+        "Current modelartifact.fromView/identifyView derive stored identity from virtual GGUF bytes. Source-file hashes are not interchangeable with that identity; preserve verification/provenance and historical evidence before removing emulation.",
+        "GGUF file alignment,shape reversal,quantization blocks and device256-byte alignment remain format/hardware contracts. Remove only synthetic file layout when no consumer needs it; do not materialize every tensor asF32 to hide differences.",
+        "View's1GiB cache bound and transformed-tensor lifetime remain real memory costs if moved. No assumption that lazy conversion improves startup or that endpoint samples prove full-model numerical parity."
       ],
     "automation_sequence": [
-        "Driver Run checks pause and dispatch ownership before work, distinguishes launch failure/nonzero worker exit, preserves bounded attempts/invocations and re-reads rows after measurement. Improve proposes from published partial results before filling other validations; no result is promoted by this owner.",
-        "Existing271 remains open for exact waiting counts and real external continuation evidence.322 remains open for moving the existing verifier ahead of broad gate work; no production gate or worker was launched here.",
-        "Store release uses a captured head, durable release facts then writer-owned cleanup and checkpoints; command precheck clones a backup, releases, packs and proves the candidate through existing owners. No store operation was executed by SQA.",
-        "GUI downloads detach from the HTTP request by product contract but retain their own cancel/budget. runHubDownload's deferred unwound precedes Done, and shutdown waits after cancellation; browser closure and completed transfer are distinct."
+        "onboardingModel already selects supported native directories without conversion when no GGUF file is selected. The judge paragraph's conversion prerequisite should be reconciled by its implementation owner after prompt identity admission; do not add a second build/conversion campaign.",
+        "Retain explicit export/unsupported-family/projector callers,stop/budget/admission and exact evidence identity. Deleting unused setup is the objective; building another scheduler/registry/selector is outside it.",
+        "Report-only publication uses existing nonblocking commit ownership, latest report re-read, JSON validation and a path-limited commit; no production gate."
       ],
     "fresh_ast": {
-        "revision": "ea40a706a7d8400121e9a0f5b6e64652bb66cec8",
+        "revision": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
         "files": [
-          "internal/inference/bf16_cache.go",
-          "internal/inference/bf16_cache_windows_test.go",
-          "internal/overgodb/retention.go",
-          "internal/overgodb/retention_test.go",
-          "internal/overgodb/release_test.go",
-          "internal/server/download_cancel_slot_test.go",
-          "internal/server/download_shutdown_test.go",
-          "internal/loop/driver.go",
-          "internal/loop/dispatch_wait_test.go",
-          "internal/loop/improvement_test.go"
+          "internal/gguf/view.go",
+          "internal/gguf/view_release_test.go",
+          "internal/gguf/view_endpoint_test.go",
+          "internal/hfconvert/convert.go",
+          "internal/hfconvert/qwen35.go",
+          "internal/hfconvert/view_test.go",
+          "internal/hfconvert/gemma4_view_test.go",
+          "internal/modelrecipe/loaded_program.go",
+          "internal/modelartifact/inventory.go",
+          "internal/modeldevice/device_load.go",
+          "internal/modeldevice/device_load_test.go",
+          "internal/inference/native_safetensors_model_test.go",
+          "cmd/evaluate/composition.go",
+          "cmd/evaluate/main.go",
+          "internal/inference/representation_bridge.go",
+          "internal/inference/representation_bridge_test.go"
         ],
-        "production_nodes": 2908,
-        "test_nodes": 8259,
-        "total_nodes": 11167,
-        "functions": 49,
-        "parser_local_bindings": 2228,
-        "method": "Existing Go parser.ParseComments/ast.Inspect over exact git blobs. Full-file alternatives parsed externally; no application execution.",
-        "type_resolution": "Exact contains/truncate standard-library declarations:7 defs/19 uses/0 selections; manual/parser-local elsewhere.",
-        "counterfactuals": "SQA-323 release_test2622->2609(-13); SQA-306 BF16 test1267->1208(-59). Full sample11167->11095; no production change."
+        "production_nodes": 21367,
+        "test_nodes": 10804,
+        "total_nodes": 32171,
+        "functions": 175,
+        "parser_local_bindings": 6488,
+        "method": "Existing Go parser.ParseComments/ast.Inspect over exact selected git blobs. Four closure files also counted at2ab4bdd35.",
+        "type_resolution": "Parser-local bindings and manually traced exported/package callers; no full package/cgo/device typecheck.",
+        "counterfactuals": "No full format-neutral replacement built or counted. view.go979 and related tests are baseline exposure, not assumed savings. Reader cleanup's+16local AST was already parsed; broader landed interval+867total."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6417,16 +6517,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "No implementation landing or new validation record since a104591ab. Its retained22-package gate/CUDA1executed18cached result and df8523d27 shared-backward gate remain dated implementation evidence, not review executions.",
-        "Previous train/cache interval+4253production/+2583test=+6836 is unchanged. Historical requested_growth_analysis remains raw-exact; no daily total inferred from this heartbeat.",
-        "The source-stated Qwen2.5/MiniCPM held-out BF16 comparison supports its named sampled domains only. The current small fixture's arithmetic/byte-layout evidence is not a new real-model quality or memory measurement."
+        "Current direct-opening tests retain qwen2/llama bias/RoPE and Qwen3.5 boundary parity; native_safetensors_model_test is modeltest/device gated. Gemma4 endpoint/scalar test samples two64KiB ends, not every tensor byte. No test executed by SQA.",
+        "Committed d3d15a111/af0eef3c supplies320 lexical cleanup and candidate composition. Whole four-file interval+389production/+478test; one host-native candidate/promotion comparison added, existing fixture owners reused.",
+        "Historical test-growth analysis remains raw-exact and is not recomputed as a daily total."
       ],
     "tests": [
-        "SIMPLIFY SQA-323: remove contains and use strings.Contains at its three calls in TestReleaseRefusals. All never-durable/alias/contradictory-batch and unchanged-chain assertions remain; no new test.",
-        "SIMPLIFY existing306: remove sorted/lead-dependent argmax assertion only. RETAIN exact2:1 capacity bytes, nearest-BF16 values, host roundtrip, common forced tokens, maximum-coordinate-error acceptance, two runners and cache cleanup.",
-        "RETAIN retention typed lineage, pinned/missing roots and store-local refusal; release chain identity/idempotence, checkpoint/snapshot/journal replay, stale-head refusal, backup/rebuild, reintroduction and policy-child cases. Existing newReleaseFixture/assertReleased already consolidate repeated setup/assertions.",
-        "RETAIN cancelled-download slot/history unit fixture and transport shutdown/resume/caller-budget cases. They distinguish state from active goroutine/connection/file lifetime; existing HTTP partial-prefix checks own actual Range/If-Range recovery.",
-        "RETAIN driver cycle trigger/stop, per-cell contract/direction/unknown distinction, partial-failure publication and early-filed-row dispatch. Existing271 still recommends exact0/1/0 waiting calls rather than >1. No duplicated new test for that obligation."
+        "RETAIN existing GGUF/Safetensors parser bounds,duplicate-name/shape/dtype validation and tokenizer/EOS/RoPE/tied-embedding owners. A storage interface migration must not retire mathematical mapping checks.",
+        "MERGE/MOVE conditionally: hfconvert requireViewIsConversion's qwen2/llama/Qwen3.5 tensor/content/native-open cases into the existing shared-loader fixture if runtime View is removed; real export image/header/padding checks stay with the retained writer. Shared-mapper equivalence is not an independent numerical oracle.",
+        "MERGE/MOVE conditionally: view_release/endpoint partial reads,overlapping read-ahead,one-build,end release and later identical rebuild into the retained transformed-tensor lifetime owner. REMOVE only the synthetic-file-specific portions after that behavior ceases. Existing303/262 may instead be implemented while View remains; savings counted once.",
+        "RETAIN modeldevice claimed/unclaimed byte reads,allocation/write/cancellation failures,split-shard integrity and mapped-host/card cleanup. These are shared transfer requirements, not conversion scaffolding.",
+        "RETAIN existing native Qwen3.5 decode/layout and Gemma4 dtype/FP8/scalar checks at their present scope/tags. No fresh model run/new performance ratchet.",
+        "RETAIN candidate/promoted prompt-token,placeholder-row,embedding and width-refusal test added by320's broader landing. The trivial reader-close repair itself requires no additional test."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -7960,10 +8061,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Only new reduction is the13-node test wrapper;306's existing59-node reduction was re-costed at current source. Neither changes setup count or establishes measured runtime/memory gains.",
-      "Retain distinct BF16 geometry/rounding/transfer, retention authority/data-loss, download unwind/resume/budget and driver stop/failure cases. Similar code alone is not redundant coverage.",
-      "271's permissive waiting-call oracle remains; no new actual final-exit/authorized-dispatch evidence establishes external continuation.322's verifier ordering and other dated obligations remain open; no blanket recertification.",
-      "Implementation_review, master_lead_triage, every unknown field and requested_growth_analysis preserved raw-exact. No new alias or closure; no timestamp-only commit."
+      "Format independence is a source-supported architectural recommendation; complete replacement cost and speed/memory benefit are not yet established. No numerical net saving is assigned to SQA-324.",
+      "AST/manual and parser-local resolution only; package/cgo/device types not loaded. No application tests,model workloads,benchmarks,profiles or new confidence runs.",
+      "Existing physical export,unsupported-family/projector consumers and historical identity verification can prevent wholesale converter/view deletion. All retained compatibility cost must be counted.",
+      "Untouched findings retain their own evidence revisions and rankings; this follow-up is not a fresh comprehensive revalidation. Historical requested_growth_analysis and all owner/unknown fields are preserved."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -8751,11 +8852,11 @@
       }
     }
   },
-    "next_finding_number": 324,
+    "next_finding_number": 325,
     "publication_context": {
-    "assessment": "Read instructions/plan and formed source-first conclusions before reconciliation; same committed code/owners, six dirty worker paths excluded. Re-read HEAD/report immediately before guarded publication.",
-    "checked_head": "ea40a706a7d8400121e9a0f5b6e64652bb66cec8",
-    "publication": "Only docs/sqa_findings.json, existing hooks/ownership, nonblocking landing/gate locks and path-limited commit; preserve unrelated index/worktree."
+    "assessment": "Targeted user-requested recommendations and committed320 response reconciled. Re-read current HEAD/report/owner fields immediately before publication; no worker code edits.",
+    "checked_head": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "publication": "Only docs/sqa_findings.json, existing hooks/ownership and nonblocking landing/gate locks. Preserve unrelated worktree/index and raw-exact implementation-owned/unknown fields."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -8763,10 +8864,10 @@
     "SQA-271",
     "SQA-318",
     "SQA-319",
-    "SQA-320",
     "SQA-283",
     "SQA-277",
     "SQA-266",
+    "SQA-324",
     "SQA-257",
     "SQA-303",
     "SQA-285",
@@ -8797,45 +8898,51 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Add low-priority SQA-323 and refresh306's current complete-file cost.150 stable IDs:35 open,109 resolved,4 deferred,2 aliases; next324.",
-      "No implementation commit or new retained run since prior review. Existing reduction306 is not counted as newly discovered; no priority or severity changes."
+      "Added canonical SQA-324 for one coordinated format-independent loading migration. Existing303/262 test reductions remain separate and must not be double-counted against future path removal.",
+      "Corrected the narrow conversational assumption: View already supports qwen2/llama/Gemma4 as well as Qwen3.5. The committed judge's mandatory-conversion premise is broader than current implementation support; prompt parity still must hold.",
+      "Closed320 against committed d3d15a111/af0eef3c; source-reader ownership is now explicit on success and failure paths.",
+      "New recommendation asks for deletion-backed reuse of existing mapping/loading/identity owners, not a new loader framework or a second implementation of the same contracts."
     ],
-    "reviewed_at": "2026-11-06T20:37:33Z",
-    "reviewed_master": "ea40a706a7d8400121e9a0f5b6e64652bb66cec8",
+    "reviewed_at": "2026-11-06T23:40:49Z",
+    "reviewed_master": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
     "schema_version": 2,
     "scope": [
-      "Pin ea40a706a7d8400121e9a0f5b6e64652bb66cec8; no code or committed plan change since a104591ab. Read repository instructions and committed plan identity first: skill69a0ec1510af484e39da2cf7e169dbc73b70ae8f,plan30181772b681b956bcf1fb0215c8dfbcdffc1baf unchanged. Six worker worktree paths excluded.",
-      "Source-first rotated review preceded current report/rankings.10 selected committed Go files:11167 AST (2908 production/8259 test),49 functions,2228 parser-local bindings. Exact contains/truncate declarations typechecked with strings:7 definitions,19 uses,0 selections. No full package/cgo/device closure or census.",
-      "Coverage: BF16 cache admission/load, host/device transfers and lifetime; retention/release/query/replay/backup authority; GUI download stream/cancel/unwind/resume; bounded driver dispatch, measurement failure and partial results. Concrete callers and retained owners beyond the latest diff inspected.",
-      "This chat previously implemented Overgo changes: overlapping SQA, not independent third-party review. No application tests, model/device workloads, services, benchmarks, profiles, gates, agents/worker messages, implementation or plan/skill changes."
+      "Targeted user-requested follow-up on removing mandatory Safetensors-to-GGUF conversion and separating model loading from storage format, pinned at af0eef3c862991644806bb850cbeb1fb9f3f5d4c. Instructions unchanged69a0ec1510af484e39da2cf7e169dbc73b70ae8f; committed plan7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8 read. No full recurring audit claimed.",
+      "Actual selected-file Go AST:12format/load/test files23520nodes(15311production/8209test),139functions,4924parser-local bindings. Four-file reader-cleanup/candidate supplement8651nodes(6056production/2595test),36functions,1564bindings. Combined32171nodes,175functions,6488bindings. Exact git blobs parsed; other callers/config/export/identity sources read manually.",
+      "Physical GGUF and supported HF directory callers traced through existing recipe/model/host/device loading; exporter/onboarding/plan consumers and native fixtures enumerated. Identity's dependence on the virtual GGUF image is an explicit migration cost.",
+      "This chat previously implemented Overgo changes: overlapping SQA, not independent third-party review. Report only; no code,tests,plan/skill,workload,worker messaging or gate changes."
     ],
     "sqa_response": {
-    "assessment": "150 stable IDs:35 canonical open,109 resolved,4 deferred,2 aliases. New323;306 refreshed without duplicate obligation.",
+    "assessment": "151stable IDs:35canonical open,110resolved,4deferred,2consolidated aliases. Added324;closed320. Owner and unknown fields retained exactly.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "10-file actual AST11167 nodes; two complete candidates total-72 test nodes, of which59 were already recommended under306. Standard-library selected declarations typechecked; no application run.",
+    "evidence": "12-file format AST23520 and four-file closure supplement8651. Direct-directory View has qwen2,llama,Qwen3.5,Gemma4 callers; model/runtime remains coupled to gguf.File and virtual-image identity.320's lexical Close landed; broader candidate interval+389production/+478test is charged honestly.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "abbfbf8963a2988dfd14459844c6b6a73369bd32",
-        "status": "Raw-exact owner fields retained. Overlapping chat review; no independent third-party assurance."
+        "current_triage_head": "2ab4bdd35c60c28d69c2d26b938ec2d1881ae4ae",
+        "status": "Raw-exact implementation_review/master_lead_triage and unknown fields retained.320's implemented response now matches committed source. Recommendation324 is reviewer/user requested, not owner adoption."
       },
     "new_findings": [
-        "SQA-323"
+        "SQA-324"
       ],
     "partially_addressed_findings": [
         "SQA-271",
         "SQA-315"
       ],
-    "priority_changes": [],
-    "recommendation": "Delete the contains forwarding wrapper through the three existing callers; retain all assertions. Keep306's maximum-error oracle and remove only its implied token-order tail when adopted.",
+    "priority_changes": [
+        "SQA-324 inserted after SQA-266 as the user-requested coordinated loading recommendation; SQA-320 removed from active ranking after committed closure."
+      ],
+    "recommendation": "Reuse current direct loading to retire unnecessary conversion prerequisites. Replace the virtual-file runtime dependency through existing model/tensor/loading owners only when full compatibility and test migration cost supports it. Keep required parsing/mapping/export/identity behavior; no wholesale converter deletion.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [],
-    "reviewed_master": "ea40a706a7d8400121e9a0f5b6e64652bb66cec8",
-    "uncertainty": "Small maintenance savings only. No new measured elapsed/memory, new performance claim or evidence of delivered continuation."
+    "resolved_findings": [
+        "SQA-320"
+      ],
+    "reviewed_master": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "uncertainty": "No numeric after-size or runtime-saving estimate established for324. Source inspection and retained implementation evidence only; no independent third-party assurance."
   }
   }

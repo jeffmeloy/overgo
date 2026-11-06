@@ -7967,8 +7967,15 @@
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "abbfbf8963a2988dfd14459844c6b6a73369bd32",
+    "head": "2ab4bdd35c60c28d69c2d26b938ec2d1881ae4ae",
     "findings": {
+      "SQA-320": {
+        "action": "implemented",
+        "rows": [
+          "vision-bridge/candidate"
+        ],
+        "note": "Landed with vision-bridge/candidate, which splits the adapter's parsing out of BridgeWeights for the candidate reading: the opened stream now closes by the store's own pattern (an io.Closer deferred right after OpenContent), before CreateTemp or io.Copy can return early; the bounded copy, the file's close and removal and every shape check stay. Awaits the reviewer's closure."
+      },
       "SQA-321": {
         "action": "implemented",
         "rows": [

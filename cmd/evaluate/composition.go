@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -58,9 +59,26 @@ func openCompositionSession(ctx context.Context, store *overgodb.Store, value ma
 		target: runnerTarget{runner: runner, placeholder: request.Placeholder},
 		store:  store,
 	}
-	composite, err := inference.OpenProductionComposition(ctx, store, source.Inventory.Manifest.ID, runner.ModelID(), compositionTask, resources)
-	if err != nil {
-		return fail(err)
+	var vision projector.Session
+	var projection artifact.ID
+	if request.Bridge != "" {
+		// A candidate is read as its promotion would serve it, before any recipe names it.
+		weights, err := adapterWeights(request.Bridge)
+		if err == nil {
+			projection, err = artifact.IdentifyFile(artifact.KindAdapter, request.Bridge)
+		}
+		if err == nil {
+			vision, err = inference.OpenCandidateComposition(resources.source, resources.target, weights)
+		}
+		if err != nil {
+			return fail(err)
+		}
+	} else {
+		composite, err := inference.OpenProductionComposition(ctx, store, source.Inventory.Manifest.ID, runner.ModelID(), compositionTask, resources)
+		if err != nil {
+			return fail(err)
+		}
+		vision, projection = composite, composite.Recipe()
 	}
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
@@ -71,15 +89,15 @@ func openCompositionSession(ctx context.Context, store *overgodb.Store, value ma
 	if err != nil {
 		return fail(err)
 	}
-	runtime := projectionRuntime{runner: runner, vision: composite, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
-	runtime.identity = evaluation.MediaRuntime{Model: runner.ModelID(), Recipe: identity.Recipe, Projection: composite.Recipe()}
+	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+	runtime.identity = evaluation.MediaRuntime{Model: runner.ModelID(), Recipe: identity.Recipe, Projection: projection}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		return fail(err)
 	}
 	return &projectionSession{
 		nativeSession: nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit},
-		vision:        composite,
+		vision:        vision,
 	}, nil
 }
 
@@ -110,6 +128,9 @@ func (r compositionResources) BridgeWeights(
 	if err != nil || !found {
 		return inference.RepresentationBridgeWeights{}, errors.Join(err, errors.New("evaluate: the bridge's adapter is not in the store"))
 	}
+	if closer, ok := stream.(io.Closer); ok {
+		defer closer.Close()
+	}
 	file, err := os.CreateTemp("", "overgo-bridge-*.safetensors")
 	if err != nil {
 		return inference.RepresentationBridgeWeights{}, err
@@ -121,7 +142,13 @@ func (r compositionResources) BridgeWeights(
 	if err := file.Close(); err != nil {
 		return inference.RepresentationBridgeWeights{}, err
 	}
-	adapter, err := safetensors.OpenFile(file.Name())
+	return adapterWeights(file.Name())
+}
+
+// adapterWeights reads a bridge's adapter file: a safetensors file of the map, the text model's channels by the
+// encoder's, and the bias.
+func adapterWeights(path string) (inference.RepresentationBridgeWeights, error) {
+	adapter, err := safetensors.OpenFile(path)
 	if err != nil {
 		return inference.RepresentationBridgeWeights{}, err
 	}

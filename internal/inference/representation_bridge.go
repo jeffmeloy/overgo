@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
 	"overgo/internal/composition"
+	"overgo/internal/hostmath"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -148,6 +149,34 @@ func OpenProductionComposition(
 		return nil, err
 	}
 	return &ProductionComposition{Session: vision, plan: plan}, nil
+}
+
+// OpenCandidateComposition is a composite a judgement reads before any recipe promotes it: source encodes each image,
+// the bridge's affine map, First and FirstBias, carries every token to the target's embedding width, and the rows take
+// the target's placeholder tokens, as a promoted composite's rows do.
+func OpenCandidateComposition(source RepresentationSource, target RepresentationTarget, weights RepresentationBridgeWeights) (projector.Session, error) {
+	if source == nil || target == nil || weights.First == nil || weights.FirstBias == nil || weights.Second != nil ||
+		weights.First.Shape.Dims[tensor.SingletonExtent] != uint64(target.EmbeddingWidth()) || len(weights.FirstBias.Data) != target.EmbeddingWidth() {
+		return nil, errors.New("inference: a candidate composite is an encoder, a text model and one affine map to its width")
+	}
+	width, channels := target.EmbeddingWidth(), int(weights.First.Shape.Dims[tensor.FirstOffset])
+	return projector.NewEncodedImageSession(compositionFamily, target.ImagePlaceholder(), width, func(ctx context.Context, picture image.Image) (reference.Value, error) {
+		captured, err := source.EncodeImage(ctx, picture)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		if captured.Shape.Dims[tensor.FirstOffset] != uint64(channels) {
+			return reference.Value{}, errors.New("inference: the encoder's tokens differ in width from the candidate's map")
+		}
+		tokens := len(captured.Data) / channels
+		mapped := make([]float32, tokens*width)
+		hostmath.LinearBias(mapped, captured.Data, weights.First.Data, weights.FirstBias.Data, tokens, channels, width)
+		shape, err := tensor.NewShape(uint64(width), uint64(tokens))
+		if err != nil {
+			return reference.Value{}, err
+		}
+		return reference.NewValue(shape, mapped)
+	})
 }
 
 // Recipe is the composition recipe the runtime was compiled from.

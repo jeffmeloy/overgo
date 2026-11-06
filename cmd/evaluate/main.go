@@ -64,6 +64,9 @@ type modelRequest struct {
 	// carrying each picture's tokens to the placeholder token Placeholder names.
 	Encoder     string `json:"encoder,omitempty"`
 	Placeholder string `json:"placeholder,omitempty"`
+	// Bridge, with Encoder, reads a candidate composite before any recipe promotes it: this bridge file's affine map in
+	// place of the active composition's.
+	Bridge string `json:"bridge,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error

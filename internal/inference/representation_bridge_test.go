@@ -181,6 +181,50 @@ func TestACompositionServesThroughARecipe(t *testing.T) {
 	}
 }
 
+// TestACandidateCompositeServesItsPromotedRows holds a candidate composite, read before any recipe promotes it, to
+// what its promotion would serve: for the same encoder, text model and map, its prompt holds the active composite's
+// tokens, its rows at the same placeholders and the same rows; a map wider than the text model opens nothing.
+func TestACandidateCompositeServesItsPromotedRows(t *testing.T) {
+	t.Parallel()
+	const placeholder = "</s>"
+	runner := testcheck.Must(openFixtureRunnerWithResidency(testutil.HermeticLlamaGGUF(t, 64), OpenOptions{}, recipe.ResidencyHostReference))(t)
+	t.Cleanup(func() { _ = runner.Close() })
+	width := int(runner.spec.EmbeddingLength)
+	first, bias := make([]float32, bridgeEncoderChannels*width), make([]float32, width)
+	for index := range first {
+		first[index] = float32(index%5) - 2
+	}
+	for index := range bias {
+		bias[index] = float32(index) / 4
+	}
+	firstValue := testcheck.Must(reference.NewValue(tensor.MustShape(bridgeEncoderChannels, uint64(width)), first))(t)
+	biasValue := testcheck.Must(reference.NewValue(tensor.MustShape(uint64(width)), bias))(t)
+	weights := RepresentationBridgeWeights{First: &firstValue, FirstBias: &biasValue}
+	store, authority := productionCompositionFixture(t, true, runner.ModelID(), uint64(width))
+	source := &bridgeSourceFixture{model: authority.Recipe.SourceModel}
+	target := bridgeTargetFixture{model: runner.ModelID(), width: width, placeholder: placeholder}
+	promoted := testcheck.Must(OpenProductionComposition(t.Context(), store, source.model, runner.ModelID(), authority.Recipe.Task,
+		&bridgeRuntimeResourcesFixture{source: source, target: target, weights: weights}))(t)
+	candidate := testcheck.Must(OpenCandidateComposition(source, target, weights))(t)
+	picture := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for index := range picture.Pix {
+		picture.Pix[index] = uint8(index * 17)
+	}
+	want := testcheck.Must(promoted.BuildImagePrompt(t.Context(), runner, picture, "", "ab", false))(t)
+	got := testcheck.Must(candidate.BuildImagePrompt(t.Context(), runner, picture, "", "ab", false))(t)
+	if !slices.Equal(got.TokenIDs, want.TokenIDs) || !slices.Equal(got.EmbeddingTokenIndices, want.EmbeddingTokenIndices) || len(got.Embeddings) != len(want.Embeddings) {
+		t.Fatalf("the candidate's prompt holds %d tokens and %d rows, the promoted composite's %d and %d", len(got.TokenIDs), len(got.EmbeddingTokenIndices), len(want.TokenIDs), len(want.EmbeddingTokenIndices))
+	}
+	for index, value := range want.Embeddings {
+		if math.Abs(float64(got.Embeddings[index]-value)) > 1e-4*max(1, math.Abs(float64(value))) {
+			t.Fatalf("row value %d is %v in the candidate, %v in the promoted composite", index, got.Embeddings[index], value)
+		}
+	}
+	if _, err := OpenCandidateComposition(source, bridgeTargetFixture{model: runner.ModelID(), width: width - 1, placeholder: placeholder}, weights); err == nil {
+		t.Error("a candidate whose map is wider than the text model opened")
+	}
+}
+
 // productionCompositionFixture publishes an image composite's authority for a text model of width targetWidth: an
 // encoder's output of bridgeEncoderChannels by bridgeEncoderTokens, a linear bridge with bias, both components on the
 // host, and promotion evidence; activate makes the recipe the active one.

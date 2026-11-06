@@ -84,11 +84,17 @@ func AdapterRungFor(residual float64) AdapterRung {
 	if residual <= math.Sqrt(math.Nextafter(1, 2)-1) {
 		return AdapterIdentity
 	}
-	if residual*residual <= 0.5 {
+	if residual <= LinearRungResidual() {
 		return AdapterLinear
 	}
 	return AdapterBridge
 }
+
+// linearRungShare is the most of the target energy a linear adapter may leave unexplained.
+const linearRungShare = 0.5
+
+// LinearRungResidual is the largest residual the linear rung admits: the fitted map explains half the target energy.
+func LinearRungResidual() float64 { return math.Sqrt(linearRungShare) }
 
 // EnumerateCompositionCandidates enumerates the ranked donor, seam, and
 // adapter candidates for one target component: donors shortlist from the

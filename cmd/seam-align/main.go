@@ -37,11 +37,15 @@ func run() error {
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
+	rank := flags.String("rank", "", "captured seam representations, a safetensors file of target [N,t], groups [N] and source/<name> [N,w] each: rank each source by its held-out residual against the target, beside its pairing with another group's target")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if err := dataroot.ResolveStore(repoFlag); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*rank) != "" {
+		return rankSeams(*rank)
 	}
 	if strings.TrimSpace(*drive) != "" {
 		return driveImprovementLoop(*repoFlag, *drive)
@@ -60,7 +64,7 @@ func run() error {
 	}
 	hasActivations, hasAudit := strings.TrimSpace(*activations) != "", strings.TrimSpace(*audit) != ""
 	if hasActivations == hasAudit || flags.NArg() != 0 {
-		return errors.New("usage: seam-align -activations <pairs.json> | -audit <measurements.json> | -enumerate <component> -repo <store> -measurements <m.json>")
+		return errors.New("usage: seam-align -activations <pairs.json> | -audit <measurements.json> | -rank <capture.safetensors> | -enumerate <component> -repo <store> -measurements <m.json>")
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetEscapeHTML(false)
@@ -141,18 +145,16 @@ func (specification realizationSpecification) realize(
 
 // driveTargetSpecification binds one target's recorded evidence: the
 // catalog component to improve, the measured donor seams, the realization
-// evidence, the held-out score dimensions, and the promotion policy and
+// evidence, the evaluation its score cites, and the promotion policy and
 // ablation evidence.
 type driveTargetSpecification struct {
 	Label        string                             `json:"label"`
 	Component    string                             `json:"component"`
 	Measurements []composition.DonorSeamMeasurement `json:"measurements"`
 	realizationSpecification
-	Score struct {
-		Evaluation artifact.ID                               `json:"evaluation"`
-		Dimensions map[string]composition.CompositeDimension `json:"dimensions"`
-	} `json:"score"`
-	Promotion struct {
+	// Evaluation is the evidence a score cites; its dimensions are measured from the recorded activations.
+	Evaluation artifact.ID `json:"evaluation"`
+	Promotion  struct {
 		Policy   composition.RepresentationBridgePromotionPolicy `json:"policy"`
 		Evidence composition.RepresentationBridgePromotion       `json:"evidence"`
 	} `json:"promotion"`
@@ -227,10 +229,14 @@ func driveImprovementLoop(repository, runPath string) error {
 		},
 		Score: func(_ context.Context, target trainingworkflow.CompositionTarget, realization trainingworkflow.CandidateRealization) (composition.CompositeScore, error) {
 			bound := byLabel[target.Label]
+			seam, err := seamDimension(bound.Activations.Source, bound.Activations.Target)
+			if err != nil {
+				return composition.CompositeScore{}, err
+			}
 			return composition.CompositeScore{
 				Composite:  realization.Composite.ID,
-				Evaluation: bound.Score.Evaluation,
-				Dimensions: bound.Score.Dimensions,
+				Evaluation: bound.Evaluation,
+				Dimensions: map[string]composition.CompositeDimension{seamDimensionName: seam},
 			}, nil
 		},
 		Promote: func(promoteCtx context.Context, target trainingworkflow.CompositionTarget, verdict composition.CompositeFitnessVerdict, _ trainingworkflow.CandidateRealization) (artifact.ID, error) {

@@ -55,22 +55,22 @@
       "status": "open",
       "budget": {
         "nodes": 1200,
-        "reason": "Estimate 1,000 to 1,300: the gradient through a frozen text model is new, and the encoder-bridge route computes no gradient today."
+        "reason": "Measured: seam adds 1,329 production nodes, the held-out residual and seam-align's ranking, which the estimate of 1,000 to 1,300, written for the gradient through the frozen text model, did not count; that estimate stands for train, and capture and wire set theirs when measured."
       },
       "steps": [
-        {
-          "id": "seam",
-          "title": "Score the seam from measured representations",
-          "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestSeamScoreComesFromMeasuredRepresentations$'",
-          "rationale": "The Score function in cmd/seam-align returns the value in its input file (cmd/seam-align/main.go:228-234), so a recorded score proves nothing about the two models. The command has no test file yet.\nCapture real encoder outputs and real text embeddings over the training split, then rank DINO's pooled and patch outputs and the bridge operators by alignment residual (internal/composition/alignment_residual.go:24) before GPU-hours are spent.\nA residual is a cheap estimate: AlignmentResidualBiasAudit (:183) holds it to measured parity once bridges are trained.\nServes: GPU-hours go only to likely connections.\nDisappears: the hand-supplied score.\nEvidence: residuals from captured tensors, and a planted unrelated pair that scores badly.\nBatch: host lane."
-        },
         {
           "id": "wire",
           "title": "Serve a composition through a recipe",
           "status": "open",
           "verify": "go test ./internal/inference ./internal/repoanalysis -count=1 -run '^(TestACompositionServesThroughARecipe|TestEveryProcessDeclarationIsReachedByACommand)$'",
           "rationale": "ProductionComposition holds capture, transform and inject (internal/inference/representation_bridge.go:260-343), but no command reaches it: it is listed as prototype in internal/repoanalysis/testdata/unreached_declarations.txt (lines 68, 72, 136-145).\nReach it from a recipe, keeping capture and transform. Drop inject: it overrides every target token and refuses any other shape (:322-340), so it is not placeholder injection. The placeholder path is internal/inference/multimodal_prompt.go:32 and runner_projected.go:309, and a second path is what this row forbids. The recipe names encoder, bridge and text model by identity, and both models stay frozen.\nServes: a composite is a servable capability rather than a test object.\nDisappears: inject, and its entries in the unreached list.\nEvidence: a small composite answering through a recipe on the host.\nBatch: serving lane."
+        },
+        {
+          "id": "capture",
+          "title": "Capture the training frames' encoder outputs and caption embeddings, and rank them",
+          "status": "open",
+          "verify": "go test ./cmd/seam-align -count=1 -run '^TestCaptureHoldsTheTrainingSplit$'",
+          "rationale": "seam-align -rank measures seams from a captured tensor file; nothing captures one yet. Capture, over the training side of docs/verification/vision-bridge-acceptance.json's split, each frame's DINO outputs and its caption's text embedding, and rank them before GPU-hours are spent.\nThe split: the suite's 256 clips, every other on-disk clip of their source videos and every clip whose caption is a wrong answer are held out; the rest of the 4,904 captioned clips, grouped by source video, are the training side. No split code exists; evaluation's captionRounds, which the suite builder uses, lists the cases and their wrong captions and is unexported.\nPer training clip: the middle frame as the suite cuts it, internal/vitencoder's forward once for its CLS output and its patch mean (Embed keeps only the CLS today, so one method returning every token serves both), and the caption's mean token embedding in Qwen2.5-0.5B (hfbpe, then safetensors.ReadTensorRowsF32 of model.embed_tokens.weight). Write them with the samples' source groups as one safetensors file whose metadata names the encoder, the text model and the acceptance's digest, cached per clip so a long run resumes.\nSamples: well above the encoder's width, since a fit over few more samples than its width reads low for any pairing: 4,096 for the 1024-wide webssl-dino at about 4.5 to 9.7 s a frame, or dinov2-with-registers-base at 768 wide and about a quarter of the time.\nServes: GPU-hours go only to likely connections.\nDisappears: nothing.\nEvidence: seam-align -rank's ranking of the captured DINO outputs, each held-out residual beside its unrelated pairing's, recorded under docs/verification."
         },
         {
           "id": "train",

@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "321closed on actual producer/cache/consumer identity checks;244nettest reduction current. No new finding quota.",
+    "assessment": "No safe extra deletion established. One source-established sequencing gap has a minimal retained-owner correction with explicit test growth.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -15,19 +15,17 @@
         "SQA-257"
       ],
     "declined_candidates": [
-        "Reject the suspected host full-weight-gradient allocation: GradientSlot(nil) explicitly allocates none.",
-        "Do not delete full device gradient scratch solely because weights freeze; existing kernels write it and a replacement was not qualified.",
-        "Do not merge finite-difference,device parity and route integration tests: they have different independent failure signals.",
-        "Do not add an encoder/cache framework to share a few conversion lines; complete cross-command savings are unestablished.",
-        "One-float encoding solely to find F32 byte width is a tiny cleanup opportunity, but no separate finding/new helper is needed in this pass.",
-        "Do not equate phase reporting with delivered continuation or count source movement into hostmath/layout as net savings."
+        "Do not remove device capacity, pointer-boundary or fixed-state cases: explicit policy rows and layout/lifetime checks test different failures.",
+        "Keep pack impossible-count, cancellation/integrity/repack/backup and allocation-volume requirements in their current consolidated owners.",
+        "Do not remove the SSE delivery case because browser vocabulary tests exist: it owns actual admitted/cancelled download delivery and teardown.",
+        "Do not add a universal graph-cache threshold, overflow branches for unestablished states, or a new shared JavaScript reader without complete net savings."
       ],
-    "rank_basis": "Remove resolved321from canonical active rank; preserve existing severities and dated relative order, without blanket recertification."
+    "rank_basis": "Place new P3 sequencing finding after the existing early-admission finding SQA-314. Serious evidence/correctness/recovery obligations retain priority; no status/severity change to older IDs."
   },
     "committed_plan": {
     "git_blob": "30181772b681b956bcf1fb0215c8dfbcdffc1baf",
     "path": "docs/plan.json",
-    "revision": "a104591ab2c98409c21cac56fa2297a130fc8686",
+    "revision": "18516a106f349a66fac618c32425bf70e0c9ea8b",
     "sha256": "0a2f0d3962ca8903c1441210e681f1af8ed105ec9a67b97e9869069f32a0a250",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
@@ -6127,51 +6125,106 @@
       ],
     "status": "resolved",
     "title": "Bind resumed capture samples to the inputs that produced them"
-  }
+  },
+    {
+      "id": "SQA-322",
+      "status": "open",
+      "severity": "P3",
+      "category": "automation-prerequisite-order",
+      "classification": "source-established-late-verifier-with-unmeasured-avoided-work",
+      "title": "Run the landing verifier before the broad tests and lanes",
+      "evidence_commit": "18516a106f349a66fac618c32425bf70e0c9ea8b",
+      "sources": [
+        {
+          "path": "internal/landing/landing.go",
+          "symbol": "Run, checks, verify, addedChecksFail: lines 222-249, 278-284 and 789-838"
+        },
+        {
+          "path": "cmd/gate/land.go",
+          "symbol": "land -> landing.Run; preflight is optional"
+        },
+        {
+          "path": "cmd/loop/land.go",
+          "symbol": "execRowWorld.Gate invokes cmd/gate without -preflight"
+        },
+        {
+          "path": "internal/planverify/verify.go",
+          "symbol": "Execute: command failure, non-vacuous evidence and deterministic repeat"
+        },
+        {
+          "path": "internal/landing/spent_test.go",
+          "symbol": "TestLandingRecordsItsWaitsByCause; existing row/refused verifier=false"
+        },
+        {
+          "path": "internal/landing/preflight_test.go",
+          "symbol": "TestPreflightRunsTheCheapStagesOnly"
+        },
+        {
+          "path": "internal/landing/space_test.go",
+          "symbol": "TestCommitChecksRefuseBelowTheFreeSpaceFloor"
+        }
+      ],
+      "evidence": "Run consumes checks in declared order. A full landing reaches test and lanes before verify; only an explicitly requested preflight filters out those broad stages. Both cmd/gate and cmd/loop's execRowWorld.Gate reach this owner, and the latter does not automatically preflight. The existing spent fixture already admits a row whose verifier is false and whose ordinary package tests pass, but exercises that row only with Preflight=true. In full mode that same known refusal is discovered after the broad stages. A missing selected Go test can likewise be rejected as vacuous only by planverify.Execute after ordinary tests pass. These are source-established admitted cases, not newly executed failed landings. Retained successful a104591ab ran test for 1m55.295s and lanes for 1m49.934s before verify for 1.787s; df8523d27 ran lanes for 18m24.834s before verify for 2.109s. Those timings show exposed work, not observed waste or a measured saving.",
+      "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler.",
+      "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
+      "impact": "A cheap declared acceptance failure can refuse the attempt before broad host/device work. This is sequencing efficiency, not a claim that invalid code can currently land or that any retained successful run was wasted.",
+      "expected_benefit": {
+        "outcome": "Complete scratch-only two-file alternative: landing.go 5418->5418 production AST and 41850->41850 LF bytes; spent_test.go 682->695 test AST (+13) and 4503->4606 LF bytes (+103). Pair 6100->6113. No source reduction: necessary regression coverage grows. Existing one Git/module fixture remains; table attempts 4->5 adds one six-stage refused host landing attempt in ordinary implementation validation. Static fixtures/schema/CUDA/dependencies/helpers/wrappers/new test functions all 0. Successful production gate work is unchanged; a failing verifier avoids later stages. No extra standing phase or recurring workload.",
+        "uncertainty": "Parsed complete alternatives only; no package compilation or application/test/device execution by SQA. Retained stage walls are successful attempts, not matched before/after failure measurements. Initial lock/quiet admission and arbitrary verifier duration remain. Ordinary implementation validation must retain moved-tree refusal and added-check/base semantics."
+      },
+      "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
+      "plan_references": [
+        "docs/plan.json standing: cheap preflight stages and dependency-first failure admission",
+        "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)"
+      ],
+      "plan_coverage": "No new plan row or SQA implementation. Distinct from SQA-266's repeated full-cycle evidence work and SQA-271's post-exit continuation; no shared root cause or coordinated migration justifies merging them.",
+      "closure_criteria": [
+        "Full Run executes its existing verify after invariants and before test/lanes; preflight and plan-only contracts remain.",
+        "The retained spent fixture refuses its existing false verifier in full mode with only the six cheap stages recorded; all original success, conflict, preflight and wait cases remain.",
+        "Retain candidate/acceptance identities and Execute/addedChecksFail semantics; count the complete +13 test-node alternative and the extra fixture attempt honestly. No separate precheck or selector."
+      ],
+      "comparison": "Smallest deciding comparison is the existing row/refused case under full mode, through Run and its retained spent record, during ordinary implementation validation. The current table/order predicts test and lanes before refusal; the reordered owner predicts neither. Source/AST establishes scope now. No SQA-triggered gate, synthetic timing benchmark, device workload or redundant confidence run."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Host input gradient validates trained flags and placed-row range/shape; GradientSlot(nil) returnsnil, preserving frozen weights without per-weight gradient allocation. New GatherRows/ScatterRows reuse identical ordered copy behavior for densecausal and routedlm, whose actual row producers are distinct/ordered; do not invent duplicate-index API requirements beyond those callers.",
-        "Device RunPlaced checks frozen lexical storage, row width/range and run dimensions. FrozenSession.Run excludes token0 from prediction and scales by actual selected-token count. Existing device backward writes full-layer gradient scratch; memory reduction would need different kernel behavior and is not established by this review.",
-        "Host finite differences use1e-3step and2e-2scaled tolerance on rows away from zero; device parity uses2e-4loss and1e-2max-gradient scale; route compares host-scored losses at1e-3relative because optimizer rounding can separate weights. These are existing fixture-specific numerical checks, not workload-wide precision guarantees or timing tolerances.",
-        "captionTokens96 is an explicit training cap; fitting captions add EOS, cut captions do not, and only caption tokens train. Prompt positions come from the existing projector session. Token row bytes derive from F32 representation; no magic-number finding from that literal alone.",
-        "Cache executable/model/decoder/clip/caption identities describe representation producers. Acceptance affects selection, recomputed per invocation, so acceptance-only changes need not invalidate identical cached representations. Runtime binding JSON and input hashing add storage/work; do not hide them under fixture0.",
-        "Document page counts7,20and3 exercise schema noise and a3+3+1tail, not throughput/tail-distribution estimates. Byte budgets use checked.Add64. Transcription sample/encoded limits derive from fixture waveform and admission policy; keep security/calibration checks. Strata is a comparator."
+        "cachePageTokens returns the largest power-of-two page not exceeding requested tokens for capacity sessions, and exact tokens for request sessions. Capacity rounds in uint64 then caps to context limit. Explicit 3->4,5->8,9->10 and256/257/300 boundary rows retain that oracle; pointer/layout callers keep non-square key/value widths and partial final pages.",
+        "Span slots: 3 represents past, next and prompt-cache lifetimes;256-byte alignment is device layout.48 retained graph executions is an explicitly documented measured recapture/memory tradeoff for named workloads, not a universal optimum. Existing pool fallback and refs-based release remain; no new tuning recommendation.",
+        "Pack ABI widths are kind1/digest32/offset8/size4; readPackIndex bounds count by available file bytes before multiplication/allocation. inlineContentLimit4096 is the retained filesystem-allocation tradeoff documented in store.go. Blob EOF closes its handle; early-abandon callers must Close. Pack verified reads use one buffer and retain cancellation/integrity checks.",
+        "The existing streaming test's256 members of roughly64KiB and volume/8 are a discrimination proxy between streaming and whole-payload allocation, not an empirical tail bound or timing threshold. Serial process allocation observation does not prove universal peak/RSS behavior. No rerun requested.",
+        "Download progress's100 converts to displayed whole percent; unknown totals map to0. File changes and state transitions still publish. Observed cancellation is distinct from transfer-unwound lifetime and slot release. No unsupported normality/independence assumption identified."
       ],
     "automation_sequence": [
-        "Same committed cycle owner obtains actual checkout/store/obligation identity, runs preflight and lanes before cells, stops on lane failure, retains passed cells/publication, and files after successful publication. Failed preflight cases may coexist with independent valid cells; native Go cache owns unchanged lane reuse.",
-        "MeasurePhases reporting/retained receipts demonstrate phase state, not delivered wakeup. main processcontrol/driver owners are byte-identical;271continues to require real measurement-exit-to-authorized-next-action evidence, with exact waiting counts0/1/0 still recommended.",
-        "New cache identity was landed before the full run/judge plan step. The old unbound capture was stopped and must recapture; partial valid bindings resume. Source checks current inputs each capture; no notification/scheduler added.",
-        "Training validates capture counts/widths, model/bridge geometry and frame bytes through existing boundedRun/session owners. Dirty planned run/heldback changes are excluded. No extra device run or worker handoff initiated for review."
+        "Full landing source orders format/fix/vet/rules/invariants/test/lanes/verify/scorecard. Preflight filters to cheap stages; full mode neither calls it nor requires a matching preflight receipt. SQA-322 reuses the same verifier before broad work, with no duplicate execution.",
+        "Run checks committed terms, captures candidate and holds existing ownership; space-first/plan-only paths remain. verify delegates to planverify.Execute and addedChecksFail. Refusal writes spent outcome/partial stages; successful commit still checks candidate identity. Existing quiet/commit waits precede checks and are not removed by the recommendation.",
+        "cmd/loop landRow handles gate refusal, confirms a real landing in Git and clears only after success. It is distinct from full measurement continuation. Existing SQA-271 remains open for actual final-exit-to-authorized-dispatch evidence; no timestamp is treated as delivery.",
+        "Six uncommitted worker paths are neither validated nor changed. The run/judge plan steps and device work may continue under their existing owners; SQA starts no production gate, model run or worker handoff."
       ],
     "fresh_ast": {
-        "revision": "a104591ab2c98409c21cac56fa2297a130fc8686",
+        "revision": "18516a106f349a66fac618c32425bf70e0c9ea8b",
         "files": [
-          "cmd/seam-align/capture.go",
-          "cmd/seam-align/capture_test.go",
-          "cmd/train/route_caption_projector.go",
-          "cmd/train/route_caption_projector_windows_test.go",
-          "internal/evaluation/caption_training.go",
-          "internal/densecausal/input_gradient.go",
-          "internal/densecausal/input_gradient_test.go",
-          "internal/densecausaltrain/frozen_session_cuda_windows.go",
-          "internal/densecausaltrain/frozen_session_cuda_windows_test.go",
-          "internal/densecausaltrain/resident_layout_cuda_windows.go",
-          "internal/rae/bridge_train.go",
-          "internal/hostmath/hostmath.go",
-          "internal/overgodb/document_page_test.go",
-          "internal/server/streaming_transcriptions.go",
-          "internal/server/streaming_transcriptions_test.go",
-          "cmd/loop/improve_resume_test.go"
+          "internal/inference/cache_paging.go",
+          "internal/inference/span_slots.go",
+          "internal/inference/device_cache_fixture_test.go",
+          "internal/inference/device_cache_paging_test.go",
+          "internal/overgodb/blobs.go",
+          "internal/overgodb/blob_pack.go",
+          "internal/overgodb/blob_pack_test.go",
+          "internal/server/stream_events.go",
+          "internal/server/one_event_stream_test.go",
+          "internal/server/webui_composer_budget_test.go",
+          "internal/landing/preflight_test.go",
+          "internal/landing/landing.go",
+          "internal/landing/spent_test.go"
         ],
-        "production_nodes": 10871,
-        "test_nodes": 6399,
-        "total_nodes": 17270,
-        "functions": 101,
-        "parser_local_bindings": 4157,
-        "method": "Existing external Go parser.ParseComments/ast.Inspect reads exact git blobs; five earlier versions count the complete cache landing. No application execution.",
-        "type_resolution": "Exact3hostmathdeclarations typechecked:22defs49uses0selections. Parser-local/manual tracing elsewhere; no cgo/package closure.",
-        "counterfactuals": "SQA-244complete current test547->509AST,3298->3142LFbytes. Existing321five-file total+891AST measured, not a hypothetical reduction."
+        "production_nodes": 9375,
+        "test_nodes": 5396,
+        "total_nodes": 14771,
+        "functions": 86,
+        "parser_local_bindings": 2963,
+        "method": "Existing external Go parser.ParseComments/ast.Inspect over exact git blobs; two complete source alternatives parsed without executing application code.",
+        "type_resolution": "Exact readPackIndex and its original format constants typechecked:19 defs/77 uses/2 selections. Manual/parser-local elsewhere; no package/cgo/device closure.",
+        "counterfactuals": "landing.go5418->5418; spent_test.go682->695, +13 test AST and +103 LF bytes. No net code reduction claimed."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6330,20 +6383,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "df8523d27 train adds3798production/2147test=5945GoAST; tracked fixtures/schema/CUDA0. Tests3m38s140packages; verify2.109s; device24executed0cached10m52.908s,CUDA19executed0cached7m30.922s,webui103tests. These reach shared backward code and are retained results, not review reruns.",
-        "Train test growth is primarily new route Windows fixture1430AST, host input-gradient374 and frozen-device parity339; these2143nodes plus4nodes in existing RAE/description tests account for2147. Route fixture includes sequence layout/caption end/truncation,zero start,device and host runs,publication,frozen weights and common-host scoring. Do not remove the distinct levels merely to offset feature growth.",
-        "a104591ab cache identity adds455production/436test=891GoAST. Exact source totals3315->3770 and tests1798->2234 across5affected files. Existing capture test gains346nodes/new cache test; route test+90 includes frame binding and one rewritten-input refusal. Tracked fixtures/schema/CUDA0; runtime binding storage nonzero.",
-        "Cache gate tests1m55.295s22packages; verify1.787s; CUDA1executed18cached,webui5tests,device skipped. Retained two-sample real-model cache run16s then4s supports that specific reuse, not a full-dataset speedup. Old unbound4096sample capture explicitly stopped by implementation; no SQA intervention.",
-        "Two-landings interval+4253production/+2583test=+6836GoAST. Earlier four-landings+1012 remains a separate historical interval; no daily total inferred. Historical requested_growth_analysis untouched.",
-        "Bonsai scorecard output identity unchanged and peak5389.8MiB(+0.0) in both retained landings. This unrelated inference slice is not evidence of bridge training quality, cache robustness or frozen-session peak cost."
+        "No implementation landing since a104591ab. Its retained successful stages: test 1m55.295s / 22 packages; lanes 1m49.934s (CUDA 1 executed / 18 cached, webui 5 tests, device skipped); verify 1.787s afterward.",
+        "df8523d27 successful stages: test 3m38s / 140 packages; lanes 18m24.834s; verify 2.109s afterward. These are timing context for exposed sequencing, never evidence of a failed check wasting that time.",
+        "Prior cache repair costs +455 production/+436 test nodes; train +3798/+2147. Their +6836 combined Go nodes are a separate retained interval, not new growth this heartbeat. Historical requested_growth_analysis is untouched.",
+        "Retained SQA-223 and SQA-235 closure records remain the authority for their landed reductions. Current whole-file node differences since those closures include later testcheck cleanups; do not attribute all to the original consolidation."
       ],
     "tests": [
-        "RETAIN host TestInputGradientMatchesFiniteDifferences374AST: central differences at4coordinates, own-embedding loss identity, and frozen embedding check. Device parity339AST retains tied and attention-biased cases. Route fixture1520AST retains command/sequence/checkpoint/weight-layout/host-vs-device/rewritten-frame requirements; none subsumes the other two.",
-        "RETAIN TestCaptureHoldsTheTrainingSplit and TestCaptureCacheAdmitsOnlyItsOwnInputs714AST combined: selection is separate from payload admission. No model setup in cache test. Original suggestion of no new test function was an estimate, not a reason to remove required invalidation coverage.",
-        "SIMPLIFY244existing page fixture through OwnedContentBytes; keep147constructions/7commits,both cursor orders/schema crowding/census. Remove only manual descriptor/hash assembly; no assertions or unique cases move.",
-        "RETAIN native transcription acceptance1484AST and helpers: authorization before input,durable output/state/admission identity,reconnect under the lease,exact transcript and out-of-order refusal. Existing one duplex HTTP server/session fixture; actual transport replay differs from lower-level transcript tests.",
-        "RETAIN cycle resume1421AST: prerequisite refusal/lane stop,unchanged-key credit,changed-input restart and reporting distinct from actual external continuation271. No extra confidence run.",
-        "RETAIN RAE existing decoder fixture with new shared BridgeTrainer entry points; caption loss and autoencoder reconstruction are different contracts. No new codec abstraction based only on small repeated conversion loops."
+        "RETAIN TestCachePageCapacityFollowsSessionPolicy, target slots/capacity, storage overlap, pointer pages, fixed state and hybrid shift. The 222-node deviceAttentionCacheFixture serves two paging and two prompt-cache callers; keep its geometry helpers. The 2068-node paging file includes a benchmark, inspected but not run or newly scheduled.",
+        "RETAIN TestPackIndexRejectsImpossibleCounts: before-allocation file/count bound and valid digest. RETAIN consolidated TestSmallBlobsArePacked: empty/packed/loose cancellation, exact content, retry/repack, backup, reopen and corruption; no duplicate cancellation test is restored. RETAIN TestPackStreamsItsMembers as existing streaming-allocation requirement; no new ratchet or timing assertion.",
+        "RETAIN TestOneWorkbenchEventStream: file/whole-percent coalescing, initial snapshots, actual admitted/cancelled SSE events and deterministic stop. RETAIN TestWebUIComposerBudget: server vocabulary must reach renderer cases. Actual browser semantics remain separately owned.",
+        "RETAIN all three preflight tests: cheap-stage membership, invariant package existence and generator admission. EXTEND TestLandingRecordsItsWaitsByCause in place for SQA-322 with one full-mode false-verifier row. Existing four cases, candidate conflict, measurement wait, and space-first test remain. No new test function/helper/static fixture.",
+        "MERGE/REMOVE: no additional safe test retirement established. SIMPLIFY: move the existing verifier entry; this changes execution order, not AST or acceptance. New coverage adds 13 test nodes and one six-stage refused fixture attempt."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -7877,12 +7927,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "321closure uses source plus retained implementation gates/2sample cache timings; no fresh run and no proof a new full capture or training run finished. Correctness growth is charged honestly.",
-      "Frozen host nil gradient map already suppresses parameter gradients through GradientSlot; no additional optimization inferred. Device full-layer gradient scratch is required by the existing backward path; no safe small deletion established.",
-      "Three new gradient/route test layers test independent finite differences, device-vs-host arithmetic, and command/checkpoint integration. Similar syntax is not redundant coverage. Numerical acceptance is not timing-based.",
-      "244is the one refreshed net reduction; no additional safe test retirement established. Other open/deferred/resolved obligations keep their dated scope.319/320source files and271/315/318owners remain unchanged.",
-      "Native caching and existing cycle/session/transport/recovery owners retain credit. Printed phase/end records do not prove delivered continuation. No new scheduler, selector, telemetry or statistical framework.",
-      "Implementation_review, master_lead_triage, unknown fields and historical requested_growth_analysis preserved raw-exact. No new consolidation or alias;321and315had different cache owners."
+      "No safe new production/test deletion is established in this rotated sample. Prior open reductions remain; the one new sequencing recommendation adds 13 test nodes and one retained fixture attempt.",
+      "Retained successful landing walls do not demonstrate a real failed verifier wasting those times. SQA-322 is an admitted source counterexample with a small existing-fixture deciding comparison.",
+      "Cache arithmetic/pointer/layout tests have distinct requirements; explicit capacity rows retain the numerical oracle. Blob bounds, integrity/cancellation/recovery and bounded-allocation tests remain. Similar syntax alone is not redundancy.",
+      "Source iteration over uint32 page offsets and summed slot bytes was inspected, but no practical admitted overflow counterexample was established; no speculative defensive branches are prescribed.",
+      "Native Go caching, existing blob copy/verify, device fixture, event stream, gate and process owners retain credit. Completion records still do not prove delivered continuation under SQA-271.",
+      "Implementation_review, master_lead_triage, unknown fields and historical requested_growth_analysis remain raw-exact. Other obligations retain their dated scope; no blanket recertification."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -8663,11 +8713,11 @@
       }
     }
   },
-    "next_finding_number": 322,
+    "next_finding_number": 323,
     "publication_context": {
-    "assessment": "Read committed plan/instructions first and formed source provisional conclusions before report. Reconciled newtrain/cache landings and current owner comments; worktree route/codec/shared-run/plan/test edits excluded. Re-read HEAD/report/owner immediately before guardedwrite.",
-    "checked_head": "a104591ab2c98409c21cac56fa2297a130fc8686",
-    "publication": "Only docs/sqa_findings.json via existing hooks and nonblocking landing/gate ownership, path-limited commit; preserve unrelated index/worktree."
+    "assessment": "Instructions/plan and source-first conclusions preceded report reconciliation. No production/code landing since last review; worker route/codec/shared-run/plan/new-test edits excluded. Re-read code/report/owners immediately before guarded publication.",
+    "checked_head": "18516a106f349a66fac618c32425bf70e0c9ea8b",
+    "publication": "Only docs/sqa_findings.json through existing hooks and nonblocking landing/gate ownership, path-limited commit; preserve unrelated index/worktree."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -8690,6 +8740,7 @@
     "SQA-311",
     "SQA-312",
     "SQA-314",
+    "SQA-322",
     "SQA-298",
     "SQA-259",
     "SQA-228",
@@ -8707,47 +8758,47 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Close321after checking shared capture admission and actual training consumer.148stable IDs:33open,109resolved,4deferred,2aliases; next322unchanged.",
-      "Refresh244to current testcheck-based whole-file candidate(-38AST) without reopening or duplicating resolved constructor work. No new finding or priority/severity change.",
-      "Two implementation landings add4253production/2583test=6836GoAST. Shared rows/layout owners avoid duplicate implementations but do not turn the overall growth into savings."
+      "Add SQA-322 for full-landing verifier sequencing, distinct from cycle reuse and continuation. 149 stable IDs: 34 open, 109 resolved, 4 deferred and 2 consolidated aliases; next 323.",
+      "Rechecked retained SQA-235 capacity-case consolidation and SQA-223 blob-cancellation consolidation against the current owners; both remain resolved. No new alias or closure.",
+      "No code landing since a104591ab; previous cache-identity closure and the 38-node SQA-244 candidate stand. No new runtime performance or memory measurement."
     ],
-    "reviewed_at": "2026-11-06T16:41:10Z",
-    "reviewed_master": "a104591ab2c98409c21cac56fa2297a130fc8686",
+    "reviewed_at": "2026-11-06T18:45:26Z",
+    "reviewed_master": "18516a106f349a66fac618c32425bf70e0c9ea8b",
     "schema_version": 2,
     "scope": [
-      "Pinned committed master a104591ab2c98409c21cac56fa2297a130fc8686. Repository instructions/plan read first: skill blob69a0ec1510af484e39da2cf7e169dbc73b70ae8f unchanged, plan blob30181772b681b956bcf1fb0215c8dfbcdffc1baf. Current vision-bridge run/judge remain open; worktree route/codec/run/plan edits excluded.",
-      "Fresh source/caller provisional conclusions preceded current report/rankings.16selected committed Go files parsed:17270AST nodes(10871production,6399test),101functions,4157parser-local bindings. Five prior file versions compared for321. Selected paths below; no full census.",
-      "Rotation covers frozen host/device gradients, model loading/transfers/scratch/resource cleanup, bridge trainer and capture resume; document query/page/cursor/content retention; native transcription NDJSON/SSE admission/reconnect; cycle phase failure/resume/dispatch. Existing architecture and callers beyond latest diff read.",
-      "Exact GatherRows/ScatterRows/GradientSlot declarations typechecked:22defs49uses0selections. Remaining resolution is parser-local and manual; no application/module/cgo/device type closure. Full244alternative parsed547->509AST.",
-      "This chat previously implemented Overgo changes: overlapping SQA, not independent third-party review. No app tests/model/device/service/benchmark/profile/confidence run, agents/worker messages, implementation, plan/skill change or production gate."
+      "Pinned committed master 18516a106f349a66fac618c32425bf70e0c9ea8b. Instructions and committed plan read before source; skill blob 69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan blob 30181772b681b956bcf1fb0215c8dfbcdffc1baf are unchanged. Only the preceding SQA report landed since the last code pin; six worker worktree paths are excluded.",
+      "Fresh rotated source/caller conclusions preceded reading prior findings and rankings. Actual selected-file Go AST: 13 committed files, 14771 nodes (9375 production, 5396 test), 86 functions and 2963 parser-local bindings. No recurring full census.",
+      "Samples cover cache paging, speculative slot lifetime and device/host transfer callers; blob packing, verification, retention and stream lifetime; shared GUI event vocabulary and actual runtime SSE delivery; landing preflight, verifier failure, phase costs and publication recovery.",
+      "Exact readPackIndex and pack-format constants typechecked with standard-library imports: 19 definitions, 77 uses, 2 selections. Remaining resolution is parser-local/manual, not a full package/cgo/device closure. Complete two-file sequencing alternative parsed.",
+      "This chat previously implemented Overgo changes. This is overlapping SQA, never independent third-party review. No application tests, models, services, devices, benchmarks, profiles, production gates, worker messages, agents, or plan/skill changes."
     ],
     "sqa_response": {
-    "assessment": "33canonical open,109resolved,4deferred,2aliases;148stable IDs.321resolved;244current complete reduction refreshed; no new IDs.",
+    "assessment": "149 stable IDs: 34 canonical open, 109 resolved, 4 deferred, 2 aliases. New SQA-322; no closures, aliases or reopened work.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "16-file17270AST;5prior versions; exact3function type resolution22defs49uses.321actual+891GoAST;244parsed-38testAST. Retained2landing gates; no SQA workload.",
+    "evidence": "13 files / 14771 AST; exact pack-index reader type resolution. Complete sequencing candidate production 0 delta, tests +13 nodes. Only retained landing records read.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "abbfbf8963a2988dfd14459844c6b6a73369bd32",
-        "status": "321implementation marked implemented and independently rechecked within this overlapping chat. Owner blocks/unknown fields kept raw-exact; no claim of third-party assurance."
+        "status": "Owner fields preserved raw-exact. This source review overlaps this chat's prior implementation; no third-party assurance."
       },
-    "new_findings": [],
+    "new_findings": [
+        "SQA-322"
+      ],
     "partially_addressed_findings": [
         "SQA-271",
         "SQA-315"
       ],
     "priority_changes": [],
-    "recommendation": "Close the repaired capture-cache obligation, retain necessary frozen-gradient and route coverage, and use existing244owned-document reuse for the established small reduction. No other safe retirement demonstrated.",
+    "recommendation": "Run the existing landing verifier before broad tests and lanes; add one full-mode refusal row to the existing spent fixture. Preserve current cache/blob/GUI requirements. No new abstraction, selector or confidence run.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-321"
-      ],
-    "reviewed_master": "a104591ab2c98409c21cac56fa2297a130fc8686",
-    "uncertainty": "Overlapping reviewer with prior implementation history. Bounded source/AST and retained executions only; runtime binding bytes/hashing and broader performance effects remain unmeasured."
+    "resolved_findings": [],
+    "reviewed_master": "18516a106f349a66fac618c32425bf70e0c9ea8b",
+    "uncertainty": "No observed failed-run delay, matched timing or fresh runtime/peak measurement. New ordering is parsed only; ordinary existing fixture validation remains the deciding comparison."
   }
   }

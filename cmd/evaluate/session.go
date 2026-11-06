@@ -89,6 +89,13 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		}
 		return session, nil
 	}
+	if request.Encoder != "" {
+		session, err := openCompositionSession(ctx, store, value, request)
+		if err != nil {
+			return fail(err)
+		}
+		return session, nil
+	}
 	if request.Projector != "" {
 		session, err := openProjectionSession(ctx, store, value, request)
 		if err != nil {

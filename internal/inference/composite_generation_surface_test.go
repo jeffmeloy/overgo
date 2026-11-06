@@ -4,101 +4,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/composition"
-	"overgo/internal/overgodb"
-	"overgo/internal/tensor"
-	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
 )
 
-func TestCompositeGenerationSurfaceParity(t *testing.T) {
-	store, authority := productionCompositionFixture(t, true)
-	runtime := testcheck.Must(OpenProductionComposition(
-		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
-		authority.Recipe.Task, compositionRuntimeResourcesFixture(t, authority),
-	))(t)
-	publishCompositeGenerationPromotion(t, store, runtime.plan)
-	direct := testcheck.Must(runtime.PromotedGeneration(t.Context(), store))(t)
-	surface, err := ResolveCompositeGenerationSurface(
-		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
-	)
-	if err != nil || surface != direct || surface.Recipe != authority.Recipe.ID || surface.Plan != runtime.plan.ID {
-		t.Fatalf("surface=%+v direct=%+v err=%v", surface, direct, err)
-	}
-}
-
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
-	store, authority := productionCompositionFixture(t, true)
+	store, authority := productionCompositionFixture(t, true, testutil.ArtifactID(t, artifact.KindModel, "bridge-target-model"), bridgeEncoderChannels)
 	if _, err := ResolveCompositeGenerationSurface(
 		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	); err == nil {
 		t.Fatal("active but generation-unpromoted composition reached a serving surface")
-	}
-}
-
-func compositionRuntimeResourcesFixture(t *testing.T, authority composition.CompositionAuthority) CompositionRuntimeResources {
-	t.Helper()
-	source := &bridgeSourceFixture{
-		model: authority.Recipe.SourceModel,
-		value: inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 2, 3, 4}),
-	}
-	target := &bridgeTargetFixture{
-		model:     authority.Recipe.TargetModel,
-		embedding: inferenceBridgeValue(t, tensor.MustShape(3, 2), []float32{5, 6, 7, 8, 9, 10}),
-	}
-	first := inferenceBridgeValue(t, tensor.MustShape(2, 3), []float32{1, 0, 0, 1, 1, 1})
-	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{1, 2, 3})
-	return &bridgeRuntimeResourcesFixture{
-		source: source, target: target,
-		weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
-	}
-}
-
-func publishCompositeGenerationPromotion(
-	t *testing.T,
-	store *overgodb.Store,
-	plan composition.CompositionExecutionPlan,
-) {
-	t.Helper()
-	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
-	output := id(artifact.KindOutput, "surface output")
-	evidence := testcheck.Must((composition.CompositeGenerationCUDAAuthority{}).New(composition.CompositeGenerationCUDAEvidence{
-		SourceModel: plan.SourceModel, TargetModel: plan.TargetModel,
-		CompositionRecipe: plan.CompositionRecipe, TargetBaselineRecipe: id(artifact.KindRecipe, "surface baseline"),
-		ExecutionPlan: plan.ID, Promotion: plan.Promotion, Bridge: plan.BridgeWeights[0],
-		HeldOutInputs:  []artifact.ID{id(artifact.KindOutput, "surface input")},
-		BaselineOutput: output, ComposedOutput: output,
-		BaselineRun: id(artifact.KindRun, "surface baseline run"), ComposedRun: id(artifact.KindRun, "surface composed run"),
-		BaselineObservation: id(artifact.KindEvidence, "surface baseline observation"),
-		ComposedObservation: id(artifact.KindEvidence, "surface composed observation"),
-		Device:              id(artifact.KindEvidence, "surface device"), BridgeExecution: id(artifact.KindEvidence, "surface bridge execution"),
-		ExactOutputParity: true,
-	}))(t)
-	promotion := testcheck.Must((composition.CompositeGenerationPromotionAuthority{}).Promote(plan, evidence))(t)
-	planContent := testcheck.Must(plan.Content())(t)
-	evidenceContent := testcheck.Must(evidence.Content())(t)
-	promotionContent := testcheck.Must(promotion.Content())(t)
-	alias := testcheck.Must(composition.CompositeGenerationPromotionAlias(plan.SourceModel, plan.TargetModel, plan.Task))(t)
-	lineage := append(append(plan.Lineage(), evidence.Lineage()...), promotion.Lineage()...)
-	batch := testcheck.Must(artifact.NewDocumentBatch(
-		"fixture/composite-generation/surface", []artifact.Content{planContent, evidenceContent, promotionContent},
-		lineage, []artifact.AliasBinding{{Name: alias, Target: promotion.ID}},
-	))(t)
-	seen := make(map[artifact.ID]bool)
-	for _, edge := range lineage {
-		if seen[edge.Parent] {
-			continue
-		}
-		seen[edge.Parent] = true
-		_, found, findErr := store.Artifact(t.Context(), edge.Parent)
-		if findErr != nil {
-			t.Fatal(findErr)
-		}
-		if !found && edge.Parent != plan.ID && edge.Parent != evidence.ID && edge.Parent != promotion.ID {
-			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: edge.Parent, Size: 1})
-		}
-	}
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
-		t.Fatal(err)
 	}
 }

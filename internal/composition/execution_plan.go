@@ -269,12 +269,23 @@ func validateCompositionSessions(value modelrecipe.ComponentSessionPlan) error {
 		return errors.New("composition: residency components are incomplete")
 	}
 	source, target := value.Components[tensor.FirstOffset], value.Components[tensor.SingletonExtent]
-	if source.Placement != recipe.PlacementDevice || target.Placement != recipe.PlacementDevice ||
-		source.Session != recipe.SessionCapacity || target.Session != recipe.SessionRequest ||
-		source.Residency != target.Residency || !compositionDeviceResidency(source.Residency) {
-		return errors.New("composition: production representation path is not device-resident")
+	if source.Session != recipe.SessionCapacity || target.Session != recipe.SessionRequest ||
+		!compositionResidency(source) || !compositionResidency(target) {
+		return errors.New("composition: a component runs neither on the device at a device residency nor on the host as the reference")
 	}
 	return nil
+}
+
+// compositionResidency reports whether a component runs where its residency says: on the device at a device
+// residency, or on the host as the reference, as an image encoder beside a text model may.
+func compositionResidency(component modelrecipe.ComponentSession) bool {
+	switch component.Placement {
+	case recipe.PlacementDevice:
+		return compositionDeviceResidency(component.Residency)
+	case recipe.PlacementHost:
+		return component.Residency == recipe.ResidencyHostReference
+	}
+	return false
 }
 
 func validateCompositionSessionAuthority(

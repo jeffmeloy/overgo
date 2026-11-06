@@ -5,7 +5,6 @@ prototype internal/evaluation/moe_capacity_pair.go overgo/moe-capacity-pair/v1
 prototype internal/evaluation/moe_routing_baseline.go overgo/moe-routing-baseline-matrix/v1
 prototype internal/evaluation/moe_routing_promotion.go overgo/moe-routing-promotion-policy/v1
 prototype internal/evaluation/moe_routing_shift.go overgo/moe-routing-shift-evidence/v1
-prototype internal/inference/composite_generation.go overgo/composite-generation-output/v1
 prototype internal/speechactivity/execution.go overgo/audio-activity-state/v1
 prototype internal/speechactivity/profile.go overgo/speech-activity-profile/v1
 prototype internal/trainingprogram/moe_routing_target.go overgo/moe-routing-target/v1

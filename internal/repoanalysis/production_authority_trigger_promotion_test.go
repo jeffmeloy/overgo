@@ -94,7 +94,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, nil)
 	verifyAuthoritySites(report, "promotion", "composition.ActiveCompositeGeneration", activeCompositeResolutions, []authorityAllowance{
 		{File: "internal/inference/composite_generation_surface.go", Function: "ResolveCompositeGenerationSurface", Count: oneAuthoritySite},
-		{File: "internal/inference/composite_generation_surface.go", Function: "ProductionComposition.PromotedGeneration", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "promotion", "inference.CompositeGenerationSurface construction", compositeSurfaceConstructions, []authorityAllowance{
 		{File: "internal/inference/composite_generation_surface.go", Function: "compositeGenerationSurface", Count: oneAuthoritySite},

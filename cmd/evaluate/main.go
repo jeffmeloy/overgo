@@ -60,6 +60,10 @@ type modelRequest struct {
 	// this multimodal projector, its cases asking about videos of MediaRoot.
 	Projector string `json:"projector,omitempty"`
 	MediaRoot string `json:"media_root,omitempty"`
+	// Encoder evaluates the model through its active composition with this image encoder, the composition's bridge
+	// carrying each picture's tokens to the placeholder token Placeholder names.
+	Encoder     string `json:"encoder,omitempty"`
+	Placeholder string `json:"placeholder,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error

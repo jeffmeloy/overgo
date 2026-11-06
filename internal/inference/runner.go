@@ -480,26 +480,6 @@ func (r *Runner) Forward(ctx context.Context, tokenIDs []tokenizer.TokenID) (ref
 	return r.forwardLocked(ctx, tokenIDs)
 }
 
-// ForwardWithEmbeddingOverrides: evaluates causal decoder after replacing
-// selected token lookup results with caller-provided soft-token embeddings
-func (r *Runner) ForwardWithEmbeddingOverrides(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	overrides []EmbeddingOverride,
-) (reference.Value, error) {
-	if err := r.lockOpen(); err != nil {
-		return reference.Value{}, err
-	}
-	defer r.mu.Unlock()
-	if r.forwardProgram().Operation == model.ForwardOperationEncoder || r.spec.NonCausalAttention {
-		return reference.Value{}, errors.New("inference: embedding overrides currently require a causal decoder")
-	}
-	hidden, _, err := r.forwardCachedProjectedChunkLocked(
-		ctx, tokenIDs, nil, ProjectedInputs{EmbeddingOverrides: overrides},
-	)
-	return hidden, err
-}
-
 func (r *Runner) forwardLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,

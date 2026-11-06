@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1200,
+        "nodes": 2876,
         "reason": "Measured: seam adds 1,329 production nodes, the held-out residual and seam-align's ranking, which the estimate of 1,000 to 1,300, written for the gradient through the frozen text model, did not count; that estimate stands for train, and capture and wire set theirs when measured."
       },
       "steps": [
-        {
-          "id": "wire",
-          "title": "Serve a composition through a recipe",
-          "status": "open",
-          "verify": "go test ./internal/inference ./internal/repoanalysis -count=1 -run '^(TestACompositionServesThroughARecipe|TestEveryProcessDeclarationIsReachedByACommand)$'",
-          "rationale": "ProductionComposition holds capture, transform and inject (internal/inference/representation_bridge.go:260-343), but no command reaches it: it is listed as prototype in internal/repoanalysis/testdata/unreached_declarations.txt (lines 68, 72, 136-145).\nReach it from a recipe, keeping capture and transform. Drop inject: it overrides every target token and refuses any other shape (:322-340), so it is not placeholder injection. The placeholder path is internal/inference/multimodal_prompt.go:32 and runner_projected.go:309, and a second path is what this row forbids. The recipe names encoder, bridge and text model by identity, and both models stay frozen.\nServes: a composite is a servable capability rather than a test object.\nDisappears: inject, and its entries in the unreached list.\nEvidence: a small composite answering through a recipe on the host.\nBatch: serving lane."
-        },
         {
           "id": "capture",
           "title": "Capture the training frames' encoder outputs and caption embeddings, and rank them",

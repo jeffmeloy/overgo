@@ -145,11 +145,6 @@ func compileTextTargetPlan(view SFTEvaluationView, suite textTargetSuite) (textT
 	return textTargetPlanCodec.New(plan)
 }
 
-// Content encodes the plan as its canonical artifact document.
-func (plan textTargetPlan) Content() (artifact.Content, error) {
-	return textTargetPlanCodec.Content(plan)
-}
-
 // Batch stages the plan with lineage to its view and declared verifiers.
 func (plan textTargetPlan) Batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{plan.View}
@@ -188,11 +183,6 @@ func scoreTextTargets(plan textTargetPlan, observations []textTargetObservation)
 	return textTargetReportCodec.NewInitial(textTargetReport{
 		Plan: plan.ID, Observations: observations, Metrics: metrics,
 	})
-}
-
-// Content encodes the report as its canonical artifact document.
-func (report textTargetReport) Content() (artifact.Content, error) {
-	return textTargetReportCodec.Content(report)
 }
 
 // Batch stages the report with lineage to its plan.

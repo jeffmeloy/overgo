@@ -206,6 +206,17 @@ func Load(directory string) (*Encoder, error) {
 // processor does and returns the class token after the final norm, the
 // checkpoint's pooled image embedding.
 func (e *Encoder) Embed(image []byte) ([]float32, error) {
+	tokens, err := e.Tokens(image)
+	if err != nil {
+		return nil, err
+	}
+	return tokens[:e.geometry.Hidden:e.geometry.Hidden], nil
+}
+
+// Tokens decodes one PNG or JPEG image as Embed does and returns every token
+// after the final norm, each of the encoder's width: the class token, any
+// registers, then the patches, the output an encoder's seam reads.
+func (e *Encoder) Tokens(image []byte) ([]float32, error) {
 	rgb, height, width, err := patchtower.DecodeImageBytesRGB(image)
 	if err != nil {
 		return nil, fmt.Errorf("vitencoder: decode image: %w", err)
@@ -214,11 +225,7 @@ func (e *Encoder) Embed(image []byte) ([]float32, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokens, err := e.encode(pixels, true)
-	if err != nil {
-		return nil, err
-	}
-	return tokens[:e.geometry.Hidden:e.geometry.Hidden], nil
+	return e.encode(pixels, true)
 }
 
 // Patches runs normalized channel-first pixels of the encoder's input size

@@ -73,38 +73,24 @@ reason: No command writes a resolution, so it is deleted when those tests publis
 group composite-generation-evidence
 class: prototype
 surface: inside
-declarations: 11
-lines: 298
-members: internal/inference/composite_generation.go
-members: internal/inference/representation_bridge.go ProductionComposition.ForwardArm materializedZero
+declarations: 5
+lines: 26
 members: internal/composition/composite_generation_evidence.go
 schemas: internal/composition/composite_generation_evidence.go overgo/composite-generation-evidence/v2
-schemas: internal/inference/composite_generation.go overgo/composite-generation-output/v1
 reason: It writes a four-arm evidence matrix whose only reader 91dedffd8 deleted, and promotion takes the plan and the CUDA evidence alone (internal/composition/composite_generation_promotion.go:51).
 reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
-
-group composition-injection-runtime
-class: prototype
-surface: inside
-declarations: 9
-lines: 239
-members: internal/inference/representation_bridge.go OpenProductionComposition ProductionComposition.PlanIdentity ProductionComposition.Forward ProductionComposition.transformedRepresentationCacheIdentity representationBridgeSession.captureAndTransform representationBridgeSession.capture representationBridgeSession.inject representationBridgeSession.transform
-members: internal/inference/runner.go Runner.ForwardWithEmbeddingOverrides
-reason: It is the run path of a composed model, which captures a source model's representation, bridges it and injects it into a target model, and the composition routes of the server return stored identities and run nothing.
-reason: No command builds a composition recipe or the resources it opens with, so it runs on test fixtures alone, and it is the only caller of bridgegraph.Program.Build (internal/inference/representation_bridge.go:356).
 
 group composition-unapplied
 class: prototype
 surface: inside
-declarations: 16
-lines: 560
-members: internal/inference/composite_generation_surface.go
+declarations: 10
+lines: 337
 members: internal/composition/execution_plan.go
 members: internal/inference/external_cross_attention.go
 members: internal/composition/external_cross_attention.go
 members: internal/bridgegraph/graph.go
 schemas: internal/composition/external_cross_attention.go overgo/external-cross-attention-plan/v1
-reason: PromotedGeneration and TransformedRepresentationCacheIdentity repeat the live functions beside them (internal/inference/composite_generation_surface.go:28, internal/inference/representation_bridge.go:250) and have no caller.
+reason: TransformedRepresentationCacheIdentity has no caller since a composite's rows are cached by its pictures, and no composition builds bridgegraph's conditional LoRA.
 reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
 
 group controller-promotion
@@ -470,8 +456,8 @@ reason: It is unwired under the operator's rule, and test-held-deletions reads i
 group typed-test-held-outside
 class: test-held
 surface: outside
-declarations: 97
-lines: 1344
+declarations: 95
+lines: 1336
 members: internal/agenttool/stream.go StreamEvent.ArtifactContent StreamTerminal.ArtifactContent
 members: internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch BenchmarkComparisonRecord.ValidateIdentity
 members: internal/controllertrain/corpus.go Corpus.PublicationBatch Corpus.Split
@@ -484,7 +470,6 @@ members: internal/diffusionimage/resident_forward.go ResidentForward.Execute Res
 members: internal/evaluation/heldout_verdict.go heldoutVerdict.Content
 members: internal/evaluation/knowledge_promotion.go knowledgePromotionEvidence.ValidateIdentity
 members: internal/evaluation/suite.go CompiledSuite.Plan
-members: internal/evaluation/text_target.go textTargetPlan.Content textTargetReport.Content
 members: internal/hostoptimizer/optimizer.go Optimizer.Momentum
 members: internal/hybridtrain/stack.go builder.mat builder.randn
 members: internal/latentimage/denoiser.go Denoiser.Forward Denoiser.attention Denoiser.fusionBlock Denoiser.headRMSAndRope Denoiser.ropeTable Denoiser.swiGLU Denoiser.textConditioning Denoiser.timestepConditioning Denoiser.w dense geluTanh rmsNormZeroCentered sigmoidF64 siluF64

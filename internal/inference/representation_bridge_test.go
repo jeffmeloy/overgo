@@ -3,6 +3,9 @@ package inference
 import (
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"math"
 	"slices"
 	"testing"
 
@@ -20,235 +23,174 @@ import (
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testcheck"
 	"overgo/internal/testutil"
-	"overgo/internal/tokenizer"
 )
 
+// bridgeEncoderChannels and bridgeEncoderTokens are the fixture encoder's output: three channels for each of four
+// tokens.
+const (
+	bridgeEncoderChannels = 3
+	bridgeEncoderTokens   = 4
+)
+
+// bridgeSourceFixture encodes an image as its colour means, a token for each step of a ramp: an encoder whose output
+// follows its picture.
 type bridgeSourceFixture struct {
-	model  artifact.ID
-	value  reference.Value
-	layers []int32
-	calls  int
+	model artifact.ID
+	calls int
 }
 
 func (source *bridgeSourceFixture) ModelID() artifact.ID { return source.model }
 
-func (source *bridgeSourceFixture) ExtractLayerInputs(
-	_ context.Context,
-	_ []tokenizer.TokenID,
-	layers []int32,
-) (reference.Value, error) {
+func (source *bridgeSourceFixture) EncodeImage(_ context.Context, picture image.Image) (reference.Value, error) {
 	source.calls++
-	source.layers = slices.Clone(layers)
-	return source.value.Clone(), nil
+	var means [bridgeEncoderChannels]float64
+	bounds := picture.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			red, green, blue, _ := picture.At(x, y).RGBA()
+			means[0], means[1], means[2] = means[0]+float64(red), means[1]+float64(green), means[2]+float64(blue)
+		}
+	}
+	pixels := float64(bounds.Dx() * bounds.Dy() * math.MaxUint16)
+	data := make([]float32, bridgeEncoderChannels*bridgeEncoderTokens)
+	for token := range bridgeEncoderTokens {
+		for channel := range bridgeEncoderChannels {
+			data[token*bridgeEncoderChannels+channel] = float32(means[channel] / pixels * float64(token+1))
+		}
+	}
+	return reference.NewValue(tensor.MustShape(bridgeEncoderChannels, bridgeEncoderTokens), data)
 }
 
+// bridgeTargetFixture stands for a text model by its identity, its width and its image placeholder.
 type bridgeTargetFixture struct {
-	model     artifact.ID
-	embedding reference.Value
-	overrides []EmbeddingOverride
+	model       artifact.ID
+	width       int
+	placeholder string
 }
+
+func (target bridgeTargetFixture) ModelID() artifact.ID { return target.model }
+
+func (target bridgeTargetFixture) EmbeddingWidth() int { return target.width }
+
+func (target bridgeTargetFixture) ImagePlaceholder() string { return target.placeholder }
 
 type bridgeRuntimeResourcesFixture struct {
-	source     RepresentationSource
-	target     RepresentationTarget
-	weights    RepresentationBridgeWeights
-	definition artifact.ID
-	authority  composition.BridgeWeightAuthority
-	sourcePlan modelrecipe.ComponentSession
-	targetPlan modelrecipe.ComponentSession
-	weightPlan modelrecipe.ComponentSession
-	calls      int
+	source  RepresentationSource
+	target  RepresentationTarget
+	weights RepresentationBridgeWeights
+	calls   int
 }
 
-func (resources *bridgeRuntimeResourcesFixture) Source(
-	_ context.Context,
-	plan modelrecipe.ComponentSession,
-) (RepresentationSource, error) {
+func (resources *bridgeRuntimeResourcesFixture) Source(context.Context, modelrecipe.ComponentSession) (RepresentationSource, error) {
 	resources.calls++
-	resources.sourcePlan = plan
 	return resources.source, nil
 }
 
-func (resources *bridgeRuntimeResourcesFixture) Target(
-	_ context.Context,
-	plan modelrecipe.ComponentSession,
-) (RepresentationTarget, error) {
+func (resources *bridgeRuntimeResourcesFixture) Target(context.Context, modelrecipe.ComponentSession) (RepresentationTarget, error) {
 	resources.calls++
-	resources.targetPlan = plan
 	return resources.target, nil
 }
 
 func (resources *bridgeRuntimeResourcesFixture) BridgeWeights(
-	_ context.Context,
-	plan modelrecipe.ComponentSession,
-	definition artifact.ID,
-	authority composition.BridgeWeightAuthority,
+	context.Context, modelrecipe.ComponentSession, artifact.ID, composition.BridgeWeightAuthority,
 ) (RepresentationBridgeWeights, error) {
 	resources.calls++
-	resources.weightPlan = plan
-	resources.definition, resources.authority = definition, authority
 	return resources.weights, nil
 }
 
-func (target *bridgeTargetFixture) ModelID() artifact.ID { return target.model }
-
-func (target *bridgeTargetFixture) ForwardWithEmbeddingOverrides(
-	_ context.Context,
-	_ []tokenizer.TokenID,
-	overrides []EmbeddingOverride,
-) (reference.Value, error) {
-	target.overrides = slices.Clone(overrides)
-	result := target.embedding.Clone()
-	return result, applyEmbeddingOverrides(&result, overrides)
-}
-
-func TestProductionEmbeddingInjection(t *testing.T) {
-	store, authority := productionCompositionFixture(t, true)
-	sourceModel, targetModel := authority.Recipe.SourceModel, authority.Recipe.TargetModel
-	source := &bridgeSourceFixture{
-		model: sourceModel,
-		value: inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 2, 3, 4}),
+// TestACompositionServesThroughARecipe holds an image composite to serving through its active composition recipe on
+// the host: an inactive recipe reaches no resource and a bridge whose width differs from the text model's opens
+// nothing, while the active one turns a picture into the bridge's rows, the bias plus the encoder's tokens through its
+// map, at as many placeholder tokens of the prompt, which a host runner answers through the placeholder path; another
+// picture gives other rows.
+func TestACompositionServesThroughARecipe(t *testing.T) {
+	t.Parallel()
+	// The fixture's vocabulary holds no image token, so one of its control tokens stands for one.
+	const placeholder = "</s>"
+	runner := testcheck.Must(openFixtureRunnerWithResidency(testutil.HermeticLlamaGGUF(t, 64), OpenOptions{}, recipe.ResidencyHostReference))(t)
+	t.Cleanup(func() { _ = runner.Close() })
+	width := int(runner.spec.EmbeddingLength)
+	first := make([]float32, bridgeEncoderChannels*width)
+	bias := make([]float32, width)
+	for index := range first {
+		first[index] = float32(index%7) - 3
 	}
-	target := &bridgeTargetFixture{
-		model:     targetModel,
-		embedding: inferenceBridgeValue(t, tensor.MustShape(3, 2), []float32{0, 0, 0, 0, 0, 0}),
+	for index := range bias {
+		bias[index] = float32(index) / 8
 	}
-	first := reference.ZeroValue(tensor.MustShape(2, 3))
-	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
-	resources := &bridgeRuntimeResourcesFixture{
-		source: source, target: target,
-		weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
+	firstValue := testcheck.Must(reference.NewValue(tensor.MustShape(bridgeEncoderChannels, uint64(width)), first))(t)
+	biasValue := testcheck.Must(reference.NewValue(tensor.MustShape(uint64(width)), bias))(t)
+	weights := RepresentationBridgeWeights{First: &firstValue, FirstBias: &biasValue}
+	open := func(activate bool, targetWidth int) (*ProductionComposition, *bridgeRuntimeResourcesFixture, error) {
+		store, authority := productionCompositionFixture(t, activate, runner.ModelID(), uint64(width))
+		resources := &bridgeRuntimeResourcesFixture{
+			source:  &bridgeSourceFixture{model: authority.Recipe.SourceModel},
+			target:  bridgeTargetFixture{model: runner.ModelID(), width: targetWidth, placeholder: placeholder},
+			weights: weights,
+		}
+		composite, err := OpenProductionComposition(t.Context(), store, authority.Recipe.SourceModel, runner.ModelID(), authority.Recipe.Task, resources)
+		return composite, resources, err
 	}
-	runtime := testcheck.Must(OpenProductionComposition(
-		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
-	))(t)
-	result := testcheck.Must(runtime.Forward(
-		t.Context(),
-		[]tokenizer.TokenID{1, 2}, []tokenizer.TokenID{3, 4},
-	))(t)
-	want := []float32{10, 20, 30, 10, 20, 30}
-	if !slices.Equal(result.Data, want) || len(target.overrides) != len(want)/len(bias.Data) ||
-		!slices.Equal(source.layers, []int32{int32(*authority.SourceContract.Producer.Layer)}) ||
-		resources.definition != authority.Bridge.ID || resources.authority.Weights.ID != authority.Bridge.Weights ||
-		resources.authority.Inventory.ID != authority.Bridge.WeightInventory || runtime.PlanIdentity().Kind() != artifact.KindProfile {
-		t.Fatalf("bridge result=%v overrides=%v layers=%v", result.Data, target.overrides, source.layers)
+	if _, resources, err := open(false, width); err == nil || resources.calls != 0 {
+		t.Fatalf("an inactive composition reached its resources %d times (%v)", resources.calls, err)
 	}
-	if resources.sourcePlan.Identity != resources.weightPlan.Identity ||
-		resources.sourcePlan.Session != recipe.SessionCapacity || resources.targetPlan.Session != recipe.SessionRequest {
-		t.Fatalf("runtime component session authority = source %+v target %+v weights %+v", resources.sourcePlan, resources.targetPlan, resources.weightPlan)
+	if _, _, err := open(true, width-1); err == nil {
+		t.Fatal("a bridge wider than the text model's embeddings opened")
 	}
-	wrongTarget := *target
-	wrongTarget.model = sourceModel
-	resources.target = &wrongTarget
-	if _, err := OpenProductionComposition(
-		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
-	); err == nil {
-		t.Fatal("mismatched target model accepted")
+	composite, _, err := open(true, width)
+	testcheck.NoError(t, err)
+	if !composite.Recipe().Valid() || !composite.Capabilities().Image {
+		t.Fatalf("the composite names no recipe or takes no image: %+v", composite.Capabilities())
 	}
-}
-
-func TestNoDirectCompositionConstructors(t *testing.T) {
-	store, authority := productionCompositionFixture(t, false)
-	resources := &bridgeRuntimeResourcesFixture{}
-	if _, err := OpenProductionComposition(
-		t.Context(), store,
-		authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
-		resources,
-	); err == nil || resources.calls != 0 {
-		t.Fatalf("inactive composition reached runtime resources: calls=%d err=%v", resources.calls, err)
+	rows := func(fill color.RGBA) ([]float32, []float32) {
+		picture := image.NewRGBA(image.Rect(0, 0, 2, 2))
+		for index := range picture.Pix {
+			picture.Pix[index] = [4]uint8{fill.R, fill.G, fill.B, fill.A}[index%4]
+		}
+		prompt := testcheck.Must(composite.BuildImagePrompt(t.Context(), runner, picture, "", "ab", false))(t)
+		tokens, inputs, err := CompileProjectedInputs(prompt, uint32(width))
+		testcheck.NoError(t, err)
+		if len(prompt.EmbeddingTokenIndices) != bridgeEncoderTokens || len(inputs.EmbeddingOverrides) != bridgeEncoderTokens {
+			t.Fatalf("the picture took %d placeholders, want one for each of the encoder's %d tokens", len(prompt.EmbeddingTokenIndices), bridgeEncoderTokens)
+		}
+		encoded := testcheck.Must((&bridgeSourceFixture{}).EncodeImage(t.Context(), picture))(t)
+		want := make([]float32, 0, len(prompt.Embeddings))
+		for token := range bridgeEncoderTokens {
+			for column := range width {
+				value := bias[column]
+				for channel := range bridgeEncoderChannels {
+					value += encoded.Data[token*bridgeEncoderChannels+channel] * first[column*bridgeEncoderChannels+channel]
+				}
+				want = append(want, value)
+			}
+		}
+		answered, _, err := runner.Generate(t.Context(), "", GenerateOptions{PromptTokenIDs: tokens, ProjectedInputs: &inputs, MaxNewTokens: 2})
+		if err != nil || len(answered) <= len(tokens) {
+			t.Fatalf("the text model gave no answer to the composite's prompt (%v)", err)
+		}
+		return prompt.Embeddings, want
 	}
-	if _, err := (&ProductionComposition{}).Forward(t.Context(), nil, nil); err == nil {
-		t.Fatal("zero-value production composition executed")
-	}
-}
-
-func TestTransformedRepresentationCacheIdentity(t *testing.T) {
-	runtime, source := transformedRepresentationCacheFixture(t)
-	sourceTokens := []tokenizer.TokenID{1, 2}
-	targetTokens := []tokenizer.TokenID{3, 4}
-	identity := testcheck.Must(runtime.transformedRepresentationCacheIdentity(sourceTokens))(t)
-	repeated, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
-	if err != nil || repeated != identity {
-		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, identity, err)
-	}
-	changed, err := runtime.transformedRepresentationCacheIdentity([]tokenizer.TokenID{2, 1})
-	if err != nil || changed == identity {
-		t.Fatalf("changed cache identity = %s, original %s: %v", changed, identity, err)
-	}
-	if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
-		t.Fatal(err)
-	}
-	if source.calls != tensor.SingletonExtent {
-		t.Fatalf("immutable transformed representation recomputed %d times", source.calls)
-	}
-}
-
-func TestTransformedRepresentationCacheSourceScope(t *testing.T) {
-	runtime, source := transformedRepresentationCacheFixture(t)
-	sourceTokens := []tokenizer.TokenID{1, 2}
-	for _, targetTokens := range [][]tokenizer.TokenID{{3, 4}, {5, 6}} {
-		if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
-			t.Fatal(err)
+	red, redWant := rows(color.RGBA{R: 200, A: 255})
+	for index := range red {
+		if math.Abs(float64(red[index]-redWant[index])) > 1e-4 {
+			t.Fatalf("row value %d is %v, the bridge's map gives %v", index, red[index], redWant[index])
 		}
 	}
-	if source.calls != tensor.SingletonExtent {
-		t.Fatalf("source-scoped representation computed %d times", source.calls)
+	if blue, _ := rows(color.RGBA{B: 200, A: 255}); slices.Equal(blue, red) {
+		t.Error("another picture gave the same rows")
 	}
 }
 
-func TestTransformedRepresentationCacheBoundedOwnership(t *testing.T) {
-	runtime, source := transformedRepresentationCacheFixture(t)
-	targetTokens := []tokenizer.TokenID{3, 4}
-	sequences := [][]tokenizer.TokenID{{1, 2}, {2, 1}, {1, 2}}
-	for _, sourceTokens := range sequences {
-		if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if source.calls != len(sequences) {
-		t.Fatalf("single-entry source cache computed %d representations", source.calls)
-	}
-}
-
-func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition, *bridgeSourceFixture) {
-	t.Helper()
-	store, authority := productionCompositionFixture(t, true)
-	source := &bridgeSourceFixture{
-		model: authority.Recipe.SourceModel,
-		value: inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 2, 3, 4}),
-	}
-	target := &bridgeTargetFixture{
-		model:     authority.Recipe.TargetModel,
-		embedding: inferenceBridgeValue(t, tensor.MustShape(3, 2), []float32{0, 0, 0, 0, 0, 0}),
-	}
-	first := reference.ZeroValue(tensor.MustShape(2, 3))
-	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
-	runtime := testcheck.Must(OpenProductionComposition(
-		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
-		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
-			source: source, target: target,
-			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
-		},
-	))(t)
-	return runtime, source
-}
-
-func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store, composition.CompositionAuthority) {
+// productionCompositionFixture publishes an image composite's authority for a text model of width targetWidth: an
+// encoder's output of bridgeEncoderChannels by bridgeEncoderTokens, a linear bridge with bias, both components on the
+// host, and promotion evidence; activate makes the recipe the active one.
+func productionCompositionFixture(t *testing.T, activate bool, targetModel artifact.ID, targetWidth uint64) (*overgodb.Store, composition.CompositionAuthority) {
 	t.Helper()
 	store := overgodbtest.Open(t, t.TempDir())
 	ctx := t.Context()
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-source-model")
-	targetModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-target-model")
-	layer := uint32(0)
-	_, sourceContract := inferenceBridgeContract(
-		t, sourceModel, representation.TapLayerInput, &layer, representation.ModalityAudio, 2,
-	)
-	_, targetContract := inferenceBridgeContract(
-		t, targetModel, representation.TapEmbeddingOutput, nil, representation.ModalityText, 3,
-	)
+	_, sourceContract := inferenceBridgeContract(t, sourceModel, representation.TapEncoderOutput, representation.ModalityImage, bridgeEncoderChannels)
+	_, targetContract := inferenceBridgeContract(t, targetModel, representation.TapEmbeddingOutput, representation.ModalityText, targetWidth)
 	weights := testutil.ArtifactID(t, artifact.KindAdapter, "bridge-weights")
 	inventory := testutil.ArtifactID(t, artifact.KindTensorInventory, "bridge-inventory")
 	heldOut := testutil.ArtifactID(t, artifact.KindDatasetShard, "bridge-held-out")
@@ -264,13 +206,15 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		sourceModel, targetModel, sourceContract.Producer.Definition, targetContract.Producer.Definition,
 		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
 	}
-	descriptors := make([]artifact.Descriptor, len(parents))
-	for index, id := range parents {
-		descriptors[index] = artifact.Descriptor{ID: id, Size: 1}
+	descriptors := make([]artifact.Descriptor, 0, len(parents))
+	for _, id := range parents {
+		if _, found, err := store.Artifact(ctx, id); err != nil || found {
+			testcheck.NoError(t, err)
+			continue
+		}
+		descriptors = append(descriptors, artifact.Descriptor{ID: id, Size: 1})
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/production-composition/parents", Artifacts: descriptors}); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.Must(store.Commit(ctx, artifact.Batch{Key: "fixture/production-composition/parents", Artifacts: descriptors}))(t)
 	bridge := testcheck.Must(composition.NewBridgeDefinition(composition.BridgeDefinition{
 		SourceModel: sourceModel, TargetModel: targetModel,
 		Graph: bridgegraph.Definition{
@@ -280,8 +224,8 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		Weights: weights, WeightInventory: inventory,
 	}, sourceContract, targetContract))(t)
 	execution := testcheck.Must((modelrecipe.RepresentationBridgeCompiler{
-		SourcePlacement: recipe.PlacementDevice, TargetPlacement: recipe.PlacementDevice,
-		SourceResidency: recipe.ResidencyDeviceF32, TargetResidency: recipe.ResidencyDeviceF32,
+		SourcePlacement: recipe.PlacementHost, TargetPlacement: recipe.PlacementHost,
+		SourceResidency: recipe.ResidencyHostReference, TargetResidency: recipe.ResidencyHostReference,
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}).Definition(sourceModel, targetModel, sourceContract.ID, targetContract.ID, weights))(t)
 	promotion := testcheck.Must((composition.RepresentationBridgePromoter{}).Evaluate(promotionPolicy, composition.RepresentationBridgePromotion{
@@ -303,24 +247,18 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		SourceContract: sourceContract, TargetContract: targetContract, Bridge: bridge,
 		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: compositionRecipe,
 	}
-	batch := testcheck.Must(authority.Batch("fixture/production-composition/authority"))(t)
-	if _, err := store.Commit(ctx, batch); err != nil {
-		t.Fatal(err)
-	}
+	testcheck.Must(store.Commit(ctx, testcheck.Must(authority.Batch("fixture/production-composition/authority"))(t)))(t)
 	if activate {
-		activation := testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/production-composition/activate", nil))(t)
-		if _, err := store.Commit(ctx, activation); err != nil {
-			t.Fatal(err)
-		}
+		testcheck.Must(store.Commit(ctx, testcheck.Must(authority.Recipe.ActivationBatch(ctx, store, "fixture/production-composition/activate", nil))(t)))(t)
 	}
 	return store, authority
 }
 
+// inferenceBridgeContract is a contract for a model's representation at tap: width channels by up to four tokens.
 func inferenceBridgeContract(
 	t *testing.T,
 	modelID artifact.ID,
 	tap representation.TapPoint,
-	layer *uint32,
 	modality representation.Modality,
 	width uint64,
 ) ([]byte, representation.Contract) {
@@ -330,12 +268,12 @@ func inferenceBridgeContract(
 		Producer: representation.Producer{
 			Model:      modelID,
 			Definition: testutil.ArtifactID(t, artifact.KindModelDefinition, string(modality)+"-definition"),
-			Tap:        tap, Layer: layer,
+			Tap:        tap,
 		},
 		Modality: modality,
 		Tensor: representation.TensorContract{DataType: dtype.F32, Axes: []representation.Axis{
 			{Kind: representation.AxisChannel, Bounds: representation.AxisBounds{Extent: width}},
-			{Kind: representation.AxisSequence, Bounds: representation.AxisBounds{Minimum: 1, Maximum: 4}},
+			{Kind: representation.AxisSequence, Bounds: representation.AxisBounds{Minimum: 1, Maximum: bridgeEncoderTokens}},
 		}},
 		Sequence: representation.SequenceContract{
 			Axis: representation.AxisSequence, Mask: representation.MaskPrefix,

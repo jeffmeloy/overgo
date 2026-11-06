@@ -3,35 +3,33 @@ package inference
 import (
 	"context"
 	"errors"
-	"math"
-	"slices"
-	"sync"
+	"image"
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
-	"overgo/internal/checked"
 	"overgo/internal/composition"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
-	"overgo/internal/tokenizer"
 )
 
-// RepresentationSource captures one exact pre-layer model representation.
-// Runner implements this port.
+// RepresentationSource encodes an image into the representation a composition's source contract names: an image
+// encoder's output, its channels by its tokens.
 type RepresentationSource interface {
 	ModelID() artifact.ID
-	ExtractLayerInputs(context.Context, []tokenizer.TokenID, []int32) (reference.Value, error)
+	EncodeImage(context.Context, image.Image) (reference.Value, error)
 }
 
-// RepresentationTarget admits a complete soft-token replacement at its
-// embedding lookup boundary. Runner implements this port.
+// RepresentationTarget is the text model a composition's bridged rows enter: its identity, its embedding width and the
+// placeholder token a row takes.
 type RepresentationTarget interface {
 	ModelID() artifact.ID
-	ForwardWithEmbeddingOverrides(context.Context, []tokenizer.TokenID, []EmbeddingOverride) (reference.Value, error)
+	EmbeddingWidth() int
+	ImagePlaceholder() string
 }
 
 // RepresentationBridgeWeights are the host values bound to a compiled bridge
@@ -51,32 +49,25 @@ type CompositionRuntimeResources interface {
 	BridgeWeights(context.Context, modelrecipe.ComponentSession, artifact.ID, composition.BridgeWeightAuthority) (RepresentationBridgeWeights, error)
 }
 
-// ProductionComposition is an active-recipe-owned embedding-injection
-// runtime. Its bridge session cannot be constructed directly.
+// compositionFamily names a composition's prompt plan beside the projectors' families.
+const compositionFamily = "composition"
+
+// ProductionComposition is an active composition's image prompt session: its source encodes each image, its bridge
+// carries the encoding to the text model's width, and the rows take the text model's placeholder tokens, the path a
+// native projector's rows take to the runner. Both models stay as their authorities name them.
 type ProductionComposition struct {
-	plan                 composition.CompositionExecutionPlan
-	session              representationBridgeSession
-	cacheMu              sync.Mutex
-	cachedSource         artifact.ID
-	cachedRepresentation reference.Value
+	projector.Session
+	plan composition.CompositionExecutionPlan
 }
 
 type representationBridgeSession struct {
 	source  RepresentationSource
-	target  RepresentationTarget
 	program bridgegraph.Program
 	weights RepresentationBridgeWeights
 }
 
-var (
-	representationMatrix = reference.Value.IsMatrixWidth
-	representationExtent = reference.Value.Rows
-	compositionTensor    = tensor.NewShape
-)
-
-// OpenProductionComposition is the only embedding-injection construction
-// path. It resolves the active recipe, recompiles exact contract seams, and
-// admits resources solely against the resulting plan.
+// OpenProductionComposition is the only composition construction path. It resolves the active recipe, recompiles
+// exact contract seams, and admits resources solely against the resulting plan.
 func OpenProductionComposition(
 	ctx context.Context,
 	reader artifact.Reader,
@@ -93,7 +84,7 @@ func OpenProductionComposition(
 	}
 	if len(plan.BridgeDefinitions) != tensor.SingletonExtent ||
 		len(plan.BridgeWeights) != tensor.SingletonExtent || len(plan.Sessions.Components) != tensor.PairedExtent {
-		return nil, errors.New("inference: embedding injection requires one sealed bridge")
+		return nil, errors.New("inference: a composition requires one sealed bridge")
 	}
 	bridge, err := composition.LoadBridgeDefinition(ctx, reader, plan.BridgeDefinitions[tensor.FirstOffset])
 	if err != nil || bridge.Weights != plan.BridgeWeights[tensor.FirstOffset] {
@@ -119,6 +110,11 @@ func OpenProductionComposition(
 	if err != nil {
 		return nil, err
 	}
+	sourceBoundary, targetBoundary := program.Boundaries()
+	if sourceBoundary.Tap != representation.TapEncoderOutput || sourceBoundary.Layer != nil ||
+		targetBoundary.Tap != representation.TapEmbeddingOutput || targetBoundary.Layer != nil {
+		return nil, errors.New("inference: a composition bridges an encoder's output to a text model's embeddings")
+	}
 	sourceComponent := plan.Sessions.Components[tensor.FirstOffset]
 	targetComponent := plan.Sessions.Components[tensor.SingletonExtent]
 	sourceSession, err := resources.Source(ctx, sourceComponent)
@@ -141,138 +137,31 @@ func OpenProductionComposition(
 		sourceSession.ModelID() != plan.SourceModel || targetSession.ModelID() != plan.TargetModel {
 		return nil, errors.New("inference: composition session identity differs from execution plan")
 	}
-	return &ProductionComposition{
-		plan: plan,
-		session: representationBridgeSession{
-			source: sourceSession, target: targetSession, program: program, weights: weights,
-		},
-	}, nil
+	if uint64(targetSession.EmbeddingWidth()) != targetBoundary.Channels {
+		return nil, errors.New("inference: the bridge's output width differs from the text model's embeddings")
+	}
+	session := representationBridgeSession{source: sourceSession, program: program, weights: weights}
+	vision, err := projector.NewEncodedImageSession(
+		compositionFamily, targetSession.ImagePlaceholder(), targetSession.EmbeddingWidth(), session.captureAndTransform,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &ProductionComposition{Session: vision, plan: plan}, nil
 }
 
-// PlanIdentity returns the exact compiled authority used by this runtime.
-func (runtime *ProductionComposition) PlanIdentity() artifact.ID {
+// Recipe is the composition recipe the runtime was compiled from.
+func (runtime *ProductionComposition) Recipe() artifact.ID {
 	if runtime == nil {
 		return artifact.ID{}
 	}
-	return runtime.plan.ID
+	return runtime.plan.CompositionRecipe
 }
 
-// Forward captures the contracted source layer, evaluates the bridge, and
-// replaces every target token embedding before target inference.
-func (runtime *ProductionComposition) Forward(
-	ctx context.Context,
-	sourceTokens, targetTokens []tokenizer.TokenID,
-) (reference.Value, error) {
-	if runtime == nil {
-		return reference.Value{}, errors.New("inference: production composition is absent")
-	}
-	if ctx == nil {
-		return reference.Value{}, errors.New("inference: production composition context is absent")
-	}
-	if err := ctx.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	runtime.cacheMu.Lock()
-	bridged, found := runtime.cachedRepresentation, runtime.cachedSource == identity
-	runtime.cacheMu.Unlock()
-	if found {
-		return runtime.session.inject(ctx, targetTokens, bridged)
-	}
-	bridged, err = runtime.session.captureAndTransform(ctx, sourceTokens)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	runtime.cacheMu.Lock()
-	runtime.cachedSource, runtime.cachedRepresentation = identity, bridged
-	runtime.cacheMu.Unlock()
-	return runtime.session.inject(ctx, targetTokens, bridged)
-}
-
-// ForwardArm executes one causal generation arm through this active-plan-owned
-// runtime. Ablations preserve the same source and target sessions and differ
-// only at the declared representation or bridge boundary.
-func (runtime *ProductionComposition) ForwardArm(
-	ctx context.Context,
-	arm composition.CompositeGenerationArm,
-	sourceTokens, targetTokens []tokenizer.TokenID,
-) (reference.Value, error) {
-	if runtime == nil {
-		return reference.Value{}, errors.New("inference: production composition is absent")
-	}
-	if ctx == nil {
-		return reference.Value{}, errors.New("inference: composite generation context is absent")
-	}
-	if err := ctx.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	switch arm {
-	case composition.CompositeGenerationTargetBaseline:
-		return runtime.session.target.ForwardWithEmbeddingOverrides(ctx, targetTokens, nil)
-	case composition.CompositeGenerationComposed:
-		return runtime.Forward(ctx, sourceTokens, targetTokens)
-	case composition.CompositeGenerationSourceAblated:
-		captured, err := runtime.session.capture(ctx, sourceTokens)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		zero, err := materializedZero(captured.Shape)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		bridged, err := runtime.session.transform(zero)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		return runtime.session.inject(ctx, targetTokens, bridged)
-	case composition.CompositeGenerationBridgeAblated:
-		if _, err := runtime.session.capture(ctx, sourceTokens); err != nil {
-			return reference.Value{}, err
-		}
-		_, targetBoundary := runtime.session.program.Boundaries()
-		shape, err := compositionTensor(targetBoundary.Channels, uint64(len(targetTokens)))
-		if err != nil {
-			return reference.Value{}, err
-		}
-		zero, err := materializedZero(shape)
-		if err != nil {
-			return reference.Value{}, err
-		}
-		return runtime.session.inject(ctx, targetTokens, zero)
-	default:
-		return reference.Value{}, errors.New("inference: composite generation arm is invalid")
-	}
-}
-
-func (runtime *ProductionComposition) transformedRepresentationCacheIdentity(sourceTokens []tokenizer.TokenID) (artifact.ID, error) {
-	if runtime == nil || !runtime.plan.CacheIdentity.Valid() {
-		return artifact.ID{}, errors.New("inference: transformed representation cache authority is absent")
-	}
-	return artifact.JSONID(artifact.KindProfile, struct {
-		Authority artifact.ID         `json:"authority"`
-		Source    []tokenizer.TokenID `json:"source"`
-	}{Authority: runtime.plan.CacheIdentity, Source: sourceTokens})
-}
-
-func (session representationBridgeSession) captureAndTransform(
-	ctx context.Context,
-	sourceTokens []tokenizer.TokenID,
-) (reference.Value, error) {
-	captured, err := session.capture(ctx, sourceTokens)
-	if err != nil {
-		return reference.Value{}, err
-	}
-	return session.transform(captured)
-}
-
-func (session representationBridgeSession) capture(
-	ctx context.Context,
-	sourceTokens []tokenizer.TokenID,
-) (reference.Value, error) {
-	if ctx == nil || session.source == nil || session.target == nil {
+// captureAndTransform encodes one image through the source and carries it across the bridge: the rows the text model's
+// placeholders take, its embedding width by the encoder's tokens.
+func (session representationBridgeSession) captureAndTransform(ctx context.Context, picture image.Image) (reference.Value, error) {
+	if ctx == nil || session.source == nil {
 		return reference.Value{}, errors.New("inference: representation bridge authority is absent")
 	}
 	if err := ctx.Err(); err != nil {
@@ -282,62 +171,11 @@ func (session representationBridgeSession) capture(
 	if session.source.ModelID() != sourceBoundary.Model {
 		return reference.Value{}, errors.New("inference: representation bridge model identity differs")
 	}
-	if sourceBoundary.Tap != representation.TapLayerInput || sourceBoundary.Layer == nil ||
-		*sourceBoundary.Layer > math.MaxInt32 {
-		return reference.Value{}, errors.New("inference: representation source tap is not an addressable layer input")
-	}
-	return session.source.ExtractLayerInputs(
-		ctx, sourceTokens, []int32{int32(*sourceBoundary.Layer)},
-	)
-}
-
-func materializedZero(shape tensor.Shape) (reference.Value, error) {
-	elements, err := shape.Elements()
+	captured, err := session.source.EncodeImage(ctx, picture)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	count, ok := checked.Int(elements)
-	if !ok {
-		return reference.Value{}, errors.New("inference: ablation representation exceeds host address space")
-	}
-	return reference.NewValue(shape, make([]float32, count))
-}
-
-func (session representationBridgeSession) inject(
-	ctx context.Context,
-	targetTokens []tokenizer.TokenID,
-	bridged reference.Value,
-) (reference.Value, error) {
-	if ctx == nil || session.target == nil {
-		return reference.Value{}, errors.New("inference: representation target authority is absent")
-	}
-	if err := ctx.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	_, targetBoundary := session.program.Boundaries()
-	if session.target.ModelID() != targetBoundary.Model ||
-		targetBoundary.Tap != representation.TapEmbeddingOutput || targetBoundary.Layer != nil {
-		return reference.Value{}, errors.New("inference: representation target tap is not the embedding boundary")
-	}
-	rowCount := len(targetTokens)
-	if uint64(rowCount) > math.MaxUint32 || !representationMatrix(bridged, targetBoundary.Channels) {
-		return reference.Value{}, errors.New("inference: bridge output cannot replace the target token sequence")
-	}
-	complete, completeErr := representationExtent(bridged, tensor.FirstOffset, uint64(rowCount))
-	if completeErr != nil || len(complete.Data) != len(bridged.Data) {
-		return reference.Value{}, errors.New("inference: bridge output cannot replace the target token sequence")
-	}
-	overrides := make([]EmbeddingOverride, rowCount)
-	for index := range overrides {
-		row, rowErr := representationExtent(bridged, uint64(index), tensor.SingletonExtent)
-		if rowErr != nil {
-			return reference.Value{}, rowErr
-		}
-		overrides[index] = EmbeddingOverride{
-			TokenIndex: uint32(index), Embedding: slices.Clone(row.Data),
-		}
-	}
-	return session.target.ForwardWithEmbeddingOverrides(ctx, targetTokens, overrides)
+	return session.transform(captured)
 }
 
 func (session representationBridgeSession) transform(input reference.Value) (reference.Value, error) {

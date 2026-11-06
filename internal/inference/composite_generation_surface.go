@@ -44,30 +44,6 @@ func ResolveCompositeGenerationSurface(
 	return compositeGenerationSurface(plan, promotion), nil
 }
 
-// PromotedGeneration resolves the surface selection against the exact plan
-// already retained by a live production composition.
-func (runtime *ProductionComposition) PromotedGeneration(
-	ctx context.Context,
-	reader artifact.Reader,
-) (CompositeGenerationSurface, error) {
-	if runtime == nil || runtime.plan.ValidateIdentity() != nil {
-		return CompositeGenerationSurface{}, errors.New("inference: production composition is absent")
-	}
-	promotion, plan, found, err := composition.ActiveCompositeGeneration(
-		ctx, reader, runtime.plan.SourceModel, runtime.plan.TargetModel, runtime.plan.Task,
-	)
-	if err != nil {
-		return CompositeGenerationSurface{}, err
-	}
-	if !found {
-		return CompositeGenerationSurface{}, errors.New("inference: production composition is not evidence-promoted")
-	}
-	if plan.ID != runtime.plan.ID || plan.CompositionRecipe != runtime.plan.CompositionRecipe {
-		return CompositeGenerationSurface{}, errors.New("inference: promoted generation differs from resident composition")
-	}
-	return compositeGenerationSurface(plan, promotion), nil
-}
-
 func compositeGenerationSurface(
 	plan composition.CompositionExecutionPlan,
 	promotion composition.CompositeGenerationPromotion,

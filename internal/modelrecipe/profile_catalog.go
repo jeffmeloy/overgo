@@ -243,15 +243,7 @@ func compactProfileContents(contents []artifact.Content) []artifact.Content {
 }
 
 func compactProfileLineage(lineage []artifact.Lineage) []artifact.Lineage {
-	slices.SortFunc(lineage, func(left, right artifact.Lineage) int {
-		if order := artifact.CompareID(left.Child, right.Child); order != 0 {
-			return order
-		}
-		if order := artifact.CompareID(left.Parent, right.Parent); order != 0 {
-			return order
-		}
-		return int(left.Relation) - int(right.Relation)
-	})
+	slices.SortFunc(lineage, compareLineage)
 	return slices.Compact(lineage)
 }
 

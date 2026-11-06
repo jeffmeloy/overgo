@@ -802,11 +802,7 @@ func resolveActiveCapability(ctx context.Context, store artifact.Reader, modelID
 	// capability program, but its ordered program still resolves here: the
 	// catalog carries the inference module contracts, and selection needs
 	// the program only for its definition, resources, and policy bindings.
-	if activation.Definition.Task == recipe.TaskInference {
-		program, err := recipe.CompileProgram(activation.Definition, catalog)
-		return activation, program, err
-	}
-	program, err := CompileCapability(activation.Definition)
+	program, err := compileRecipe(activation.Definition)
 	return activation, program, err
 }
 

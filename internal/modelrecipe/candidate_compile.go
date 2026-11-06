@@ -341,9 +341,9 @@ func requireStoredCandidateCompilation(
 		if err != nil {
 			return err
 		}
-		slices.SortFunc(parents, compareCandidateLineage)
+		slices.SortFunc(parents, compareLineage)
 		want := slices.Clone(expectedLineage[expected.Descriptor.ID])
-		slices.SortFunc(want, compareCandidateLineage)
+		slices.SortFunc(want, compareLineage)
 		if !slices.Equal(parents, want) {
 			return fmt.Errorf("model recipe: stored candidate document lineage differs: %s", expected.Descriptor.ID)
 		}
@@ -904,7 +904,7 @@ func canonicalCompilationFacts(
 		compactedContents = append(compactedContents, content)
 	}
 	lineage = slices.Clone(lineage)
-	slices.SortFunc(lineage, compareCandidateLineage)
+	slices.SortFunc(lineage, compareLineage)
 	lineage = slices.Compact(lineage)
 	children := make(map[artifact.ID]bool, len(compactedContents))
 	for _, content := range compactedContents {
@@ -937,7 +937,9 @@ func compareCandidateReference(left, right CandidateReference) int {
 	return artifact.CompareID(left.Evidence, right.Evidence)
 }
 
-func compareCandidateLineage(left, right artifact.Lineage) int {
+// compareLineage orders lineage edges by child, then parent, then relation, the one order candidate plans and profile
+// catalogs keep theirs in.
+func compareLineage(left, right artifact.Lineage) int {
 	if order := artifact.CompareID(left.Child, right.Child); checked.Nonzero(order) {
 		return order
 	}

@@ -236,12 +236,7 @@ func deriveResolvedExecutionRecipes(
 		if err != nil {
 			return nil, err
 		}
-		if task == recipe.TaskInference {
-			_, err = recipe.CompileProgram(definition, catalog)
-		} else {
-			_, err = CompileCapability(definition)
-		}
-		if err != nil {
+		if _, err = compileRecipe(definition); err != nil {
 			return nil, fmt.Errorf("model recipe: compile derived %s graph: %w", task, err)
 		}
 		result[index] = CandidateTaskRecipe{Task: task, Definition: definition}
@@ -284,7 +279,7 @@ func deriveCandidateEvaluationRecipe(
 	if err != nil {
 		return recipe.Definition{}, err
 	}
-	if _, err := recipe.CompileProgram(definition, workflowrecipe.Catalog()); err != nil {
+	if _, err := compileRecipe(definition); err != nil {
 		return recipe.Definition{}, fmt.Errorf("model recipe: compile derived evaluation graph: %w", err)
 	}
 	return definition, nil

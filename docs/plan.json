@@ -74,17 +74,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -120,
-        "reason": "Without capability-surface, whose forwarding code measured 0, the steps sum to about -120 nodes, an estimate. The large reductions are in rows compact-tests and compact-production."
+        "nodes": 0,
+        "reason": "catalog-choice measured -84 production nodes against its estimate of -60: one catalog choice where four stood and one lineage comparator where two did; the row's later steps carry their own measured deletions."
       },
       "steps": [
-        {
-          "id": "catalog-choice",
-          "title": "Choose the recipe catalog in one place",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOneCatalogForEachTask$'",
-          "rationale": "The task-to-catalog choice repeats at internal/modelrecipe/compile.go:609, candidate_validation.go:38, lifecycle.go:805 and candidate_recipe_derivation.go:239. A lineage comparator is written twice (candidate_compile.go:937, profile_catalog.go:246), apart from checked.Nonzero. The word candidate means three things; rename two.\nsession_resources.go:64 makes no task choice, and the resolvers at capability_selector.go:67-161 are 83, 139 and 305 nodes and did not cluster, so both leave the step. Yield about -60 nodes, an estimate.\nServes: development velocity.\nDisappears: three copies of the choice and one comparator.\nEvidence: an analysis test.\nBatch: host lane."
-        },
         {
           "id": "release-storages",
           "title": "Fold repeated release and view code",
@@ -646,7 +639,8 @@
       "blocks": [
         "unattended-driver"
       ],
-      "asked": "2026-11-01"
+      "asked": "2026-11-01",
+      "answer": "Repair it"
     },
     {
       "id": "kernel-provenance",
@@ -670,7 +664,8 @@
         "Keep both registers: docs/sqa_findings.json for review sessions, the store for the system"
       ],
       "recommendation": "One register, read and written by cmd/finding, so a finding is not a commit of its own. Review sessions write through the command.",
-      "asked": "2026-11-03"
+      "asked": "2026-11-03",
+      "answer": "Keep both registers: docs/sqa_findings.json for review sessions, the store for the system"
     }
   ]
 }

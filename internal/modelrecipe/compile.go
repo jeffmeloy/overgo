@@ -606,12 +606,18 @@ func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
 	if definition.Task == recipe.TaskInference {
 		return recipe.Program{}, fmt.Errorf("model recipe: unsupported runtime task %q", definition.Task)
 	}
-	return recipe.CompileProgram(definition, capabilityCatalog(definition))
+	return compileRecipe(definition)
 }
 
-// capabilityCatalog is the catalog that holds a recipe's modules: a projection or training recipe is a workflow's, except
-// a representation bridge, whose stages this package's own catalog holds.
-func capabilityCatalog(definition recipe.Definition) *recipe.Catalog {
+// compileRecipe compiles a recipe of any task against the catalog that holds its modules, definitionCatalog.
+func compileRecipe(definition recipe.Definition) (recipe.Program, error) {
+	return recipe.CompileProgram(definition, definitionCatalog(definition))
+}
+
+// definitionCatalog is the one choice of the catalog that holds a recipe's modules: a projection or training recipe's is
+// a workflow's, except a representation bridge, whose stages this package's own catalog holds, and every other task's,
+// inference among them, is this package's own.
+func definitionCatalog(definition recipe.Definition) *recipe.Catalog {
 	bridge := slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Module == ModuleCaptureRepresentation })
 	if !bridge && (definition.Task == recipe.TaskProjection || definition.Task == recipe.TaskTraining) {
 		return workflowrecipe.Catalog()

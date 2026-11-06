@@ -34,7 +34,7 @@ type CandidateRecipeClosure struct {
 // module catalogs and policy validators and returns the typed closure.
 func ValidateCandidateRecipe(definition recipe.Definition) CandidateRecipeClosure {
 	closure := CandidateRecipeClosure{Definition: definition.ID, Task: definition.Task}
-	if err := definition.Validate(capabilityCatalog(definition)); err != nil {
+	if err := definition.Validate(definitionCatalog(definition)); err != nil {
 		closure.Refusals = append(closure.Refusals, "module graph: "+err.Error())
 	}
 	for _, node := range definition.Nodes {

@@ -346,8 +346,9 @@ type Row struct {
 	Stale string `json:"stale,omitzero"`
 }
 
-// The measures of a warm cell (Row.Warm): a request read again on a loaded model, its prompt through the cache the
-// first reading left, and its decode's rate.
+// The measures of an inference row's first output and throughput: a request read again on a loaded model, its prompt
+// through the cache the first reading left, and its decode's rate. A row's speed is read warm, never the first request
+// after its load.
 const (
 	warmFirstMetric = "time to prefill, a request again on a loaded model"
 	warmRateMetric  = "output tokens over decode time, a request again on a loaded model"
@@ -496,7 +497,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Lengths = lengthCells(capability.Task, observed)
-			row.Warm = append(warmCells(capability.Task, observed), userSizeCells(observed)...)
+			row.Warm = userSizeCells(observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, earned(index.EvaluationsByRecipe[capability.Recipe], entry.State), descriptors)
 			if record, found := heldout[capability.Recipe]; found {
@@ -897,21 +898,12 @@ func (summary *servingSummary) readWarm(observation runrecord.ServingObservation
 	read.window = append(read.window, sample)
 }
 
-// warmCells are a row's first output and throughput on the warm request, each where its attempts timed it.
-func warmCells(task recipe.Task, observed *servingSummary) []Cell {
-	if task != recipe.TaskInference || observed == nil || observed.warm == nil {
-		return nil
+// warmTimed is a timing of the warm request, read as timed reads the measured attempt's, where its attempts took it.
+func (summary *servingSummary) warmTimed(timing int, unit, metric string) (Cell, bool) {
+	if summary == nil {
+		return Cell{}, false
 	}
-	var cells []Cell
-	for _, warm := range []struct {
-		timing       int
-		unit, metric string
-	}{{timingFirstOutput, "ms", warmFirstMetric}, {timingDecodeRate, "tok/s", warmRateMetric}} {
-		if cell, measured := observed.warm.timed(warm.timing, warm.unit, warm.metric, "serving "+warm.metric+", the median of the newest attempts"); measured {
-			cells = append(cells, cell)
-		}
-	}
-	return cells
+	return summary.warm.timed(timing, unit, metric, "serving "+metric+", the median of the newest attempts")
 }
 
 // readUserSize adds a success at the size a person asks for to its window, as readWarm does. Its whole request is its
@@ -1163,6 +1155,14 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		// answer a user waits for.
 		return inapplicable("a training session has no first output")
 	}
+	// An inference row's speed is the warm request's wherever its measurement took one, a request to a model already
+	// loaded and served, and not the first request after its load. A row whose model takes no warm request keeps its
+	// first request's on that reading's own contract, which no report of warm speed reads.
+	if task == recipe.TaskInference {
+		if cell, measured := observed.warmTimed(timingFirstOutput, "ms", warmFirstMetric); measured {
+			return cell
+		}
+	}
 	if cell, measured := observed.timed(timingFirstOutput, "ms", "time to prefill", "serving time to prefill, the median of the newest measured attempts"); measured {
 		return cell
 	}
@@ -1179,6 +1179,12 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 	if task == recipe.TaskTraining {
 		// A training session learns; it decodes no output tokens, so a decode rate is not its rate.
 		return inapplicable("a training session does not decode output tokens")
+	}
+	// As firstOutputCell: the warm request's decode rate wherever the measurement took one.
+	if task == recipe.TaskInference {
+		if cell, measured := observed.warmTimed(timingDecodeRate, "tok/s", warmRateMetric); measured {
+			return cell
+		}
 	}
 	if cell, measured := observed.timed(timingDecodeRate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the median of the newest measured attempts"); measured {
 		return cell

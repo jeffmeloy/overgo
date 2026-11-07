@@ -15,37 +15,47 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAWarmRequestIsScoredBesideTheColdOne holds a row to both sides of a trade between a cold start and warm speed,
-// as Qwen3.8 Flash Next's Strata port made one: its first request after load read 1742 ms to its first output and 66.8
-// tok/s while its decode in a conversation rose to 136. A measurement's attempt that reused the session it had served
-// is the warm request's alone: the row's first output and throughput stay its first request's, the newer warm attempt
-// standing in for neither, and the row's warm cells are that attempt's prompt read through the cache and its decode's
-// rate, each on its own contract. A warm cell the reference did not measure holds; a warm rate that falls is a decline
-// of its own beside a cold throughput that holds.
-func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
+// TestSpeedIsReadWarmAtStatedLengths holds an inference row's speed to its warm readings: the owner, 2026-11-07, cold
+// numbers are not reported. Qwen3.8 Flash Next's first request after load read 1742 ms to its first output and 66.8
+// tok/s, while on the loaded model a request read again decodes at 136 tok/s and a fresh 4,096-token prompt, its size
+// read once before, prefills in 1610 ms. The row's first output and throughput are the warm request's, each on the warm
+// contract, and its 4,096-token cell is the measured prompt's, so its prompt processing at that size is 4,096 tokens
+// over that time; the first request after load stands for neither, and a row whose model took no warm request keeps
+// its first request's on that reading's own contract, which no report of warm speed reads. A warm rate that falls is
+// the row's throughput decline.
+func TestSpeedIsReadWarmAtStatedLengths(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store := overgodbtest.Open(t, t.TempDir())
 	model := testutil.ArtifactID(t, artifact.KindModel, "warm-model")
 	served := testutil.ArtifactID(t, artifact.KindRecipe, "warm-recipe")
+	coldOnly := testutil.ArtifactID(t, artifact.KindRecipe, "cold-recipe")
 	here := testutil.ArtifactID(t, artifact.KindEvidence, "warm-environment")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "warm/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: served}, {ID: here}}}); err != nil {
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "warm/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: served}, {ID: coldOnly}, {ID: here}}}); err != nil {
 		t.Fatal(err)
 	}
 	started := int64(0)
-	// attempt commits a measurement's attempt, newer than every one before it: its first output, and its tokens over
-	// its decode's milliseconds; a cold one timed its load, a warm one reused its session.
-	attempt := func(warm bool, firstMS float64, tokens uint64, decodeMS float64) {
+	// reading is one attempt of a measurement: the tokens it read, its first output, and its tokens over its decode's
+	// milliseconds; the first request timed its load, and a warm one reused its session.
+	type reading struct {
+		served        artifact.ID
+		loaded, warm  bool
+		input, tokens uint64
+		firstMS       float64
+		decodeMS      float64
+	}
+	attempt := func(read reading) {
 		t.Helper()
 		started++
 		ns := func(ms float64) uint64 { return uint64(math.Round(ms * float64(time.Millisecond))) }
 		value := runrecord.ServingObservation{
-			Model: model, Recipe: served, Environment: here, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded,
-			StartedUnixNS: started, MeasuredNS: ns(firstMS + decodeMS), SessionReused: warm, Usage: runrecord.ServingUsage{OutputTokens: tokens},
-			Phases:   []runrecord.PhaseMetric{{Phase: runrecord.PhaseDecode, DurationNS: ns(decodeMS)}},
-			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: ns(firstMS)}},
+			Model: model, Recipe: read.served, Environment: here, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded,
+			StartedUnixNS: started, MeasuredNS: ns(read.firstMS + read.decodeMS), SessionReused: read.warm,
+			Usage:    runrecord.ServingUsage{InputTokens: read.input, OutputTokens: read.tokens},
+			Phases:   []runrecord.PhaseMetric{{Phase: runrecord.PhaseDecode, DurationNS: ns(read.decodeMS)}},
+			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: ns(read.firstMS)}},
 		}
-		if !warm {
+		if read.loaded {
 			value.Phases = append(value.Phases, runrecord.PhaseMetric{Phase: runrecord.PhaseLoad, DurationNS: ns(30000)})
 		}
 		observation := testcheck.Must(runrecord.NewServingObservation(value))(t)
@@ -54,33 +64,39 @@ func TestAWarmRequestIsScoredBesideTheColdOne(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	attempt(false, 1742, 100, 1496)
-	attempt(true, 50, 128, 941)
+	prompt := evaluation.PromptLengths[0]
+	attempt(reading{served: served, loaded: true, input: 1, firstMS: 1742, tokens: 100, decodeMS: 1496})
+	attempt(reading{served: served, input: uint64(prompt), firstMS: 1610, tokens: 24, decodeMS: 180})
+	attempt(reading{served: served, warm: true, input: 256, firstMS: 50, tokens: 128, decodeMS: 941})
+	attempt(reading{served: coldOnly, loaded: true, input: 1, firstMS: 1742, tokens: 100, decodeMS: 1496})
 	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)
 	summary := summaries[served]
 	first := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)
 	rate := throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summary)
-	if first.Value != 1742 || math.Abs(rate.Value-100/1.496) > 1e-6 {
-		t.Fatalf("the row's first output and throughput = %v ms and %v tok/s, want its first request's, 1742 ms and %.4g", first.Value, rate.Value, 100/1.496)
+	if first.Value != 50 || first.Contract.Metric != warmFirstMetric || math.Abs(rate.Value-128/0.941) > 1e-6 || rate.Contract.Metric != warmRateMetric {
+		t.Fatalf("the row's first output and throughput = %+v and %+v, want the warm request's 50 ms and %.4g tok/s on the warm contract", first, rate, 128/0.941)
 	}
-	warm := warmCells(recipe.TaskInference, summary)
-	if len(warm) != 2 || warm[0].Value != 50 || warm[0].Contract.Metric != warmFirstMetric || math.Abs(warm[1].Value-128/0.941) > 1e-6 ||
-		warm[1].Contract.Metric != warmRateMetric || warmColumn(warm[0]) != metric.FirstOutput || warmColumn(warm[1]) != metric.Throughput {
-		t.Fatalf("the row's warm cells = %+v, want the warm attempt's 50 ms first output and %.4g tok/s, each on its own contract", warm, 128/0.941)
+	lengths := lengthCells(recipe.TaskInference, summary)
+	if len(lengths) == 0 || lengths[0].Prompt != prompt || lengths[0].Value != 1610 {
+		t.Fatalf("the row's longer-prompt cells = %+v, want the %d-token prompt's 1610 ms", lengths, prompt)
+	}
+	cold := summaries[coldOnly]
+	for column, cell := range map[metric.Name]Cell{
+		metric.FirstOutput: firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, cold),
+		metric.Throughput:  throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, cold),
+	} {
+		if cell.Contract.Metric == warmFirstMetric || cell.Contract.Metric == warmRateMetric {
+			t.Errorf("a row with no warm request reports its %s on the warm contract: %+v", column, cell)
+		}
 	}
 
-	row := func(warm []Cell) Row {
-		built := measuredFixture(model, map[metric.Name]Cell{metric.FirstOutput: first, metric.Throughput: rate})
-		built.Warm = warm
-		return built
+	row := func(rate Cell) Row {
+		return measuredFixture(model, map[metric.Name]Cell{metric.FirstOutput: first, metric.Throughput: rate})
 	}
-	if compared := (Pair{Before: new(row(nil)), After: new(row(warm))}).Compare(metric.Throughput); len(compared) != 0 {
-		t.Errorf("warm cells beside a reference without them compare as %+v, want them to hold", compared)
-	}
-	slower := append([]Cell(nil), warm...)
-	slower[1].Value = 90
-	compared := (Pair{Before: new(row(warm)), After: new(row(slower))}).Compare(metric.Throughput)
+	slower := rate
+	slower.Value = 90
+	compared := (Pair{Before: new(row(rate)), After: new(row(slower))}).Compare(metric.Throughput)
 	if len(compared) != 1 || compared[0].Verdict != regressed || compared[0].Then.Contract.Metric != warmRateMetric {
-		t.Errorf("a warm rate of 90 after %.4g tok/s, its cold throughput held, compares as %+v, want the warm rate's decline alone", warm[1].Value, compared)
+		t.Errorf("a warm rate of 90 after %.4g tok/s compares as %+v, want the row's throughput decline", rate.Value, compared)
 	}
 }

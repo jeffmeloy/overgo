@@ -174,14 +174,23 @@ func measureInference(ctx context.Context, repository, path string, open func(co
 // Strata's for its fresh prompts, enough for a first token and a decode.
 const lengthTokens = 24
 
+// The openings of a longer prompt's two readings: the unmeasured one that readies the model for its size, and the
+// measured one. Each names its size, so neither begins as the other did and a prefix cache gives none of it.
+const (
+	warmingOpening  = "warm-up prompt"
+	measuredOpening = "prompt"
+)
+
 // observeLengths reads, on a model loaded and served once, a fresh prompt of
 // each of evaluation.PromptLengths that its context holds with its answer,
 // and returns each as a serving attempt with no load of its own: its first
-// output is how long a user waits on a prompt of that size. A prompt is
-// Strata's word list sized by the model's own tokenizer, opened by a line
-// that names its size, so no prompt begins as another did and a prefix cache
-// gives none of it. A length the model cannot read is said and left out; a
-// request that fails is a failed attempt.
+// output is the model's prompt processing at that size, warm. Each size is
+// read first unmeasured, so what a model readies once for a size is not in
+// its reading. A prompt is Strata's word list sized by the model's own
+// tokenizer, opened by a line that names its size and reading, so no prompt
+// begins as another did and a prefix cache gives none of it. A length the
+// model cannot read is said and left out; a request that fails is a failed
+// attempt.
 func observeLengths(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
 	var observed []runrecord.ServingObservation
 	context := int(model.ModelProperties().ContextLength)
@@ -190,12 +199,19 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 			fmt.Fprintf(said, "recipe: no %d-token prompt: the context holds %d tokens\n", length, context)
 			continue
 		}
-		prompt, err := lengthPrompt(model, length)
+		warming, err := lengthPrompt(model, length, warmingOpening)
+		var prompt string
+		if err == nil {
+			prompt, err = lengthPrompt(model, length, measuredOpening)
+		}
 		if err != nil {
 			fmt.Fprintf(said, "recipe: no %d-token prompt: %v\n", length, err)
 			continue
 		}
-		fmt.Fprintf(said, "recipe: a fresh %d-token prompt\n", length)
+		fmt.Fprintf(said, "recipe: a fresh %d-token prompt, read once unmeasured and then measured on another\n", length)
+		if _, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard); err != nil {
+			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed: %v\n", length, err)
+		}
 		observation, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
 		if err != nil {
 			fmt.Fprintf(said, "recipe: the %d-token prompt failed: %v\n", length, err)
@@ -227,7 +243,7 @@ func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runre
 		fmt.Fprintf(said, "recipe: no warm request: the context holds %d tokens\n", context)
 		return nil
 	}
-	prompt, err := lengthPrompt(model, warmPromptTokens)
+	prompt, err := lengthPrompt(model, warmPromptTokens, measuredOpening)
 	if err != nil {
 		fmt.Fprintf(said, "recipe: no warm request: %v\n", err)
 		return nil
@@ -246,10 +262,11 @@ func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runre
 }
 
 // lengthPrompt is the longest of Strata's word lists, opened by a line naming
-// length, that the model's tokenizer reads as no more than length tokens.
-func lengthPrompt(model servedModel, length int) (string, error) {
+// the reading and length, that the model's tokenizer reads as no more than
+// length tokens.
+func lengthPrompt(model servedModel, length int, opening string) (string, error) {
 	prompt := func(words int) string {
-		return fmt.Sprintf("[prompt of %d tokens]\n%s", length, evaluation.WordList(words))
+		return fmt.Sprintf("[%s of %d tokens]\n%s", opening, length, evaluation.WordList(words))
 	}
 	// The most words a prompt may hold: the fewest whose one word more is past length. Every word is
 	// at least a token, so length words with their opening are more than length tokens.

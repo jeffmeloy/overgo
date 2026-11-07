@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
+        "nodes": 189,
         "reason": "Estimate before the survey: the scorecard's speed cells read on a warm request at stated lengths, and a command that writes the README's table from the newest record; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "scorecard-warm",
-          "title": "The scorecard's speed cells are pp at 4K and 16K and tg on chat and agent turns, each read on a warm request",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestSpeedIsReadWarmAtStatedLengths$'",
-          "rationale": "The scorecard reads first output and peak memory at its longer prompts on the first request after a fresh load, and its warm cells (readWarm) read a prompt through the prompt cache, which is not prompt processing. Each speed cell is read on a request served after one unmeasured request on the loaded model, with no prompt reused: pp at a 4K and a 16K prompt as the prompt's tokens over the time to its first token, tg as generated tokens over decode time on a short chat and on agent turns. The cold first-request speed cells go; load time stays its own metric.\nServes: first-output and throughput, read warm at stated lengths.\nDisappears: cold speed cells and the cache-read warm cell.\nEvidence: a scorecard built from records holding a cold first request and a warm one reports the warm one's pp and tg, at the lengths it states.\nBatch: host lane."
-        },
         {
           "id": "readme-table",
           "title": "go run ./cmd/validate -readme writes the README's served-models table from the newest scorecard record",

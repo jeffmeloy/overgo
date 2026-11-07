@@ -214,9 +214,10 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 // TestInferenceMeasurementReadsLongerPrompts holds a measurement to the
 // attempts the scorecard's longer-prompt first outputs read: after the
 // verified request, the loaded model reads a fresh prompt of each length its
-// context holds, sized by its own tokenizer, each recorded under the recipe
-// with the tokens it read and no load of its own; a length the context cannot
-// hold is not asked for. Then it reads a warm request twice and records the
+// context holds, sized by its own tokenizer, each read once unmeasured and
+// then recorded under the recipe on another fresh prompt of its size, with the
+// tokens it read and no load of its own; a length the context cannot hold is
+// not asked for. Then it reads a warm request twice and records the
 // second, an attempt that reused the session it had served, timed no load,
 // sampled its prefill and decoded.
 func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
@@ -228,8 +229,13 @@ func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
 	_, attempt, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil })
 	testcheck.NoError(t, err)
 	observed := servingAttempts(t, directory)
-	if len(observed) != 3 || observed[2].ID != attempt || len(model.prompts) != verified+4 {
+	if len(observed) != 3 || observed[2].ID != attempt || len(model.prompts) != verified+5 {
 		t.Fatalf("serving attempts = %+v after %d prompts; want the verified request's, one longer prompt's and the warm request's second reading", observed, len(model.prompts)-verified)
+	}
+	// The longer prompt's size is read once unmeasured before the measured prompt, each opened by its own line.
+	warming, measuring := model.prompts[verified+1], model.prompts[verified+2]
+	if !strings.HasPrefix(warming, fmt.Sprintf("[%s of %d tokens]", warmingOpening, read)) || !strings.HasPrefix(measuring, fmt.Sprintf("[%s of %d tokens]", measuredOpening, read)) {
+		t.Fatalf("the longer prompt was read as %.40q then %.40q; want an unmeasured %d-token prompt, then a measured one", warming, measuring, read)
 	}
 	warm := observed[0]
 	warmPrefilled := slices.ContainsFunc(warm.Hardware, func(sample runrecord.ServingHardwareSample) bool {

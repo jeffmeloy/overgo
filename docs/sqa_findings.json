@@ -1,8 +1,9 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Prioritize known prerequisite ordering and retained recovery before expanding recipe behavior.325 is a precise runtime admission gap,322 is existing gate sequencing,271 is existing continuation; distinct contracts stay separate.",
+    "assessment": "Prioritize326's concrete admitted-model mismatch. Credit324's accepted retained-owner migration without closing it. Do not merge frozen reference correctness, full optimizer training, format migration or recipe admission merely because they share loading/workflow files.",
     "current_review_order": [
+        "SQA-326",
         "SQA-316",
         "SQA-315",
         "SQA-271",
@@ -17,18 +18,18 @@
         "SQA-257"
       ],
     "declined_candidates": [
-        "No recipe-wide replacement engine, universal dry-run, custom preflight suite, extra scheduler or automatic retry layer.",
-        "No blanket requirement that all adapters exist before replay: completed answers deliberately replay without model loading.",
-        "No claim that all runtime failures can be predicted; output-dependent shape/cardinality/data checks remain where values become available.",
-        "No retirement of restart, cancellation, numerical, failed-publication or trust-boundary coverage just to reduce test nodes."
+        "No blanket deletion of newly added reference/gradient/parity tests: their behavioral owners differ.",
+        "No loader-only gate patch presented as complete training support; matrix/gradient/checkpoint/device costs remain.",
+        "No new recipe scheduler, model campaign, universal parity threshold, test selector or statistics framework.",
+        "No savings from relocating gate reconstruction into another helper or fixture; count complete replacement cost."
       ],
-    "rank_basis": "User priority brings322 immediately after271;325 precedes324's broader format migration. Serious evidence-integrity findings316/315 retain precedence. Other relative order unchanged."
+    "rank_basis": "326 P1 is first for silent numerical-contract change in an admitted training route. Other open findings retain relative order; this targeted sample does not pretend to revalidate every historical severity."
   },
     "committed_plan": {
-    "git_blob": "7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8",
+    "git_blob": "f45079d1684713d8beeb91db449c30401f774593",
     "path": "docs/plan.json",
-    "revision": "efc02c5fdbf321a8ae0686933839f82306d3f894",
-    "sha256": "1559594628a95872c1f934e90a9b7a136c85db2a2f6d6eba0938fa02710550a2",
+    "revision": "ea5330ecb23022c379caf3336452718655f2a928",
+    "sha256": "6a7570762f9daee8d33236fbe754b02f87d50dbe9be1897fd17111f9464bc746",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -6214,17 +6215,39 @@
       "comparison": "Inspect the three callers and already-imported standard function; ordinary affected native validation when adopted is enough. Trivial reuse needs no additional test, SQA execution or confidence run."
     },
     {
-      "id": "SQA-324",
-      "status": "open",
-      "severity": "P2",
-      "category": "model-loading-and-automation-consolidation",
-      "classification": "source-established-format-coupling-with-unquantified-net-reduction",
-      "title": "Make storage format an input to the shared model loader and retire required conversion",
-      "evidence_commit": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
-      "sources": [
+    "category": "model-loading-and-automation-consolidation",
+    "classification": "source-established-format-coupling-with-unquantified-net-reduction",
+    "closure_criteria": [
+        "Supported directory models reach the existing runner without writing a GGUF solely to serve/evaluate them; actual export remains explicit and every remaining conversion has a concrete consumer.",
+        "The shared loading owner accepts physical GGUF and HF facts/tensor sources; displaced virtual-file/glue paths are deleted where no longer needed, with no parallel runtime or speculative generic framework.",
+        "Exact model/source/recipe/evidence identities remain valid; any transition is owned by existing artifact provenance/admission and cannot silently reuse historical validation under a changed identity.",
+        "Tensor naming,axis/shape/strides,RoPE permutations,tied embeddings,dtype/quantization blocks,FP8 scaling,tokenizer/EOS/chat templates,errors/cancellation and resource lifetime retain established owners.",
+        "Complete before/after production/test AST,compatibility/helpers/wrappers/migration,fixture bytes,setups,gate work and maintenance establish a net reduction or explicitly justify necessary growth. Count303/262 savings once only.",
+        "Retire synthetic-header/padding assertions only when that runtime behavior disappears; move their unique tensor-content/bounds/lifetime requirements into retained loader fixtures. Keep real-format parser/export and independent numerical checks."
+      ],
+    "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution.",
+    "displaced_surface": "Immediate target: unnecessary model-sized intermediate files, conversion invocation/retry/registration steps for already supported native directories, and stale conversion-only prerequisite text through the implementation plan owner. Coordinated target after callers migrate: gguf.View's synthetic header->Parse roundtrip, region/padding emulation and directory-opener registration used only to masquerade as GGUF; viewProfile/viewed conversion-to-File glue. Keep required architecture mapping, tokenizer/config reading, real GGUF parser/writer, validated tensor reads, bounded transformed buffers and close ownership. Do not delete hfconvert wholesale. fromView currently hashes the virtual image and existing manifests/recipes/evidence depend on that identity: preserve exact old identities and verification, or use the existing artifact/derivation owner for an explicit migration without relabeling evidence. If a compatibility verifier still needs synthetic bytes, retain and charge it; full view deletion cannot then be claimed. SQA-303 and262 remain distinct current test cleanups; their savings are not additive to deleting their containing paths.",
+    "evidence": "Physical GGUF and HF directories already share inference through gguf.File/LoadedProgram/Runner; supported directories use hfconvert.View without a disk conversion. View still constructs an in-memory GGUF header/offset/padding image and reparses it for format-bound loading and identity consumers. At this pin the completed 0.5B judgement used conversion for its token/placeholder parity work; its separate memory/answer measurement opened the native directory. These are different retained runs, not evidence that conversion was needed by the runtime. The committed plan now accepts format-loader/do after vision-bridge, and the obsolete conversion prerequisite paragraph is gone with the completed judge step. The actual shared-loader migration has not landed: View, its synthetic image, format-specific binding and virtual-image identity obligations remain. Source-established unnecessary format coupling; net code/memory/elapsed savings remain unmeasured.",
+    "evidence_commit": "ea5330ecb23022c379caf3336452718655f2a928",
+    "expected_benefit": {
+        "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established.",
+        "uncertainty": "No candidate implementation, package build, application/model/device run,benchmark/profile or peak-memory measurement. parser-local/manual resolution only. Mandatory conversion removal saves a write only on paths still doing it; deferred transforms can increase open latency. Count source verification and repeated transformations, not just removed output bytes.",
+        "cost_contract": "Before/after must cover BOTH format readers, all migrated model/load/identity callers, retained compatibility/export paths and every moved test/helper. Proposed new dependency/framework/config/selector/schema/recurring workload:0. Reuse existing fixtures, target new static fixture bytes0, but actual fixture bytes and setup executions must be reported from the complete replacement. Existing profile parity performs three tiny conversion/view setups; migrated load parity should reuse those cases, with real-export checks retained only under the writer owner. Existing native Go caching and gate selection remain; do not add a parallel confidence suite or model campaign."
+      },
+    "id": "SQA-324",
+    "impact": "Can remove disk duplication and setup work where conversion still runs, and can reduce internal format coupling. Native directories already skip disk conversion, so no additional saved write is credited there. Removing shared mapping would break tensor order,RoPE,tokenization,quantized/FP8 execution or model identity. Preserve trust-boundary bounds, source integrity, cancellation, host-mapped lifetime and errors; do not replace bounded reads with whole-model F32 materialization. No current data loss/confidentiality defect or measured speedup is alleged.",
+    "likely_effort": "Small workflow prerequisite correction for already supported models; cross-package loader/identity migration is larger and not yet costed. Proceed only with a complete replacement/deletion account.",
+    "plan_coverage": "Accepted by master_lead_triage under324 and scheduled as format-loader/do. Credit that adoption and the completed judgement; keep open until implementation removes the unnecessary coupling with identity/lifetime preservation. No implementation code savings or completed migration credited.",
+    "plan_references": [
+        "format-loader/do (open, after vision-bridge; shared loading boundary and displaced virtual view)",
+        "vision-bridge/judge (landed; retained prompt-token/placeholder parity and judgement evidence)"
+      ],
+    "recommended_change": "Use the existing direct-directory opening path for supported models and remove conversion as a workflow prerequisite after the existing prompt/identity admission holds. Keep actual export only for demonstrated consumers; do not remove the public command, unsupported-family fallback or projector conversion without replacing/explicitly retiring their callers. Then replace the format-specific boundary inside the existing model/modelrecipe loading owners with the minimum shared model facts and typed tensor readers needed by BOTH physical GGUF and HF callers. Reuse profileTensors, hfgguf mappings, Gemma4 mapping, safetensors readers, model shape validation and the existing host/device transfer owner. This must replace the simulated-file dependency, not add a parallel loader/framework around it. Retain format-specific parsing at the input edge and perform required dtype/layout transformations once at the existing load boundary; kernels still receive explicit layouts and quantization types. Route training through shared loading only where densecausal.Load/LoadGGUF's F32 materialization and inference's packed/device policies actually share a contract.",
+    "severity": "P2",
+    "sources": [
         {
           "path": "docs/plan.json",
-          "symbol": "vision-bridge/judge: conversion prerequisite for Qwen2.5-0.5B; retain prompt-token parity"
+          "symbol": "format-loader/do: accepted shared-loader migration after vision-bridge; vision-bridge/judge conversion paragraph retired with completed row"
         },
         {
           "path": "internal/hfconvert/qwen35.go",
@@ -6293,32 +6316,15 @@
         {
           "path": "internal/inference/native_safetensors_model_test.go",
           "symbol": "TestQwen35ServesFromItsSafetensors; modeltest/device-gated numerical and decode owner"
+        },
+        {
+          "path": "docs/verification/vision-bridge-0.5b-judgement.json",
+          "symbol": "completed judgement records conversion use and separate native-directory memory/answer measurements"
         }
       ],
-      "evidence": "Two concrete storage callers already reach one inference path: physical GGUF -> gguf.Open, and HF directories -> hfconvert.View (profile qwen2/llama,Qwen3.5,Gemma4) -> gguf.View -> gguf.File -> LoadedProgram -> Runner/device loader. profileTensors supplies both modelTensors/Convert and viewProfile; mappedTensorData/mappedViewTensors likewise share mappings. Unsupported premise: every HF checkpoint must first be written as GGUF to use this runtime. Counterexample: Viewed recognizes qwen2, and onboardingModel returns a supported directory without conversion when it contains no GGUF; Qwen2.5-0.5B belongs to that profile. The committed judge paragraph still requires conversion, but source support does not by itself prove that particular model's prompt parity. Remaining coupling is real: View writes an in-memory GGUF header, computes offsets/padding, reparses through Parse and exposes synthetic byte regions solely to satisfy File-based model/load/identity consumers. Eliminating that indirection may reduce code/setup and memory work; net savings and faster opens are hypotheses, not measured findings.",
-      "recommended_change": "Use the existing direct-directory opening path for supported models and remove conversion as a workflow prerequisite after the existing prompt/identity admission holds. Keep actual export only for demonstrated consumers; do not remove the public command, unsupported-family fallback or projector conversion without replacing/explicitly retiring their callers. Then replace the format-specific boundary inside the existing model/modelrecipe loading owners with the minimum shared model facts and typed tensor readers needed by BOTH physical GGUF and HF callers. Reuse profileTensors, hfgguf mappings, Gemma4 mapping, safetensors readers, model shape validation and the existing host/device transfer owner. This must replace the simulated-file dependency, not add a parallel loader/framework around it. Retain format-specific parsing at the input edge and perform required dtype/layout transformations once at the existing load boundary; kernels still receive explicit layouts and quantization types. Route training through shared loading only where densecausal.Load/LoadGGUF's F32 materialization and inference's packed/device policies actually share a contract.",
-      "displaced_surface": "Immediate target: unnecessary model-sized intermediate files, conversion invocation/retry/registration steps for already supported native directories, and stale conversion-only prerequisite text through the implementation plan owner. Coordinated target after callers migrate: gguf.View's synthetic header->Parse roundtrip, region/padding emulation and directory-opener registration used only to masquerade as GGUF; viewProfile/viewed conversion-to-File glue. Keep required architecture mapping, tokenizer/config reading, real GGUF parser/writer, validated tensor reads, bounded transformed buffers and close ownership. Do not delete hfconvert wholesale. fromView currently hashes the virtual image and existing manifests/recipes/evidence depend on that identity: preserve exact old identities and verification, or use the existing artifact/derivation owner for an explicit migration without relabeling evidence. If a compatibility verifier still needs synthetic bytes, retain and charge it; full view deletion cannot then be claimed. SQA-303 and262 remain distinct current test cleanups; their savings are not additive to deleting their containing paths.",
-      "impact": "Can remove disk duplication and setup work where conversion still runs, and can reduce internal format coupling. Native directories already skip disk conversion, so no additional saved write is credited there. Removing shared mapping would break tensor order,RoPE,tokenization,quantized/FP8 execution or model identity. Preserve trust-boundary bounds, source integrity, cancellation, host-mapped lifetime and errors; do not replace bounded reads with whole-model F32 materialization. No current data loss/confidentiality defect or measured speedup is alleged.",
-      "expected_benefit": {
-        "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established.",
-        "uncertainty": "No candidate implementation, package build, application/model/device run,benchmark/profile or peak-memory measurement. parser-local/manual resolution only. Mandatory conversion removal saves a write only on paths still doing it; deferred transforms can increase open latency. Count source verification and repeated transformations, not just removed output bytes.",
-        "cost_contract": "Before/after must cover BOTH format readers, all migrated model/load/identity callers, retained compatibility/export paths and every moved test/helper. Proposed new dependency/framework/config/selector/schema/recurring workload:0. Reuse existing fixtures, target new static fixture bytes0, but actual fixture bytes and setup executions must be reported from the complete replacement. Existing profile parity performs three tiny conversion/view setups; migrated load parity should reuse those cases, with real-export checks retained only under the writer owner. Existing native Go caching and gate selection remain; do not add a parallel confidence suite or model campaign."
-      },
-      "likely_effort": "Small workflow prerequisite correction for already supported models; cross-package loader/identity migration is larger and not yet costed. Proceed only with a complete replacement/deletion account.",
-      "plan_references": [
-        "vision-bridge/judge (current conversion sentence and prompt-token/placeholder parity requirement)"
-      ],
-      "plan_coverage": "User-requested recommendation, not implementation authorization. Current judge acceptance remains unchanged; implementation owner reconciles the unnecessary prerequisite. No plan/skill edits by SQA.",
-      "closure_criteria": [
-        "Supported directory models reach the existing runner without writing a GGUF solely to serve/evaluate them; actual export remains explicit and every remaining conversion has a concrete consumer.",
-        "The shared loading owner accepts physical GGUF and HF facts/tensor sources; displaced virtual-file/glue paths are deleted where no longer needed, with no parallel runtime or speculative generic framework.",
-        "Exact model/source/recipe/evidence identities remain valid; any transition is owned by existing artifact provenance/admission and cannot silently reuse historical validation under a changed identity.",
-        "Tensor naming,axis/shape/strides,RoPE permutations,tied embeddings,dtype/quantization blocks,FP8 scaling,tokenizer/EOS/chat templates,errors/cancellation and resource lifetime retain established owners.",
-        "Complete before/after production/test AST,compatibility/helpers/wrappers/migration,fixture bytes,setups,gate work and maintenance establish a net reduction or explicitly justify necessary growth. Count303/262 savings once only.",
-        "Retire synthetic-header/padding assertions only when that runtime behavior disappears; move their unique tensor-content/bounds/lifetime requirements into retained loader fixtures. Keep real-format parser/export and independent numerical checks."
-      ],
-      "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution."
-    },
+    "status": "open",
+    "title": "Make storage format an input to the shared model loader and retire required conversion"
+  },
     {
       "id": "SQA-325",
       "status": "open",
@@ -6393,42 +6399,148 @@
         "Record complete production/test/helper/migration/setup/fixture/gate/maintenance delta, including necessary growth; no numeric savings claim until measured."
       ],
       "comparison": "Smallest deciding comparison during ordinary implementation validation: in TestReplayRunsNoStageItsOutputDoesNotNeed, keep its existing runtime and counting adapters, omit the last binding before the first call, assert the named refusal and zero counts, restore it through Register and continue its existing first-success/replay sequence. Current source predicts two upstream calls before refusal; proposed admission predicts zero. Preserve TestCancellationWhileWaitingForStageLock by supplying its two otherwise-unused bindings, and retain existing restart/drift/parallel owners. No SQA execution, artificial timing or additional confidence campaign."
+    },
+    {
+      "id": "SQA-326",
+      "status": "open",
+      "severity": "P1",
+      "category": "training-numerical-contract",
+      "classification": "source-established-model-mismatch-already-recorded-by-implementation",
+      "title": "Preserve attention gates through hybrid training or reject unsupported gated models early",
+      "evidence_commit": "ea5330ecb23022c379caf3336452718655f2a928",
+      "sources": [
+        {
+          "path": "internal/hybridtrain/stack_artifact.go",
+          "symbol": "LoadStackArtifact/bindAttentionLayer: fused per-head query/gate rows admitted, gate rows discarded"
+        },
+        {
+          "path": "cmd/train/route_hybrid_stack_windows.go",
+          "symbol": "trainHybridStack: LoadStackArtifact -> compiled program -> device -> streamed training"
+        },
+        {
+          "path": "internal/hybridtrain/stack.go",
+          "symbol": "layerMatrixPlan/matrixPlans/packLayerGradients: q/k/v/o packing without attention gate"
+        },
+        {
+          "path": "internal/hybridtrain/hybrid_train_device_cuda_windows.go",
+          "symbol": "residentViews: only q/k/v/o attention matrices"
+        },
+        {
+          "path": "internal/devicemath/hybrid_layer_resident_cuda_windows.go",
+          "symbol": "HybridLayerResidentMatrices/matW/withGradients: resident attention matrices and gradients"
+        },
+        {
+          "path": "internal/hostmath/hybrid_layer.go",
+          "symbol": "attentionMixForward: optional sigmoid output gate"
+        },
+        {
+          "path": "internal/hostmath/hybrid_layer_backward.go",
+          "symbol": "attentionMixBackward: attention gate gradient"
+        },
+        {
+          "path": "internal/hostmath/hybrid_layer_test.go",
+          "symbol": "TestHybridDecoderLayerBackwardFD: gated partial-RoPE case"
+        },
+        {
+          "path": "internal/hybridtrain/stack_artifact_test.go",
+          "symbol": "existing stack artifact/config binding fixtures"
+        },
+        {
+          "path": "internal/hybridtrain/language_model_test.go",
+          "symbol": "TestTheHybridStackGivesItsInputGradient: tiny frozen GDN+gated-attention masked loss"
+        },
+        {
+          "path": "internal/hybridtrain/language_reference_test.go",
+          "symbol": "languageModel/stackPass: test-only frozen language reference"
+        },
+        {
+          "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
+          "symbol": "TestTheHybridReferenceIsTheServedNineB: windows && modeltest; patches loaded gates before comparing reference to served model"
+        }
+      ],
+      "evidence": "Implementation already identified this defect in ea5330ecb and parked evidence:sha256:b2095f1dd25dd26024cf7fad4764584081b4710d3ca78d0869f354da3d7ac812; this SQA ID reconciles that known root cause, not an independent discovery. LoadStackArtifact has two committed callers: the public hybrid-stack training route and the served-9B reference test. bindAttentionLayer accepts fused [query(headDim)|gate(headDim)] rows per head, extracts only query rows and leaves Attn.Gate empty. The public route therefore trains ungated attention for an admitted gated Qwen3.5 artifact. The new parity test explicitly reloads those gate rows and assigns Attn.Gate after loading; its passing reference is not the model returned to the training route. The commit records normalized distance0.0005/cosine1.00000 with gates, versus1.13/cosine0.20 and a different leading probed ID with gates removed. Source also shows gate omissions in matrix plans, packed gradients and resident views: adding only a loader field does not repair trainable execution.",
+      "recommended_change": "Use the existing artifact and layer execution owners to preserve the admitted attention contract throughout loading, matrix extents, gradients, resident views, optimizer/checkpoint state and program identity. Until that complete support exists, reject unsupported gated training from available model metadata before multi-gigabyte materialization/device work. Keep valid frozen reference use possible through the existing model readers. Do not silently reinterpret a gated artifact as an ungated model or retry unchanged unsupported setup. Remove the parity test's manual gate reconstruction only when the retained loader supplies the correct frozen weights; do not copy a second loader into the test or add recipe-specific repair logic.",
+      "displaced_surface": "Immediate safe replacement is silent fused-query truncation for the unsupported training contract, with explicit early refusal. Once end-to-end support exists, delete the served test's full-attention loop that reloads AttentionQ, allocates gate slices, copies per-head rows and assigns Attn.Gate. Its gate geometry requirement moves to the existing artifact binding fixture. Retain hostmath finite-difference, frozen input-gradient and served-model parity owners: they check different contracts. No whole test/file deletion, new workflow, helper framework or numerical relaxation is justified.",
+      "impact": "An admitted training route computes a different layer from the served model and can spend substantial work optimizing that different objective. The observed parity difference is from retained implementation evidence; no new SQA workload or measured runtime/memory saving. Early refusal intentionally changes this unsupported case from apparent success to an actionable error. Existing ungated training must remain valid. Frozen input gradients and full weight/optimizer training have distinct requirements; the 0.5B caption-projector judgement uses a separate model/route and is not invalidated by this finding.",
+      "expected_benefit": {
+        "outcome": "Correctness and avoided invalid training work, not a proven net reduction. Actual selected baseline:10199 production +4434 test =14633 AST nodes across10 files. The affected stack_artifact.go2969,stack.go3231 and resident training file2173 contain necessary unrelated loading/execution. served parity967 test nodes includes the removable gate patch but also required numerical comparison. Full after AST remains unknown.",
+        "cost_contract": "Charge all matrix/gradient/checkpoint/program-identity changes, any early-admission logic and necessary fixture extensions. Gate support may require net production/test growth; do not claim its removed test patch pays for the whole repair. Reuse existing native fixtures: target added static fixture bytes0, new test framework/config/gate phase0. Preserve existing setup counts and native Go caching; parity continues as its existing device/modeltest check, not an additional SQA campaign. Early refusal eliminates invalid expensive work only for unsupported gated callers; it does not save work on supported runs.",
+        "uncertainty": "No candidate implementation or complete before/after replacement parsed. AST uses exact committed blobs and parser-local/manual symbol resolution, not package/cgo/device typechecking. The parked evidence object was cited by its commit, not independently read or rerun. Scope of numerical parity is two placed-row pairs and512 probed vocabulary IDs, not full-vocabulary or training-update equivalence."
+      },
+      "likely_effort": "Small early refusal if gated weight training is unsupported; complete support is a coordinated loader/optimizer/device migration and must be costed honestly.",
+      "plan_references": [
+        "vision-bridge/served-9b (landed reference parity; does not repair public hybrid-stack training)",
+        "vision-bridge/frozen-9b (current frozen device work; preserve its separate input-gradient contract)"
+      ],
+      "plan_coverage": "Implementation parked the root cause in ea5330ecb. This reviewer record supplies one canonical SQA obligation; it is not authorization to dispatch work or expand the frozen-9B row.",
+      "closure_criteria": [
+        "Every admitted gated artifact either retains its attention gate through the applicable training path or fails before avoidable weight/device work with a precise unsupported-contract error.",
+        "If gated weight training is supported, matrix extents, gradient packing, resident execution, optimizer/checkpoint state and program identity all include it; loader-only repair is insufficient.",
+        "Retain existing gated partial-RoPE finite differences and frozen input-gradient coverage. The shared binding fixture owns fused per-head row extraction; parity no longer patches an allegedly complete loaded model.",
+        "Retained parity evidence is described as a frozen reference comparison at its exact artifact and sampled inputs; it is never substituted for full training-update equivalence or relabeled under changed identities.",
+        "Record complete production/test/helper/setup/fixture and maintenance cost, including necessary growth. Preserve validation, cancellation, lifetime, platform/build-tag and numerical ordering contracts."
+      ],
+      "comparison": "Smallest deciding implementation comparison: extend the existing tiny artifact binding fixture with fused per-head query/gate rows, retaining the current ungated case; require correct gate binding or the explicit early training refusal. For supported gate training, use the existing hostmath finite-difference and resident comparison owners with a gated case and verify packed/checkpoint layout. Keep the already-existing served-9B parity as its scoped owner and remove its patch only after shared binding is correct. No SQA execution or extra confidence run."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "An adapter absent from the registry is knowable before execution; data returned by a predecessor is not. Do not pre-execute work to predict output validation.",
-        "planReplay prunes ancestors of durable outputs; recovered/pruned nodes deliberately do not require executable adapters. Check only replay.run.",
-        "ModelBuild and compiled ToolWorkflow currently populate their adapters;325 is an admitted shared API boundary gap, not proof these workflows currently waste work.",
-        "Zero counts versus two upstream calls is a structural deciding comparison. It is not an elapsed/memory estimate, numerical tolerance or timing threshold."
+        "Fused AttentionQ producer stores query then gate per head; consumers must preserve that exact axis grouping. Factor2 expresses this layout, not an arbitrary threshold. Ungated query-only rows are a separate admitted contract.",
+        "512 vocabulary probes are evenly spaced coverage, not random representative sampling or proof of full-vocabulary top-1. The test's distance0.05,cosine0.998 and movement0.1 apply to its two concrete row pairs; keep that limited claim and numerical acceptance independent of32s timing.",
+        "Qwen3.5-9B gated parity does not justify weakening/retiring the separate 0.5B caption-projector judgement or its held-out acceptance."
       ],
-    "automation_sequence": [
-        "Compile static graph contracts -> determine reusable stage results -> admit remaining bindings -> execute within existing resources -> publish truthful terminal state. Move only known checks earlier; retain dynamic/resource authority at use.",
-        "Use existing loop/plan/process owners for retries and final-exit continuation; retain stops, budgets, exact inputs and partial results. Completion timestamps do not prove delivered continuation.",
-        "SQA-322 removes the late verifier position, not a verifier or its acceptance. SQA-271 owns continuation. Do not consolidate these different obligations merely because both avoid wasted work."
-      ],
+    "automation_sequence": "Known unsupported gated training should be admitted/refused through existing metadata/load ownership before costly weights/device work. Existing recipe325 admission, gate322 ordering and continuation271 remain distinct obligations at their recorded revisions. No new retry or scheduler: unchanged unsupported setup stays stopped; native Go caching and retained gate evidence remain credited.",
     "fresh_ast": {
-        "revision": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+        "revision": "ea5330ecb23022c379caf3336452718655f2a928",
+        "method": "Existing external Go parser/ast.Inspect tool over exact git-show blobs; ParseComments; parser-local bindings plus manual callers; no package typecheck or application execution.",
         "files": [
-          "internal/recipe/validate.go",
-          "internal/workflowruntime/runtime.go",
-          "internal/workflowruntime/runtime_test.go",
-          "internal/workflowruntime/replay_test.go",
-          "internal/workflowruntime/parallel_test.go",
-          "internal/workflowruntime/model_builder.go",
-          "internal/workflowruntime/tool_workflow.go",
-          "internal/workflowruntime/tool.go",
-          "internal/capabilityruntime/measured.go",
-          "internal/trainingworkflow/chain.go"
+          {
+            "path": "internal/hybridtrain/stack_artifact.go",
+            "nodes": 2969
+          },
+          {
+            "path": "internal/hybridtrain/stack.go",
+            "nodes": 3231
+          },
+          {
+            "path": "internal/hybridtrain/hybrid_train_device_cuda_windows.go",
+            "nodes": 2173
+          },
+          {
+            "path": "internal/hostmath/hybrid_layer.go",
+            "nodes": 917
+          },
+          {
+            "path": "internal/hostmath/hybrid_layer_backward.go",
+            "nodes": 909
+          },
+          {
+            "path": "internal/hostmath/hybrid_layer_test.go",
+            "nodes": 1408
+          },
+          {
+            "path": "internal/hybridtrain/stack_artifact_test.go",
+            "nodes": 656
+          },
+          {
+            "path": "internal/hybridtrain/language_model_test.go",
+            "nodes": 678
+          },
+          {
+            "path": "internal/hybridtrain/language_reference_test.go",
+            "nodes": 725
+          },
+          {
+            "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
+            "nodes": 967
+          }
         ],
-        "production_nodes": 12692,
-        "test_nodes": 6086,
-        "total_nodes": 18778,
-        "functions": 96,
-        "parser_local_bindings": 3886,
-        "method": "Existing Go parser.ParseComments/ast.Inspect over selected exact git blobs.",
-        "type_resolution": "Parser-local binding and manual package-caller tracing only.",
-        "counterfactuals": "No replacement implementation parsed.325 budget is explicitly estimated;322's retained complete alternative remains production0/test+13."
+        "production_nodes": 10199,
+        "test_nodes": 4434,
+        "total_nodes": 14633,
+        "functions": 62,
+        "parser_local_bindings": 3712,
+        "decision": "No whole-test redundancy established. Necessary correctness growth remains separate from conditional deletion of test-local loader repair."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6587,17 +6699,36 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Existing source fixtures demonstrate intended replay/restart, failure-publication and cancellation contracts; they were read, not newly executed.",
-        "SQA-322's existing retained successful gate walls show exposure before verify, not measured wasted work. Its affected files remain byte-identical.",
-        "Actual broad00:32 source sample remains no-new-reduction: cache geometry,blob verification/retention,event fan-out and loop continuation had distinct retained owners. No timestamp-only review commit was made for that pass."
+        "ea5330ecb records reference distance0.0005/cosine1.00000 for both placed-row pairs; removing gates yields1.13/cosine0.20 and a different leading probed ID. Commit-reported32s is one retained test duration, not a savings measurement.",
+        "Same commit's gate report: production+0 AST, test+1109 AST, fixture files/bytes+0; necessary new reference coverage, with its loaded-gate patch excluded from any claim of production correctness.",
+        "Completed 0.5B judgement retained in docs/verification/vision-bridge-0.5b-judgement.json; format-loader/do is accepted follow-up, not already implemented."
       ],
     "tests": [
-        "RETAIN TestReplayRunsNoStageItsOutputDoesNotNeed's zero-stage replay without adapters, failing-operation replay refusal, truthful store identity and recovery. EXTEND its existing first-success path with one missing-final-binding refusal and zero invocation counts; restore binding and continue existing checks.",
-        "RETAIN/MIGRATE TestCancellationWhileWaitingForStageLock: supply all three fixture bindings before execution so the intended occupied-slot/held-lock/cancellation path is still reached. Keep its started guard, context identity and slot-release assertions.",
-        "RETAIN TestWorkflowRestartSkipsCompletedStages and TestWorkflowRecoveryRejectsRecipeDrift: durable completed stage reuse and exact-recipe refusal are separate from static adapter admission.",
-        "RETAIN TestCancellationCauseReachesTerminalReceipt, TestResourceDerivedConcurrency and TestDeterministicParallelReceipts: bounded execution, sibling cause propagation and output/receipt ordering remain distinct contracts.",
-        "RETAIN failed-run and failed-publication fixtures. Failed admission must not appear successful and no changed identity inherits earlier evidence.",
-        "MERGE/SIMPLIFY only the missing-adapter check's ownership by replacing late admission with early resolved bindings; no whole tests/functions removed without a retained contract. No new model fixture, confidence suite or recurring workload."
+        {
+          "classification": "retain",
+          "owner": "internal/hostmath/hybrid_layer_test.go:TestHybridDecoderLayerBackwardFD",
+          "requirement": "Gated attention derivatives and partial-RoPE ordering; distinct from loader binding or served parity."
+        },
+        {
+          "classification": "retain/extend",
+          "owner": "internal/hybridtrain/stack_artifact_test.go",
+          "requirement": "Existing tiny binding/config owner; move fused per-head gate extraction or unsupported-contract refusal here when implementation changes."
+        },
+        {
+          "classification": "retain",
+          "owner": "internal/hybridtrain/language_model_test.go:TestTheHybridStackGivesItsInputGradient",
+          "requirement": "Frozen mixed-layer masked-loss gradients through placed input rows; not proof of trainable gate/checkpoint correctness."
+        },
+        {
+          "classification": "retain",
+          "owner": "internal/hybridtrain/language_reference_test.go:languageModel/stackPass",
+          "requirement": "Shared frozen reference used by loss and parity; no demonstrated removable duplicate."
+        },
+        {
+          "classification": "simplify after shared fix",
+          "owner": "internal/hybridtrain/served_nine_b_windows_model_test.go:TestTheHybridReferenceIsTheServedNineB",
+          "requirement": "Retain same-file served comparison and response to changed placed rows. Remove only manual gate reconstruction once correct shared loading supplies it. Preserve windows/modeltest and device lifetime ownership."
+        }
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -8131,10 +8262,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Missing-adapter counterexample is admitted by the shared Runtime and measuredRun bind contract, derived statically. Current builders that bind all their stages are credited; no retained costly failure or measured saving is claimed.",
-      "Parser-local/manual resolution only; no package-level or device typechecking. No code executed except selected-source analysis and report serialization/publication tooling.",
-      "Full replacement AST is not available. Production/test growth estimates explicitly include binding plumbing and the existing cancellation fixture migration; no net reduction asserted.",
-      "Other findings retain their individual evidence revisions. Historical requested_growth_analysis and implementation-owned/unknown fields remain raw-exact. This is not a new broad census."
+      "Retained ea5330ecb commit already reports the gate-loss defect and its numerical comparison. The named parked evidence object was not separately read; no independent execution or timing/memory measurement.",
+      "Parser-local and manual caller resolution only; no package/cgo/device typechecking. AST is current source size, not proof of redundancy or an estimate of complete savings.",
+      "No safe numeric net reduction established. Correct gated training may require production/test growth. The test-local patch can disappear only after its behavior has a correct shared owner.",
+      "Format-loader adoption is plan coverage, not a code fix. Historical requested_growth_analysis, implementation-owned and unknown fields remain exact; no retest of all historical findings."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -8930,13 +9061,14 @@
       }
     }
   },
-    "next_finding_number": 326,
+    "next_finding_number": 327,
     "publication_context": {
-    "assessment": "Preserve the worker's untracked vision_bridge_record_test.go. Immediately reread current report, owner fields and HEAD before report-only publication.",
-    "checked_head": "efc02c5fdbf321a8ae0686933839f82306d3f894",
-    "publication": "Existing nonblocking landing/gate ownership and hooks; path-limited commit only docs/sqa_findings.json. No gate run or worker changes."
+    "assessment": "Re-read committed HEAD/plan, current report and owner responses immediately before publishing. Preserve active CUDA/frozen-9B worker edits, untracked probes, SBOM and working plan.",
+    "checked_head": "ea5330ecb23022c379caf3336452718655f2a928",
+    "publication": "Report-only path-limited commit through existing nonblocking landing/gate ownership and hooks. No implementation gate or worker changes."
   },
     "ranked_active_finding_ids": [
+    "SQA-326",
     "SQA-316",
     "SQA-315",
     "SQA-271",
@@ -8977,42 +9109,39 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Added325: missing runnable adapters can be rejected before upstream stages; preserve adapter-free replay and all dynamic validation.",
-      "Promoted322 in reviewer order because the user prioritizes detecting setup/acceptance refusal before costly dependent work. Severity remainsP3 and historical measured exposure is not recast as waste.",
-      "Keep271 for real-exit-to-authorized-continuation evidence and exact worker-count checks. Recipe stage receipts already recover completed durable results; expanding that into a second retry/dispatch owner is not recommended.",
-      "Recipe expansion and324's storage-format migration should preserve early admission and existing recovery first. Automatic recovery never means accepting changed identities, hiding failures or repeating unchanged invalid configuration."
+      "326 reconciles the implementation's parked finding rather than duplicating it under a second investigation. Passing patched reference parity does not close production training correctness.",
+      "324 remains open with credited implementation adoption. The completed judge paragraph is no longer a current prerequisite to remove; actual virtual-file coupling and identity migration remain.",
+      "All sampled test contracts remain needed. Conditional simplification is the manual gate patch; no whole-test removal or net reduction has been established."
     ],
-    "reviewed_at": "2026-11-07T00:42:05Z",
-    "reviewed_master": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+    "reviewed_at": "2026-11-07T02:43:20Z",
+    "reviewed_master": "ea5330ecb23022c379caf3336452718655f2a928",
     "schema_version": 2,
     "scope": [
-      "Targeted follow-up to the user's recipe robustness, earlier admission and recovery direction at efc02c5fdbf321a8ae0686933839f82306d3f894. skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8 unchanged from the just-read committed instructions/plan.",
-      "Actual Go AST analysis of ten recipe/runtime/caller files:18778nodes=12692production+6086test,96functions,3886parser-local bindings. Read concrete inference/training/tool/build callers, static graph checks and existing replay/cancellation/failure fixtures.",
-      "Rechecked SQA-322's seven source/test owners byte-identical to its evidence revision; current full landing still puts verify after test/lanes. Existing SQA-271 remains the continuation owner, not a new recovery framework.",
-      "This chat previously implemented Overgo changes: overlapping review, not independent third-party SQA. Report-only; no implementation, app/test/gate/device workload, worker messaging, plan or skill edits."
+      "Bounded follow-through of current vision-bridge host/served parity into its production training caller at ea5330ecb23022c379caf3336452718655f2a928. Read committed instructions skill.md blob69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan blobf45079d1684713d8beeb91db449c30401f774593. Uncommitted worker code/plan excluded.",
+      "Actual selected-file Go AST analysis:10 committed files,14633 nodes=10199 production+4434 test,62 functions,3712 parser-local bindings. Followed loader -> public training route -> matrix/gradient/resident ownership, plus the distinct test-only frozen reference.",
+      "Reconciled324 with committed format-loader/do and completed 0.5B judgement. Prior findings outside this bounded sample retain their own evidence revisions; no recurring whole-repository census.",
+      "This chat previously implemented Overgo changes; overlapping review, not independent third-party SQA. Report-only source/retained-evidence review; no tests, model/device workloads, benchmarks, services, gate runs, agents or worker messages."
     ],
     "sqa_response": {
-    "assessment": "152stable IDs:36canonical open,110resolved,4deferred,2consolidated aliases. Added325; no closure or consolidation in this follow-up.",
+    "assessment": "153 stable IDs:37 canonical open,110 resolved,4 deferred,2 consolidated aliases. Add326 for the implementation's already parked gate-loss defect; update324's accepted plan coverage. No verified closure or new alias.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Ten selected committed files18778AST; missing-adapter check occurs in per-set prepareStage after preceding sets can execute. planReplay already identifies only the required execution nodes. Seven322 owners unchanged and full gate verify remains late.",
+    "evidence": "10 selected files/14633AST. Public training and served-reference test share LoadStackArtifact; only the test restores discarded gate rows. Packing/resident paths show why loader-only repair is incomplete. Current plan accepts324's shared-loader migration.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "2ab4bdd35c60c28d69c2d26b938ec2d1881ae4ae",
-        "status": "Implementation and unknown fields preserved raw-exact;325 and the reviewer priority change are not implementation-owner adoption."
+        "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
+        "status": "Both implementation-owned blocks and every unknown field preserved raw-exact.326 cites implementation's existing parked evidence;324 adoption is credited from owner triage and committed plan, not invented by SQA."
       },
     "new_findings": [
-        "SQA-325"
+        "SQA-326"
       ],
     "partially_addressed_findings": [
-        "SQA-271",
-        "SQA-315"
+        "SQA-324"
       ],
     "priority_changes": [
-        "SQA-322 moved after271 for earlier acceptance refusal; severity unchanged.",
-        "SQA-325 placed before324: make existing recipe admission reliable before broadening the loading/recipe surface."
+        "SQA-326 first: public hybrid-stack training silently drops an admitted model's attention gates; current parity patches the frozen reference only."
       ],
-    "recommendation": "Admit known runnable bindings before expensive stages; retain dynamic checks and adapter-free replay. Resume valid completed work through current receipts and supervised continuation. Report root errors and keep deterministic invalid setup stopped until corrected; no blind retries or duplicate policy.",
+    "recommendation": "Reject unsupported gated training before expensive work or support its whole numerical/optimizer contract through current owners. Delete the parity patch only after correct binding owns it. Keep scoped reference/gradient tests and complete cost accounting; proceed with accepted format-loader replacement without another runtime.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9020,7 +9149,7 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "efc02c5fdbf321a8ae0686933839f82306d3f894",
-    "uncertainty": "No execution or measured saving. Necessary bounded production/test growth is estimated, not hidden as a reduction."
+    "reviewed_master": "ea5330ecb23022c379caf3336452718655f2a928",
+    "uncertainty": "No new workload, no independent third-party claim, no measured savings or full replacement estimate. Necessary correctness code/tests may grow."
   }
   }

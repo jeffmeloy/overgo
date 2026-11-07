@@ -67,7 +67,7 @@ func main() {
 	reason := flag.String("reason", "", "with -setcount, -addstep, -note or -retire: the edit's words, why the row grows, the step's reasoning or why the work will not be done")
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
-	note := flag.Bool("note", false, "add a paragraph to a step's reasoning, before its closing Serves lines: -note -rationale-file <file> <item-id> <step-id>")
+	note := flag.Bool("note", false, "add a working note to a step's reasoning, before its closing Serves lines, which -prompt shows with the step: -note -rationale-file <file> <item-id> <step-id>")
 	paragraph := flag.Bool("paragraph", false, "rewrite a standing paragraph of the doctrine, numbered as the plan holds them from 0: -paragraph -rationale-file <file> <index>; an empty file removes it")
 	show := flag.Bool("show", false, "print one row whole, with each step's check, what it awaits and the reasoning -prompt leaves out: -show <item-id>")
 	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check and leaves no trailer, so the commit's message carries the reason")
@@ -407,7 +407,14 @@ func assignVerify(document plan.Plan, itemID, stepID, cmd string) (plan.Plan, er
 
 // rationaleClosing opens the paragraph a rationale closes with, its Serves,
 // Evidence and Batch lines: a note goes before it, so they stay last.
-const rationaleClosing = "\n\nServes:"
+const rationaleClosing = paragraphBreak + "Serves:"
+
+// paragraphBreak parts a step's reasoning into paragraphs, and notePrefix opens each working note plan -note adds, by
+// which the task's prompt shows the notes and none of the reasoning beside them.
+const (
+	paragraphBreak = "\n\n"
+	notePrefix     = "Note: "
+)
 
 // editUsage is what the edits of a row or a step take.
 const editUsage = `usage, with every flag before the names, where Go's flag parsing stops:
@@ -466,7 +473,7 @@ func editPlan(role string, c cli, args []string, did string) error {
 			if cut < 0 {
 				cut = len(*rationale)
 			}
-			*rationale = strings.TrimSpace((*rationale)[:cut] + "\n\n" + words + (*rationale)[cut:])
+			*rationale = strings.TrimSpace((*rationale)[:cut] + paragraphBreak + notePrefix + strings.TrimPrefix(words, notePrefix) + (*rationale)[cut:])
 		case c.retire && named && len(row.Steps) > 1:
 			row.Steps = slices.Delete(row.Steps, step, step+1)
 		case c.retire:
@@ -626,6 +633,11 @@ func printPromptStep(it plan.Item, st plan.Step, decided []string, output io.Wri
 		verify = "MISSING -- add a runnable step.verify before implementation"
 	}
 	fmt.Fprintf(output, "TASK %s/%s\n%s\nVERIFY %s\n", it.ID, st.ID, st.Title, verify)
+	for paragraph := range strings.SplitSeq(st.Rationale, paragraphBreak) {
+		if note, noted := strings.CutPrefix(paragraph, notePrefix); noted {
+			fmt.Fprintf(output, "NOTE %s\n", strings.Join(strings.Fields(note), commandWordSeparator))
+		}
+	}
 	for _, decision := range decided {
 		fmt.Fprintf(output, "UNANSWERED, TAKEN AT ITS RECOMMENDATION %s\n", decision)
 	}

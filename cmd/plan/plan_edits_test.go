@@ -416,9 +416,9 @@ func TestNoteAppendsToARationale(t *testing.T) {
 	want := held
 	want.Items = []plan.Item{held.Items[0], held.Items[1]}
 	want.Items[0].Steps = []plan.Step{
-		step("plain", "First paragraph.\n\nSecond paragraph."), step("bare", "Second paragraph."),
-		step("closed", "First paragraph.\n\nSecond paragraph.\n\nServes: the loop. Evidence: the test. Batch: host."),
-		step("twice", "First paragraph.\n\nServes: an earlier reading.\n\nA later paragraph.\n\nSecond paragraph.\n\nServes: the loop. Evidence: the test."),
+		step("plain", "First paragraph.\n\nNote: Second paragraph."), step("bare", "Note: Second paragraph."),
+		step("closed", "First paragraph.\n\nNote: Second paragraph.\n\nServes: the loop. Evidence: the test. Batch: host."),
+		step("twice", "First paragraph.\n\nServes: an earlier reading.\n\nA later paragraph.\n\nNote: Second paragraph.\n\nServes: the loop. Evidence: the test."),
 	}
 	if after := editedPlan(t, root); rendered(t, after) != rendered(t, want) {
 		t.Fatalf("plan after four notes:\n%s\nwant\n%s", rendered(t, after), rendered(t, want))
@@ -436,7 +436,7 @@ func TestNoteAppendsToARationale(t *testing.T) {
 	requireRefused(t, refusing, written, usage, "-note", "-rationale-file", note, "work")
 	requireRefused(t, refusing, written, "not found", "-note", "-rationale-file", note, "work/")
 	requireRefused(t, refusing, written, "absent.txt", "-note", "-rationale-file", filepath.Join(refusing, "absent.txt"), "work", "plain")
-	requireOffered(t, refusing, "-note", "before its closing Serves lines: -note -rationale-file <file> <item-id> <step-id>")
+	requireOffered(t, refusing, "-note", "which -prompt shows with the step: -note -rationale-file <file> <item-id> <step-id>")
 }
 
 // TestShowPrintsARowWithItsRationale holds plan -show to printing one row

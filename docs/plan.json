@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 169,
+        "nodes": 110,
         "reason": "one-notes/stdin-rows measured 91 production nodes against the row's estimate of 80 for all three steps; notes-shown and no-strays are estimated at 170 more, the landing's check over the checkout's untracked files the larger."
       },
       "steps": [
-        {
-          "id": "notes-shown",
-          "title": "A step's working notes are kept in the plan with plan -note and shown with its step",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestAStepsNotesAreShownWithIt$'",
-          "rationale": "Working notes belong to the step they serve: what was measured, decided or found while working it, so a later session or a weaker model resumes from them. plan -note adds a paragraph to a step's reasoning today; plan -next and plan -prompt show the dispatched step's notes with it, newest last, so they are read where the work starts. A landed step's notes leave with it, as its commit records them.\nServes: setup-steps; model calls per landing.\nDisappears: notes kept in files beside the plan.\nEvidence: a note added to a step appears in plan -prompt's output for that step.\nBatch: host lane."
-        },
         {
           "id": "no-strays",
           "title": "A landing refuses an untracked or ignored JSON or Markdown file in the checkout outside its homes",

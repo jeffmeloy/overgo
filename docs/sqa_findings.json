@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "SQA-326 remains resolved with supported gated training replacing temporary refusal. No additional safe net reduction established.",
+    "assessment": "One publication identity defect; fix by deleting the caller's unproved memo shortcut. No safe test deletion established.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -9,6 +9,7 @@
         "SQA-322",
         "SQA-318",
         "SQA-283",
+        "SQA-331",
         "SQA-277",
         "SQA-266",
         "SQA-328",
@@ -19,16 +20,16 @@
         "SQA-303"
       ],
     "declined_candidates": [
-        "Retain independent packing markers: shared host/device packing can produce matching wrong updates.",
-        "Similar numerical tests cover different file-layout, optimization and per-layer contracts; no safe deletion proved.",
-        "No new loader, recipe runtime, scheduler or broad test matrix."
+        "Keep the publication integration test: command wiring, inactive status and idempotence are distinct from composition-owner unit contracts.",
+        "Adapter decoding appears avoidable for metadata, but a net reduction preserving dtype/shape/content identity is not established; no new parser/API recommended.",
+        "No separate late-policy-validation or recipe-framework finding without a deciding need."
       ],
-    "rank_basis": "Canonical active ranks unchanged. SQA-326 remains resolved; this is updated capability and closure evidence, not a newly resolved finding."
+    "rank_basis": "Add P2 SQA-331 beside exact-identity findings. Other active ranks and statuses unchanged."
   },
     "committed_plan": {
     "git_blob": "c3d7b6dc0945a16e3144b5d3c99ee515cb16d031",
     "path": "docs/plan.json",
-    "revision": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
+    "revision": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
     "sha256": "57f64c7984d2acfe1b9ec2fe07d215050af766363fe4f042e5e947a53d4c1a92",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
@@ -6667,62 +6668,92 @@
         "Report full production/test cost; no additional suite framework or SQA run."
       ],
       "comparison": "Reuse TestAModelRequestCampaignsItsDerivedFamily's unsupported fixture with one file suite. Current source logs that suite before error; the repair must log none while retaining its Close count. Keep the existing supported path as the ordering owner."
+    },
+    {
+      "id": "SQA-331",
+      "status": "open",
+      "severity": "P2",
+      "category": "publication-identity",
+      "classification": "source-established-unproved-model-claim",
+      "title": "Verify the model identity before publishing a composite",
+      "evidence_commit": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+      "sources": [
+        {
+          "path": "cmd/seam-align/publish.go",
+          "symbol": "publishComposite -> publishSpec.candidate -> textModel; ResolveClaimedGGUF with discovery.LoadMemo.Claim, then discarded Take claims"
+        },
+        {
+          "path": "internal/modelrecipe/loaded_program.go",
+          "symbol": "ResolveActiveGGUF/ResolveClaimedGGUF: unclaimed path hashes; claimed path passes proof obligation to Take consumer"
+        },
+        {
+          "path": "internal/discovery/memo.go",
+          "symbol": "Memo.Claim: matching size/mtime returns prior digest without reading bytes"
+        },
+        {
+          "path": "internal/modelartifact/inventory.go",
+          "symbol": "FromGGUFClaimedContext/VerifyClaims: actual content identity owner"
+        },
+        {
+          "path": "internal/inference/runner_lifecycle.go",
+          "symbol": "OpenWithProgram: proves claimed identities before serving, unlike textModel"
+        },
+        {
+          "path": "cmd/seam-align/publish_test.go",
+          "symbol": "TestAJudgedBridgePublishesAnInactiveComposite: fresh-store fixture has no persisted model claim"
+        }
+      ],
+      "evidence": "textModel uses a persisted digest claim to select model/recipe/definition identity, then discards the claims returned by LoadedProgram.Take and closes the file. Its returned identity is committed into the composition's contracts and recipe. An admitted counterexample is a previously memoized valid GGUF whose tensor payload changes while length and modification time are preserved: Memo.Claim still returns the old digest, metadata remains valid, and publication can bind the old model identity to the requested changed file. The existing native publication fixture starts with an empty store and misses this warm-memo path. The serving loader explicitly proves claims during upload or VerifyClaims; textModel has no later upload/proof. This is source-established, not an executed stale-identity reproduction. No incorrect serving or activation was observed; publication remains inactive.",
+      "recommended_change": "In textModel replace ResolveClaimedGGUF(ctx, store, path, discovery.LoadMemo(ctx, store).Claim) with existing ResolveActiveGGUF(ctx, store, path), and remove the unused discovery import. Publication needs a verified identity, not the interactive catalog's cheap hint. Preserve existing activation/derived fallback and Take/Close error handling. Extend the existing publication fixture with one persisted-memo case: mutate a tiny model payload without changing its size/mtime, then require a freshly verified identity or explicit refusal, never the old claimed identity. No new resolver, claim framework, workflow, test suite or device run.",
+      "displaced_surface": "One unproved memo shortcut and its import disappear. Retained owner: modelrecipe.ResolveActiveGGUF delegates to the same resolver without a claimer, using existing modelartifact hashing. Existing projected-transcription and model-intake callers already use this contract. Keep command refusal-before-registration, exact adapter bytes/definition bindings, repeat-publication idempotence, inactive alias and explicit activation checks in the same fixture; no test requirement retires. Source file ownership, supported formats and numerical execution are unchanged; changed files may correctly produce a new identity or an existing refusal.",
+      "impact": "A durable candidate can otherwise cite an identity not verified against the model path supplied for publication, leaving later consumers to discover the mismatch. Repair at publication prevents that stale association without expanding orchestration.",
+      "expected_benefit": {
+        "outcome": "Actual Go AST: publish.go1706->1696(-10 production), textModel134->126(-8 within that file). Existing publish_test.go1088 nodes; an in-place memo/mutation case is estimated +100..250 test nodes, not implemented or parsed. Combined pair2794->2884..3034 estimated (+90..240): necessary correctness growth, not a net reduction.",
+        "cost_contract": "No new helper, wrapper, schema, tracked fixture bytes, config, dependency or standing gate phase. Reuse the tiny GGUF and store setup; add a memo record, one payload mutation/stat restoration and one direct resolver check inside that fixture. Cold publications already hash; warm publication and repeat-publication now pay one full model identity pass rather than trusting a stat claim. No elapsed or peak-memory saving claimed; native Go caching and existing verification remain.",
+        "uncertainty": "Only the production call/import replacement was parsed for sizing outside the checkout. Test growth is an estimate. No application test, model run or performance measurement by SQA. This chat previously implemented Overgo; this is not independent third-party review."
+      },
+      "likely_effort": "Small call-site repair plus one existing-fixture extension.",
+      "plan_references": [
+        "vision-bridge/publish-composite (landed6920c5c0a)",
+        "Standing exact code/model/recipe identity requirement; format-loader/do must retain it"
+      ],
+      "closure_criteria": [
+        "Composite publication cannot use a persisted model claim without proving it against current bytes; unchanged valid publication remains supported.",
+        "The existing tiny fixture detects a same-size/same-mtime payload change and preserves all refusal/idempotence/inactive-publication requirements.",
+        "Use the established verified resolver with no parallel admission framework; report the added warm-publication hashing and full test cost honestly."
+      ],
+      "comparison": "During ordinary implementation validation, extend TestAJudgedBridgePublishesAnInactiveComposite using discovery.RememberInventory and the existing tiny model/store. Keep its successful publication checks, then introduce a warm claim and same-stat payload mutation; textModel must not return the original model identity. Compare against direct content-derived inventory if needed. The existing native fixture is sufficient; no additional confidence workload."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Fused rows are [query|gate] per head; gate extent is heads*headDim*hidden values, after Wo. Typed model geometry and compiled groups remain the owners.",
-        "Small synthetic losses/tolerances do not establish quality, representative distributions, speed or peak-memory benefits."
+        "A matching size and modification time is a digest hint, not content proof; a same-stat tensor edit remains admitted by the memo.",
+        "Publication remains inactive and explicit ActivationBatch retains compare-and-set authority; no activation or delivered continuation inferred."
       ],
-    "automation_sequence": "Supported shared gate execution replaces the obsolete admission stop. Existing route owns lane selection, observation/stopping and checkpoint publication; unsupported prototype still refuses before residency. A completed fixture/landing does not prove delivered continuation or activation.",
+    "automation_sequence": "candidate builds authority before model registration; failed policy trials commit nothing in the retained fixture. CompositionAuthority.Batch owns the final authority write and ActivationBatch owns separate activation. textModel drops the proof obligation before either publication or later activation; reuse the existing verified resolver instead of adding a recovery layer.",
     "fresh_ast": {
-        "revision": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
-        "baseline": "2dd6275b8107f4694693003b89dba2fd800bb34f",
-        "method": "Existing external Go parser over committed blobs; all changed Go files only. Counts include comment AST as the retained parser does; no application build/test.",
+        "revision": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+        "method": "Existing external Go parser over four selected committed files; parse-only substitution of the verified resolver call and removal of the unused import. No application execution.",
         "files": [
           {
-            "path": "internal/hybridtrain/frozen_model.go",
-            "before": 354,
-            "after": 353,
-            "delta": -1
+            "path": "cmd/seam-align/publish.go",
+            "nodes": 1706,
+            "recommended_production_nodes": 1696
           },
           {
-            "path": "internal/hybridtrain/stack.go",
-            "before": 3231,
-            "after": 3236,
-            "delta": 5
+            "path": "cmd/seam-align/publish_test.go",
+            "nodes": 1088
           },
           {
-            "path": "internal/hybridtrain/stack_artifact.go",
-            "before": 3146,
-            "after": 3193,
-            "delta": 47
+            "path": "internal/modelrecipe/loaded_program.go",
+            "nodes": 1668
           },
           {
-            "path": "internal/hybridtrain/layer_stream_plan_test.go",
-            "before": 1204,
-            "after": 1251,
-            "delta": 47
-          },
-          {
-            "path": "internal/hybridtrain/stack_artifact_test.go",
-            "before": 1329,
-            "after": 1394,
-            "delta": 65
-          },
-          {
-            "path": "internal/hybridtrain/gated_stack_cuda_windows_test.go",
-            "before": 0,
-            "after": 734,
-            "delta": 734
+            "path": "internal/discovery/memo.go",
+            "nodes": 336
           }
         ],
-        "production_before": 6731,
-        "production_after": 6782,
-        "test_before": 2533,
-        "test_after": 3379,
-        "total_delta": 897,
-        "decision": "Matches retained landing +51 production/+846 test. Correctness/capability growth, not savings. No new test/setup removal safely established."
+        "decision": "Production reduction10 nodes; needed test extension estimated100..250 nodes. No total reduction claimed."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6881,25 +6912,19 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "9196555a4: host/full-slab losses10.494->3.055, relative difference2.07e-5; gate movement0.171, disagreement2.83e-5. Undoing packing fails marker checks despite parity agreeing.",
-        "Separate retained frozen9B cosine1.00000/caption loss3.527->3.034 do not establish trained attention-gate roundtrip.",
-        "Gate +51 production/+846 test; CUDA2 executed/17cached, verify1.55s. No new schema/CUDA/fixture bytes. Native caching credited; no SQA rerun."
+        "6920c5c0a reports publication verify2.169s, +1806 production/+1088 test nodes and broad existing lanes. Its fixture uses a fresh store, so these passes do not establish warm-memo identity verification.",
+        "Existing Go caching is retained. Review ran no tests or device/model workload."
       ],
     "tests": [
         {
-          "classification": "retain",
-          "owner": "TestAGatedStackTrainsWithItsGate",
-          "requirement": "Independent slab markers, movement/parity and prototype refusal. Correct its full-slab/layer-streamed description; do not duplicate the suite."
-        },
-        {
-          "classification": "simplify/remove obsolete contract (implemented)",
-          "owner": "TestAGatedArtifactTrainsItsGateRows",
-          "requirement": "Supported training replaces refusal cases. Same fixture retains two-head frozen/trainable layout and adds slab membership. Existing loader cases retain shape/cancellation."
+          "classification": "retain/extend",
+          "owner": "TestAJudgedBridgePublishesAnInactiveComposite",
+          "requirement": "Retain refused trials/store unchanged, exact bindings/bytes, idempotence, inactive status and explicit activation. Extend the same fixture for a persisted stale model claim."
         },
         {
           "classification": "retain",
-          "owner": "TestHybridTrainLayerStreamedMatchesFullSlab and existing optimizer recovery tests",
-          "requirement": "Per-layer equivalence and checkpoint identity/continuation differ from gated full-slab parity; no gated execution inferred."
+          "owner": "TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim; TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad",
+          "requirement": "Resolution exposes claims; serving proves them. These are distinct layers and do not cover publication discarding claims."
         }
       ]
   },
@@ -8434,9 +8459,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No tests, gates, workloads, services, agents, worker messages or implementation.",
-      "Existing Go parser/AST tool and manual caller tracing; parser-local binding only, no package/type/device resolution.",
-      "Only SQA-326 rechecked in depth. Other findings retain their evidence revisions. No fresh gated per-layer, checkpoint/resume or attention-export comparison."
+      "No application tests, gates, workloads, services, agents, worker messages or implementation.",
+      "Selected Go parser/AST counts and manual caller tracing only; no package/type/device resolution. Other findings retain their evidence revisions.",
+      "Same-stat payload counterexample is derived from source, not executed; no claim of incorrect serving, activation or measured cost."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9232,11 +9257,11 @@
       }
     }
   },
-    "next_finding_number": 331,
+    "next_finding_number": 332,
     "publication_context": {
-    "assessment": "Re-read committed code, plan, report and owner state immediately before publication; reconcile any subsequent change instead of overwriting it.",
-    "checked_head": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
-    "publication": "Existing landing/gate ownership and hooks; only docs/sqa_findings.json committed."
+    "assessment": "Re-read current source/report/owner state before publication; preserve concurrent work.",
+    "checked_head": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+    "publication": "Existing landing/gate locks and hooks; only docs/sqa_findings.json committed."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -9245,6 +9270,7 @@
     "SQA-322",
     "SQA-318",
     "SQA-283",
+    "SQA-331",
     "SQA-277",
     "SQA-266",
     "SQA-328",
@@ -9281,32 +9307,36 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Preserve earlier closure evidence; current supported training supersedes its refusal.",
-      "Count necessary test growth honestly; no new recipe/execution machinery recommended.",
-      "Report-only reconciliation; stable IDs, owner responses and unrelated work preserved."
+      "SQA-331 is distinct from test-cache freshness315 and test-file identity316: its owner is publication's model resolver.",
+      "No new recipe runtime or orchestration recommended. Keep exact identity, stop/activation authority and existing recovery ownership.",
+      "Preserve stable IDs, prior closure evidence and every implementation-owned/unknown field; only the report changes."
     ],
-    "reviewed_at": "2026-11-07T14:46:59Z",
-    "reviewed_master": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
+    "reviewed_at": "2026-11-07T16:43:31Z",
+    "reviewed_master": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
     "schema_version": 2,
     "scope": [
-      "Pin9196555a4af4fa9bf686e3c776ca70bf99fbd13d; read unchanged instructions69a0ec1510af484e39da2cf7e169dbc73b70ae8f and planc3d7b6dc0945a16e3144b5d3c99ee515cb16d031. Hybrid-gate landed; format-loader remains.",
-      "Bounded shared-load -> packing -> executor/admission -> checkpoint review with retained results. Provisional source conclusions preceded findings; targeted AST covers six changed Go files.",
+      "Pin22fde66fe8f14e981dae01194c2e13f79fc1989c; production unchanged since9196555a4. Read current plan and unchanged instructions; format-loader/do remains the only open row.",
+      "Rotated bounded review through seam-align composite publication, model identity resolution, promotion batching/activation and the existing integration fixture. Provisional source conclusions preceded prior findings.",
       "This chat previously implemented Overgo: overlapping review, not independent third-party SQA."
     ],
     "sqa_response": {
-    "assessment": "157 stable IDs:38 canonical open,113 resolved,4 deferred,2 consolidated aliases. SQA-326 remains resolved with current gated-training evidence and costs. No new finding, closure, alias or priority change.",
+    "assessment": "158 stable IDs:39 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-331; no closure, reopening or consolidation.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Shared gate binding and packing replace temporary refusal; actual AST adds897 total nodes. The gated numerical test calls full-slab despite its layer-streamed description.",
+    "evidence": "Publication accepts a persisted digest hint and discards the claim-proof obligation; serving does not. The fresh-store fixture misses this path.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Owner blocks and all unknown fields preserved exactly; current closure update is reviewer-owned source/retained-evidence reconciliation."
+        "status": "Owner blocks and unknown fields preserved exactly. No production change since the prior review; sample rotated to the earlier publication landing."
       },
-    "new_findings": [],
+    "new_findings": [
+        "SQA-331"
+      ],
     "partially_addressed_findings": [],
-    "priority_changes": [],
-    "recommendation": "Retain distinct packing/layout/recovery requirements and describe the tested executor accurately. No new suite, confidence run or abstraction.",
+    "priority_changes": [
+        "Insert SQA-331 beside identity-correctness work; other ranks unchanged."
+      ],
+    "recommendation": "Use ResolveActiveGGUF in the existing publication helper, delete the memo import and extend one existing native fixture. Keep inactive publication and activation separate.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9314,10 +9344,8 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
-    "uncertainty": "No fresh runtime or gated per-layer/roundtrip measurements. No safe further net reduction established.",
-    "updated_findings": [
-        "SQA-326"
-      ]
+    "reviewed_master": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+    "uncertainty": "Source-established counterexample, not runtime reproduction. Production saves10 nodes; test growth and warm-publication hashing are necessary costs, not measured performance improvements.",
+    "updated_findings": []
   }
   }

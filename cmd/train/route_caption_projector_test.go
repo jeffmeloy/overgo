@@ -35,11 +35,11 @@ func TestHeldSourcesStayOutOfTraining(t *testing.T) {
 		}
 		return names
 	}
-	trained, scored := heldBack(samples, sequences, 2)
+	trained, scored := evaluation.HeldBack(samples, sequences, 2)
 	if !slices.Equal(vids(scored), []string{"0", "1", "2", "4"}) || !slices.Equal(vids(trained), []string{"3", "5"}) {
 		t.Fatalf("holding two sources scored %v and trained %v; want every sample of a and b scored, the rest trained", vids(scored), vids(trained))
 	}
-	if trained, scored := heldBack(samples, sequences, 0); len(scored) != 0 || len(trained) != len(sources) {
+	if trained, scored := evaluation.HeldBack(samples, sequences, 0); len(scored) != 0 || len(trained) != len(sources) {
 		t.Fatalf("holding no source scored %d samples and trained %d; want every sample trained", len(scored), len(trained))
 	}
 }
@@ -79,5 +79,25 @@ func TestAMeanStartPlacesTheTrainedCaptionsMean(t *testing.T) {
 		"-out", filepath.Join(t.TempDir(), "out"), "-steps", "1", "-batch", "1", "-held", "2", "-store", filepath.Join(t.TempDir(), "store")})
 	if _, statErr := os.Stat(from); err == nil || !strings.Contains(err.Error(), "fewer than a batch") || !errors.Is(statErr, fs.ErrNotExist) {
 		t.Fatalf("a run holding back every source was refused for %v and left its start written (%v); want the refusal and no start", err, statErr)
+	}
+}
+
+// TestASeedOrdersTheTrainedSamples holds a run's seed to the order of its samples: seed 0 keeps the capture's order,
+// another seed takes the same samples in another order, and the same seed the same order again.
+func TestASeedOrdersTheTrainedSamples(t *testing.T) {
+	t.Parallel()
+	capture := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	kept := slices.Clone(capture)
+	seededOrder(kept, 0)
+	first, again, other := slices.Clone(capture), slices.Clone(capture), slices.Clone(capture)
+	seededOrder(first, 2)
+	seededOrder(again, 2)
+	seededOrder(other, 3)
+	if !slices.Equal(kept, capture) || slices.Equal(first, capture) || !slices.Equal(first, again) || slices.Equal(first, other) {
+		t.Fatalf("seed 0 orders %v, seed 2 %v and again %v, seed 3 %v; want the capture's order, then another kept by its seed", kept, first, again, other)
+	}
+	slices.Sort(first)
+	if !slices.Equal(first, capture) {
+		t.Fatalf("a seeded order holds %v; want the capture's samples", first)
 	}
 }

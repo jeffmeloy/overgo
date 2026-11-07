@@ -16,6 +16,21 @@ const (
 	CaptureTarget = "target"
 )
 
+// HeldBack divides a capture's samples' items into those a run trains on and those it holds back: every sample of the
+// first held source videos in the capture's order, which its seed shuffled.
+func HeldBack[T any](samples []CapturedCaption, items []T, held int) (trained, scored []T) {
+	sources := map[string]bool{}
+	for index, sample := range samples {
+		if sources[sample.Source] || len(sources) < held {
+			sources[sample.Source] = true
+			scored = append(scored, items[index])
+		} else {
+			trained = append(trained, items[index])
+		}
+	}
+	return trained, scored
+}
+
 // CaptionTrainingClip is a captioned clip a model may train on beside a caption-matching suite, with the source video
 // it groups under.
 type CaptionTrainingClip struct {

@@ -104,3 +104,35 @@ func TestFrameDescriptionMatchingAsksOfTheVideoSuitesClips(t *testing.T) {
 		}
 	}
 }
+
+// TestAShuffledSourceSuiteAsksAboutAnotherCasesMedia holds the shuffled-source control to its suite: each case asks
+// its own question about the next case's media, the last about the first's, its name, candidates and answer kept;
+// a suite of one case, or of a case that names no media, is refused.
+func TestAShuffledSourceSuiteAsksAboutAnotherCasesMedia(t *testing.T) {
+	t.Parallel()
+	suite := DescriptionMatchingSuite{Kind: descriptionMatchingKind}
+	for index, name := range []string{"a.png", "b.png", "c.png"} {
+		suite.Cases = append(suite.Cases, DescriptionMatchingCase{
+			Name: "case-" + name, Prompt: mediaPrompt(MediaImage, name, FrameQuestion), MaxTokens: 48,
+			Candidates: []string{"first " + name, "second " + name}, Answer: index % 2,
+		})
+	}
+	shuffled := testcheck.Must(suite.ShuffledSources())(t)
+	for index, item := range shuffled.Cases {
+		kind, name, question, asks := ParseMediaPrompt(item.Prompt)
+		_, wantName, _, _ := ParseMediaPrompt(suite.Cases[(index+1)%len(suite.Cases)].Prompt)
+		original := suite.Cases[index]
+		if !asks || kind != MediaImage || name != wantName || question != FrameQuestion || item.Name != original.Name ||
+			!slices.Equal(item.Candidates, original.Candidates) || item.Answer != original.Answer || item.MaxTokens != original.MaxTokens {
+			t.Fatalf("shuffled case %d asks %q about %s; want its own question about %s, the rest of the case kept", index, question, name, wantName)
+		}
+	}
+	if _, err := (DescriptionMatchingSuite{Cases: suite.Cases[:1]}).ShuffledSources(); err == nil {
+		t.Error("a suite of one case was shuffled")
+	}
+	plain := slices.Clone(suite.Cases)
+	plain[1].Prompt = FrameQuestion
+	if _, err := (DescriptionMatchingSuite{Cases: plain}).ShuffledSources(); err == nil {
+		t.Error("a suite with a case that names no media was shuffled")
+	}
+}

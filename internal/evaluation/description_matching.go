@@ -72,6 +72,27 @@ type DescriptionMatchingSuite struct {
 	Cases  []DescriptionMatchingCase `json:"cases"`
 }
 
+// ShuffledSources is the suite with each case asking about the next case's media, its question, candidates and answer
+// kept: the shuffled-source control a composite's promotion reads, where a model that reads the media it is given
+// picks another case's caption.
+func (s DescriptionMatchingSuite) ShuffledSources() (DescriptionMatchingSuite, error) {
+	shuffled := s
+	shuffled.Cases = make([]DescriptionMatchingCase, len(s.Cases))
+	for index, item := range s.Cases {
+		kind, _, question, asks := ParseMediaPrompt(item.Prompt)
+		_, other, _, names := ParseMediaPrompt(s.Cases[(index+1)%len(s.Cases)].Prompt)
+		if !asks || !names || len(s.Cases) < minimumShuffledCases {
+			return DescriptionMatchingSuite{}, errors.New("evaluation: a shuffled-source suite needs two cases or more, each asking about media")
+		}
+		item.Prompt = mediaPrompt(kind, other, question)
+		shuffled.Cases[index] = item
+	}
+	return shuffled, nil
+}
+
+// minimumShuffledCases are the cases a shuffle needs, one to take another's media.
+const minimumShuffledCases = 2
+
 type descriptionMatchingPlan struct {
 	identity artifact.ID
 	dataset  artifact.ID

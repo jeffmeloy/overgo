@@ -25,6 +25,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
@@ -97,6 +98,7 @@ func run() error {
 	transcriptionResourceManifest := flag.String("transcription-resource-manifest", "", "execute a pinned native speech or projected transcription corpus from clean source")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
+	shuffleSources := flag.String("shuffle-sources", "", "write this description-matching suite to -suite-out with each case asking about the next case's media, its question, candidates and answer kept: the shuffled-source control of a composite's promotion")
 	captionClips := flag.String("build-caption-matching", "", "write the video caption-matching suite of the clips in this directory to -suite-out: each case asks which of four captions describes a clip")
 	captionSource := flag.String("captions", "", "with -build-caption-matching: the caption file; empty takes the one the clip directory holds")
 	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
@@ -267,6 +269,20 @@ func run() error {
 			return errors.New("usage: evaluate -build-carried-documents <wikitext test parquet> -suite-out <suite.json>")
 		}
 		return writeTextSuite(context.Background(), parquet, strings.TrimSpace(*suiteOut), "carried-continuation", evaluation.BuildWikiTextDocuments)
+	}
+	if source := strings.TrimSpace(*shuffleSources); source != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -shuffle-sources <suite.json> -suite-out <suite.json>")
+		}
+		var suite evaluation.DescriptionMatchingSuite
+		if err := jsonfile.DecodeStrict(source, &suite); err != nil {
+			return err
+		}
+		shuffled, err := suite.ShuffledSources()
+		if err != nil {
+			return err
+		}
+		return writeSuite(strings.TrimSpace(*suiteOut), shuffled, len(shuffled.Cases), "shuffled-source")
 	}
 	if clips := strings.TrimSpace(*captionClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

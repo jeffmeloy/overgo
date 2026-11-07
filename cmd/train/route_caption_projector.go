@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,7 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	steps := clioptions.IntOverride(flags, "steps", "required observed steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	held := flags.Int("held", 0, "source videos, the first in the capture's seeded order, whose samples no step trains on and whose loss scores the run before and after in place of its first batch")
+	seed := flags.Uint64("seed", 0, "the seed that orders the samples the run trains on, for an independent run of the same bridge; 0 keeps the capture's order")
 	host := flags.Bool("host", false, "run the frozen text model on the host instead of the card")
 	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained bridge's checkpoint publishes to")
@@ -98,7 +100,7 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 		return fmt.Errorf("%s: the capture holds %d samples of widths %d and %d", name, len(capture.Samples), capture.EncoderWidth, capture.TextWidth)
 	}
 	// The samples the run trains on are admitted before a start is written or anything is opened.
-	if admitted, _ := heldBack(capture.Samples, capture.Samples, *held); len(admitted) < *batch {
+	if admitted, _ := evaluation.HeldBack(capture.Samples, capture.Samples, *held); len(admitted) < *batch {
 		return fmt.Errorf("%s: %d samples are left to train on beside the held sources, fewer than a batch of %d", name, len(admitted), *batch)
 	}
 	if _, statErr := os.Stat(*from); errors.Is(statErr, fs.ErrNotExist) {
@@ -151,7 +153,8 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	if err != nil {
 		return err
 	}
-	trained, scored := heldBack(capture.Samples, sequences, *held)
+	trained, scored := evaluation.HeldBack(capture.Samples, sequences, *held)
+	seededOrder(trained, *seed)
 	// With no source held, the run is held to the loss of its first batch, before and after.
 	if len(scored) == 0 {
 		scored = wrappedBatch(trained, 0, *batch)
@@ -237,7 +240,7 @@ func captionStart(start, capturePath string, capture evaluation.CaptionTrainingC
 	for index := range rows {
 		rows[index] = targets[index*capture.TextWidth : (index+1)*capture.TextWidth]
 	}
-	trained, _ := heldBack(capture.Samples, rows, held)
+	trained, _ := evaluation.HeldBack(capture.Samples, rows, held)
 	for _, row := range trained {
 		for column, value := range row {
 			first.Bias[column] += value / float32(len(trained))
@@ -246,19 +249,12 @@ func captionStart(start, capturePath string, capture evaluation.CaptionTrainingC
 	return first, nil
 }
 
-// heldBack divides the samples' items into those a run trains on and those it holds back: every sample of the first
-// held source videos in the capture's order, which its seed shuffled.
-func heldBack[T any](samples []evaluation.CapturedCaption, items []T, held int) (trained, scored []T) {
-	sources := map[string]bool{}
-	for index, sample := range samples {
-		if sources[sample.Source] || len(sources) < held {
-			sources[sample.Source] = true
-			scored = append(scored, items[index])
-		} else {
-			trained = append(trained, items[index])
-		}
+// seededOrder orders a run's samples in place by seed, keeping the capture's order for seed 0.
+func seededOrder[T any](items []T, seed uint64) {
+	if seed == 0 {
+		return
 	}
-	return trained, scored
+	rand.New(rand.NewPCG(seed, 0)).Shuffle(len(items), func(left, right int) { items[left], items[right] = items[right], items[left] })
 }
 
 // captionFrameRows is the count of tokens the encoder gave the capture's first frame, the rows every frame's prompt

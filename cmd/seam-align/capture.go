@@ -18,7 +18,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
 	"overgo/internal/evaluation"
-	"overgo/internal/hfbpe"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/modelartifact"
@@ -31,8 +30,6 @@ const (
 	// sample encodes, as its cases' frames are.
 	captureFrameFPS   = 1.0
 	captureFrameCount = 9
-	// captureEmbeddings is the text model's token embedding table a caption's tokens are read from.
-	captureEmbeddings = "model.embed_tokens.weight"
 	// captureCLS and capturePatchMean name the encoder's two captured outputs: its class token and the mean of its
 	// patch tokens.
 	captureCLS       = sourcePrefix + "dino-cls"
@@ -106,21 +103,13 @@ func captureSeams(ctx context.Context, specPath string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, card.Close()) }()
-	tokenizer, err := hfbpe.Load(spec.TextModel)
+	text, err := evaluation.OpenCaptionText(spec.TextModel)
 	if err != nil {
 		return err
 	}
-	text, err := safetensors.OpenSource(spec.TextModel)
-	if err != nil {
-		return err
-	}
-	table, found := text.Tensors[captureEmbeddings]
-	_ = text.Close()
-	if !found || len(table.Shape) != matrixRank {
-		return fmt.Errorf("seam-align: %s holds no %s table", spec.TextModel, captureEmbeddings)
-	}
+	defer func() { err = errors.Join(err, text.Close()) }()
 	_, _, hidden := encoder.Shape()
-	width := int(table.Shape[1])
+	width := text.Width
 	ffmpeg, err := media.ResolveFFmpeg(os.Getenv("OVERGO_FFMPEG"))
 	if err != nil {
 		return err
@@ -136,7 +125,7 @@ func captureSeams(ctx context.Context, specPath string) (err error) {
 	cls, patches, target := make([]float32, 0, len(samples)*hidden), make([]float32, 0, len(samples)*hidden), make([]float32, 0, len(samples)*width)
 	groups, sources := make([]float32, len(samples)), map[string]int{}
 	for index, sample := range samples {
-		values, frame, err := capturedSample(ctx, spec, inputs, card, tokenizer, ffmpeg, sample, hidden, width)
+		values, frame, err := capturedSample(ctx, spec, inputs, card, text, ffmpeg, sample, hidden, width)
 		if err != nil {
 			return fmt.Errorf("seam-align: %s: %w", sample.Vid, err)
 		}
@@ -185,7 +174,12 @@ func captureInputs(spec captureSpec, ffmpeg string) (string, error) {
 		identities = append(identities, identity.String())
 	}
 	for _, model := range []string{spec.Encoder, spec.TextModel} {
-		inventory, err := modelartifact.FromHFPath(model)
+		// A text model is a Hugging Face directory or one GGUF file.
+		read := modelartifact.FromHFPath
+		if strings.EqualFold(filepath.Ext(model), ".gguf") {
+			read = modelartifact.FromGGUFPath
+		}
+		inventory, err := read(model)
 		if err != nil {
 			return "", err
 		}
@@ -231,7 +225,7 @@ func keepSample(cache, vid, key string, values, tokens []float32) (artifact.ID, 
 // inputs or captured and cached. Every token of the frame is cached beside them, the encoder's width by its tokens,
 // for the bridge's training, which reads them all.
 func capturedSample(
-	ctx context.Context, spec captureSpec, inputs string, encoder *vitencoder.Card, tokenizer *hfbpe.Tokenizer, ffmpeg string,
+	ctx context.Context, spec captureSpec, inputs string, encoder *vitencoder.Card, text *evaluation.CaptionText, ffmpeg string,
 	sample evaluation.CaptionTrainingClip, hidden, width int,
 ) (values []float32, identity artifact.ID, err error) {
 	clip := filepath.Join(spec.Clips, sample.Vid+".mp4")
@@ -264,21 +258,32 @@ func capturedSample(
 			values[hidden+channel] += tokens[(first+patch)*hidden+channel] / float32(patches)
 		}
 	}
-	ids, err := tokenizer.Encode(sample.Caption)
-	if err != nil || len(ids) == 0 {
-		return nil, identity, errors.Join(err, errors.New("the caption gives no tokens"))
-	}
-	rows, err := safetensors.ReadTensorRowsF32(spec.TextModel, captureEmbeddings, width, ids)
+	mean, err := captionMean(text, sample.Caption)
 	if err != nil {
 		return nil, identity, err
 	}
-	for row := range len(ids) {
-		for column := range width {
-			values[encoderOutputs*hidden+column] += rows[row*width+column] / float32(len(ids))
-		}
-	}
+	copy(values[encoderOutputs*hidden:], mean)
 	identity, err = keepSample(spec.Cache, sample.Vid, key, values, tokens)
 	return values, identity, err
+}
+
+// captionMean is the mean of the embedding rows of a caption's tokens, the text model's width.
+func captionMean(text *evaluation.CaptionText, caption string) ([]float32, error) {
+	ids, err := text.Encode(caption)
+	if err != nil || len(ids) == 0 {
+		return nil, errors.Join(err, errors.New("the caption gives no tokens"))
+	}
+	rows, err := text.Rows(ids)
+	if err != nil {
+		return nil, err
+	}
+	mean := make([]float32, text.Width)
+	for row := range len(ids) {
+		for column := range text.Width {
+			mean[column] += rows[row*text.Width+column] / float32(len(ids))
+		}
+	}
+	return mean, nil
 }
 
 // writeFloats writes values to a cache file as little-endian float32.

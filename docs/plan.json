@@ -55,9 +55,23 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "Measured by the gate: card-encoder adds 1,278 production nodes: the encoder's card graph and session, the front end split from the host walk, and the composite and the capture opening the card."
+        "reason": "Measured by the gate: capture-9b adds 433 production nodes: the shared caption text-model reader, less the route's own reader it replaces, and the capture's GGUF identity and caption mean."
       },
       "steps": [
+        {
+          "id": "train-9b",
+          "title": "Train the 9B composite's bridge through the frozen walk from the closed-form fit",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheNineBBridgeRunHoldsItsTerms$'",
+          "rationale": "The 9B composite's bridge trains through the frozen walk on the 9B's capture, under the terms the 0.5B trained under (docs/verification/vision-bridge-acceptance.json): its held-back sources score the run before and after each segment, a segment whose held-back loss does not fall publishes nothing, and the held-back samples choose the checkpoint.\nThe run does not start from the zero-output bridge: its zero rows open the prompt, Qwen3.5's stack has no biases to lift them, and each layer's norms multiply their gradient by the inverse square root of their epsilon, 1.8e21 at the 9B's first step (vision-bridge/frozen-9b). It starts from the closed-form fit of the capture's frames to its captions' mean embeddings, the map seam-align -rank already measures, written as a bridge, which places rows of the captions' scale.\nAt 0.41 s a sample on the card (vision-bridge/frozen-9b), the 0.5B's steps take a few card-hours of the terms' 24.\nThe run's record, docs/verification/vision-bridge-9b-run.json, keeps the capture, the start, each segment and the chosen checkpoint, held to the terms as the 0.5B's is.\nServes: the row's question, the 9B with vision through a bridge.\nDisappears: nothing.\nEvidence: the run record.\nBatch: cuda lane."
+        },
+        {
+          "id": "judge-9b",
+          "title": "Judge the 9B composite on the frame suite against its floor",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheNineBJudgementIsComplete$'",
+          "rationale": "The terms judge the 9B composite as they judged the 0.5B's: read on the frozen 256-frame suite, exposure charged, against the floor, the higher of chance and the composite whose bridge gives nothing, with the ceiling, Qwen3.8-27B with its projector, and the reference, Hy-Embodied-RxBrain-1.0, read beside it (their readings on this suite stand from the 0.5B's judgement), within the terms' card memory, 11 GiB, and answer time.\nThe record, docs/verification/vision-bridge-9b-judgement.json, keeps the readings with their evaluations, the floor, the gain, the limits read and the verdict, held to the terms as the 0.5B's is.\nServes: held-out-quality, peak-device-memory and first-output of the 9B composite.\nDisappears: nothing.\nEvidence: the judgement record.\nBatch: cuda lane."
+        },
         {
           "id": "publish-composite",
           "title": "Publish the composite the judgements favour as an inactive candidate",

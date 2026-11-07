@@ -9,15 +9,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
-	"overgo/internal/gguf"
-	"overgo/internal/hfbpe"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/optimizer"
@@ -239,11 +236,12 @@ func captionFrameRows(capture evaluation.CaptionTrainingCapture) (int, error) {
 // captionSequences are the samples' training sequences and the positions a frame's rows take in each: the prompt a
 // composite's session builds for a frame of rows tokens asked the frame suite's question, then the caption's tokens,
 // padded to one length with tokens the loss does not read.
-func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCapture, placeholder string, rows int) ([]captionSequence, []int, error) {
-	encode, end, err := captionVocabulary(capture.TextModel)
+func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCapture, placeholder string, rows int) (_ []captionSequence, _ []int, err error) {
+	text, err := evaluation.OpenCaptionText(capture.TextModel)
 	if err != nil {
 		return nil, nil, err
 	}
+	defer func() { err = errors.Join(err, text.Close()) }()
 	// The prompt's tokens follow from its rows alone, not from what they hold, so one picture builds it for every
 	// sample, through the session a composite serves its frames through.
 	session, err := projector.NewEncodedImageSession(captionFamily, placeholder, capture.TextWidth, func(context.Context, image.Image) (reference.Value, error) {
@@ -256,7 +254,7 @@ func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCap
 	if err != nil {
 		return nil, nil, err
 	}
-	built, err := session.BuildImagePrompt(ctx, captionTokenizer{encode}, image.NewGray(image.Rect(0, 0, tensor.SingletonExtent, tensor.SingletonExtent)), "", evaluation.FrameQuestion, false)
+	built, err := session.BuildImagePrompt(ctx, captionTokenizer{text.Encode}, image.NewGray(image.Rect(0, 0, tensor.SingletonExtent, tensor.SingletonExtent)), "", evaluation.FrameQuestion, false)
 	if err = errors.Join(err, session.Close()); err != nil {
 		return nil, nil, err
 	}
@@ -267,12 +265,12 @@ func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCap
 	length := len(built.TokenIDs) + captionTokens
 	sequences := make([]captionSequence, len(capture.Samples))
 	for index, sample := range capture.Samples {
-		caption, err := encode(sample.Caption)
+		caption, err := text.Encode(sample.Caption)
 		if err != nil || len(caption) == 0 {
 			return nil, nil, errors.Join(err, fmt.Errorf("caption projector: %s's caption gives no tokens", sample.Vid))
 		}
 		if len(caption) < captionTokens {
-			caption = append(caption, end)
+			caption = append(caption, text.End)
 		}
 		caption = caption[:min(len(caption), captionTokens)]
 		sequence := captionSequence{vid: sample.Vid, frame: sample.Frame, tokens: make([]int, length), trained: make([]bool, length)}
@@ -280,7 +278,7 @@ func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCap
 			sequence.tokens[at] = int(id)
 		}
 		for at := len(built.TokenIDs); at < length; at++ {
-			sequence.tokens[at] = end
+			sequence.tokens[at] = text.End
 		}
 		for at, id := range caption {
 			sequence.tokens[len(built.TokenIDs)+at], sequence.trained[len(built.TokenIDs)+at] = id, true
@@ -288,53 +286,6 @@ func captionSequences(ctx context.Context, capture evaluation.CaptionTrainingCap
 		sequences[index] = sequence
 	}
 	return sequences, positions, nil
-}
-
-// captionVocabulary is the text model's tokenizer, a GGUF file's own or a directory's tokenizer file: a text's tokens,
-// its added tokens read as the tokens they name and none added of the tokenizer's own, and the token that ends a text.
-func captionVocabulary(path string) (func(string) ([]int, error), int, error) {
-	opens := errors.New("caption projector: the text model opens a prompt with a beginning token, which its tokenizer adds to no text")
-	if strings.EqualFold(filepath.Ext(path), ".gguf") {
-		file, err := gguf.Open(path)
-		if err != nil {
-			return nil, 0, err
-		}
-		vocabulary, err := tokenizer.Load(file)
-		if err = errors.Join(err, file.Close()); err != nil {
-			return nil, 0, err
-		}
-		if vocabulary.AddBOS {
-			return nil, 0, opens
-		}
-		return func(text string) ([]int, error) {
-			ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
-			tokens := make([]int, len(ids))
-			for index, id := range ids {
-				tokens[index] = int(id)
-			}
-			return tokens, err
-		}, int(vocabulary.EOS), nil
-	}
-	vocabulary, err := hfbpe.Load(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	var config struct {
-		End *int `json:"eos_token_id"`
-	}
-	if err := jsonfile.Decode(filepath.Join(path, "config.json"), &config); err != nil || config.End == nil {
-		return nil, 0, errors.Join(err, errors.New("caption projector: the text model's configuration names no single end token"))
-	}
-	var opening struct {
-		Beginning bool `json:"add_bos_token"`
-	}
-	if err := jsonfile.Decode(filepath.Join(path, "tokenizer_config.json"), &opening); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, 0, err
-	}
-	if opening.Beginning {
-		return nil, 0, opens
-	}
-	return vocabulary.Encode, *config.End, nil
 }
 
 // captionTokenizer tokenizes a projector's prompt with the text model's own tokenizer, which adds no token of its own

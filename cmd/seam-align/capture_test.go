@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,7 +13,9 @@ import (
 	"testing"
 
 	"overgo/internal/evaluation"
+	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestCaptureHoldsTheTrainingSplit holds a capture's samples to the training side of the suite they stand beside: no
@@ -95,5 +100,35 @@ func TestCaptureCacheAdmitsOnlyItsOwnInputs(t *testing.T) {
 	testcheck.NoError(t, os.Remove(filepath.Join(cache, "unbound"+bindingSuffix)))
 	if _, _, kept := cachedSample(cache, "unbound", key, len(values)); kept {
 		t.Error("a sample whose binding was never written was a hit")
+	}
+}
+
+// TestACaptureReadsItsTextModelsFile reads a caption's target through a GGUF text model as the capture does: the mean
+// of the file's token embedding rows for the caption's tokens, which the file's own tokenizer gives, with the file's
+// width and end token beside it. A file whose tokenizer opens every prompt with a beginning token is refused.
+func TestACaptureReadsItsTextModelsFile(t *testing.T) {
+	t.Parallel()
+	const caption, width, vocabulary, beginning, end = "abc", 8, 8, 1, 2
+	if _, err := evaluation.OpenCaptionText(testutil.HermeticLlamaGGUFWith(t, 64, testutil.GGUFScalar("tokenizer.ggml.add_bos_token", gguf.ValueTypeBool, true))); err == nil || !strings.Contains(err.Error(), "beginning token") {
+		t.Fatalf("a text model that opens every prompt with a beginning token was not refused for it: %v", err)
+	}
+	path := testutil.HermeticLlamaGGUF(t, 64)
+	text := testcheck.Must(evaluation.OpenCaptionText(path))(t)
+	defer text.Close()
+	ids := testcheck.Must(text.Encode(caption))(t)
+	mean := testcheck.Must(captionMean(text, caption))(t)
+	// The file's table as the fixture wrote it, a row of its width for each token.
+	raw := testcheck.Must(io.ReadAll(testutil.GGUFTensorF32("token_embd.weight", []uint64{width, vocabulary}, 1).Data))(t)
+	table := make([]float32, width*vocabulary)
+	testcheck.NoError(t, binary.Read(bytes.NewReader(raw), binary.LittleEndian, table))
+	want := make([]float32, width)
+	for _, id := range ids {
+		for column := range width {
+			want[column] += table[id*width+column] / float32(len(ids))
+		}
+	}
+	if text.Width != width || text.End != end || len(ids) == 0 || slices.Contains(ids, beginning) || !slices.Equal(mean, want) {
+		t.Fatalf("the capture reads %q as tokens %v and the mean row %v, width %d and end %d; want the file's rows' mean %v, width %d and end %d",
+			caption, ids, mean, text.Width, text.End, want, width, end)
 	}
 }

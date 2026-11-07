@@ -59,13 +59,6 @@
       },
       "steps": [
         {
-          "id": "judge-9b",
-          "title": "Judge the 9B composite on the frame suite against its floor",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheNineBJudgementIsComplete$'",
-          "rationale": "The terms judge the 9B composite as they judged the 0.5B's: read on the frozen 256-frame suite, exposure charged, against the floor, the higher of chance and the composite whose bridge gives nothing, with the ceiling, Qwen3.8-27B with its projector, and the reference, Hy-Embodied-RxBrain-1.0, read beside it (their readings on this suite stand from the 0.5B's judgement), within the terms' card memory, 11 GiB, and answer time.\nThe record, docs/verification/vision-bridge-9b-judgement.json, keeps the readings with their evaluations, the floor, the gain, the limits read and the verdict, held to the terms as the 0.5B's is.\nServes: held-out-quality, peak-device-memory and first-output of the 9B composite.\nDisappears: nothing.\nEvidence: the judgement record.\nBatch: cuda lane."
-        },
-        {
           "id": "publish-composite",
           "title": "Publish the composite the judgements favour as an inactive candidate",
           "status": "open",

@@ -1,0 +1,71 @@
+{
+  "schema": "overgo/vision-bridge-judgement/v1",
+  "acceptance": "sha256:71ae28647e76a107a446090b2c0c6ce14754c5d7774855b2f7fca1adf542f480",
+  "comparison": "Qwen3.5-9B composite over the floor",
+  "measure": "vidgen-1m/frame-description-matching 9005e01b2548cca46c70fae6a3b753ba2cf618e0f8c7db4d16c85c3805fb074b",
+  "checkpoint": "checkpoint:sha256:d573286913e3d58255af9741a3b1ae6b2d412eaae0b75dcd94c14c5e105ce548",
+  "readings": [
+    {
+      "name": "composite",
+      "model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+      "projection": "adapter:sha256:e16bed7171217a4b89ad15b646f9d5271f56bac35d44a3c8a74a87c907f9e653",
+      "evaluation": "evaluation:sha256:0f578a01667daa0d8667b158ba761aada0628179759e95931ee3460803b00a3f",
+      "correct": 170,
+      "cases": 256,
+      "score": 0.6640625,
+      "seconds_per_case": 0.757
+    },
+    {
+      "name": "floor",
+      "model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+      "projection": "adapter:sha256:d41007ea24ead416020f606cc9855fd8d6ffee994579c82c44869829fae05034",
+      "evaluation": "evaluation:sha256:d0483d7f9e03266b62f16c75cfa97cb9f6e169c5cfc0c9866d94217f77a990c0",
+      "correct": 54,
+      "cases": 256,
+      "score": 0.2109375,
+      "seconds_per_case": 0.753
+    },
+    {
+      "name": "start",
+      "model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+      "projection": "adapter:sha256:86923984331b7f7b6f9c34fbe47b94d5bcfd90a2a0f8b332a5034ebe12caa4a0",
+      "evaluation": "evaluation:sha256:c9463c9e56becf3eb7ac2d18daf834d113d75265983eb9398239301333949f66",
+      "correct": 60,
+      "cases": 256,
+      "score": 0.234375,
+      "seconds_per_case": 0.755
+    },
+    {
+      "name": "ceiling",
+      "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+      "projection": "Qwen3.8-27B-UD-Q6_K/mmproj-BF16.gguf",
+      "evaluation": "evaluation:sha256:3ed8b9280ec12482771eb817cc21046142011c084a794388c66995a54421d088",
+      "correct": 124,
+      "cases": 256,
+      "score": 0.484375,
+      "seconds_per_case": 1.75
+    },
+    {
+      "name": "reference",
+      "model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+      "projection": "native",
+      "evaluation": "evaluation:sha256:ff9945bdf770e39629dfbc42fb3925820f20cdd742eff24af5ca4a49e9c39bf5",
+      "correct": 166,
+      "cases": 256,
+      "score": 0.6484375,
+      "seconds_per_case": 10.388
+    }
+  ],
+  "chance": 0.25,
+  "floor": 0.25,
+  "gain": 0.4140625,
+  "composite_peak_device_bytes": 11051518592,
+  "composite_answer_seconds": 1.187,
+  "verdict": "gain",
+  "notes": [
+    "The composite is the DINO encoder (webssl-dino300m-full2b-224) on the card, the run's chosen bridge, and Qwen3.5-9B served from its own Q8_0 GGUF file on the card, as cmd/evaluate opens them; its answer time is one frame's, the suite's first (-EGK4gGtz44-Scene-0398), 0.423 s of it the encoder's first frame on the card, and its card memory the process's peak over that frame.",
+    "The floor is the higher of chance and the two untrained composites: the bridge that gives nothing (floor) and the run's start, the captions' mean (start); both read under chance.",
+    "The ceiling and the reference are the 0.5B judgement's readings of this suite, which stand: Qwen3.8-27B with its projector, and Hy-Embodied-RxBrain-1.0 read from its directory.",
+    "Each 9B reading warned that the 9B's verification evidence names an architecture profile this build no longer compiles."
+  ]
+}

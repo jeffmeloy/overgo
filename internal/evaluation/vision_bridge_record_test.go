@@ -11,11 +11,11 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// visionBridgeJudgement is the judgement of the 0.5B composite, and visionBridgeReadings the readings it sets side by
-// side: the trained composite, its floor, the ceiling and the reference.
-const visionBridgeJudgement = "../../docs/verification/vision-bridge-0.5b-judgement.json"
-
-var visionBridgeReadings = []string{"composite", "floor", "ceiling", "reference"}
+// visionBridgeJudgement and visionBridgeNineBJudgement are the judgements of the 0.5B and the 9B composites.
+const (
+	visionBridgeJudgement      = "../../docs/verification/vision-bridge-0.5b-judgement.json"
+	visionBridgeNineBJudgement = "../../docs/verification/vision-bridge-9b-judgement.json"
+)
 
 // visionBridgeReading is one reading of the frozen suite: what was read, its evaluation in the store, the cases it
 // answered rightly of those it was asked, its score, and the seconds a case took.
@@ -49,24 +49,40 @@ type visionBridgeJudgementRecord struct {
 	Notes                    []string              `json:"notes"`
 }
 
-// TestVisionBridgeRecordIsComplete holds the 0.5B composite's judgement to the terms it reads under: the frozen suite
-// read whole by the trained composite, its floor, the ceiling and the reference, each score its cases' share; the
-// checkpoint the run chose; the floor the higher of chance and the untrained composite; the gain the composite's score
-// less it; and a verdict of gain exactly when the gain reaches the terms' and the composite keeps within their card
-// memory and answer time.
+// TestVisionBridgeRecordIsComplete holds the 0.5B composite's judgement to the terms, its floor the composite whose
+// bridge gives nothing, within the 0.5B composite's card memory.
 func TestVisionBridgeRecordIsComplete(t *testing.T) {
 	t.Parallel()
+	judgementIsComplete(t, visionBridgeJudgement, visionBridgeRun, 0, []string{"floor"},
+		func(terms visionBridgeTerms) uint64 { return terms.Limits.Composite05BPeakDeviceBytes })
+}
+
+// TestTheNineBJudgementIsComplete holds the 9B composite's judgement to the terms, its floor the higher of the
+// composite whose bridge gives nothing and the run's start, the captions' mean, within the 9B composite's card memory.
+func TestTheNineBJudgementIsComplete(t *testing.T) {
+	t.Parallel()
+	judgementIsComplete(t, visionBridgeNineBJudgement, visionBridgeNineBRun, 1, []string{"floor", "start"},
+		func(terms visionBridgeTerms) uint64 { return terms.Limits.Composite9BPeakDeviceBytes })
+}
+
+// judgementIsComplete holds a composite's judgement at path to the terms it reads under: the frozen suite read whole by
+// the trained composite, each untrained composite, the ceiling and the reference, each score its cases' share; the
+// checkpoint the run at runPath chose; the floor the higher of chance and every untrained composite; the gain the
+// composite's score less it; and a verdict of gain exactly when the gain reaches the terms' and the composite keeps
+// within its card memory and the terms' answer time.
+func judgementIsComplete(t *testing.T, path, runPath string, comparison int, untrained []string, memory func(visionBridgeTerms) uint64) {
+	t.Helper()
 	data := testcheck.Must(os.ReadFile(visionBridgeAcceptance))(t)
 	var terms visionBridgeTerms
 	testcheck.NoError(t, strictjson.DecodeBytes(data, &terms))
 	digest := sha256.Sum256(data)
 	var judgement visionBridgeJudgementRecord
-	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(visionBridgeJudgement))(t), &judgement))
+	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(path))(t), &judgement))
 	var run visionBridgeRunRecord
-	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(visionBridgeRun))(t), &run))
+	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(runPath))(t), &run))
 	if judgement.Schema != "overgo/vision-bridge-judgement/v1" || judgement.Acceptance != "sha256:"+hex.EncodeToString(digest[:]) ||
-		judgement.Comparison != terms.Comparisons[0].Name || judgement.Measure != terms.Suite.Measure || judgement.Checkpoint != run.Chosen {
-		t.Fatalf("the judgement reads under %s, comparison %q, measure %q and checkpoint %s; want the acceptance's, its first comparison, its suite and the run's choice",
+		judgement.Comparison != terms.Comparisons[comparison].Name || judgement.Measure != terms.Suite.Measure || judgement.Checkpoint != run.Chosen {
+		t.Fatalf("the judgement reads under %s, comparison %q, measure %q and checkpoint %s; want the acceptance's, its comparison, its suite and the run's choice",
 			judgement.Acceptance, judgement.Comparison, judgement.Measure, judgement.Checkpoint)
 	}
 	readings := map[string]visionBridgeReading{}
@@ -79,16 +95,19 @@ func TestVisionBridgeRecordIsComplete(t *testing.T) {
 		}
 		readings[reading.Name] = reading
 	}
-	for _, name := range visionBridgeReadings {
+	floor := judgement.Chance
+	for _, name := range append([]string{"composite", "ceiling", "reference"}, untrained...) {
 		if _, read := readings[name]; !read {
 			t.Errorf("the judgement holds no %s reading", name)
 		}
 	}
-	floor := max(judgement.Chance, readings["floor"].Score)
+	for _, name := range untrained {
+		floor = max(floor, readings[name].Score)
+	}
 	if judgement.Chance <= 0 || judgement.Floor != floor || judgement.Gain != readings["composite"].Score-floor {
 		t.Errorf("the judgement sets the floor at %.4f and the gain at %.4f; want %.4f and %.4f", judgement.Floor, judgement.Gain, floor, readings["composite"].Score-floor)
 	}
-	gained := judgement.Gain >= terms.Gain && judgement.CompositePeakDeviceBytes > 0 && judgement.CompositePeakDeviceBytes <= terms.Limits.Composite05BPeakDeviceBytes &&
+	gained := judgement.Gain >= terms.Gain && judgement.CompositePeakDeviceBytes > 0 && judgement.CompositePeakDeviceBytes <= memory(terms) &&
 		judgement.CompositeAnswerSeconds > 0 && judgement.CompositeAnswerSeconds <= terms.Limits.AnswerSeconds
 	if want := map[bool]string{true: "gain", false: "loss"}[gained]; judgement.Verdict != want {
 		t.Errorf("the judgement's verdict is %q; want %q", judgement.Verdict, want)

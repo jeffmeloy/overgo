@@ -30,7 +30,7 @@ type evaluationSession interface {
 type sessionOpener func(context.Context, manifest, modelRequest) (evaluationSession, error)
 
 func executeModel(ctx context.Context, value manifest, request modelRequest, open sessionOpener) error {
-	if ctx == nil || open == nil || len(request.Suites) == 0 {
+	if ctx == nil || open == nil || len(request.Suites) == 0 && request.Family == "" {
 		return errors.New("evaluate: incomplete model worker")
 	}
 	session, err := open(ctx, value, request)
@@ -39,6 +39,15 @@ func executeModel(ctx context.Context, value manifest, request modelRequest, ope
 	}
 	for _, suite := range request.Suites {
 		if err := session.Evaluate(ctx, suite); err != nil {
+			return errors.Join(err, session.Close())
+		}
+	}
+	if request.Family != "" {
+		derived, ok := session.(derivedEvaluator)
+		if !ok {
+			return errors.Join(errors.New("evaluate: this model's session campaigns no derived suites"), session.Close())
+		}
+		if err := derived.EvaluateDerived(ctx, request.Family); err != nil {
 			return errors.Join(err, session.Close())
 		}
 	}

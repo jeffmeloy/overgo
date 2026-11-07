@@ -68,6 +68,9 @@ type modelRequest struct {
 	// Bridge, with Encoder, reads a candidate composite before any recipe promotes it: this bridge file's affine map in
 	// place of the active composition's.
 	Bridge string `json:"bridge,omitempty"`
+	// Family campaigns the store's derived suites of this family after the request's suites, as -all -family does,
+	// through the model's session: a composite's reads its text model's text suites as it serves them.
+	Family string `json:"family,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -470,8 +473,8 @@ func compileManifest(value manifest) (manifest, error) {
 	indexByPath := make(map[string]int, len(value.Models))
 	for _, request := range value.Models {
 		request.Path = filepath.Clean(strings.TrimSpace(request.Path))
-		if request.Path == "." || len(request.Suites) == 0 {
-			return manifest{}, errors.New("evaluate: model path or suites are absent")
+		if request.Path == "." || len(request.Suites) == 0 && request.Family == "" {
+			return manifest{}, errors.New("evaluate: model path, or its suites and derived family, are absent")
 		}
 		request.Suites = slices.Clone(request.Suites)
 		for index := range request.Suites {
@@ -481,6 +484,9 @@ func compileManifest(value manifest) (manifest, error) {
 			}
 		}
 		if index, exists := indexByPath[request.Path]; exists {
+			if request.Family != "" {
+				return manifest{}, errors.New("evaluate: a model's derived family is named in its first request")
+			}
 			models[index].Suites = append(models[index].Suites, request.Suites...)
 			continue
 		}

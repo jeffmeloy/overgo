@@ -8138,8 +8138,16 @@
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
-    "head": "2ab4bdd35c60c28d69c2d26b938ec2d1881ae4ae",
+    "head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
     "findings": {
+      "SQA-324": {
+        "action": "scheduled",
+        "rows": [
+          "format-loader/do",
+          "vision-bridge/judge"
+        ],
+        "note": "Accepted, and the owner asked the same of the 0.5B's conversion. The judgement's premise was wrong: the 0.5B's directory reached the runner through hfconvert.View, the store resolving the conversion to the directory's own model and recipe, so the judgement record says no conversion was needed, measures the composite's card memory from the directory, and its conversion paragraph leaves the plan with the step. The loader change, the storage format an input to the existing model and recipe owners in place of the in-memory GGUF view, is filed as format-loader/do after vision-bridge."
+      },
       "SQA-320": {
         "action": "implemented",
         "rows": [

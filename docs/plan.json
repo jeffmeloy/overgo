@@ -59,16 +59,33 @@
       },
       "steps": [
         {
-          "id": "judge",
-          "title": "Judge the composite, then keep or remove it",
+          "id": "publish",
+          "title": "Publish the judged 0.5B composite as an inactive candidate",
           "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeRecordIsComplete$'",
-          "rationale": "Read the composite, floor and ceiling on the frozen held-out suite with exposure charged, and retain the record, which the check reads: a model-tagged test would train in every run (internal/landing/lanes.go:85-89,134). Report quality, peak card memory, throughput and first output side by side; the host encoder alone reads 4.5 s today (README.md:144), which may decide the result.\nA win publishes an inactive candidate, activated through close-the-loop or by hand. A composite has no slot yet, so its activation is by hand until that row lands.\nA loss keeps one record under docs/verification and removes what this row added, as the doctrine asks of a null result. A projector matching a native vision model is an open question, and a clear loss is a valid outcome.\nEither result feeds the seam-align bias audit.\nServes: held-out-quality and peak-device-memory, on evidence.\nDisappears: on a loss, this row's wiring.\nEvidence: one retained verdict, whichever way it goes.\nBatch: one device run by the row; the check is host lane.\n\nThe 0.5B text model is on disk only as safetensors, and cmd/evaluate opens a composite's text model as a GGUF runner (internal/modelcli OpenRunner), so the judgement first converts it with gguf convert, which reads qwen2. The training tokenized its prompts and captions with the checkpoint's tokenizer file (hfbpe), and serving tokenizes through the GGUF's vocabulary: before any reading, the served prompt of a frame, through inference.PromptReader or the runner, is held to the training's token for token, the placeholders at the same positions.",
-          "depends_on": [
-            "vision-bridge/train",
-            "heldout-verdict/verdict-noise",
-            "heldout-verdict/charge-objective"
-          ]
+          "verify": "go test ./cmd/seam-align -count=1 -run '^TestAJudgedBridgePublishesAnInactiveComposite$'",
+          "rationale": "The judgement read the 0.5B composite at 0.504 on the 256 held-out frames, over a floor of 0.25 by 0.254 against the 0.10 the terms ask, at 0.95 GiB of card memory and 5.1 s an answer (docs/verification/vision-bridge-0.5b-judgement.json). A win publishes an inactive candidate, and no command publishes a composition: only a test fixture builds a composition authority (internal/composition/compositiontest).\nPublish the judged bridge as an inactive composition candidate: its source and target representation contracts, the bridge definition over the stored adapter, the execution recipe, and a promotion whose trial is the judgement's readings, the composite against its floor, the policy holding one seed as this run trained one. Activation stays by hand until composites have a slot.\nServes: held-out-quality, a composite the server can be given.\nDisappears: nothing.\nEvidence: the published candidate, inactive, its promotion naming the judgement's evaluations.\nBatch: host lane."
+        },
+        {
+          "id": "frozen-9b",
+          "title": "Walk the 9B's frozen hybrid stack back to the bridge's rows on the card",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/hybridtrain -count=1 -run '^TestTheFrozenHybridStackGivesItsInputGradient$'",
+          "rationale": "The 0.5B composite gained, so the terms' order trains the 9B composite next, within its 24 card-hours and 11 GiB of card memory. Three pieces it needs do not exist: the frozen backward to the input rows through Qwen3.5-9B's Q8_0 hybrid stack on the card (the hybrid-stack route updates weights as it walks, internal/hybridtrain), a capture and training prompts that read a GGUF text model's vocabulary and embeddings, where the 0.5B's read its Hugging Face directory, and the 9B's own capture.\nThis step is the frozen walk: the hybrid stack's masked loss with rows placed at the image positions, and its gradient with respect to the rows, every weight frozen, held to finite differences on a fixture.\nServes: the row's question, the 9B with vision through a bridge.\nDisappears: nothing.\nEvidence: the gradient check on the card.\nBatch: cuda lane."
+        }
+      ]
+    },
+    {
+      "id": "format-loader",
+      "title": "Load a model from the format it is published in through one loader, no conversion required",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Load a model from the format it is published in through one loader, no conversion required",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1 -run '^TestAModelLoadsFromItsPublishedFormat$'",
+          "rationale": "The owner, 2026-11-06, of the 0.5B's conversion for the vision-bridge judgement: \"the model format shouldn't matter? tensors are tensors?\" SQA-324: a Hugging Face directory of a supported profile already reaches the runner through hfconvert.View, which writes an in-memory GGUF header, computes offsets and reparses it so File-based model, load and identity code can read it; physical GGUF goes through gguf.Open. The conversion the judgement made was never needed, and the simulated file is the coupling that let it look needed.\nMake the storage format an input to the existing model and recipe loading owners: the shared model facts and typed tensor readers that both a GGUF file and a Hugging Face directory supply, reusing profileTensors, the hfgguf mappings, the safetensors readers, shape validation and the host and device transfer owner, in place of the simulated GGUF view, not beside it. Conversion stays only for a demonstrated consumer.\nServes: setup-steps and load-time, one path for every published format.\nDisappears: the in-memory GGUF view and conversion as a prerequisite.\nEvidence: a model loaded from its directory and from a GGUF of the same tensors gives the same identity facts and tensors through one loader.\nBatch: host lane."
         }
       ]
     }

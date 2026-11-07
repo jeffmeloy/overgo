@@ -410,7 +410,7 @@ func (l *landing) shipSet(ctx context.Context) error {
 // findingsRegister is the register a review session writes its findings into: a record no code reads, as the plan is
 // one no code compiles, and one the guard keeps a review session from committing, so it waits for the lead's next
 // landing.
-const findingsRegister = "docs/sqa_findings.json"
+const findingsRegister = plan.FindingsRegister
 
 // planOnly reports a change to the plan alone, or to the plan and the findings register a review left uncommitted.
 func (l *landing) planOnly() bool {

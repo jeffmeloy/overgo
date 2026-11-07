@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 144,
-        "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
+        "nodes": 434,
+        "reason": "driver-on/fall-through measured 566 production nodes, the register reader, dispatch's empty-plan line and the driver's cycle trigger, past the 144 left; status, stop-clears and gate-retired are estimated at 430 more."
       },
       "steps": [
-        {
-          "id": "fall-through",
-          "title": "With no open row, dispatch takes P1 and P2 findings, then the full measurement run, and P3 findings only when the owner names them",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchFallsThroughToFindingsThenTheRun$'",
-          "rationale": "On Nov 1 every open row belonged to the MOSS role and the lead sat 6.3 hours. \"Never idle\" must not turn the findings register (about 9,000 lines) into endless low-value commits: since Oct 31, 53 of 354 commits were register commits.\nThe order: open plan rows; P1 and P2 findings, each filed as a row; the full measurement run (last on Oct 31); P3 findings only when the owner names them.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: a lead with no row and nothing to take.\nEvidence: an empty plan dispatches the highest open P1 or P2 finding, then the measurement run, and never a P3 the owner did not name.\nBatch: host lane."
-        },
         {
           "id": "status",
           "title": "The driver writes its status and notifies the owner when a step lands, stops or is set aside",

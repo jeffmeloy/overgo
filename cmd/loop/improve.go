@@ -156,6 +156,10 @@ func (w *improvement) movedSince() (last string, moved int, err error) {
 // CycleWorthRunning says whether a cycle an empty plan would start has anything to do: it has when no cycle
 // has completed, something it measures moved since the last that did, or the last to publish was cut short.
 func (w *improvement) CycleWorthRunning() (bool, string, error) {
+	// The register's open P1 and P2 findings no row names come before the measurement run.
+	if waiting, err := findingsWaiting(w.root, w.plan); err != nil || len(waiting) != 0 {
+		return false, "file as rows the open findings no row names before the measurement run: " + strings.Join(waiting, "; "), err
+	}
 	if !w.watch {
 		return true, "the cycle is not gated on what moved", nil
 	}
@@ -579,4 +583,21 @@ func validateTo(output io.Writer, checkout, store string, environment []string, 
 	}
 	command := append([]string{"go", "-C", checkout, "run", "-ldflags=" + identities, "./cmd/validate"}, arguments...)
 	return runToolEnv(slices.Concat(loopEnvironment(), bound, environment), nil, output, os.Stderr, append(command, "-repo", store)...)
+}
+
+// findingsWaiting are the findings an empty plan at root falls through to before the measurement run
+// (plan.FindingsToFile); a checkout with no register has none.
+func findingsWaiting(root, planPath string) ([]string, error) {
+	register, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(plan.FindingsRegister)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(planPath)))
+	if err != nil {
+		return nil, err
+	}
+	return plan.FindingsToFile(document, register)
 }

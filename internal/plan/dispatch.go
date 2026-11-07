@@ -28,6 +28,9 @@ type Dispatch struct {
 	Waiting   string      `json:"waiting,omitzero"`
 	// Decided names each unanswered decision the row goes on under, at its recommended option (byRecommendation).
 	Decided []string `json:"decided,omitempty"`
+	// Findings, of an empty plan, are the open P1 and P2 findings no row names, to be filed as rows before the
+	// measurement run (FindingsToFile).
+	Findings []string `json:"findings,omitempty"`
 }
 
 // Shared Git revision query used by dispatch.
@@ -80,6 +83,9 @@ func dispatchLine(dispatch Dispatch) string {
 	switch {
 	case dispatch.Waiting != "":
 		return "plan waiting: " + dispatch.Waiting
+	case dispatch.Complete && len(dispatch.Findings) != 0:
+		return "plan complete: every item is done; before the measurement run, file as rows the open findings no row names: " +
+			strings.Join(dispatch.Findings, "; ")
 	case dispatch.Complete:
 		return "plan complete: every item is done"
 	case dispatch.Step == ".":
@@ -135,6 +141,16 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
+	}
+	// An empty plan falls through to the register's open P1 and P2 findings no row names, before the measurement run.
+	if dispatch.Complete {
+		register, readErr := os.ReadFile(filepath.Join(repository, filepath.FromSlash(FindingsRegister)))
+		if readErr == nil {
+			if dispatch.Findings, err = FindingsToFile(document, register); err != nil {
+				return Dispatch{}, err
+			}
+			dispatch.Line = dispatchLine(dispatch)
+		}
 	}
 	if stop.State != stopAbsent {
 		dispatch.Stop = &stop

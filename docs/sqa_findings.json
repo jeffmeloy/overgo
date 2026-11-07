@@ -1,9 +1,8 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Prioritize326's concrete admitted-model mismatch. Credit324's accepted retained-owner migration without closing it. Do not merge frozen reference correctness, full optimizer training, format migration or recipe admission merely because they share loading/workflow files.",
+    "assessment": "Close326's unsafe admission using its specified refuse-or-preserve alternative; preserve the plan's distinct full-training obligation. Credit shared gate binding and encoder preprocessing without calling new device capability a code reduction.",
     "current_review_order": [
-        "SQA-326",
         "SQA-316",
         "SQA-315",
         "SQA-271",
@@ -18,18 +17,18 @@
         "SQA-257"
       ],
     "declined_candidates": [
-        "No blanket deletion of newly added reference/gradient/parity tests: their behavioral owners differ.",
-        "No loader-only gate patch presented as complete training support; matrix/gradient/checkpoint/device costs remain.",
-        "No new recipe scheduler, model campaign, universal parity threshold, test selector or statistics framework.",
-        "No savings from relocating gate reconstruction into another helper or fixture; count complete replacement cost."
+        "No retirement of the new tiny fused-row/admission test: its live/cancelled and two-head cases own different failures from gradient and served-reference tests.",
+        "No merge of host reference and device encoder implementations based on similar math; the host supplies an independent arithmetic reference and other callers still use it.",
+        "No new capture recovery framework. Its existing cache identity and partial-write refusal are retained; eager model/card opening means the current path cannot be described as GPU-free cached replay. This sample does not establish a complete net-saving replacement.",
+        "No universal numerical tolerance or throughput claim from one encoder image; no added benchmark, selector or recurring confidence run."
       ],
-    "rank_basis": "326 P1 is first for silent numerical-contract change in an admitted training route. Other open findings retain relative order; this targeted sample does not pretend to revalidate every historical severity."
+    "rank_basis": "Remove resolved326 from active ranks. Remaining relative order unchanged; no claim that this targeted review re-proved every old ranking."
   },
     "committed_plan": {
-    "git_blob": "f45079d1684713d8beeb91db449c30401f774593",
+    "git_blob": "9a057ecb35509942e82e971b1fa0d18203ce8379",
     "path": "docs/plan.json",
-    "revision": "ea5330ecb23022c379caf3336452718655f2a928",
-    "sha256": "6a7570762f9daee8d33236fbe754b02f87d50dbe9be1897fd17111f9464bc746",
+    "revision": "14c4bb5623ddf37731ee4a45642322d542315646",
+    "sha256": "3d612fbbd73e152b7e668c514bc164f6c641a22d89d44968ae16f0c7585658a1",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -6401,146 +6400,127 @@
       "comparison": "Smallest deciding comparison during ordinary implementation validation: in TestReplayRunsNoStageItsOutputDoesNotNeed, keep its existing runtime and counting adapters, omit the last binding before the first call, assert the named refusal and zero counts, restore it through Register and continue its existing first-success/replay sequence. Current source predicts two upstream calls before refusal; proposed admission predicts zero. Preserve TestCancellationWhileWaitingForStageLock by supplying its two otherwise-unused bindings, and retain existing restart/drift/parallel owners. No SQA execution, artificial timing or additional confidence campaign."
     },
     {
-      "id": "SQA-326",
-      "status": "open",
-      "severity": "P1",
-      "category": "training-numerical-contract",
-      "classification": "source-established-model-mismatch-already-recorded-by-implementation",
-      "title": "Preserve attention gates through hybrid training or reject unsupported gated models early",
-      "evidence_commit": "ea5330ecb23022c379caf3336452718655f2a928",
-      "sources": [
+    "category": "training-numerical-contract",
+    "classification": "implemented-early-refusal-and-shared-frozen-gate-binding",
+    "evidence": "Closed for the unsafe-admission contract by 2cbc30090, rechecked at 14c4bb5623ddf37731ee4a45642322d542315646. loadStack inspects the validated query descriptor during its existing layer census and rejects a gated artifact for weight training before allocating master slabs or decoding tensors. LoadStackArtifact takes that refusal path; LoadFrozenLanguageModel explicitly retains gated frozen loading. bindAttentionLayer extracts query and gate rows once per head, deleting the frozen loader's second AttentionQ decode/copy loop. The served-9B parity already migrated to LoadFrozenLanguageModel in e9d4da530 and no longer patches gates itself. The retained tiny-file test checks refusal under both live and cancelled contexts and checks each of two heads' query/gate rows against the fused artifact. The landing reports its undo test fails when the census refusal is removed. Full gated weight/optimizer training is NOT implemented: Qwen3.5-4B's previously misleading training proof now fails explicitly, and hybrid-gate/do owns restoring the correct capability. This closes the earlier preserve-or-refuse alternative, not that future feature. Original implementation finding evidence:sha256:b2095f1dd25dd26024cf7fad4764584081b4710d3ca78d0869f354da3d7ac812 remains historical provenance.",
+    "evidence_commit": "2cbc3009075313ec801fb47a260234cee0d3ac8f",
+    "expected_benefit": {
+        "outcome": "Complete Go surface of the gated-stack fix, e9d4da530 ->2cbc30090: stack_artifact.go3063->3146(+83), frozen_model.go497->354(-143), production3560->3500(-60); stack_artifact_test.go656->1329(+673); combined4216->4829(+613). Actual selected-file AST agrees with the retained gate's -60 production/+673 test. This is a correctness fix with net growth, not a total code reduction.",
+        "cost_contract": "Removed the duplicate frozen gate decode/allocation/copy loop; retained existing load/bind owners with one internal mode distinction. One tiny GGUF fixture is built once per test and reused for two refused loads and one frozen load; tracked fixture files/bytes0, no new dependency/schema/config/standing gate phase. The cancelled-context refusal case distinguishes metadata admission from later tensor reads and stays. Existing finite-difference, frozen gradient and real-model parity tests retain distinct requirements. Native Go caching and existing lanes remain: retained landing reports CUDA2 executed/17cached, verify2.008s; no new SQA run. Earlier frozen-device capability growth is separate and is not credited as savings of this fix.",
+        "uncertainty": "Closure is source plus retained implementation verification, not SQA execution or an independent third-party review. Avoided invalid training and eliminated second decode are structural effects; elapsed/peak-memory savings were not measured. Full gated training, optimizer/checkpoint/program identity and round-trip support remain the explicit plan obligation before lifting refusal."
+      },
+    "id": "SQA-326",
+    "plan_references": [
+        "gated-stack/do (landed2cbc30090)",
+        "vision-bridge/frozen-9b (landede9d4da530; frozen capability remains separate)",
+        "hybrid-gate/do (open; complete gated weight training and remove refusal)"
+      ],
+    "severity": "P1",
+    "sources": [
         {
           "path": "internal/hybridtrain/stack_artifact.go",
-          "symbol": "LoadStackArtifact/bindAttentionLayer: fused per-head query/gate rows admitted, gate rows discarded"
+          "symbol": "loadStack census before slab allocation/weight decoding; LoadStackArtifact selects unsupported-gate refusal; bindAttentionLayer owns per-head query/gate extraction"
         },
         {
-          "path": "cmd/train/route_hybrid_stack_windows.go",
-          "symbol": "trainHybridStack: LoadStackArtifact -> compiled program -> device -> streamed training"
-        },
-        {
-          "path": "internal/hybridtrain/stack.go",
-          "symbol": "layerMatrixPlan/matrixPlans/packLayerGradients: q/k/v/o packing without attention gate"
-        },
-        {
-          "path": "internal/hybridtrain/hybrid_train_device_cuda_windows.go",
-          "symbol": "residentViews: only q/k/v/o attention matrices"
-        },
-        {
-          "path": "internal/devicemath/hybrid_layer_resident_cuda_windows.go",
-          "symbol": "HybridLayerResidentMatrices/matW/withGradients: resident attention matrices and gradients"
-        },
-        {
-          "path": "internal/hostmath/hybrid_layer.go",
-          "symbol": "attentionMixForward: optional sigmoid output gate"
-        },
-        {
-          "path": "internal/hostmath/hybrid_layer_backward.go",
-          "symbol": "attentionMixBackward: attention gate gradient"
-        },
-        {
-          "path": "internal/hostmath/hybrid_layer_test.go",
-          "symbol": "TestHybridDecoderLayerBackwardFD: gated partial-RoPE case"
+          "path": "internal/hybridtrain/frozen_model.go",
+          "symbol": "LoadFrozenLanguageModel -> loadStack(gated=true); duplicate gate reload/copy loop deleted"
         },
         {
           "path": "internal/hybridtrain/stack_artifact_test.go",
-          "symbol": "existing stack artifact/config binding fixtures"
-        },
-        {
-          "path": "internal/hybridtrain/language_model_test.go",
-          "symbol": "TestTheHybridStackGivesItsInputGradient: tiny frozen GDN+gated-attention masked loss"
-        },
-        {
-          "path": "internal/hybridtrain/language_reference_test.go",
-          "symbol": "languageModel/stackPass: test-only frozen language reference"
+          "symbol": "TestAGatedArtifactIsRefusedForWeightTraining: live/cancelled refusal and two-head frozen row binding"
         },
         {
           "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
-          "symbol": "TestTheHybridReferenceIsTheServedNineB: windows && modeltest; patches loaded gates before comparing reference to served model"
+          "symbol": "TestTheHybridReferenceIsTheServedNineB now reads LoadFrozenLanguageModel; manual gate repair removed"
+        },
+        {
+          "path": "cmd/train/route_hybrid_stack_windows.go",
+          "symbol": "trainHybridStack -> LoadStackArtifact before device/training"
+        },
+        {
+          "path": "cmd/train/route_caption_projector_windows.go",
+          "symbol": "openCaptionText: frozen language loader remains available"
+        },
+        {
+          "path": "cmd/validate/training_proof.go",
+          "symbol": "hybridGrounding/routeProofs: Qwen3.5 weight-training proof now truthfully refused"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "hybrid-gate/do: remaining complete weight-training support, then remove refusal"
         }
       ],
-      "evidence": "Implementation already identified this defect in ea5330ecb and parked evidence:sha256:b2095f1dd25dd26024cf7fad4764584081b4710d3ca78d0869f354da3d7ac812; this SQA ID reconciles that known root cause, not an independent discovery. LoadStackArtifact has two committed callers: the public hybrid-stack training route and the served-9B reference test. bindAttentionLayer accepts fused [query(headDim)|gate(headDim)] rows per head, extracts only query rows and leaves Attn.Gate empty. The public route therefore trains ungated attention for an admitted gated Qwen3.5 artifact. The new parity test explicitly reloads those gate rows and assigns Attn.Gate after loading; its passing reference is not the model returned to the training route. The commit records normalized distance0.0005/cosine1.00000 with gates, versus1.13/cosine0.20 and a different leading probed ID with gates removed. Source also shows gate omissions in matrix plans, packed gradients and resident views: adding only a loader field does not repair trainable execution.",
-      "recommended_change": "Use the existing artifact and layer execution owners to preserve the admitted attention contract throughout loading, matrix extents, gradients, resident views, optimizer/checkpoint state and program identity. Until that complete support exists, reject unsupported gated training from available model metadata before multi-gigabyte materialization/device work. Keep valid frozen reference use possible through the existing model readers. Do not silently reinterpret a gated artifact as an ungated model or retry unchanged unsupported setup. Remove the parity test's manual gate reconstruction only when the retained loader supplies the correct frozen weights; do not copy a second loader into the test or add recipe-specific repair logic.",
-      "displaced_surface": "Immediate safe replacement is silent fused-query truncation for the unsupported training contract, with explicit early refusal. Once end-to-end support exists, delete the served test's full-attention loop that reloads AttentionQ, allocates gate slices, copies per-head rows and assigns Attn.Gate. Its gate geometry requirement moves to the existing artifact binding fixture. Retain hostmath finite-difference, frozen input-gradient and served-model parity owners: they check different contracts. No whole test/file deletion, new workflow, helper framework or numerical relaxation is justified.",
-      "impact": "An admitted training route computes a different layer from the served model and can spend substantial work optimizing that different objective. The observed parity difference is from retained implementation evidence; no new SQA workload or measured runtime/memory saving. Early refusal intentionally changes this unsupported case from apparent success to an actionable error. Existing ungated training must remain valid. Frozen input gradients and full weight/optimizer training have distinct requirements; the 0.5B caption-projector judgement uses a separate model/route and is not invalidated by this finding.",
-      "expected_benefit": {
-        "outcome": "Correctness and avoided invalid training work, not a proven net reduction. Actual selected baseline:10199 production +4434 test =14633 AST nodes across10 files. The affected stack_artifact.go2969,stack.go3231 and resident training file2173 contain necessary unrelated loading/execution. served parity967 test nodes includes the removable gate patch but also required numerical comparison. Full after AST remains unknown.",
-        "cost_contract": "Charge all matrix/gradient/checkpoint/program-identity changes, any early-admission logic and necessary fixture extensions. Gate support may require net production/test growth; do not claim its removed test patch pays for the whole repair. Reuse existing native fixtures: target added static fixture bytes0, new test framework/config/gate phase0. Preserve existing setup counts and native Go caching; parity continues as its existing device/modeltest check, not an additional SQA campaign. Early refusal eliminates invalid expensive work only for unsupported gated callers; it does not save work on supported runs.",
-        "uncertainty": "No candidate implementation or complete before/after replacement parsed. AST uses exact committed blobs and parser-local/manual symbol resolution, not package/cgo/device typechecking. The parked evidence object was cited by its commit, not independently read or rerun. Scope of numerical parity is two placed-row pairs and512 probed vocabulary IDs, not full-vocabulary or training-update equivalence."
-      },
-      "likely_effort": "Small early refusal if gated weight training is unsupported; complete support is a coordinated loader/optimizer/device migration and must be costed honestly.",
-      "plan_references": [
-        "vision-bridge/served-9b (landed reference parity; does not repair public hybrid-stack training)",
-        "vision-bridge/frozen-9b (current frozen device work; preserve its separate input-gradient contract)"
-      ],
-      "plan_coverage": "Implementation parked the root cause in ea5330ecb. This reviewer record supplies one canonical SQA obligation; it is not authorization to dispatch work or expand the frozen-9B row.",
-      "closure_criteria": [
-        "Every admitted gated artifact either retains its attention gate through the applicable training path or fails before avoidable weight/device work with a precise unsupported-contract error.",
-        "If gated weight training is supported, matrix extents, gradient packing, resident execution, optimizer/checkpoint state and program identity all include it; loader-only repair is insufficient.",
-        "Retain existing gated partial-RoPE finite differences and frozen input-gradient coverage. The shared binding fixture owns fused per-head row extraction; parity no longer patches an allegedly complete loaded model.",
-        "Retained parity evidence is described as a frozen reference comparison at its exact artifact and sampled inputs; it is never substituted for full training-update equivalence or relabeled under changed identities.",
-        "Record complete production/test/helper/setup/fixture and maintenance cost, including necessary growth. Preserve validation, cancellation, lifetime, platform/build-tag and numerical ordering contracts."
-      ],
-      "comparison": "Smallest deciding implementation comparison: extend the existing tiny artifact binding fixture with fused per-head query/gate rows, retaining the current ungated case; require correct gate binding or the explicit early training refusal. For supported gate training, use the existing hostmath finite-difference and resident comparison owners with a gated case and verify packed/checkpoint layout. Keep the already-existing served-9B parity as its scoped owner and remove its patch only after shared binding is correct. No SQA execution or extra confidence run."
-    }
+    "status": "resolved",
+    "title": "Preserve attention gates through hybrid training or reject unsupported gated models early"
+  }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Fused AttentionQ producer stores query then gate per head; consumers must preserve that exact axis grouping. Factor2 expresses this layout, not an arbitrary threshold. Ungated query-only rows are a separate admitted contract.",
-        "512 vocabulary probes are evenly spaced coverage, not random representative sampling or proof of full-vocabulary top-1. The test's distance0.05,cosine0.998 and movement0.1 apply to its two concrete row pairs; keep that limited claim and numerical acceptance independent of32s timing.",
-        "Qwen3.5-9B gated parity does not justify weakening/retiring the separate 0.5B caption-projector judgement or its held-out acceptance."
+        "Fused query/gate factor2 is a real per-head format layout. The validated query descriptor drives early refusal; the shared binder preserves that exact order for frozen loading.",
+        "Encoder Load validates positive widths/heads, hidden divisibility, crop/image patch divisibility and registers before OpenCard uses them. Host and card share imagePixels/embed/finite; square prepared input is the declared processor domain, while the retained test starts from a320x256 image. Attention scale1/sqrt(head width) is the algorithm coefficient.",
+        "Encoder tolerances2e-3 absolute and0.999999 cosine are scoped to the retained webssl case, not all model families or distributions. 19ms is a warmed card frame,6.5s a host frame; neither is whole-composite latency or a demonstrated full-capture saving."
       ],
-    "automation_sequence": "Known unsupported gated training should be admitted/refused through existing metadata/load ownership before costly weights/device work. Existing recipe325 admission, gate322 ordering and continuation271 remain distinct obligations at their recorded revisions. No new retry or scheduler: unchanged unsupported setup stays stopped; native Go caching and retained gate evidence remain credited.",
+    "automation_sequence": "The corrected load census refuses known-invalid gated training before master allocation, device creation or updates through the public route. The validation proof now exposes the unsupported contract, and the existing hybrid-gate plan row owns recovery of that capability. No blind retry, new scheduler or acceptance weakening. Existing capture cache still checks source identity and partial writes; card creation precedes that lookup, so no GPU-free-resume claim is made.",
     "fresh_ast": {
-        "revision": "ea5330ecb23022c379caf3336452718655f2a928",
-        "method": "Existing external Go parser/ast.Inspect tool over exact git-show blobs; ParseComments; parser-local bindings plus manual callers; no package typecheck or application execution.",
+        "revision": "14c4bb5623ddf37731ee4a45642322d542315646",
+        "method": "Existing external go/parser.ParseComments plus ast.Inspect over exact git-show blobs; parser-local bindings and manual symbol/caller tracing, no package/type build.",
         "files": [
           {
             "path": "internal/hybridtrain/stack_artifact.go",
-            "nodes": 2969
+            "nodes": 3146
           },
           {
-            "path": "internal/hybridtrain/stack.go",
-            "nodes": 3231
-          },
-          {
-            "path": "internal/hybridtrain/hybrid_train_device_cuda_windows.go",
-            "nodes": 2173
-          },
-          {
-            "path": "internal/hostmath/hybrid_layer.go",
-            "nodes": 917
-          },
-          {
-            "path": "internal/hostmath/hybrid_layer_backward.go",
-            "nodes": 909
-          },
-          {
-            "path": "internal/hostmath/hybrid_layer_test.go",
-            "nodes": 1408
+            "path": "internal/hybridtrain/frozen_model.go",
+            "nodes": 354
           },
           {
             "path": "internal/hybridtrain/stack_artifact_test.go",
-            "nodes": 656
-          },
-          {
-            "path": "internal/hybridtrain/language_model_test.go",
-            "nodes": 678
-          },
-          {
-            "path": "internal/hybridtrain/language_reference_test.go",
-            "nodes": 725
+            "nodes": 1329
           },
           {
             "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
-            "nodes": 967
+            "nodes": 832
+          },
+          {
+            "path": "internal/vitencoder/card.go",
+            "nodes": 1074
+          },
+          {
+            "path": "internal/vitencoder/card_test.go",
+            "nodes": 456
+          },
+          {
+            "path": "internal/vitencoder/encoder.go",
+            "nodes": 2304
+          },
+          {
+            "path": "cmd/evaluate/composition.go",
+            "nodes": 1286
+          },
+          {
+            "path": "cmd/evaluate/projection.go",
+            "nodes": 1153
+          },
+          {
+            "path": "cmd/seam-align/capture.go",
+            "nodes": 1700
           }
         ],
-        "production_nodes": 10199,
-        "test_nodes": 4434,
-        "total_nodes": 14633,
-        "functions": 62,
-        "parser_local_bindings": 3712,
-        "decision": "No whole-test redundancy established. Necessary correctness growth remains separate from conditional deletion of test-local loader repair."
+        "production_nodes": 11017,
+        "test_nodes": 2617,
+        "total_nodes": 13634,
+        "functions": 56,
+        "parser_local_bindings": 3172,
+        "closure_comparison": {
+          "before": "e9d4da530",
+          "after": "2cbc30090",
+          "production_before": 3560,
+          "production_after": 3500,
+          "test_before": 656,
+          "test_after": 1329,
+          "total_delta": 613
+        },
+        "decision": "The three-file closure comparison is the complete Go fix, not the unrelated frozen-device or card-encoder feature growth. No safe blanket test removal."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6699,35 +6679,30 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "ea5330ecb records reference distance0.0005/cosine1.00000 for both placed-row pairs; removing gates yields1.13/cosine0.20 and a different leading probed ID. Commit-reported32s is one retained test duration, not a savings measurement.",
-        "Same commit's gate report: production+0 AST, test+1109 AST, fixture files/bytes+0; necessary new reference coverage, with its loaded-gate patch excluded from any claim of production correctness.",
-        "Completed 0.5B judgement retained in docs/verification/vision-bridge-0.5b-judgement.json; format-loader/do is accepted follow-up, not already implemented."
+        "2cbc30090: early unsupported-gate refusal; gate reports-60production/+673test AST, no added tracked fixtures, CUDA2executed17cached, verify2.008s. Removing the refusal makes its native test fail according to the landing record.",
+        "14c4bb562: card encoder retained comparison reports every257tokens within1.65e-5,cosine1.000000000; warmed card19ms versus host6.5s and process peak1.23GB device memory. Gate adds1278production+456test AST and0trackedfixturebytes. No SQA reproduction or composite-wide claim.",
+        "e9d4da530 supplies frozen loading to the reference test; 2cbc30090 removes the subsequent duplicate production gate decode. Full weight-training capability remains planned."
       ],
     "tests": [
         {
           "classification": "retain",
-          "owner": "internal/hostmath/hybrid_layer_test.go:TestHybridDecoderLayerBackwardFD",
-          "requirement": "Gated attention derivatives and partial-RoPE ordering; distinct from loader binding or served parity."
+          "owner": "internal/hybridtrain/stack_artifact_test.go:TestAGatedArtifactIsRefusedForWeightTraining",
+          "requirement": "One fixture owns early live/cancelled refusal and exact query/gate extraction for two heads. Necessary+673 AST; no duplicated device/model setup."
         },
         {
-          "classification": "retain/extend",
-          "owner": "internal/hybridtrain/stack_artifact_test.go",
-          "requirement": "Existing tiny binding/config owner; move fused per-head gate extraction or unsupported-contract refusal here when implementation changes."
-        },
-        {
-          "classification": "retain",
-          "owner": "internal/hybridtrain/language_model_test.go:TestTheHybridStackGivesItsInputGradient",
-          "requirement": "Frozen mixed-layer masked-loss gradients through placed input rows; not proof of trainable gate/checkpoint correctness."
-        },
-        {
-          "classification": "retain",
-          "owner": "internal/hybridtrain/language_reference_test.go:languageModel/stackPass",
-          "requirement": "Shared frozen reference used by loss and parity; no demonstrated removable duplicate."
-        },
-        {
-          "classification": "simplify after shared fix",
+          "classification": "simplified/retain",
           "owner": "internal/hybridtrain/served_nine_b_windows_model_test.go:TestTheHybridReferenceIsTheServedNineB",
-          "requirement": "Retain same-file served comparison and response to changed placed rows. Remove only manual gate reconstruction once correct shared loading supplies it. Preserve windows/modeltest and device lifetime ownership."
+          "requirement": "Manual gate repair has disappeared; retain served-reference comparison at its two row pairs/512 vocabulary probes and windows/modeltest boundary."
+        },
+        {
+          "classification": "retain",
+          "owner": "internal/vitencoder/card_test.go:TestTheCardEncoderGivesTheHostTokens",
+          "requirement": "Independent host/card arithmetic comparison for every token of one nonuniform rectangular source image; second card invocation is warmed timing, not a timing acceptance threshold. No full-distribution equivalence claim."
+        },
+        {
+          "classification": "retain",
+          "owner": "cmd/seam-align/capture_test.go:TestCaptureCacheAdmitsOnlyItsOwnInputs/TestCaptureHoldsTheTrainingSplit",
+          "requirement": "Existing source/caption/input identity, frame integrity, partial-write refusal and held-out separation remain distinct requirements. Read source only; not included in the10-file AST total."
         }
       ]
   },
@@ -8262,10 +8237,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Retained ea5330ecb commit already reports the gate-loss defect and its numerical comparison. The named parked evidence object was not separately read; no independent execution or timing/memory measurement.",
-      "Parser-local and manual caller resolution only; no package/cgo/device typechecking. AST is current source size, not proof of redundancy or an estimate of complete savings.",
-      "No safe numeric net reduction established. Correct gated training may require production/test growth. The test-local patch can disappear only after its behavior has a correct shared owner.",
-      "Format-loader adoption is plan coverage, not a code fix. Historical requested_growth_analysis, implementation-owned and unknown fields remain exact; no retest of all historical findings."
+      "Source/manual caller tracing and existing parser/AST tooling only; no package/cgo/device typecheck. Retained commit measurements are attributed to implementation, not reproduced.",
+      "Bounded sample, not a whole-system revalidation. Other findings retain their individual evidence revisions and rankings. Unknown/implementation fields and historical requested_growth_analysis stay exact.",
+      "No new safe whole-test deletion or net total reduction established. Gated-stack correctness adds613 total AST despite60 fewer production nodes; card encoder growth buys measured capability and is not labeled consolidation savings.",
+      "Closure326 means invalid gated weight training fails early. It does not mean Qwen3.5 weight training or its validation proof works; hybrid-gate/do explicitly owns that remaining capability."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9063,12 +9038,11 @@
   },
     "next_finding_number": 327,
     "publication_context": {
-    "assessment": "Re-read committed HEAD/plan, current report and owner responses immediately before publishing. Preserve active CUDA/frozen-9B worker edits, untracked probes, SBOM and working plan.",
-    "checked_head": "ea5330ecb23022c379caf3336452718655f2a928",
-    "publication": "Report-only path-limited commit through existing nonblocking landing/gate ownership and hooks. No implementation gate or worker changes."
+    "assessment": "Re-read current committed code/plan and latest report/owner fields before report-only publication; preserve any concurrent worker/index edits.",
+    "checked_head": "14c4bb5623ddf37731ee4a45642322d542315646",
+    "publication": "Existing nonblocking landing/gate ownership and hooks; commit only docs/sqa_findings.json. No production gate run or worker mutation."
   },
     "ranked_active_finding_ids": [
-    "SQA-326",
     "SQA-316",
     "SQA-315",
     "SQA-271",
@@ -9109,47 +9083,46 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "326 reconciles the implementation's parked finding rather than duplicating it under a second investigation. Passing patched reference parity does not close production training correctness.",
-      "324 remains open with credited implementation adoption. The completed judge paragraph is no longer a current prerequisite to remove; actual virtual-file coupling and identity migration remain.",
-      "All sampled test contracts remain needed. Conditional simplification is the manual gate patch; no whole-test removal or net reduction has been established."
+      "326 is resolved by its admitted early-refusal alternative. The known Qwen3.5-4B training proof now fails truthfully and remains an explicit capability obligation inhybrid-gate/do.",
+      "Gate extraction now has one shared owner. The real reduction is60production nodes and one repeated tensor decode; required tests add673nodes, total+613.",
+      "283's attribution defect remains despite projection-session resource cleanup.324's format-loader remains open; no broad status closure inferred from nearby changes.",
+      "No new safe test/body consolidation was established in this sample; avoid converting newly added numerical/recovery coverage into a deletion quota."
     ],
-    "reviewed_at": "2026-11-07T02:43:20Z",
-    "reviewed_master": "ea5330ecb23022c379caf3336452718655f2a928",
+    "reviewed_at": "2026-11-07T04:41:36Z",
+    "reviewed_master": "14c4bb5623ddf37731ee4a45642322d542315646",
     "schema_version": 2,
     "scope": [
-      "Bounded follow-through of current vision-bridge host/served parity into its production training caller at ea5330ecb23022c379caf3336452718655f2a928. Read committed instructions skill.md blob69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan blobf45079d1684713d8beeb91db449c30401f774593. Uncommitted worker code/plan excluded.",
-      "Actual selected-file Go AST analysis:10 committed files,14633 nodes=10199 production+4434 test,62 functions,3712 parser-local bindings. Followed loader -> public training route -> matrix/gradient/resident ownership, plus the distinct test-only frozen reference.",
-      "Reconciled324 with committed format-loader/do and completed 0.5B judgement. Prior findings outside this bounded sample retain their own evidence revisions; no recurring whole-repository census.",
-      "This chat previously implemented Overgo changes; overlapping review, not independent third-party SQA. Report-only source/retained-evidence review; no tests, model/device workloads, benchmarks, services, gate runs, agents or worker messages."
+      "Read committed repository instructions skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and current plan9a057ecb35509942e82e971b1fa0d18203ce8379 at 14c4bb5623ddf37731ee4a45642322d542315646. Followed gated training admission/frozen loading, then card encoder -> composition/capture callers and resource cleanup.",
+      "Selected-file Go AST:10 files13634 nodes=11017production+2617test,56functions,3172parser-local bindings. Separately compared all three Go files changed by gated-stack/do with its committed parent to decide326 closure and complete fix cost.",
+      "Rechecked touched evidence attribution283: its three publication owners remain byte-identical to the finding revision; the new projection-session card cleanup does not address its task/recipe obligation. Capture321's key/hash/write-order contract remains intact; no claim of GPU-free replay.",
+      "Overlapping review: this chat previously implemented Overgo changes, not independent third-party SQA. Report only; no application tests, model/device workloads, benchmarks, gate runs, agents or worker messages."
     ],
     "sqa_response": {
-    "assessment": "153 stable IDs:37 canonical open,110 resolved,4 deferred,2 consolidated aliases. Add326 for the implementation's already parked gate-loss defect; update324's accepted plan coverage. No verified closure or new alias.",
+    "assessment": "153 stable IDs:36 canonical open,111 resolved,4 deferred,2 consolidated aliases.326 closed for early unsafe-training refusal and shared frozen gate binding. No new finding or consolidation.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "10 selected files/14633AST. Public training and served-reference test share LoadStackArtifact; only the test restores discarded gate rows. Packing/resident paths show why loader-only repair is incomplete. Current plan accepts324's shared-loader migration.",
+    "evidence": "Source establishes early descriptor refusal, shared per-head binding and removed duplicate decode; exact gated-stack AST comparison-60production/+673test. The new card encoder has two production callers and shared preprocessing/cleanup owners; its test is not redundant.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Both implementation-owned blocks and every unknown field preserved raw-exact.326 cites implementation's existing parked evidence;324 adoption is credited from owner triage and committed plan, not invented by SQA."
+        "status": "Owner report blocks unchanged and preserved raw-exact. Closure follows committed2cbc30090 source and its retained verification, not a reviewer edit to implementation triage."
       },
-    "new_findings": [
-        "SQA-326"
-      ],
-    "partially_addressed_findings": [
-        "SQA-324"
-      ],
+    "new_findings": [],
+    "partially_addressed_findings": [],
     "priority_changes": [
-        "SQA-326 first: public hybrid-stack training silently drops an admitted model's attention gates; current parity patches the frozen reference only."
+        "Remove resolvedSQA-326 from active ranks; hybrid-gate/do remains the plan owner for unavailable gated weight training."
       ],
-    "recommendation": "Reject unsupported gated training before expensive work or support its whole numerical/optimizer contract through current owners. Delete the parity patch only after correct binding owns it. Keep scoped reference/gradient tests and complete cost accounting; proceed with accepted format-loader replacement without another runtime.",
+    "recommendation": "Keep the early refusal until the existing hybrid-gate row implements the complete trained-gate contract. Preserve scoped gradient/parity/admission tests and count necessary growth honestly. Retain one loader/binder and the existing artifact/capture/evaluation owners.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [],
-    "reviewed_master": "ea5330ecb23022c379caf3336452718655f2a928",
-    "uncertainty": "No new workload, no independent third-party claim, no measured savings or full replacement estimate. Necessary correctness code/tests may grow."
+    "resolved_findings": [
+        "SQA-326"
+      ],
+    "reviewed_master": "14c4bb5623ddf37731ee4a45642322d542315646",
+    "uncertainty": "No new workload or measured savings. Source closure does not assert full gated training support or broader encoder equivalence; other open obligations retain prior scope."
   }
   }

@@ -49,6 +49,72 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "warm-speed",
+      "title": "Speed is reported warm, as prompt processing and token generation at stated lengths, from the scorecard's own cells, and no cold figure is reported",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate before the survey: the scorecard's speed cells read on a warm request at stated lengths, and a command that writes the README's table from the newest record; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "scorecard-warm",
+          "title": "The scorecard's speed cells are pp at 4K and 16K and tg on chat and agent turns, each read on a warm request",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestSpeedIsReadWarmAtStatedLengths$'",
+          "rationale": "The scorecard reads first output and peak memory at its longer prompts on the first request after a fresh load, and its warm cells (readWarm) read a prompt through the prompt cache, which is not prompt processing. Each speed cell is read on a request served after one unmeasured request on the loaded model, with no prompt reused: pp at a 4K and a 16K prompt as the prompt's tokens over the time to its first token, tg as generated tokens over decode time on a short chat and on agent turns. The cold first-request speed cells go; load time stays its own metric.\nServes: first-output and throughput, read warm at stated lengths.\nDisappears: cold speed cells and the cache-read warm cell.\nEvidence: a scorecard built from records holding a cold first request and a warm one reports the warm one's pp and tg, at the lengths it states.\nBatch: host lane."
+        },
+        {
+          "id": "readme-table",
+          "title": "go run ./cmd/validate -readme writes the README's served-models table from the newest scorecard record",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestTheReadmeTableIsWrittenFromTheScorecard$'",
+          "rationale": "The README's table is typed by hand from a scorecard record, which is how a cold figure came to stand as the model's speed. The command writes the table between two markers from the newest record alone: model, modality, input and output, pp at 4K and 16K, tg on chat and agent turns (a non-text model's warm time to its output in their place), held-out quality and peak device memory, with no earlier record's figures, dates or cold startup times; -check exits non-zero when the README's table differs from what it would write.\nServes: first-output, throughput and held-out-quality, reported as recorded.\nDisappears: a hand-typed results table.\nEvidence: from a fixture record the command writes the table, and -check refuses a README edited by hand.\nBatch: host lane."
+        },
+        {
+          "id": "measure",
+          "title": "Every served model's warm speed is measured and the README's table written from the record",
+          "status": "open",
+          "verify": "go run ./cmd/validate -readme -check",
+          "rationale": "A change to how speed is read moves every served model's speed cells, so each is measured once, warm, at the stated lengths, and the README's table is written from that record. This measures speed alone; held-out quality stands from its record.\nServes: first-output and throughput for every served model, warm.\nDisappears: speed columns empty since readme-now.\nEvidence: the README's table equals what the newest record writes, with a warm figure in every served model's speed cells.\nBatch: device lane."
+        }
+      ]
+    },
+    {
+      "id": "one-notes",
+      "title": "The plan is the one working store for current and upcoming work and its notes, and no stray draft or hand-off file is left in the checkout",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 80,
+        "reason": "Estimate: standard input for filed rows and a step's notes in cmd/plan, and one check over the checkout's untracked files."
+      },
+      "steps": [
+        {
+          "id": "stdin-rows",
+          "title": "plan -add -from - files rows read from standard input, so a draft needs no file",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestRowsAreFiledFromStandardInput$'",
+          "rationale": "The owner, 2026-11-07: the habit of dropping stray .json files all over needs to end; maybe one working_notes.json as non-volatile storage for current and upcoming tasks and the implementation details that evolve as work completes. docs/plan.json already is that store: its rows are the current and upcoming tasks, each step's rationale holds its implementation details, and plan -note adds to them as work goes. A second notes file would be a second copy of the plan that drifts from it. The strays came from drafts and hand-offs: docs/recommended_plan_input.json and docs/doctrine_cut_instructions.md, a proposed_plan.json, plan drafts in Downloads, and the lead's own row drafts.\nplan -add -from - reads the rows from standard input, so filing a draft writes no file.\nServes: setup-steps; one store for work and its notes.\nDisappears: draft row files.\nEvidence: rows piped to plan -add -from - are filed as from a file, and no file is written.\nBatch: host lane."
+        },
+        {
+          "id": "notes-shown",
+          "title": "A step's working notes are kept in the plan with plan -note and shown with its step",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestAStepsNotesAreShownWithIt$'",
+          "rationale": "Working notes belong to the step they serve: what was measured, decided or found while working it, so a later session or a weaker model resumes from them. plan -note adds a paragraph to a step's reasoning today; plan -next and plan -prompt show the dispatched step's notes with it, newest last, so they are read where the work starts. A landed step's notes leave with it, as its commit records them.\nServes: setup-steps; model calls per landing.\nDisappears: notes kept in files beside the plan.\nEvidence: a note added to a step appears in plan -prompt's output for that step.\nBatch: host lane."
+        },
+        {
+          "id": "no-strays",
+          "title": "A landing refuses an untracked or ignored JSON or Markdown file in the checkout outside its homes",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRefusesAStrayDocument$'",
+          "rationale": "A draft or hand-off left in docs/ or the root is read by later sessions as if it held rules or plans. The landing lists untracked and ignored .json and .md files in the checkout and refuses any outside their homes: tmp/\u003crow\u003e/ for a row's probes, .overgo-runtime/ for the system's state, and the named machine files (local-models.json, .claude/launch.json); the refusal names each file. docs/gui_update_plan.json, which the GUI lane left on 2026-10-09 and the plan asks the owner about, is named as that one known exception until its owner takes it.\nServes: setup-steps; one store for work and its notes.\nDisappears: stray drafts and hand-offs in the checkout.\nEvidence: a landing with an untracked docs/draft.json beside it is refused naming it; one with a probe under tmp/\u003crow\u003e/ lands.\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "ask-nothing",
       "title": "Nothing lets a session wait on the owner: the stop takes only the owner's request or a named outside need, a turn the owner started ends when answered, hooks add no rule text, and the guard holds the safety rules memory held",
       "owner": "master-lead",
@@ -175,10 +241,10 @@
         },
         {
           "id": "undo-check",
-          "title": "The landing removes its production change, runs the step's check, and refuses a change the check does not catch",
+          "title": "The landing removes a behaviour change's production files, runs the step's check, and refuses a change the check does not catch on an assertion",
           "status": "open",
           "verify": "go test ./internal/landing -count=1 -run '^TestTheLandingUndoesItsChangeAndTheCheckFails$'",
-          "rationale": "Today the lead undoes the change by hand and writes \"Checked by undoing\". The gate's trunk run proves only that the check fails on the trunk, where the test itself may be missing. The landing keeps the change's tests, restores the production files the change touched, runs the step's check, and requires it to fail; the result goes into the message.\nServes: failure-rate; held-out-quality kept by checks that test the change.\nDisappears: the hand-run undo and its paragraph.\nEvidence: a change whose test passes without it is refused; one whose test fails without it lands with the result in its message.\nBatch: host lane."
+          "rationale": "Today the lead undoes the change by hand and writes \"Checked by undoing\". The gate's trunk run proves only that the check fails on the trunk, where the test itself may be missing. For a step that changes behaviour, the landing keeps the change's tests, restores the production files the change touched, runs the step's check, and requires it to fail on an assertion; the result goes into the message. A restored tree whose tests no longer build is no evidence and is reported as such, not as a catch.\nSQA-332: a behaviour-preserving consolidation passes before and after, and a test-only consolidation has no production change to undo, so a step of the consolidation class, and any step whose change touches no production file, takes no undo run; its retained tests and the existing acceptance hold it.\nServes: failure-rate; held-out-quality kept by checks that test the change.\nDisappears: the hand-run undo and its paragraph.\nEvidence: a behaviour change whose test passes without it is refused; one whose test fails on an assertion without it lands with the result in its message; a consolidation lands with no undo run; a restored tree that fails to build is reported, not counted as a catch.\nBatch: host lane."
         },
         {
           "id": "rule-edits",
@@ -191,7 +257,7 @@
     },
     {
       "id": "step-kinds",
-      "title": "Run steps run without a model, code steps are filed with their failing test and the files they may change, and the test is locked",
+      "title": "Run steps run without a model, and a code step lists the files it may change",
       "owner": "master-lead",
       "status": "open",
       "budget": {
@@ -207,18 +273,11 @@
           "rationale": "Much of the week's work was not editing code: vision-bridge's capture-9b took 54 minutes, bridge-9b 1.44 GPU-hours, and judge-9b and envelope-9b were readings. A model running a command and waiting adds nothing.\nA run step names its command, the record it writes, and the check that reads that record; the driver runs it, verifies and lands the record with no worker.\nServes: setup-steps; model calls per landing.\nDisappears: a model babysitting a long run.\nEvidence: a run step whose command writes its record lands with no worker call.\nBatch: host lane."
         },
         {
-          "id": "test-first",
-          "title": "A code step is filed with its failing test and the files it may change",
+          "id": "scope",
+          "title": "A code step lists the files it may change, and its landing refuses a change outside them",
           "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestACodeStepIsFiledWithItsFailingTest$'",
-          "rationale": "The worker's whole job becomes making a named test pass. Filing a code step requires its test to exist and fail on the trunk, and lists the files it may change; plan -addstep refuses one without them. The rule that a step's check fails without its change then holds when it is filed.\nServes: failure-rate; model calls per landing.\nDisappears: a worker deciding what done means.\nEvidence: filing a step whose test is missing or passes is refused; one whose test exists and fails is filed with its file list.\nBatch: host lane."
-        },
-        {
-          "id": "locked-test",
-          "title": "A landing refuses a change to its step's test, its fixtures or a file outside the step's list",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRefusesAChangeToItsOwnTest$'",
-          "rationale": "The undo check catches a test that passes without the change; it does not catch a test weakened to pass: a loosened tolerance, a special-cased input, an edited fixture, which a weak model will try. The landing refuses a diff that touches the step's test, the fixtures it reads, or a file outside the step's list.\nServes: failure-rate; held-out-quality.\nDisappears: a weakened test passing as a fix.\nEvidence: a change editing its own test or fixture is refused; one inside its list lands.\nBatch: host lane."
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingStaysInsideItsStepsFiles$'",
+          "rationale": "A worker should change only what its step names: on Nov 7 a helper's side effect rewrote the trunk's hook setting, and a weak model wanders further. A code step lists the files and packages it may change; its landing refuses a change outside that list, and the refusal prints the paths. Tests and fixtures inside the list may change, so a consolidation can merge tests, as SQA-332 asks: the acceptance requirements and numerical limits stay with the existing checks, not with frozen test bytes. A step filed without a list keeps today's admission.\nServes: failure-rate; model calls per landing.\nDisappears: changes outside the work a step names.\nEvidence: a landing whose step lists cmd/x refuses a change to internal/y and prints it; a change inside its list, tests included, lands.\nBatch: host lane."
         }
       ]
     },
@@ -293,10 +352,10 @@
         },
         {
           "id": "rule-text",
-          "title": "One test refuses rule text outside skill.md and AGENTS.md, and stale rule copies go",
+          "title": "One test refuses rule text outside skill.md and AGENTS.md, and rule copies nothing reads go",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRuleTextLivesOnlyInSkillAndThePointer$'",
-          "rationale": "Rules live in more than a dozen places; when they disagree the model reconciles them, and asking the owner is its safe way out. One test covers the session-start text, the hook messages and the plan, and replaces cmd/loophook/doctrine_rules_test.go, doctrine_person_test.go and internal/plan/doctrine_test.go. .git/adaptive-source/skill.md and scripts/session_doctrine.sh, which nothing reads, go, and the measurement cycle's copy under .overgo-runtime/cycle is refreshed from the tree.\nServes: setup-steps.\nDisappears: rule text outside skill.md and the pointer, and three rule-text tests.\nEvidence: a rule sentence added to a hook's output or the plan is refused.\nBatch: host lane."
+          "rationale": "Rules live in more than a dozen places; when they disagree the model reconciles them, and asking the owner is its safe way out. One test covers the session-start text, the hook messages and the plan, and replaces cmd/loophook/doctrine_rules_test.go, doctrine_person_test.go and internal/plan/doctrine_test.go. .git/adaptive-source/skill.md and scripts/session_doctrine.sh go once a search finds nothing that reads them. The measurement checkout under .overgo-runtime/cycle is left to its pinned-run owner (cmd/loop inCycle and moveCycle), which takes guidance from the revision a cycle runs at; it is not refreshed by hand (SQA-333).\nServes: setup-steps.\nDisappears: rule text outside skill.md and the pointer, and three rule-text tests.\nEvidence: a rule sentence added to a hook's output or the plan is refused.\nBatch: host lane."
         },
         {
           "id": "skill-sort",

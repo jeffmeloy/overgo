@@ -106,6 +106,8 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - after a hand edit => `go run ./cmd/validate -claims` (check: cmd/validate TestPublishedMatricesAreCurrent, cmd/validate TestGenerateRejectsStaleClaimEvidence)
 4. land = `go run ./cmd/loop -land <item>/<step>` (check: cmd/loop TestRowSequenceStateMachine, cmd/loop TestLandReadsStructuredVerdict, cmd/plan TestPromptContractProjection)
    - message = written by the landing from the step, the change, the plan's changes and the findings it touches, `-message-file` adding the lead's words (check: internal/landing TestTheLandingWritesItsOwnMessage)
+   - a behaviour change => its go test check fails on an assertion with the production Go it wrote restored, or the landing refuses it (check: internal/landing TestTheLandingUndoesItsChangeAndTheCheckFails)
+   - a consolidation, or a change to no production Go => no undo run (check: internal/landing TestTheLandingUndoesItsChangeAndTheCheckFails)
    - the gate writes the numbers (check: cmd/gate TestSmallGateLandsAChange, internal/landing TestLandingSaysWhatAChangeAddsOfEachKind, internal/landing TestLandingMeasuresTheScorecardSlice)
    - landed <=> `git log -1` shows `Landed-Row:` (check: cmd/gate TestSmallGateLandsAChange, cmd/loop TestRowSequenceStateMachine, internal/plan TestAcceptedProgressReadsLandingsFromGit)
    - never a raw commit (check: internal/guard TestGuardCorpus)

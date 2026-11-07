@@ -20,6 +20,11 @@ import (
 // can tell a failed check from an absent one without reading the message.
 var ErrFailed = errors.New("FAILED")
 
+// ErrAssertion marks a failed verifier in which a test failed. A go test run
+// that failed before any test ran, its package not building, and a command
+// that runs no go test are ErrFailed alone.
+var ErrAssertion = fmt.Errorf("%w on an assertion", ErrFailed)
+
 // ErrVacuous marks a verifier whose command succeeded without running
 // anything, which is what a check naming a test that does not exist does.
 var ErrVacuous = errors.New("VACUOUS")
@@ -49,14 +54,18 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	executable := parsed.JSONCommand(command)
 	first, err := executeShell(ctx, shell, directory, executable, environment)
 	if err != nil {
-		detail := clioptions.Tail(first, clioptions.DiagnosticTailBytes)
+		detail, failed := clioptions.Tail(first, clioptions.DiagnosticTailBytes), ErrFailed
 		if failures := testevidence.FailureSummary(first); failures != "" {
 			// The structured summary names the failed tests and their assertion
 			// tails; it replaces the raw output wall, and the exit cause above
-			// stays the authority.
+			// stays the authority. A failed test is named "package: test", a
+			// package that failed before any test by its path alone.
 			detail = "failed tests/packages: " + failures
+			if named, _, _ := strings.Cut(failures, "\n"); strings.Contains(named, ": ") {
+				failed = ErrAssertion
+			}
 		}
-		return "", fmt.Errorf("%w: %v: %s", ErrFailed, err, detail)
+		return "", fmt.Errorf("%w: %v: %s", failed, err, detail)
 	}
 	if structuredGoTest {
 		err = testevidence.VerifyGoTestEvidence(command, first)

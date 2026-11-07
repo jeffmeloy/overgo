@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 411,
-        "reason": "message measured 739 production nodes: the message the landing writes, the findings reader, the retirement record and the optional message file, less the prose checks it retires; undo-check and rule-edits are estimated at 410 more"
+        "nodes": 1042,
+        "reason": "undo-check measured 678 production nodes against the 411 left: the undo run in its own worktree, the assertion a failed test is told by, and the shared worktree helper; rule-edits is estimated at 300 more"
       },
       "steps": [
-        {
-          "id": "undo-check",
-          "title": "The landing removes a behaviour change's production files, runs the step's check, and refuses a change the check does not catch on an assertion",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheLandingUndoesItsChangeAndTheCheckFails$'",
-          "rationale": "Today the lead undoes the change by hand and writes \"Checked by undoing\". The gate's trunk run proves only that the check fails on the trunk, where the test itself may be missing. For a step that changes behaviour, the landing keeps the change's tests, restores the production files the change touched, runs the step's check, and requires it to fail on an assertion; the result goes into the message. A restored tree whose tests no longer build is no evidence and is reported as such, not as a catch.\nSQA-332: a behaviour-preserving consolidation passes before and after, and a test-only consolidation has no production change to undo, so a step of the consolidation class, and any step whose change touches no production file, takes no undo run; its retained tests and the existing acceptance hold it.\nServes: failure-rate; held-out-quality kept by checks that test the change.\nDisappears: the hand-run undo and its paragraph.\nEvidence: a behaviour change whose test passes without it is refused; one whose test fails on an assertion without it lands with the result in its message; a consolidation lands with no undo run; a restored tree that fails to build is reported, not counted as a catch.\nBatch: host lane."
-        },
         {
           "id": "rule-edits",
           "title": "Every code-rule refusal fixes the code or prints the exact edit, and a row's size is recorded from measurement",

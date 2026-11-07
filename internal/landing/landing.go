@@ -85,9 +85,11 @@ type landing struct {
 	head    string
 	merging []string
 	// scratch holds the private index the candidate is written through.
-	scratch  string
-	entries  []repoanalysis.DirtyPath
-	paths    []string
+	scratch string
+	entries []repoanalysis.DirtyPath
+	paths   []string
+	// written are the paths the change itself wrote, before the format and fix stages rewrote any (undo).
+	written  []string
 	measured []string
 	// details say what a stage measured beyond its time: the packages the
 	// test stage ran rather than replayed, what the scorecard slice found.
@@ -131,8 +133,10 @@ type landing struct {
 	verifiers []string
 	// spent is where the run's time went, for the checkout's record.
 	spent spent
-	// composed is the message the landing wrote for the change (compose), before what the gate measured.
+	// composed is the message the landing wrote for the change (compose), before what the gate measured; undone is
+	// what the change's checks did with its production Go restored (undo).
 	composed string
+	undone   []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -346,6 +350,10 @@ func (l *landing) shipSet(ctx context.Context) error {
 		if entry.OriginalPath != "" {
 			l.paths = append(l.paths, entry.OriginalPath)
 		}
+	}
+	// The first reading is what the change wrote, before the format and fix stages rewrite anything (undo).
+	if l.written == nil {
+		l.written = l.paths
 	}
 	if err := l.row(ctx); err != nil {
 		return err
@@ -749,7 +757,10 @@ func (l *landing) verify(ctx context.Context) error {
 			return err
 		}
 	}
-	return l.addedChecksFail(ctx)
+	if err := l.addedChecksFail(ctx); err != nil {
+		return err
+	}
+	return l.undo(ctx)
 }
 
 // judgeAdded takes a step the change itself adds: nothing earlier states its terms, so its own check and count judge it.
@@ -778,15 +789,11 @@ func (l *landing) addedChecksFail(ctx context.Context) error {
 	if len(l.added) == 0 {
 		return nil
 	}
-	tree := filepath.Join(l.scratch, "base")
-	if _, err := l.git(ctx, "worktree", "add", "--detach", tree, l.head); err != nil {
+	tree, release, err := l.treeAt(ctx, "base")
+	if err != nil {
 		return err
 	}
-	defer func() {
-		if _, removed := l.git(context.WithoutCancel(ctx), "worktree", "remove", "--force", tree); removed != nil {
-			fmt.Fprintf(l.Log, "land: the worktree %s an added check ran in is left: %v\n", tree, removed)
-		}
-	}()
+	defer release()
 	for _, check := range l.added {
 		if _, err := planverify.Execute(ctx, tree, check, nil); err == nil {
 			return fmt.Errorf("land: the check %q passes on %.12s without this change, so it proves nothing of it", check, l.head)
@@ -900,7 +907,7 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 	return landed, errors.Join(err, followed, synced)
 }
 
-// message is the composed message, what the gate measured, and the trailers:
+// message is the composed message, what the undo run found, what the gate measured, and the trailers:
 // the scorecard slices, then the landed row.
 func (l *landing) message() string {
 	trailers := slices.Concat(l.trailers, l.changedTerms)
@@ -908,7 +915,7 @@ func (l *landing) message() string {
 	for _, row := range named {
 		trailers = append(trailers, plan.LandedRowTrailer+": "+row.String())
 	}
-	return l.composed + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+	return l.composed + l.section(undoSection, l.undone) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 

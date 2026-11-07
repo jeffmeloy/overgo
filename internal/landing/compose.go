@@ -65,18 +65,21 @@ func (l *landing) compose(ctx context.Context, before, document plan.Plan, named
 		{causeSection, causes}, {changeSection, change}, {planSection, planChanges(before, document)},
 		{findingsSection, touching}, {predictedSection, serves},
 	} {
-		if strings.Contains("\n"+authored, "\n"+part.label) {
-			continue
-		}
-		message += "\n\n" + part.label
-		if len(part.lines) == 0 {
-			part.lines = []string{"none."}
-		}
-		for _, line := range part.lines {
-			message += "\n- " + line
-		}
+		message += l.section(part.label, part.lines)
 	}
 	return message, nil
+}
+
+// section writes one section of the message: its label on a line of its own and each line as a point under it, or
+// "none." when it has none; nothing when the lead's words already hold it.
+func (l *landing) section(label string, lines []string) string {
+	if strings.Contains("\n"+strings.TrimSpace(string(l.Message)), "\n"+label) {
+		return ""
+	}
+	if len(lines) == 0 {
+		lines = []string{"none."}
+	}
+	return "\n\n" + label + "\n- " + strings.Join(lines, "\n- ")
 }
 
 // testsAdded are the tests the change's test files declare that the commit it builds on does not: a file either side

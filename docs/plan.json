@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "stray-check",
-      "title": "The ignored-document check leaves the harness's own directory alone, and the note tests share one fixture",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 16,
-        "reason": "A home added to the check; the test merge adds no production code."
-      },
-      "steps": [
-        {
-          "id": "note-tests",
-          "title": "The note tests share one fixture: TestNoteAppendsToARationale holds the prompt's notes",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestNoteAppendsToARationale$' \u0026\u0026 ! grep -q 'func TestAStepsNotesAreShownWithIt' cmd/plan/notes_shown_test.go",
-          "rationale": "SQA-334: TestAStepsNotesAreShownWithIt builds a third plan fixture beside the success and refusal fixtures of TestNoteAppendsToARationale. Its checks, notes in order, each on one line, the prefix once, and no reasoning in the prompt, move into TestNoteAppendsToARationale over its successful plan, and its file goes. Serves: setup-steps. Disappears: a duplicate fixture. Evidence: the merged test holds every check the two held. Batch: host lane."
-        }
-      ]
-    },
-    {
       "id": "driver-on",
       "title": "The unattended driver works the plan from Windows startup, takes defaults, falls through to findings, reports its status and owns when work continues",
       "owner": "master-lead",

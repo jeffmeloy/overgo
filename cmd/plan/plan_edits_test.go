@@ -424,6 +424,20 @@ func TestNoteAppendsToARationale(t *testing.T) {
 		t.Fatalf("plan after four notes:\n%s\nwant\n%s", rendered(t, after), rendered(t, want))
 	}
 	requireNoCheckRan(t, root)
+	// The task's prompt shows a step's notes, in order and each on one line, a note written with its prefix opened
+	// once, and none of the reasoning beside them.
+	prefixed := filepath.Join(t.TempDir(), "prefixed.txt")
+	testcheck.NoError(t, os.WriteFile(prefixed, []byte(notePrefix+"Read warm,\n1.41 s."), 0o600))
+	if output, err := planCommand(t, root, "-note", "-rationale-file", prefixed, "work", "plain"); err != nil {
+		t.Fatalf("plan -note with its prefix written: %v\n%s", err, output)
+	}
+	noted := editedPlan(t, root).Items[0]
+	var prompt bytes.Buffer
+	printPromptStep(noted, noted.Steps[0], nil, &prompt)
+	if strings.Count(noted.Steps[0].Rationale, notePrefix) != 2 || !strings.Contains(prompt.String(), "NOTE Second paragraph.\nNOTE Read warm, 1.41 s.\n") ||
+		strings.Contains(prompt.String(), "First paragraph") {
+		t.Fatalf("the step's reasoning\n%s\nshows in the prompt as\n%s\nwant both notes, each opened once, in order on a line each, and no reasoning", noted.Steps[0].Rationale, prompt.String())
+	}
 
 	refusing, written := editFixture(t, held)
 	empty := filepath.Join(t.TempDir(), "empty.txt")

@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Useful immediate deletions are mixed with a much larger policy/automation expansion. Narrow implementation to existing owners and prove continuation before retiring its current owner. Count total production/test/setup cost.",
+    "assessment": "Add one concrete recommendation for durable working context without another plan or automation system. Existing correctness priorities remain.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -99,14 +99,20 @@
           "Only then add platform startup and retire displaced hooks; defer new policy/tool/telemetry frameworks."
         ]
       },
-    "rank_basis": "Keep current source priorities; add two P2 draft-contract conflicts and reconcile related recommendations into271/322/324. No fix is closed based on uncommitted work."
+    "rank_basis": "Keep current source priorities; add two P2 draft-contract conflicts and reconcile related recommendations into271/322/324. No fix is closed based on uncommitted work.",
+    "working_notes_review": {
+        "finding": "SQA-334",
+        "retained_owner": "Master-maintained docs/working_notes.json, advisory and tracked; plan/findings/runrecord retain authority.",
+        "scope": "One ignored GUI hand-off and its committed plan reference, with workbench_design.json checked as a legitimate consumer-owned counterexample.",
+        "plan_follow_up": "The previous draft's automation rows landed in ff3ff3346. This review does not re-audit their implementation or overwrite the earlier hash-bound plan assessment."
+      }
   },
     "committed_plan": {
-    "git_blob": "c3d7b6dc0945a16e3144b5d3c99ee515cb16d031",
+    "git_blob": "cb1089e6eafe059d772aab7f32407921c84f994e",
     "path": "docs/plan.json",
-    "revision": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
-    "sha256": "57f64c7984d2acfe1b9ec2fe07d215050af766363fe4f042e5e947a53d4c1a92",
-    "working_tree_status": "Committed identity retained here; separately reviewed uncommitted draft is identified in candidate_review.plan_review.draft."
+    "revision": "ff3ff3346082275eaf10cd2d5835694d46f75bc1",
+    "sha256": "fb07f3451e5ac8b6f17fb2d6ccaa5501aa5a3827b72ad7047ba9d2b484545078",
+    "working_tree_status": "Committed plan at review pin; prior draft assessment retains its own snapshot identity. Current working plan edits excluded."
   },
     "findings": [
     {
@@ -6889,6 +6895,59 @@
         "Unfinished measurement evidence retains its original commit; no new sync or test suite introduced."
       ],
       "comparison": "Inspect the revised instruction against inCycle/moveCycle and their retained tests. No new test or measurement run is needed."
+    },
+    {
+      "id": "SQA-334",
+      "status": "open",
+      "severity": "P3",
+      "category": "development-context-consolidation",
+      "classification": "observed-fragmented-hand-off; owner-requested-simplification",
+      "title": "Replace loose implementation hand-offs with one durable working notebook",
+      "evidence_commit": "ff3ff3346082275eaf10cd2d5835694d46f75bc1",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "decisions/gui-recommendations at ff3ff3346; one-rule-file cleanup"
+        },
+        {
+          "path": "docs/gui_update_plan.json",
+          "symbol": "ignored local hand-off: 9 recommendations, decisions and restart notes; SHA256 b44ade316720360daee9ea9a555a1cc01891c62dbfc80b991340e80de9038bca"
+        },
+        {
+          "path": "internal/plan/plan.go",
+          "symbol": "Step.Rationale, DependsOn, Verify; Plan.Decisions"
+        },
+        {
+          "path": "internal/plan/single_authority_test.go",
+          "symbol": "TestSinglePlanAuthority"
+        },
+        {
+          "path": "internal/webuilane/design.go",
+          "symbol": "DesignDocumentPath: docs/workbench_design.json has a real consumer"
+        }
+      ],
+      "evidence": "The committed plan points to an ignored, untracked 17,580-byte GUI hand-off containing nine unassigned recommendations. That file mixes future ideas, old decisions, landed history, duplicated guidance and commands for restarting a removed lane. A fresh checkout cannot recover it from Git. The plan's gui-recommendations question preserves a summary but still requires another hand-off. This is a concrete fragmentation example, not a census or proof that every JSON file is stray; workbench_design.json has an actual consumer. The owner now requests one evolving working_notes.json.",
+      "recommended_change": "Use one tracked docs/working_notes.json as the lead's durable notebook for unfinished reasoning and upcoming ideas. Keep brief entries keyed by existing task/finding reference or a stable topic, containing useful implementation notes, unresolved questions and source/evidence links. Master reads it when resuming relevant work, re-reads before editing and updates it in place through normal landings; workers do not create competing copies or overwrite it concurrently. Keep it advisory: accepted scope, dependencies, acceptance and authority stay in plan.json (reuse Rationale); findings stay in sqa_findings.json; execution state and evidence stay with runrecord/store owners. As work lands, promote only the useful remaining facts into their retained owner and remove finished or superseded notes; Git retains history. Do not mirror statuses, budgets, rules, run receipts or a second backlog.",
+      "displaced_surface": "Reconcile the nine GUI recommendations and unique decision/evidence references against current code and findings before moving the still-useful context and deleting gui_update_plan.json, its local ignore entry and the obsolete plan hand-off question. Do not automatically authorize all nine features or drop unresolved requirements. Recheck restart commands rather than carrying obsolete checkout instructions forward. Future one-off *_plan.json, *_instructions.json and hand-off copies stop being created for this purpose. Keep real manifests, configuration, fixtures and verification records with their consumers; executable scratch remains under the existing tmp/<row> owner.",
+      "impact": "Makes useful context recoverable across chats and checkouts while reducing stale guidance and repeated rediscovery. Human workflow simplification; no measured runtime or memory saving.",
+      "expected_benefit": {
+        "production_ast_delta": 0,
+        "test_ast_delta": 0,
+        "fixtures_and_gate": "No new fixtures, setup executions, gate phase, parser, schema framework, synchronizer or filename policing suite recommended.",
+        "notes_cost": "One bounded human-maintained notebook replaces loose prose documents. The sampled source is 17,580 bytes; final notes/plan/findings bytes and net reduction must be counted after preserving unique requirements. Merely concatenating old files is not a saving.",
+        "maintenance": "Single lead writer; normal Git history instead of dated snapshots or an accumulating completion log. Commit useful context with ordinary related work, not every transient thought."
+      },
+      "likely_effort": "Small content migration, after checking each retained requirement; no new runtime machinery.",
+      "plan_references": [
+        "one-rule-file/rule-text and skill-sort: concrete consolidation rather than another policy framework",
+        "decisions/gui-recommendations: replace the dangling hand-off after disposition, without inventing authorization"
+      ],
+      "closure_criteria": [
+        "A fresh checkout contains the one working notebook; the lead demonstrably reads the relevant entry on resume.",
+        "Each still-useful GUI requirement, decision and evidence reference has a retained owner or explicit disposition before the old hand-off is removed.",
+        "Completed notes are pruned, accepted work remains in the one plan, and no extra controller, tests or duplicate state are added."
+      ],
+      "comparison": "Inspect the migration against the nine existing entries, unique decisions/evidence and existing plan/finding owners. Retain TestSinglePlanAuthority and consumer-owned manifest/verification tests; no new application test is needed for prose-only consolidation. SQA recommends this migration only and does not create/delete those files."
     }
   ],
     "gate_test_assessment": {
@@ -8618,10 +8677,8 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No implementation, tests, gates, workloads, worker messages, agents or plan/skill edits. Only the report is published.",
-      "Draft and working caption files may change independently. Report binds the examined snapshot and distinguishes it from committed source.",
-      "27 steps and2100 declared production nodes are plan counts, not measured growth. No test-growth estimate or new AST census; costed existing recommendations retain their prior measurements.",
-      "The draft's44 idle hours/45% refusal figures were not independently reconstructed; absence of default loop.json does not establish no custom run."
+      "No implementation, application tests, workloads, agents, worker messages or plan/skill changes. No AST analysis needed to decide a human-notes consolidation; no code savings claimed.",
+      "Other findings retain their own evidence revisions. The prior plan-review snapshot remains historical; its automation rows are now present in committed ff3ff3346. Runtime implementation of those proposals is not inferred."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9417,10 +9474,10 @@
       }
     }
   },
-    "next_finding_number": 334,
+    "next_finding_number": 335,
     "publication_context": {
-    "assessment": "Re-read the plan draft hash, committed HEAD and report owner fields before publishing; preserve all unrelated tracked/untracked edits.",
-    "checked_head": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+    "assessment": "Re-read report owner fields, committed HEAD and sampled hand-off hash before publishing. Preserve unrelated work.",
+    "checked_head": "ff3ff3346082275eaf10cd2d5835694d46f75bc1",
     "publication": "Existing locks/hooks; path-limited report commit only."
   },
     "ranked_active_finding_ids": [
@@ -9464,42 +9521,39 @@
     "SQA-306",
     "SQA-247",
     "SQA-262",
-    "SQA-317"
+    "SQA-317",
+    "SQA-334"
   ],
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "User explicitly requested plan recommendations in the report; plan and implementation files remain untouched.",
-      "No duplicate canonical obligation for startup handoff, early verifier admission or format-loader scope.",
-      "Maintain report-only review as master implements; reassess closure at committed revisions."
+      "User requested durable evolving notes instead of loose JSON hand-offs; recommendation is SQA-334.",
+      "No mass JSON cleanup: manifest, configuration, fixture and verification owners remain. Report-only publication preserves current worker edits."
     ],
-    "reviewed_at": "2026-11-07T17:42:54Z",
-    "reviewed_master": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+    "reviewed_at": "2026-11-07T17:59:46Z",
+    "reviewed_master": "ff3ff3346082275eaf10cd2d5835694d46f75bc1",
     "schema_version": 2,
     "scope": [
-      "Committed source pin404b66d4d88cd2a8c59f3ca5ce325901a569058f; existing instructions and committed plan retained.",
-      "User-requested review additionally covers UNCOMMITTED docs/plan.json blob190b66312783c90fcbcd95483be0ea7d67dfc892, SHA2566281cc0c06f75b741cfc47621d1428e214a8f641cea19fc83f1fdaaea51281ea. Draft observations are not implemented defects or closures.",
-      "Followed plan dispatch, driver exit/stop/parking, process ownership, landing verification, cycle resume and caption-loader/test callers. This chat previously implemented Overgo; not independent third-party SQA."
+      "Focused owner-requested review of durable working notes at committed master ff3ff3346082275eaf10cd2d5835694d46f75bc1. Read instructions, committed plan identity, GUI hand-off, plan authority and a counterexample with a real JSON consumer.",
+      "The GUI hand-off is local ignored evidence with its hash recorded in SQA-334; current README/plan/test edits are implementation-owned and excluded. No recurring census or unrelated re-ranking.",
+      "This chat previously implemented Overgo; this remains follow-up report-only SQA, not independent third-party review."
     ],
     "sqa_response": {
-    "assessment": "160 stable IDs:41 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add draft-plan findings332/333; extend271/322/324. No implemented fix inferred.",
+    "assessment": "161 stable IDs: 42 canonical open, 113 resolved, 4 deferred, 2 consolidated aliases. Add SQA-334 for the requested working-notes consolidation; no closure claimed.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Plan expands one step to27, with no declared dependencies. Proposed universal test locks/undo rules conflict with consolidation; manual cycle refresh conflicts with pinned resume. Existing owners supply smaller corrections.",
+    "evidence": "The ignored GUI hand-off holds nine recommendations outside Git and dispatch; the committed plan still points to it. Existing plan rationale and real JSON consumers establish the boundary for a single advisory notebook.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Preserved raw-exact. Draft feedback is reviewer-owned and does not amend master implementation responses."
+        "status": "Preserved raw-exact; this recommendation does not alter implementation responses."
       },
     "new_findings": [
-        "SQA-332",
-        "SQA-333"
+        "SQA-334"
       ],
     "partially_addressed_findings": [],
-    "priority_changes": [
-        "Place draft acceptance/recovery conflicts alongside identity and automation correctness work; other ordering unchanged."
-      ],
-    "recommendation": "Apply the bounded sequence in candidate_review.plan_review; preserve acceptance and identity, reuse driver/gate/recipe owners, and require total code/test/setup savings before new frameworks.",
+    "priority_changes": [],
+    "recommendation": "Use one tracked working_notes.json, update it in place, promote accepted work to existing owners and prune finished notes. Retire displaced hand-offs after preserving unique requirements; no new enforcement machinery.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9507,12 +9561,8 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
-    "uncertainty": "Plan hash identifies the reviewed uncommitted snapshot. Draft concerns are not observed production failures. No tests or measured savings.",
-    "updated_findings": [
-        "SQA-271",
-        "SQA-322",
-        "SQA-324"
-      ]
+    "reviewed_master": "ff3ff3346082275eaf10cd2d5835694d46f75bc1",
+    "uncertainty": "17,580 source bytes observed; final migration size and saved rediscovery time unmeasured. No notebooks, hand-offs or implementation files changed by SQA.",
+    "updated_findings": []
   }
   }

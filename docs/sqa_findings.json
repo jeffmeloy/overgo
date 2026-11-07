@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "One publication identity defect; fix by deleting the caller's unproved memo shortcut. No safe test deletion established.",
+    "assessment": "Useful immediate deletions are mixed with a much larger policy/automation expansion. Narrow implementation to existing owners and prove continuation before retiring its current owner. Count total production/test/setup cost.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -10,28 +10,103 @@
         "SQA-318",
         "SQA-283",
         "SQA-331",
+        "SQA-332",
+        "SQA-333",
         "SQA-277",
         "SQA-266",
         "SQA-328",
         "SQA-325",
         "SQA-330",
-        "SQA-324",
-        "SQA-257",
-        "SQA-303"
+        "SQA-324"
       ],
     "declined_candidates": [
-        "Keep the publication integration test: command wiring, inactive status and idempotence are distinct from composition-owner unit contracts.",
-        "Adapter decoding appears avoidable for metadata, but a net reduction preserving dtype/shape/content identity is not established; no new parser/API recommended.",
-        "No separate late-policy-validation or recipe-framework finding without a deciding need."
+        "No separate duplicate finding for driver handoff or loader scope; use271 and324.",
+        "No new generic rule-text detector, universal autofix engine or worker-tool framework justified by a shorter instruction file.",
+        "Do not equate more landings or fewer model calls with improved delivered behavior; retain correctness and recovery evidence."
       ],
-    "rank_basis": "Add P2 SQA-331 beside exact-identity findings. Other active ranks and statuses unchanged."
+    "plan_review": {
+        "draft": {
+          "base": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+          "git_blob": "190b66312783c90fcbcd95483be0ea7d67dfc892",
+          "sha256": "6281cc0c06f75b741cfc47621d1428e214a8f641cea19fc83f1fdaaea51281ea",
+          "committed": false,
+          "items": 8,
+          "steps": 27,
+          "steps_with_dependencies": 0,
+          "new_item_production_budget": 2100
+        },
+        "recommendations": [
+          {
+            "rows": "format-loader/caption-text",
+            "disposition": "Keep as a bounded consolidation; preserve the larger obligation.",
+            "recommendation": "Remove the duplicate caption directory branch through gguf.Open. Preserve token encoding parity, not only fixed-ID rows. Explicitly defer remaining format coupling rather than claiming this finishes it; unrelated hand-off cleanup is separate.",
+            "finding": "SQA-324"
+          },
+          {
+            "rows": "ask-nothing/owner-turn,hook-text,pointer,stop-kinds",
+            "disposition": "Combine the concrete hook/text reduction.",
+            "recommendation": "Let answered owner turns end, remove repeated hook rules, and keep a short pointer. Ordinary design choices should not block work; retain requested stops until explicit resume and genuine outside prerequisites such as unavailable credentials/permissions, not only licence/hardware. Reuse existing decision/stop owners rather than a new vocabulary framework.",
+            "cost": "Name the removed hook output/tests; extend existing stop/turn tables for changed behavior, not five parallel conformance suites."
+          },
+          {
+            "rows": "driver-on/first-run,startup,stop-clears,gate-retired",
+            "disposition": "Sequence through existing dependencies and prove the handoff.",
+            "recommendation": "Reuse loop.Run, BeginCampaign, processcontrol and durable stops. A task definition and fake-worker pass do not prove delivered continuation; clean waiting exits need a responsible next action. Preserve partial work and budgets on restart. Retire hooks only after that owner works.",
+            "finding": "SQA-271"
+          },
+          {
+            "rows": "driver-on/defaults,fall-through,status; worker-tools/workers",
+            "disposition": "Defer extra dispatch/notification machinery until the existing driver runs.",
+            "recommendation": "Use current decision, parked-row, outcome and cycle-due owners. Recheck canonical findings before filing rows; severity alone is not a cost/benefit ranking and a blanket owner-only P3 rule creates another handoff for cheap safe reductions. Start with current step/last outcome/blocker status; derive it from existing records. Escalate worker strength only after evidence of worker capability failure, never unchanged invalid setup. No periodic full run merely to remain busy.",
+            "cost": "Four workflow metrics, per-landing notifications and escalation need demonstrated consumers and complete test/setup costs; none is a prerequisite to the first supervised handoff."
+          },
+          {
+            "rows": "generated-commits/message,rule-edits",
+            "disposition": "Generate factual fields and remove unnecessary refusals.",
+            "recommendation": "Reuse landing details and plan-diff data; keep an optional human explanation of cause instead of inventing intent from a diff. Delete displaced prose checks. Apply only deterministic existing fixes; do not promise an exact automatic edit for every semantic rule. Start with the existing early-verifier correction, not another mandatory validation phase.",
+            "finding": "SQA-322"
+          },
+          {
+            "rows": "generated-commits/undo-check; step-kinds/test-first,locked-test",
+            "disposition": "Remove universal restrictions that block consolidation.",
+            "recommendation": "Keep behavioral acceptance and numerical limits stable while allowing equivalent test edits. Restrict meaningful counterfactual checks to appropriate behavior changes; do not count build/setup failures as proof.",
+            "finding": "SQA-332"
+          },
+          {
+            "rows": "step-kinds/run-steps; worker-tools/tools",
+            "disposition": "Reuse execution owners; defer a new six-tool server.",
+            "recommendation": "Direct deterministic run steps are useful when existing process/runrecord and recipe runtime owners handle identity, admission, resume, budgets and side effects. No second workflow language. A worker allowed to edit Go and run tests can execute subprocesses through that code; six advertised tools do not enforce a security boundary. Preserve actual filesystem/process/authority protections and do not retire guards based on tool names.",
+            "cost": "Keep existing decode/training loops in executors. Show displaced orchestration and at least two shared workflow contracts before expanding recipes; count added tool-server/tests/maintenance."
+          },
+          {
+            "rows": "card-dispatch/needs-card,remeasure",
+            "disposition": "Extend existing dispatch and dependency identities.",
+            "recommendation": "Use Step.DependsOn, resource ownership and inferencesurface's current identities. Do not add another selector or trust an unchecked needs-card declaration as resource authority. Known untouched cells may reuse evidence; unknown dependency reach keeps conservative coverage.",
+            "cost": "One declared scheduling hint may help host work progress, but actual gate/resource owner stays authoritative. Extend existing dependency/identity fixtures."
+          },
+          {
+            "rows": "one-rule-file/paragraphs,rule-text,skill-sort,memory-off",
+            "disposition": "Keep concrete deletions; remove generic prose policing.",
+            "recommendation": "Retain one short guidance source and delete proven duplicates. Avoid a new semantic 'rule sentence' detector, one-test-per-sentence program or startup memory warning merely to replace prose with machinery. Confirm any existing product setting before recommending it. Never manually refresh a pinned measurement checkout.",
+            "finding": "SQA-333"
+          }
+        ],
+        "first_sequence": [
+          "Finish bounded caption consolidation with promised acceptance intact.",
+          "Simplify answered-turn and hook text through existing owners.",
+          "Move the existing landing verifier before broad tests/lanes.",
+          "Configure and prove one existing supervised worker-to-next-action handoff with stop/wait/budget recovery.",
+          "Only then add platform startup and retire displaced hooks; defer new policy/tool/telemetry frameworks."
+        ]
+      },
+    "rank_basis": "Keep current source priorities; add two P2 draft-contract conflicts and reconcile related recommendations into271/322/324. No fix is closed based on uncommitted work."
   },
     "committed_plan": {
     "git_blob": "c3d7b6dc0945a16e3144b5d3c99ee515cb16d031",
     "path": "docs/plan.json",
-    "revision": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+    "revision": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
     "sha256": "57f64c7984d2acfe1b9ec2fe07d215050af766363fe4f042e5e947a53d4c1a92",
-    "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
+    "working_tree_status": "Committed identity retained here; separately reviewed uncommitted draft is identified in candidate_review.plan_review.draft."
   },
     "findings": [
     {
@@ -355,14 +430,15 @@
     "closure_criteria": [
         "Existing waiting rows require exactly0,1,0 worker calls; free-row execution, true failures and stop/budget behavior remain.",
         "One retained ordinarily authorized measurement links real final exit/partial results to its responsible owner's next authorized dispatch or truthful terminal/wait outcome; do not infer delivery from printing or timestamp.",
-        "No new watcher, selector, recurring workload or duplicate obligation; retain consolidated alias SQA-258 and record/hook consumer requirements."
+        "No new watcher, selector, recurring workload or duplicate obligation; retain consolidated alias SQA-258 and record/hook consumer requirements.",
+        "If adopting the draft startup/hook migration, explicit dependencies prevent retirement before real supervised handoff; clean waiting, requested stop and exhausted budgets remain truthful outcomes with no fabricated continuation."
       ],
     "comparison": "Use the existing three-scenario table during ordinary implementation validation; the parsed replacement adds21testAST without another scenario. For external supervision, inspect one existing authorized run's actual process exit and continuation receipt. Do not start a model/measurement to satisfy SQA.",
     "consolidates": [
         "SQA-258"
       ],
     "displaced_surface": "Implemented: duplicate waiting interpretation, strategy lookup/publish command/schema, unused ObligationWorld replay extension and fixed worker timeout disappear; worker names/prompts/budgets now come from strict config. Historical strategy fields are deliberately rejected, not silently ignored. Remaining test change replaces >1 with explicit per-case expectations; all three cases remain, no helper or new fixture. Preserve synchronous process containment, stop cancellation, invocation/nonprogress budgets, partial results and one-shot behavior; no data or confidentiality exposure introduced by this recommendation.",
-    "evidence": "e88e113c3 repairs the source-established post-improvement waiting bug: wrapped ErrWorkWaiting returns to the existing top-of-round owner; real read errors/no-work completion stay distinct.5cd51fbfa removes the unusable strategy prerequisite, and configured loop.Run owns synchronous measurement/worker exit, stops and two budgets. Existing real-subprocess continuation/stop fixtures remain and retained gates pass. Credit these repairs. The replacement dispatch table accepts world.calls()<=1 for every row; the previous initial-wait test required exactly0. Its top/after-cycle cases can therefore admit an extra worker if a future faulty driver ends with the correct waiting reason. Required expected counts are0/1/0; this is a test-oracle weakening, not evidence the repaired driver currently launches a duplicate. The config-start fixture stops immediately and proves neither a measurement's final-exit-to-next-dispatch edge nor delivery from an external detached one-shot owner. At this review only default measurement_run.json exists among the three inspected default config/supervisor/run paths; absence of default loop.json/supervisor is not proof no custom configuration exists. No retained actual measurement receipt linked to an authorized subsequent dispatch was supplied by these landings. Keep the canonical external-delivery obligation open, with alias258; do not duplicate it.",
+    "evidence": "e88e113c3 repairs the source-established post-improvement waiting bug: wrapped ErrWorkWaiting returns to the existing top-of-round owner; real read errors/no-work completion stay distinct.5cd51fbfa removes the unusable strategy prerequisite, and configured loop.Run owns synchronous measurement/worker exit, stops and two budgets. Existing real-subprocess continuation/stop fixtures remain and retained gates pass. Credit these repairs. The replacement dispatch table accepts world.calls()<=1 for every row; the previous initial-wait test required exactly0. Its top/after-cycle cases can therefore admit an extra worker if a future faulty driver ends with the correct waiting reason. Required expected counts are0/1/0; this is a test-oracle weakening, not evidence the repaired driver currently launches a duplicate. The config-start fixture stops immediately and proves neither a measurement's final-exit-to-next-dispatch edge nor delivery from an external detached one-shot owner. At this review only default measurement_run.json exists among the three inspected default config/supervisor/run paths; absence of default loop.json/supervisor is not proof no custom configuration exists. No retained actual measurement receipt linked to an authorized subsequent dispatch was supplied by these landings. Keep the canonical external-delivery obligation open, with alias258; do not duplicate it. Draft-plan review (uncommitted blob190b66312783c90fcbcd95483be0ea7d67dfc892, base404b66d4d): driver-on proposes first-run/startup/stop-clears/gate-retired but none of the27 steps declares depends_on. ReadyFrontier considers each dependency-free step ready, so parking a prerequisite need not withhold a later hook-retirement step. A fake worker landing and task-definition strings also do not prove real delivered continuation. loop.Run returns ReasonWorkWaiting without error and main returns that error unchanged; restart-on-failure alone does not restart this clean waiting exit. The proposed next-dispatch prerequisite recheck consequently needs an actual continuation owner, not another status timestamp.",
     "evidence_commit": "e88e113c3f26bf43ade67039a4a7b64cb52fb500",
     "expected_benefit": {
         "outcome": "Retained first-start -1004production/-789test=-1793; ownership-wait -22production/+206test=+184. Combined -1026production/-583test=-1609, schema-1,stored fixtures0. Current dispatch_wait_test.go316nodes/2254bytes; complete parsed exact-count table337nodes/2328bytes(+21test/+74bytes), production0, existing three scenarios/setups unchanged. This small necessary growth is not a reduction.",
@@ -374,9 +450,10 @@
     "plan_coverage": "Both implementation rows are landed. Source repairs credited; reviewer closure retains exact-count and actual external-continuation obligations. No plan change by SQA.",
     "plan_references": [
         "unattended-driver/first-start (5cd51fbfa)",
-        "unattended-driver/ownership-wait (e88e113c3)"
+        "unattended-driver/ownership-wait (e88e113c3)",
+        "UNCOMMITTED draft190b66312: driver-on/first-run,startup,stop-clears,gate-retired; ask-nothing/owner-turn"
       ],
-    "recommended_change": "Keep the landed source repair and simplified config. In the existing three-row TestARunThatFindsWorkWaitingSaysSo table, carry wantCalls=0,1,0 and compare equality; remove the permissive >1 test. Preserve the free-row early-filing fixture, real-process continuation and stop/budget/error owners. No new test/helper/selector is needed. For external delivery, use the actual responsible process/task owner and existing configured driver through real measurement exit, recording the next authorized dispatch or truthful stop/budget/failure/wait. Reconcile one ordinarily authorized retained run; no SQA launch or new scheduler/watcher/polling framework.",
+    "recommended_change": "Keep the landed source repair and simplified config. In the existing three-row TestARunThatFindsWorkWaitingSaysSo table, carry wantCalls=0,1,0 and compare equality; remove the permissive >1 test. Preserve the free-row early-filing fixture, real-process continuation and stop/budget/error owners. No new test/helper/selector is needed. For external delivery, use the actual responsible process/task owner and existing configured driver through real measurement exit, recording the next authorized dispatch or truthful stop/budget/failure/wait. Reconcile one ordinarily authorized retained run; no SQA launch or new scheduler/watcher/polling framework. For the draft, declare prerequisites through existing Step.DependsOn: startup after verified driver configuration/worker handoff; hook retirement after the actual supervised continuation and restart contract holds. Reuse BeginCampaign's process-lifetime lock, processcontrol, durable stops and existing parked-row/attempt owners. Require a retained ordinary run showing final exit to the next authorized action, plus truthful stop/budget/wait behavior; a task XML check is insufficient. Known invalid setup must not be retried unchanged, and restarting must not silently renew exhausted authority or discard partial work. Do not infer 'never run' solely from absence of default loop.json.",
     "severity": "P2",
     "sources": [
         {
@@ -6126,9 +6203,10 @@
     "plan_coverage": "No new plan row or SQA implementation. Distinct from SQA-266's repeated full-cycle evidence work and SQA-271's post-exit continuation; no shared root cause or coordinated migration justifies merging them.",
     "plan_references": [
         "docs/plan.json standing: cheap preflight stages and dependency-first failure admission",
-        "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)"
+        "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)",
+        "UNCOMMITTED draft190b66312: generated-commits/message,undo-check,rule-edits"
       ],
-    "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler.",
+    "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler. Prioritize this existing +13-test-node correction before the draft's new universal undo/autofix machinery. Generated factual message fields can reuse l.details and existing plan-diff results; delete displaced prose checks rather than preserving them behind a new message framework.",
     "severity": "P3",
     "sources": [
         {
@@ -6213,7 +6291,7 @@
       ],
     "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution.",
     "displaced_surface": "Immediate target: unnecessary model-sized intermediate files, conversion invocation/retry/registration steps for already supported native directories, and stale conversion-only prerequisite text through the implementation plan owner. Coordinated target after callers migrate: gguf.View's synthetic header->Parse roundtrip, region/padding emulation and directory-opener registration used only to masquerade as GGUF; viewProfile/viewed conversion-to-File glue. Keep required architecture mapping, tokenizer/config reading, real GGUF parser/writer, validated tensor reads, bounded transformed buffers and close ownership. Do not delete hfconvert wholesale. fromView currently hashes the virtual image and existing manifests/recipes/evidence depend on that identity: preserve exact old identities and verification, or use the existing artifact/derivation owner for an explicit migration without relabeling evidence. If a compatibility verifier still needs synthetic bytes, retain and charge it; full view deletion cannot then be claimed. SQA-303 and262 remain distinct current test cleanups; their savings are not additive to deleting their containing paths.",
-    "evidence": "Physical GGUF and HF directories already share inference through gguf.File/LoadedProgram/Runner; supported directories use hfconvert.View without a disk conversion. View still constructs an in-memory GGUF header/offset/padding image and reparses it for format-bound loading and identity consumers. At this pin the completed 0.5B judgement used conversion for its token/placeholder parity work; its separate memory/answer measurement opened the native directory. These are different retained runs, not evidence that conversion was needed by the runtime. The committed plan now accepts format-loader/do after vision-bridge, and the obsolete conversion prerequisite paragraph is gone with the completed judge step. The actual shared-loader migration has not landed: View, its synthetic image, format-specific binding and virtual-image identity obligations remain. Source-established unnecessary format coupling; net code/memory/elapsed savings remain unmeasured. At ec06b1af2, the narrow caption path has progressed: captureSeams/captionMean and captionSequences share evaluation.CaptionText for physical GGUF or HF tokenizer/width/rows, replacing the route's captionVocabulary and its duplicate directory assumptions. The retained d9cf19b75 capture reads the published9B GGUF directly. This does not remove gguf.View, synthetic image identities or the format-bound main model loader; those owners remain unchanged.",
+    "evidence": "Physical GGUF and HF directories already share inference through gguf.File/LoadedProgram/Runner; supported directories use hfconvert.View without a disk conversion. View still constructs an in-memory GGUF header/offset/padding image and reparses it for format-bound loading and identity consumers. At this pin the completed 0.5B judgement used conversion for its token/placeholder parity work; its separate memory/answer measurement opened the native directory. These are different retained runs, not evidence that conversion was needed by the runtime. The committed plan now accepts format-loader/do after vision-bridge, and the obsolete conversion prerequisite paragraph is gone with the completed judge step. The actual shared-loader migration has not landed: View, its synthetic image, format-specific binding and virtual-image identity obligations remain. Source-established unnecessary format coupling; net code/memory/elapsed savings remain unmeasured. At ec06b1af2, the narrow caption path has progressed: captureSeams/captionMean and captionSequences share evaluation.CaptionText for physical GGUF or HF tokenizer/width/rows, replacing the route's captionVocabulary and its duplicate directory assumptions. The retained d9cf19b75 capture reads the published9B GGUF directly. This does not remove gguf.View, synthetic image identities or the format-bound main model loader; those owners remain unchanged. Draft-plan review at404b66d4d: the uncommitted plan replaces format-loader/do with caption-text alone and calls it the only worthwhile piece. The working caption reader does remove its private directory branch through existing gguf.Open, a useful narrower consolidation, but retains hfconvert.View and the main simulated-file coupling. Its untracked TestACaptionTextReadsADirectoryAsItsConversion compares width/EOS and rows for fixed IDs1,5,31; it never calls Encode although draft acceptance promises token parity. These are draft observations, not a landed fix or closure.",
     "evidence_commit": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
     "expected_benefit": {
         "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established. Narrow caption-reader step d9cf19b75 adds433 production+277 test=710 AST overall despite deleting captionVocabulary; it is capability/reuse growth, not a net reduction or completion of this migration.",
@@ -6226,9 +6304,10 @@
     "plan_coverage": "format-loader/do remains accepted and open after vision-bridge. Credit landed capture-9b's two-caller CaptionText reuse and direct GGUF rows, with its+710total AST cost; no claim that the broader shared-loader/identity migration has landed. SQA made no plan changes.",
     "plan_references": [
         "format-loader/do (open, after vision-bridge; shared loading boundary and displaced virtual view)",
-        "vision-bridge/judge (landed; retained prompt-token/placeholder parity and judgement evidence)"
+        "vision-bridge/judge (landed; retained prompt-token/placeholder parity and judgement evidence)",
+        "UNCOMMITTED draft190b66312: format-loader/caption-text (narrower than committed format-loader/do)"
       ],
-    "recommended_change": "Use the existing direct-directory opening path for supported models and remove conversion as a workflow prerequisite after the existing prompt/identity admission holds. Keep actual export only for demonstrated consumers; do not remove the public command, unsupported-family fallback or projector conversion without replacing/explicitly retiring their callers. Then replace the format-specific boundary inside the existing model/modelrecipe loading owners with the minimum shared model facts and typed tensor readers needed by BOTH physical GGUF and HF callers. Reuse profileTensors, hfgguf mappings, Gemma4 mapping, safetensors readers, model shape validation and the existing host/device transfer owner. This must replace the simulated-file dependency, not add a parallel loader/framework around it. Retain format-specific parsing at the input edge and perform required dtype/layout transformations once at the existing load boundary; kernels still receive explicit layouts and quantization types. Route training through shared loading only where densecausal.Load/LoadGGUF's F32 materialization and inference's packed/device policies actually share a contract.",
+    "recommended_change": "Use the existing direct-directory opening path for supported models and remove conversion as a workflow prerequisite after the existing prompt/identity admission holds. Keep actual export only for demonstrated consumers; do not remove the public command, unsupported-family fallback or projector conversion without replacing/explicitly retiring their callers. Then replace the format-specific boundary inside the existing model/modelrecipe loading owners with the minimum shared model facts and typed tensor readers needed by BOTH physical GGUF and HF callers. Reuse profileTensors, hfgguf mappings, Gemma4 mapping, safetensors readers, model shape validation and the existing host/device transfer owner. This must replace the simulated-file dependency, not add a parallel loader/framework around it. Retain format-specific parsing at the input edge and perform required dtype/layout transformations once at the existing load boundary; kernels still receive explicit layouts and quantization types. Route training through shared loading only where densecausal.Load/LoadGGUF's F32 materialization and inference's packed/device policies actually share a contract. Accept caption-text as a bounded first consolidation, not silent completion of the broader owner-requested boundary change. Explicitly defer the remaining migration if its full cost is not justified. Keep Encode parity for a valid tiny vocabulary in the same fixture, with existing BOS/special-token requirements; do not delete the requirement because the first caption was invalid. Remove the draft's automatic 'any other failure -> retire' instruction: classify the actual failure and preserve the required behavior. Keep unrelated hand-off-file cleanup out of this loader acceptance.",
     "severity": "P2",
     "sources": [
         {
@@ -6723,37 +6802,106 @@
         "Use the established verified resolver with no parallel admission framework; report the added warm-publication hashing and full test cost honestly."
       ],
       "comparison": "During ordinary implementation validation, extend TestAJudgedBridgePublishesAnInactiveComposite using discovery.RememberInventory and the existing tiny model/store. Keep its successful publication checks, then introduce a warm claim and same-stat payload mutation; textModel must not return the original model identity. Compare against direct content-derived inventory if needed. The existing native fixture is sufficient; no additional confidence workload."
+    },
+    {
+      "id": "SQA-332",
+      "status": "open",
+      "severity": "P2",
+      "category": "plan-acceptance-and-surface",
+      "classification": "uncommitted-plan-conflicts-with-consolidation",
+      "title": "Keep refactors and test consolidation admissible under the automation plan",
+      "evidence_commit": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "UNCOMMITTED draft190b66312: generated-commits/undo-check; step-kinds/test-first,locked-test"
+        },
+        {
+          "path": "internal/plan/plan.go",
+          "symbol": "ClassConsolidation; existing Step.Verify/DependsOn"
+        },
+        {
+          "path": "internal/landing/landing.go",
+          "symbol": "verify/addedChecksFail and existing acceptance owners"
+        },
+        {
+          "path": "internal/landing/trunk_hook_test.go",
+          "symbol": "SQA-329's concrete test-body consolidation would need to edit its retained test"
+        }
+      ],
+      "evidence": "The draft makes every code step require a test already failing on trunk, requires undoing production to fail that check, and forbids changing its test/fixtures. A behavior-preserving consolidation normally passes before and after; a test-only consolidation changes its test without any production change to undo. These are the primary requested reductions, including SQA-329. The proposed rules would reject them. Conversely, restoring old production can make a new test fail to compile, which proves no behavioral regression was detected. Requiring a failing test on trunk also needs an explicit way to stage acceptance without first breaking the trunk's ordinary gate. These are contradictions in proposed acceptance, not landed failures.",
+      "recommended_change": "Retain the acceptance requirement and numerical limits, not immutable test-file bytes. Apply a counterfactual comparison only to behavior changes where it has a meaningful expected assertion; compilation/setup failure is not that evidence. Use the existing consolidation class and retained tests for equivalent refactors, and permit test merges with named retained requirements. Extend existing verifier/landing fixtures only for genuinely new admission behavior; remove the universal failing-test and file-lock rules rather than building exceptions or another test authority.",
+      "displaced_surface": "Avoid mandatory undo execution for unchanged behavior, preinstalled failing-test workflow, blanket test/fixture locking and their three new named policy checks. Existing plan acceptance, native tests, numerical/recovery requirements and landing authority remain. Do not weaken trust-boundary or data-loss tests to obtain a reduction.",
+      "impact": "Prevents the automation plan from blocking the code/test reductions it is intended to deliver and from accepting compiler failures as proof of a useful test.",
+      "expected_benefit": {
+        "outcome": "Planning change only: no implemented before/after AST. The draft assigns350 production nodes to step-kinds and500 to all generated-commits; none is a verified saving attributable to this recommendation. Do not credit entire item budgets as avoided code.",
+        "cost_contract": "Revise criteria in place; reuse existing native fixtures and the consolidation class. No new wrapper, framework, fixture file or recurring undo phase. Estimate any genuinely needed test extension when its concrete behavior is defined.",
+        "uncertainty": "Draft snapshot reviewed, no tests or counterfactual workloads run. Historical closure and implementation-owned fields remain untouched."
+      },
+      "likely_effort": "Small plan correction; implementation cost depends on which existing acceptance gap remains after removing universal rules.",
+      "plan_references": [
+        "UNCOMMITTED draft190b66312: generated-commits/undo-check; step-kinds/test-first,locked-test",
+        "SQA-329 as a concrete admissible consolidation"
+      ],
+      "closure_criteria": [
+        "A behavior-preserving production refactor and a test-body consolidation can land through retained acceptance owners.",
+        "A behavioral regression check distinguishes its expected failure from compilation, setup or missing-test failure.",
+        "No new exception framework is needed to admit ordinary consolidation; test/setup/gate costs are counted."
+      ],
+      "comparison": "Review the proposed acceptance against SQA-329 and one existing behavioral-fix fixture. During ordinary implementation validation extend the current landing fixture only if admission behavior changes; no SQA test execution or new suite."
+    },
+    {
+      "id": "SQA-333",
+      "status": "open",
+      "severity": "P2",
+      "category": "plan-recovery-identity",
+      "classification": "uncommitted-plan-conflicts-with-pinned-run-owner",
+      "title": "Leave the measurement checkout under its existing pinned-run owner",
+      "evidence_commit": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+      "sources": [
+        {
+          "path": "docs/plan.json",
+          "symbol": "UNCOMMITTED draft190b66312: one-rule-file/rule-text says to refresh the cycle's copy from the tree"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "unfinished/Measure/inCycle/moveCycle: resume original commit, hold cycle lock, refuse dirty checkout"
+        },
+        {
+          "path": "cmd/loop/improve_test.go",
+          "symbol": "TestCycleRunsInItsOwnCheckout; TestUnfinishedCycleContinuesAtItsOwnCommit"
+        }
+      ],
+      "evidence": "The draft proposes refreshing .overgo-runtime/cycle's guidance copy from the current tree during cleanup. That directory is a detached measurement checkout, not an independent stale-rules cache. Existing inCycle owns its lock and moveCycle moves it to the run's commit; unfinished work resumes at its original revision. Copying current guidance into it can dirty the checkout, make resume refuse, and mix source revisions. No such edit or resulting failure was observed; this is a proposed-plan conflict.",
+      "recommended_change": "Delete the manual cycle-refresh instruction. Change guidance in the main source tree; let existing inCycle/moveCycle obtain it when a new cycle legitimately selects that revision. Preserve unfinished runs and their evidence at their original commit. Do not add a guidance sync, cleanup exception or migration mechanism.",
+      "displaced_surface": "One proposed manual cross-checkout copy and its maintenance disappear. Existing cycle lock, pinned checkout, dirty-tree refusal and partial-result recovery stay unchanged. Truly unused copies can be considered separately after verifying no live owner.",
+      "impact": "Avoids blocking a valid resume or mixing instructions/source identities while trying to simplify documentation.",
+      "expected_benefit": {
+        "outcome": "Production/test AST change0 recommended; no new fixture, setup, gate work or runtime. Remove only the proposed instruction. Existing tests already own this contract.",
+        "uncertainty": "Source and plan review only; no cycle started, modified or resumed, and no runtime savings measured."
+      },
+      "likely_effort": "Delete the draft sentence; no implementation needed.",
+      "plan_references": [
+        "UNCOMMITTED draft190b66312: one-rule-file/rule-text"
+      ],
+      "closure_criteria": [
+        "The plan leaves cycle checkout movement and content entirely with the existing pinned-run owner.",
+        "Unfinished measurement evidence retains its original commit; no new sync or test suite introduced."
+      ],
+      "comparison": "Inspect the revised instruction against inCycle/moveCycle and their retained tests. No new test or measurement run is needed."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "A matching size and modification time is a digest hint, not content proof; a same-stat tensor edit remains admitted by the memo.",
-        "Publication remains inactive and explicit ActivationBatch retains compare-and-set authority; no activation or delivered continuation inferred."
+        "Task configuration, status timestamps and clean worker exits do not by themselves prove delivered continuation.",
+        "A test executable runs Go code and subprocesses; removing the advertised shell tool does not establish containment.",
+        "Plan statistics are unverified context, not numerical acceptance or causal proof of shutdowns."
       ],
-    "automation_sequence": "candidate builds authority before model registration; failed policy trials commit nothing in the retained fixture. CompositionAuthority.Batch owns the final authority write and ActivationBatch owns separate activation. textModel drops the proof obligation before either publication or later activation; reuse the existing verified resolver instead of adding a recovery layer.",
+    "automation_sequence": "Proposed migration must explicitly depend on verified replacement ownership. ReadyFrontier admits dependency-free steps; currently all27 draft steps lack depends_on. loop.Run's clean waiting exit is not restarted by a failure-only task policy. Existing cycle movement and original-commit resume must remain untouched.",
     "fresh_ast": {
-        "revision": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
-        "method": "Existing external Go parser over four selected committed files; parse-only substitution of the verified resolver call and removal of the unused import. No application execution.",
-        "files": [
-          {
-            "path": "cmd/seam-align/publish.go",
-            "nodes": 1706,
-            "recommended_production_nodes": 1696
-          },
-          {
-            "path": "cmd/seam-align/publish_test.go",
-            "nodes": 1088
-          },
-          {
-            "path": "internal/modelrecipe/loaded_program.go",
-            "nodes": 1668
-          },
-          {
-            "path": "internal/discovery/memo.go",
-            "nodes": 336
-          }
-        ],
-        "decision": "Production reduction10 nodes; needed test extension estimated100..250 nodes. No total reduction claimed."
+        "revision": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+        "method": "No new AST census for a plan-only evaluation. Reused retained SQA-322 complete candidate counts and SQA-329 targeted test counts; draft implementation sizes remain unmeasured.",
+        "decision": "2100 planned production nodes and26 not-yet-existing named verifier tests are not a demonstrated net reduction; the caption verifier exists only in the working draft."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6912,19 +7060,30 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "6920c5c0a reports publication verify2.169s, +1806 production/+1088 test nodes and broad existing lanes. Its fixture uses a fresh store, so these passes do not establish warm-memo identity verification.",
-        "Existing Go caching is retained. Review ran no tests or device/model workload."
+        "Existing SQA-322 alternative: production delta0/test+13, same owners and no extra gate phase.",
+        "Existing SQA-329 estimate: -57..61 test nodes and one repository setup removed, with all path cases retained.",
+        "No draft tests or startup/worker workloads executed by SQA."
       ],
     "tests": [
         {
           "classification": "retain/extend",
-          "owner": "TestAJudgedBridgePublishesAnInactiveComposite",
-          "requirement": "Retain refused trials/store unchanged, exact bindings/bytes, idempotence, inactive status and explicit activation. Extend the same fixture for a persisted stale model claim."
+          "owner": "existing driver continuation/stop/wait fixtures",
+          "requirement": "Carry actual exit, exact invocation counts, stops/budgets and partial progress through handoff; avoid a parallel supervisor suite."
+        },
+        {
+          "classification": "retain/merge",
+          "owner": "existing landing and hook fixtures (SQA-322/329)",
+          "requirement": "Early verifier refusal and shared hook setup remain admissible; locked-test rules must not prevent consolidation."
+        },
+        {
+          "classification": "retain/complete draft",
+          "owner": "TestACaptionTextReadsADirectoryAsItsConversion",
+          "requirement": "Draft fixed-ID row comparison omits promised Encode parity; retain token/BOS/special-token behavior in the same fixture."
         },
         {
           "classification": "retain",
-          "owner": "TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim; TestOpenWithProgramClaimedLoadMatchesTheVerifiedLoad",
-          "requirement": "Resolution exposes claims; serving proves them. These are distinct layers and do not cover publication discarding claims."
+          "owner": "existing pinned cycle tests",
+          "requirement": "Original-revision resume and dirty-checkout refusal; no new guidance-sync test."
         }
       ]
   },
@@ -8459,9 +8618,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, gates, workloads, services, agents, worker messages or implementation.",
-      "Selected Go parser/AST counts and manual caller tracing only; no package/type/device resolution. Other findings retain their evidence revisions.",
-      "Same-stat payload counterexample is derived from source, not executed; no claim of incorrect serving, activation or measured cost."
+      "No implementation, tests, gates, workloads, worker messages, agents or plan/skill edits. Only the report is published.",
+      "Draft and working caption files may change independently. Report binds the examined snapshot and distinguishes it from committed source.",
+      "27 steps and2100 declared production nodes are plan counts, not measured growth. No test-growth estimate or new AST census; costed existing recommendations retain their prior measurements.",
+      "The draft's44 idle hours/45% refusal figures were not independently reconstructed; absence of default loop.json does not establish no custom run."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9257,11 +9417,11 @@
       }
     }
   },
-    "next_finding_number": 332,
+    "next_finding_number": 334,
     "publication_context": {
-    "assessment": "Re-read current source/report/owner state before publication; preserve concurrent work.",
-    "checked_head": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
-    "publication": "Existing landing/gate locks and hooks; only docs/sqa_findings.json committed."
+    "assessment": "Re-read the plan draft hash, committed HEAD and report owner fields before publishing; preserve all unrelated tracked/untracked edits.",
+    "checked_head": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+    "publication": "Existing locks/hooks; path-limited report commit only."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -9271,6 +9431,8 @@
     "SQA-318",
     "SQA-283",
     "SQA-331",
+    "SQA-332",
+    "SQA-333",
     "SQA-277",
     "SQA-266",
     "SQA-328",
@@ -9307,36 +9469,37 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "SQA-331 is distinct from test-cache freshness315 and test-file identity316: its owner is publication's model resolver.",
-      "No new recipe runtime or orchestration recommended. Keep exact identity, stop/activation authority and existing recovery ownership.",
-      "Preserve stable IDs, prior closure evidence and every implementation-owned/unknown field; only the report changes."
+      "User explicitly requested plan recommendations in the report; plan and implementation files remain untouched.",
+      "No duplicate canonical obligation for startup handoff, early verifier admission or format-loader scope.",
+      "Maintain report-only review as master implements; reassess closure at committed revisions."
     ],
-    "reviewed_at": "2026-11-07T16:43:31Z",
-    "reviewed_master": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
+    "reviewed_at": "2026-11-07T17:42:54Z",
+    "reviewed_master": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
     "schema_version": 2,
     "scope": [
-      "Pin22fde66fe8f14e981dae01194c2e13f79fc1989c; production unchanged since9196555a4. Read current plan and unchanged instructions; format-loader/do remains the only open row.",
-      "Rotated bounded review through seam-align composite publication, model identity resolution, promotion batching/activation and the existing integration fixture. Provisional source conclusions preceded prior findings.",
-      "This chat previously implemented Overgo: overlapping review, not independent third-party SQA."
+      "Committed source pin404b66d4d88cd2a8c59f3ca5ce325901a569058f; existing instructions and committed plan retained.",
+      "User-requested review additionally covers UNCOMMITTED docs/plan.json blob190b66312783c90fcbcd95483be0ea7d67dfc892, SHA2566281cc0c06f75b741cfc47621d1428e214a8f641cea19fc83f1fdaaea51281ea. Draft observations are not implemented defects or closures.",
+      "Followed plan dispatch, driver exit/stop/parking, process ownership, landing verification, cycle resume and caption-loader/test callers. This chat previously implemented Overgo; not independent third-party SQA."
     ],
     "sqa_response": {
-    "assessment": "158 stable IDs:39 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-331; no closure, reopening or consolidation.",
+    "assessment": "160 stable IDs:41 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add draft-plan findings332/333; extend271/322/324. No implemented fix inferred.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Publication accepts a persisted digest hint and discards the claim-proof obligation; serving does not. The fresh-store fixture misses this path.",
+    "evidence": "Plan expands one step to27, with no declared dependencies. Proposed universal test locks/undo rules conflict with consolidation; manual cycle refresh conflicts with pinned resume. Existing owners supply smaller corrections.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Owner blocks and unknown fields preserved exactly. No production change since the prior review; sample rotated to the earlier publication landing."
+        "status": "Preserved raw-exact. Draft feedback is reviewer-owned and does not amend master implementation responses."
       },
     "new_findings": [
-        "SQA-331"
+        "SQA-332",
+        "SQA-333"
       ],
     "partially_addressed_findings": [],
     "priority_changes": [
-        "Insert SQA-331 beside identity-correctness work; other ranks unchanged."
+        "Place draft acceptance/recovery conflicts alongside identity and automation correctness work; other ordering unchanged."
       ],
-    "recommendation": "Use ResolveActiveGGUF in the existing publication helper, delete the memo import and extend one existing native fixture. Keep inactive publication and activation separate.",
+    "recommendation": "Apply the bounded sequence in candidate_review.plan_review; preserve acceptance and identity, reuse driver/gate/recipe owners, and require total code/test/setup savings before new frameworks.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9344,8 +9507,12 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "22fde66fe8f14e981dae01194c2e13f79fc1989c",
-    "uncertainty": "Source-established counterexample, not runtime reproduction. Production saves10 nodes; test growth and warm-publication hashing are necessary costs, not measured performance improvements.",
-    "updated_findings": []
+    "reviewed_master": "404b66d4d88cd2a8c59f3ca5ce325901a569058f",
+    "uncertainty": "Plan hash identifies the reviewed uncommitted snapshot. Draft concerns are not observed production failures. No tests or measured savings.",
+    "updated_findings": [
+        "SQA-271",
+        "SQA-322",
+        "SQA-324"
+      ]
   }
   }

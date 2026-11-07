@@ -31,7 +31,7 @@ func LoadFrozenLanguageModel(ctx context.Context, path string, tokens int) (*Fro
 		return nil, fmt.Errorf("hybrid stack: open artifact: %w", err)
 	}
 	fail := func(cause error) (*FrozenLanguageModel, error) { return nil, errors.Join(cause, file.Close()) }
-	stack, weights, err := loadStack(ctx, file, tokens, true)
+	stack, weights, err := loadStack(ctx, file, tokens)
 	if err != nil {
 		return fail(err)
 	}

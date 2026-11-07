@@ -107,7 +107,7 @@ func readStackGeometry(spec model.Spec) (stackGeometry, error) {
 
 // matrixElements / vectorElements: exact slab extents per layer kind, used to
 // pre-size the flat optimizer slabs so a multi-gigabyte append never regrows.
-func (g stackGeometry) matrixElements(recurrent, convBias bool) (mat, vec int) {
+func (g stackGeometry) matrixElements(recurrent, convBias, gated bool) (mat, vec int) {
 	mat = 3 * g.inter * g.hidden // mlp gate/up/down
 	vec = 2 * g.hidden           // input/post norms
 	if recurrent {
@@ -122,6 +122,9 @@ func (g stackGeometry) matrixElements(recurrent, convBias bool) (mat, vec int) {
 	}
 	qDim, kvDim := g.heads*g.headDim, g.kvHeads*g.headDim
 	mat += (2*qDim + 2*kvDim) * g.hidden
+	if gated {
+		mat += qDim * g.hidden
+	}
 	vec += 2 * g.headDim
 	return mat, vec
 }
@@ -160,7 +163,7 @@ func bindAttentionLayer(b *builder, li int, g stackGeometry, host *model.HostLay
 	p := func(s string) string { return name(li, s) }
 	qDim, kvDim := g.heads*g.headDim, g.kvHeads*g.headDim
 
-	gate := hostData(host.FeedForwardGate)
+	ffnGate := hostData(host.FeedForwardGate)
 	up := hostData(host.FeedForwardUp)
 	down := hostData(host.FeedForwardDown)
 	q := hostData(host.AttentionQ)
@@ -169,7 +172,7 @@ func bindAttentionLayer(b *builder, li int, g stackGeometry, host *model.HostLay
 	o := hostData(host.AttentionOutput)
 	if err := requireValues(li, map[string][]float32{
 		"attn_norm": hostData(host.AttentionNorm), "ffn_norm": hostData(host.FeedForwardNorm),
-		"ffn_gate": gate, "ffn_up": up, "ffn_down": down,
+		"ffn_gate": ffnGate, "ffn_up": up, "ffn_down": down,
 		"attn_q": q, "attn_k": k, "attn_v": v, "attn_output": o,
 		"attn_q_norm": hostData(host.AttentionQNorm), "attn_k_norm": hostData(host.AttentionKNorm),
 	}); err != nil {
@@ -177,18 +180,19 @@ func bindAttentionLayer(b *builder, li int, g stackGeometry, host *model.HostLay
 	}
 	// The projection may fuse a per-head output gate after each head's query
 	// rows ([q(headDim) | gate(headDim)] per head, the serving GroupSlice
-	// split): the query rows enter the trainable slab and the gate rows the
-	// layer's gate, which only a frozen walk carries.
+	// split): the query rows and the gate rows each enter the trainable slab.
+	var gate []float32
 	switch head := g.headDim * g.hidden; len(q) {
 	case qDim * g.hidden:
 	case tensor.PairedExtent * qDim * g.hidden:
-		query, gate := make([]float32, qDim*g.hidden), make([]float32, qDim*g.hidden)
+		query := make([]float32, qDim*g.hidden)
+		gate = make([]float32, qDim*g.hidden)
 		for h := range g.heads {
 			fused := q[tensor.PairedExtent*h*head:]
 			copy(query[h*head:(h+1)*head], fused[:head])
 			copy(gate[h*head:(h+1)*head], fused[head:tensor.PairedExtent*head])
 		}
-		q, w.Attn.Gate = query, gate
+		q = query
 	default:
 		return fmt.Errorf("hybrid stack: layer %d query projection has %d values, need %d or %d",
 			li, len(q), qDim*g.hidden, 2*qDim*g.hidden)
@@ -199,20 +203,29 @@ func bindAttentionLayer(b *builder, li int, g stackGeometry, host *model.HostLay
 	if err := b.vecValues(&w.PostNorm, p("post_norm"), hostData(host.FeedForwardNorm)); err != nil {
 		return err
 	}
-	for _, binding := range []struct {
+	matrices := []struct {
 		dst        *[]float32
 		name       string
 		rows, cols int
 		data       []float32
 	}{
-		{&w.MLP.Gate, p("mlp.gate"), g.inter, g.hidden, gate},
+		{&w.MLP.Gate, p("mlp.gate"), g.inter, g.hidden, ffnGate},
 		{&w.MLP.Up, p("mlp.up"), g.inter, g.hidden, up},
 		{&w.MLP.Down, p("mlp.down"), g.hidden, g.inter, down},
 		{&w.Attn.Wq, p("attn.q"), qDim, g.hidden, q},
 		{&w.Attn.Wk, p("attn.k"), kvDim, g.hidden, k},
 		{&w.Attn.Wv, p("attn.v"), kvDim, g.hidden, v},
 		{&w.Attn.Wo, p("attn.o"), g.hidden, qDim, o},
-	} {
+	}
+	if gate != nil {
+		matrices = append(matrices, struct {
+			dst        *[]float32
+			name       string
+			rows, cols int
+			data       []float32
+		}{&w.Attn.Gate, p("attn.gate"), qDim, g.hidden, gate})
+	}
+	for _, binding := range matrices {
 		if err := b.matValues(binding.dst, binding.name, binding.rows, binding.cols, binding.data); err != nil {
 			return err
 		}
@@ -335,7 +348,7 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 		return nil, fmt.Errorf("hybrid stack: open artifact: %w", err)
 	}
 	defer file.Close()
-	m, weights, err := loadStack(ctx, file, len(tokenIDs)-1, false)
+	m, weights, err := loadStack(ctx, file, len(tokenIDs)-1)
 	if err != nil {
 		return nil, err
 	}
@@ -354,10 +367,9 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 
 // loadStack binds every layer of the open artifact, full-attention and recurrent gated-delta alike, per the spec's
 // own layer cadence, into one trainable mixed stack with f32 masters decoded from the serving storage, for sequences
-// of tokens tokens, and returns the artifact's weight catalog beside it. An attention layer's output gate binds when
-// gated, the stack walked frozen; otherwise an artifact that carries one is refused before any weight is read, since
-// the stack's training carries no gate.
-func loadStack(ctx context.Context, file *gguf.File, tokens int, gated bool) (*Model, model.Weights, error) {
+// of tokens tokens, and returns the artifact's weight catalog beside it. An attention layer's output gate trains beside
+// its projections.
+func loadStack(ctx context.Context, file *gguf.File, tokens int) (*Model, model.Weights, error) {
 	spec, err := model.ReadSpec(file)
 	if err != nil {
 		return nil, model.Weights{}, fmt.Errorf("hybrid stack: read specification: %w", err)
@@ -387,13 +399,13 @@ func loadStack(ctx context.Context, file *gguf.File, tokens int, gated bool) (*M
 			return nil, model.Weights{}, fmt.Errorf("hybrid stack: layer %d feed-forward length %d differs from %d", li, inter, geometry.inter)
 		}
 		types[li] = FullAttention
+		gated := false
 		if recurrent {
 			types[li] = LinearAttention
-		} else if query, err := weights.Layers[li].AttentionQ.ElementCount(); !gated && err == nil &&
-			query == uint64(tensor.PairedExtent*geometry.heads*geometry.headDim*geometry.hidden) {
-			return nil, model.Weights{}, fmt.Errorf("hybrid stack: layer %d's attention carries an output gate, which the stack's training does not; the frozen walk carries it", li)
+		} else if query, err := weights.Layers[li].AttentionQ.ElementCount(); err == nil {
+			gated = query == uint64(tensor.PairedExtent*geometry.heads*geometry.headDim*geometry.hidden)
 		}
-		mat, vec := geometry.matrixElements(recurrent, weights.Layers[li].SSMConv1DBias != nil)
+		mat, vec := geometry.matrixElements(recurrent, weights.Layers[li].SSMConv1DBias != nil, gated)
 		matTotal += mat
 		vecTotal += vec
 	}

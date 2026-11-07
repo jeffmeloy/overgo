@@ -49,21 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "hybrid-gate",
-      "title": "Train Qwen3.5's attention output gate through the hybrid-stack route",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train Qwen3.5's attention output gate through the hybrid-stack route",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/hybridtrain -count=1 -run '^TestAGatedStackTrainsWithItsGate$'",
-          "rationale": "gated-stack refuses a gated hybrid model for the hybrid-stack route, and every Qwen3.5 file is gated: the weight catalog admits a Qwen3.5 attention layer's query projection only fused with its gate (internal/model/weights.go). So the validation training proof that trains Qwen3.5-4B through the route (cmd/validate/training_proof.go, hybridGrounding) is refused from then on, where before it passed while training a layer the server does not run. Every model is kept, so the route trains the gated layer the server runs.\nThe host layer already computes it: hostmath's attention mix takes the gate, and its backward splits the cotangent between the attention and the gate's logits, held to central differences (TestHybridDecoderLayerBackwardFD). The card's frozen attention layer applies the gate and its backward with the kernels it already has (internal/devicemath/frozen_gated_attention_cuda_windows.go). What the route lacks is the gate in the trainable stack: its matrix extents, packed gradients, resident views, optimizer and checkpoint state, the program's identity, and the round trip that writes trained query rows back beside the gate rows of the fused projection (SQA-326's closure).\nThe check trains a small gated stack a few steps on the card and on the host and holds the card's losses and weights to the host's, the gate among the weights that move; then the refusal gated-stack added is removed.\nServes: failure-rate and setup-steps of the Qwen3.5 training proof.\nDisappears: gated-stack's refusal.\nEvidence: the card-against-host training check.\nBatch: cuda lane."
-        }
-      ]
-    },
-    {
       "id": "format-loader",
       "title": "Load a model from the format it is published in through one loader, no conversion required",
       "owner": "master-lead",

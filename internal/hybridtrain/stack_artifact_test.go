@@ -7,10 +7,10 @@ import (
 	"errors"
 	"math"
 	"slices"
-	"strings"
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -80,11 +80,10 @@ func TestLoadStackFeedForward(t *testing.T) {
 	}
 }
 
-// TestAGatedArtifactIsRefusedForWeightTraining writes a one-layer Qwen3.5 file, its attention's query projection fused
-// with a per-head output gate as every Qwen3.5 file's is. Training its stack is refused for the gate before any weight
-// is read, a cancelled load refused the same; walked frozen, its layer binds each head's query rows and gate rows from
-// the fused projection.
-func TestAGatedArtifactIsRefusedForWeightTraining(t *testing.T) {
+// TestAGatedArtifactTrainsItsGateRows writes a one-layer Qwen3.5 file, its attention's query projection fused with a
+// per-head output gate as every Qwen3.5 file's is. Loaded for training and walked frozen alike, its layer binds each
+// head's query rows and gate rows from the fused projection, and for training both lie in the trainable slab.
+func TestAGatedArtifactTrainsItsGateRows(t *testing.T) {
 	t.Parallel()
 	const hidden, ffn, heads, kvHeads, width, vocab = 8, 16, 2, 1, 4, 6
 	metadata := []gguf.Metadata{
@@ -125,22 +124,22 @@ func TestAGatedArtifactIsRefusedForWeightTraining(t *testing.T) {
 	}
 	gated := testutil.TempGGUF(t, "gated.gguf", metadata, tensors)
 	tokens := []uint32{1, 2, 3}
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
-	for _, ctx := range []context.Context{t.Context(), cancelled} {
-		if _, err := LoadStackArtifact(ctx, gated, tokens); err == nil || !strings.Contains(err.Error(), "output gate") {
-			t.Fatalf("training a gated stack was not refused for its gate before reading a weight: %v", err)
-		}
-	}
+	trainable := testcheck.Must(LoadStackArtifact(t.Context(), gated, tokens))(t)
 	frozen := testcheck.Must(LoadFrozenLanguageModel(t.Context(), gated, len(tokens)-1))(t)
 	defer frozen.Close()
 	weights := testcheck.Must(model.ReadWeights(frozen.file, testcheck.Must(model.ReadSpec(frozen.file))(t)))(t)
 	fused := testcheck.Must(model.LoadHostTensor(t.Context(), frozen.file, *weights.Layers[0].AttentionQ))(t).Data
 	head := width * hidden
-	for h := range heads {
-		attention := frozen.Layers[0].Attn
-		if !slices.Equal(attention.Wq[h*head:(h+1)*head], fused[2*h*head:(2*h+1)*head]) || !slices.Equal(attention.Gate[h*head:(h+1)*head], fused[(2*h+1)*head:(2*h+2)*head]) {
-			t.Fatalf("head %d's query and gate rows are not the fused projection's [query | gate] rows", h)
+	for _, attention := range []hostmath.AttentionMixWeights{frozen.Layers[0].Attn, trainable.Weights[0].Attn} {
+		for h := range heads {
+			if !slices.Equal(attention.Wq[h*head:(h+1)*head], fused[2*h*head:(2*h+1)*head]) || !slices.Equal(attention.Gate[h*head:(h+1)*head], fused[(2*h+1)*head:(2*h+2)*head]) {
+				t.Fatalf("head %d's query and gate rows are not the fused projection's [query | gate] rows", h)
+			}
 		}
+	}
+	gate := slices.IndexFunc(trainable.mats, func(matrix matDesc) bool { return matrix.name == name(0, "attn.gate") })
+	if gate < 0 || trainable.mats[gate].size != heads*head ||
+		!slices.Equal(trainable.matW[trainable.mats[gate].off:trainable.mats[gate].off+trainable.mats[gate].size], trainable.Weights[0].Attn.Gate) {
+		t.Fatalf("the trainable slab holds no gate of %d values beside the layer's other matrices", heads*head)
 	}
 }

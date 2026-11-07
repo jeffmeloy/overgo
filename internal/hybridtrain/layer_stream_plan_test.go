@@ -62,7 +62,10 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 }
 
 // BuildModel constructs a deterministic mixed stack.
-func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
+func BuildModel(cfg StackConfig, seed int64) (*Model, error) { return buildModel(cfg, seed, false) }
+
+// buildModel constructs a deterministic mixed stack, each attention layer with an output gate when gated.
+func buildModel(cfg StackConfig, seed int64, gated bool) (*Model, error) {
 	m := &Model{Cfg: cfg}
 	b := &builder{m: m, rng: rand.New(rand.NewSource(seed))}
 	H, inter := cfg.Hidden, cfg.Inter
@@ -90,6 +93,9 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 			b.mat(&w.Attn.Wk, p("attn.k"), kvDim, H)
 			b.mat(&w.Attn.Wv, p("attn.v"), kvDim, H)
 			b.mat(&w.Attn.Wo, p("attn.o"), H, qDim)
+			if gated {
+				b.mat(&w.Attn.Gate, p("attn.gate"), qDim, H)
+			}
 			b.vec(&w.Attn.QNorm, p("attn.qnorm"), cfg.HeadDim)
 			b.vec(&w.Attn.KNorm, p("attn.knorm"), cfg.HeadDim)
 		case LinearAttention:

@@ -321,7 +321,7 @@ func packLayerGradients(g hostmath.HybridDecoderLayerGrads, mat, vec []float32) 
 		mi = pack(mat, mi, g.DGDN.DWq, g.DGDN.DWk, g.DGDN.DWv, g.DGDN.DWbeta, g.DGDN.DWalpha, g.DGDN.DWz, g.DGDN.DWout)
 		vi = pack(vec, vi, g.DGDN.DConvQ, g.DGDN.DConvK, g.DGDN.DConvV, g.DGDN.DConvBiasQ, g.DGDN.DConvBiasK, g.DGDN.DConvBiasV, g.DGDN.DTimeStep, g.DGDN.DA, g.DGDN.DNorm)
 	} else {
-		mi = pack(mat, mi, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo)
+		mi = pack(mat, mi, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo, g.DAttn.Gate)
 		vi = pack(vec, vi, g.DAttn.QNorm, g.DAttn.KNorm)
 	}
 	return mi, vi

@@ -59,13 +59,6 @@
       },
       "steps": [
         {
-          "id": "parity-9b",
-          "title": "The host reference computes what the served 9B computes",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/hybridtrain -count=1 -run '^TestTheHybridReferenceIsTheServedNineB$'",
-          "rationale": "The host reference must compute what the served 9B computes before a device walk is held to it, and nothing has compared a training-side composition with the served Qwen3.5 forward. Hold the reference, loaded from Qwen3.5-9B-Q8_0.gguf, to the runner's forward with the same rows placed (inference.Runner ForwardCachedWithProjectedInputs, internal/inference/runner.go:163-184): the loss over a prompt's tokens and each layer's output. Settle here whether placed image rows take the sequence's positions or the three-axis positions a projector's do (runner.go:168-169), as the composite serves them.\nServes: the 9B composite's fidelity.\nDisappears: nothing.\nEvidence: the parity check on the real model.\nBatch: models lane."
-        },
-        {
           "id": "frozen-9b",
           "title": "Walk the 9B's frozen hybrid stack back to the bridge's rows on the card",
           "status": "open",

@@ -25,22 +25,9 @@ type languageModel struct {
 // densecausal's is for a dense model.
 func (m *languageModel) maskedLossAndInputGradient(tokens []int, trained []bool, positions []int, rows []float32) (float64, []float32, error) {
 	hidden, length := m.Geometry.Hidden, len(tokens)
-	if len(trained) != length || len(m.Layers) != len(m.Geometry.Types) || len(rows) != len(positions)*hidden {
-		return 0, nil, fmt.Errorf("hybridtrain: %d tokens, %d trained flags, %d layers and %d values for %d placed rows", length, len(trained), len(m.Layers), len(rows), len(positions))
+	if len(trained) != length {
+		return 0, nil, fmt.Errorf("hybridtrain: %d trained flags for %d tokens", len(trained), length)
 	}
-	x := make([]float32, length*hidden)
-	for at, token := range tokens {
-		if token < 0 || token >= m.Vocab {
-			return 0, nil, fmt.Errorf("hybridtrain: token %d outside the vocabulary of %d", token, m.Vocab)
-		}
-		copy(x[at*hidden:(at+1)*hidden], m.Embedding[token*hidden:(token+1)*hidden])
-	}
-	for _, position := range positions {
-		if position < 0 || position >= length {
-			return 0, nil, errors.New("hybridtrain: a placed row stands outside the tokens")
-		}
-	}
-	hostmath.ScatterRows(x, rows, positions, hidden)
 	// Row r predicts token r+1, so a trained token's row is the one before it.
 	var predictors, targets []int
 	for at := 1; at < length; at++ {
@@ -51,18 +38,13 @@ func (m *languageModel) maskedLossAndInputGradient(tokens []int, trained []bool,
 	if len(predictors) == 0 {
 		return 0, nil, errors.New("hybridtrain: no token after the first is trained")
 	}
-	geometry := m.Geometry
-	geometry.Tokens = length
-	dims, states := make([]hostmath.HybridLayerDims, len(m.Layers)), make([][]float32, len(m.Layers))
-	for layer, kind := range geometry.Types {
-		dims[layer] = geometry.layerDims(kind)
-		if kind == LinearAttention {
-			states[layer] = make([]float32, geometry.GDNValueHeads*geometry.GDNHeadDim*geometry.GDNHeadDim)
-		}
+	pass, err := m.forward(tokens, positions, rows)
+	if err != nil {
+		return 0, nil, err
 	}
-	out, trace := hostmath.HybridStackForward(x, m.Layers, dims, states)
+	out, trace, dims, states, eps := pass.out, pass.trace, pass.dims, pass.states, m.Geometry.Eps
 	normed := make([]float32, length*hidden)
-	hostmath.RMSNormInto(normed, out, m.FinalNorm, length, hidden, geometry.Eps)
+	hostmath.RMSNormInto(normed, out, m.FinalNorm, length, hidden, eps)
 	// Only the rows that predict a trained token reach the head.
 	scored := make([]float32, len(predictors)*hidden)
 	hostmath.GatherRows(scored, normed, predictors, hidden)
@@ -74,9 +56,50 @@ func (m *languageModel) maskedLossAndInputGradient(tokens []int, trained []bool,
 	dNormed := make([]float32, length*hidden)
 	hostmath.ScatterRows(dNormed, dScored, predictors, hidden)
 	dOut := make([]float32, length*hidden)
-	hostmath.RMSNormBackward(dOut, make([]float32, hidden), out, m.FinalNorm, dNormed, length, hidden, geometry.Eps, false)
+	hostmath.RMSNormBackward(dOut, make([]float32, hidden), out, m.FinalNorm, dNormed, length, hidden, eps, false)
 	_, dX := hostmath.HybridStackBackward(trace, m.Layers, dims, states, dOut, nil)
 	gradient := make([]float32, len(rows))
 	hostmath.GatherRows(gradient, dX, positions, hidden)
 	return loss, gradient, nil
+}
+
+// stackPass is a forward through the stack: its output, and the trace, the layers' shapes and the recurrent states its
+// backward reads.
+type stackPass struct {
+	out    []float32
+	trace  hostmath.HybridStackTrace
+	dims   []hostmath.HybridLayerDims
+	states [][]float32
+}
+
+// forward runs the stack over the tokens' embeddings with rows in place of the embeddings of the tokens at positions.
+func (m *languageModel) forward(tokens []int, positions []int, rows []float32) (stackPass, error) {
+	hidden, length := m.Geometry.Hidden, len(tokens)
+	if len(m.Layers) != len(m.Geometry.Types) || len(rows) != len(positions)*hidden {
+		return stackPass{}, fmt.Errorf("hybridtrain: %d layers for %d kinds and %d values for %d placed rows", len(m.Layers), len(m.Geometry.Types), len(rows), len(positions))
+	}
+	x := make([]float32, length*hidden)
+	for at, token := range tokens {
+		if token < 0 || token >= m.Vocab {
+			return stackPass{}, fmt.Errorf("hybridtrain: token %d outside the vocabulary of %d", token, m.Vocab)
+		}
+		copy(x[at*hidden:(at+1)*hidden], m.Embedding[token*hidden:(token+1)*hidden])
+	}
+	for _, position := range positions {
+		if position < 0 || position >= length {
+			return stackPass{}, errors.New("hybridtrain: a placed row stands outside the tokens")
+		}
+	}
+	hostmath.ScatterRows(x, rows, positions, hidden)
+	geometry := m.Geometry
+	geometry.Tokens = length
+	pass := stackPass{dims: make([]hostmath.HybridLayerDims, len(m.Layers)), states: make([][]float32, len(m.Layers))}
+	for layer, kind := range geometry.Types {
+		pass.dims[layer] = geometry.layerDims(kind)
+		if kind == LinearAttention {
+			pass.states[layer] = make([]float32, geometry.GDNValueHeads*geometry.GDNHeadDim*geometry.GDNHeadDim)
+		}
+	}
+	pass.out, pass.trace = hostmath.HybridStackForward(x, m.Layers, pass.dims, pass.states)
+	return pass, nil
 }

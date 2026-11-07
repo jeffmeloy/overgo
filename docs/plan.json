@@ -54,7 +54,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 649,
+        "nodes": 453,
         "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
       },
       "steps": [

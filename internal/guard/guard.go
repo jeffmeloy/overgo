@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -74,6 +75,20 @@ type ToolCall struct {
 // its own. A hook is a short process and can keep no lock of the system's
 // open for a session, so the file is the holding, and its creation is atomic.
 const WorktreeHolder = "implementing_session"
+
+// HoldText is the hold file's content for session: the session, and on the next line the process its Claude Code
+// runs as, by which a later session knows whether the holder still runs.
+func HoldText(session string, process int) string {
+	return session + "\n" + strconv.Itoa(process)
+}
+
+// ReadHold reads a hold file's content: the holding session and its process, zero where the hold names none, as a
+// hold written before the process was recorded does.
+func ReadHold(raw []byte) (session string, process int) {
+	first, rest, _ := strings.Cut(strings.TrimSpace(string(raw)), "\n")
+	process, _ = strconv.Atoi(strings.TrimSpace(rest))
+	return strings.TrimSpace(first), process
+}
 
 // SessionState names the file, in a checkout's process state, where the
 // loop's hooks keep what they know of one session: the snapshot its turn

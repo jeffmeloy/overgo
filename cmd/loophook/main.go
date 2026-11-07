@@ -32,11 +32,13 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
 )
@@ -351,32 +353,57 @@ func holdWorktree(session string, takeover bool) (holder string) {
 	if session == "" || err != nil {
 		return ""
 	}
+	own := guard.HoldText(session, sessionProcess())
 	if takeover {
-		_ = os.WriteFile(path, []byte(session), stateFileMode)
+		_ = os.WriteFile(path, []byte(own), stateFileMode)
 		return ""
+	}
+	// A hold whose session's process has exited names a session that has ended, a worker the driver ran or a session
+	// closed or cut off, and is free: on 2026-11-07 two such holds refused the lead's every edit until it was cleared.
+	if raw, err := os.ReadFile(path); err == nil {
+		if held, process := guard.ReadHold(raw); held != session && process > 0 && !processcontrol.ProcessAlive(process) {
+			_ = os.Remove(path)
+		}
 	}
 	if !implementer(session) {
 		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 			return ""
 		}
 	} else if file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stateFileMode); err == nil {
-		_, _ = file.WriteString(session)
+		_, _ = file.WriteString(own)
 		_ = file.Close()
 		return ""
 	}
-	held, _ := os.ReadFile(path)
+	raw, _ := os.ReadFile(path)
+	held, process := guard.ReadHold(raw)
 	// A file another session has created and not yet written names it no less.
-	if holder = cmp.Or(strings.TrimSpace(string(held)), "that began as this one did"); holder == session {
+	if holder = cmp.Or(held, "that began as this one did"); holder == session {
+		// The session that holds it keeps its process current, across a restart of its Claude Code.
+		if process != sessionProcess() {
+			_ = os.WriteFile(path, []byte(own), stateFileMode)
+		}
 		return ""
 	}
 	return holder
+}
+
+// claudeProcessVariable names the process Claude Code runs as, which it sets for the hooks it starts.
+const claudeProcessVariable = "CLAUDE_PID"
+
+// sessionProcess is the process the hook's Claude Code session runs as, zero where none is named.
+func sessionProcess() int {
+	process, _ := strconv.Atoi(os.Getenv(claudeProcessVariable))
+	return process
 }
 
 // releaseWorktree gives the worktree back when the session that holds it
 // ends a turn with nothing left to do here.
 func releaseWorktree(session string) {
 	path, err := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder), processlock.EnsureStateDirectory(".")
-	if held, readErr := os.ReadFile(path); err == nil && readErr == nil && session != "" && strings.TrimSpace(string(held)) == session {
+	if raw, readErr := os.ReadFile(path); err == nil && readErr == nil && session != "" {
+		if held, _ := guard.ReadHold(raw); held != session {
+			return
+		}
 		_ = os.Remove(path)
 	}
 }

@@ -171,7 +171,8 @@ func TestOnlyAnImplementingSessionTakesTheHold(t *testing.T) {
 	}
 	held := func() string {
 		data, _ := os.ReadFile(filepath.Join(processlock.StateDirectory, guard.WorktreeHolder))
-		return string(data)
+		session, _ := guard.ReadHold(data)
+		return session
 	}
 	beginTurn(hookInput{Session: "reviewer", Prompt: "look over the stop valve's change"})
 	if held() != "" || holder("reviewer") != "" {

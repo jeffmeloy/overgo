@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "One safe test/setup consolidation and one early-refusal correction. Keep envelope and judgement checks separate: acceptance verdict and multi-seed evidence completeness differ.",
+    "assessment": "SQA-326 remains resolved with supported gated training replacing temporary refusal. No additional safe net reduction established.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -19,18 +19,17 @@
         "SQA-303"
       ],
     "declined_candidates": [
-        "Do not build a shared evaluation framework for the small repeated score arithmetic in envelope/judgement checks; their distinct records and policies would require adapters and migration.",
-        "Do not replace production promotion validation with the committed JSON envelope check, or infer activation from completed evidence.",
-        "No duplicate finding for fixed absolute hook paths:223d93310 fixes that; SQA-329 only removes duplicated fixture setup.",
-        "SQA-325 and SQA-328 remain open; their runtime sources are unchanged since the preceding review."
+        "Retain independent packing markers: shared host/device packing can produce matching wrong updates.",
+        "Similar numerical tests cover different file-layout, optimization and per-layer contracts; no safe deletion proved.",
+        "No new loader, recipe runtime, scheduler or broad test matrix."
       ],
-    "rank_basis": "Insert P3 SQA-330 beside SQA-325 for known setup refusal and SQA-329 beside test consolidation work; prior ranks otherwise unchanged."
+    "rank_basis": "Canonical active ranks unchanged. SQA-326 remains resolved; this is updated capability and closure evidence, not a newly resolved finding."
   },
     "committed_plan": {
-    "git_blob": "4a0fcf40608f45803b00183eaa52384a43868646",
+    "git_blob": "c3d7b6dc0945a16e3144b5d3c99ee515cb16d031",
     "path": "docs/plan.json",
-    "revision": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
-    "sha256": "093ac9e356d9b6bdeba0c1315058b73ffbf6ca65a18b351951aac110d19daf17",
+    "revision": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
+    "sha256": "57f64c7984d2acfe1b9ec2fe07d215050af766363fe4f042e5e947a53d4c1a92",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -6400,53 +6399,57 @@
     },
     {
     "category": "training-numerical-contract",
-    "classification": "implemented-early-refusal-and-shared-frozen-gate-binding",
-    "evidence": "Closed for the unsafe-admission contract by 2cbc30090, rechecked at 14c4bb5623ddf37731ee4a45642322d542315646. loadStack inspects the validated query descriptor during its existing layer census and rejects a gated artifact for weight training before allocating master slabs or decoding tensors. LoadStackArtifact takes that refusal path; LoadFrozenLanguageModel explicitly retains gated frozen loading. bindAttentionLayer extracts query and gate rows once per head, deleting the frozen loader's second AttentionQ decode/copy loop. The served-9B parity already migrated to LoadFrozenLanguageModel in e9d4da530 and no longer patches gates itself. The retained tiny-file test checks refusal under both live and cancelled contexts and checks each of two heads' query/gate rows against the fused artifact. The landing reports its undo test fails when the census refusal is removed. Full gated weight/optimizer training is NOT implemented: Qwen3.5-4B's previously misleading training proof now fails explicitly, and hybrid-gate/do owns restoring the correct capability. This closes the earlier preserve-or-refuse alternative, not that future feature. Original implementation finding evidence:sha256:b2095f1dd25dd26024cf7fad4764584081b4710d3ca78d0869f354da3d7ac812 remains historical provenance.",
-    "evidence_commit": "2cbc3009075313ec801fb47a260234cee0d3ac8f",
+    "classification": "implemented-shared-gated-training-and-prototype-refusal",
+    "evidence": "Still resolved. 9196555a4 replaces the temporary refusal with gate training through the shared loadStack/bindAttentionLayer owner used by trainable and frozen callers. It binds per-head [query|gate] rows, places the gate after Wo in the slab and packs its gradient in that order. Existing compiled groups carry it through optimizer identity, per-layer windows and SaveWeights; the unsupported device-layer prototype refuses incomplete tiling before resident allocation. Retained undo evidence shows that deleting gate packing fails the independent matrix-marker check while host/device parity alone still agrees. Evidence limit: TestAGatedStackTrainsWithItsGate calls TrainHostMasterStreamed (full-slab), despite its comment and landing message saying layer-streamed. Existing per-layer equivalence coverage is ungated; no fresh gated per-layer proof is claimed. Historical closure2cbc3009075313ec801fb47a260234cee0d3ac8f rejected gated training before tensor decoding/slab allocation, retained frozen loading and removed its duplicate decode. Its live/cancelled refusal cases became obsolete when support landed; two-head row identity remains. Served-9B manual gate repair was removed in e9d4da530. Original provenance evidence:sha256:b2095f1dd25dd26024cf7fad4764584081b4710d3ca78d0869f354da3d7ac812.",
+    "evidence_commit": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
     "expected_benefit": {
-        "outcome": "Complete Go surface of the gated-stack fix, e9d4da530 ->2cbc30090: stack_artifact.go3063->3146(+83), frozen_model.go497->354(-143), production3560->3500(-60); stack_artifact_test.go656->1329(+673); combined4216->4829(+613). Actual selected-file AST agrees with the retained gate's -60 production/+673 test. This is a correctness fix with net growth, not a total code reduction.",
-        "cost_contract": "Removed the duplicate frozen gate decode/allocation/copy loop; retained existing load/bind owners with one internal mode distinction. One tiny GGUF fixture is built once per test and reused for two refused loads and one frozen load; tracked fixture files/bytes0, no new dependency/schema/config/standing gate phase. The cancelled-context refusal case distinguishes metadata admission from later tensor reads and stays. Existing finite-difference, frozen gradient and real-model parity tests retain distinct requirements. Native Go caching and existing lanes remain: retained landing reports CUDA2 executed/17cached, verify2.008s; no new SQA run. Earlier frozen-device capability growth is separate and is not credited as savings of this fix.",
-        "uncertainty": "Closure is source plus retained implementation verification, not SQA execution or an independent third-party review. Avoided invalid training and eliminated second decode are structural effects; elapsed/peak-memory savings were not measured. Full gated training, optimizer/checkpoint/program identity and round-trip support remain the explicit plan obligation before lifting refusal."
+        "outcome": "Current2dd6275b8->9196555a4: production6731->6782(+51), tests2533->3379(+846), total9264->10161(+897), measured by selected-file AST. Test growth: new gated test734, shared builder47, file-binding test65. This is correctness/capability growth. Historical e9d4da530->2cbc30090 closure remains production3560->3500(-60), tests656->1329(+673), total4216->4829(+613); do not double-count.",
+        "cost_contract": "Removed the temporary loader mode/refusal and obsolete refusal assertions. Retain shared loader, pack order and optimizer/checkpoint owners. One tiny GGUF setup now serves two successful loads. New numerical test uses one worker, three small models and two training paths; no setup/run saving claimed. No tracked fixture bytes, schema, dependency, CUDA source or standing phase added. Keep matrix markers, two-head layout, movement/parity and prototype refusal; existing shape, cancelled-decode and recovery tests retain their contracts. Gate parameters/momentum add memory under existing budgets, not a demonstrated memory saving.",
+        "uncertainty": "No SQA execution or independent third-party review; this chat previously implemented Overgo. No safe further deletion established. Correct the existing test's executor description when touched, without another suite. SaveWeights enumerates gate groups, but no gated checkpoint/resume comparison was run here. Serving-roundtrip checks layer0 MLP gate, not fused attention export; frozen9B parity does not prove a trained artifact's roundtrip."
       },
     "id": "SQA-326",
     "plan_references": [
-        "gated-stack/do (landed2cbc30090)",
-        "vision-bridge/frozen-9b (landede9d4da530; frozen capability remains separate)",
-        "hybrid-gate/do (open; complete gated weight training and remove refusal)"
+        "gated-stack/do (landed2cbc30090; historical safe-refusal closure)",
+        "vision-bridge/frozen-9b (landede9d4da530; frozen capability)",
+        "hybrid-gate/do (landed9196555a4; gate training replaces temporary refusal)"
       ],
     "severity": "P1",
     "sources": [
         {
           "path": "internal/hybridtrain/stack_artifact.go",
-          "symbol": "loadStack census before slab allocation/weight decoding; LoadStackArtifact selects unsupported-gate refusal; bindAttentionLayer owns per-head query/gate extraction"
+          "symbol": "loadStack/matrixElements census; bindAttentionLayer; LoadStackArtifact: shared gate binding and exact slab extents"
         },
         {
           "path": "internal/hybridtrain/frozen_model.go",
-          "symbol": "LoadFrozenLanguageModel -> loadStack(gated=true); duplicate gate reload/copy loop deleted"
+          "symbol": "LoadFrozenLanguageModel -> same loadStack; no mode argument or second gate reload"
+        },
+        {
+          "path": "internal/hybridtrain/stack.go",
+          "symbol": "packLayerGradients; layerStreamPlans; LayerStreamedBudget; matrixPlans/validateMatrixTiling"
+        },
+        {
+          "path": "internal/hybridtrain/progress.go",
+          "symbol": "resumeParts/checkpoint/SaveWeights: compiled identity and complete matrix/vector groups"
+        },
+        {
+          "path": "internal/hybridtrain/gated_stack_cuda_windows_test.go",
+          "symbol": "TestAGatedStackTrainsWithItsGate: independent gradient markers, full-slab host/device parity, gate movement, prototype refusal"
         },
         {
           "path": "internal/hybridtrain/stack_artifact_test.go",
-          "symbol": "TestAGatedArtifactIsRefusedForWeightTraining: live/cancelled refusal and two-head frozen row binding"
+          "symbol": "TestAGatedArtifactTrainsItsGateRows replaces refusal-only contract; two-head frozen/trainable layout and gate slab binding"
         },
         {
-          "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
-          "symbol": "TestTheHybridReferenceIsTheServedNineB now reads LoadFrozenLanguageModel; manual gate repair removed"
+          "path": "internal/hybridtrain/hybrid_train_device_cuda_windows_test.go",
+          "symbol": "TestHybridTrainLayerStreamedMatchesFullSlab: distinct ungated full-slab/per-layer equivalence"
         },
         {
           "path": "cmd/train/route_hybrid_stack_windows.go",
-          "symbol": "trainHybridStack -> LoadStackArtifact before device/training"
-        },
-        {
-          "path": "cmd/train/route_caption_projector_windows.go",
-          "symbol": "openCaptionText: frozen language loader remains available"
+          "symbol": "trainHybridStack: full-slab vs layer-streamed dispatch, observation/stop and checkpoint publication; servingRoundTrip checks layer0 MLP gate only"
         },
         {
           "path": "cmd/validate/training_proof.go",
-          "symbol": "hybridGrounding/routeProofs: Qwen3.5 weight-training proof now truthfully refused"
-        },
-        {
-          "path": "docs/plan.json",
-          "symbol": "hybrid-gate/do: remaining complete weight-training support, then remove refusal"
+          "symbol": "hybridGrounding selects the layer-streamed route; no fresh retained Qwen3.5-4B proof claimed by this review"
         }
       ],
     "status": "resolved",
@@ -6668,44 +6671,58 @@
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "os.SameFile compares actual hook-directory identity; valid absolute/relative spelling must remain admitted, foreign directories refused. No real hook/security settings changed by SQA.",
-        "Derived-family capability is known from the opened session before file evaluation; moving that admission changes invalid-input precedence, not numerical ordering.",
-        "Envelope seeds0/2 vary training sample order. Reused baseline/dropped/text answers are declared in the record; two labels alone do not establish statistical independence.",
-        "Recorded composed latency is one frame/prompt at48 tokens, not a tail or workload distribution. Serving-memory limits do not apply to training peak memory.",
-        "1e-9 score arithmetic tolerance checks fractions in strict JSON; numerical acceptance remains separate from timing."
+        "Fused rows are [query|gate] per head; gate extent is heads*headDim*hidden values, after Wo. Typed model geometry and compiled groups remain the owners.",
+        "Small synthetic losses/tolerances do not establish quality, representative distributions, speed or peak-memory benefits."
       ],
-    "automation_sequence": "Hook path identity now avoids the reported false stop; consolidate its duplicate fixture only. Manifest worker still discovers an unsupported Family after file suites; move that assertion ahead of the loop. Concurrent6920c5c0a lands inactive composite publication; no activation or full publication-route review is inferred.",
+    "automation_sequence": "Supported shared gate execution replaces the obsolete admission stop. Existing route owns lane selection, observation/stopping and checkpoint publication; unsupported prototype still refuses before residency. A completed fixture/landing does not prove delivered continuation or activation.",
     "fresh_ast": {
-        "revision": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
-        "method": "Selected committed-file AST parsed at aeb4ea22d; all five blobs unchanged at the reconciled pin. Statement decomposition for the hook-test move without implementing it.",
+        "revision": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
+        "baseline": "2dd6275b8107f4694693003b89dba2fd800bb34f",
+        "method": "Existing external Go parser over committed blobs; all changed Go files only. Counts include comment AST as the retained parser does; no application build/test.",
         "files": [
           {
-            "path": "internal/landing/trunk_hook_test.go",
-            "nodes": 1082
+            "path": "internal/hybridtrain/frozen_model.go",
+            "before": 354,
+            "after": 353,
+            "delta": -1
           },
           {
-            "path": "cmd/evaluate/session.go",
-            "nodes": 1479
+            "path": "internal/hybridtrain/stack.go",
+            "before": 3231,
+            "after": 3236,
+            "delta": 5
           },
           {
-            "path": "cmd/evaluate/main_test.go",
-            "nodes": 714
+            "path": "internal/hybridtrain/stack_artifact.go",
+            "before": 3146,
+            "after": 3193,
+            "delta": 47
           },
           {
-            "path": "internal/evaluation/vision_bridge_envelope_test.go",
-            "nodes": 789
+            "path": "internal/hybridtrain/layer_stream_plan_test.go",
+            "before": 1204,
+            "after": 1251,
+            "delta": 47
           },
           {
-            "path": "internal/evaluation/vision_bridge_record_test.go",
-            "nodes": 706
+            "path": "internal/hybridtrain/stack_artifact_test.go",
+            "before": 1329,
+            "after": 1394,
+            "delta": 65
+          },
+          {
+            "path": "internal/hybridtrain/gated_stack_cuda_windows_test.go",
+            "before": 0,
+            "after": 734,
+            "delta": 734
           }
         ],
-        "production_nodes": 1479,
-        "test_nodes": 3291,
-        "total_nodes": 4770,
-        "functions": 27,
-        "parser_local_bindings": 854,
-        "decision": "Hook pair338 nodes ->277..281 estimated, no production change, one Git fixture removed. Family admission pair2193 ->2218..2268 estimated correctness growth; count separately and do not promise a combined net reduction."
+        "production_before": 6731,
+        "production_after": 6782,
+        "test_before": 2533,
+        "test_after": 3379,
+        "total_delta": 897,
+        "decision": "Matches retained landing +51 production/+846 test. Correctness/capability growth, not savings. No new test/setup removal safely established."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6864,36 +6881,25 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "223d93310 reports the hook spelling false refusal blocked landings for about an hour; the fix's undo check catches absolute paths. Gate reports+57 production/+175 test nodes, verify11.878s. This is retained evidence, not a new measurement.",
-        "ddaf123d4 adds Family support at+90 production/+364 test AST, verify15.579s. Its unsupported-session fixture has no file suites. The retained first text set scored0/237 and was replaced by the577-case BBH set; no new review workload.",
-        "aeb4ea22d adds789 test nodes and a 5482-byte durable envelope JSON record (real maintenance/storage cost despite the gate reporting zero fixture bytes). It records170/256 and161/256 for two bridges, baseline68/256, dropped54/256 and shuffled59/256 and64/256. BBH baseline/candidates all360/577 by declared reuse. One prompt records0.513s alone versus1.205s/1.176s composed, with9,708,001,280 versus11,051,518,592 bytes. Gate skips device/webui/CUDA and verifies the record in1.88s.",
-        "Native Go caching and current gates remain the execution owners. The report recommends no confidence rerun or model measurement."
+        "9196555a4: host/full-slab losses10.494->3.055, relative difference2.07e-5; gate movement0.171, disagreement2.83e-5. Undoing packing fails marker checks despite parity agreeing.",
+        "Separate retained frozen9B cosine1.00000/caption loss3.527->3.034 do not establish trained attention-gate roundtrip.",
+        "Gate +51 production/+846 test; CUDA2 executed/17cached, verify1.55s. No new schema/CUDA/fixture bytes. Native caching credited; no SQA rerun."
       ],
     "tests": [
         {
-          "classification": "merge/remove",
-          "owner": "TestALandingRefusesATrunkWithoutItsHook",
-          "requirement": "Retain five path-equivalence/foreign-folder cases before unset/removal; remove TestAHookPathNamingTheHooksFolderHoldsTheHook's duplicate wrapper/setup."
+          "classification": "retain",
+          "owner": "TestAGatedStackTrainsWithItsGate",
+          "requirement": "Independent slab markers, movement/parity and prototype refusal. Correct its full-slab/layer-streamed description; do not duplicate the suite."
         },
         {
-          "classification": "retain/extend",
-          "owner": "TestAModelRequestCampaignsItsDerivedFamily",
-          "requirement": "Keep valid suites-then-family and compilation cases; make the existing unsupported-session case prove zero suite calls."
+          "classification": "simplify/remove obsolete contract (implemented)",
+          "owner": "TestAGatedArtifactTrainsItsGateRows",
+          "requirement": "Supported training replaces refusal cases. Same fixture retains two-head frozen/trainable layout and adds slab membership. Existing loader cases retain shape/cancellation."
         },
         {
           "classification": "retain",
-          "owner": "TestTheNineBEnvelopeIsComplete",
-          "requirement": "Distinct seed/checkpoint bindings, all reading denominators and resource presence; not a substitute for production promotion/evidence validation."
-        },
-        {
-          "classification": "retain",
-          "owner": "judgementIsComplete and its two native test entrypoints",
-          "requirement": "Existing shared owner preserves model-specific floors, checkpoint choice, acceptance verdict and serving limits."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestOnlyALandingMovesTheTrunkInGit; TestAResetThatMovesNothingPasses",
-          "requirement": "Actual hook enforcement and no-op reset behavior remain separate from hook configuration admission."
+          "owner": "TestHybridTrainLayerStreamedMatchesFullSlab and existing optimizer recovery tests",
+          "requirement": "Per-layer equivalence and checkpoint identity/continuation differ from gated full-slab parity; no gated execution inferred."
         }
       ]
   },
@@ -8428,10 +8434,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "No application tests, gates, services, model/device runs, profiles, agents or worker messages. No implementation or plan/skill edits.",
-      "AST: existing go/parser/ast.Inspect plus a small external statement counter over pinned blobs; parser-local bindings and manual caller tracing, no package/type or device resolution.",
-      "Concurrent publish-composite edits landed as6920c5c0a and were preserved; its new route is outside this bounded review. Other findings retain evidence revisions.",
-      "Envelope JSON checks consistency, not a live-store proof of every producing run. Statistical independence and tail latency are not established by two seed labels or one resource prompt."
+      "No tests, gates, workloads, services, agents, worker messages or implementation.",
+      "Existing Go parser/AST tool and manual caller tracing; parser-local binding only, no package/type/device resolution.",
+      "Only SQA-326 rechecked in depth. Other findings retain their evidence revisions. No fresh gated per-layer, checkpoint/resume or attention-export comparison."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9229,8 +9234,8 @@
   },
     "next_finding_number": 331,
     "publication_context": {
-    "assessment": "Re-read code/report/owner state after concurrent6920c5c0a. Selected source blobs and owner fields unchanged; plan removal of completed publication reconciled. Preserve any subsequent worker changes.",
-    "checked_head": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+    "assessment": "Re-read committed code, plan, report and owner state immediately before publication; reconcile any subsequent change instead of overwriting it.",
+    "checked_head": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
     "publication": "Existing landing/gate ownership and hooks; only docs/sqa_findings.json committed."
   },
     "ranked_active_finding_ids": [
@@ -9276,39 +9281,32 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Preserve complete hook security coverage while deleting duplicate setup; observed false-path stop is already fixed.",
-      "No new recipe machinery. The new manifest Family feature needs its static session admission before costly work.",
-      "Retained envelope evidence is scoped to declared suites/prompts; candidate publication and activation are not inferred.",
-      "Only a substantive report edit may land; unknown/implementation fields and worker changes remain untouched."
+      "Preserve earlier closure evidence; current supported training supersedes its refusal.",
+      "Count necessary test growth honestly; no new recipe/execution machinery recommended.",
+      "Report-only reconciliation; stable IDs, owner responses and unrelated work preserved."
     ],
-    "reviewed_at": "2026-11-07T12:47:31Z",
-    "reviewed_master": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+    "reviewed_at": "2026-11-07T14:46:59Z",
+    "reviewed_master": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
     "schema_version": 2,
     "scope": [
-      "Pin 6920c5c0ab499d42babb0e91c2ae9c87e86f1b05; current committed plan4a0fcf40608f45803b00183eaa52384a43868646 and unchanged instructions69a0ec1510af484e39da2cf7e169dbc73b70ae8f already read. Standing paragraphs unchanged; envelope and inactive publication landed. Hybrid-gate and format-loader remain open.",
-      "Bounded review of hook admission/setup, manifest-to-session evaluation ordering, and envelope/judgement record checks against the production promotion owner. Concrete callers and provisional conclusions preceded reading prior findings.",
-      "Selected committed AST and retained landing/record evidence only. This chat previously implemented Overgo: overlapping review, not independent third-party SQA.",
-      "Initial analysis at aeb4ea22d; concurrent6920c5c0a changes no selected AST/source files or findings/owner responses. Reconciled its committed plan and path set before publication; no complete review of its new publish route."
+      "Pin9196555a4af4fa9bf686e3c776ca70bf99fbd13d; read unchanged instructions69a0ec1510af484e39da2cf7e169dbc73b70ae8f and planc3d7b6dc0945a16e3144b5d3c99ee515cb16d031. Hybrid-gate landed; format-loader remains.",
+      "Bounded shared-load -> packing -> executor/admission -> checkpoint review with retained results. Provisional source conclusions preceded findings; targeted AST covers six changed Go files.",
+      "This chat previously implemented Overgo: overlapping review, not independent third-party SQA."
     ],
     "sqa_response": {
-    "assessment": "157 stable IDs:38 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-329 and SQA-330; no closure or alias.",
+    "assessment": "157 stable IDs:38 canonical open,113 resolved,4 deferred,2 consolidated aliases. SQA-326 remains resolved with current gated-training evidence and costs. No new finding, closure, alias or priority change.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Two hook tests share the exact setup/check contract and can retain all cases under one owner. executeModel admits Family support after file suites, although session capability is already known.",
+    "evidence": "Shared gate binding and packing replace temporary refusal; actual AST adds897 total nodes. The gated numerical test calls full-slab despite its layer-streamed description.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Owner fields unchanged. No implementation response yet for325/328; their sources remain unchanged."
+        "status": "Owner blocks and all unknown fields preserved exactly; current closure update is reviewer-owned source/retained-evidence reconciliation."
       },
-    "new_findings": [
-        "SQA-329",
-        "SQA-330"
-      ],
+    "new_findings": [],
     "partially_addressed_findings": [],
-    "priority_changes": [
-        "Add early-family refusal near existing setup admission work and hook fixture consolidation near test reductions; prior ranks unchanged."
-      ],
-    "recommendation": "Merge the hook test bodies without new helpers; move derived capability admission before file work and strengthen the existing fixture. Preserve the separate envelope/judgement contracts.",
+    "priority_changes": [],
+    "recommendation": "Retain distinct packing/layout/recovery requirements and describe the tested executor accurately. No new suite, confidence run or abstraction.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9316,7 +9314,10 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
-    "uncertainty": "No executed candidate or measured savings. Hook AST saving is57..61 estimated from parsed fragments; family fix adds estimated25..75 nodes. Do not combine them into a promised net reduction."
+    "reviewed_master": "9196555a4af4fa9bf686e3c776ca70bf99fbd13d",
+    "uncertainty": "No fresh runtime or gated per-layer/roundtrip measurements. No safe further net reduction established.",
+    "updated_findings": [
+        "SQA-326"
+      ]
   }
   }

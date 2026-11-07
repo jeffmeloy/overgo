@@ -96,7 +96,7 @@ func TestHybridDecoderLayerBackwardFD(t *testing.T) {
 		qDim, kvDim := heads*phd, kv*phd // 8, 8 (== hidden)
 		attn := AttentionMixWeights{
 			Wq: rs(qDim * hidden), Wk: rs(kvDim * hidden), Wv: rs(kvDim * hidden), Wo: rs(hidden * qDim),
-			QNorm: rs(phd), KNorm: rs(phd),
+			QNorm: rs(phd), KNorm: rs(phd), Gate: rs(qDim * hidden),
 		}
 		w := HybridLayerWeights{InputNorm: rs(hidden), PostNorm: rs(hidden), IsLinear: false, Attn: attn, MLP: mlp}
 		d := HybridLayerDims{Tokens: T, Hidden: hidden, Inter: inter, Eps: eps,
@@ -106,6 +106,7 @@ func TestHybridDecoderLayerBackwardFD(t *testing.T) {
 				{"dInputNorm", w.InputNorm, g.DInputNorm}, {"dPostNorm", w.PostNorm, g.DPostNorm},
 				{"dAttn.Wq", w.Attn.Wq, g.DAttn.Wq}, {"dAttn.Wk", w.Attn.Wk, g.DAttn.Wk}, {"dAttn.Wv", w.Attn.Wv, g.DAttn.Wv},
 				{"dAttn.Wo", w.Attn.Wo, g.DAttn.Wo}, {"dAttn.QNorm", w.Attn.QNorm, g.DAttn.QNorm}, {"dAttn.KNorm", w.Attn.KNorm, g.DAttn.KNorm},
+				{"dAttn.Gate", w.Attn.Gate, g.DAttn.Gate},
 			}
 		})
 	})

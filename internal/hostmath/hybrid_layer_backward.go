@@ -43,7 +43,19 @@ func mlpBackward(x []float32, w QwenMLPWeights, dOut []float32, c mlpCache, T, h
 func attentionMixBackward(x []float32, w AttentionMixWeights, d AttentionMixDims, dOut []float32, c attnMixCache) (dx []float32, dw AttentionMixWeights) {
 	T, H, heads, kv, hd := d.Tokens, d.Hidden, d.Heads, d.KVHeads, d.HeadDim
 	qDim, kvDim := heads*hd, kv*hd
-	dAttn, dWo := linearBackward2(c.attn, w.Wo, dOut, T, qDim, H)
+	dAttn, dWo := linearBackward2(c.gated, w.Wo, dOut, T, qDim, H)
+	dx = make([]float32, T*H)
+	var dWgate []float32
+	if w.Gate != nil {
+		// gated = attn ⊙ σ(gate): the cotangent splits to the attention and to the gate's logits.
+		dGate := make([]float32, T*qDim)
+		for i, gradient := range dAttn {
+			sigma := sigmoid(float64(c.gate[i]))
+			dGate[i] = float32(float64(gradient) * float64(c.attn[i]) * sigma * (1 - sigma))
+			dAttn[i] = float32(float64(gradient) * sigma)
+		}
+		dx, dWgate = linearBackward2(x, w.Gate, dGate, T, H, qDim)
+	}
 	dqs := make([]float32, T*qDim)
 	dkr := make([]float32, T*kvDim)
 	dv := make([]float32, T*kvDim)
@@ -68,11 +80,10 @@ func attentionMixBackward(x []float32, w AttentionMixWeights, d AttentionMixDims
 	dxQ, dWq := linearBackward2(x, w.Wq, dqProj, T, H, qDim)
 	dxK, dWk := linearBackward2(x, w.Wk, dkProj, T, H, kvDim)
 	dxV, dWv := linearBackward2(x, w.Wv, dv, T, H, kvDim)
-	dx = make([]float32, T*H)
 	for i := range dx {
-		dx[i] = dxQ[i] + dxK[i] + dxV[i]
+		dx[i] += dxQ[i] + dxK[i] + dxV[i]
 	}
-	return dx, AttentionMixWeights{Wq: dWq, Wk: dWk, Wv: dWv, Wo: dWo, QNorm: dQNorm, KNorm: dKNorm}
+	return dx, AttentionMixWeights{Wq: dWq, Wk: dWk, Wv: dWv, Wo: dWo, QNorm: dQNorm, KNorm: dKNorm, Gate: dWgate}
 }
 
 // HybridDecoderLayerBackward: VJP of HybridDecoderLayerForward. Both residuals

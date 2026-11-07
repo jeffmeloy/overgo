@@ -375,6 +375,9 @@ func AddBias(v, bias []float32) {
 // SiLU: x*sigmoid(x).
 func SiLU(value float64) float64 { return value / (1 + math.Exp(-value)) }
 
+// sigmoid: the logistic function.
+func sigmoid(value float64) float64 { return 1 / (1 + math.Exp(-value)) }
+
 // SiLUInPlace: in-place SiLU.
 func SiLUInPlace(v []float32) {
 	for k := range v {

@@ -13,10 +13,13 @@ type QwenMLPWeights struct{ Gate, Up, Down []float32 }
 
 // AttentionMixWeights: full_attention projections and per-head q/k RMSNorm.
 // Wq [heads*hd,hidden]; Wk/Wv [kvHeads*hd,hidden]; Wo [hidden,heads*hd];
-// QNorm/KNorm [hd].
+// QNorm/KNorm [hd]. Gate [heads*hd,hidden], when set, is qwen3.5's output gate:
+// the attention output is scaled by sigmoid(Gate·x) before Wo, as the served
+// layer's query projection carries it beside each head's query.
 type AttentionMixWeights struct {
 	Wq, Wk, Wv, Wo []float32
 	QNorm, KNorm   []float32
+	Gate           []float32
 }
 
 // AttentionMixDims: full_attention geometry. RopeDim is the rotary width from
@@ -51,7 +54,8 @@ type HybridLayerDims struct {
 type attnMixCache struct {
 	qProj, kProj, v []float32 // projections (v post-proj is used directly)
 	qs, kr          []float32 // scaled+rotated q, rotated k
-	attn            []float32 // attention output pre Wo
+	attn            []float32 // attention output pre gate
+	gate, gated     []float32 // gate logits and the gated output Wo reads
 	invFreq         []float64
 	scale           float64
 }
@@ -113,7 +117,15 @@ func attentionMixForward(x []float32, w AttentionMixWeights, d AttentionMixDims)
 	}
 	c.attn = make([]float32, T*qDim)
 	CausalAttention(c.attn, c.qs, c.kr, c.v, T, heads, kv, hd)
-	out = Linear2(c.attn, w.Wo, T, qDim, d.Hidden)
+	c.gated = c.attn
+	if w.Gate != nil {
+		c.gate = Linear2(x, w.Gate, T, H, qDim)
+		c.gated = make([]float32, T*qDim)
+		for i, value := range c.attn {
+			c.gated[i] = value * float32(sigmoid(float64(c.gate[i])))
+		}
+	}
+	out = Linear2(c.gated, w.Wo, T, qDim, d.Hidden)
 	return out, c
 }
 

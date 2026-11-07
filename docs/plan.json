@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 453,
+        "nodes": 309,
         "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
       },
       "steps": [
-        {
-          "id": "app-schedule",
-          "title": "The Claude app's scheduled task runs a session that works the plan, its instructions printed by go run ./cmd/loop -session-prompt",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheScheduledSessionPromptWorksThePlan$'",
-          "rationale": "The driver's first real run, 2026-11-07, could not run its worker: the standalone claude command has no sign-in on this machine, and the owner will not sign it in. The Claude desktop app is signed in and runs scheduled tasks, each a fresh session, while it is open, a task that came due while it was closed running at its next launch. A task set to fire hourly runs a session whose prompt names the checkout and one command, go run ./cmd/loop -session-prompt, which prints the instructions the session follows: work the dispatched step to its commit, then the next, until the plan is empty or stopped; never stop to ask. The instructions are the repository's, versioned with the code, and the task's own text never changes; the app asks the owner to approve the task once. Serves: setup-steps; idle hours a week. Disappears: a session the owner starts to keep the plan moving. Evidence: the printed instructions name the plan's three commands and skill.md and hold no rule beside them; the task stands in the app with that one-line prompt. Batch: host lane."
-        },
         {
           "id": "defaults",
           "title": "A decision takes its default and the work goes on, except the owner's own kinds, which wait in a list while other work runs",

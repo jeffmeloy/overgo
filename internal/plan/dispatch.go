@@ -325,7 +325,7 @@ func byRecommendation(document Plan) (Plan, bool) {
 	decided := slices.Clone(document.Decisions)
 	taken := false
 	for at := range decided {
-		if decided[at].Answer == "" && !decided[at].Doctrine {
+		if decided[at].Answer == "" && !decided[at].waitsForOwner() {
 			decided[at].Answer = decided[at].Recommendation
 			taken = true
 		}
@@ -338,7 +338,7 @@ func byRecommendation(document Plan) (Plan, bool) {
 func decidedFor(document Plan, item string) []string {
 	var taken []string
 	for _, decision := range document.Decisions {
-		if decision.Answer == "" && !decision.Doctrine && slices.Contains(decision.Blocks, item) {
+		if decision.Answer == "" && !decision.waitsForOwner() && slices.Contains(decision.Blocks, item) {
 			taken = append(taken, decision.ID+": "+decision.Recommendation)
 		}
 	}
@@ -364,7 +364,7 @@ func awaitingDecision(document Plan) map[string]bool {
 func holdingDecision(document Plan, item string) (Decision, bool) {
 	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool {
 		return slices.Contains(decision.Blocks, item) && decision.Answer != decision.Recommendation &&
-			(decision.Answer != "" || decision.Doctrine)
+			(decision.Answer != "" || decision.waitsForOwner())
 	})
 	if at < 0 {
 		return Decision{}, false
@@ -382,7 +382,10 @@ func parkedNote(document Plan) []string {
 
 // holds says why a holding decision holds its rows.
 func (decision Decision) holds() string {
-	if decision.Answer == "" {
+	switch {
+	case decision.Answer == "" && decision.OwnersAct:
+		return "its answer is an act only the owner takes, so it waits for the owner's answer while other rows run"
+	case decision.Answer == "":
 		return "it changes a standing rule, so it waits for the owner's answer"
 	}
 	return "answered " + strconv.Quote(decision.Answer) + ", and the row was written for another answer; rewrite or retire it"

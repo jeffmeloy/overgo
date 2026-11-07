@@ -59,6 +59,7 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	decisions := flag.Bool("decisions", false, "the decisions still open, outside the system's authority, with how long each has waited")
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
+	reserved := flag.Bool("reserved", false, "mark a decision whose answer is an act no session takes (a store migration, deleting a model or data, activating or publishing a model, a push), so its rows wait for that answer while the others run: -reserved <decision-id>")
 	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
@@ -88,7 +89,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -98,7 +99,7 @@ type cli struct {
 	resumeStop, maintenanceStop, stopMode, mode  string
 	worker                                       string
 	next, prompt, verify, status, add, setverify bool
-	decisions, answer, doctrine                  bool
+	decisions, answer, doctrine, reserved        bool
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
@@ -197,12 +198,16 @@ func run(c cli, args []string) error {
 	case c.decisions:
 		printDecisions(os.Stdout, document, time.Now())
 		return nil
-	case c.doctrine:
-		if len(args) != 1 {
-			return errors.New("usage: plan -doctrine <decision-id>")
+	case c.doctrine || c.reserved:
+		if len(args) != 1 || c.doctrine && c.reserved {
+			return errors.New("usage: plan -doctrine <decision-id>, or plan -reserved <decision-id>")
+		}
+		mark := plan.MarkDoctrine
+		if c.reserved {
+			mark = plan.MarkOwnersAct
 		}
 		return withPlanMutation(commandWorktree, func(document plan.Plan) error {
-			marked, err := plan.MarkDoctrine(document, args[0])
+			marked, err := mark(document, args[0])
 			if err != nil {
 				return err
 			}
@@ -224,7 +229,7 @@ func run(c cli, args []string) error {
 			return nil
 		})
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -doctrine, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -paragraph, -retire, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -doctrine, -reserved, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -paragraph, -retire, -stop is required")
 	}
 }
 

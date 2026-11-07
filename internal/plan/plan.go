@@ -155,12 +155,22 @@ func Answer(document Plan, id, option string) (Plan, error) {
 
 // MarkDoctrine records that a decision changes a standing rule.
 func MarkDoctrine(document Plan, id string) (Plan, error) {
+	return markDecision(document, id, func(decision *Decision) { decision.Doctrine = true })
+}
+
+// MarkOwnersAct records that a decision's answer is an act only the owner takes.
+func MarkOwnersAct(document Plan, id string) (Plan, error) {
+	return markDecision(document, id, func(decision *Decision) { decision.OwnersAct = true })
+}
+
+// markDecision is the plan with mark applied to the decision id names.
+func markDecision(document Plan, id string, mark func(*Decision)) (Plan, error) {
 	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool { return decision.ID == id })
 	if at < 0 {
 		return document, fmt.Errorf("plan: no decision %q", id)
 	}
 	document.Decisions = slices.Clone(document.Decisions)
-	document.Decisions[at].Doctrine = true
+	mark(&document.Decisions[at])
 	return document, nil
 }
 
@@ -178,7 +188,15 @@ type Decision struct {
 	// Doctrine marks a decision that changes a standing rule: its rows wait
 	// for the owner's answer, and no recommendation stands in for it.
 	Doctrine bool `json:"doctrine,omitzero"`
+	// OwnersAct marks a decision whose answer is an act only the owner takes: a store migration, deleting a model or
+	// data, activating or publishing a model, or a push. Its rows wait for the owner's answer while the others run, and
+	// no recommendation stands in for it.
+	OwnersAct bool `json:"owners_act,omitzero"`
 }
+
+// waitsForOwner says no recommendation stands in for the decision's answer: it changes a standing rule or is an act
+// only the owner takes.
+func (decision Decision) waitsForOwner() bool { return decision.Doctrine || decision.OwnersAct }
 
 // Load reads the plan from path (Path when empty).
 func Load(path string) (Plan, error) {

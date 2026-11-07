@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 309,
+        "nodes": 144,
         "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
       },
       "steps": [
-        {
-          "id": "defaults",
-          "title": "A decision takes its default and the work goes on, except the owner's own kinds, which wait in a list while other work runs",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestADecisionTakesItsDefaultUnlessItIsTheOwners$'",
-          "rationale": "A choice between options takes the option that changes least and can be undone, records it, and continues; the owner may overrule it later, which reopens the work. A fixed list never takes a default: a store migration, deleting a model or data, activating or publishing a model, and pushing. Those wait in the owner list the status shows, and dispatch works the rows they do not block.\nServes: setup-steps; idle hours a week.\nDisappears: a decision that halts the plan.\nEvidence: an open decision with a default is answered by dispatch and its rows run; a push or a model deletion waits in the owner list while other rows run.\nBatch: host lane."
-        },
         {
           "id": "fall-through",
           "title": "With no open row, dispatch takes P1 and P2 findings, then the full measurement run, and P3 findings only when the owner names them",

@@ -160,3 +160,36 @@ func TestPromptAndNextAgreeOnAnAwaitingRow(t *testing.T) {
 		t.Fatalf("next decided %v, by name %v; want only the decision that blocks the row", next.Decided, named.Decided)
 	}
 }
+
+// TestADecisionTakesItsDefaultUnlessItIsTheOwners: an unanswered decision goes on at its recommendation, the row it
+// blocks dispatched once nothing else is ready, so no choice between options halts the plan; one whose answer is an act
+// only the owner takes, a store migration, a deletion, an activation, a publication or a push, is never taken by its
+// recommendation: its row waits, said so, and cannot land, while the other rows run, and its answer releases it.
+func TestADecisionTakesItsDefaultUnlessItIsTheOwners(t *testing.T) {
+	t.Parallel()
+	ordinary := decisionFixture()
+	ordinary.Items = ordinary.Items[:1]
+	if dispatch := testcheck.Must(selectDispatch(ordinary, "", ""))(t); dispatch.Item != "first" || len(dispatch.Decided) != 1 {
+		t.Fatalf("under an unanswered ordinary decision, dispatch = %+v; want its row at the recommendation", dispatch)
+	}
+	owners := testcheck.Must(MarkOwnersAct(decisionFixture(), "choose"))(t)
+	if _, err := MarkOwnersAct(owners, "unknown"); err == nil {
+		t.Fatal("an unknown decision was marked")
+	}
+	if dispatch := testcheck.Must(selectDispatch(owners, "", ""))(t); dispatch.Item != "second" {
+		t.Fatalf("with the owner's act unanswered, dispatch = %+v; want the other row to run", dispatch)
+	}
+	alone := owners
+	alone.Items = alone.Items[:1]
+	dispatch := testcheck.Must(selectDispatch(alone, "", ""))(t)
+	if dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "an act only the owner takes") {
+		t.Fatalf("with only the owner's act's row open, dispatch = %+v; want it reported as waiting for the owner", dispatch)
+	}
+	if _, err := Advance(alone, "first", "do"); err == nil {
+		t.Fatal("a row the owner's act holds landed")
+	}
+	answered := testcheck.Must(Answer(alone, "choose", "a"))(t)
+	if dispatch := testcheck.Must(selectDispatch(answered, "", ""))(t); dispatch.Item != "first" {
+		t.Fatalf("answered, dispatch = %+v; want first", dispatch)
+	}
+}

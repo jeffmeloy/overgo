@@ -54,6 +54,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/dataroot"
@@ -82,6 +83,9 @@ type config struct {
 	Name string `json:"name"`
 	// Prompt is the file, beside the config, whose text opens every worker's prompt.
 	Prompt string `json:"prompt"`
+	// Environment is what the driver sets in its own environment before it starts, the data roots and the role among
+	// it, since a scheduled task that starts the driver sets none.
+	Environment map[string]string `json:"environment,omitempty"`
 	// Config is the run's two budgets: the attempts a step takes and the worker's invocations.
 	loop.Config
 }
@@ -113,6 +117,7 @@ func run(args []string) error {
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
+	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
@@ -194,8 +199,15 @@ func run(args []string) error {
 		// A state directory that cannot be made leaves no path; loading fails below.
 		*configPath, _ = processlock.StateFile(".", processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
 	}
-	if *initialize {
+	switch {
+	case *initialize:
 		return writeDefaultConfig(*configPath, os.Stdout)
+	case *startup:
+		root, err := filepath.Abs(loopWorktree)
+		if err != nil {
+			return err
+		}
+		return installStartup(root, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.DecodeStrict(*configPath, &loaded); err != nil {
@@ -207,6 +219,14 @@ func run(args []string) error {
 	prompt, err := os.ReadFile(filepath.Join(filepath.Dir(*configPath), loaded.Prompt))
 	if err != nil {
 		return fmt.Errorf("load prompt: %w", err)
+	}
+	for name, value := range loaded.Environment {
+		if err := os.Setenv(name, value); err != nil {
+			return err
+		}
+	}
+	if err := noteUncleanEnd(loopWorktree, time.Now(), os.Stdout); err != nil {
+		return err
 	}
 	campaign, err := processcontrol.BeginCampaign(loopWorktree, strings.TrimSpace(loaded.Name))
 	if err != nil {
@@ -340,15 +360,22 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	}
 	var combined bytes.Buffer
 	output := io.MultiWriter(os.Stdout, &combined)
+	// The record a worker leaves while it works says, at the next start, what a run that never exited was doing.
+	if err := keepRunning(loopWorktree, step.Key(), time.Now()); err != nil {
+		cancel()
+		<-watchDone
+		return "", err
+	}
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path:   w.config.Worker[0],
 		Args:   arguments,
-		Env:    loopEnvironment(),
+		Env:    workerEnvironment(loopEnvironment()),
 		Stdin:  strings.NewReader(text),
 		Stdout: output,
 		Stderr: output,
 	})
 	cancel()
+	err = errors.Join(err, dropRunning(loopWorktree))
 	<-watchDone
 	tail := tailOf(combined.String(), 4000)
 	if err != nil && receipt.WallNS == 0 {

@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
+	"overgo/internal/plan"
 )
 
 // The driver's defaults, which -init writes: a step takes at most three worker runs before it is set aside, and a run
@@ -27,9 +29,10 @@ const (
 // the repository's guard and hooks apply to it as to any session.
 var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--allowedTools", "Bash Edit Write Read Grep Glob"}
 
-// defaultPrompt opens every worker's prompt: what the worker is for, where the written guidance is, and that it never
-// stops to ask. The plan's prompt for the dispatched step follows it.
-const defaultPrompt = "You are the overgo driver's worker, in the repository's main checkout. Work the one step below until it is " +
+// defaultPrompt opens every worker's prompt: the declaration that takes the main checkout's hold, since the driver's
+// worker is its implementing session, what the worker is for, where the written guidance is, and that it never stops
+// to ask. The plan's prompt for the dispatched step follows it.
+const defaultPrompt = "Take over this worktree. You are the overgo driver's worker, in the repository's main checkout. Work the one step below until it is " +
 	"committed through go run ./cmd/loop -land <item>/<step> -message-file -, and end there. skill.md is the written " +
 	"guidance. A command that refuses says what to do: do it and keep going, and never stop to ask.\n"
 
@@ -47,6 +50,13 @@ func writeDefaultConfig(path string, said io.Writer) error {
 	}
 	defaults := config{Worker: defaultWorker, Name: defaultWorkerName, Prompt: defaultPromptFile,
 		Config: loop.Config{MaxAttemptsPerStep: defaultAttempts, MaxInvocations: defaultInvocations}}
+	// The data root and the role the command runs under are the driver's, which a scheduled task starts with neither.
+	defaults.Environment = map[string]string{}
+	for _, name := range []string{dataroot.Env, plan.AutomationRoleEnvironment} {
+		if value := os.Getenv(name); value != "" {
+			defaults.Environment[name] = value
+		}
+	}
 	if err := jsonfile.Write(path, defaults, defaultConfigMode); err != nil {
 		return err
 	}

@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 207,
-        "reason": "Estimate before the survey: cmd/loop and internal/loop exist (unattended-driver/first-start, 5cd51fbfa) and have never run; this adds the startup task, defaults, fall-through, status and clearing stops; a step raises it with its measured figure."
+        "nodes": 649,
+        "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
       },
       "steps": [
-        {
-          "id": "startup",
-          "title": "Windows starts the driver at boot and again after a crash",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheStartupTaskRunsTheDriverAtBoot$'",
-          "rationale": "On Nov 3 the computer shut down without warning at about 6:44 AM during a commit's graphics-card tests, was back at 12:08 PM, and nothing restarted the work until the owner wrote at 11:32 PM: 16.8 idle hours, 11.4 of them with the machine up.\ngo run ./cmd/loop -install-startup registers a Windows scheduled task that runs the driver at boot and at logon and restarts it when it exits abnormally; the driver resumes from the plan and the working tree. The driver records what was running at each start that follows an unexpected shutdown, so a repeat shows whether the card's tests cause it.\nServes: setup-steps; idle hours a week.\nDisappears: work that waits for someone to restart a session.\nEvidence: the task definition names the driver, boot and logon triggers and restart on failure; a start after an unexpected shutdown records the step that was running.\nBatch: host lane."
-        },
         {
           "id": "defaults",
           "title": "A decision takes its default and the work goes on, except the owner's own kinds, which wait in a list while other work runs",

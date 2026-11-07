@@ -75,17 +75,17 @@
       ]
     },
     {
-      "id": "gated-stack",
-      "title": "Refuse a gated hybrid model the hybrid-stack route would train without its gates",
+      "id": "hybrid-gate",
+      "title": "Train Qwen3.5's attention output gate through the hybrid-stack route",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refuse a gated hybrid model the hybrid-stack route would train without its gates",
+          "title": "Train Qwen3.5's attention output gate through the hybrid-stack route",
           "status": "open",
-          "verify": "go test ./internal/hybridtrain -count=1 -run '^TestAGatedArtifactIsRefusedForWeightTraining$'",
-          "rationale": "SQA-326, P1: the hybrid-stack route trains Qwen3.5's attention layers without their output gates. LoadStackArtifact admits a fused [query | gate] projection per head and binds only the query rows (internal/hybridtrain/stack_artifact.go), and neither the matrix plans, the packed gradients nor the resident views carry a gate (internal/hybridtrain/stack.go, internal/hybridtrain/hybrid_train_device_cuda_windows.go), so a run on a gated artifact optimizes a layer the server does not run. Measured in vision-bridge/served-9b: with the gates left out, the 9B's reference stands at cosine 0.20 and 1.13 of the state's length from the served state, a different id leading.\nNo goal trains a gated hybrid model's weights: the 9B composite trains a bridge through the frozen walk, whose loader keeps every gate (LoadFrozenLanguageModel). So the route refuses a gated artifact before it reads a weight, from the projection's shape in the file's tensor table, and names what it does not train; an ungated artifact trains as before. Full gate training waits for a goal that needs it.\nThe check writes the existing tiny stack artifact once with a fused query-and-gate projection and once without: the gated one is refused for its gate before any weight is read, the ungated one loads.\nServes: failure-rate, a training run that would spend hours optimizing a model the server does not run.\nDisappears: nothing.\nEvidence: the refusal check.\nBatch: cpu lane."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/hybridtrain -count=1 -run '^TestAGatedStackTrainsWithItsGate$'",
+          "rationale": "gated-stack refuses a gated hybrid model for the hybrid-stack route, and every Qwen3.5 file is gated: the weight catalog admits a Qwen3.5 attention layer's query projection only fused with its gate (internal/model/weights.go). So the validation training proof that trains Qwen3.5-4B through the route (cmd/validate/training_proof.go, hybridGrounding) is refused from then on, where before it passed while training a layer the server does not run. Every model is kept, so the route trains the gated layer the server runs.\nThe host layer already computes it: hostmath's attention mix takes the gate, and its backward splits the cotangent between the attention and the gate's logits, held to central differences (TestHybridDecoderLayerBackwardFD). The card's frozen attention layer applies the gate and its backward with the kernels it already has (internal/devicemath/frozen_gated_attention_cuda_windows.go). What the route lacks is the gate in the trainable stack: its matrix extents, packed gradients, resident views, optimizer and checkpoint state, the program's identity, and the round trip that writes trained query rows back beside the gate rows of the fused projection (SQA-326's closure).\nThe check trains a small gated stack a few steps on the card and on the host and holds the card's losses and weights to the host's, the gate among the weights that move; then the refusal gated-stack added is removed.\nServes: failure-rate and setup-steps of the Qwen3.5 training proof.\nDisappears: gated-stack's refusal.\nEvidence: the card-against-host training check.\nBatch: cuda lane."
         }
       ]
     },

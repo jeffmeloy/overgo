@@ -8,7 +8,6 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hostmath"
 	"overgo/internal/model"
-	"overgo/internal/tensor"
 )
 
 // FrozenLanguageModel is a hybrid language model read from its GGUF file for a frozen walk: its layers in F32, every
@@ -32,7 +31,7 @@ func LoadFrozenLanguageModel(ctx context.Context, path string, tokens int) (*Fro
 		return nil, fmt.Errorf("hybrid stack: open artifact: %w", err)
 	}
 	fail := func(cause error) (*FrozenLanguageModel, error) { return nil, errors.Join(cause, file.Close()) }
-	stack, weights, err := loadStack(ctx, file, tokens)
+	stack, weights, err := loadStack(ctx, file, tokens, true)
 	if err != nil {
 		return fail(err)
 	}
@@ -40,25 +39,6 @@ func LoadFrozenLanguageModel(ctx context.Context, path string, tokens int) (*Fro
 		return fail(errors.New("hybrid stack: the artifact holds no head of its own"))
 	}
 	geometry := stack.Cfg
-	// The served query projection carries each head's output gate after its query rows, [query | gate] a head.
-	width := geometry.HeadDim * geometry.Hidden
-	for layer, kind := range geometry.Types {
-		if kind != FullAttention {
-			continue
-		}
-		fused, err := model.LoadHostTensor(ctx, file, *weights.Layers[layer].AttentionQ)
-		if err != nil {
-			return fail(err)
-		}
-		if len(fused.Data) != tensor.PairedExtent*geometry.Heads*width {
-			return fail(fmt.Errorf("hybrid stack: layer %d's query projection carries no output gate", layer))
-		}
-		gate := make([]float32, geometry.Heads*width)
-		for head := range geometry.Heads {
-			copy(gate[head*width:(head+1)*width], fused.Data[(tensor.PairedExtent*head+1)*width:(tensor.PairedExtent*head+tensor.PairedExtent)*width])
-		}
-		stack.Weights[layer].Attn.Gate = gate
-	}
 	finalNorm, err := model.LoadHostTensor(ctx, file, weights.OutputNorm)
 	if err != nil {
 		return fail(err)

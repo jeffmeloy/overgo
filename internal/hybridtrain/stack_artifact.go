@@ -177,17 +177,18 @@ func bindAttentionLayer(b *builder, li int, g stackGeometry, host *model.HostLay
 	}
 	// The projection may fuse a per-head output gate after each head's query
 	// rows ([q(headDim) | gate(headDim)] per head, the serving GroupSlice
-	// split). The training mix models ungated attention, so only the query
-	// rows enter the trainable slab.
-	switch len(q) {
+	// split): the query rows enter the trainable slab and the gate rows the
+	// layer's gate, which only a frozen walk carries.
+	switch head := g.headDim * g.hidden; len(q) {
 	case qDim * g.hidden:
-	case 2 * qDim * g.hidden:
-		query := make([]float32, qDim*g.hidden)
-		for h := 0; h < g.heads; h++ {
-			src := q[(h*2*g.headDim)*g.hidden : (h*2*g.headDim+g.headDim)*g.hidden]
-			copy(query[h*g.headDim*g.hidden:], src)
+	case tensor.PairedExtent * qDim * g.hidden:
+		query, gate := make([]float32, qDim*g.hidden), make([]float32, qDim*g.hidden)
+		for h := range g.heads {
+			fused := q[tensor.PairedExtent*h*head:]
+			copy(query[h*head:(h+1)*head], fused[:head])
+			copy(gate[h*head:(h+1)*head], fused[head:tensor.PairedExtent*head])
 		}
-		q = query
+		q, w.Attn.Gate = query, gate
 	default:
 		return fmt.Errorf("hybrid stack: layer %d query projection has %d values, need %d or %d",
 			li, len(q), qDim*g.hidden, 2*qDim*g.hidden)
@@ -334,7 +335,7 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 		return nil, fmt.Errorf("hybrid stack: open artifact: %w", err)
 	}
 	defer file.Close()
-	m, weights, err := loadStack(ctx, file, len(tokenIDs)-1)
+	m, weights, err := loadStack(ctx, file, len(tokenIDs)-1, false)
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +354,10 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 
 // loadStack binds every layer of the open artifact, full-attention and recurrent gated-delta alike, per the spec's
 // own layer cadence, into one trainable mixed stack with f32 masters decoded from the serving storage, for sequences
-// of tokens tokens, and returns the artifact's weight catalog beside it.
-func loadStack(ctx context.Context, file *gguf.File, tokens int) (*Model, model.Weights, error) {
+// of tokens tokens, and returns the artifact's weight catalog beside it. An attention layer's output gate binds when
+// gated, the stack walked frozen; otherwise an artifact that carries one is refused before any weight is read, since
+// the stack's training carries no gate.
+func loadStack(ctx context.Context, file *gguf.File, tokens int, gated bool) (*Model, model.Weights, error) {
 	spec, err := model.ReadSpec(file)
 	if err != nil {
 		return nil, model.Weights{}, fmt.Errorf("hybrid stack: read specification: %w", err)
@@ -386,6 +389,9 @@ func loadStack(ctx context.Context, file *gguf.File, tokens int) (*Model, model.
 		types[li] = FullAttention
 		if recurrent {
 			types[li] = LinearAttention
+		} else if query, err := weights.Layers[li].AttentionQ.ElementCount(); !gated && err == nil &&
+			query == uint64(tensor.PairedExtent*geometry.heads*geometry.headDim*geometry.hidden) {
+			return nil, model.Weights{}, fmt.Errorf("hybrid stack: layer %d's attention carries an output gate, which the stack's training does not; the frozen walk carries it", li)
 		}
 		mat, vec := geometry.matrixElements(recurrent, weights.Layers[li].SSMConv1DBias != nil)
 		matTotal += mat

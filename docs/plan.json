@@ -55,15 +55,15 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "Measured by the gate: capture-9b adds 433 production nodes: the shared caption text-model reader, less the route's own reader it replaces, and the capture's GGUF identity and caption mean."
+        "reason": "Measured by the gate: mean-start adds 301 production nodes: the route's start choice and mean, the shared held-back split, the capture's names and the empty-row refusal."
       },
       "steps": [
         {
-          "id": "train-9b",
-          "title": "Train the 9B composite's bridge through the frozen walk from the closed-form fit",
+          "id": "bridge-9b",
+          "title": "Train the 9B composite's bridge through the frozen walk from the captions' mean",
           "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestTheNineBBridgeRunHoldsItsTerms$'",
-          "rationale": "The 9B composite's bridge trains through the frozen walk on the 9B's capture, under the terms the 0.5B trained under (docs/verification/vision-bridge-acceptance.json): its held-back sources score the run before and after each segment, a segment whose held-back loss does not fall publishes nothing, and the held-back samples choose the checkpoint.\nThe run does not start from the zero-output bridge: its zero rows open the prompt, Qwen3.5's stack has no biases to lift them, and each layer's norms multiply their gradient by the inverse square root of their epsilon, 1.8e21 at the 9B's first step (vision-bridge/frozen-9b). It starts from the closed-form fit of the capture's frames to its captions' mean embeddings, the map seam-align -rank already measures, written as a bridge, which places rows of the captions' scale.\nAt 0.41 s a sample on the card (vision-bridge/frozen-9b), the 0.5B's steps take a few card-hours of the terms' 24.\nThe run's record, docs/verification/vision-bridge-9b-run.json, keeps the capture, the start, each segment and the chosen checkpoint, held to the terms as the 0.5B's is.\nServes: the row's question, the 9B with vision through a bridge.\nDisappears: nothing.\nEvidence: the run record.\nBatch: cuda lane."
+          "rationale": "The 9B composite's bridge trains through the frozen walk on the 9B's capture, under the terms the 0.5B trained under (docs/verification/vision-bridge-acceptance.json): its held-back sources score the run before and after each segment, a segment whose held-back loss does not fall publishes nothing, and the held-back samples choose the checkpoint.\nThe run does not start from the zero-output bridge: its zero rows open the prompt, Qwen3.5's stack has no biases to lift them, and each layer's norms multiply their gradient by the inverse square root of their epsilon, 1.8e21 at the 9B's first step (vision-bridge/frozen-9b). Nor from the closed-form fit of the capture's frames to its captions: seam-align -rank over the 9B's capture finds that fit leaves 1.04 of the held-out target unexplained from the class token and 1.06 from the patch mean, against 0.25 in sample, so it predicts a held-out caption worse than the captions' mean. The run starts from that mean: the bridge whose weights are zero and whose offsets are the mean caption embedding over the samples it trains on, placing at each row the one estimate the capture supports, of the captions' scale, its weights left to the training.\nAt 0.41 s a sample on the card (vision-bridge/frozen-9b), the 0.5B's steps take a few card-hours of the terms' 24.\nThe run's record, docs/verification/vision-bridge-9b-run.json, keeps the capture and its ranking, the start, each segment and the chosen checkpoint, held to the terms as the 0.5B's is.\nServes: the row's question, the 9B with vision through a bridge.\nDisappears: nothing.\nEvidence: the run record.\nBatch: cuda lane."
         },
         {
           "id": "judge-9b",

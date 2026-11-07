@@ -37,7 +37,7 @@ const (
 	// tokensSuffix ends the name of a sample's cached frame tokens, and samplesSuffix the name of the file beside the
 	// capture that names its samples for the bridge's training.
 	tokensSuffix  = ".tokens.f32"
-	samplesSuffix = ".samples.json"
+	samplesSuffix = evaluation.CaptureSamplesSuffix
 	// bindingSuffix ends the name of a sample's cached representations and what they were made from.
 	bindingSuffix = ".binding.json"
 	// float32Bytes is the bytes of one cached value, encoderOutputs the encoder's outputs a sample holds before its

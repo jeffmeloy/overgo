@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/binary"
 	"math"
 	"math/rand/v2"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -102,6 +104,16 @@ func TestSeamScoreComesFromMeasuredRepresentations(t *testing.T) {
 	}
 	if !verdicts["aligned"] || verdicts["planted"] {
 		t.Errorf("the measured seam scores fit %v and the planted one %v, want the aligned fit alone", verdicts["aligned"], verdicts["planted"])
+	}
+	// A row of no values carries no alignment evidence.
+	empty := filepath.Join(t.TempDir(), "empty.safetensors")
+	// The writer refuses an empty dimension, so the file is written as an external capture could arrive.
+	header := []byte(`{"target":{"dtype":"F32","shape":[1,0],"data_offsets":[0,0]}}`)
+	testcheck.NoError(t, os.WriteFile(empty, append(binary.LittleEndian.AppendUint64(nil, uint64(len(header))), header...), 0o600))
+	emptyCapture := testcheck.Must(safetensors.OpenFile(empty))(t)
+	defer emptyCapture.Close()
+	if _, err := captureRows(emptyCapture, targetTensor); err == nil {
+		t.Error("a capture of rows that hold no values was read")
 	}
 	var typed driveTargetSpecification
 	if err := strictjson.DecodeBytes([]byte(`{"label": "seam", "score": {"dimensions": {}}}`), &typed); err == nil {

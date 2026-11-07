@@ -1,11 +1,14 @@
 package main
 
 import (
+	"path/filepath"
 	"slices"
 	"strconv"
 	"testing"
 
 	"overgo/internal/evaluation"
+	"overgo/internal/safetensors"
+	"overgo/internal/testcheck"
 )
 
 // TestHeldSourcesStayOutOfTraining holds the caption projector's held-back share to whole source videos: every sample
@@ -31,5 +34,33 @@ func TestHeldSourcesStayOutOfTraining(t *testing.T) {
 	}
 	if trained, scored := heldBack(samples, sequences, 0); len(scored) != 0 || len(trained) != len(sources) {
 		t.Fatalf("holding no source scored %d samples and trained %d; want every sample trained", len(scored), len(trained))
+	}
+}
+
+// TestAMeanStartPlacesTheTrainedCaptionsMean writes a capture of three samples from two sources, the first source held
+// back: the mean start's offsets are the mean of the trained source's captions alone and its weights zero, the zero
+// start is all zero, and any other start is refused.
+func TestAMeanStartPlacesTheTrainedCaptionsMean(t *testing.T) {
+	t.Parallel()
+	const encoderWidth, textWidth = 2, 3
+	capture := evaluation.CaptionTrainingCapture{EncoderWidth: encoderWidth, TextWidth: textWidth}
+	for _, source := range []string{"held", "trained", "trained"} {
+		capture.Samples = append(capture.Samples, evaluation.CapturedCaption{CaptionTrainingClip: evaluation.CaptionTrainingClip{Source: source}})
+	}
+	representations := filepath.Join(t.TempDir(), "capture.safetensors")
+	targets := []float32{100, 100, 100, 1, 2, 3, 3, 4, 5}
+	testcheck.NoError(t, safetensors.Save(representations, map[string][]float32{evaluation.CaptureTarget: targets},
+		map[string][]int{evaluation.CaptureTarget: {len(capture.Samples), textWidth}}, nil))
+	samples := representations + evaluation.CaptureSamplesSuffix
+	mean := testcheck.Must(captionStart(captionMeanStart, samples, capture, 1))(t)
+	if !slices.Equal(mean.Bias, []float32{2, 3, 4}) || len(mean.Weight) != textWidth*encoderWidth || slices.ContainsFunc(mean.Weight, func(value float32) bool { return value != 0 }) {
+		t.Fatalf("the mean start is %v and %v; want offsets the trained captions' mean [2 3 4] and zero weights", mean.Bias, mean.Weight)
+	}
+	zero := testcheck.Must(captionStart(captionZeroStart, samples, capture, 1))(t)
+	if slices.ContainsFunc(append(zero.Weight, zero.Bias...), func(value float32) bool { return value != 0 }) {
+		t.Fatalf("the zero start is %v and %v; want every value zero", zero.Weight, zero.Bias)
+	}
+	if _, err := captionStart("fit", samples, capture, 1); err == nil {
+		t.Fatal("a start the route does not name was not refused")
 	}
 }

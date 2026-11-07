@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -22,6 +23,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/rae"
 	"overgo/internal/recipecontract"
+	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -36,6 +38,9 @@ const (
 	captionFamily = "caption-projector"
 	// captionTokensSuffix ends the name of a sample's cached frame tokens, as seam-align -capture names them.
 	captionTokensSuffix = ".tokens.f32"
+	// captionZeroStart and captionMeanStart name the bridges a run with none starts from.
+	captionZeroStart = "zero"
+	captionMeanStart = "mean"
 )
 
 // captionModel is the frozen text model a caption projector trains through: the mean loss over a sequence's trained
@@ -66,7 +71,8 @@ type captionSequence struct {
 func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	capturePath := flags.String("capture", "", "the samples file seam-align -capture writes beside its capture: the training side's clips and captions, where their frame tokens are cached, and the encoder and text model it paired; the run's dataset")
 	placeholder := flags.String("placeholder", "", "the text model's image placeholder token, which each of a frame's rows takes in the prompt")
-	from := flags.String("from", "", "the bridge the run trains from, a safetensors file of bridge.weight and bridge.bias; when absent the run writes the zero-output bridge there and trains from it")
+	from := flags.String("from", "", "the bridge the run trains from, a safetensors file of bridge.weight and bridge.bias; when absent the run writes the -start bridge there and trains from it")
+	start := flags.String("start", captionZeroStart, "the bridge a run whose -from file is absent writes there: zero, the zero-output bridge, the floor the acceptance reads; or mean, weights zero and offsets the mean of the captions' mean embeddings over the samples the run trains on, for a text model without biases, which keeps zero rows zero")
 	batch := flags.Int("batch", 0, "samples a step is taken on")
 	steps := clioptions.IntOverride(flags, "steps", "required observed steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
@@ -91,10 +97,12 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	if capture.EncoderWidth <= 0 || capture.TextWidth <= 0 || len(capture.Samples) == 0 {
 		return fmt.Errorf("%s: the capture holds %d samples of widths %d and %d", name, len(capture.Samples), capture.EncoderWidth, capture.TextWidth)
 	}
-	// The floor the acceptance reads is the composite whose bridge gives nothing: a run with no bridge starts there.
 	if _, statErr := os.Stat(*from); errors.Is(statErr, fs.ErrNotExist) {
-		zero := rae.EncoderBridge{Weight: make([]float32, capture.TextWidth*capture.EncoderWidth), Bias: make([]float32, capture.TextWidth)}
-		if err := rae.SaveBridgeWeights(*from, zero); err != nil {
+		first, err := captionStart(*start, *capturePath, capture, *held)
+		if err != nil {
+			return err
+		}
+		if err := rae.SaveBridgeWeights(*from, first); err != nil {
 			return err
 		}
 	}
@@ -204,16 +212,49 @@ func captionFrozen(ctx context.Context, path string, length int, host bool) (cap
 	return model.MaskedLossAndInputGradient, model.Dims.Hidden, func() error { return nil }, nil
 }
 
-// heldBack divides the samples' sequences into those a run trains on and those it holds back: every sample of the
-// first held source videos in the capture's order, which its seed shuffled.
-func heldBack(samples []evaluation.CapturedCaption, sequences []captionSequence, held int) (trained, scored []captionSequence) {
+// captionStart is the bridge a run with none starts from: the zero-output bridge, the floor the acceptance reads, or
+// the bridge whose offsets are the mean of the captions' mean embeddings the capture holds for the samples the run
+// trains on, its weights zero.
+func captionStart(start, capturePath string, capture evaluation.CaptionTrainingCapture, held int) (first rae.EncoderBridge, err error) {
+	first = rae.EncoderBridge{Weight: make([]float32, capture.TextWidth*capture.EncoderWidth), Bias: make([]float32, capture.TextWidth)}
+	if start == captionZeroStart {
+		return first, nil
+	}
+	if start != captionMeanStart {
+		return rae.EncoderBridge{}, fmt.Errorf("caption projector: a run starts from %s or %s, not %q", captionZeroStart, captionMeanStart, start)
+	}
+	file, err := safetensors.OpenFile(strings.TrimSuffix(capturePath, evaluation.CaptureSamplesSuffix))
+	if err != nil {
+		return rae.EncoderBridge{}, err
+	}
+	defer func() { err = errors.Join(err, file.Close()) }()
+	targets, err := safetensors.ReadF32(file.Tensors[evaluation.CaptureTarget])
+	if err != nil || len(targets) != len(capture.Samples)*capture.TextWidth {
+		return rae.EncoderBridge{}, errors.Join(err, fmt.Errorf("caption projector: the capture holds no %s row for each of its %d samples", evaluation.CaptureTarget, len(capture.Samples)))
+	}
+	rows := make([][]float32, len(capture.Samples))
+	for index := range rows {
+		rows[index] = targets[index*capture.TextWidth : (index+1)*capture.TextWidth]
+	}
+	trained, _ := heldBack(capture.Samples, rows, held)
+	for _, row := range trained {
+		for column, value := range row {
+			first.Bias[column] += value / float32(len(trained))
+		}
+	}
+	return first, nil
+}
+
+// heldBack divides the samples' items into those a run trains on and those it holds back: every sample of the first
+// held source videos in the capture's order, which its seed shuffled.
+func heldBack[T any](samples []evaluation.CapturedCaption, items []T, held int) (trained, scored []T) {
 	sources := map[string]bool{}
 	for index, sample := range samples {
 		if sources[sample.Source] || len(sources) < held {
 			sources[sample.Source] = true
-			scored = append(scored, sequences[index])
+			scored = append(scored, items[index])
 		} else {
-			trained = append(trained, sequences[index])
+			trained = append(trained, items[index])
 		}
 	}
 	return trained, scored

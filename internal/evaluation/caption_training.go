@@ -8,6 +8,14 @@ import (
 	"overgo/internal/artifact"
 )
 
+const (
+	// CaptureSamplesSuffix ends the name of the samples file a seam capture writes beside its representations, which
+	// names its samples for a bridge's training.
+	CaptureSamplesSuffix = ".samples.json"
+	// CaptureTarget names a capture's tensor of each sample's caption mean embedding, a row of the text model's width.
+	CaptureTarget = "target"
+)
+
 // CaptionTrainingClip is a captioned clip a model may train on beside a caption-matching suite, with the source video
 // it groups under.
 type CaptionTrainingClip struct {

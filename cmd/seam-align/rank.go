@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"overgo/internal/composition"
+	"overgo/internal/evaluation"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 )
@@ -25,7 +26,7 @@ const (
 // video each sample comes from groupsTensor.
 const (
 	sourcePrefix = "source/"
-	targetTensor = "target"
+	targetTensor = evaluation.CaptureTarget
 	groupsTensor = "groups"
 )
 
@@ -163,6 +164,9 @@ func captureRows(capture *safetensors.Source, name string) ([][]float64, error) 
 		width = int(tensor.Shape[1])
 	} else if len(tensor.Shape) != 1 {
 		return nil, fmt.Errorf("seam-align: tensor %s is neither a vector nor a matrix", name)
+	}
+	if width <= 0 {
+		return nil, fmt.Errorf("seam-align: tensor %s holds rows of no values", name)
 	}
 	rows := make([][]float64, len(values)/width)
 	for row := range rows {

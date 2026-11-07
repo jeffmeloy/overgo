@@ -57,6 +57,8 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 	if printed := prompted(); !strings.Contains(printed, want) || !strings.Contains(printed, "the checkout free") {
 		t.Fatalf("the prompt hook printed %q for a running run, want %q", printed, want)
 	}
+	// The gate holds a turn a notification began; one a typed message began ends once answered.
+	captured(&os.Stdout, func() { runPrompt(`{"session_id": "lead", "prompt": "<task-notification><status>completed</status>"}`) })
 	if blocked := captured(&os.Stderr, func() { stopHook("lead") }); !strings.Contains(blocked, want) {
 		t.Fatalf("the stop gate's block printed %q, want the run's %q", blocked, want)
 	}

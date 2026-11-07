@@ -114,12 +114,17 @@ const (
 // stopDecision is the pure verdict the Stop hook renders. planComplete is the
 // only plan-derived allow; a landed commit changes the message, never the
 // verdict.
-func stopDecision(operatorStopped, gateRunning, planComplete, dirtyWork bool) string {
+func stopDecision(operatorStopped, gateRunning, planComplete, dirtyWork, typedTurn bool) string {
 	if operatorStopped || gateRunning || planComplete {
 		return stopAllow
 	}
 	if dirtyWork {
 		return stopOrphan
+	}
+	// A turn a typed message began ends once the session has answered it: whoever typed it is present and decides
+	// what follows, and the plan is not paused by it.
+	if typedTurn {
+		return stopAllow
 	}
 	return stopContinue
 }
@@ -145,7 +150,8 @@ func runStop(hookJSON string) int {
 	dispatch := nextDispatch()
 	operatorStopped := dispatch.Stop != nil && dispatch.Stop.Blocked
 	dirtyWork := hasTurnCreatedDirt(session)
-	verdict := stopDecision(operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork)
+	base, _ := readTurnBase(session)
+	verdict := stopDecision(operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork, base.Typed)
 	// A turn that ends with nothing left for the session to do here gives the
 	// worktree back to the next implementing session; a turn a valve lets end,
 	// or one that leaves work uncommitted, keeps it.
@@ -294,12 +300,13 @@ func runPostCommit(hookJSON string) {
 	if guard.Landing(input.ToolInput.Command) {
 		recordImplementer(input.Session)
 		if base, known := readTurnBase(input.Session); known && !base.Review {
-			writeTurnBase(input.Session, false, holdWorktree(input.Session, false))
+			base.Holder = holdWorktree(input.Session, false)
+			writeTurnBase(input.Session, base)
 		}
 	}
 	if strings.Contains(hookJSON, "cmd/gate") {
 		base, _ := readTurnBase(input.Session)
-		writeTurnBase(input.Session, base.Review, base.Holder)
+		writeTurnBase(input.Session, base)
 	}
 }
 
@@ -447,7 +454,7 @@ func beginTurn(input hookInput) (review bool) {
 	if !review {
 		holder = holdWorktree(input.Session, strings.HasPrefix(opening, takeoverDeclaration))
 	}
-	writeTurnBase(input.Session, review, holder)
+	writeTurnBase(input.Session, turnBase{Review: review, Holder: holder, Typed: typedPrompt(input.Prompt)})
 	return review
 }
 
@@ -563,17 +570,29 @@ type turnBase struct {
 	Facts  []dirtyFact `json:"facts"`
 	Review bool        `json:"review,omitzero"`
 	Holder string      `json:"holder,omitzero"`
+	// Typed says the turn began with a typed message, not a task's notification or a scheduled wake.
+	Typed bool `json:"typed,omitzero"`
+}
+
+// The openings of a prompt no person typed: a background task's notification and a scheduled wake of the loop.
+var machineOpenings = []string{"<task-notification>", "<<autonomous-loop"}
+
+// typedPrompt says a prompt is a typed message: it holds words and opens as no notification or wake does.
+func typedPrompt(prompt string) bool {
+	opening := strings.TrimSpace(prompt)
+	return opening != "" && !slices.ContainsFunc(machineOpenings, func(machine string) bool { return strings.HasPrefix(opening, machine) })
 }
 
 // writeTurnBase snapshots dirt and HEAD for the session at a prompt or commit
-// boundary, and keeps whether it is a review session and who holds the
-// worktree in its place.
-func writeTurnBase(session string, review bool, holder string) {
+// boundary, beside base's account of the turn: whether it is a review
+// session, who holds the worktree in its place, and whether a typed message began it.
+func writeTurnBase(session string, base turnBase) {
 	facts, err := currentDirtyFacts()
 	if err != nil {
 		return
 	}
-	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts, Review: review, Holder: holder})
+	base.Head, base.Facts = gitHead(), facts
+	data, err := json.Marshal(base)
 	if err == nil {
 		_ = os.WriteFile(turnBaseFile(session), append(data, '\n'), stateFileMode)
 	}

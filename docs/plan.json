@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 220,
+        "nodes": 136,
         "reason": "Estimate before the survey: four small changes to cmd/plan, cmd/loophook and internal/guard; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "owner-turn",
-          "title": "A turn the owner's message started ends once it is answered",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestATurnTheOwnerStartedEndsWhenAnswered$'",
-          "rationale": "On Nov 7 the owner wrote \"answer the question and stop\"; the Stop gate blocked the turn twice (\"a prompt answer does not pause the loop\") until a requested stop was recorded. The gate holds a turn open while the plan has rows, whoever started the turn.\nA turn that began with the owner's message ends when the session ends it, with no recorded stop; the plan is not paused, and its work continues on the next start of the loop. A turn the loop or a notification started is held as today until the driver owns continuation (driver-on/gate-retired).\nServes: setup-steps; the owner's message decides its own turn.\nDisappears: the requested stop recorded only to end an answered turn.\nEvidence: the gate passes a turn the owner started and blocks one a notification started, with rows open and nothing uncommitted.\nBatch: host lane."
-        },
         {
           "id": "hook-text",
           "title": "The session-start text and the per-message hook carry no rule text",

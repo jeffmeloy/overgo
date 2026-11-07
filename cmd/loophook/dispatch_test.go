@@ -25,7 +25,7 @@ func TestLoopHookConsumesDispatchJSON(t *testing.T) {
 	}
 	var done plan.Dispatch
 	testcheck.NoError(t, json.Unmarshal([]byte(`{"complete":true,"line":"plan complete: every item is done"}`), &done))
-	if !done.Complete || stopDecision(false, false, done.Complete, false) != stopAllow {
+	if !done.Complete || stopDecision(false, false, done.Complete, false, false) != stopAllow {
 		t.Fatalf("complete dispatch = %+v did not allow the turn to end", done)
 	}
 }

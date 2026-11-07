@@ -35,7 +35,7 @@ func TestStopDecision(t *testing.T) {
 		{"open row, idle turn", false, false, false, false, stopContinue},
 	}
 	for _, c := range cases {
-		got := stopDecision(c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo)
+		got := stopDecision(c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo, false)
 		if got != c.want {
 			t.Errorf("%s: stopDecision=%q want %q", c.name, got, c.want)
 		}
@@ -82,7 +82,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
 		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
 	}
-	if got := stopDecision(false, true, false, len(turnCreatedDirt(parked, parked)) > 0); got != stopAllow {
+	if got := stopDecision(false, true, false, len(turnCreatedDirt(parked, parked)) > 0, false); got != stopAllow {
 		t.Fatalf("progressed turn with only parked parallel-lane dirt = %q, want allow", got)
 	}
 
@@ -91,7 +91,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
 	}
-	if got := stopDecision(false, false, false, len(created) > 0); got != stopOrphan {
+	if got := stopDecision(false, false, false, len(created) > 0, false); got != stopOrphan {
 		t.Fatalf("turn that created dirt = %q, want the orphan block", got)
 	}
 
@@ -149,7 +149,7 @@ func TestPersistentStopHook(t *testing.T) {
 	if err != nil || status.Blocked || status.State != "resumed" {
 		t.Fatalf("hook scope did not resume: %+v %v", status, err)
 	}
-	if stopDecision(status.Blocked, false, false, false) != stopContinue {
+	if stopDecision(status.Blocked, false, false, false, false) != stopContinue {
 		t.Fatal("resumed hook retained a stale stop")
 	}
 }

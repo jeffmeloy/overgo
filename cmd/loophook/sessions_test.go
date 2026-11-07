@@ -86,6 +86,8 @@ func TestOverlappingSessionsKeepTheirOwnTurnSnapshots(t *testing.T) {
 	beginTurn(first)
 	write("first.txt", "the first session's work\n")
 	beginTurn(second)
+	// A notification begins the turn the gate holds; a typed message's turn ends once answered.
+	beginTurn(hookInput{Session: second.Session, Prompt: notificationPrompt})
 	if code := stopHook(second.Session); code == 0 {
 		t.Fatal("a session of the lane's role under an open row may end its turn")
 	}
@@ -145,6 +147,7 @@ func TestReviewSessionIsNotHeldAndAnyOtherRoleIs(t *testing.T) {
 		t.Setenv(plan.AutomationRoleEnvironment, held.role)
 		session := "session-" + held.role
 		beginTurn(hookInput{Session: session, Prompt: "take over this worktree and work"})
+		beginTurn(hookInput{Session: session, Prompt: notificationPrompt})
 		if ended := stopHook(session) == 0; ended != held.idle {
 			t.Errorf("%s, its turn having left nothing: the turn may end %t, want %t", held.name, ended, held.idle)
 		}

@@ -82,7 +82,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	if !beginTurn(hookInput{Session: "reviewer", Prompt: "Review session: read the last commit"}) {
 		t.Fatal("the review session is not one")
 	}
-	beginTurn(hookInput{Session: "one", Prompt: "work the row"})
+	beginTurn(hookInput{Session: "one", Prompt: notificationPrompt})
 	if holder("one") != "" || stopHook("one") == 0 || refused("one", "Edit", "", source) != "" || refused("one", "Bash", landing, "") != "" {
 		t.Fatalf("the first implementing session, after a review session, is sent away by %q, or is not held to its row, or is refused its work", holder("one"))
 	}
@@ -108,7 +108,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	second := filepath.Join(t.TempDir(), "second")
 	git("worktree", "add", "-q", "-b", "second", second, "HEAD")
 	t.Chdir(second)
-	beginTurn(hookInput{Session: "two", Prompt: "work the row here"})
+	beginTurn(hookInput{Session: "two", Prompt: notificationPrompt})
 	if holder("two") != "" || refused("two", "Edit", "", source) != "" || refused("two", "Bash", landing, "") != "" || stopHook("two") == 0 {
 		t.Fatalf("in a worktree of its own the second session is sent away by %q, or refused its work, or not held to its row", holder("two"))
 	}

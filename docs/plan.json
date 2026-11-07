@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 136,
+        "nodes": 309,
         "reason": "Estimate before the survey: four small changes to cmd/plan, cmd/loophook and internal/guard; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "hook-text",
-          "title": "The session-start text and the per-message hook carry no rule text",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestHooksPrintNoRuleText$'",
-          "rationale": "scripts/overgo_next_task.sh adds to every message \"answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop\", which contradicted the owner's \"answer the question and stop\"; it also adds WORKTREE HELD to every review session's message and the last measurement run's line. scripts/overgo_doctrine.sh (cmd/loophook/doctrine.go) prints twelve dense rules at every session start, each already held by the checks it names.\nThe session start prints the assigned step and \"read skill.md\"; the per-message hook prints nothing that is a rule. WORKTREE HELD stays in the guard's refusal alone; the measurement-run line moves to the driver's status (driver-on/status).\nServes: setup-steps; one place for written rules.\nDisappears: the per-message rule text and the session-start rules.\nEvidence: the hooks' output, run over every dispatch state, holds no rule sentence.\nBatch: host lane."
-        },
         {
           "id": "pointer",
           "title": "AGENTS.md points Claude and Codex to skill.md and the three commands",

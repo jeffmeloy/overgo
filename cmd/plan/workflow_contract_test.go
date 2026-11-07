@@ -54,9 +54,9 @@ func TestScratchModuleWorkflow(t *testing.T) {
 
 // TestPromptContractProjection holds that the prompt renders the bounded
 // actionable contract -- title, verifier, prerequisites, commit scope, the
-// row's scratch folder, a usable self-describing cmd/finding invocation, and
-// the stop conditions -- while the rationale history stays out of the task
-// prompt, available by reference.
+// row's scratch folder and a usable self-describing cmd/finding invocation --
+// while the rationale history and rule text stay out of the task prompt, the
+// rules being skill.md's.
 func TestPromptContractProjection(t *testing.T) {
 	t.Parallel()
 	item := plan.Item{ID: "work", Title: "Work item"}
@@ -67,13 +67,13 @@ func TestPromptContractProjection(t *testing.T) {
 	var out bytes.Buffer
 	printPromptStep(item, step, nil, &out)
 	text := out.String()
-	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/loop -land work/do ", "SCRATCH tmp/work/ ", "go run ./cmd/finding -h", "STOP ", "Landed-Row"} {
+	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/loop -land work/do ", "SCRATCH tmp/work/ ", "go run ./cmd/finding -h"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("contract prompt missing %q:\n%s", want, text)
 		}
 	}
-	if strings.Contains(text, "buried history prose") {
-		t.Fatalf("rationale history leaked into the task prompt:\n%s", text)
+	if strings.Contains(text, "buried history prose") || strings.Contains(text, "RULES ") || strings.Contains(text, "STOP ") {
+		t.Fatalf("rationale history or rule text leaked into the task prompt:\n%s", text)
 	}
 }
 

@@ -647,8 +647,6 @@ func printPromptStep(it plan.Item, st plan.Step, decided []string, output io.Wri
 	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %[1]s/%[2]s -message-file <msg> (the small gate over the dirty tree, the landing confirmed from git)
 SCRATCH tmp/%[1]s/ for this row's probes and documents only
 FINDINGS park off-scope work: go run ./cmd/finding -h
-RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
-STOP only a recorded stop request pauses the loop (plan -stop <reason>); rationale stays in docs/plan.json and landed rows in git (Landed-Row trailers).
 `, it.ID, st.ID)
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {

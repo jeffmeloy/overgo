@@ -26,11 +26,11 @@ import (
 // plan complete and nothing uncommitted: the session that begins next holds
 // it, and the first, coming back, is the one sent away. A session whose
 // message opens with the takeover declaration takes a worktree from its
-// holder. What a session sent away is told, and what every session's
-// doctrine says, is how one in a worktree of its own commits: by the same
-// command, through the repository's one queue, onto the trunk.
+// holder. What a session sent away is told is how one in a worktree of its
+// own commits: by the same command, through the repository's one queue, onto
+// the trunk.
 func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
-	for told, said := range map[string]string{"a session sent away": heldNotice("one"), "the doctrine": doctrineText} {
+	for told, said := range map[string]string{"a session sent away": heldNotice("one")} {
 		// Line breaks read as spaces, so a phrase is found across them.
 		said = strings.Join(strings.Fields(said), " ")
 		for _, want := range []string{"worktree of its own", "on the trunk"} {

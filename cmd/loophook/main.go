@@ -278,14 +278,11 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 		b.WriteString("  * land it via 'go run ./cmd/loop -land <item>/<step> -message-file -' or revert it.\n")
 	case stopContinue:
 		if progressed {
-			b.WriteString("overgo loop gate: the row landed, but the plan still holds open rows.\n")
-			b.WriteString("  * continue with the next dispatched row now; a turn ends only when the\n")
-			b.WriteString("    plan is EMPTY. To pause: go run ./cmd/plan -stop requested:<detail>.\n")
+			b.WriteString("overgo loop gate: the row landed, and the plan holds open rows.\n")
 		} else {
-			b.WriteString("overgo loop gate: a prompt answer does not pause the loop (system doctrine).\n")
-			b.WriteString("  * continue the dispatched row now; a turn ends only when the plan is\n")
-			b.WriteString("    EMPTY. To pause: go run ./cmd/plan -stop requested:<detail>.\n")
+			b.WriteString("overgo loop gate: this turn began with no typed message, and the plan holds an open row.\n")
 		}
+		b.WriteString("  * continue with the dispatched row.\n")
 	}
 	b.WriteString("  Dispatched now: " + next + "\n")
 	return b.String()
@@ -481,43 +478,16 @@ func runPrompt(hookJSON string) {
 		fmt.Println(reviewNotice)
 		return
 	}
+	// A session sent away is told so by the guard's refusal of its work, not at every message.
 	if base, _ := readTurnBase(input.Session); base.Holder != "" {
-		fmt.Println(heldNotice(base.Holder))
 		return
 	}
 	if run := measurementRun(); run != "" {
 		fmt.Println(run)
 	}
-	if boundedRequestText(input.Prompt) {
-		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit stop request pauses; record it with go run ./cmd/plan -stop requested:<detail>.")
-		return
-	}
 	command := exec.Command("go", "run", "./cmd/plan", "-prompt")
 	command.Stdout, command.Stderr = os.Stdout, os.Stderr
 	_ = command.Run()
-}
-
-func boundedRequestText(prompt string) bool {
-	prompt = strings.ToLower(strings.TrimSpace(prompt))
-	if prompt == "" {
-		return false
-	}
-	for _, prefix := range []string{"review ", "summarize ", "explain ", "describe ", "assess ", "evaluate ", "report ", "status", "what ", "why ", "how ", "should ", "would ", "is ", "are ", "does ", "do you think"} {
-		if strings.HasPrefix(prompt, prefix) {
-			return true
-		}
-	}
-	for _, action := range []string{
-		" implement", " build", " create", " add", " remove", " delete", " fix", " change", " update", " refactor", " migrate", " merge", " proceed", " continue", " press on", " keep working", " until done",
-	} {
-		if strings.Contains(" "+prompt, action) {
-			return false
-		}
-	}
-	if strings.HasSuffix(prompt, "?") {
-		return true
-	}
-	return false
 }
 
 // --- IO helpers (git + plan + marker), thin wrappers around the pure verdict ---

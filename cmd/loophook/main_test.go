@@ -42,19 +42,6 @@ func TestStopDecision(t *testing.T) {
 	}
 }
 
-// TestBoundedRequestScopesAnswerNotTurn pins the doctrine: a bounded
-// request classifies the ANSWER's scope and renders no verdict, with no
-// marker to consume; a bounded turn with no committed progress still draws
-// the continue block, and only a valve (e.g. a recorded user stop) allows it.
-func TestBoundedRequestScopesAnswerNotTurn(t *testing.T) {
-	if !boundedRequestText("automation plan completed?") || !boundedRequestText("summarize work completed") || !boundedRequestText("should we add a doc check?") {
-		t.Fatal("bounded question/status request was not classified")
-	}
-	if boundedRequestText("can you implement all remaining tasks?") || boundedRequestText("continue until done") {
-		t.Fatal("action or continuation request was classified as bounded")
-	}
-}
-
 // TestHeadProgressBaseline pins the progress check's fail-open direction: a
 // missing or legacy (headless) snapshot cannot prove the turn made no
 // progress, so it must allow rather than harass.

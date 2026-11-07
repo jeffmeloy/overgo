@@ -25,7 +25,8 @@ import (
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // no new style finding, no new inline policy number, no new legacy form go fix
 // leaves, no new export without a consumer, no CUDA-gated test no lane runs,
-// and no more production code than the landed rows may still add. It says
+// no ignored document left outside its homes (strayDocuments), and no more
+// production code than the landed rows may still add. It says
 // what the change adds of each kind of written code; only production code is
 // bounded.
 func (l *landing) rules(ctx context.Context) error {
@@ -55,6 +56,13 @@ func (l *landing) rules(ctx context.Context) error {
 	}
 	for _, directory := range uncovered {
 		findings = append(findings, uncoveredRefusal(directory))
+	}
+	strays, err := strayDocuments(ctx, l.Repo)
+	if err != nil {
+		return err
+	}
+	if len(strays) != 0 {
+		findings = append(findings, strayRefusal(strays))
 	}
 	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
 	left := l.charge(growth)

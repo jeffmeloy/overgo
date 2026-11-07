@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "one-notes",
-      "title": "The plan is the one working store for current and upcoming work and its notes, and no stray draft or hand-off file is left in the checkout",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 110,
-        "reason": "one-notes/stdin-rows measured 91 production nodes against the row's estimate of 80 for all three steps; notes-shown and no-strays are estimated at 170 more, the landing's check over the checkout's untracked files the larger."
-      },
-      "steps": [
-        {
-          "id": "no-strays",
-          "title": "A landing refuses an untracked or ignored JSON or Markdown file in the checkout outside its homes",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRefusesAStrayDocument$'",
-          "rationale": "A draft or hand-off left in docs/ or the root is read by later sessions as if it held rules or plans. The landing lists untracked and ignored .json and .md files in the checkout and refuses any outside their homes: tmp/\u003crow\u003e/ for a row's probes, .overgo-runtime/ for the system's state, and the named machine files (local-models.json, .claude/launch.json); the refusal names each file. docs/gui_update_plan.json, which the GUI lane left on 2026-10-09 and the plan asks the owner about, is named as that one known exception until its owner takes it.\nServes: setup-steps; one store for work and its notes.\nDisappears: stray drafts and hand-offs in the checkout.\nEvidence: a landing with an untracked docs/draft.json beside it is refused naming it; one with a probe under tmp/\u003crow\u003e/ lands.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "ask-nothing",
       "title": "Nothing lets a session wait on the owner: the stop takes only the owner's request or a named outside need, a turn the owner started ends when answered, hooks add no rule text, and the guard holds the safety rules memory held",
       "owner": "master-lead",

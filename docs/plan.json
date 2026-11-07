@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
+        "nodes": 220,
         "reason": "Estimate before the survey: four small changes to cmd/plan, cmd/loophook and internal/guard; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "stop-kinds",
-          "title": "A stop is the owner's request or a named outside need, never a decision",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAStopIsTheOwnersOrAnOutsideNeed$'",
-          "rationale": "From the week to Nov 7: 22.5 of 44 idle hours were the lead asking the owner something. internal/plan/control.go:324 admits an external-prereq stop whose detail holds any of thirteen words, \"decision\" and \"missing\" among them, so a design question passes as an outside prerequisite; format-loader's stop on Nov 7 did, for 3.6 hours.\nA stop takes one of: requested, only when the owner's latest message asked to stop (as today); licence, a licence the owner must accept on their own account, naming it; hardware, naming the device that is missing. Each outside kind names the thing a check can look for. Downloads are the lead's (owner, 2026-11-07), and a choice between options is never a stop. The word list goes.\nServes: setup-steps; idle hours a week (44 in the week to Nov 7).\nDisappears: the word list and the outside-decision stop.\nEvidence: a detail naming a decision, a missing file or a download is refused; requested, licence and hardware stops are recorded.\nBatch: host lane."
-        },
         {
           "id": "owner-turn",
           "title": "A turn the owner's message started ends once it is answered",

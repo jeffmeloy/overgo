@@ -267,23 +267,33 @@ func RecordStop(ctx context.Context, event ControlEvent) (ControlEvent, error) {
 	return identified, nil
 }
 
-// The control vocabulary: a requested stop's reason, and the codes of the resume that retires a stop and of a
-// maintenance grant under one.
+// The control vocabulary: a stop's kinds, and the codes of the resume that retires a stop and of a maintenance grant
+// under one. A stop is the owner's request or an outside need it names; a choice between options is never a stop, since
+// the work takes its default and goes on.
 const (
 	// StopRequested is the reason code of a stop a prompt asked for (RequireStopRequest).
 	StopRequested = "requested"
+	// stopLicence waits on a licence the owner accepts on their own account; its detail names the licence.
+	stopLicence = "licence"
+	// stopHardware waits on a device the work needs and the machine lacks; its detail names the device.
+	stopHardware = "hardware"
 	// ResumeCode is the code of the resume that retires a stop.
 	ResumeCode = "resume"
 	// MaintenanceCode is the code of a maintenance grant under a stop.
 	MaintenanceCode = "maintenance"
 )
 
-var validStopReasons = []string{StopRequested, "irreversible", "external-prereq"}
+var stopKinds = []string{StopRequested, stopLicence, stopHardware}
 
-// writtenControlCodes are the codes stop files written before 2026-10-23 hold, which a read judges and shows as the
-// codes that replaced them while each event keeps the identity its written codes give, the ID its stop or grant was
-// issued with: a stop file is each checkout's own state, and its next stop or resume writes it in the current codes.
-var writtenControlCodes = map[string]string{"user-stop": StopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode}
+// writtenControlCodes are the codes older stop files hold, which a read judges and shows as the codes that replaced
+// them while each event keeps the identity its written codes give, the ID its stop or grant was issued with: a stop
+// file is each checkout's own state, and its next stop or resume writes it in the current codes. Before 2026-10-23 the
+// codes were user-stop and operator-resume or -maintenance; before 2026-11-07 a stop could be irreversible or
+// external-prereq, each read now as a stop that holds until the owner resumes it, which is what each was.
+var writtenControlCodes = map[string]string{
+	"user-stop": StopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode,
+	"irreversible": StopRequested, "external-prereq": StopRequested,
+}
 
 // controlCode is the current code of a written one.
 func controlCode(written string) string { return cmp.Or(writtenControlCodes[written], written) }
@@ -294,45 +304,19 @@ func validateWritten(event ControlEvent) error {
 	return validateControl(event)
 }
 
-// ParseStopReason validates and splits the declared stop vocabulary.
+// ParseStopReason splits a stop's reason into its kind and detail. It admits the owner's request and the two outside
+// needs, each of which names what it waits on; a decision, a missing file, a download or any other kind is refused,
+// since the work decides, fetches or builds it and goes on.
 func ParseStopReason(reason string) (string, string, error) {
-	reason = strings.TrimSpace(reason)
-	matched := ""
-	for _, v := range validStopReasons {
-		if reason == v || strings.HasPrefix(reason, v+stopReasonSeparator) {
-			matched = v
-			break
-		}
+	code, detail, _ := strings.Cut(strings.TrimSpace(reason), stopReasonSeparator)
+	code, detail = strings.TrimSpace(code), strings.TrimSpace(detail)
+	if !slices.Contains(stopKinds, code) {
+		return "", "", fmt.Errorf("stop refused: %q is no stop -- a stop is requested: when the owner asked, licence: <the licence the owner accepts> or hardware: <the device that is missing>; a choice between options takes its default and the work goes on", reason)
 	}
-	if matched == "" {
-		return "", "", fmt.Errorf("invalid stop reason %q -- must begin with one of: requested: / irreversible: / external-prereq: <detail>", reason)
+	if code != StopRequested && detail == "" {
+		return "", "", fmt.Errorf("stop refused: a %s stop names what it waits on", code)
 	}
-	if matched == "external-prereq" {
-		// An external prerequisite is something OUTSIDE this process that the
-		// work verifiably waits on: a background task, an outside decision, another
-		// lane, or a long-running run. Self-pacing ("fresh context", "next
-		// session", "later") is not external and the loop refuses it -- the
-		// loop's contract is iterative develop/verify/commit/plan, never a
-		// deferral a session grants itself.
-		detail := strings.ToLower(reason)
-		for _, selfPacing := range []string{"fresh context", "next session", "context window", "long session", "best started", "another sitting"} {
-			if strings.Contains(detail, selfPacing) {
-				return "", "", fmt.Errorf("stop refused: %q is self-pacing, not an external prerequisite -- continue the plan", selfPacing)
-			}
-		}
-		external := false
-		for _, marker := range []string{"background", "running", "decision", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
-			if strings.Contains(detail, marker) {
-				external = true
-				break
-			}
-		}
-		if !external {
-			return "", "", errors.New("stop refused: external-prereq detail names nothing external (no background task, outside decision, merge, or running work) -- continue the plan")
-		}
-	}
-	code, detail, _ := strings.Cut(reason, stopReasonSeparator)
-	return strings.TrimSpace(code), strings.TrimSpace(detail), nil
+	return code, detail, nil
 }
 
 // ControlStop records a stop; it never expires with HEAD.

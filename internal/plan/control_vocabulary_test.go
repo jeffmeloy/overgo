@@ -15,7 +15,7 @@ import (
 // TestControlVocabularyNamesNoPerson holds the control records' codes free of persons, as the doctrine is.
 func TestControlVocabularyNamesNoPerson(t *testing.T) {
 	t.Parallel()
-	for _, code := range append(slices.Clone(validStopReasons), ResumeCode, MaintenanceCode) {
+	for _, code := range append(slices.Clone(stopKinds), ResumeCode, MaintenanceCode) {
 		for part := range strings.SplitSeq(code, "-") {
 			if slices.Contains([]string{"user", "operator", "owner", "human"}, part) {
 				t.Errorf("control code %q names a person", code)

@@ -46,7 +46,7 @@ func NoteStopRequest(root, prompt string) error {
 // only when asked, never of its own accord.
 func RequireStopRequest(root string) error {
 	if _, err := os.Stat(filepath.Join(root, processlock.StateDirectory, stopRequestFile)); err != nil {
-		return errors.New("plan: a requested stop needs a prompt that asked to stop (with stop, pause or halt), and the latest prompt here asked for none; a stop the system needs is irreversible: or external-prereq:")
+		return errors.New("plan: a requested stop needs a prompt that asked to stop (with stop, pause or halt), and the latest prompt here asked for none; an outside need is licence: or hardware:, and a choice between options is no stop")
 	}
 	return nil
 }

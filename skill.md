@@ -21,7 +21,7 @@ description: The rules for Overgo development, written as one logical statement 
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
 - doctrine != any person's preferences or rules (check: cmd/loophook TestDoctrineNamesNoPerson, internal/plan TestControlVocabularyNamesNoPerson)
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
-- goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself (check: cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPersistentLoopStop)
+- goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself (check: internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPersistentLoopStop)
 - executable policy admits and activates (check: internal/agenttool TestCandidateCatalogStagesVerifiesAndActivatesExactly, internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
 - OvergoDB holds state
 - the plan holds implementation (check: internal/plan TestSinglePlanAuthority)
@@ -30,7 +30,7 @@ description: The rules for Overgo development, written as one logical statement 
 - bold change => write the test that would have caught its failure -> let the framework judge
 - refused landing = information != failure (check: internal/landing TestRecoveryDrills)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
-- boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
+- boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 - a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
 - simpler implementation > larger one (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestWrittenCodeIsCountedByKind)
 - ambition = size of the gain != size of the change
@@ -117,7 +117,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - a row runs only under the answer it was written for => answered another way, it waits to be rewritten or retired (check: internal/plan TestARowRunsOnlyUnderTheAnswerItWasWrittenFor)
 
 - landing returns to dispatch (check: internal/loop TestLoopContinuationAfterCommit, cmd/loophook TestStopDecision)
-- pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help) (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision, cmd/loop TestPersistentLoopStop)
+- pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help) (check: internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, cmd/loophook TestStopDecision, cmd/loop TestPersistentLoopStop)
 - lift a pause = `-resume-stop` (check: cmd/plan TestStopStatusProjection, cmd/loophook TestPersistentStopHook)
 - prompt => answer -> continue (check: cmd/loophook TestBoundedRequestScopesAnswerNotTurn, cmd/loophook TestStopDecision)
 - one committing session per checkout (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, cmd/loophook TestOnlyAnImplementingSessionTakesTheHold)

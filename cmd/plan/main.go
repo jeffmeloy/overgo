@@ -75,7 +75,7 @@ func main() {
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
-	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|irreversible|external-prereq>: <detail>")
+	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|licence|hardware>: <detail>, a licence or hardware stop naming what it waits on; a choice between options is no stop")
 	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its lane and scope")
 	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: -maintenance-stop <stop-id> <item/step> <reason>")
 	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")

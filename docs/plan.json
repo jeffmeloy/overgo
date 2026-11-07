@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 48,
-        "reason": "driver-on/status measured 648 production nodes, the week's pace and the status read, past the 434 left; stop-clears and gate-retired are estimated at 50 more."
+        "nodes": 658,
+        "reason": "stop-clears measured 257 production nodes against 48 left: the stop's check, its validation, the dispatch call and the -clears-when flag; gate-retired is to be retired, adding none"
       },
       "steps": [
-        {
-          "id": "stop-clears",
-          "title": "An outside-need stop clears itself when its cause does",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAnOutsideStopClearsWhenItsCauseDoes$'",
-          "rationale": "On Nov 7 the hook-path stop waited for a resume after the owner had already fixed the setting. A licence or hardware stop names what a check can find; dispatch runs the check at each turn and clears the stop when it passes. The owner's requested stop clears only on go run ./cmd/plan -resume-stop.\nServes: setup-steps; idle hours a week.\nDisappears: a stop outliving its cause.\nEvidence: a hardware stop whose device appears clears at the next dispatch; a requested stop stays.\nBatch: host lane."
-        },
         {
           "id": "gate-retired",
           "title": "The Stop gate and the per-message hook go, the driver owning when work continues",

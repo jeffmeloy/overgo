@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
+	"overgo/internal/planverify"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/strictjson"
@@ -59,6 +60,9 @@ type ControlEvent struct {
 	Mode       string      `json:"mode"`
 	Task       string      `json:"task,omitzero"`
 	Previous   artifact.ID `json:"previous,omitzero"`
+	// ClearsWhen is, for a stop on an outside need, the command that exits zero once the need is met: dispatch runs it
+	// while the stop stands and resumes the work when it passes (clearOutsideStop).
+	ClearsWhen string `json:"clears_when,omitzero"`
 }
 
 // stopState is the stop file: the current stop or resume, and the
@@ -82,10 +86,14 @@ func validateControl(event ControlEvent) error {
 		if event.Task != "" {
 			return errors.New("plan: stop does not name a maintenance task")
 		}
+		// An outside need names the check that finds it met; the owner's request is lifted by the owner alone.
+		if outside := event.ReasonCode != StopRequested; outside != (strings.TrimSpace(event.ClearsWhen) != "") {
+			return errors.New("plan: a licence or hardware stop names the command that passes once its need is met (-clears-when), and a requested stop names none")
+		}
 		_, _, err := ParseStopReason(event.ReasonCode + ": " + event.Detail)
 		return err
 	case ControlResume:
-		if event.ReasonCode != ResumeCode || !event.Previous.Valid() || event.Task != "" {
+		if event.ReasonCode != ResumeCode || !event.Previous.Valid() || event.Task != "" || event.ClearsWhen != "" {
 			return errors.New("plan: resume requires an exact recorded stop")
 		}
 	case ControlMaintenance:
@@ -337,3 +345,27 @@ const (
 
 // CLI stop reasons encode category and detail with a colon.
 const stopReasonSeparator = ":"
+
+// clearOutsideStop resumes the work at root when the stop that blocks it waits on an outside need and its ClearsWhen
+// command now passes, recording the resume as the command that cleared it; it returns the stop as it stands after and
+// whether it cleared it. A stop the owner requested, one whose check still fails, or no stop is left as it is: on
+// 2026-11-07 a stop on the trunk's hook setting outlived the owner's fixing it, waiting for a resume by hand.
+func clearOutsideStop(ctx context.Context, root, head, mode string, status StopStatus) (StopStatus, bool, error) {
+	if !status.Blocked || status.Event == nil || status.Event.Kind != ControlStop || status.Event.ClearsWhen == "" {
+		return status, false, nil
+	}
+	if _, err := planverify.Execute(ctx, root, status.Event.ClearsWhen, nil); err != nil {
+		return status, false, nil
+	}
+	resume := *status.Event
+	resume.Kind, resume.ReasonCode, resume.Previous, resume.ClearsWhen = ControlResume, ResumeCode, status.ID, ""
+	resume.Detail = "cleared: " + status.Event.ClearsWhen + " passed"
+	if head != "" {
+		resume.CodeCommit = head
+	}
+	if _, err := RecordStop(ctx, resume); err != nil {
+		return status, false, err
+	}
+	cleared, err := ReadStop(ctx, root, head, mode)
+	return cleared, err == nil, err
+}

@@ -118,7 +118,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 
 - landing returns to dispatch (check: internal/loop TestLoopContinuationAfterCommit, cmd/loophook TestStopDecision)
 - pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help) (check: internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, cmd/loophook TestStopDecision, cmd/loop TestPersistentLoopStop)
-- lift a pause = `-resume-stop` (check: cmd/plan TestStopStatusProjection, cmd/loophook TestPersistentStopHook)
+- lift a pause = `-resume-stop`, or for an outside need its `-clears-when` command passing (check: cmd/plan TestStopStatusProjection, cmd/loophook TestPersistentStopHook, internal/plan TestAnOutsideStopClearsWhenItsCauseDoes)
 - typed message => answer -> its turn ends (check: cmd/loophook TestATurnTheOwnerStartedEndsWhenAnswered, cmd/loophook TestStopDecision)
 - a notification's turn => continue the row (check: cmd/loophook TestATurnTheOwnerStartedEndsWhenAnswered, cmd/loophook TestStopDecision)
 - one committing session per checkout (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, cmd/loophook TestOnlyAnImplementingSessionTakesTheHold)

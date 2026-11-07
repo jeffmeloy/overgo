@@ -52,6 +52,7 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 		}
 		event.ReasonCode = strings.TrimSpace(code)
 		event.Detail = cmp.Or(strings.TrimSpace(detail), event.ReasonCode)
+		event.ClearsWhen = strings.TrimSpace(c.clearsWhen)
 		if event.ReasonCode == plan.StopRequested {
 			if err := plan.RequireStopRequest(root); err != nil {
 				return err

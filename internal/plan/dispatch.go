@@ -127,6 +127,10 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
+	// A stop on an outside need lifts itself once the check it names passes.
+	if stop, _, err = clearOutsideStop(ctx, repository, head, mode, stop); err != nil {
+		return Dispatch{}, err
+	}
 	grant := cmp.Or(request.Maintenance, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)))
 	if stop.Blocked && grant == "" {
 		return finishDispatch(Dispatch{Stop: &stop, Waiting: stop.String()}), nil

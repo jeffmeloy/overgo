@@ -76,7 +76,8 @@ func main() {
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
-	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|licence|hardware>: <detail>, a licence or hardware stop naming what it waits on; a choice between options is no stop")
+	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|licence|hardware>: <detail>, a licence or hardware stop naming what it waits on and -clears-when; a choice between options is no stop")
+	clearsWhen := flag.String("clears-when", "", "with -stop licence: or hardware:, the command that exits zero once the need is met; dispatch runs it while the stop stands and resumes the work when it passes")
 	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its lane and scope")
 	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: -maintenance-stop <stop-id> <item/step> <reason>")
 	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")
@@ -89,7 +90,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{clearsWhen: *clearsWhen, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, reserved: *reserved, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -104,13 +105,13 @@ type cli struct {
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
 	paragraph                                    bool
-	from, reason, rationaleFile                  string
+	from, reason, rationaleFile, clearsWhen      string
 	nodes                                        int
 }
 
 func run(c cli, args []string) error {
 	if c.stop || c.resumeStop != "" || c.maintenanceStop != "" {
-		allowed := cli{stop: c.stop, resumeStop: c.resumeStop, maintenanceStop: c.maintenanceStop, stopMode: c.stopMode, role: c.role, worker: c.worker, json: c.json}
+		allowed := cli{stop: c.stop, clearsWhen: c.clearsWhen, resumeStop: c.resumeStop, maintenanceStop: c.maintenanceStop, stopMode: c.stopMode, role: c.role, worker: c.worker, json: c.json}
 		if c != allowed || c.stop && (c.resumeStop != "" || c.maintenanceStop != "") || c.resumeStop != "" && c.maintenanceStop != "" {
 			return errors.New("plan: stop control cannot be combined with another operation")
 		}

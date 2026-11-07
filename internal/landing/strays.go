@@ -13,11 +13,12 @@ import (
 )
 
 // documentHomes are where an ignored JSON or Markdown file belongs in a checkout: a row's probes under tmp, the
-// system's own state, the toolchain and the build's outputs. documentFiles are the ignored ones the checkout keeps by
+// system's own state, the toolchain, the build's outputs, and the harness's own directory, whose runtime files the
+// harness writes (SQA-334: its scheduled tasks file would have refused every landing). documentFiles are the ignored ones the checkout keeps by
 // name: the machine's model roots, the preview's launch list, and the plan the GUI lane left on 2026-10-09, which its
 // owner has yet to take.
 var (
-	documentHomes = []string{"tmp/", processlock.StateDirectory + "/", ".tools/", "build/"}
+	documentHomes = []string{"tmp/", processlock.StateDirectory + "/", ".tools/", "build/", protection.HarnessConfigDirectory}
 	documentFiles = []string{"local-models.json", protection.HarnessConfigDirectory + "launch.json", "docs/gui_update_plan.json"}
 	documentKinds = []string{".json", ".md"}
 )

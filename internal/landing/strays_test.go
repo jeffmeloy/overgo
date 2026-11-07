@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/protection"
 	"overgo/internal/testcheck"
 )
 
@@ -38,5 +39,20 @@ func TestALandingRefusesAStrayDocument(t *testing.T) {
 	clean.write("tmp/row/probe.json", "{}")
 	if strays := testcheck.Must(strayDocuments(t.Context(), clean.repo))(t); len(strays) != 0 {
 		t.Fatalf("a probe under tmp/<row>/ is a stray: %v", strays)
+	}
+}
+
+// TestTheHarnessDirectoryHoldsNoStray holds the check to SQA-334: the harness writes ignored runtime files under its own
+// directory, its scheduled tasks among them, which the checkout's exclude file declares its own, so they are no strays
+// and refuse no landing; a draft ignored under docs still is one.
+func TestTheHarnessDirectoryHoldsNoStray(t *testing.T) {
+	t.Parallel()
+	harnessFile := protection.HarnessConfigDirectory + "scheduled_tasks.json"
+	fixture := newSliceFixture(t, map[string]string{".gitignore": "**/" + harnessFile + "\ndocs/draft.json\n"})
+	fixture.write(harnessFile, "{}")
+	fixture.write("docs/draft.json", "{}")
+	strays := testcheck.Must(strayDocuments(t.Context(), fixture.repo))(t)
+	if !slices.Equal(strays, []string{"docs/draft.json"}) {
+		t.Fatalf("stray documents = %v, want the draft under docs alone, the harness's own file none", strays)
 	}
 }

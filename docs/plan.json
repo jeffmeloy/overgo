@@ -49,6 +49,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "stray-check",
+      "title": "The ignored-document check leaves the harness's own directory alone, and the note tests share one fixture",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 16,
+        "reason": "A home added to the check; the test merge adds no production code."
+      },
+      "steps": [
+        {
+          "id": "note-tests",
+          "title": "The note tests share one fixture: TestNoteAppendsToARationale holds the prompt's notes",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestNoteAppendsToARationale$' \u0026\u0026 ! grep -q 'func TestAStepsNotesAreShownWithIt' cmd/plan/notes_shown_test.go",
+          "rationale": "SQA-334: TestAStepsNotesAreShownWithIt builds a third plan fixture beside the success and refusal fixtures of TestNoteAppendsToARationale. Its checks, notes in order, each on one line, the prefix once, and no reasoning in the prompt, move into TestNoteAppendsToARationale over its successful plan, and its file goes. Serves: setup-steps. Disappears: a duplicate fixture. Evidence: the merged test holds every check the two held. Batch: host lane."
+        }
+      ]
+    },
+    {
       "id": "driver-on",
       "title": "The unattended driver works the plan from Windows startup, takes defaults, falls through to findings, reports its status and owns when work continues",
       "owner": "master-lead",
@@ -58,6 +77,13 @@
         "reason": "driver-on/startup measured about 1,050 production nodes, the scheduled task's document and its UTF-16 encoding, the driver's environment, the worker's clean environment and the running record, far past the estimate; defaults, fall-through, status, stop-clears and gate-retired are estimated at 650 more."
       },
       "steps": [
+        {
+          "id": "app-schedule",
+          "title": "The Claude app's scheduled task runs a session that works the plan, its instructions printed by go run ./cmd/loop -session-prompt",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheScheduledSessionPromptWorksThePlan$'",
+          "rationale": "The driver's first real run, 2026-11-07, could not run its worker: the standalone claude command has no sign-in on this machine, and the owner will not sign it in. The Claude desktop app is signed in and runs scheduled tasks, each a fresh session, while it is open, a task that came due while it was closed running at its next launch. A task set to fire hourly runs a session whose prompt names the checkout and one command, go run ./cmd/loop -session-prompt, which prints the instructions the session follows: work the dispatched step to its commit, then the next, until the plan is empty or stopped; never stop to ask. The instructions are the repository's, versioned with the code, and the task's own text never changes; the app asks the owner to approve the task once. Serves: setup-steps; idle hours a week. Disappears: a session the owner starts to keep the plan moving. Evidence: the printed instructions name the plan's three commands and skill.md and hold no rule beside them; the task stands in the app with that one-line prompt. Batch: host lane."
+        },
         {
           "id": "defaults",
           "title": "A decision takes its default and the work goes on, except the owner's own kinds, which wait in a list while other work runs",

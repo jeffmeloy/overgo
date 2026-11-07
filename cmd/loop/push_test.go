@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,11 @@ func TestPushPushesTheNamedCommitOnlyWhenAsked(t *testing.T) {
 	git(repository, "commit", "-q", "--allow-empty", "-m", "later")
 	later := git(repository, "rev-parse", "HEAD")
 	remoteMain := func() string { return git(remote, "rev-parse", "main") }
+
+	// The push goes through the credential manager, with no prompt, since the checkout configures no helper.
+	if got := pushArguments("origin", named); !slices.Equal(got, []string{"-c", pushCredentialHelper, "push", "origin", named + ":" + pushedBranch}) {
+		t.Fatalf("the push's arguments = %v, want the credential manager named before push", got)
+	}
 
 	// Without the confirmation, from a worker, or with a name that is no commit, nothing is pushed.
 	for name, push := range map[string]func() (string, error){

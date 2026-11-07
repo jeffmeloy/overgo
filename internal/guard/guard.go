@@ -250,6 +250,14 @@ func ruleVerdict(command string) string {
 			"'go run ./cmd/loop -land <item>/<step> -message-file -' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
 	}
+	if any(func(run shellCommand) bool { return gitVerb(run, "push") }) {
+		return "a push publishes only on the owner's word and only fast-forwards origin's main: run " +
+			"'go run ./cmd/loop -push <commit> -confirm-push', which goes through the credential manager"
+	}
+	if any(changesSecurity) {
+		return "a session never changes the machine's security settings (Defender, the firewall, UAC): give the owner " +
+			"the exact command and say what it unblocks"
+	}
 	if any(landsDirectly) {
 		return "go run ./cmd/gate lands without the loop's confirmation from git and its refusal's class: land with " +
 			"'go run ./cmd/loop -land <item>/<step> -message-file -', and preflight with the gate's -preflight"
@@ -321,6 +329,39 @@ func wordsOf(text string) []string {
 	return strings.FieldsFunc(text, func(character rune) bool {
 		return character != '_' && (character < '0' || character > '9' && character < 'A' || character > 'Z' && character < 'a' || character > 'z')
 	})
+}
+
+// securityWords name what a command changing the machine's security settings touches: Defender and its services,
+// the firewall, and UAC's policy key. securityPrograms change those settings, with the verbs that write them.
+var (
+	securityWords    = []string{"windefend", "wdnissvc", "securityhealthservice", "windowsdefender", "firewall", "policiessystem", "enablelua"}
+	securityPrograms = map[string][]string{"reg": {"add", "delete", "import"}, "netsh": nil, "sc": {"config", "stop", "delete"}, "mpcmdrun": nil}
+	// pathJoints are dropped before matching, so a key reads the same however the shell kept its separators.
+	pathJoints = strings.NewReplacer(`\`, "", "/", "", " ", "")
+)
+
+// changesSecurity says a command changes the machine's security settings: Defender's own command, or reg, netsh or sc
+// writing a key, rule or service that securityWords names.
+func changesSecurity(run shellCommand) bool {
+	words := run.invocation()
+	if len(words) == 0 {
+		return false
+	}
+	program := programName(words[0].text)
+	verbs, known := securityPrograms[program]
+	switch {
+	case !known:
+		return false
+	case program == "mpcmdrun":
+		return true
+	}
+	var text []string
+	for _, current := range words[1:] {
+		text = append(text, strings.ToLower(current.text))
+	}
+	joined := pathJoints.Replace(strings.Join(text, " "))
+	writes := verbs == nil || len(text) != 0 && slices.Contains(verbs, text[0])
+	return writes && slices.ContainsFunc(securityWords, func(word string) bool { return strings.Contains(joined, word) })
 }
 
 // gitVerb says a command is git running the given subcommand, past git's own options.

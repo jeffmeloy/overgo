@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "ask-nothing",
-      "title": "Nothing lets a session wait on the owner: the stop takes only the owner's request or a named outside need, a turn the owner started ends when answered, hooks add no rule text, and the guard holds the safety rules memory held",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 309,
-        "reason": "Estimate before the survey: four small changes to cmd/plan, cmd/loophook and internal/guard; a step raises it with its measured figure."
-      },
-      "steps": [
-        {
-          "id": "guard-limits",
-          "title": "The guard refuses a raw git push and changes to security settings, and the trunk's hook refuses a co-author line on any commit",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestTheGuardRefusesARawPushAndSecuritySettings$'",
-          "rationale": "These rules live only in session memory today, and the memory is to be cut to one line (one-rule-file): pushing only on the owner's word (cmd/loop's push refuses a worker without the owner's confirmation, but no guard refuses a raw git push), never changing OS security settings such as Defender or UAC (not in the guard), and no co-author trailer (the landing refuses it, but the Codex reviewer's raw commits to docs/sqa_findings.json pass through scripts/githooks/reference-transaction, which does not read the message).\nThe guard refuses git push outside cmd/loop's push, and the commands that change Defender, firewall or UAC settings; reference-transaction refuses a commit whose message credits a co-author.\nServes: failure-rate; safety rules held by code before memory is emptied.\nDisappears: the memory-only safety rules.\nEvidence: a raw push, a Defender preference change and a UAC registry change are refused; cmd/loop's push is admitted; a raw commit crediting a co-author is refused by the hook.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "driver-on",
       "title": "The unattended driver works the plan from Windows startup, takes defaults, falls through to findings, reports its status and owns when work continues",
       "owner": "master-lead",

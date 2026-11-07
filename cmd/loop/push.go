@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,19 @@ import (
 // pushedBranch is the branch of the remote that a push publishes to. The local branch of that
 // name is the staging copy of it, so a listing of leftovers holds it however far the trunk is past it.
 const pushedBranch = "refs/heads/main"
+
+// The push names Git Credential Manager as its helper and keeps it from prompting: the checkout configures no helper
+// and the loop runs with no terminal, so a push with neither asked for a username and failed, and pushes went around
+// this command through a raw git push, which the guard now refuses.
+const (
+	pushCredentialHelper = "credential.helper=manager"
+	pushPromptless       = "GCM_INTERACTIVE=Never"
+)
+
+// pushArguments are git's arguments that publish commit to remote's main through the credential manager.
+func pushArguments(remote, commit string) []string {
+	return []string{"-c", pushCredentialHelper, "push", remote, commit + ":" + pushedBranch}
+}
 
 // pushNamed publishes the commit the owner names to the remote's main, which only the owner
 // does, only when asked: it refuses from a worker's environment and without the explicit
@@ -45,7 +59,14 @@ func pushNamed(root, name, remote string, confirmed, worker bool) (string, error
 			return "", fmt.Errorf("%s/main holds %.12s, which %.12s does not contain: a push only fast-forwards: %w", remote, tip, commit, err)
 		}
 	}
-	push := func() error { return gitWrite(root, "push", remote, commit+":"+pushedBranch) }
+	push := func() error {
+		var output bytes.Buffer
+		arguments := append([]string{"git", "-C", root}, gitauthority.WriterArguments(pushArguments(remote, commit)...)...)
+		if err := runToolEnv(append(gitauthority.RepositoryEnvironment(), pushPromptless), nil, &output, &output, arguments...); err != nil {
+			return fmt.Errorf("git push: %w: %s", err, strings.TrimSpace(output.String()))
+		}
+		return nil
+	}
 	if err := quietmachine.Workload("push", os.Stderr, push)(); err != nil {
 		return "", err
 	}

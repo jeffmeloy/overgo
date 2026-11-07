@@ -96,6 +96,13 @@ func TestOnlyALandingMovesTheTrunkInGit(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(register, []byte("{}\n"), 0o644))
 	allowed("staging the register", nil, "add", "docs/sqa_findings.json")
 	allowed("a commit of the register", nil, "commit", "-q", "-m", "sqa: a finding")
+	// The register's commit credits no co-author, as a landing's does not.
+	testcheck.NoError(t, os.WriteFile(register, []byte("{\"findings\": []}\n"), 0o644))
+	allowed("staging the register again", nil, "add", "docs/sqa_findings.json")
+	if output, err := run(nil, "commit", "-q", "-m", "sqa: another finding\n\nCo-Authored-By: a model <model@example.invalid>"); err == nil {
+		t.Fatalf("a commit of the register crediting a co-author moved the trunk: %s", output)
+	}
+	allowed("a commit of the register crediting none", nil, "commit", "-q", "-m", "sqa: another finding")
 	allowed("a new branch", nil, "checkout", "-q", "-b", "elsewhere")
 	allowed("a commit on another branch", nil, "commit", "-q", "--allow-empty", "-m", "elsewhere")
 	allowed("a marked landing", []string{trunkMoveEnvironment + "=1"}, "update-ref", "refs/heads/master", "side")

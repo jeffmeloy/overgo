@@ -19,7 +19,14 @@ while read -r old new ref; do
 	# index follows its commit.
 	[ "$old" = "$new" ] && continue
 	changed=$(git diff-tree --no-commit-id --name-only -r "$old" "$new" 2>/dev/null)
-	[ "$changed" = docs/sqa_findings.json ] && continue
+	if [ "$changed" = docs/sqa_findings.json ]; then
+		# A commit credits no co-author, the reviewer's raw one as a landing's.
+		if git log -1 --format=%B "$new" | grep -qiF 'co-authored-by:'; then
+			echo "a commit credits no co-author: drop its Co-Authored-By line" >&2
+			exit 1
+		fi
+		continue
+	fi
 	echo "the trunk moves only by 'go run ./cmd/loop -land <item>/<step> -message-file -'" >&2
 	exit 1
 done

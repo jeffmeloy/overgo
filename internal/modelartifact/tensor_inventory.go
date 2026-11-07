@@ -168,7 +168,8 @@ func (d TensorInventoryDocument) validate() error {
 	if d.Version != TensorInventoryVersion && d.Version != 1 {
 		return errors.New("tensor inventory: invalid envelope")
 	}
-	if !tensorBearingKind(d.Owner.Kind()) {
+	// An adapter's file bears tensors as a model's does: a composite's bridge names its weights' inventory.
+	if !tensorBearingKind(d.Owner.Kind()) && d.Owner.Kind() != artifact.KindAdapter {
 		return errors.New("tensor inventory: invalid envelope")
 	}
 	if d.Format != TensorFormatGGUF && d.Format != TensorFormatSafetensors &&

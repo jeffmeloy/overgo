@@ -30,7 +30,7 @@ func run() error {
 	activations := flags.String("activations", "", "paired seam activations JSON path ({source, target})")
 	audit := flags.String("audit", "", "recorded measurements JSON path ({residuals, parities})")
 	enumerate := flags.String("enumerate", "", "target component name: enumerate ranked donor seam candidates from the committed catalog")
-	repoFlag := flags.String("repo", "", "OvergoDB store for -enumerate; empty resolves through the data root")
+	repoFlag := flags.String("repo", "", "OvergoDB store for -enumerate, -realize, -drive and -publish; empty resolves through the data root")
 	measured := flags.String("measurements", "", "donor seam measurements JSON path for -enumerate ({measurements})")
 	limit := flags.Int("limit", 16, "shortlist size for -enumerate")
 	realize := flags.String("realize", "", "realization specification JSON path: align-init, train donors-frozen over recorded activations, assemble")
@@ -40,6 +40,7 @@ func run() error {
 	capture := flags.String("capture", "", "capture specification JSON path: the training side of a caption-matching suite's split, the image encoder and the text model, written as a capture -rank reads")
 	fit := flags.String("fit-bridge", "", "cheap baseline specification JSON path ({capture, source, held, output}): write a capture's closed-form seam adapter, fitted over the samples a run trains on, as a bridge")
 	rank := flags.String("rank", "", "captured seam representations, a safetensors file of target [N,t], groups [N] and source/<name> [N,w] each: rank each source by its held-out residual against the target, beside its pairing with another group's target")
+	publish := flags.String("publish", "", "judged composite specification JSON path ({encoder, text_model, adapter, encoder_tokens, held_out_split, regression_set, evaluator, training_policy, policy, trials}): publish the image composite to -repo as an inactive candidate and print its composition recipe")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -54,6 +55,13 @@ func run() error {
 	}
 	if strings.TrimSpace(*fit) != "" {
 		return fitBridge(*fit)
+	}
+	if strings.TrimSpace(*publish) != "" {
+		authority, err := publishComposite(*repoFlag, *publish)
+		if err == nil {
+			fmt.Println(authority.Recipe.ID)
+		}
+		return err
 	}
 	if strings.TrimSpace(*drive) != "" {
 		return driveImprovementLoop(*repoFlag, *drive)

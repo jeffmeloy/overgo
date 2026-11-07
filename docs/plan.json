@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "vision-bridge",
-      "title": "Test one composite model: give Qwen3.5-9B vision through a trained bridge",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Measured: derived-family adds about 90 production nodes, a manifest model's derived family and its campaign through the model's session."
-      },
-      "steps": [
-        {
-          "id": "publish-composite",
-          "title": "Publish the composite the judgements favour as an inactive candidate",
-          "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestAJudgedBridgePublishesAnInactiveComposite$'",
-          "rationale": "Publish the composite the row's judgements favour as an inactive composition candidate: its source and target representation contracts, the bridge definition over the stored adapter, the execution recipe, and a promotion whose trial is that composite's readings. A promotion's trial is a whole envelope (internal/composition, RepresentationBridgePromotionTrial): beside the bridge's score and its dropped source, which a judgement reads as its floor, a cheap baseline, the closed-form seam adapter the capture fits with no gradient through the text model, a shuffled source, each frame asked about another case, a text regression pair, and the latency and card memory of the text model alone and composed. Those are built once, for the composite the row ends with, not for each judged composite. Activation stays by hand until composites have a slot.\nServes: held-out-quality, a composite the server can be given.\nDisappears: nothing.\nEvidence: the published candidate, inactive, its promotion naming its readings.\nBatch: one device run for the envelope's readings; the check is host lane."
-        }
-      ]
-    },
-    {
       "id": "hybrid-gate",
       "title": "Train Qwen3.5's attention output gate through the hybrid-stack route",
       "owner": "master-lead",

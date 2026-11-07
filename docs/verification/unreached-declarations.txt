@@ -411,9 +411,9 @@ reason: Each stays where it is, because SelectStructuredImageCrops is called by 
 group typed-test-held-inside
 class: test-held
 surface: inside
-declarations: 51
-lines: 595
-members: internal/composition/authority.go CompositionAuthority.Batch CompositionRecipe.Batch definitionLineage
+declarations: 49
+lines: 531
+members: internal/composition/authority.go CompositionRecipe.Batch
 members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAAuthority.New CompositeGenerationCUDAAuthority.Parse
 members: internal/composition/offline_artifact.go OfflineArtifactPlan.Batch
 members: internal/composition/offline_execution.go OfflineTensorExecutionPlan.Batch OfflineTensorResourcePolicy.Batch

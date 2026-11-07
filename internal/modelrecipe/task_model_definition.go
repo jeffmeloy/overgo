@@ -61,6 +61,13 @@ func PublishTaskModelDefinition(ctx context.Context, repository artifact.Reposit
 	return value.ID, err
 }
 
+// TaskModelDefinitionID is the identity of the definition PublishTaskModelDefinition publishes for definition, known
+// before anything is published: what a document citing the model's definition names before the store holds it.
+func TaskModelDefinitionID(definition recipe.Definition) (artifact.ID, error) {
+	value, err := taskModelDefinitionCodec.NewInitial(taskModelDefinition{Model: definition.Model, Recipe: definition.ID})
+	return value.ID, err
+}
+
 // RequireModelDefinitionBinding validates either resolved architecture metadata
 // or an exact operation-defined model. Task definitions must name the executed
 // recipe; descriptor-only, foreign-model and unknown-schema claims are refused.

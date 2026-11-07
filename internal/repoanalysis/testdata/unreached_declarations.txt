@@ -174,9 +174,7 @@ test-held internal/agenttool/stream.go StreamEvent.ArtifactContent
 test-held internal/agenttool/stream.go StreamTerminal.ArtifactContent
 test-held internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch
 test-held internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.ValidateIdentity
-test-held internal/composition/authority.go CompositionAuthority.Batch
 test-held internal/composition/authority.go CompositionRecipe.Batch
-test-held internal/composition/authority.go definitionLineage
 test-held internal/composition/composite_generation_cuda.go CompositeGenerationCUDAAuthority.New
 test-held internal/composition/composite_generation_cuda.go CompositeGenerationCUDAAuthority.Parse
 test-held internal/composition/offline_artifact.go OfflineArtifactPlan.Batch

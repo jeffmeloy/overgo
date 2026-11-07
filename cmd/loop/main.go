@@ -117,6 +117,7 @@ func run(args []string) error {
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
+	statusView := flags.Bool("status", false, "read the state of the work in this checkout, the dispatched step, the last commit, the decisions waiting for an answer and the week's pace, keep it in the process state as status.json and print it; runs nothing")
 	sessionPrompt := flags.Bool("session-prompt", false, "print the instructions a session the Claude app's scheduled task starts follows, with the environment its commands run in from loop.json; runs nothing")
 	startup := flags.Bool("install-startup", false, "register a Windows scheduled task that runs go run ./cmd/loop in this checkout at the user's logon and again after it fails; replaces a task of its name")
 	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
@@ -205,6 +206,8 @@ func run(args []string) error {
 		return writeDefaultConfig(*configPath, os.Stdout)
 	case *sessionPrompt:
 		return writeSessionPrompt(*configPath, os.Stdout)
+	case *statusView:
+		return writeStatus(loopWorktree, os.Stdout)
 	case *startup:
 		root, err := filepath.Abs(loopWorktree)
 		if err != nil {

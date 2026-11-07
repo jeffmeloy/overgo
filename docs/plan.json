@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 434,
-        "reason": "driver-on/fall-through measured 566 production nodes, the register reader, dispatch's empty-plan line and the driver's cycle trigger, past the 144 left; status, stop-clears and gate-retired are estimated at 430 more."
+        "nodes": 48,
+        "reason": "driver-on/status measured 648 production nodes, the week's pace and the status read, past the 434 left; stop-clears and gate-retired are estimated at 50 more."
       },
       "steps": [
-        {
-          "id": "status",
-          "title": "The driver writes its status and notifies the owner when a step lands, stops or is set aside",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverWritesItsStatus$'",
-          "rationale": "The owner asked \"progress?\" or \"what the hell is taking so long???\" after each long stretch. .overgo-runtime/status.json holds the current step, the last landing, the owner list, any stop and its reason, and four measures: idle hours a week (44 to Nov 7), the share of commit attempts refused (45%), landings a day and model calls per landing. A Windows notification fires when a step lands, stops or is set aside; the workbench page shows the status.\nServes: setup-steps; the four workflow measures.\nDisappears: asking the lead for progress.\nEvidence: a driver run writes each field, and each event raises one notification.\nBatch: host lane."
-        },
         {
           "id": "stop-clears",
           "title": "An outside-need stop clears itself when its cause does",

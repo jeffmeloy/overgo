@@ -49,17 +49,268 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "format-loader",
-      "title": "Load a model from the format it is published in through one loader, no conversion required",
+      "id": "ask-nothing",
+      "title": "Nothing lets a session wait on the owner: the stop takes only the owner's request or a named outside need, a turn the owner started ends when answered, hooks add no rule text, and the guard holds the safety rules memory held",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimate before the survey: four small changes to cmd/plan, cmd/loophook and internal/guard; a step raises it with its measured figure."
+      },
       "steps": [
         {
-          "id": "do",
-          "title": "Load a model from the format it is published in through one loader, no conversion required",
+          "id": "stop-kinds",
+          "title": "A stop is the owner's request or a named outside need, never a decision",
           "status": "open",
-          "verify": "go test ./internal/model -count=1 -run '^TestAModelLoadsFromItsPublishedFormat$'",
-          "rationale": "The owner, 2026-11-06, of the 0.5B's conversion for the vision-bridge judgement: \"the model format shouldn't matter? tensors are tensors?\" SQA-324: a Hugging Face directory of a supported profile already reaches the runner through hfconvert.View, which writes an in-memory GGUF header, computes offsets and reparses it so File-based model, load and identity code can read it; physical GGUF goes through gguf.Open. The conversion the judgement made was never needed, and the simulated file is the coupling that let it look needed.\nMake the storage format an input to the existing model and recipe loading owners: the shared model facts and typed tensor readers that both a GGUF file and a Hugging Face directory supply, reusing profileTensors, the hfgguf mappings, the safetensors readers, shape validation and the host and device transfer owner, in place of the simulated GGUF view, not beside it. Conversion stays only for a demonstrated consumer.\nServes: setup-steps and load-time, one path for every published format.\nDisappears: the in-memory GGUF view and conversion as a prerequisite.\nEvidence: a model loaded from its directory and from a GGUF of the same tensors gives the same identity facts and tensors through one loader.\nBatch: host lane."
+          "verify": "go test ./internal/plan -count=1 -run '^TestAStopIsTheOwnersOrAnOutsideNeed$'",
+          "rationale": "From the week to Nov 7: 22.5 of 44 idle hours were the lead asking the owner something. internal/plan/control.go:324 admits an external-prereq stop whose detail holds any of thirteen words, \"decision\" and \"missing\" among them, so a design question passes as an outside prerequisite; format-loader's stop on Nov 7 did, for 3.6 hours.\nA stop takes one of: requested, only when the owner's latest message asked to stop (as today); licence, a licence the owner must accept on their own account, naming it; hardware, naming the device that is missing. Each outside kind names the thing a check can look for. Downloads are the lead's (owner, 2026-11-07), and a choice between options is never a stop. The word list goes.\nServes: setup-steps; idle hours a week (44 in the week to Nov 7).\nDisappears: the word list and the outside-decision stop.\nEvidence: a detail naming a decision, a missing file or a download is refused; requested, licence and hardware stops are recorded.\nBatch: host lane."
+        },
+        {
+          "id": "owner-turn",
+          "title": "A turn the owner's message started ends once it is answered",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestATurnTheOwnerStartedEndsWhenAnswered$'",
+          "rationale": "On Nov 7 the owner wrote \"answer the question and stop\"; the Stop gate blocked the turn twice (\"a prompt answer does not pause the loop\") until a requested stop was recorded. The gate holds a turn open while the plan has rows, whoever started the turn.\nA turn that began with the owner's message ends when the session ends it, with no recorded stop; the plan is not paused, and its work continues on the next start of the loop. A turn the loop or a notification started is held as today until the driver owns continuation (driver-on/gate-retired).\nServes: setup-steps; the owner's message decides its own turn.\nDisappears: the requested stop recorded only to end an answered turn.\nEvidence: the gate passes a turn the owner started and blocks one a notification started, with rows open and nothing uncommitted.\nBatch: host lane."
+        },
+        {
+          "id": "hook-text",
+          "title": "The session-start text and the per-message hook carry no rule text",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestHooksPrintNoRuleText$'",
+          "rationale": "scripts/overgo_next_task.sh adds to every message \"answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop\", which contradicted the owner's \"answer the question and stop\"; it also adds WORKTREE HELD to every review session's message and the last measurement run's line. scripts/overgo_doctrine.sh (cmd/loophook/doctrine.go) prints twelve dense rules at every session start, each already held by the checks it names.\nThe session start prints the assigned step and \"read skill.md\"; the per-message hook prints nothing that is a rule. WORKTREE HELD stays in the guard's refusal alone; the measurement-run line moves to the driver's status (driver-on/status).\nServes: setup-steps; one place for written rules.\nDisappears: the per-message rule text and the session-start rules.\nEvidence: the hooks' output, run over every dispatch state, holds no rule sentence.\nBatch: host lane."
+        },
+        {
+          "id": "pointer",
+          "title": "AGENTS.md points Claude and Codex to skill.md and the three commands",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestThePointerFileNamesSkillAndTheCommands$'",
+          "rationale": "The repo has no AGENTS.md (Codex reads it) and no CLAUDE.md (Claude reads it), so each tool's instructions live in its own config and hooks and drift apart.\nAGENTS.md: skill.md is the only written guidance; next step go run ./cmd/plan -next; check it go run ./cmd/plan -verify; commit it go run ./cmd/loop -land \u003citem\u003e/\u003cstep\u003e -message-file -; when a command refuses, do what its message says and keep going, don't stop to ask. CLAUDE.md holds one line, @AGENTS.md. Once the driver runs every step, the three command lines and the last sentence go too.\nServes: setup-steps; Claude and Codex read the same guidance.\nDisappears: guidance kept only in each tool's own configuration.\nEvidence: the pointer names skill.md and the three commands and holds nothing else.\nBatch: host lane."
+        },
+        {
+          "id": "guard-limits",
+          "title": "The guard refuses a raw git push and changes to security settings, and the trunk's hook refuses a co-author line on any commit",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestTheGuardRefusesARawPushAndSecuritySettings$'",
+          "rationale": "These rules live only in session memory today, and the memory is to be cut to one line (one-rule-file): pushing only on the owner's word (cmd/loop's push refuses a worker without the owner's confirmation, but no guard refuses a raw git push), never changing OS security settings such as Defender or UAC (not in the guard), and no co-author trailer (the landing refuses it, but the Codex reviewer's raw commits to docs/sqa_findings.json pass through scripts/githooks/reference-transaction, which does not read the message).\nThe guard refuses git push outside cmd/loop's push, and the commands that change Defender, firewall or UAC settings; reference-transaction refuses a commit whose message credits a co-author.\nServes: failure-rate; safety rules held by code before memory is emptied.\nDisappears: the memory-only safety rules.\nEvidence: a raw push, a Defender preference change and a UAC registry change are refused; cmd/loop's push is admitted; a raw commit crediting a co-author is refused by the hook.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "driver-on",
+      "title": "The unattended driver works the plan from Windows startup, takes defaults, falls through to findings, reports its status and owns when work continues",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 450,
+        "reason": "Estimate before the survey: cmd/loop and internal/loop exist (unattended-driver/first-start, 5cd51fbfa) and have never run; this adds the startup task, defaults, fall-through, status and clearing stops; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "first-run",
+          "title": "The driver lands a real step through its worker, from a committed configuration",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverLandsAStepThroughItsWorker$'",
+          "rationale": "cmd/loop runs plan, worker, verify and landing, one worker call per step, capped attempts and calls, paused by .overgo-runtime/loop_pause. It was finished on Nov 6 and has never run: no .overgo-runtime/loop.json exists.\nCommit the configuration's template and the worker's prompt file; the first worker is the current strong model through claude -p. A worker session is the driver's: the Stop gate and the per-message hook stand down for it, since the driver decides what follows. Fix what breaks on the first real run.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: a chat session as the only thing that works the plan.\nEvidence: in a fixture repository a fake worker makes a step's test pass and the driver lands it, with the session hooks quiet for the worker.\nBatch: host lane."
+        },
+        {
+          "id": "startup",
+          "title": "Windows starts the driver at boot and again after a crash",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheStartupTaskRunsTheDriverAtBoot$'",
+          "rationale": "On Nov 3 the computer shut down without warning at about 6:44 AM during a commit's graphics-card tests, was back at 12:08 PM, and nothing restarted the work until the owner wrote at 11:32 PM: 16.8 idle hours, 11.4 of them with the machine up.\ngo run ./cmd/loop -install-startup registers a Windows scheduled task that runs the driver at boot and at logon and restarts it when it exits abnormally; the driver resumes from the plan and the working tree. The driver records what was running at each start that follows an unexpected shutdown, so a repeat shows whether the card's tests cause it.\nServes: setup-steps; idle hours a week.\nDisappears: work that waits for someone to restart a session.\nEvidence: the task definition names the driver, boot and logon triggers and restart on failure; a start after an unexpected shutdown records the step that was running.\nBatch: host lane."
+        },
+        {
+          "id": "defaults",
+          "title": "A decision takes its default and the work goes on, except the owner's own kinds, which wait in a list while other work runs",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestADecisionTakesItsDefaultUnlessItIsTheOwners$'",
+          "rationale": "A choice between options takes the option that changes least and can be undone, records it, and continues; the owner may overrule it later, which reopens the work. A fixed list never takes a default: a store migration, deleting a model or data, activating or publishing a model, and pushing. Those wait in the owner list the status shows, and dispatch works the rows they do not block.\nServes: setup-steps; idle hours a week.\nDisappears: a decision that halts the plan.\nEvidence: an open decision with a default is answered by dispatch and its rows run; a push or a model deletion waits in the owner list while other rows run.\nBatch: host lane."
+        },
+        {
+          "id": "fall-through",
+          "title": "With no open row, dispatch takes P1 and P2 findings, then the full measurement run, and P3 findings only when the owner names them",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchFallsThroughToFindingsThenTheRun$'",
+          "rationale": "On Nov 1 every open row belonged to the MOSS role and the lead sat 6.3 hours. \"Never idle\" must not turn the findings register (about 9,000 lines) into endless low-value commits: since Oct 31, 53 of 354 commits were register commits.\nThe order: open plan rows; P1 and P2 findings, each filed as a row; the full measurement run (last on Oct 31); P3 findings only when the owner names them.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: a lead with no row and nothing to take.\nEvidence: an empty plan dispatches the highest open P1 or P2 finding, then the measurement run, and never a P3 the owner did not name.\nBatch: host lane."
+        },
+        {
+          "id": "status",
+          "title": "The driver writes its status and notifies the owner when a step lands, stops or is set aside",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverWritesItsStatus$'",
+          "rationale": "The owner asked \"progress?\" or \"what the hell is taking so long???\" after each long stretch. .overgo-runtime/status.json holds the current step, the last landing, the owner list, any stop and its reason, and four measures: idle hours a week (44 to Nov 7), the share of commit attempts refused (45%), landings a day and model calls per landing. A Windows notification fires when a step lands, stops or is set aside; the workbench page shows the status.\nServes: setup-steps; the four workflow measures.\nDisappears: asking the lead for progress.\nEvidence: a driver run writes each field, and each event raises one notification.\nBatch: host lane."
+        },
+        {
+          "id": "stop-clears",
+          "title": "An outside-need stop clears itself when its cause does",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAnOutsideStopClearsWhenItsCauseDoes$'",
+          "rationale": "On Nov 7 the hook-path stop waited for a resume after the owner had already fixed the setting. A licence or hardware stop names what a check can find; dispatch runs the check at each turn and clears the stop when it passes. The owner's requested stop clears only on go run ./cmd/plan -resume-stop.\nServes: setup-steps; idle hours a week.\nDisappears: a stop outliving its cause.\nEvidence: a hardware stop whose device appears clears at the next dispatch; a requested stop stays.\nBatch: host lane."
+        },
+        {
+          "id": "gate-retired",
+          "title": "The Stop gate and the per-message hook go, the driver owning when work continues",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheRepositoryRegistersNoStopGate$'",
+          "rationale": "With the driver started at boot, a chat session no longer has to be held open to keep work going. scripts/overgo_stop_gate.sh and scripts/overgo_next_task.sh, their registrations in .claude/settings.json and their tests in cmd/loophook go; the session-start hook keeps printing the assigned step. The owner removes the same Stop hook from the user-level ~/.claude/settings.json, where it runs for every Claude session on the machine.\nServes: setup-steps.\nDisappears: the Stop gate and the per-message hook.\nEvidence: the repository's settings register no Stop or per-message hook, and the driver's tests still hold continuation.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "generated-commits",
+      "title": "The commit tool writes the commit message and the undo check, and every code-rule refusal fixes the code or prints the exact edit",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "Estimate before the survey: message composition in internal/landing, a Go findings-touching reader in place of a scratch script, the undo run and edits printed by each rule; the message prose rules' code goes with it; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "message",
+          "title": "The landing composes its own message from the step, the diff, the plan's changes and the findings the change touches",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheLandingWritesItsOwnMessage$'",
+          "rationale": "From Oct 31 to Nov 7, 168 of 263 refused commit attempts were the message and code-rule checks: a missing section, a retired step not named in full, a measured figure typed, a metric not named. Each takes ten seconds to find and costs a fix and a retry, and a weak model fails them more.\nThe landing writes: the title and cause from the step; the change from the diff's files and tests; the plan's changes since the last landing from the plan's diff (retired steps, count changes), which landing.go already computes; the findings whose cited files the change touches, from docs/sqa_findings.json, by a Go reader in place of the lead's scratch script; the undo check's result; the predicted effect from the step's Serves line. The worker writes no message, or one optional line. The message prose checks go with it.\nServes: failure-rate; the share of commits refused (45%).\nDisappears: hand-written commit messages and their prose checks.\nEvidence: a landing with no message file commits a message holding every section, its plan changes and touching findings read from the tree.\nBatch: host lane."
+        },
+        {
+          "id": "undo-check",
+          "title": "The landing removes its production change, runs the step's check, and refuses a change the check does not catch",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTheLandingUndoesItsChangeAndTheCheckFails$'",
+          "rationale": "Today the lead undoes the change by hand and writes \"Checked by undoing\". The gate's trunk run proves only that the check fails on the trunk, where the test itself may be missing. The landing keeps the change's tests, restores the production files the change touched, runs the step's check, and requires it to fail; the result goes into the message.\nServes: failure-rate; held-out-quality kept by checks that test the change.\nDisappears: the hand-run undo and its paragraph.\nEvidence: a change whose test passes without it is refused; one whose test fails without it lands with the result in its message.\nBatch: host lane."
+        },
+        {
+          "id": "rule-edits",
+          "title": "Every code-rule refusal fixes the code or prints the exact edit, and a row's size is recorded from measurement",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleRefusalFixesOrPrintsItsEdit$'",
+          "rationale": "A rule that only says what is wrong leaves the model to guess the fix. Each refusal either applies its fix as the formatter does, or prints the exact edit: the constant's name and the line it replaces, the register line to remove, the repeated body and the helper it matches. A row's production size is recorded from measurement in the commit instead of raised beforehand by plan -setcount with a written reason.\nServes: failure-rate; the share of commits refused.\nDisappears: refusals without an edit, and size raises by hand.\nEvidence: each rule's refusal on a fixture either changes the file to pass or prints an edit that, applied, passes.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "step-kinds",
+      "title": "Run steps run without a model, code steps are filed with their failing test and the files they may change, and the test is locked",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 350,
+        "reason": "Estimate before the survey: a step kind and its fields in internal/plan, the driver's run path, filing checks and the landing's scope check; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "run-steps",
+          "title": "A run step names a command, the record it writes and the check that reads it, and the driver runs it with no worker",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestARunStepRunsWithoutAWorker$'",
+          "rationale": "Much of the week's work was not editing code: vision-bridge's capture-9b took 54 minutes, bridge-9b 1.44 GPU-hours, and judge-9b and envelope-9b were readings. A model running a command and waiting adds nothing.\nA run step names its command, the record it writes, and the check that reads that record; the driver runs it, verifies and lands the record with no worker.\nServes: setup-steps; model calls per landing.\nDisappears: a model babysitting a long run.\nEvidence: a run step whose command writes its record lands with no worker call.\nBatch: host lane."
+        },
+        {
+          "id": "test-first",
+          "title": "A code step is filed with its failing test and the files it may change",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestACodeStepIsFiledWithItsFailingTest$'",
+          "rationale": "The worker's whole job becomes making a named test pass. Filing a code step requires its test to exist and fail on the trunk, and lists the files it may change; plan -addstep refuses one without them. The rule that a step's check fails without its change then holds when it is filed.\nServes: failure-rate; model calls per landing.\nDisappears: a worker deciding what done means.\nEvidence: filing a step whose test is missing or passes is refused; one whose test exists and fails is filed with its file list.\nBatch: host lane."
+        },
+        {
+          "id": "locked-test",
+          "title": "A landing refuses a change to its step's test, its fixtures or a file outside the step's list",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingRefusesAChangeToItsOwnTest$'",
+          "rationale": "The undo check catches a test that passes without the change; it does not catch a test weakened to pass: a loosened tolerance, a special-cased input, an edited fixture, which a weak model will try. The landing refuses a diff that touches the step's test, the fixtures it reads, or a file outside the step's list.\nServes: failure-rate; held-out-quality.\nDisappears: a weakened test passing as a fix.\nEvidence: a change editing its own test or fixture is refused; one inside its list lands.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "worker-tools",
+      "title": "The worker gets six typed tools and no shell, and a failed step moves to a stronger worker before it is set aside",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate before the survey: a tool server for the worker and the worker list in cmd/loop and internal/loop; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "tools",
+          "title": "The worker reads, edits within its list, runs its test, runs a package's tests, reads its step and runs an approved probe, and nothing else",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheWorkerHasOnlyItsTools$'",
+          "rationale": "The guard exists to catch shell mistakes: heredocs with backslashes, force deletes, piped landings, paths into the model folder. On Nov 7 a helper agent started in its own repo copy rewrote core.hooksPath and stopped the loop for an hour. A worker with no shell has nothing to trip.\nThe driver serves the worker six tools: read a file; edit a file in the step's list; run the step's test; run a package's tests; show the step's context; run an approved probe from a list kept in the repo (format-loader's timing probe is one). The worker runs with only these: no shell, no git, no helper agents.\nServes: failure-rate; model calls per landing.\nDisappears: shell use by the worker, and the guard rules it needed.\nEvidence: the worker's session lists exactly the six tools, and an edit outside the list is refused.\nBatch: host lane."
+        },
+        {
+          "id": "workers",
+          "title": "loop.json lists workers cheapest first, a step moves up after its attempts, and after the last it is set aside with a finding",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestAStepMovesUpTheWorkersBeforeItIsSetAside$'",
+          "rationale": "overgo is to run on a much weaker model, but some steps need a strong one: this week's missing attention gates (the comparison at cosine 0.20) and the 1e21 gradient from a zero start. loop.json lists workers in order, cheapest first; after a step's attempt limit it goes to the next worker with the refusals so far; after the last, it is set aside with a finding for the filing role, and the driver takes the next step. No one waits.\nServes: failure-rate; model calls per landing; landings a day.\nDisappears: a hard step blocking the plan or a question to the owner.\nEvidence: a step the first fake worker cannot pass lands through the second; one neither passes is set aside with a finding and the next step runs.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "card-dispatch",
+      "title": "Steps that don't need the graphics card are worked while a run holds it, and a change re-measures only what it reaches",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Estimate before the survey: a step field and a dispatch rule in internal/plan, and the re-measured set computed from the change; a step raises it with its measured figure."
+      },
+      "steps": [
+        {
+          "id": "needs-card",
+          "title": "A step says whether it needs the card, and dispatch hands out only those that don't while a run holds it",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestDispatchSkipsCardStepsWhileARunHoldsTheCard$'",
+          "rationale": "On Oct 31 the measurement run held the card from 1:55 AM to 11:00 AM and the lead sat idle for 4.9 hours with a card landing queued. one-home/host-lanes (97eae76d6) already lets a landing that needs no card skip the card's queue. What is left: each step carries a typed needs-card field, today the prose \"Batch: host lane\", and while a measurement run holds the card dispatch hands out only steps that do not need it.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: waiting on the card with host work open.\nEvidence: with the run's hold recorded, dispatch skips a card step for the next host step.\nBatch: host lane."
+        },
+        {
+          "id": "remeasure",
+          "title": "The cells and models a change re-measures are computed from what it changed",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestAChangeRemeasuresOnlyTheCellsItReaches$'",
+          "rationale": "The owner: measure only what a change can move, not every model each time. Today the lead picks the models fit to validate a change. The set becomes code: the packages the change touched, the cells and models whose measured path reads them, nothing else.\nServes: setup-steps; throughput of the work, fewer runs per change.\nDisappears: the lead choosing which models to measure.\nEvidence: a change to one model family's loader re-measures that family's cells alone; a change no cell reads re-measures none.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "one-rule-file",
+      "title": "skill.md and the pointer file are the only written rules: the plan's paragraphs go, one test refuses rule text elsewhere, and skill.md keeps only what code cannot hold",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 50,
+        "reason": "Estimate: mostly deletions of text and of the plan's paragraph code; the one test is test code."
+      },
+      "steps": [
+        {
+          "id": "paragraphs",
+          "title": "The plan holds rows and decisions only: its eleven standing paragraphs go",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestThePlanHoldsNoRuleText$'",
+          "rationale": "docs/plan.json holds 11 standing paragraphs (8 KB) that sessions read as rules; each names the checks that hold it. They go, with the code that keeps them (plan -paragraph and the paragraph type), and internal/plan/doctrine_test.go changes with them. Decisions stay as data the code applies.\nServes: setup-steps; one place for written rules.\nDisappears: the plan's paragraphs and their code.\nEvidence: the plan's document holds campaign, lane, rows and decisions only.\nBatch: host lane."
+        },
+        {
+          "id": "rule-text",
+          "title": "One test refuses rule text outside skill.md and AGENTS.md, and stale rule copies go",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRuleTextLivesOnlyInSkillAndThePointer$'",
+          "rationale": "Rules live in more than a dozen places; when they disagree the model reconciles them, and asking the owner is its safe way out. One test covers the session-start text, the hook messages and the plan, and replaces cmd/loophook/doctrine_rules_test.go, doctrine_person_test.go and internal/plan/doctrine_test.go. .git/adaptive-source/skill.md and scripts/session_doctrine.sh, which nothing reads, go, and the measurement cycle's copy under .overgo-runtime/cycle is refreshed from the tree.\nServes: setup-steps.\nDisappears: rule text outside skill.md and the pointer, and three rule-text tests.\nEvidence: a rule sentence added to a hook's output or the plan is refused.\nBatch: host lane."
+        },
+        {
+          "id": "skill-sort",
+          "title": "Every skill.md line outside Judgement names the check that holds it, and the rest move to code, data or a command's help",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEverySkillLineOutsideJudgementCitesItsCheck$'",
+          "rationale": "skill.md is 330 lines in 19 sections. Each line gets one verdict: already enforced (it cites its check, and the refusal prints the fix); could be enforced (a step is filed whose test enforces it, and the line goes when it lands); needs judgement (one line in Judgement); a fact (into the store, a config file or a command's help); no longer true (deleted). Owner decisions go to the plan's decisions as data. The review session sorts session memory the same way; the lead does the repo.\nServes: setup-steps; a weaker model holds the whole guidance.\nDisappears: skill.md lines that no check holds outside Judgement.\nEvidence: every line outside Judgement cites a check that exists.\nBatch: host lane."
+        },
+        {
+          "id": "memory-off",
+          "title": "Session memory for this project stops growing back beyond its pointer",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheProjectKeepsNoSessionMemory$'",
+          "rationale": "Every Claude session is told to write memory by itself, so cut memory grows back. The project's .claude/settings.json turns Claude Code's auto memory off if a setting allows it; otherwise the session-start hook reports memory beyond its one pointer line. Which setting exists is to be confirmed in Claude Code's settings documentation first.\nServes: setup-steps.\nDisappears: rules regrowing in session memory.\nEvidence: the project's settings turn memory off, or the start hook reports memory beyond its pointer.\nBatch: host lane."
         }
       ]
     }

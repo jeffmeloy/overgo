@@ -60,7 +60,8 @@ func TestEncoderBridgeTrainsACaptionProjector(t *testing.T) {
 	frozen := testcheck.Must(os.ReadFile(filepath.Join(textModel, trainingprogram.CheckpointWeights)))(t)
 	added := []map[string]any{{"id": placeholderID, "content": placeholder, "special": true}, {"id": endID, "content": end, "special": true}}
 	tokenizerFile := testcheck.Must(json.Marshal(map[string]any{"model": map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []string{}}, "added_tokens": added}))(t)
-	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"max_position_embeddings":256,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true,"eos_token_id":` + strconv.Itoa(endID) + `}`
+	// The configuration describes the weights in full, as the one loader reads a directory as its conversion.
+	config := `{"model_type":"llama","architectures":["LlamaForCausalLM"],"hidden_size":8,"num_hidden_layers":1,"intermediate_size":16,"num_attention_heads":2,"num_key_value_heads":1,"head_dim":4,"vocab_size":` + strconv.Itoa(endID+1) + `,"max_position_embeddings":256,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true,"eos_token_id":` + strconv.Itoa(endID) + `}`
 	testcheck.NoError(t, os.WriteFile(filepath.Join(textModel, "tokenizer.json"), tokenizerFile, 0o600))
 	testcheck.NoError(t, os.WriteFile(filepath.Join(textModel, "config.json"), []byte(config), 0o600))
 	tokens := filepath.Join(work, "tokens")

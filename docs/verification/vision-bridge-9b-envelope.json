@@ -1,0 +1,110 @@
+{
+  "schema": "overgo/vision-bridge-envelope/v1",
+  "acceptance": "sha256:71ae28647e76a107a446090b2c0c6ce14754c5d7774855b2f7fca1adf542f480",
+  "comparison": "Qwen3.5-9B composite over the floor",
+  "measure": "vidgen-1m/frame-description-matching 9005e01b2548cca46c70fae6a3b753ba2cf618e0f8c7db4d16c85c3805fb074b",
+  "suite": "file:sha256:68012b7d16f54940c7fedde5644ec40318ec1d396e3cbc7321cb331db7c18d0c",
+  "shuffled_suite": "file:sha256:d6dea351258f6839f58662c5a77e088dfbdfeba88a43a0cfd0a2a4fcfc41de11",
+  "regression": {
+    "suite": "store/bbh",
+    "cases": 577
+  },
+  "trials": [
+    {
+      "seed": 0,
+      "checkpoint": "checkpoint:sha256:d573286913e3d58255af9741a3b1ae6b2d412eaae0b75dcd94c14c5e105ce548",
+      "adapter": "adapter:sha256:e16bed7171217a4b89ad15b646f9d5271f56bac35d44a3c8a74a87c907f9e653",
+      "bridge": {
+        "evaluation": "evaluation:sha256:0f578a01667daa0d8667b158ba761aada0628179759e95931ee3460803b00a3f",
+        "correct": 170,
+        "cases": 256,
+        "score": 0.6640625
+      },
+      "cheap_baseline": {
+        "evaluation": "evaluation:sha256:08a103373ab05f20229f9e3ddf395c97f8e3655109a44fe0c2ed3bcd4ca562c3",
+        "correct": 68,
+        "cases": 256,
+        "score": 0.265625
+      },
+      "dropped_source": {
+        "evaluation": "evaluation:sha256:d0483d7f9e03266b62f16c75cfa97cb9f6e169c5cfc0c9866d94217f77a990c0",
+        "correct": 54,
+        "cases": 256,
+        "score": 0.2109375
+      },
+      "shuffled_source": {
+        "evaluation": "evaluation:sha256:59f984b23c35bfc8fd5c73fe2ffd0cf37cdcc8e55b30c5e59c9912e4a5f17fd4",
+        "correct": 59,
+        "cases": 256,
+        "score": 0.23046875
+      },
+      "regression_baseline": {
+        "evaluation": "evaluation:sha256:a0b683e5fbc0aaa798058bb9c9fa220e62882de98eac7a9c0e901ad1fd1d5a34",
+        "correct": 360,
+        "cases": 577,
+        "score": 0.6239168110918544
+      },
+      "regression_candidate": {
+        "evaluation": "evaluation:sha256:7093bc748cb2d319f4b81976adb9410e0a4ddb2e6509b80b2908e19ea5288501",
+        "correct": 360,
+        "cases": 577,
+        "score": 0.6239168110918544
+      },
+      "baseline_latency_ns": 512801800,
+      "composed_latency_ns": 1204566000,
+      "baseline_peak_device_bytes": 9708001280,
+      "composed_peak_device_bytes": 11051518592
+    },
+    {
+      "seed": 2,
+      "checkpoint": "checkpoint:sha256:6cbef1b6581c752260d15500ca754abd910dbc7e73849c5ed3f0392e4376757e",
+      "adapter": "adapter:sha256:0f6524a40bc5b3302e2665ca61e361469813cb5b02856a5760d72f11ef983ade",
+      "bridge": {
+        "evaluation": "evaluation:sha256:3126433475931e9b067dc0be90718c98a962bd7af2582acc843fe06aeb50c081",
+        "correct": 161,
+        "cases": 256,
+        "score": 0.62890625
+      },
+      "cheap_baseline": {
+        "evaluation": "evaluation:sha256:08a103373ab05f20229f9e3ddf395c97f8e3655109a44fe0c2ed3bcd4ca562c3",
+        "correct": 68,
+        "cases": 256,
+        "score": 0.265625
+      },
+      "dropped_source": {
+        "evaluation": "evaluation:sha256:d0483d7f9e03266b62f16c75cfa97cb9f6e169c5cfc0c9866d94217f77a990c0",
+        "correct": 54,
+        "cases": 256,
+        "score": 0.2109375
+      },
+      "shuffled_source": {
+        "evaluation": "evaluation:sha256:f17d17c4a22e3062dd9bbbdc84fb2fb516a89a9afc883da2fb3937182f556dcc",
+        "correct": 64,
+        "cases": 256,
+        "score": 0.25
+      },
+      "regression_baseline": {
+        "evaluation": "evaluation:sha256:a0b683e5fbc0aaa798058bb9c9fa220e62882de98eac7a9c0e901ad1fd1d5a34",
+        "correct": 360,
+        "cases": 577,
+        "score": 0.6239168110918544
+      },
+      "regression_candidate": {
+        "evaluation": "evaluation:sha256:c31ffba52135567f4a5f5f951042da344620f7c1813ef27697b9f08881aa83bf",
+        "correct": 360,
+        "cases": 577,
+        "score": 0.6239168110918544
+      },
+      "baseline_latency_ns": 512801800,
+      "composed_latency_ns": 1175937100,
+      "baseline_peak_device_bytes": 9708001280,
+      "composed_peak_device_bytes": 11051518592
+    }
+  ],
+  "notes": [
+    "Seed 0 is the judged run, its samples in the capture's order; seed 2 trained as it did, from the captions' mean, two segments of 450 steps at batch 8, its samples in seed 2's order: held-back loss 1.331, 0.724, then 0.708, its second checkpoint chosen.",
+    "The cheap baseline is the capture's closed-form fit of the patch mean to the captions' mean embeddings over the samples the runs train on (seam-align -fit-bridge); the dropped source is the bridge that gives nothing, the judgement's floor reading; the shuffled source reads the frame suite with each case asking about the next case's frame (cmd/evaluate -shuffle-sources).",
+    "The regression set is the store's bbh part, the derived suite the measurement runs score. The composed readings went through the composite's session but reused the 9B's answers to every case, which this code had already given: a text prompt carries no frame, so it never reaches the bridge, and the composite answers it as the 9B alone does. A first choice, the BFCL simple function-call set, read 0 for the 9B alone and was set aside, since a pair reading 0 against 0 shows no regression.",
+    "The resources are one answer to the frame suite's question to its 48-token bound: the 9B alone with no frame, and composed on the suite's first frame (-EGK4gGtz44-Scene-0398) with the encoder and the text model both on the card, the encoder opened first as cmd/evaluate opens it."
+  ]
+}

@@ -59,13 +59,6 @@
       },
       "steps": [
         {
-          "id": "envelope-9b",
-          "title": "Read the 9B composite's promotion envelope for two seeds",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestTheNineBEnvelopeIsComplete$'",
-          "rationale": "The 9B composite's promotion reads its envelope for two independent seeds: the judged bridge, its run in the capture's order, and a second trained as it was with its samples in another seed's order, each segment from the checkpoint before it and the least held-back loss chosen. Each seed's trial reads, on the 256-frame suite: the bridge; the cheap baseline, the capture's closed-form fit; the dropped source, the bridge that gives nothing, already read by judge-9b; the shuffled source, each frame's case asked about the next case's frame; the text regression pair, the 9B alone and composed on one text suite; and the latency and card memory of the 9B alone and composed.\nThe record, docs/verification/vision-bridge-9b-envelope.json, keeps each seed's trial with its readings' evaluations, held to the promotion's trial contract: every score finite, every resource measured, and each reading the suite or the text set the trial names.\nServes: held-out-quality, the evidence the composite's promotion carries.\nDisappears: nothing.\nEvidence: the envelope record.\nBatch: cuda lane."
-        },
-        {
           "id": "publish-composite",
           "title": "Publish the composite the judgements favour as an inactive candidate",
           "status": "open",

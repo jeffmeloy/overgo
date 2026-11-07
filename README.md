@@ -165,19 +165,21 @@ and the dino-to-RAE bridge; see the
 
 ### Speed
 
-Qwen3.8 Flash-Next, served warm on Strata's bench suite, with Strata on the same
-PC and model beside it. Prompt processing (pp) is the prompt's tokens over the
-time to its first token, so it includes each request's fixed costs; token
-generation (tg) is generated tokens over decode time.
+Prompt processing (pp) is a fresh prompt's tokens over the time to its first
+token, read on a model already loaded after one unmeasured prompt of that size,
+so it includes each request's fixed costs; token generation (tg) is generated
+tokens over decode time on a request again on the loaded model.
 
-| Flash-Next | overgo | Strata |
-| --- | --- | --- |
-| pp, 4,096-token prompt | 2,540 tok/s (1.61 s) | 1,850 tok/s (2.21 s) |
-| pp, 16,384-token prompt | 3,110 tok/s (5.26 s) | 3,290 tok/s (4.98 s) |
-| tg, short chat | 134 tok/s | 135 tok/s |
-| tg, agent turns | 145 tok/s | 145 tok/s |
+<!-- speed table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
+| Model | pp, 4,096-token prompt | pp, 16,384-token prompt | tg |
+| --- | --- | --- | --- |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | 2,544 tok/s (1.61 s) | 3,115 tok/s (5.26 s) | 134 tok/s |
+<!-- end of the speed table -->
 
-The 16K prompt is the one figure behind Strata's. A conversation of 237,290
+Strata, on the same PC and model, processes Flash-Next's 4,096-token prompt at
+1,850 tok/s and its 16,384-token prompt at 3,290 tok/s and generates 135 tok/s;
+on agent turns both generate 145 tok/s. The 16K prompt is the one figure behind
+Strata's. A conversation of 237,290
 tokens is read in 2m16s, every later question answered in about 0.8 s, and a
 question that branches off an earlier turn of such a conversation is answered
 from the context already read, in about 1.3 s.

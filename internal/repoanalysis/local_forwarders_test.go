@@ -15,7 +15,7 @@ const forwarderMost = 3
 // declare: what compact-production/inline-forwarders left, names that read better than their call, which binds a flag,
 // a literal, a key's format or a formula, entries that tests call many times by name, and speech recognition's profile
 // readers, whose callers' file a compatibility claim binds.
-const forwarderCeiling = 1272
+const forwarderCeiling = 1255
 
 // localForwarders reads the local forwarders of the loaded module's linked packages outside generated files and outside
 // inside: functions, not methods, whose body is one statement that makes one call, a conversion aside, called from

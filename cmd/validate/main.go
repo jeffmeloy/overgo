@@ -71,6 +71,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	draftOf := flags.String("draft", "", "a model GGUF the library has activated: register the draft layer GGUF beside it, replay the library's validation prompts speculatively through it, and activate it when the trunk keeps its share of the drafts; records nothing of the model's own")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
+	readme := flags.Bool("readme", false, "write the README's speed table, the warm prompt processing and token generation of the newest scorecard record beside the store, between its two marker lines; reads that record alone and runs nothing")
+	readmeCheck := flags.Bool("check", false, "with -readme: write nothing, and fail when the README's speed table is not what the newest scorecard record gives")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, compared with the measurements published before it; the verifier of the row the loop proposed for it")
 	target := flags.Float64("target", math.NaN(), "with -gap, for the key of a decline: the value its cell is to be restored to, which the row carries from the cycle that found the decline")
@@ -110,6 +112,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
+			"-readme reads the newest scorecard record and writes only the README's speed table between its marker lines; with -check it writes nothing",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"a trained model is measured once, by -trained or the first -run after its training; a later -run leaves it out unless -model names it",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
@@ -151,6 +154,16 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if *draftOf != "" {
 		return validateDraft(ctx, output, *repository, *draftOf)
+	}
+	if *readme || *readmeCheck {
+		if !*readme {
+			return errors.New("-check goes with -readme")
+		}
+		storeRoot, err := dataroot.StoreRoot(*repository)
+		if err != nil {
+			return err
+		}
+		return writeReadmeSpeed(*root, scorecard.Directory(storeRoot), *readmeCheck, output)
 	}
 	if *scorecardView {
 		storeRoot, err := dataroot.StoreRoot(*repository)

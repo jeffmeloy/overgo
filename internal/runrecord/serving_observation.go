@@ -73,10 +73,12 @@ type ServingObservation struct {
 	RealizedResidency recipe.RealizedResidency `json:"realized_residency,omitzero"`
 	// Verification is what the store recorded of the model as the attempt ended, so a recipe activated later does not
 	// verify an attempt made before it. A record from before this field holds none.
-	Verification  string                  `json:"verification,omitzero"`
-	Outcome       Outcome                 `json:"outcome"`
-	StartedUnixNS int64                   `json:"started_unix_ns"`
-	MeasuredNS    uint64                  `json:"measured_ns"`
+	Verification  string  `json:"verification,omitzero"`
+	Outcome       Outcome `json:"outcome"`
+	StartedUnixNS int64   `json:"started_unix_ns"`
+	MeasuredNS    uint64  `json:"measured_ns"`
+	// SessionReused says the attempt was timed again on a model it had loaded and served: the warm request's second
+	// reading, or a longer prompt read after one unmeasured prompt of its size.
 	SessionReused bool                    `json:"session_reused,omitzero"`
 	Usage         ServingUsage            `json:"usage"`
 	Resources     ServingResources        `json:"resources"`

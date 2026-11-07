@@ -25,7 +25,7 @@ func TestPeakMemoryIsReadAtEachPromptLength(t *testing.T) {
 	var attempts []runrecord.ServingObservation
 	for _, attempt := range []struct{ tokens, peak uint64 }{{5, gib}, {uint64(short) + 1, 2 * gib}, {uint64(long) + 1, 5 * gib}} {
 		attempts = append(attempts, runrecord.ServingObservation{
-			MeasuredNS: uint64(time.Second), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, OutputTokens: 1},
+			SessionReused: attempt.tokens > 5, MeasuredNS: uint64(time.Second), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, OutputTokens: 1},
 			Hardware: []runrecord.ServingHardwareSample{
 				{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(time.Second)},
 				{Stage: runrecord.ServingHardwareFinish, ElapsedNS: uint64(time.Second), DevicePeakBytes: attempt.peak},

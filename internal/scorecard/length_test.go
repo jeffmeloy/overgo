@@ -23,7 +23,9 @@ import (
 // on its own contract; a user's 9,000-token prompt of 4,000 ms lies between
 // the two lengths and is timed by neither, nor by the row's own cell, and a
 // conversation's 4,500-token prompt of which a prompt cache answered 4,000
-// read 500 tokens and is no 4K reading. A longer prompt's cell is judged on
+// read 500 tokens and is no 4K reading. A newer 4K prompt of 2,000 ms read
+// with no unmeasured prompt of its size before it is a cold reading, and no
+// longer-prompt cell reads it. A longer prompt's cell is judged on
 // its own readings: after five of 300 ms one of 600 ms is filed as a decline
 // of that cell with 300 as its target, and the history says it moved, beside
 // the row's own first output, which did not.
@@ -36,12 +38,13 @@ func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 	for _, attempt := range []struct {
 		tokens, cached uint64
 		prefill        time.Duration
+		reused         bool
 	}{
-		{5, 0, 10 * time.Millisecond}, {uint64(short) + 1, 0, 300 * time.Millisecond}, {uint64(long) + 1, 0, 1500 * time.Millisecond},
-		{9000, 0, 4 * time.Second}, {4500, 4000, 50 * time.Millisecond},
+		{5, 0, 10 * time.Millisecond, false}, {uint64(short) + 1, 0, 300 * time.Millisecond, true}, {uint64(long) + 1, 0, 1500 * time.Millisecond, true},
+		{9000, 0, 4 * time.Second, false}, {4500, 4000, 50 * time.Millisecond, false}, {uint64(short) + 1, 0, 2 * time.Second, false},
 	} {
 		attempts = append(attempts, runrecord.ServingObservation{
-			MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, CachedTokens: attempt.cached, OutputTokens: 1},
+			SessionReused: attempt.reused, MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, CachedTokens: attempt.cached, OutputTokens: 1},
 			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(attempt.prefill)}},
 		})
 	}

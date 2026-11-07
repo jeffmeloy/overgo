@@ -66,7 +66,7 @@ func TestSpeedIsReadWarmAtStatedLengths(t *testing.T) {
 	}
 	prompt := evaluation.PromptLengths[0]
 	attempt(reading{served: served, loaded: true, input: 1, firstMS: 1742, tokens: 100, decodeMS: 1496})
-	attempt(reading{served: served, input: uint64(prompt), firstMS: 1610, tokens: 24, decodeMS: 180})
+	attempt(reading{served: served, warm: true, input: uint64(prompt), firstMS: 1610, tokens: 24, decodeMS: 180})
 	attempt(reading{served: served, warm: true, input: 256, firstMS: 50, tokens: 128, decodeMS: 941})
 	attempt(reading{served: coldOnly, loaded: true, input: 1, firstMS: 1742, tokens: 100, decodeMS: 1496})
 	summaries := testcheck.Must(servingByRecipe(ctx, store))(t)

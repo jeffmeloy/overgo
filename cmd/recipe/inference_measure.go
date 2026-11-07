@@ -209,13 +209,17 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 			continue
 		}
 		fmt.Fprintf(said, "recipe: a fresh %d-token prompt, read once unmeasured and then measured on another\n", length)
-		if _, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard); err != nil {
-			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed: %v\n", length, err)
+		_, _, warmErr := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard)
+		if warmErr != nil {
+			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed: %v\n", length, warmErr)
 		}
 		observation, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
 		if err != nil {
 			fmt.Fprintf(said, "recipe: the %d-token prompt failed: %v\n", length, err)
 		}
+		// A reading whose size was read once before is timed again on the loaded model, which the scorecard's
+		// longer-prompt cells read alone.
+		observation.SessionReused = warmErr == nil
 		observed = append(observed, observation)
 	}
 	return observed

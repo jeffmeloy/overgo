@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 189,
-        "reason": "Estimate before the survey: the scorecard's speed cells read on a warm request at stated lengths, and a command that writes the README's table from the newest record; a step raises it with its measured figure."
+        "nodes": 8,
+        "reason": "warm-speed/readme-table measured 722 production nodes, more than estimated: the README's speed table in internal/scorecard, the -readme command and its check in cmd/validate, and longer-prompt cells read from warmed attempts alone; warm-speed/measure runs a measurement and adds little code."
       },
       "steps": [
-        {
-          "id": "readme-table",
-          "title": "go run ./cmd/validate -readme writes the README's served-models table from the newest scorecard record",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTheReadmeTableIsWrittenFromTheScorecard$'",
-          "rationale": "The README's table is typed by hand from a scorecard record, which is how a cold figure came to stand as the model's speed. The command writes the table between two markers from the newest record alone: model, modality, input and output, pp at 4K and 16K, tg on chat and agent turns (a non-text model's warm time to its output in their place), held-out quality and peak device memory, with no earlier record's figures, dates or cold startup times; -check exits non-zero when the README's table differs from what it would write.\nServes: first-output, throughput and held-out-quality, reported as recorded.\nDisappears: a hand-typed results table.\nEvidence: from a fixture record the command writes the table, and -check refuses a README edited by hand.\nBatch: host lane."
-        },
         {
           "id": "measure",
           "title": "Every served model's warm speed is measured and the README's table written from the record",

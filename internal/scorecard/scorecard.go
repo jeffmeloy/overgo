@@ -412,9 +412,14 @@ func lengthColumn(cell Cell) metric.Name {
 }
 
 // freshPrompt names a longer prompt a row is read at, and lengthPeakMetric the measure of its peak device memory there.
-func freshPrompt(length int) string { return fmt.Sprintf("a fresh prompt of %d tokens", length) }
+func freshPrompt(length int) string {
+	return fmt.Sprintf("a fresh prompt of %d tokens, its size read once before on the loaded model", length)
+}
 
 func lengthPeakMetric(length int) string { return "peak device memory, " + freshPrompt(length) }
+
+// lengthFirstMetric is the measure of a row's first output at a longer prompt, its prompt processing there.
+func lengthFirstMetric(length int) string { return "time to prefill, " + freshPrompt(length) }
 
 // Build reads the scorecard from the store: one row for every activation
 // the capability catalog lists, across every task.
@@ -951,7 +956,7 @@ func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	var cells []Cell
 	for _, length := range evaluation.PromptLengths {
 		at, read := freshPrompt(length), observed.lengths[length]
-		if cell, measured := read.timed(timingFirstOutput, "ms", "time to prefill, "+at, "serving time to prefill "+at+", the median of the newest attempts"); measured {
+		if cell, measured := read.timed(timingFirstOutput, "ms", lengthFirstMetric(length), "serving time to prefill "+at+", the median of the newest attempts"); measured {
 			cell.Prompt = length
 			cells = append(cells, cell)
 			if read.peakDeviceBytes != 0 {
@@ -1030,19 +1035,20 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			}
 			return nil
 		}
-		// An attempt timed again on the model it had loaded and served counts as an attempt, and is timed as the
-		// warm request's alone.
-		if observation.SessionReused {
-			if observation.Outcome == runrecord.OutcomeSucceeded {
-				summary.readWarm(observation)
+		// An attempt that read a longer prompt counts as an attempt, and is timed as its length's alone: the
+		// tokens it read, not those a prompt cache answered, set its length. Only a reading timed again on the
+		// loaded model, its size read once before, is timed: the first reading of a size is a cold one.
+		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens-min(observation.Usage.CachedTokens, observation.Usage.InputTokens)); long {
+			if length != 0 && observation.SessionReused && observation.Outcome == runrecord.OutcomeSucceeded {
+				summary.readLength(length, observation)
 			}
 			return nil
 		}
-		// An attempt that read a longer prompt counts as an attempt, and is timed as its length's alone: the
-		// tokens it read, not those a prompt cache answered, set its length.
-		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens-min(observation.Usage.CachedTokens, observation.Usage.InputTokens)); long {
-			if length != 0 && observation.Outcome == runrecord.OutcomeSucceeded {
-				summary.readLength(length, observation)
+		// Any other attempt timed again on the model it had loaded and served counts as an attempt, and is timed
+		// as the warm request's alone.
+		if observation.SessionReused {
+			if observation.Outcome == runrecord.OutcomeSucceeded {
+				summary.readWarm(observation)
 			}
 			return nil
 		}

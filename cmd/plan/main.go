@@ -23,12 +23,33 @@ import (
 	"overgo/internal/extent"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
+	"overgo/internal/strictjson"
 	"overgo/internal/webuilane"
 	"overgo/internal/worklease"
 )
 
 // CLI repository operations resolve from the current worktree directory.
 const commandWorktree = "."
+
+// standardInput is the -from that reads the document from standard input, and standardInputName how a filing names it.
+const (
+	standardInput     = "-"
+	standardInputName = "standard input"
+)
+
+// filedRows reads the plan-shaped document -from names, from input when it names standardInput, so rows are filed
+// from a draft that was never written to a file, and says where it read them.
+func filedRows(from string, input io.Reader) (plan.Plan, string, error) {
+	if from != standardInput {
+		document, err := plan.Load(from)
+		return document, from, err
+	}
+	var document plan.Plan
+	if err := strictjson.Decode(input, &document); err != nil {
+		return plan.Plan{}, standardInputName, fmt.Errorf("parse %s: %w", standardInputName, err)
+	}
+	return document, standardInputName, nil
+}
 
 func main() {
 	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
@@ -40,7 +61,7 @@ func main() {
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
 	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
-	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
+	from := flag.String("from", "", "with -add: a plan-shaped JSON document, or - to read it from standard input so a draft needs no file; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
 	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink)")
 	reason := flag.String("reason", "", "with -setcount, -addstep, -note or -retire: the edit's words, why the row grows, the step's reasoning or why the work will not be done")
@@ -117,7 +138,7 @@ func run(c cli, args []string) error {
 		if len(args) != 0 {
 			return errors.New("usage: plan -add -from <document> [-before <id>]")
 		}
-		filed, err := plan.Load(c.from)
+		filed, source, err := filedRows(c.from, os.Stdin)
 		if err != nil {
 			return err
 		}
@@ -131,7 +152,7 @@ func run(c cli, args []string) error {
 				filed.Items[index].Owner = cmp.Or(filed.Items[index].Owner, role)
 			}
 		}
-		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+c.from, func(document plan.Plan) (plan.Plan, error) {
+		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+source, func(document plan.Plan) (plan.Plan, error) {
 			document.Decisions = append(document.Decisions, filed.Decisions...)
 			return insertRows(document, c.before, filed.Items...)
 		})

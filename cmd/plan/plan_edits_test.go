@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,9 +45,15 @@ func TestMain(m *testing.M) {
 // would type, and returns what it printed and whether it refused.
 func planCommand(t *testing.T, root string, arguments ...string) (string, error) {
 	t.Helper()
+	return planCommandReading(t, root, nil, arguments...)
+}
+
+// planCommandReading runs the plan command as planCommand does, input on its standard input.
+func planCommandReading(t *testing.T, root string, input io.Reader, arguments ...string) (string, error) {
+	t.Helper()
 	executable := testcheck.Must(os.Executable())(t)
 	command := exec.CommandContext(t.Context(), executable, arguments...)
-	command.Dir = root
+	command.Dir, command.Stdin = root, input
 	// The child's refusals are this test's to read: they go to no error file a
 	// caller of the tests named.
 	command.Env = append(os.Environ(), planCommandEnvironment+"=1", plan.AutomationRoleEnvironment+"="+worklease.UnassignedRole, clioptions.ErrorFileEnvironment+"=")

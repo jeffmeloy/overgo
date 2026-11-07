@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 80,
-        "reason": "Estimate: standard input for filed rows and a step's notes in cmd/plan, and one check over the checkout's untracked files."
+        "nodes": 169,
+        "reason": "one-notes/stdin-rows measured 91 production nodes against the row's estimate of 80 for all three steps; notes-shown and no-strays are estimated at 170 more, the landing's check over the checkout's untracked files the larger."
       },
       "steps": [
-        {
-          "id": "stdin-rows",
-          "title": "plan -add -from - files rows read from standard input, so a draft needs no file",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestRowsAreFiledFromStandardInput$'",
-          "rationale": "The owner, 2026-11-07: the habit of dropping stray .json files all over needs to end; maybe one working_notes.json as non-volatile storage for current and upcoming tasks and the implementation details that evolve as work completes. docs/plan.json already is that store: its rows are the current and upcoming tasks, each step's rationale holds its implementation details, and plan -note adds to them as work goes. A second notes file would be a second copy of the plan that drifts from it. The strays came from drafts and hand-offs: docs/recommended_plan_input.json and docs/doctrine_cut_instructions.md, a proposed_plan.json, plan drafts in Downloads, and the lead's own row drafts.\nplan -add -from - reads the rows from standard input, so filing a draft writes no file.\nServes: setup-steps; one store for work and its notes.\nDisappears: draft row files.\nEvidence: rows piped to plan -add -from - are filed as from a file, and no file is written.\nBatch: host lane."
-        },
         {
           "id": "notes-shown",
           "title": "A step's working notes are kept in the plan with plan -note and shown with its step",

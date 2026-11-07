@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 450,
+        "nodes": 207,
         "reason": "Estimate before the survey: cmd/loop and internal/loop exist (unattended-driver/first-start, 5cd51fbfa) and have never run; this adds the startup task, defaults, fall-through, status and clearing stops; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "first-run",
-          "title": "The driver lands a real step through its worker, from a committed configuration",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheDriverLandsAStepThroughItsWorker$'",
-          "rationale": "cmd/loop runs plan, worker, verify and landing, one worker call per step, capped attempts and calls, paused by .overgo-runtime/loop_pause. It was finished on Nov 6 and has never run: no .overgo-runtime/loop.json exists.\nCommit the configuration's template and the worker's prompt file; the first worker is the current strong model through claude -p. A worker session is the driver's: the Stop gate and the per-message hook stand down for it, since the driver decides what follows. Fix what breaks on the first real run.\nServes: setup-steps; idle hours a week; landings a day.\nDisappears: a chat session as the only thing that works the plan.\nEvidence: in a fixture repository a fake worker makes a step's test pass and the driver lands it, with the session hooks quiet for the worker.\nBatch: host lane."
-        },
         {
           "id": "startup",
           "title": "Windows starts the driver at boot and again after a crash",

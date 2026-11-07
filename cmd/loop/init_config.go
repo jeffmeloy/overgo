@@ -1,0 +1,58 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+
+	"overgo/internal/jsonfile"
+	"overgo/internal/loop"
+)
+
+// The driver's defaults, which -init writes: a step takes at most three worker runs before it is set aside, and a run
+// of the driver at most forty, and the files are the process state's.
+const (
+	defaultAttempts                = 3
+	defaultInvocations             = 40
+	defaultPromptFile              = "loop_prompt.md"
+	defaultWorkerName              = "claude-master-lead"
+	defaultConfigMode  fs.FileMode = 0o600
+)
+
+// defaultWorker is Claude Code given the prompt on its standard input, so a long prompt is passed once and meets no
+// command-line limit, accepting its edits and allowed the repository's tools; its permissions are not bypassed, and
+// the repository's guard and hooks apply to it as to any session.
+var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits", "--allowedTools", "Bash Edit Write Read Grep Glob"}
+
+// defaultPrompt opens every worker's prompt: what the worker is for, where the written guidance is, and that it never
+// stops to ask. The plan's prompt for the dispatched step follows it.
+const defaultPrompt = "You are the overgo driver's worker, in the repository's main checkout. Work the one step below until it is " +
+	"committed through go run ./cmd/loop -land <item>/<step> -message-file -, and end there. skill.md is the written " +
+	"guidance. A command that refuses says what to do: do it and keep going, and never stop to ask.\n"
+
+// writeDefaultConfig writes the driver's default configuration at path and its worker's prompt beside it, the worker
+// named as the lane's worker, and refuses to write over either.
+func writeDefaultConfig(path string, said io.Writer) error {
+	if path == "" {
+		return errors.New("the checkout's process state holds no place for the driver's configuration")
+	}
+	prompt := filepath.Join(filepath.Dir(path), defaultPromptFile)
+	for _, existing := range []string{path, prompt} {
+		if _, err := os.Stat(existing); err == nil || !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s already stands: -init writes over nothing", existing)
+		}
+	}
+	defaults := config{Worker: defaultWorker, Name: defaultWorkerName, Prompt: defaultPromptFile,
+		Config: loop.Config{MaxAttemptsPerStep: defaultAttempts, MaxInvocations: defaultInvocations}}
+	if err := jsonfile.Write(path, defaults, defaultConfigMode); err != nil {
+		return err
+	}
+	if err := os.WriteFile(prompt, []byte(defaultPrompt), defaultConfigMode); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(said, "loop: wrote %s and %s; start the driver with go run ./cmd/loop\n", path, prompt)
+	return err
+}

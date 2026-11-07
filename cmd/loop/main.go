@@ -113,6 +113,7 @@ func run(args []string) error {
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
+	initialize := flags.Bool("init", false, "write the driver's machine configuration, loop.json and its worker's prompt, into the checkout's process state from the defaults the repository holds; writes over neither")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
 	leftovers := flags.Bool("leftovers", false, "list every place files accumulate (helper copies, worktrees, branches, stashes, experiment outputs, temporary folders, bin, tmp, store backups), one line an entry with its bytes and the rule that decided it, and every directory no line of the table names; writes the same listing to the trunk checkout's process state and removes nothing")
@@ -192,6 +193,9 @@ func run(args []string) error {
 	if *configPath == "" {
 		// A state directory that cannot be made leaves no path; loading fails below.
 		*configPath, _ = processlock.StateFile(".", processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
+	}
+	if *initialize {
+		return writeDefaultConfig(*configPath, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.DecodeStrict(*configPath, &loaded); err != nil {

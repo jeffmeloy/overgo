@@ -1,32 +1,33 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "SQA-324 identifies existing direct opening and remaining virtual-GGUF coupling; code/runtime savings remain unquantified pending complete replacement accounting.320 is resolved in committed source.",
+    "assessment": "Prioritize known prerequisite ordering and retained recovery before expanding recipe behavior.325 is a precise runtime admission gap,322 is existing gate sequencing,271 is existing continuation; distinct contracts stay separate.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
         "SQA-271",
+        "SQA-322",
         "SQA-318",
         "SQA-319",
         "SQA-283",
         "SQA-277",
         "SQA-266",
+        "SQA-325",
         "SQA-324",
-        "SQA-257",
-        "SQA-303"
+        "SQA-257"
       ],
     "declined_candidates": [
-        "Do not delete hfconvert or GGUF parsing/export wholesale: direct opening shares the converter's required mappings and actual export consumers remain.",
-        "Do not treat full view.go/test AST as deletable savings: tensor lifetime,source identity and numerical/layout behavior need retained owners.",
-        "Do not merge training F32 materialization with inference packed/device loading merely because both read model weights.",
-        "Do not rerun real-model parity for SQA or add a new abstraction/testing framework. Reuse existing native fixtures and retained numerical evidence."
+        "No recipe-wide replacement engine, universal dry-run, custom preflight suite, extra scheduler or automatic retry layer.",
+        "No blanket requirement that all adapters exist before replay: completed answers deliberately replay without model loading.",
+        "No claim that all runtime failures can be predicted; output-dependent shape/cardinality/data checks remain where values become available.",
+        "No retirement of restart, cancellation, numerical, failed-publication or trust-boundary coverage just to reduce test nodes."
       ],
-    "rank_basis": "324 follows existing automation/evidence-integrity priorities and precedes smaller isolated reductions; no measured benefit ranking asserted. Remove resolved320; other relative ranks unchanged."
+    "rank_basis": "User priority brings322 immediately after271;325 precedes324's broader format migration. Serious evidence-integrity findings316/315 retain precedence. Other relative order unchanged."
   },
     "committed_plan": {
     "git_blob": "7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8",
     "path": "docs/plan.json",
-    "revision": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "revision": "efc02c5fdbf321a8ae0686933839f82306d3f894",
     "sha256": "1559594628a95872c1f934e90a9b7a136c85db2a2f6d6eba0938fa02710550a2",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
@@ -6117,14 +6118,32 @@
     "title": "Bind resumed capture samples to the inputs that produced them"
   },
     {
-      "id": "SQA-322",
-      "status": "open",
-      "severity": "P3",
-      "category": "automation-prerequisite-order",
-      "classification": "source-established-late-verifier-with-unmeasured-avoided-work",
-      "title": "Run the landing verifier before the broad tests and lanes",
-      "evidence_commit": "18516a106f349a66fac618c32425bf70e0c9ea8b",
-      "sources": [
+    "category": "automation-prerequisite-order",
+    "classification": "source-established-late-verifier-with-unmeasured-avoided-work",
+    "closure_criteria": [
+        "Full Run executes its existing verify after invariants and before test/lanes; preflight and plan-only contracts remain.",
+        "The retained spent fixture refuses its existing false verifier in full mode with only the six cheap stages recorded; all original success, conflict, preflight and wait cases remain.",
+        "Retain candidate/acceptance identities and Execute/addedChecksFail semantics; count the complete +13 test-node alternative and the extra fixture attempt honestly. No separate precheck or selector."
+      ],
+    "comparison": "Smallest deciding comparison is the existing row/refused case under full mode, through Run and its retained spent record, during ordinary implementation validation. The current table/order predicts test and lanes before refusal; the reordered owner predicts neither. Source/AST establishes scope now. No SQA-triggered gate, synthetic timing benchmark, device workload or redundant confidence run.",
+    "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
+    "evidence": "Run consumes checks in declared order. A full landing reaches test and lanes before verify; only an explicitly requested preflight filters out those broad stages. Both cmd/gate and cmd/loop's execRowWorld.Gate reach this owner, and the latter does not automatically preflight. The existing spent fixture already admits a row whose verifier is false and whose ordinary package tests pass, but exercises that row only with Preflight=true. In full mode that same known refusal is discovered after the broad stages. A missing selected Go test can likewise be rejected as vacuous only by planverify.Execute after ordinary tests pass. These are source-established admitted cases, not newly executed failed landings. Retained successful a104591ab ran test for 1m55.295s and lanes for 1m49.934s before verify for 1.787s; df8523d27 ran lanes for 18m24.834s before verify for 2.109s. Those timings show exposed work, not observed waste or a measured saving.",
+    "evidence_commit": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+    "expected_benefit": {
+        "outcome": "Complete scratch-only two-file alternative: landing.go 5418->5418 production AST and 41850->41850 LF bytes; spent_test.go 682->695 test AST (+13) and 4503->4606 LF bytes (+103). Pair 6100->6113. No source reduction: necessary regression coverage grows. Existing one Git/module fixture remains; table attempts 4->5 adds one six-stage refused host landing attempt in ordinary implementation validation. Static fixtures/schema/CUDA/dependencies/helpers/wrappers/new test functions all 0. Successful production gate work is unchanged; a failing verifier avoids later stages. No extra standing phase or recurring workload.",
+        "uncertainty": "Parsed complete alternatives only; no package compilation or application/test/device execution by SQA. Retained stage walls are successful attempts, not matched before/after failure measurements. Initial lock/quiet admission and arbitrary verifier duration remain. Ordinary implementation validation must retain moved-tree refusal and added-check/base semantics."
+      },
+    "id": "SQA-322",
+    "impact": "A cheap declared acceptance failure can refuse the attempt before broad host/device work. This is sequencing efficiency, not a claim that invalid code can currently land or that any retained successful run was wasted.",
+    "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
+    "plan_coverage": "No new plan row or SQA implementation. Distinct from SQA-266's repeated full-cycle evidence work and SQA-271's post-exit continuation; no shared root cause or coordinated migration justifies merging them.",
+    "plan_references": [
+        "docs/plan.json standing: cheap preflight stages and dependency-first failure admission",
+        "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)"
+      ],
+    "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler.",
+    "severity": "P3",
+    "sources": [
         {
           "path": "internal/landing/landing.go",
           "symbol": "Run, checks, verify, addedChecksFail: lines 222-249, 278-284 and 789-838"
@@ -6154,27 +6173,9 @@
           "symbol": "TestCommitChecksRefuseBelowTheFreeSpaceFloor"
         }
       ],
-      "evidence": "Run consumes checks in declared order. A full landing reaches test and lanes before verify; only an explicitly requested preflight filters out those broad stages. Both cmd/gate and cmd/loop's execRowWorld.Gate reach this owner, and the latter does not automatically preflight. The existing spent fixture already admits a row whose verifier is false and whose ordinary package tests pass, but exercises that row only with Preflight=true. In full mode that same known refusal is discovered after the broad stages. A missing selected Go test can likewise be rejected as vacuous only by planverify.Execute after ordinary tests pass. These are source-established admitted cases, not newly executed failed landings. Retained successful a104591ab ran test for 1m55.295s and lanes for 1m49.934s before verify for 1.787s; df8523d27 ran lanes for 18m24.834s before verify for 2.109s. Those timings show exposed work, not observed waste or a measured saving.",
-      "recommended_change": "Move the existing verify entry immediately after invariants in checks. Keep the same Execute and addedChecksFail owners, rather than adding a preliminary verifier or requiring a second manual preflight. Extend TestLandingRecordsItsWaitsByCause with one full-mode row/refused case using the same fixture and existing six-stage expectation; its recorded stage set must exclude test, lanes and scorecard. Reorder the two successful full-mode expectation lists for clarity. No new test function, helper, selector, cache or scheduler.",
-      "displaced_surface": "The late verify position disappears; no verifier execution or requirement is deleted. On refused full attempts, subsequent broad test/lane/scorecard invocations and their waits disappear. On successful attempts all stages remain once. Preserve preflight filtering, free-space-first and plan-only behavior, committed acceptance terms, verifier deduplication, added-check rejection on the base, real command exit/non-vacuous/repeat semantics, cancellation, candidate identity checks, private checkout/lock release and partial spent records. Initial commit/quiet-turn acquisition still precedes checks, so this does not promise to eliminate every wait. The moved-tree, successful landing, preflight refusal and measurement-wait cases all stay. No production export, configuration, file format, numerical, build-tag, data or confidentiality contract changes.",
-      "impact": "A cheap declared acceptance failure can refuse the attempt before broad host/device work. This is sequencing efficiency, not a claim that invalid code can currently land or that any retained successful run was wasted.",
-      "expected_benefit": {
-        "outcome": "Complete scratch-only two-file alternative: landing.go 5418->5418 production AST and 41850->41850 LF bytes; spent_test.go 682->695 test AST (+13) and 4503->4606 LF bytes (+103). Pair 6100->6113. No source reduction: necessary regression coverage grows. Existing one Git/module fixture remains; table attempts 4->5 adds one six-stage refused host landing attempt in ordinary implementation validation. Static fixtures/schema/CUDA/dependencies/helpers/wrappers/new test functions all 0. Successful production gate work is unchanged; a failing verifier avoids later stages. No extra standing phase or recurring workload.",
-        "uncertainty": "Parsed complete alternatives only; no package compilation or application/test/device execution by SQA. Retained stage walls are successful attempts, not matched before/after failure measurements. Initial lock/quiet admission and arbitrary verifier duration remain. Ordinary implementation validation must retain moved-tree refusal and added-check/base semantics."
-      },
-      "likely_effort": "Small existing table reorder and one case in the retained lifecycle fixture; no new framework.",
-      "plan_references": [
-        "docs/plan.json standing: cheap preflight stages and dependency-first failure admission",
-        "vision-bridge/cache-identity and vision-bridge/train retained landing records (timing context only)"
-      ],
-      "plan_coverage": "No new plan row or SQA implementation. Distinct from SQA-266's repeated full-cycle evidence work and SQA-271's post-exit continuation; no shared root cause or coordinated migration justifies merging them.",
-      "closure_criteria": [
-        "Full Run executes its existing verify after invariants and before test/lanes; preflight and plan-only contracts remain.",
-        "The retained spent fixture refuses its existing false verifier in full mode with only the six cheap stages recorded; all original success, conflict, preflight and wait cases remain.",
-        "Retain candidate/acceptance identities and Execute/addedChecksFail semantics; count the complete +13 test-node alternative and the extra fixture attempt honestly. No separate precheck or selector."
-      ],
-      "comparison": "Smallest deciding comparison is the existing row/refused case under full mode, through Run and its retained spent record, during ordinary implementation validation. The current table/order predicts test and lanes before refusal; the reordered owner predicts neither. Source/AST establishes scope now. No SQA-triggered gate, synthetic timing benchmark, device workload or redundant confidence run."
-    },
+    "status": "open",
+    "title": "Run the landing verifier before the broad tests and lanes"
+  },
     {
       "id": "SQA-323",
       "status": "open",
@@ -6317,48 +6318,117 @@
         "Retire synthetic-header/padding assertions only when that runtime behavior disappears; move their unique tensor-content/bounds/lifetime requirements into retained loader fixtures. Keep real-format parser/export and independent numerical checks."
       ],
       "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution."
+    },
+    {
+      "id": "SQA-325",
+      "status": "open",
+      "severity": "P3",
+      "category": "recipe-admission-and-recovery",
+      "classification": "source-established-late-static-binding-refusal",
+      "title": "Reject missing runnable adapters before any workflow stage executes",
+      "evidence_commit": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+      "sources": [
+        {
+          "path": "internal/recipe/validate.go",
+          "symbol": "Definition.Validate: graph/module/port/task/placement checks already precede execution"
+        },
+        {
+          "path": "internal/workflowruntime/runtime.go",
+          "symbol": "ExecuteProgram/executePlan/planReplay/executeReadySet/prepareStage/Register/adapter: runnable-stage binding and durable failure owner"
+        },
+        {
+          "path": "internal/capabilityruntime/measured.go",
+          "symbol": "ExecuteMeasured/measuredRun: caller-supplied bind function followed by ExecuteProgram; replay before model loading"
+        },
+        {
+          "path": "internal/trainingworkflow/chain.go",
+          "symbol": "executeChainArm and generation adapter registration: second caller of the same runtime"
+        },
+        {
+          "path": "internal/workflowruntime/model_builder.go",
+          "symbol": "ExecuteModelBuild: currently registers every compiled executor before running"
+        },
+        {
+          "path": "internal/workflowruntime/tool_workflow.go",
+          "symbol": "ExecuteToolWorkflow: currently binds compiled manuals and validates calls before execution"
+        },
+        {
+          "path": "internal/workflowruntime/tool.go",
+          "symbol": "NewToolExecutor/ExecuteToolOperation: single-stage binding, operation lifetime"
+        },
+        {
+          "path": "internal/workflowruntime/runtime_test.go",
+          "symbol": "runtimeFixture; TestCancellationWhileWaitingForStageLock; TestWorkflowRestartSkipsCompletedStages; TestWorkflowRecoveryRejectsRecipeDrift; TestRuntimePublishesFailedRun"
+        },
+        {
+          "path": "internal/workflowruntime/replay_test.go",
+          "symbol": "countingAdapters; TestReplayRunsNoStageItsOutputDoesNotNeed"
+        },
+        {
+          "path": "internal/workflowruntime/parallel_test.go",
+          "symbol": "TestCancellationCauseReachesTerminalReceipt; TestResourceDerivedConcurrency; TestDeterministicParallelReceipts"
+        }
+      ],
+      "evidence": "The compiled recipe validates graph contracts, but Runtime registration is separate. executePlan computes replay.run before entering ready sets; prepareStage checks for a missing adapter only when that set is reached. Admitted counterexample using the existing three-stage runtimeFixture: register tokenize and generate but omit detokenize, then ExecuteProgram with valid input and a fresh operation. Tokenize and generate run before prepareStage refuses the missing detokenize adapter. A bind callback accepted by measuredRun can return nil after the same incomplete registration. This is a static derivation from admitted APIs, not a newly executed reproducer or evidence that a retained production run wasted model time. Current ExecuteModelBuild and ExecuteToolWorkflow already enumerate all their bindings; credit them rather than alleging their present callers omit one. The shared runtime's same-ready-set preparation already precedes execution; the gap is across ready sets.",
+      "recommended_change": "After the existing planReplay has determined which nodes actually need execution, resolve and admit those nodes' adapters once before launching the first ready set, using the existing Runtime registry and execution-plan/stage structures. Carry the resolved bindings into stage preparation and replace its late missing-adapter admission rather than keeping two independent binding policies. Do not require adapters for recovered or pruned nodes: a fully replayable answer must continue to need no model load or adapter. Keep dynamic input/cardinality/output checks at their actual stage boundaries, where upstream values exist. Preserve failed-run publication and return the exact missing module/node; deterministic incomplete registration must await corrected binding, not automatic retry of the same invalid setup. Corrected registration resumes through the existing ExecuteProgram/receipt owner. No new preflight command, scheduler, validator framework, retry policy, configuration or exported API.",
+      "displaced_surface": "The missing-adapter refusal after upstream execution is replaced by one early runnable-binding admission. On an invalid fresh three-stage setup, the two earlier adapter executions and their stage receipts disappear; truthful failed-run/authority records remain. On valid runs, every required stage still runs once; successful replay runs zero. No mathematical validation, trust-boundary parsing, data or tool authority check is removed. No whole recipe/test deletion is established. Extend the existing replay/counting fixture, and complete the cancellation-lock fixture's currently partial bindings so it still reaches the lock it tests. No wrappers or migration schema; internal binding plumbing is a real cost.",
+      "impact": "Prevents avoidable work for a knowably unexecutable recipe and gives one actionable setup error. External tool effects or model work already done upstream cannot be assumed reversible. Failing early avoids starting them in this case; it does not make every later runtime error predictable. No observed data-loss, confidentiality defect, elapsed saving or memory measurement is claimed.",
+      "expected_benefit": {
+        "outcome": "Actual selected ten-file baseline: 12692 production +6086 test =18778 AST nodes. runtime.go5225, including executePlan429/planReplay253/prepareStage280; runtime_test3285, replay_test835, parallel_test1966. Existing registry, replay and stage owners stay. No safe net code reduction is established: earlier binding/plumbing and necessary coverage may grow the surface.",
+        "cost_contract": "Planning estimate, not a parsed replacement: production +40..120 nodes and test +100..220 including the cancellation-fixture adjustment; selected total roughly18918..19118 versus18778. Any extra binding/helper cost must be included; if implementation needs more, report it rather than hiding it in a new abstraction. Existing store/program fixture is reused. Proposed replay test adds one refused ExecuteProgram attempt before its existing first successful call, with zero adapter executions on refusal; subsequent corrected call and replay reuse the existing success/replay path. Static fixture bytes0, new test files/functions0, new exports/config/schema/dependencies0, new standing gate phase0. Native Go caching and existing selection remain. Net maintenance cost is initially positive but centralizes one real admission obligation instead of adding caller-specific checks.",
+        "uncertainty": "No complete alternative implemented or parsed; range is an estimate and not an optimization claim. Existing fully bound builders show source capability, not observed wasted work. No application/model/device test, gate, benchmark, profile or production run by SQA."
+      },
+      "likely_effort": "Small shared-runtime ordering/binding change with one retained fixture extension and one fixture migration; do not broaden into recipe expansion.",
+      "plan_references": [
+        "docs/plan.json standing: dependency-first admission, exact reusable evidence and durable recovery",
+        "User direction: robust recipes, earlier failures and recovery before broader recipe capability"
+      ],
+      "plan_coverage": "Report-only recommendation. No plan change or authorization for implementation. SQA-322 retains gate-stage ordering and SQA-271 retains supervised continuation; these distinct owners are not merged.",
+      "closure_criteria": [
+        "A missing adapter for any node in replay.run is reported before any adapter executes; error identifies the missing binding and the ordinary failed-run record remains truthful.",
+        "Recovered/pruned stages require no adapter; retained replay fixture still answers a durable completed operation without binding or loading models.",
+        "The existing replay/counting fixture first refuses an omitted final adapter with all counts0, then corrects only that binding and uses the existing successful call/replay checks. No new test framework or model workload.",
+        "The cancellation-lock fixture has complete bindings and still proves no adapter entry after cancellation and slot release; restart, recipe-drift, parallel cancellation/cause and publication-failure coverage remain.",
+        "Preserve exact recipe/operation/source identities, partial durable results, bounded execution and existing side-effect authority. No automatic retry of unchanged invalid bindings, acceptance relaxation or identity relabeling.",
+        "Record complete production/test/helper/migration/setup/fixture/gate/maintenance delta, including necessary growth; no numeric savings claim until measured."
+      ],
+      "comparison": "Smallest deciding comparison during ordinary implementation validation: in TestReplayRunsNoStageItsOutputDoesNotNeed, keep its existing runtime and counting adapters, omit the last binding before the first call, assert the named refusal and zero counts, restore it through Register and continue its existing first-success/replay sequence. Current source predicts two upstream calls before refusal; proposed admission predicts zero. Preserve TestCancellationWhileWaitingForStageLock by supplying its two otherwise-unused bindings, and retain existing restart/drift/parallel owners. No SQA execution, artificial timing or additional confidence campaign."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Storage format independence does not imply numerical-layout independence: qwen2 biases widen toF32,llama q/k rows permute for interleaved RoPE,Qwen3.5 mapped transforms and Gemma4 nativeFP8 scales remain explicit.",
-        "Current modelartifact.fromView/identifyView derive stored identity from virtual GGUF bytes. Source-file hashes are not interchangeable with that identity; preserve verification/provenance and historical evidence before removing emulation.",
-        "GGUF file alignment,shape reversal,quantization blocks and device256-byte alignment remain format/hardware contracts. Remove only synthetic file layout when no consumer needs it; do not materialize every tensor asF32 to hide differences.",
-        "View's1GiB cache bound and transformed-tensor lifetime remain real memory costs if moved. No assumption that lazy conversion improves startup or that endpoint samples prove full-model numerical parity."
+        "An adapter absent from the registry is knowable before execution; data returned by a predecessor is not. Do not pre-execute work to predict output validation.",
+        "planReplay prunes ancestors of durable outputs; recovered/pruned nodes deliberately do not require executable adapters. Check only replay.run.",
+        "ModelBuild and compiled ToolWorkflow currently populate their adapters;325 is an admitted shared API boundary gap, not proof these workflows currently waste work.",
+        "Zero counts versus two upstream calls is a structural deciding comparison. It is not an elapsed/memory estimate, numerical tolerance or timing threshold."
       ],
     "automation_sequence": [
-        "onboardingModel already selects supported native directories without conversion when no GGUF file is selected. The judge paragraph's conversion prerequisite should be reconciled by its implementation owner after prompt identity admission; do not add a second build/conversion campaign.",
-        "Retain explicit export/unsupported-family/projector callers,stop/budget/admission and exact evidence identity. Deleting unused setup is the objective; building another scheduler/registry/selector is outside it.",
-        "Report-only publication uses existing nonblocking commit ownership, latest report re-read, JSON validation and a path-limited commit; no production gate."
+        "Compile static graph contracts -> determine reusable stage results -> admit remaining bindings -> execute within existing resources -> publish truthful terminal state. Move only known checks earlier; retain dynamic/resource authority at use.",
+        "Use existing loop/plan/process owners for retries and final-exit continuation; retain stops, budgets, exact inputs and partial results. Completion timestamps do not prove delivered continuation.",
+        "SQA-322 removes the late verifier position, not a verifier or its acceptance. SQA-271 owns continuation. Do not consolidate these different obligations merely because both avoid wasted work."
       ],
     "fresh_ast": {
-        "revision": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+        "revision": "efc02c5fdbf321a8ae0686933839f82306d3f894",
         "files": [
-          "internal/gguf/view.go",
-          "internal/gguf/view_release_test.go",
-          "internal/gguf/view_endpoint_test.go",
-          "internal/hfconvert/convert.go",
-          "internal/hfconvert/qwen35.go",
-          "internal/hfconvert/view_test.go",
-          "internal/hfconvert/gemma4_view_test.go",
-          "internal/modelrecipe/loaded_program.go",
-          "internal/modelartifact/inventory.go",
-          "internal/modeldevice/device_load.go",
-          "internal/modeldevice/device_load_test.go",
-          "internal/inference/native_safetensors_model_test.go",
-          "cmd/evaluate/composition.go",
-          "cmd/evaluate/main.go",
-          "internal/inference/representation_bridge.go",
-          "internal/inference/representation_bridge_test.go"
+          "internal/recipe/validate.go",
+          "internal/workflowruntime/runtime.go",
+          "internal/workflowruntime/runtime_test.go",
+          "internal/workflowruntime/replay_test.go",
+          "internal/workflowruntime/parallel_test.go",
+          "internal/workflowruntime/model_builder.go",
+          "internal/workflowruntime/tool_workflow.go",
+          "internal/workflowruntime/tool.go",
+          "internal/capabilityruntime/measured.go",
+          "internal/trainingworkflow/chain.go"
         ],
-        "production_nodes": 21367,
-        "test_nodes": 10804,
-        "total_nodes": 32171,
-        "functions": 175,
-        "parser_local_bindings": 6488,
-        "method": "Existing Go parser.ParseComments/ast.Inspect over exact selected git blobs. Four closure files also counted at2ab4bdd35.",
-        "type_resolution": "Parser-local bindings and manually traced exported/package callers; no full package/cgo/device typecheck.",
-        "counterfactuals": "No full format-neutral replacement built or counted. view.go979 and related tests are baseline exposure, not assumed savings. Reader cleanup's+16local AST was already parsed; broader landed interval+867total."
+        "production_nodes": 12692,
+        "test_nodes": 6086,
+        "total_nodes": 18778,
+        "functions": 96,
+        "parser_local_bindings": 3886,
+        "method": "Existing Go parser.ParseComments/ast.Inspect over selected exact git blobs.",
+        "type_resolution": "Parser-local binding and manual package-caller tracing only.",
+        "counterfactuals": "No replacement implementation parsed.325 budget is explicitly estimated;322's retained complete alternative remains production0/test+13."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6517,17 +6587,17 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "Current direct-opening tests retain qwen2/llama bias/RoPE and Qwen3.5 boundary parity; native_safetensors_model_test is modeltest/device gated. Gemma4 endpoint/scalar test samples two64KiB ends, not every tensor byte. No test executed by SQA.",
-        "Committed d3d15a111/af0eef3c supplies320 lexical cleanup and candidate composition. Whole four-file interval+389production/+478test; one host-native candidate/promotion comparison added, existing fixture owners reused.",
-        "Historical test-growth analysis remains raw-exact and is not recomputed as a daily total."
+        "Existing source fixtures demonstrate intended replay/restart, failure-publication and cancellation contracts; they were read, not newly executed.",
+        "SQA-322's existing retained successful gate walls show exposure before verify, not measured wasted work. Its affected files remain byte-identical.",
+        "Actual broad00:32 source sample remains no-new-reduction: cache geometry,blob verification/retention,event fan-out and loop continuation had distinct retained owners. No timestamp-only review commit was made for that pass."
       ],
     "tests": [
-        "RETAIN existing GGUF/Safetensors parser bounds,duplicate-name/shape/dtype validation and tokenizer/EOS/RoPE/tied-embedding owners. A storage interface migration must not retire mathematical mapping checks.",
-        "MERGE/MOVE conditionally: hfconvert requireViewIsConversion's qwen2/llama/Qwen3.5 tensor/content/native-open cases into the existing shared-loader fixture if runtime View is removed; real export image/header/padding checks stay with the retained writer. Shared-mapper equivalence is not an independent numerical oracle.",
-        "MERGE/MOVE conditionally: view_release/endpoint partial reads,overlapping read-ahead,one-build,end release and later identical rebuild into the retained transformed-tensor lifetime owner. REMOVE only the synthetic-file-specific portions after that behavior ceases. Existing303/262 may instead be implemented while View remains; savings counted once.",
-        "RETAIN modeldevice claimed/unclaimed byte reads,allocation/write/cancellation failures,split-shard integrity and mapped-host/card cleanup. These are shared transfer requirements, not conversion scaffolding.",
-        "RETAIN existing native Qwen3.5 decode/layout and Gemma4 dtype/FP8/scalar checks at their present scope/tags. No fresh model run/new performance ratchet.",
-        "RETAIN candidate/promoted prompt-token,placeholder-row,embedding and width-refusal test added by320's broader landing. The trivial reader-close repair itself requires no additional test."
+        "RETAIN TestReplayRunsNoStageItsOutputDoesNotNeed's zero-stage replay without adapters, failing-operation replay refusal, truthful store identity and recovery. EXTEND its existing first-success path with one missing-final-binding refusal and zero invocation counts; restore binding and continue existing checks.",
+        "RETAIN/MIGRATE TestCancellationWhileWaitingForStageLock: supply all three fixture bindings before execution so the intended occupied-slot/held-lock/cancellation path is still reached. Keep its started guard, context identity and slot-release assertions.",
+        "RETAIN TestWorkflowRestartSkipsCompletedStages and TestWorkflowRecoveryRejectsRecipeDrift: durable completed stage reuse and exact-recipe refusal are separate from static adapter admission.",
+        "RETAIN TestCancellationCauseReachesTerminalReceipt, TestResourceDerivedConcurrency and TestDeterministicParallelReceipts: bounded execution, sibling cause propagation and output/receipt ordering remain distinct contracts.",
+        "RETAIN failed-run and failed-publication fixtures. Failed admission must not appear successful and no changed identity inherits earlier evidence.",
+        "MERGE/SIMPLIFY only the missing-adapter check's ownership by replacing late admission with early resolved bindings; no whole tests/functions removed without a retained contract. No new model fixture, confidence suite or recurring workload."
       ]
   },
     "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
@@ -8061,10 +8131,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Format independence is a source-supported architectural recommendation; complete replacement cost and speed/memory benefit are not yet established. No numerical net saving is assigned to SQA-324.",
-      "AST/manual and parser-local resolution only; package/cgo/device types not loaded. No application tests,model workloads,benchmarks,profiles or new confidence runs.",
-      "Existing physical export,unsupported-family/projector consumers and historical identity verification can prevent wholesale converter/view deletion. All retained compatibility cost must be counted.",
-      "Untouched findings retain their own evidence revisions and rankings; this follow-up is not a fresh comprehensive revalidation. Historical requested_growth_analysis and all owner/unknown fields are preserved."
+      "Missing-adapter counterexample is admitted by the shared Runtime and measuredRun bind contract, derived statically. Current builders that bind all their stages are credited; no retained costly failure or measured saving is claimed.",
+      "Parser-local/manual resolution only; no package-level or device typechecking. No code executed except selected-source analysis and report serialization/publication tooling.",
+      "Full replacement AST is not available. Production/test growth estimates explicitly include binding plumbing and the existing cancellation fixture migration; no net reduction asserted.",
+      "Other findings retain their individual evidence revisions. Historical requested_growth_analysis and implementation-owned/unknown fields remain raw-exact. This is not a new broad census."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -8852,21 +8922,23 @@
       }
     }
   },
-    "next_finding_number": 325,
+    "next_finding_number": 326,
     "publication_context": {
-    "assessment": "Targeted user-requested recommendations and committed320 response reconciled. Re-read current HEAD/report/owner fields immediately before publication; no worker code edits.",
-    "checked_head": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
-    "publication": "Only docs/sqa_findings.json, existing hooks/ownership and nonblocking landing/gate locks. Preserve unrelated worktree/index and raw-exact implementation-owned/unknown fields."
+    "assessment": "Preserve the worker's untracked vision_bridge_record_test.go. Immediately reread current report, owner fields and HEAD before report-only publication.",
+    "checked_head": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+    "publication": "Existing nonblocking landing/gate ownership and hooks; path-limited commit only docs/sqa_findings.json. No gate run or worker changes."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
     "SQA-315",
     "SQA-271",
+    "SQA-322",
     "SQA-318",
     "SQA-319",
     "SQA-283",
     "SQA-277",
     "SQA-266",
+    "SQA-325",
     "SQA-324",
     "SQA-257",
     "SQA-303",
@@ -8879,7 +8951,6 @@
     "SQA-311",
     "SQA-312",
     "SQA-314",
-    "SQA-322",
     "SQA-298",
     "SQA-259",
     "SQA-228",
@@ -8898,51 +8969,50 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "Added canonical SQA-324 for one coordinated format-independent loading migration. Existing303/262 test reductions remain separate and must not be double-counted against future path removal.",
-      "Corrected the narrow conversational assumption: View already supports qwen2/llama/Gemma4 as well as Qwen3.5. The committed judge's mandatory-conversion premise is broader than current implementation support; prompt parity still must hold.",
-      "Closed320 against committed d3d15a111/af0eef3c; source-reader ownership is now explicit on success and failure paths.",
-      "New recommendation asks for deletion-backed reuse of existing mapping/loading/identity owners, not a new loader framework or a second implementation of the same contracts."
+      "Added325: missing runnable adapters can be rejected before upstream stages; preserve adapter-free replay and all dynamic validation.",
+      "Promoted322 in reviewer order because the user prioritizes detecting setup/acceptance refusal before costly dependent work. Severity remainsP3 and historical measured exposure is not recast as waste.",
+      "Keep271 for real-exit-to-authorized-continuation evidence and exact worker-count checks. Recipe stage receipts already recover completed durable results; expanding that into a second retry/dispatch owner is not recommended.",
+      "Recipe expansion and324's storage-format migration should preserve early admission and existing recovery first. Automatic recovery never means accepting changed identities, hiding failures or repeating unchanged invalid configuration."
     ],
-    "reviewed_at": "2026-11-06T23:40:49Z",
-    "reviewed_master": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
+    "reviewed_at": "2026-11-07T00:42:05Z",
+    "reviewed_master": "efc02c5fdbf321a8ae0686933839f82306d3f894",
     "schema_version": 2,
     "scope": [
-      "Targeted user-requested follow-up on removing mandatory Safetensors-to-GGUF conversion and separating model loading from storage format, pinned at af0eef3c862991644806bb850cbeb1fb9f3f5d4c. Instructions unchanged69a0ec1510af484e39da2cf7e169dbc73b70ae8f; committed plan7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8 read. No full recurring audit claimed.",
-      "Actual selected-file Go AST:12format/load/test files23520nodes(15311production/8209test),139functions,4924parser-local bindings. Four-file reader-cleanup/candidate supplement8651nodes(6056production/2595test),36functions,1564bindings. Combined32171nodes,175functions,6488bindings. Exact git blobs parsed; other callers/config/export/identity sources read manually.",
-      "Physical GGUF and supported HF directory callers traced through existing recipe/model/host/device loading; exporter/onboarding/plan consumers and native fixtures enumerated. Identity's dependence on the virtual GGUF image is an explicit migration cost.",
-      "This chat previously implemented Overgo changes: overlapping SQA, not independent third-party review. Report only; no code,tests,plan/skill,workload,worker messaging or gate changes."
+      "Targeted follow-up to the user's recipe robustness, earlier admission and recovery direction at efc02c5fdbf321a8ae0686933839f82306d3f894. skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan7cd92e8c2d2c78f09dcb09b728a2c6562c6329e8 unchanged from the just-read committed instructions/plan.",
+      "Actual Go AST analysis of ten recipe/runtime/caller files:18778nodes=12692production+6086test,96functions,3886parser-local bindings. Read concrete inference/training/tool/build callers, static graph checks and existing replay/cancellation/failure fixtures.",
+      "Rechecked SQA-322's seven source/test owners byte-identical to its evidence revision; current full landing still puts verify after test/lanes. Existing SQA-271 remains the continuation owner, not a new recovery framework.",
+      "This chat previously implemented Overgo changes: overlapping review, not independent third-party SQA. Report-only; no implementation, app/test/gate/device workload, worker messaging, plan or skill edits."
     ],
     "sqa_response": {
-    "assessment": "151stable IDs:35canonical open,110resolved,4deferred,2consolidated aliases. Added324;closed320. Owner and unknown fields retained exactly.",
+    "assessment": "152stable IDs:36canonical open,110resolved,4deferred,2consolidated aliases. Added325; no closure or consolidation in this follow-up.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "12-file format AST23520 and four-file closure supplement8651. Direct-directory View has qwen2,llama,Qwen3.5,Gemma4 callers; model/runtime remains coupled to gguf.File and virtual-image identity.320's lexical Close landed; broader candidate interval+389production/+478test is charged honestly.",
+    "evidence": "Ten selected committed files18778AST; missing-adapter check occurs in per-set prepareStage after preceding sets can execute. planReplay already identifies only the required execution nodes. Seven322 owners unchanged and full gate verify remains late.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "2ab4bdd35c60c28d69c2d26b938ec2d1881ae4ae",
-        "status": "Raw-exact implementation_review/master_lead_triage and unknown fields retained.320's implemented response now matches committed source. Recommendation324 is reviewer/user requested, not owner adoption."
+        "status": "Implementation and unknown fields preserved raw-exact;325 and the reviewer priority change are not implementation-owner adoption."
       },
     "new_findings": [
-        "SQA-324"
+        "SQA-325"
       ],
     "partially_addressed_findings": [
         "SQA-271",
         "SQA-315"
       ],
     "priority_changes": [
-        "SQA-324 inserted after SQA-266 as the user-requested coordinated loading recommendation; SQA-320 removed from active ranking after committed closure."
+        "SQA-322 moved after271 for earlier acceptance refusal; severity unchanged.",
+        "SQA-325 placed before324: make existing recipe admission reliable before broadening the loading/recipe surface."
       ],
-    "recommendation": "Reuse current direct loading to retire unnecessary conversion prerequisites. Replace the virtual-file runtime dependency through existing model/tensor/loading owners only when full compatibility and test migration cost supports it. Keep required parsing/mapping/export/identity behavior; no wholesale converter deletion.",
+    "recommendation": "Admit known runnable bindings before expensive stages; retain dynamic checks and adapter-free replay. Resume valid completed work through current receipts and supervised continuation. Report root errors and keep deterministic invalid setup stopped until corrected; no blind retries or duplicate policy.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-320"
-      ],
-    "reviewed_master": "af0eef3c862991644806bb850cbeb1fb9f3f5d4c",
-    "uncertainty": "No numeric after-size or runtime-saving estimate established for324. Source inspection and retained implementation evidence only; no independent third-party assurance."
+    "resolved_findings": [],
+    "reviewed_master": "efc02c5fdbf321a8ae0686933839f82306d3f894",
+    "uncertainty": "No execution or measured saving. Necessary bounded production/test growth is estimated, not hidden as a reduction."
   }
   }

@@ -59,13 +59,6 @@
       },
       "steps": [
         {
-          "id": "pointer",
-          "title": "AGENTS.md points Claude and Codex to skill.md and the three commands",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestThePointerFileNamesSkillAndTheCommands$'",
-          "rationale": "The repo has no AGENTS.md (Codex reads it) and no CLAUDE.md (Claude reads it), so each tool's instructions live in its own config and hooks and drift apart.\nAGENTS.md: skill.md is the only written guidance; next step go run ./cmd/plan -next; check it go run ./cmd/plan -verify; commit it go run ./cmd/loop -land \u003citem\u003e/\u003cstep\u003e -message-file -; when a command refuses, do what its message says and keep going, don't stop to ask. CLAUDE.md holds one line, @AGENTS.md. Once the driver runs every step, the three command lines and the last sentence go too.\nServes: setup-steps; Claude and Codex read the same guidance.\nDisappears: guidance kept only in each tool's own configuration.\nEvidence: the pointer names skill.md and the three commands and holds nothing else.\nBatch: host lane."
-        },
-        {
           "id": "guard-limits",
           "title": "The guard refuses a raw git push and changes to security settings, and the trunk's hook refuses a co-author line on any commit",
           "status": "open",

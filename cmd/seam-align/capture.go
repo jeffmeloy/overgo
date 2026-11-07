@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/device"
 	"overgo/internal/evaluation"
 	"overgo/internal/hfbpe"
 	"overgo/internal/jsonfile"
@@ -83,7 +84,7 @@ func captureSamples(spec captureSpec) ([]evaluation.CaptionTrainingClip, error) 
 // captureSeams writes a capture of the encoder's class token and patch mean for each sample's middle frame beside its
 // caption's mean token embedding in the text model, each sample grouped by its source video, and beside the capture
 // the samples it read, with where their frame tokens are cached, as the bridge's training reads them.
-func captureSeams(ctx context.Context, specPath string) error {
+func captureSeams(ctx context.Context, specPath string) (err error) {
 	var spec captureSpec
 	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
 		return err
@@ -99,6 +100,12 @@ func captureSeams(ctx context.Context, specPath string) error {
 	if err != nil {
 		return err
 	}
+	// Each frame is encoded on the card, which gives the tokens the host encoder gives.
+	card, err := encoder.OpenCard(ctx, device.DefaultOrdinal())
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, card.Close()) }()
 	tokenizer, err := hfbpe.Load(spec.TextModel)
 	if err != nil {
 		return err
@@ -129,7 +136,7 @@ func captureSeams(ctx context.Context, specPath string) error {
 	cls, patches, target := make([]float32, 0, len(samples)*hidden), make([]float32, 0, len(samples)*hidden), make([]float32, 0, len(samples)*width)
 	groups, sources := make([]float32, len(samples)), map[string]int{}
 	for index, sample := range samples {
-		values, frame, err := capturedSample(ctx, spec, inputs, encoder, tokenizer, ffmpeg, sample, hidden, width)
+		values, frame, err := capturedSample(ctx, spec, inputs, card, tokenizer, ffmpeg, sample, hidden, width)
 		if err != nil {
 			return fmt.Errorf("seam-align: %s: %w", sample.Vid, err)
 		}
@@ -224,7 +231,7 @@ func keepSample(cache, vid, key string, values, tokens []float32) (artifact.ID, 
 // inputs or captured and cached. Every token of the frame is cached beside them, the encoder's width by its tokens,
 // for the bridge's training, which reads them all.
 func capturedSample(
-	ctx context.Context, spec captureSpec, inputs string, encoder *vitencoder.Encoder, tokenizer *hfbpe.Tokenizer, ffmpeg string,
+	ctx context.Context, spec captureSpec, inputs string, encoder *vitencoder.Card, tokenizer *hfbpe.Tokenizer, ffmpeg string,
 	sample evaluation.CaptionTrainingClip, hidden, width int,
 ) (values []float32, identity artifact.ID, err error) {
 	clip := filepath.Join(spec.Clips, sample.Vid+".mp4")
@@ -243,7 +250,7 @@ func capturedSample(
 	if err := png.Encode(&frame, frames[len(frames)/halfway]); err != nil {
 		return nil, identity, err
 	}
-	tokens, err := encoder.Tokens(frame.Bytes())
+	tokens, err := encoder.Tokens(ctx, frame.Bytes())
 	if err != nil {
 		return nil, identity, err
 	}

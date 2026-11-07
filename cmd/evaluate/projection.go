@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/png"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -149,6 +150,8 @@ func mediaPath(root, name string) (string, error) {
 type projectionSession struct {
 	nativeSession
 	vision projector.Session
+	// source is a composite's image encoder on the card, which the session releases; a projector's session holds none.
+	source io.Closer
 }
 
 // openProjectionSession opens the projector the request names and then the
@@ -208,5 +211,9 @@ func (s *projectionSession) Close() error {
 	if s == nil {
 		return nil
 	}
-	return errors.Join(s.vision.Close(), s.nativeSession.Close())
+	closing := errors.Join(s.vision.Close(), s.nativeSession.Close())
+	if s.source != nil {
+		closing = errors.Join(closing, s.source.Close())
+	}
+	return closing
 }

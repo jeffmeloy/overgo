@@ -217,15 +217,21 @@ func (e *Encoder) Embed(image []byte) ([]float32, error) {
 // after the final norm, each of the encoder's width: the class token, any
 // registers, then the patches, the output an encoder's seam reads.
 func (e *Encoder) Tokens(image []byte) ([]float32, error) {
-	rgb, height, width, err := patchtower.DecodeImageBytesRGB(image)
-	if err != nil {
-		return nil, fmt.Errorf("vitencoder: decode image: %w", err)
-	}
-	pixels, err := e.preprocess.pixels(rgb, height, width)
+	pixels, err := e.imagePixels(image)
 	if err != nil {
 		return nil, err
 	}
 	return e.encode(pixels, true)
+}
+
+// imagePixels decodes one PNG or JPEG image and prepares it as the checkpoint's image processor does: normalized
+// channel-first pixels of the encoder's input size.
+func (e *Encoder) imagePixels(image []byte) ([]float32, error) {
+	rgb, height, width, err := patchtower.DecodeImageBytesRGB(image)
+	if err != nil {
+		return nil, fmt.Errorf("vitencoder: decode image: %w", err)
+	}
+	return e.preprocess.pixels(rgb, height, width)
 }
 
 // Patches runs normalized channel-first pixels of the encoder's input size
@@ -252,35 +258,10 @@ func (e *Encoder) Shape() (input, grid, hidden int) {
 // patches.
 func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	g := e.geometry
-	crop := e.preprocess.crop
-	if !checked.Equal(len(pixels), e.pixelCount) {
-		return nil, fmt.Errorf("vitencoder: %d pixels, want %d", len(pixels), e.pixelCount)
+	hidden, err := e.embed(pixels)
+	if err != nil {
+		return nil, err
 	}
-	patches := make([]float32, e.grid*e.grid*e.patchInputSize)
-	for row := range e.grid {
-		for column := range e.grid {
-			patch := patches[(row*e.grid+column)*e.patchInputSize:]
-			for c := range channels {
-				for y := range g.PatchSize {
-					for x := range g.PatchSize {
-						patch[(c*g.PatchSize+y)*g.PatchSize+x] = pixels[(c*crop+row*g.PatchSize+y)*crop+column*g.PatchSize+x]
-					}
-				}
-			}
-		}
-	}
-	// The class token and the patches take their positions; the registers
-	// sit between them and take none.
-	hidden := make([]float32, e.tokens*g.Hidden)
-	patched := hidden[(1+g.Registers)*g.Hidden:]
-	hostmath.LinearBias(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
-	for index, value := range e.position[g.Hidden:] {
-		patched[index] += value
-	}
-	for index, value := range e.classToken {
-		hidden[index] = value + e.position[index]
-	}
-	copy(hidden[g.Hidden:], e.registers)
 	normed := make([]float32, len(hidden))
 	q, k, v := make([]float32, len(hidden)), make([]float32, len(hidden)), make([]float32, len(hidden))
 	projected := make([]float32, len(hidden))
@@ -315,12 +296,53 @@ func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 		finalWeight, finalBias = nil, nil
 	}
 	hostmath.LayerNormInto(hidden, hidden, finalWeight, finalBias, e.tokens, g.Hidden, g.Epsilon)
-	for _, value := range hidden {
+	return finite(hidden)
+}
+
+// embed is the encoder's input rows for normalized channel-first pixels: the class token, any registers, then the
+// patches, the class token and the patches with their positions.
+func (e *Encoder) embed(pixels []float32) ([]float32, error) {
+	g := e.geometry
+	crop := e.preprocess.crop
+	if !checked.Equal(len(pixels), e.pixelCount) {
+		return nil, fmt.Errorf("vitencoder: %d pixels, want %d", len(pixels), e.pixelCount)
+	}
+	patches := make([]float32, e.grid*e.grid*e.patchInputSize)
+	for row := range e.grid {
+		for column := range e.grid {
+			patch := patches[(row*e.grid+column)*e.patchInputSize:]
+			for c := range channels {
+				for y := range g.PatchSize {
+					for x := range g.PatchSize {
+						patch[(c*g.PatchSize+y)*g.PatchSize+x] = pixels[(c*crop+row*g.PatchSize+y)*crop+column*g.PatchSize+x]
+					}
+				}
+			}
+		}
+	}
+	// The class token and the patches take their positions; the registers
+	// sit between them and take none.
+	hidden := make([]float32, e.tokens*g.Hidden)
+	patched := hidden[(1+g.Registers)*g.Hidden:]
+	hostmath.LinearBias(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
+	for index, value := range e.position[g.Hidden:] {
+		patched[index] += value
+	}
+	for index, value := range e.classToken {
+		hidden[index] = value + e.position[index]
+	}
+	copy(hidden[g.Hidden:], e.registers)
+	return hidden, nil
+}
+
+// finite is tokens, refused when one holds a non-finite value.
+func finite(tokens []float32) ([]float32, error) {
+	for _, value := range tokens {
 		if !checked.Finite32(value) {
 			return nil, errors.New("vitencoder: the encoder produced a non-finite value")
 		}
 	}
-	return hidden, nil
+	return tokens, nil
 }
 
 // addScaled adds a branch to the residual stream, per channel scaled when the

@@ -55,16 +55,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "Measured by the gate: frozen-9b adds 8,256 production nodes: the gated-delta layer on the card with its backward, the gated attention layer with its output gate, the frozen layers' shared pieces, the stack session with its head and cross-entropy, the 9B's loader keeping every gate and the stack loader it shares, the caption-projector route's hybrid branch, the ops session's write and the new kernels' bindings. A device layer no command reaches is refused, so the layers land with the walk that reaches them."
+        "reason": "Measured by the gate: card-encoder adds 1,278 production nodes: the encoder's card graph and session, the front end split from the host walk, and the composite and the capture opening the card."
       },
       "steps": [
-        {
-          "id": "card-encoder",
-          "title": "Run the DINO encoder on the card for the composite and the capture",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/vitencoder -count=1 -run '^TestTheCardEncoderGivesTheHostTokens$'",
-          "rationale": "The owner, 2026-11-06: before training the 9B composite, run the webssl-dino300m encoder on the GPU: it takes 4.8 s of the composite's 5.1 s per image on the host, and it fits in the 9B composite's memory limit. Measured in the 0.5B judgement: one frame through the composite took 5.061 s, 4.781 s of it the encoder's on the host (docs/verification/vision-bridge-0.5b-judgement.json). The 9B composite's limit is 11 GiB of card memory (docs/verification/vision-bridge-acceptance.json); its text model takes 9.04 GiB, and the 300M encoder about 0.6 GB in BF16 or 1.2 GB in F32. The same encoder cut the 4,096 frames of the 0.5B's capture over 5h20m on the host, a cost the 9B's capture would pay again.\nRun the encoder on the card for every reader of it, the composite's source (cmd/evaluate's encoderSource) and seam-align's capture alike, giving the tokens the host encoder gives within rounding, so the capture's cache and the bridges trained on it stay valid. The check holds the card's tokens for a frame to the host's and times one frame.\nServes: first-output and throughput of every image composite, and the 9B capture's wall.\nDisappears: the host encoder as the composite's path, kept as the reference the card is held to.\nEvidence: the card-against-host check and one frame's time.\nBatch: cuda lane."
-        },
         {
           "id": "publish-composite",
           "title": "Publish the composite the judgements favour as an inactive candidate",

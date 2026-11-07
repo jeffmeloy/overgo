@@ -49,13 +49,20 @@ func openCompositionSession(ctx context.Context, store *overgodb.Store, value ma
 	if err != nil {
 		return nil, err
 	}
-	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
+	// The encoder runs on the text model's card, which gives the tokens the host encoder gives.
+	card, err := encoder.OpenCard(ctx, value.Device)
 	if err != nil {
 		return nil, err
 	}
-	fail := func(cause error) (evaluationSession, error) { return nil, errors.Join(cause, runner.Close()) }
+	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
+	if err != nil {
+		return nil, errors.Join(err, card.Close())
+	}
+	fail := func(cause error) (evaluationSession, error) {
+		return nil, errors.Join(cause, runner.Close(), card.Close())
+	}
 	resources := compositionResources{
-		source: encoderSource{id: source.Inventory.Manifest.ID, encoder: encoder},
+		source: encoderSource{id: source.Inventory.Manifest.ID, encoder: card},
 		target: runnerTarget{runner: runner, placeholder: request.Placeholder},
 		store:  store,
 	}
@@ -97,7 +104,7 @@ func openCompositionSession(ctx context.Context, store *overgodb.Store, value ma
 	}
 	return &projectionSession{
 		nativeSession: nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit},
-		vision:        vision,
+		vision:        vision, source: card,
 	}, nil
 }
 
@@ -185,19 +192,19 @@ func adapterValue(stored safetensors.Tensor, extents ...uint64) (reference.Value
 // encoderSource is a composite's image encoder: every token of a picture, the encoder's width by its tokens.
 type encoderSource struct {
 	id      artifact.ID
-	encoder *vitencoder.Encoder
+	encoder *vitencoder.Card
 }
 
 // ModelID is the encoder's identity.
 func (s encoderSource) ModelID() artifact.ID { return s.id }
 
 // EncodeImage is every token the encoder gives the picture, its width by its tokens.
-func (s encoderSource) EncodeImage(_ context.Context, picture image.Image) (reference.Value, error) {
+func (s encoderSource) EncodeImage(ctx context.Context, picture image.Image) (reference.Value, error) {
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, picture); err != nil {
 		return reference.Value{}, err
 	}
-	tokens, err := s.encoder.Tokens(encoded.Bytes())
+	tokens, err := s.encoder.Tokens(ctx, encoded.Bytes())
 	if err != nil {
 		return reference.Value{}, err
 	}

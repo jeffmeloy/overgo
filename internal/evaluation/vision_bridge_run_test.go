@@ -12,11 +12,12 @@ import (
 	"overgo/internal/testcheck"
 )
 
-// visionBridgeRun is the record of the 0.5B composite's training, and secondsPerHour what its segments' walls are
-// divided by for its card-hours.
+// visionBridgeRun and visionBridgeNineBRun are the records of the 0.5B and the 9B composites' training, and
+// secondsPerHour what their segments' walls are divided by for their card-hours.
 const (
-	visionBridgeRun = "../../docs/verification/vision-bridge-0.5b-run.json"
-	secondsPerHour  = 3600
+	visionBridgeRun      = "../../docs/verification/vision-bridge-0.5b-run.json"
+	visionBridgeNineBRun = "../../docs/verification/vision-bridge-9b-run.json"
+	secondsPerHour       = 3600
 )
 
 // visionBridgeSeam is one seam the run's capture ranked, as seam-align -rank prints it.
@@ -64,20 +65,34 @@ type visionBridgeRunRecord struct {
 	GPUHours float64               `json:"gpu_hours"`
 }
 
-// TestVisionBridgeRunHoldsItsTerms holds the 0.5B composite's training to the acceptance: it names the terms by their
-// digest and their first comparison, holds samples back from training, records its capture's seams ranked best first,
-// trains in segments each from the checkpoint before it, the first from the zero-output bridge, chooses the checkpoint
-// whose held-back loss is least and below the zero bridge's, and takes no more card-hours than the terms allow.
+// TestVisionBridgeRunHoldsItsTerms holds the 0.5B composite's training to the acceptance, its first segment from the
+// zero-output bridge, within the 0.5B's card-hours.
 func TestVisionBridgeRunHoldsItsTerms(t *testing.T) {
 	t.Parallel()
+	runHoldsItsTerms(t, visionBridgeRun, "zero", 0, func(terms visionBridgeTerms) float64 { return terms.Limits.GPUHours05B })
+}
+
+// TestTheNineBBridgeRunHoldsItsTerms holds the 9B composite's training to the acceptance, its first segment from the
+// captions' mean, within the 9B's card-hours.
+func TestTheNineBBridgeRunHoldsItsTerms(t *testing.T) {
+	t.Parallel()
+	runHoldsItsTerms(t, visionBridgeNineBRun, "mean", 1, func(terms visionBridgeTerms) float64 { return terms.Limits.GPUHours9B })
+}
+
+// runHoldsItsTerms holds a composite's training record at path to the acceptance: it names the terms by their digest
+// and the comparison it serves, holds samples back from training, records its capture's seams ranked best first, trains
+// in segments each from the checkpoint before it, the first from start, chooses the checkpoint whose held-back loss is
+// least and below its start's, and takes no more card-hours than the terms allow it.
+func runHoldsItsTerms(t *testing.T, path, start string, comparison int, hours func(visionBridgeTerms) float64) {
+	t.Helper()
 	data := testcheck.Must(os.ReadFile(visionBridgeAcceptance))(t)
 	var terms visionBridgeTerms
 	testcheck.NoError(t, strictjson.DecodeBytes(data, &terms))
 	digest := sha256.Sum256(data)
 	var run visionBridgeRunRecord
-	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(visionBridgeRun))(t), &run))
-	if run.Schema != "overgo/vision-bridge-run/v1" || run.Acceptance != "sha256:"+hex.EncodeToString(digest[:]) || run.Comparison != terms.Comparisons[0].Name {
-		t.Fatalf("the run names the terms %s and the comparison %q; want the acceptance's digest and its first comparison", run.Acceptance, run.Comparison)
+	testcheck.NoError(t, strictjson.DecodeBytes(testcheck.Must(os.ReadFile(path))(t), &run))
+	if run.Schema != "overgo/vision-bridge-run/v1" || run.Acceptance != "sha256:"+hex.EncodeToString(digest[:]) || run.Comparison != terms.Comparisons[comparison].Name {
+		t.Fatalf("the run names the terms %s and the comparison %q; want the acceptance's digest and its comparison %q", run.Acceptance, run.Comparison, terms.Comparisons[comparison].Name)
 	}
 	if run.Capture.File == "" || run.Capture.HeldSources <= 0 || run.Capture.HeldSamples <= 0 || run.Capture.HeldSamples >= run.Capture.Samples {
 		t.Errorf("the run holds back %d samples of %d sources from %d; want a share held back to choose its checkpoint",
@@ -87,8 +102,8 @@ func TestVisionBridgeRunHoldsItsTerms(t *testing.T) {
 	if len(run.Ranking) == 0 || !slices.IsSortedFunc(run.Ranking, byHeldOut) || run.Ranking[0].Samples != run.Capture.Samples {
 		t.Error("the run records no ranking of its capture's seams, best first")
 	}
-	if len(run.Segments) == 0 || run.Segments[0].From != "zero" {
-		t.Fatal("the run records no segment trained from the zero-output bridge")
+	if len(run.Segments) == 0 || run.Segments[0].From != start {
+		t.Fatalf("the run records no segment trained from its start, %s", start)
 	}
 	chosen, seconds := 0, 0.0
 	for index, segment := range run.Segments {
@@ -111,10 +126,10 @@ func TestVisionBridgeRunHoldsItsTerms(t *testing.T) {
 		seconds += stopped.WallSeconds
 	}
 	if best := run.Segments[chosen]; run.Chosen != best.Checkpoint || !(best.HeldLossAfter < run.Segments[0].HeldLossBefore) {
-		t.Errorf("the run chose %s; want %s, whose held-back loss %.4f is least, below the zero bridge's %.4f",
+		t.Errorf("the run chose %s; want %s, whose held-back loss %.4f is least, below its start's %.4f",
 			run.Chosen, best.Checkpoint, best.HeldLossAfter, run.Segments[0].HeldLossBefore)
 	}
-	if hours := seconds / secondsPerHour; run.GPUHours < hours || run.GPUHours > terms.Limits.GPUHours05B {
-		t.Errorf("the run records %.2f card-hours over segments of %.2f; want them counted and within the terms' %.2f", run.GPUHours, hours, terms.Limits.GPUHours05B)
+	if spent, allowed := seconds/secondsPerHour, hours(terms); run.GPUHours < spent || run.GPUHours > allowed {
+		t.Errorf("the run records %.2f card-hours over segments of %.2f; want them counted and within the terms' %.2f", run.GPUHours, spent, allowed)
 	}
 }

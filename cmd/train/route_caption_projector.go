@@ -97,6 +97,10 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 	if capture.EncoderWidth <= 0 || capture.TextWidth <= 0 || len(capture.Samples) == 0 {
 		return fmt.Errorf("%s: the capture holds %d samples of widths %d and %d", name, len(capture.Samples), capture.EncoderWidth, capture.TextWidth)
 	}
+	// The samples the run trains on are admitted before a start is written or anything is opened.
+	if admitted, _ := heldBack(capture.Samples, capture.Samples, *held); len(admitted) < *batch {
+		return fmt.Errorf("%s: %d samples are left to train on beside the held sources, fewer than a batch of %d", name, len(admitted), *batch)
+	}
 	if _, statErr := os.Stat(*from); errors.Is(statErr, fs.ErrNotExist) {
 		first, err := captionStart(*start, *capturePath, capture, *held)
 		if err != nil {
@@ -148,9 +152,6 @@ func trainCaptionProjector(ctx context.Context, flags *flag.FlagSet, args []stri
 		return err
 	}
 	trained, scored := heldBack(capture.Samples, sequences, *held)
-	if len(trained) < *batch {
-		return fmt.Errorf("%s: %d samples are left to train on beside the held sources, fewer than a batch of %d", name, len(trained), *batch)
-	}
 	// With no source held, the run is held to the loss of its first batch, before and after.
 	if len(scored) == 0 {
 		scored = wrappedBatch(trained, 0, *batch)

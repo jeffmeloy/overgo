@@ -1,14 +1,21 @@
 package main
 
 import (
+	"errors"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestHeldSourcesStayOutOfTraining holds the caption projector's held-back share to whole source videos: every sample
@@ -44,8 +51,10 @@ func TestAMeanStartPlacesTheTrainedCaptionsMean(t *testing.T) {
 	t.Parallel()
 	const encoderWidth, textWidth = 2, 3
 	capture := evaluation.CaptionTrainingCapture{EncoderWidth: encoderWidth, TextWidth: textWidth}
-	for _, source := range []string{"held", "trained", "trained"} {
-		capture.Samples = append(capture.Samples, evaluation.CapturedCaption{CaptionTrainingClip: evaluation.CaptionTrainingClip{Source: source}})
+	for index, source := range []string{"held", "trained", "trained"} {
+		capture.Samples = append(capture.Samples, evaluation.CapturedCaption{
+			CaptionTrainingClip: evaluation.CaptionTrainingClip{Vid: strconv.Itoa(index), Source: source}, Frame: testutil.ArtifactID(t, artifact.KindFile, strconv.Itoa(index)),
+		})
 	}
 	representations := filepath.Join(t.TempDir(), "capture.safetensors")
 	targets := []float32{100, 100, 100, 1, 2, 3, 3, 4, 5}
@@ -62,5 +71,13 @@ func TestAMeanStartPlacesTheTrainedCaptionsMean(t *testing.T) {
 	}
 	if _, err := captionStart("fit", samples, capture, 1); err == nil {
 		t.Fatal("a start the route does not name was not refused")
+	}
+	// A run that holds back every source is refused before it writes a start or opens anything.
+	testcheck.NoError(t, jsonfile.Write(samples, capture, 0o600))
+	from := filepath.Join(t.TempDir(), "start.safetensors")
+	err := runRoute(t.Context(), []string{"caption-projector", "-capture", samples, "-placeholder", "<|image_pad|>", "-from", from, "-start", captionMeanStart,
+		"-out", filepath.Join(t.TempDir(), "out"), "-steps", "1", "-batch", "1", "-held", "2", "-store", filepath.Join(t.TempDir(), "store")})
+	if _, statErr := os.Stat(from); err == nil || !strings.Contains(err.Error(), "fewer than a batch") || !errors.Is(statErr, fs.ErrNotExist) {
+		t.Fatalf("a run holding back every source was refused for %v and left its start written (%v); want the refusal and no start", err, statErr)
 	}
 }

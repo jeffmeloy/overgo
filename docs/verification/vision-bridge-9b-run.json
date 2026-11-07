@@ -1,0 +1,56 @@
+{
+  "schema": "overgo/vision-bridge-run/v1",
+  "acceptance": "sha256:71ae28647e76a107a446090b2c0c6ce14754c5d7774855b2f7fca1adf542f480",
+  "comparison": "Qwen3.5-9B composite over the floor",
+  "capture": {
+    "file": "file:sha256:3381719271f881bf59b376b955738feb0e15694f3ac26c2ab3b478c7a046a26c",
+    "samples": 4096,
+    "held_sources": 200,
+    "held_samples": 203
+  },
+  "ranking": [
+    {
+      "source": "dino-cls",
+      "width": 1024,
+      "samples": 4096,
+      "in_sample": 0.24822096563707696,
+      "held_out": 1.041586119093933,
+      "unrelated": 1.2167423090083274,
+      "rung": "bridge"
+    },
+    {
+      "source": "dino-patch-mean",
+      "width": 1024,
+      "samples": 4096,
+      "in_sample": 0.25125708686203957,
+      "held_out": 1.061315769911687,
+      "unrelated": 1.2232959445073568,
+      "rung": "bridge"
+    }
+  ],
+  "segments": [
+    {
+      "from": "mean",
+      "steps": 450,
+      "batch": 8,
+      "checkpoint": "checkpoint:sha256:2ec56a8ea48570a24608e40c01e018c8f47668cd55919f33faab036bc29546c7",
+      "held_loss_before": 1.330623,
+      "held_loss_after": 0.707874,
+      "wall_seconds": 2624,
+      "peak_device_bytes": 39812447032
+    },
+    {
+      "from": "checkpoint:sha256:2ec56a8ea48570a24608e40c01e018c8f47668cd55919f33faab036bc29546c7",
+      "steps": 450,
+      "batch": 8,
+      "checkpoint": "checkpoint:sha256:d573286913e3d58255af9741a3b1ae6b2d412eaae0b75dcd94c14c5e105ce548",
+      "held_loss_before": 0.707874,
+      "held_loss_after": 0.705349,
+      "wall_seconds": 2529,
+      "peak_device_bytes": 39812447032
+    }
+  ],
+  "chosen": "checkpoint:sha256:d573286913e3d58255af9741a3b1ae6b2d412eaae0b75dcd94c14c5e105ce548",
+  "gpu_hours": 1.44,
+  "stopped": []
+}

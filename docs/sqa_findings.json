@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Close327's early-admission obligation. Credit existing shared run/judgement checks for both model sizes; retain their different starts,floors,budgets and evidence identities.",
+    "assessment": "Harden existing tool replay admission before adding recipe behavior. Reject the recorded-call conflict through existing call/receipt owners.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -11,23 +11,23 @@
         "SQA-283",
         "SQA-277",
         "SQA-266",
+        "SQA-328",
         "SQA-325",
         "SQA-324",
-        "SQA-257",
-        "SQA-303"
+        "SQA-257"
       ],
     "declined_candidates": [
-        "No new partition abstraction merely to avoid one extra metadata grouping pass; one existing deterministic policy fixes the root cause.",
-        "No deletion of the named0.5B/9B check entry points: each supplies the existing plan/native test contract with its own record and acceptance parameters.",
-        "No merger of training-run accounting and final judgement: they own different requirements. Their bodies already each have two real callers.",
-        "No new statistical framework, selector, model rerun or confidence suite; the retained result is scoped to its frozen suite."
+        "Do not merge full-answer replay with partial restart: one skips value-only ancestors, the other retains a durable prefix after failure.",
+        "Do not merge code-scope invalidation with argument-conflict coverage: the child-process test deliberately changes code identity and can mask same-code reuse.",
+        "SQA-325 still owns late missing-adapter refusal; its source and recommendation are unchanged.",
+        "No additional recipe abstraction or workflow expansion justified by this sample."
       ],
-    "rank_basis": "Remove resolved327. Remaining order unchanged; no new finding or ranking escalation."
+    "rank_basis": "Add P2 SQA-328 ahead of P3 SQA-325. Other active ordering unchanged."
   },
     "committed_plan": {
     "git_blob": "3824853e37317e7686db14375c0863c06cafe7bc",
     "path": "docs/plan.json",
-    "revision": "50b091b897ebeea98a2b28be3c6c6e2094fda6cf",
+    "revision": "9ffbfa60416fa79f672775c98c272347808ddfde",
     "sha256": "fb222d4b009703d31f72ae172cf2267fedbbe6cbb9d1a7d8db66af0dd7cd7af4",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
@@ -6490,65 +6490,124 @@
       ],
     "status": "resolved",
     "title": "Admit the caption training split before creating its start or loading the model"
-  }
+  },
+    {
+      "id": "SQA-328",
+      "status": "open",
+      "severity": "P2",
+      "category": "workflow-request-identity-and-recovery",
+      "classification": "source-established-reuse-of-completed-tool-result-for-changed-arguments",
+      "title": "Refuse changed tool arguments under an existing workflow operation",
+      "evidence_commit": "9ffbfa60416fa79f672775c98c272347808ddfde",
+      "sources": [
+        {
+          "path": "cmd/tool-workflow/main.go",
+          "symbol": "run: caller -key plus AnswerScope[agenttool.Executor], with request.Arguments passed separately"
+        },
+        {
+          "path": "internal/agenttool/workflow.go",
+          "symbol": "CompiledToolWorkflow.Calls validates arguments; CompileToolWorkflow binds graph/manuals, not argument values"
+        },
+        {
+          "path": "internal/recipe/tool.go",
+          "symbol": "ToolCall.ArtifactContent already identifies exact call arguments"
+        },
+        {
+          "path": "internal/workflowruntime/tool_workflow.go",
+          "symbol": "ExecuteToolWorkflow: typed call contents -> ExecutionID(definition.ID,key) -> ExecuteProgram; toolWorkflowAdapter"
+        },
+        {
+          "path": "internal/workflowruntime/runtime.go",
+          "symbol": "ExecutionID, planReplay, recoverStage, executeProgram: completed stage recovery omits current-input comparison; final run binds current input IDs"
+        },
+        {
+          "path": "internal/runrecord/stage_receipt.go",
+          "symbol": "ResolveStageReceipt and StageReceipt.Inputs retain exact call-port artifact IDs, including the earlier v1 reader"
+        },
+        {
+          "path": "internal/capabilityruntime/run_key.go",
+          "symbol": "RunKeyOf includes exact request content for capability execution; AnswerScope alone supplies code identity"
+        },
+        {
+          "path": "internal/workflowruntime/tool_workflow_test.go",
+          "symbol": "TestToolWorkflowExecutesCompiledOrderWithDurableRun: existing HTTP/store/manual fixture"
+        },
+        {
+          "path": "cmd/tool-workflow/replay_key_test.go",
+          "symbol": "TestAReplayKeyNamesTheCodeThatComputesIt: retained different-code child-process coverage"
+        }
+      ],
+      "evidence": "Admitted source counterexample, not an executed reproducer: complete a compiled tool workflow whose inspection manual declares a string argument item, passing item=A. Repeat ExecuteToolWorkflow with the same graph, key and code but item=B. Calls accepts both values and their ToolCall content IDs differ, but ExecutionID is unchanged. planReplay/recoverStage finds completed receipts by operation/node, checks recipe and output contracts, and never compares their recorded call inputs with the current calls. The old outputs are returned without invoking the tool. executeProgram then forms a new successful run from the current B input IDs and recovered A output IDs, with a run-specific batch key. The CLI has this path when a built command retains its code identity; separate go run/test processes may change AnswerScope and mask it. The same mismatch can follow a completed mutation: this finding does not claim an unauthorized invocation or an observed production incident.",
+      "recommended_change": "Reject a conflicting reuse of the existing operation before execution or recovery. In ExecuteToolWorkflow, compare each current ToolCall content ID with the call-port binding of any existing receipt for that operation/node, through ResolveStageReceipt; check every existing binding before invoking ExecuteProgram. Refuse changed or unavailable recorded call identity with the node named. Reuse the current typed calls and receipt reader, including v1 support; keep same-call replay and partial-result recovery. An operator wanting a different procedure execution supplies a new key. Do not silently make a new operation on a conflict, overwrite historical receipts, or rerun completed mutations. If implemented inside the runtime's existing replay planning instead, replace the equivalent admission there rather than adding a second policy. This is a bounded guard for already-recorded call bindings, not a new exactly-once guarantee for arbitrary external effects.",
+      "displaced_surface": "Remove the path that attaches recovered outputs to conflicting current calls. No whole function or test can safely disappear. ExecuteToolWorkflow remains the shared boundary for the CLI and direct API callers; the receipt store remains the recovery owner. Keep argument validation, exact manuals, inspection-before-mutation ordering, transport authority, cancellation and code-scope invalidation. No new scheduler, workflow language, dependency, option, schema or retry loop.",
+      "impact": "A request can appear successful with another argument's answer, or claim a changed mutation completed when it did not run. Refusal makes the conflict visible without repeating effects. No measured loss, confidentiality breach, latency or memory saving is asserted.",
+      "expected_benefit": {
+        "outcome": "Actual bounded baseline: tool_workflow.go 500 production AST and tool_workflow_test.go 443 test AST, pair 943. Seven-file context totals 6358 production +1949 test =8307. This is correctness growth; no safe net source/test reduction established.",
+        "cost_contract": "Planning estimate for the local guard and one fixture extension: production +80..180 and test +90..170 nodes, pair approximately1113..1293 versus943. Not a parsed replacement. Count any helper/migration cost too. Reusing receipt readers may add up to one receipt lookup per graph node before the runtime's existing recovery pass; no model load or transport execution on conflict. Keep the existing HTTP server/store/manual fixture: add an identical replay and a conflicting call, both with zero extra transport invocations, then verify the original result remains reusable. No new fixture files, test function, child build, model/device setup or gate phase. Use native caching. Preserving earlier receipt formats adds no schema migration; missing call binding must not become a fresh execution.",
+        "uncertainty": "Static caller/control-flow proof plus retained code-key evidence only. Exact replacement AST and runtime cost remain implementation measurements. No new test, workload, benchmark or gate run by SQA. Concurrent initial submissions and external-effect crash recovery are outside this bounded finding."
+      },
+      "likely_effort": "Small admission guard in the existing tool workflow owner and one extension of its native fixture.",
+      "plan_references": [
+        "docs/plan.json standing: reuse only with matching request identity; immutable inputs and durable recovery",
+        "User direction: harden recipe admission/recovery before wider orchestration"
+      ],
+      "plan_coverage": "Not a filed implementation row. Distinct from SQA-325's missing adapter and SQA-327's training-population refusal; no consolidation or double-counted saving.",
+      "closure_criteria": [
+        "Same graph/key/code plus an already-recorded different call is refused before any tool invocation or stale successful run publication; the error names the conflicting node.",
+        "Same call resumes/replays its existing result without a duplicate mutation; original receipts and v1 reading stay intact. A conflict never silently allocates a new operation.",
+        "Extend TestToolWorkflowExecutesCompiledOrderWithDurableRun using one declared string argument: original call, exact replay, changed argument refusal and original replay. Retain its inspection/update ordering and durable outputs.",
+        "Keep the command's different-code child-process test and the runtime's partial restart/publication-failure coverage: these are different contracts, not redundant copies.",
+        "Report full production/test/helper/read/setup cost; no net reduction or exactly-once guarantee claimed without evidence."
+      ],
+      "comparison": "The existing HTTP/store fixture is the smallest deciding comparison: request item=A, then the same key with item=B. Current source predicts success with recovered outputs and no new transport call; the repair must return an input-binding conflict, leave transport count unchanged and retain the original replay. This in-process fixture holds code identity constant, unlike the existing two-child command check. No SQA execution."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Admission uses immutable capture source labels and the same held parameter as mean/sequence selection; repeated evaluation of the same policy is semantically sufficient. The extra scan is counted.",
-        "The9B judgement's170/256 versus reference166/256 is a four-case difference on one suite, not evidence of general superiority. Its floor0.25 and required gain0.10 are the frozen product acceptance; this review does not certify the normal approximation or independence assumptions behind suite sizing.",
-        "Training peak39812447032bytes and serving peak11051518592bytes describe different phases. The11GiB limit cited by the judgement is for the composite serving measurement; no claim that training fits that bound.",
-        "Judgement answer time1.187s and serving memory are reported for one specified frame; suite timing0.757s/case is a separate retained average. Neither establishes tail latency."
+        "Recipe/model/manual identity does not include tool argument values; content-addressed ToolCall already does. Code identity alone is insufficient.",
+        "The CLI counterexample uses a stable built command or the same process. The test-build/go run fallback intentionally uses a process-scoped identity.",
+        "Receipt call identity is an existing typed fact; no new distribution, timing threshold or geometry rule is needed."
       ],
-    "automation_sequence": "The population refusal now happens before the start artifact,session or model side effects; no invalid state is left for the next attempt. Retained completed training/evaluation evidence is read through current owners, not rerun by SQA. Candidate publication and full gated weight-training support remain their existing plan obligations. Concurrent50b091b89 keeps admission ahead of initialization, shares evaluation.HeldBack with fitBridge and permutes training samples only after source separation; no future envelope completion inferred.",
+    "automation_sequence": "Compile and validate arguments -> derive operation from graph/key/code -> recover completed receipts -> publish run. The missing current-call comparison permits stale success. Refuse the conflict before this recovery; retain same-request partial work and existing authority. No new scheduler or automatic retry.",
     "fresh_ast": {
-        "revision": "50b091b897ebeea98a2b28be3c6c6e2094fda6cf",
-        "method": "Existing external Go parser/ast.Inspect over exact committed blobs; parser-local/manual resolution, no package/type build.",
+        "revision": "9ffbfa60416fa79f672775c98c272347808ddfde",
+        "method": "Existing external Go parser/ast.Inspect over seven exact committed files; local bindings/manual callers only.",
         "files": [
           {
-            "path": "cmd/train/route_caption_projector.go",
-            "nodes": 2202
+            "path": "internal/workflowruntime/tool_workflow.go",
+            "nodes": 500
           },
           {
-            "path": "cmd/train/route_caption_projector_test.go",
-            "nodes": 796
+            "path": "internal/workflowruntime/tool_workflow_test.go",
+            "nodes": 443
           },
           {
-            "path": "internal/evaluation/vision_bridge_run_test.go",
-            "nodes": 794
+            "path": "internal/workflowruntime/runtime.go",
+            "nodes": 5225
           },
           {
-            "path": "internal/evaluation/vision_bridge_record_test.go",
-            "nodes": 706
+            "path": "internal/workflowruntime/replay_test.go",
+            "nodes": 835
           },
           {
-            "path": "internal/evaluation/vision_bridge_acceptance_test.go",
-            "nodes": 897
+            "path": "internal/capabilityruntime/run_key.go",
+            "nodes": 236
           },
           {
-            "path": "internal/evaluation/caption_training.go",
-            "nodes": 374
+            "path": "cmd/tool-workflow/main.go",
+            "nodes": 397
+          },
+          {
+            "path": "cmd/tool-workflow/replay_key_test.go",
+            "nodes": 671
           }
         ],
-        "production_nodes": 2576,
-        "test_nodes": 3193,
-        "total_nodes": 5769,
-        "functions": 21,
-        "parser_local_bindings": 1096,
-        "closure_comparison": {
-          "before": "0ca202a7778ce159db6c02bd3797fe628f6bef7a",
-          "after": "044b6c84528d6c13d351cb276b38c53337e30b55",
-          "production_delta": 13,
-          "test_delta": 148,
-          "total_delta": 161
-        },
-        "decision": "No safe net reduction or whole-test deletion. Two record-check expansions add107+119test nodes separately from327; shared bodies prevent duplicate implementations, not all growth.",
-        "initial_comparison": {
-          "before": "0ca202a7778ce159db6c02bd3797fe628f6bef7a",
-          "after": "dd76c43868137a4bcf2b67358c20197d2196a499",
-          "files": 5,
-          "before_nodes": 4858,
-          "after_nodes": 5245
-        }
+        "production_nodes": 6358,
+        "test_nodes": 1949,
+        "total_nodes": 8307,
+        "functions": 42,
+        "parser_local_bindings": 1681,
+        "decision": "No duplicate behavioral requirement established. Preserve existing tests and extend one tool-workflow fixture for the new identity obligation; necessary growth must be counted."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6707,41 +6766,30 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "044b6c845 reports bridge training loss1.330623->0.707874->0.705349 in2624+2529seconds, recorded1.44card-hours. It also lands327's early refusal and retained native all-held case; gate CUDA1executed18cached, verify1.825s.",
-        "dd76c4386 judgement records170/256, floor0.25 and gain0.4140625, serving peak11051518592bytes and answer1.187s. It records stale architecture-profile verification warnings; this SQA review does not relabel those receipts as fresh.",
-        "New committed9B run/judgement JSON records are1716+3591=5307bytes. Gate fixture classification reports0bytes, but these durable record bytes and their maintenance are real cost.",
-        "Two new record entry points read five JSON files in total (two for run,three for judgement); acceptance's existing glob also reads the additional run. No model/device setup is introduced by those record validators."
+        "200955a39 documents that a built command reuses stage receipts while code identity is unchanged; its native command check varies code across two child processes. That covers code invalidation, not changed arguments.",
+        "41820e3a9 retained command JSON/durable-result coverage; the current fixture decodes Run/RunID and output identities. No new execution was performed.",
+        "SQA-327's prior closure and measured +13 production/+148 test AST cost remain intact; no code advanced since that report."
       ],
     "tests": [
         {
-          "classification": "retain/extended",
-          "owner": "cmd/train/route_caption_projector_test.go:TestAMeanStartPlacesTheTrainedCaptionsMean",
-          "requirement": "Now owns all-held early refusal/no start file as well as exact trained-source mean,zero and unknown-start cases; one tiny fixture, no model load."
+          "classification": "retain/extend",
+          "owner": "TestToolWorkflowExecutesCompiledOrderWithDurableRun",
+          "requirement": "Keep dependency order and durable results; add same-code original/replay/conflicting arguments in the existing HTTP/store setup."
         },
         {
           "classification": "retain",
-          "owner": "cmd/train/route_caption_projector_test.go:TestHeldSourcesStayOutOfTraining",
-          "requirement": "Source grouping and held=0 remain distinct from persistence ordering."
-        },
-        {
-          "classification": "shared/retain",
-          "owner": "internal/evaluation/vision_bridge_run_test.go:runHoldsItsTerms",
-          "requirement": "Both0.5B/9B wrappers share segment continuity,chosen checkpoint,stopped-attempt accounting and terms binding. Zero versus mean start and2 versus24card-hours remain separate inputs."
-        },
-        {
-          "classification": "shared/retain",
-          "owner": "internal/evaluation/vision_bridge_record_test.go:judgementIsComplete",
-          "requirement": "Both wrappers share score/floor/verdict consistency and chosen-checkpoint binding;9B adds mean-start baseline and its own serving-memory limit."
+          "owner": "TestAReplayKeyNamesTheCodeThatComputesIt",
+          "requirement": "Different-code command execution and JSON result identity; two child processes do not exercise same-code argument reuse."
         },
         {
           "classification": "retain",
-          "owner": "internal/evaluation/vision_bridge_acceptance_test.go:TestVisionBridgeAcceptanceIsFrozenBeforeTraining",
-          "requirement": "Frozen suite identity,ordering,declared acceptance and limits. Not a substitute for production evidence verification or proof of observed statistical significance."
+          "owner": "TestReplayRunsNoStageItsOutputDoesNotNeed",
+          "requirement": "Completed answer prunes value-only ancestors, adapter-free replay, failed replay writes nothing."
         },
         {
           "classification": "retain",
-          "owner": "cmd/train/route_caption_projector_test.go:TestASeedOrdersTheTrainedSamples",
-          "requirement": "Seed0 preserves order; nonzero deterministic permutation preserves membership. This does not prove statistical independence of trained outcomes."
+          "owner": "TestWorkflowRestartSkipsCompletedStages; TestWorkflowRecoveryRejectsRecipeDrift",
+          "requirement": "Resume a completed prefix and refuse a different recipe; neither substitutes for tool-argument binding."
         }
       ]
   },
@@ -8276,10 +8324,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Parser-local/manual caller resolution only; no package or device typechecking. Implementation records and commit verification were read, not rerun or independently audited against the live store.",
-      "Record consistency checks do not independently reproduce scores, prove end-to-end publication or establish statistical superiority. The four-case lead over the reference is not a reliable superiority claim.",
-      "Other findings keep their evidence revisions. Unknown/implementation-owned fields and historical requested_growth_analysis remain exact. No whole-system revalidation or net reduction established.",
-      "Concurrent envelope-tools was checked for327's admission and the shared split migration; this is not a complete review of its new fit/shuffled-control/promotion behavior. Retained landing reports+753production/+956test AST separately; moving the helper is not itself a saving."
+      "Static source and retained records only; no application tests, services, model/device runs, gates, benchmarks or agents.",
+      "Selected Go AST uses existing external go/parser and ast.Inspect over pinned blobs: parser-local bindings plus manual caller tracing, no package/type or device resolution.",
+      "Other findings retain their original evidence revisions. Implementation-owned/unknown fields and historical growth analysis are preserved exactly. No new safe net reduction established."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9075,11 +9122,11 @@
       }
     }
   },
-    "next_finding_number": 328,
+    "next_finding_number": 329,
     "publication_context": {
-    "assessment": "Re-read code/plan/report and owner fields after concurrent50b091b89; reconcile the shared selection move, then preserve any further worker/index changes during report-only publication.",
-    "checked_head": "50b091b897ebeea98a2b28be3c6c6e2094fda6cf",
-    "publication": "Existing nonblocking landing/gate ownership and hooks; only docs/sqa_findings.json committed, no implementation gate."
+    "assessment": "Re-read committed code, report and owner state immediately before report-only publication; no implementation changes in this heartbeat.",
+    "checked_head": "9ffbfa60416fa79f672775c98c272347808ddfde",
+    "publication": "Existing landing/gate ownership and hooks; only docs/sqa_findings.json may be committed."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -9090,6 +9137,7 @@
     "SQA-283",
     "SQA-277",
     "SQA-266",
+    "SQA-328",
     "SQA-325",
     "SQA-324",
     "SQA-257",
@@ -9121,45 +9169,45 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "327closed without requiring a new partition object or recovery framework. Extra metadata selection work is explicitly counted; corrected retry has no failed-attempt start to inherit.",
-      "Necessary test/record growth is separated from the13-node production change: closure+161AST, record helper expansion+226test, durable records5307bytes.",
-      "326remains closed for early unsafe-gated-training refusal; hybrid-gate/do still owns full support.324format migration and candidate publication remain open.",
-      "No safe net reduction established in this bounded sample; do not delete distinct acceptance/recovery checks to meet a quota."
+      "No implementation or new workload. One new correctness finding; no quota-driven reduction.",
+      "Keep recipe expansion subordinate to replacing real shared orchestration; this sample instead needs a small identity admission repair.",
+      "Full-answer replay, partial restart, recipe drift and code drift protect different failures and remain separate.",
+      "Prior implementation overlap disclosed; report-only publication preserves all owner/unknown fields."
     ],
-    "reviewed_at": "2026-11-07T08:44:14Z",
-    "reviewed_master": "50b091b897ebeea98a2b28be3c6c6e2094fda6cf",
+    "reviewed_at": "2026-11-07T10:40:35Z",
+    "reviewed_master": "9ffbfa60416fa79f672775c98c272347808ddfde",
     "schema_version": 2,
     "scope": [
-      "Read unchanged committed instructions skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and current plan3824853e37317e7686db14375c0863c06cafe7bc at 50b091b897ebeea98a2b28be3c6c6e2094fda6cf. Initial sample wasdd76c4386; reconciled concurrent50b091b89's moved source-selection owner and its training/baseline callers before publishing.",
-      "Actual selected AST at the reconciled pin:6files5769nodes=2576production+3193test,21functions,1096parser-local bindings. Initial five-file comparison0ca202a77->dd76c4386 was4858->5245; reparsed the changed route/test and moved owner, retaining byte-unchanged record checker counts. Closure327pair stays isolated from feature/record growth.",
-      "This chat previously implemented Overgo changes: overlapping review, not independent third-party SQA. No tests, model/device workloads, benchmarks, gate runs, agents, worker messages or plan/skill edits."
+      "Committed master 9ffbfa604; unchanged instruction blob69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan blob3824853e37317e7686db14375c0863c06cafe7bc. Bounded rotation through recipe compilation, adapter admission, durable replay, capability keys and the tool-workflow CLI.",
+      "Read concrete callers before the prior findings. Rechecked SQA-325 and the separate replay/restart requirements; found SQA-328's argument identity gap. No whole-system review.",
+      "This chat previously implemented Overgo changes. This is an overlapping review, not independent third-party SQA."
     ],
     "sqa_response": {
-    "assessment": "154 stable IDs: 35 canonical open, 113 resolved, 4 deferred, 2 consolidated aliases. Close SQA-327; no new finding or alias.",
+    "assessment": "155 stable IDs:36 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-328 only; SQA-325 remains open.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Early heldBack population refusal precedes start/session/model, late check removed; existing fixture requires refusal and absent start. Closurepair+13production/+148test AST. Shared two-model run/judgement bodies retain distinct acceptance contracts. Reconciled concurrent50b091b89: shared evaluation.HeldBack preserves admission ordering; broader feature growth is separate.",
+    "evidence": "Tool-call content changes with arguments, but ExecuteToolWorkflow's operation does not; recoverStage never compares current calls with receipt inputs. A new run can name new inputs with old outputs. Static counterexample, not an observed incident.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Owner/unknown fields unchanged and preserved exactly.327closure follows committed044b6c845 source and retained verification, not an edit to owner triage."
+        "status": "Unchanged owner responses. No response yet for SQA-325/328; preserve owner fields exactly."
       },
-    "new_findings": [],
+    "new_findings": [
+        "SQA-328"
+      ],
     "partially_addressed_findings": [],
     "priority_changes": [
-        "Remove resolved327 from active ranks; remaining order unchanged."
+        "Insert P2 SQA-328 before P3 SQA-325; other ranks unchanged."
       ],
-    "recommendation": "Keep the small shared-policy admission fix and necessary recovery coverage. Retain the existing parameterized record owners; no safe further test deletion or new orchestration justified.",
+    "recommendation": "Refuse conflicting recorded call bindings through the existing tool workflow and receipt owners, keeping exact replay and all current authority. Extend one native fixture; no test deletion justified.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
       "layout": "Full canonical open/deferred; compact resolved closure sources/revision/costs; explicit aliases, including aliases to closed canonical findings. Prior narratives remain in Git."
     },
     "reopened_findings": [],
-    "resolved_findings": [
-        "SQA-327"
-      ],
-    "reviewed_master": "50b091b897ebeea98a2b28be3c6c6e2094fda6cf",
-    "uncertainty": "No SQA execution, measured savings or independent third-party claim. Retained record consistency is narrower than a new live evidence audit or publication approval."
+    "resolved_findings": [],
+    "reviewed_master": "9ffbfa60416fa79f672775c98c272347808ddfde",
+    "uncertainty": "No executed reproducer or measured savings. Necessary guard/test/read cost is positive; no general exactly-once promise."
   }
   }

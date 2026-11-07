@@ -1,34 +1,35 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Close326's unsafe admission using its specified refuse-or-preserve alternative; preserve the plan's distinct full-training obligation. Credit shared gate binding and encoder preprocessing without calling new device capability a code reduction.",
+    "assessment": "Close319's verified local panic refusal; keep324 open with narrow shared-reader progress. Add327 for late sample admission that can persist a wrong start and affect a corrected retry. Retain existing numerical/cache/recovery owners.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
         "SQA-271",
         "SQA-322",
         "SQA-318",
-        "SQA-319",
         "SQA-283",
         "SQA-277",
         "SQA-266",
+        "SQA-327",
         "SQA-325",
         "SQA-324",
-        "SQA-257"
+        "SQA-257",
+        "SQA-303"
       ],
     "declined_candidates": [
-        "No retirement of the new tiny fused-row/admission test: its live/cancelled and two-head cases own different failures from gradient and served-reference tests.",
-        "No merge of host reference and device encoder implementations based on similar math; the host supplies an independent arithmetic reference and other callers still use it.",
-        "No new capture recovery framework. Its existing cache identity and partial-write refusal are retained; eager model/card opening means the current path cannot be described as GPU-free cached replay. This sample does not establish a complete net-saving replacement.",
-        "No universal numerical tolerance or throughput claim from one encoder image; no added benchmark, selector or recurring confidence run."
+        "No duplicate327under314or325: adapter checkpoint, workflow binding and caption population admission have different owners and contracts.",
+        "No blanket removal of the new capture-reader or mean-start tests; tokenizer/row mapping, source exclusion and early refusal differ.",
+        "No claim that a single caption mean is statistically optimal or that in-sample seam fit justifies a held-out start; retained plan rejects that fit using its own source-group holdout.",
+        "No new recipe language, preflight framework, scheduler, test selector or generalized recovery abstraction."
       ],
-    "rank_basis": "Remove resolved326 from active ranks. Remaining relative order unchanged; no claim that this targeted review re-proved every old ranking."
+    "rank_basis": "Remove resolved319; place327 before325 because failed initialization can persist into a corrected retry. Other relative rankings unchanged."
   },
     "committed_plan": {
-    "git_blob": "9a057ecb35509942e82e971b1fa0d18203ce8379",
+    "git_blob": "e1e41f9d2067d492f60bdb5e8f1c5ce9fd8454dc",
     "path": "docs/plan.json",
-    "revision": "14c4bb5623ddf37731ee4a45642322d542315646",
-    "sha256": "3d612fbbd73e152b7e668c514bc164f6c641a22d89d44968ae16f0c7585658a1",
+    "revision": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+    "sha256": "928e77f9cbb161e291be13cf589498c79e182de802e453060f9acf54d7bb8cbb",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -5982,56 +5983,41 @@
       "comparison": "At ordinary implementation validation, use one shell-only injected listing failure after a successful listed package and require nonzero exit/no all-clean line; retain the normal existing smoke invocation for success. This direct status-propagation change needs no new Go suite, persistent corpus or SQA fuzz workload. The source guard alone is not the deciding comparison."
     },
     {
-      "id": "SQA-319",
-      "status": "open",
-      "severity": "P2",
-      "category": "input-geometry-correctness",
-      "classification": "source-established-zero-width-capture-panic",
-      "title": "Refuse an empty capture row before dividing by its width",
-      "evidence_commit": "4fb6f2c9be44c65c0cb2568505ef1a52e4a47022",
-      "sources": [
+    "category": "input-geometry-correctness",
+    "classification": "implemented-local-zero-width-capture-refusal",
+    "evidence": "Closed by ec06b1af2. captureRows now refuses nonpositive row width before its division, through the one converter used for target, groups and source tensors. The existing seam score test adds one raw external F32[1,0] file with empty payload and requires an ordinary error; the writer refuses empty dimensions, so a hand-built header is appropriate for this admitted reader boundary. Nonempty vector/matrix conversion and the existing measured/noisy/independent/strict-decoding cases remain. Original4fb6f2c9 admitted-zero-width source evidence is retained by this closure; no SQA reproducer was run.",
+    "evidence_commit": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+    "expected_benefit": {
+        "outcome": "Actual closure delta within the existing symbols: captureRows144->157 AST(+13); seam score test body522->602(+80), with+4 import nodes. The full changed file pair is rank.go774->791 and main_test.go837->921, total1611->1712(+101); this includes+4 production nodes for the same commit's shared target-name/import change. Necessary correctness growth, not reduction. It exceeds the prior+74-node hypothetical alternative, which was never implementation.",
+        "cost_contract": "One local guard, no new helper/test function/policy. One extra temporary external capture file and reader open inside the existing native fixture;0 tracked fixture bytes/files, no model/device setup or new standing gate. Keep format parsing and payload validation at their existing owners.",
+        "uncertainty": "Source plus retained mean-start landing verification only; no SQA application test or elapsed/memory measurement. The whole mean-start commit adds301production+379test AST for several changes; that larger total is not attributed entirely to319."
+      },
+    "id": "SQA-319",
+    "plan_references": [
+        "vision-bridge/mean-start (landedec06b1af2; includes319fix)"
+      ],
+    "severity": "P2",
+    "sources": [
         {
           "path": "cmd/seam-align/rank.go",
-          "symbol": "rankCapture -> captureRows for target, groups and source/*; width conversion and len(values)/width"
-        },
-        {
-          "path": "internal/safetensors/source.go",
-          "symbol": "openShard -> NewTensor -> TensorBytes admit zero extents; IntShapes/hostShape are existing nonempty-shape policy"
-        },
-        {
-          "path": "internal/safetensors/convert.go",
-          "symbol": "ReadF32 accepts a zero-element F32 tensor"
+          "symbol": "rankCapture -> captureRows: width<=0 refusal before len(values)/width for target/groups/source tensors"
         },
         {
           "path": "cmd/seam-align/main_test.go",
-          "symbol": "syntheticCapture; TestSeamScoreComesFromMeasuredRepresentations"
+          "symbol": "TestSeamScoreComesFromMeasuredRepresentations: raw external F32[1,0] capture returns error"
         },
         {
-          "path": "internal/safetensors/source_test.go",
-          "symbol": "TestSourceIntShapesUsesHostRepresentability"
+          "path": "internal/safetensors/source.go",
+          "symbol": "OpenFile/NewTensor retain format-valid zero extents; local ranking policy stays local"
+        },
+        {
+          "path": "internal/safetensors/convert.go",
+          "symbol": "ReadF32 retains existing format/payload/count validation"
         }
       ],
-      "evidence": "The new -rank route accepts an external safetensors capture. A valid F32 target shaped [1,0] with a zero-length payload passes NewTensor/TensorBytes and ReadF32 returns an empty slice; captureRows converts Shape[1] to width=0 and divides len(values)/width. The same converter is used for target, group and source tensors. This is an admitted file-format case, not an impossible internal tensor or a model workload reproduced by SQA. Rank 2 is a format/layout choice; strictly positive row width is the missing local precondition. Existing safetensors.IntShapes rejects empty dimensions, but this route never calls it.",
-      "recommended_change": "An empty row carries no alignment evidence. Refuse a nonpositive converted row width in captureRows before the division, preserving the current vector/matrix layouts and existing payload-size/host-count checks. The existing IntShapes owner was considered; constructing a whole-catalog map solely to guard this one local divisor is unnecessary. No new shape wrapper, exported API, format-wide ban or defensive branch for unadmitted states. Extend the existing native seam score test with one in-memory zero-width F32 tensor and require an ordinary error; retain every successful measured/noisy/independent/strict-decoding case.",
-      "displaced_surface": "Replace the implicit positive-width assumption at the existing conversion owner; no production path or behavioral requirement is deleted. Complete parsed files: rank.go 774->787 AST,5972->6072 bytes; main_test.go 837->898 AST,6156->6464 bytes, including the bytes import and one inline NewTensor/Source case. Combined +74 AST/+408 source bytes. No helper/wrapper/new test function, fixture file, model/device setup, gate phase or selector; one extra in-memory conversion in the existing test. This is necessary correctness growth, not a reduction.",
-      "impact": "A malformed or empty capture currently terminates ranking with a panic rather than returning a diagnostic. No data mutation, model output or confidential-content exposure is established. Nonempty rectangular row ordering and numerical thresholds are unchanged; no platform/build tags change.",
-      "expected_benefit": {
-        "outcome": "Bounded input failure before division; preserve existing format and numerical owners with minimal local growth.",
-        "uncertainty": "Exact alternative source parsed only, not typechecked as an application or executed. No elapsed/memory observation. Wider group-value validation and correlated sampling are separate unqualified questions, not bundled into this repair."
-      },
-      "likely_effort": "One local guard plus one inline case in the existing seam score fixture.",
-      "plan_references": [
-        "vision-bridge/seam (landed 46a490e7e)",
-        "vision-bridge/capture"
-      ],
-      "plan_coverage": "Residual in committed ranking reader; concurrent capture landing now reviewed and produces nonempty model widths, but external -rank input still admits the format-valid empty tensor. No plan edit requested.",
-      "closure_criteria": [
-        "A format-valid F32 [1,0] target returns an error from captureRows/rankCapture without panic.",
-        "Existing nonempty vector/matrix conversion and all current scoring cases remain; count full production/test/import cost.",
-        "No new file-format policy, fixture framework or recurring workload."
-      ],
-      "comparison": "At ordinary implementation validation, extend TestSeamScoreComesFromMeasuredRepresentations with the one in-memory empty-width case: it fails by panic before repair and returns error afterward. Existing native success cases retain mapping/noise/planted-pair behavior. SQA runs no test."
-    },
+    "status": "resolved",
+    "title": "Refuse an empty capture row before dividing by its width"
+  },
     {
     "category": "resource-lifetime",
     "classification": "resolved-lexical-source-reader-cleanup",
@@ -6226,17 +6212,17 @@
       ],
     "comparison": "Smallest deciding implementation comparison: reuse TestAProfileViewIsTheBytesTheConverterWrites's existing qwen2 and llama fixtures and loader's native host fixture to compare admitted facts,tokenizer/prompt IDs,typed tensor values and bounded reads under the proposed shared owner. Preserve bias widening and llama RoPE permutation cases; real GGUF serialization stays checked by its writer owner. Move partial-read/end-release/re-read/failure-close cases into the existing lifetime owner only if virtual-view code is removed. Existing Qwen3.5/Gemma4 numerical/layout evidence remains scoped, not a new requested model run. Compare complete AST and retained setup/file-write counts before claiming savings. No SQA execution.",
     "displaced_surface": "Immediate target: unnecessary model-sized intermediate files, conversion invocation/retry/registration steps for already supported native directories, and stale conversion-only prerequisite text through the implementation plan owner. Coordinated target after callers migrate: gguf.View's synthetic header->Parse roundtrip, region/padding emulation and directory-opener registration used only to masquerade as GGUF; viewProfile/viewed conversion-to-File glue. Keep required architecture mapping, tokenizer/config reading, real GGUF parser/writer, validated tensor reads, bounded transformed buffers and close ownership. Do not delete hfconvert wholesale. fromView currently hashes the virtual image and existing manifests/recipes/evidence depend on that identity: preserve exact old identities and verification, or use the existing artifact/derivation owner for an explicit migration without relabeling evidence. If a compatibility verifier still needs synthetic bytes, retain and charge it; full view deletion cannot then be claimed. SQA-303 and262 remain distinct current test cleanups; their savings are not additive to deleting their containing paths.",
-    "evidence": "Physical GGUF and HF directories already share inference through gguf.File/LoadedProgram/Runner; supported directories use hfconvert.View without a disk conversion. View still constructs an in-memory GGUF header/offset/padding image and reparses it for format-bound loading and identity consumers. At this pin the completed 0.5B judgement used conversion for its token/placeholder parity work; its separate memory/answer measurement opened the native directory. These are different retained runs, not evidence that conversion was needed by the runtime. The committed plan now accepts format-loader/do after vision-bridge, and the obsolete conversion prerequisite paragraph is gone with the completed judge step. The actual shared-loader migration has not landed: View, its synthetic image, format-specific binding and virtual-image identity obligations remain. Source-established unnecessary format coupling; net code/memory/elapsed savings remain unmeasured.",
-    "evidence_commit": "ea5330ecb23022c379caf3336452718655f2a928",
+    "evidence": "Physical GGUF and HF directories already share inference through gguf.File/LoadedProgram/Runner; supported directories use hfconvert.View without a disk conversion. View still constructs an in-memory GGUF header/offset/padding image and reparses it for format-bound loading and identity consumers. At this pin the completed 0.5B judgement used conversion for its token/placeholder parity work; its separate memory/answer measurement opened the native directory. These are different retained runs, not evidence that conversion was needed by the runtime. The committed plan now accepts format-loader/do after vision-bridge, and the obsolete conversion prerequisite paragraph is gone with the completed judge step. The actual shared-loader migration has not landed: View, its synthetic image, format-specific binding and virtual-image identity obligations remain. Source-established unnecessary format coupling; net code/memory/elapsed savings remain unmeasured. At ec06b1af2, the narrow caption path has progressed: captureSeams/captionMean and captionSequences share evaluation.CaptionText for physical GGUF or HF tokenizer/width/rows, replacing the route's captionVocabulary and its duplicate directory assumptions. The retained d9cf19b75 capture reads the published9B GGUF directly. This does not remove gguf.View, synthetic image identities or the format-bound main model loader; those owners remain unchanged.",
+    "evidence_commit": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
     "expected_benefit": {
-        "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established.",
+        "outcome": "Measured current baseline only: selected12files23520AST=15311production+8209test. view.go979production; view_release425+view_endpoint271=696test; hfconvert view_test759,Gemma4 view test470,native Safetensors model test681. Core virtual-view plus these tests3585nodes, but this is exposed surface, NOT a deletion estimate: unique requirements and identity compatibility must survive. convert.go4714/qwen35.go1067 contain retained mapping/export work, not wholesale savings. Full after production/test AST, net helper/wrapper/migration cost and maintenance delta are presently unknown; no safe numeric net reduction is established. Narrow caption-reader step d9cf19b75 adds433 production+277 test=710 AST overall despite deleting captionVocabulary; it is capability/reuse growth, not a net reduction or completion of this migration.",
         "uncertainty": "No candidate implementation, package build, application/model/device run,benchmark/profile or peak-memory measurement. parser-local/manual resolution only. Mandatory conversion removal saves a write only on paths still doing it; deferred transforms can increase open latency. Count source verification and repeated transformations, not just removed output bytes.",
         "cost_contract": "Before/after must cover BOTH format readers, all migrated model/load/identity callers, retained compatibility/export paths and every moved test/helper. Proposed new dependency/framework/config/selector/schema/recurring workload:0. Reuse existing fixtures, target new static fixture bytes0, but actual fixture bytes and setup executions must be reported from the complete replacement. Existing profile parity performs three tiny conversion/view setups; migrated load parity should reuse those cases, with real-export checks retained only under the writer owner. Existing native Go caching and gate selection remain; do not add a parallel confidence suite or model campaign."
       },
     "id": "SQA-324",
     "impact": "Can remove disk duplication and setup work where conversion still runs, and can reduce internal format coupling. Native directories already skip disk conversion, so no additional saved write is credited there. Removing shared mapping would break tensor order,RoPE,tokenization,quantized/FP8 execution or model identity. Preserve trust-boundary bounds, source integrity, cancellation, host-mapped lifetime and errors; do not replace bounded reads with whole-model F32 materialization. No current data loss/confidentiality defect or measured speedup is alleged.",
     "likely_effort": "Small workflow prerequisite correction for already supported models; cross-package loader/identity migration is larger and not yet costed. Proceed only with a complete replacement/deletion account.",
-    "plan_coverage": "Accepted by master_lead_triage under324 and scheduled as format-loader/do. Credit that adoption and the completed judgement; keep open until implementation removes the unnecessary coupling with identity/lifetime preservation. No implementation code savings or completed migration credited.",
+    "plan_coverage": "format-loader/do remains accepted and open after vision-bridge. Credit landed capture-9b's two-caller CaptionText reuse and direct GGUF rows, with its+710total AST cost; no claim that the broader shared-loader/identity migration has landed. SQA made no plan changes.",
     "plan_references": [
         "format-loader/do (open, after vision-bridge; shared loading boundary and displaced virtual view)",
         "vision-bridge/judge (landed; retained prompt-token/placeholder parity and judgement evidence)"
@@ -6319,6 +6305,18 @@
         {
           "path": "docs/verification/vision-bridge-0.5b-judgement.json",
           "symbol": "completed judgement records conversion use and separate native-directory memory/answer measurements"
+        },
+        {
+          "path": "internal/evaluation/caption_text.go",
+          "symbol": "CaptionText/OpenCaptionText: GGUF and HF tokenizer, BOS/EOS, width and embedding-row owner shared by capture/training"
+        },
+        {
+          "path": "cmd/seam-align/capture.go",
+          "symbol": "captureSeams/captionMean/captureInputs: native GGUF caption rows and inventory"
+        },
+        {
+          "path": "cmd/train/route_caption_projector.go",
+          "symbol": "captionSequences: deleted captionVocabulary; reuse CaptionText"
         }
       ],
     "status": "open",
@@ -6452,75 +6450,128 @@
       ],
     "status": "resolved",
     "title": "Preserve attention gates through hybrid training or reject unsupported gated models early"
-  }
+  },
+    {
+      "id": "SQA-327",
+      "status": "open",
+      "severity": "P2",
+      "category": "training-admission-and-recovery",
+      "classification": "source-established-late-split-admission-with-persisted-invalid-start",
+      "title": "Admit the caption training split before creating its start or loading the model",
+      "evidence_commit": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+      "sources": [
+        {
+          "path": "cmd/train/route_caption_projector.go",
+          "symbol": "trainCaptionProjector: captionStart/SaveBridgeWeights -> openSessionAs -> captionFrozen -> heldBack/batch refusal; existing -from skips initialization"
+        },
+        {
+          "path": "cmd/train/route_caption_projector.go",
+          "symbol": "captionStart/heldBack: the mean and training share grouping policy, but an empty trained selection yields the zero bridge"
+        },
+        {
+          "path": "internal/rae/bridge_train.go",
+          "symbol": "SaveBridgeWeights persists nonempty-shaped zero weights/bias without requiring a nonzero mean"
+        },
+        {
+          "path": "cmd/train/route_caption_projector_test.go",
+          "symbol": "TestHeldSourcesStayOutOfTraining; TestAMeanStartPlacesTheTrainedCaptionsMean"
+        },
+        {
+          "path": "cmd/train/route_caption_projector_windows_test.go",
+          "symbol": "TestEncoderBridgeTrainsACaptionProjector: retained full route/host-card and unchanged-model/frame-identity contracts"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "vision-bridge/bridge-9b: mean start avoids the zero-row gradient failure; acceptance/held-back source separation remain fixed"
+        }
+      ],
+      "evidence": "Source-established counterexample, not an executed run: use a valid capture with two source groups, positive steps, batch1, absent -from, -start mean and -held2. captionStart's heldBack selection is empty, so its accumulation loop returns the initially zero bridge; trainCaptionProjector writes it before checking training population. It then opens a session, prepares sequences and loads the frozen model before len(trained)<batch refuses the run. Correcting only -held to1 and retrying the same -from skips captionStart because the file now exists, retaining the accidental zero start instead of the requested mean. The existing three-row mean fixture illustrates the difference: corrected mean[2,3,4] versus zero. With valid model/input setup the late check is reached after model loading; earlier setup errors can also leave the already-written start. No actual failed retry or measured cost is claimed.",
+      "recommended_change": "Admit the sample selection and batch count through the existing heldBack policy while only capture metadata is needed, before creating a start artifact, opening the training session or loading the frozen model. Reuse that admitted selection for mean initialization and training; move the current late batch refusal instead of adding a second policy. Reject an empty/undersized training population, while retaining held=0 and valid source-group ordering. Keep existing -from files as explicitly supplied artifacts: do not silently overwrite them when -start or -held changes. Use the existing route and fixture owners, without a preflight framework, scheduler, new option or automatic retry.",
+      "displaced_surface": "Remove the late population check and the invalid-start side effect from refused attempts; replace the repeated selection/admission work with the existing grouping owner at the right point. On the all-held counterexample, start-file writes1->0 and frozen model opens1->0 when other prerequisites are valid. Valid runs still initialize once when needed and open one model. No whole test or numerical contract disappears. Preserve held-back separation, exact start/checkpoint identity, failure records for admitted sessions, cancellation and release.",
+      "impact": "Known-invalid setup can spend model-loading work and leave a file that changes a corrected retry's initialization. The 9B plan specifically avoids zero initialization because retained earlier work found an extreme initial gradient there; no new gradient observation is asserted. The repair changes error precedence: insufficient training samples are reported before model/tokenizer/session errors. Existing user-supplied starts must remain untouched.",
+      "expected_benefit": {
+        "outcome": "Actual relevant baseline: route_caption_projector.go2186 AST and route_caption_projector_test.go501, pair2687. trainCaptionProjector936,captionStart254,heldBack82. Full replacement AST is not available; no safe net code reduction is established.",
+        "cost_contract": "Count moved admission, any selection plumbing and one extension of the existing tiny mean-start fixture. No new dependency, wrapper framework, configuration, test file or standing gate phase. Reuse its three-row capture and temporary directory; additional runtime sample metadata/start-path checking is a real fixture/setup cost even with0 tracked fixture files. Preserve the existing device route test without adding a model run. Necessary test/plumbing growth must be reported rather than calling avoided invalid work a source-size saving.",
+        "uncertainty": "Static control-flow/side-effect derivation only, no SQA execution, timing or memory measurement. Already-created -from files cannot be assumed disposable; this recommendation prevents new invalid-attempt artifacts and does not authorize deleting or rewriting historical ones."
+      },
+      "likely_effort": "Small route admission reorder and reuse of its existing split, plus one retained native fixture extension; no general workflow machinery.",
+      "plan_references": [
+        "vision-bridge/bridge-9b",
+        "vision-bridge/mean-start (landedec06b1af2)"
+      ],
+      "plan_coverage": "The planned 9B run depends on this start behavior; no committed step yet explicitly repairs early split admission. Distinct from314's adapter checkpoint admission and325's workflow adapter registration; do not merge merely because all reject bad setup earlier.",
+      "closure_criteria": [
+        "An empty or smaller-than-batch trained selection returns its population error before writing an absent -from, opening a training session or loading the frozen model.",
+        "The same admitted source-group selection feeds mean initialization and training; held-back targets remain excluded and valid held=0 behavior remains.",
+        "The existing mean-start fixture exercises one invalid all-held route attempt with an absent start path, requiring the early error and that no start file was created; its existing[2,3,4],zero/unknown-start assertions remain.",
+        "Existing start artifacts and acceptance/checkpoint identity stay unchanged. Successful initialization, dynamic input checks, cancellation and model release retain their current owners.",
+        "Record full production/test/helper/runtime-fixture/setup/gate/maintenance delta, including necessary growth; no extra model or confidence campaign."
+      ],
+      "comparison": "Smallest deciding implementation check: extend TestAMeanStartPlacesTheTrainedCaptionsMean with the same capture metadata, all sources held and batch1 through the route, requiring the named population refusal and an absent -from afterward. A model need not be available once admission is correctly ordered; the old path either writes the start before a later setup failure or loads the model before the population error. Keep the existing successful mean arithmetic and heldBack grouping tests; no SQA execution."
+    }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Fused query/gate factor2 is a real per-head format layout. The validated query descriptor drives early refusal; the shared binder preserves that exact order for frozen loading.",
-        "Encoder Load validates positive widths/heads, hidden divisibility, crop/image patch divisibility and registers before OpenCard uses them. Host and card share imagePixels/embed/finite; square prepared input is the declared processor domain, while the retained test starts from a320x256 image. Attention scale1/sqrt(head width) is the algorithm coefficient.",
-        "Encoder tolerances2e-3 absolute and0.999999 cosine are scoped to the retained webssl case, not all model families or distributions. 19ms is a warmed card frame,6.5s a host frame; neither is whole-composite latency or a demonstrated full-capture saving."
+        "Zero-width F32[1,0] is admitted by the reader even though the writer refuses it; local width guard precedes the division and preserves nonempty rectangular ordering.",
+        "Mean initialization gives equal weight to each trained caption's token-mean row. It excludes source groups through heldBack; no normality, independent-frame or universal-optimum claim. Empty trained population is an admitted CLI configuration and must fail before initialization.",
+        "OpenCaptionText preserves ParseSpecial, no automatic BOS and single EOS policy for its actual capture/training callers. GGUF rows use existing LoadHostRows; directory rows use existing safetensors owner. It does not unify all model or cancellation contracts."
       ],
-    "automation_sequence": "The corrected load census refuses known-invalid gated training before master allocation, device creation or updates through the public route. The validation proof now exposes the unsupported contract, and the existing hybrid-gate plan row owns recovery of that capability. No blind retry, new scheduler or acceptance weakening. Existing capture cache still checks source identity and partial writes; card creation precedes that lookup, so no GPU-free-resume claim is made.",
+    "automation_sequence": "327 traces metadata -> initial file write -> session -> frozen model -> late population refusal. Move this known prerequisite into existing admission before side effects, preserve explicit existing starts and truthful failures, and never retry unchanged invalid population. Existing exact capture reuse and native Go caching remain; no added orchestrator or workload.",
     "fresh_ast": {
-        "revision": "14c4bb5623ddf37731ee4a45642322d542315646",
-        "method": "Existing external go/parser.ParseComments plus ast.Inspect over exact git-show blobs; parser-local bindings and manual symbol/caller tracing, no package/type build.",
+        "revision": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+        "method": "Existing external Go parser/ast.Inspect tool over exact committed blobs; parser-local bindings plus manual callers, no package/type build.",
         "files": [
           {
-            "path": "internal/hybridtrain/stack_artifact.go",
-            "nodes": 3146
+            "path": "cmd/seam-align/rank.go",
+            "nodes": 791
           },
           {
-            "path": "internal/hybridtrain/frozen_model.go",
-            "nodes": 354
-          },
-          {
-            "path": "internal/hybridtrain/stack_artifact_test.go",
-            "nodes": 1329
-          },
-          {
-            "path": "internal/hybridtrain/served_nine_b_windows_model_test.go",
-            "nodes": 832
-          },
-          {
-            "path": "internal/vitencoder/card.go",
-            "nodes": 1074
-          },
-          {
-            "path": "internal/vitencoder/card_test.go",
-            "nodes": 456
-          },
-          {
-            "path": "internal/vitencoder/encoder.go",
-            "nodes": 2304
-          },
-          {
-            "path": "cmd/evaluate/composition.go",
-            "nodes": 1286
-          },
-          {
-            "path": "cmd/evaluate/projection.go",
-            "nodes": 1153
+            "path": "cmd/seam-align/main_test.go",
+            "nodes": 921
           },
           {
             "path": "cmd/seam-align/capture.go",
-            "nodes": 1700
+            "nodes": 1727
+          },
+          {
+            "path": "cmd/seam-align/capture_test.go",
+            "nodes": 991
+          },
+          {
+            "path": "cmd/train/route_caption_projector.go",
+            "nodes": 2186
+          },
+          {
+            "path": "cmd/train/route_caption_projector_test.go",
+            "nodes": 501
+          },
+          {
+            "path": "internal/evaluation/caption_training.go",
+            "nodes": 294
+          },
+          {
+            "path": "internal/evaluation/caption_text.go",
+            "nodes": 671
           }
         ],
-        "production_nodes": 11017,
-        "test_nodes": 2617,
-        "total_nodes": 13634,
-        "functions": 56,
-        "parser_local_bindings": 3172,
+        "production_nodes": 5669,
+        "test_nodes": 2413,
+        "total_nodes": 8082,
+        "functions": 34,
+        "parser_local_bindings": 1840,
         "closure_comparison": {
-          "before": "e9d4da530",
-          "after": "2cbc30090",
-          "production_before": 3560,
-          "production_after": 3500,
-          "test_before": 656,
-          "test_after": 1329,
-          "total_delta": 613
+          "before": "d9cf19b75171c271ea9f6754a7591584795bcf91",
+          "after": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+          "rank_file_before": 774,
+          "rank_file_after": 791,
+          "test_file_before": 837,
+          "test_file_after": 921,
+          "captureRows_before": 144,
+          "captureRows_after": 157,
+          "seam_test_before": 522,
+          "seam_test_after": 602
         },
-        "decision": "The three-file closure comparison is the complete Go fix, not the unrelated frozen-device or card-encoder feature growth. No safe blanket test removal."
+        "decision": "319 is necessary small growth; CaptionText replaces one reader but expands the combined surface.327 replacement not implemented, so no savings estimate masquerades as a measurement."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6679,30 +6730,35 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "2cbc30090: early unsupported-gate refusal; gate reports-60production/+673test AST, no added tracked fixtures, CUDA2executed17cached, verify2.008s. Removing the refusal makes its native test fail according to the landing record.",
-        "14c4bb562: card encoder retained comparison reports every257tokens within1.65e-5,cosine1.000000000; warmed card19ms versus host6.5s and process peak1.23GB device memory. Gate adds1278production+456test AST and0trackedfixturebytes. No SQA reproduction or composite-wide claim.",
-        "e9d4da530 supplies frozen loading to the reference test; 2cbc30090 removes the subsequent duplicate production gate decode. Full weight-training capability remains planned."
+        "d9cf19b75 capture-9b: shared CaptionText replaces captionVocabulary, total+433production/+277test AST,0trackedfixturebytes; actual4096-sample capture53m37s with9B text model and card encoder. Earlier5h20m used0.5B/host and is not a controlled same-model comparison.",
+        "ec06b1af2 mean-start: total+301production/+379test AST across initialization,shared names and319guard; retained undo test includes held-back targets and produces34.7,35.3,36 versus expected2,3,4. Gate CUDA1executed18cached; no SQA rerun.",
+        "Retained9B ranking reports residual1.042/1.061held-out versus0.248/0.251in-sample; plan retires closed-form start. These are scoped representation-fit results, not a universal distribution rule."
       ],
     "tests": [
         {
-          "classification": "retain",
-          "owner": "internal/hybridtrain/stack_artifact_test.go:TestAGatedArtifactIsRefusedForWeightTraining",
-          "requirement": "One fixture owns early live/cancelled refusal and exact query/gate extraction for two heads. Necessary+673 AST; no duplicated device/model setup."
-        },
-        {
-          "classification": "simplified/retain",
-          "owner": "internal/hybridtrain/served_nine_b_windows_model_test.go:TestTheHybridReferenceIsTheServedNineB",
-          "requirement": "Manual gate repair has disappeared; retain served-reference comparison at its two row pairs/512 vocabulary probes and windows/modeltest boundary."
+          "classification": "retain/extended",
+          "owner": "cmd/seam-align/main_test.go:TestSeamScoreComesFromMeasuredRepresentations",
+          "requirement": "Retain new raw empty-width reader case and existing valid/noisy/independent/strict-decoding requirements; no parallel shape suite."
         },
         {
           "classification": "retain",
-          "owner": "internal/vitencoder/card_test.go:TestTheCardEncoderGivesTheHostTokens",
-          "requirement": "Independent host/card arithmetic comparison for every token of one nonuniform rectangular source image; second card invocation is warmed timing, not a timing acceptance threshold. No full-distribution equivalence claim."
+          "owner": "cmd/seam-align/capture_test.go:TestACaptureReadsItsTextModelsFile",
+          "requirement": "Own GGUF tokenizer/BOS refusal,width/EOS and caption embedding rows from independent fixture bytes; not a duplicate of cache identity."
+        },
+        {
+          "classification": "retain/extend",
+          "owner": "cmd/train/route_caption_projector_test.go:TestAMeanStartPlacesTheTrainedCaptionsMean",
+          "requirement": "Own held-back exclusion, correct mean,zero and unsupported-start behavior; extend one invalid all-held admission case for327 using existing tiny capture."
+        },
+        {
+          "classification": "retain",
+          "owner": "cmd/train/route_caption_projector_test.go:TestHeldSourcesStayOutOfTraining",
+          "requirement": "Source grouping, noncontiguous source samples and held=0; mean and sequence callers share this policy."
         },
         {
           "classification": "retain",
           "owner": "cmd/seam-align/capture_test.go:TestCaptureCacheAdmitsOnlyItsOwnInputs/TestCaptureHoldsTheTrainingSplit",
-          "requirement": "Existing source/caption/input identity, frame integrity, partial-write refusal and held-out separation remain distinct requirements. Read source only; not included in the10-file AST total."
+          "requirement": "Exact cached inputs/frame hashes/partial-write refusal and training-vs-held-out separation; no scope for removal established."
         }
       ]
   },
@@ -8237,10 +8293,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Source/manual caller tracing and existing parser/AST tooling only; no package/cgo/device typecheck. Retained commit measurements are attributed to implementation, not reproduced.",
-      "Bounded sample, not a whole-system revalidation. Other findings retain their individual evidence revisions and rankings. Unknown/implementation fields and historical requested_growth_analysis stay exact.",
-      "No new safe whole-test deletion or net total reduction established. Gated-stack correctness adds613 total AST despite60 fewer production nodes; card encoder growth buys measured capability and is not labeled consolidation savings.",
-      "Closure326 means invalid gated weight training fails early. It does not mean Qwen3.5 weight training or its validation proof works; hybrid-gate/do explicitly owns that remaining capability."
+      "Parser-local and manual symbol resolution only; no package/cgo/device typechecking or reproducer. New327 is a statically admitted control-flow/side-effect counterexample, not an observed failed production run.",
+      "Implementation commit measurements are retained reports, not SQA measurements. The53m37 capture and earlier5h20 capture used different text models, so they are not a controlled isolated encoder speedup comparison.",
+      "Other findings and owner responses retain their individual evidence revisions. Unknown/implementation-owned fields and historical requested_growth_analysis are preserved exactly.",
+      "No safe whole-test deletion or net code reduction established. Shared caption reading expands capability; necessary input/recovery coverage has real growth."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9036,11 +9092,11 @@
       }
     }
   },
-    "next_finding_number": 327,
+    "next_finding_number": 328,
     "publication_context": {
-    "assessment": "Re-read current committed code/plan and latest report/owner fields before report-only publication; preserve any concurrent worker/index edits.",
-    "checked_head": "14c4bb5623ddf37731ee4a45642322d542315646",
-    "publication": "Existing nonblocking landing/gate ownership and hooks; commit only docs/sqa_findings.json. No production gate run or worker mutation."
+    "assessment": "Re-read current code/plan/report and owner fields before publication; preserve concurrent vision_bridge_run_test and any other worker/index edits.",
+    "checked_head": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+    "publication": "Existing nonblocking landing/gate ownership and hooks; path-limited report-only commit, no implementation gate."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -9048,10 +9104,10 @@
     "SQA-271",
     "SQA-322",
     "SQA-318",
-    "SQA-319",
     "SQA-283",
     "SQA-277",
     "SQA-266",
+    "SQA-327",
     "SQA-325",
     "SQA-324",
     "SQA-257",
@@ -9083,36 +9139,40 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "326 is resolved by its admitted early-refusal alternative. The known Qwen3.5-4B training proof now fails truthfully and remains an explicit capability obligation inhybrid-gate/do.",
-      "Gate extraction now has one shared owner. The real reduction is60production nodes and one repeated tensor decode; required tests add673nodes, total+613.",
-      "283's attribution defect remains despite projection-session resource cleanup.324's format-loader remains open; no broad status closure inferred from nearby changes.",
-      "No new safe test/body consolidation was established in this sample; avoid converting newly added numerical/recovery coverage into a deletion quota."
+      "319closure adds local validation and one existing-fixture case; actual cost replaces the earlier hypothetical estimate.",
+      "327 is one coordinated startup/retry root cause, not a new recovery framework. An existing-from artifact must never be silently replaced by a changed start option.",
+      "324has real two-caller reuse inCaptionText, but virtual GGUF/loading identity work remains. Capability growth is not called net reduction.",
+      "No safe net production+test reduction was established; retain meaningful arithmetic, source separation, cache and recovery coverage."
     ],
-    "reviewed_at": "2026-11-07T04:41:36Z",
-    "reviewed_master": "14c4bb5623ddf37731ee4a45642322d542315646",
+    "reviewed_at": "2026-11-07T06:40:10Z",
+    "reviewed_master": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
     "schema_version": 2,
     "scope": [
-      "Read committed repository instructions skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and current plan9a057ecb35509942e82e971b1fa0d18203ce8379 at 14c4bb5623ddf37731ee4a45642322d542315646. Followed gated training admission/frozen loading, then card encoder -> composition/capture callers and resource cleanup.",
-      "Selected-file Go AST:10 files13634 nodes=11017production+2617test,56functions,3172parser-local bindings. Separately compared all three Go files changed by gated-stack/do with its committed parent to decide326 closure and complete fix cost.",
-      "Rechecked touched evidence attribution283: its three publication owners remain byte-identical to the finding revision; the new projection-session card cleanup does not address its task/recipe obligation. Capture321's key/hash/write-order contract remains intact; no claim of GPU-free replay.",
-      "Overlapping review: this chat previously implemented Overgo changes, not independent third-party SQA. Report only; no application tests, model/device workloads, benchmarks, gate runs, agents or worker messages."
+      "Read unchanged committed instructions skill.md69a0ec1510af484e39da2cf7e169dbc73b70ae8f and current plan e1e41f9d2067d492f60bdb5e8f1c5ce9fd8454dc at ec06b1af2534e0f348349d61edf74be8f6f7b3d3. Bounded capture -> caption text -> initialization/split -> training admission review, plus ranking reader closure.",
+      "Actual selected AST:8 committed files8082 nodes=5669production+2413test,34functions,1840parser-local bindings. Compared rank/main_test with d9cf19b75 to isolate319closure. Traced all OpenCaptionText,captionStart,heldBack andcaptureRows callers and the start persistence owner.",
+      "Formed source conclusions before consulting prior findings. Reconciled319,324 and distinct314/325 obligations; no broad census or reranking of unrelated old findings.",
+      "This chat previously implemented Overgo changes: overlapping review, not independent third-party SQA. No application tests, model/device workloads, benchmarks, gate runs, agents, worker messages or plan/skill changes."
     ],
     "sqa_response": {
-    "assessment": "153 stable IDs:36 canonical open,111 resolved,4 deferred,2 consolidated aliases.326 closed for early unsafe-training refusal and shared frozen gate binding. No new finding or consolidation.",
+    "assessment": "154stable IDs:36canonical open,112resolved,4deferred,2consolidated aliases. Close319, add327, credit narrow324progress; no new aliases.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Source establishes early descriptor refusal, shared per-head binding and removed duplicate decode; exact gated-stack AST comparison-60production/+673test. The new card encoder has two production callers and shared preprocessing/cleanup owners; its test is not redundant.",
+    "evidence": "captureRows guard and native fixture close319. Shared CaptionText has capture/training callers but+710total AST. CaptionStart can persist zero for an all-held mean run before the late batch error; retrying an existing-from path bypasses reinitialization.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Owner report blocks unchanged and preserved raw-exact. Closure follows committed2cbc30090 source and its retained verification, not a reviewer edit to implementation triage."
+        "status": "Owner/unknown fields preserved exactly.319closure is checked against committed implementation;327 is a reviewer recommendation, not inferred implementation adoption."
       },
-    "new_findings": [],
-    "partially_addressed_findings": [],
-    "priority_changes": [
-        "Remove resolvedSQA-326 from active ranks; hybrid-gate/do remains the plan owner for unavailable gated weight training."
+    "new_findings": [
+        "SQA-327"
       ],
-    "recommendation": "Keep the early refusal until the existing hybrid-gate row implements the complete trained-gate contract. Preserve scoped gradient/parity/admission tests and count necessary growth honestly. Retain one loader/binder and the existing artifact/capture/evaluation owners.",
+    "partially_addressed_findings": [
+        "SQA-324"
+      ],
+    "priority_changes": [
+        "319removed from active work;327placed before325 for persisted invalid-start and late population admission."
+      ],
+    "recommendation": "Admit the caption population before artifact creation and model loading through the existing split/route owner; preserve explicit start identity and extend one small retained fixture. Keep broad format-loader obligation open and count real capability/test growth.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9120,9 +9180,9 @@
     },
     "reopened_findings": [],
     "resolved_findings": [
-        "SQA-326"
+        "SQA-319"
       ],
-    "reviewed_master": "14c4bb5623ddf37731ee4a45642322d542315646",
-    "uncertainty": "No new workload or measured savings. Source closure does not assert full gated training support or broader encoder equivalence; other open obligations retain prior scope."
+    "reviewed_master": "ec06b1af2534e0f348349d61edf74be8f6f7b3d3",
+    "uncertainty": "No new execution or measured savings. New327 is a source-established admitted scenario; other open findings retain prior scope."
   }
   }

@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "warm-speed",
-      "title": "Speed is reported warm, as prompt processing and token generation at stated lengths, from the scorecard's own cells, and no cold figure is reported",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 14,
-        "reason": "warm-speed/full-decode adds 86 production nodes, the whole-decode wrapper for the speed readings and the warm rate's token floor, filed after the count was set; warm-speed/measure adds little."
-      },
-      "steps": [
-        {
-          "id": "measure",
-          "title": "Every served model's warm speed is measured and the README's table written from the record",
-          "status": "open",
-          "verify": "go run ./cmd/validate -readme -check",
-          "rationale": "A change to how speed is read moves every served model's speed cells, so each is measured once, warm, at the stated lengths, and the README's table is written from that record. This measures speed alone; held-out quality stands from its record.\nServes: first-output and throughput for every served model, warm.\nDisappears: speed columns empty since readme-now.\nEvidence: the README's table equals what the newest record writes, with a warm figure in every served model's speed cells.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "one-notes",
       "title": "The plan is the one working store for current and upcoming work and its notes, and no stray draft or hand-off file is left in the checkout",
       "owner": "master-lead",

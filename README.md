@@ -173,13 +173,25 @@ tokens over decode time on a request again on the loaded model.
 <!-- speed table: go run ./cmd/validate -readme writes it from the newest scorecard record -->
 | Model | pp, 4,096-token prompt | pp, 16,384-token prompt | tg |
 | --- | --- | --- | --- |
-| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | 2,544 tok/s (1.61 s) | 3,115 tok/s (5.26 s) | 134 tok/s |
+| Bonsai-27B-Q1_0 | 1,990 tok/s (2.06 s) | 1,613 tok/s (10.16 s) | 58 tok/s |
+| Carbon-500M | 57,983 tok/s (0.07 s) | — | 504 tok/s |
+| MiniCPM5-1B | 40,583 tok/s (0.10 s) | 18,640 tok/s (0.88 s) | 354 tok/s |
+| Qwen2.5-0.5B | 62,203 tok/s (0.07 s) | 36,876 tok/s (0.44 s) | 528 tok/s |
+| Qwen3.5-4B | 10,495 tok/s (0.39 s) | 6,172 tok/s (2.65 s) | 99 tok/s |
+| Qwen3.5-9B | 5,880 tok/s (0.70 s) | 4,343 tok/s (3.77 s) | 97 tok/s |
+| Qwen3.8 Flash Next | 2,898 tok/s (1.41 s) | 3,464 tok/s (4.73 s) | 168 tok/s |
+| Qwen3.8-27B | 1,940 tok/s (2.11 s) | 1,591 tok/s (10.30 s) | 49 tok/s |
+| Unlimited-OCR-bf16 | 23,405 tok/s (0.18 s) | 18,891 tok/s (0.87 s) | 459 tok/s |
+| gemma-4-12B-it-fp8 | 3,149 tok/s (1.30 s) | 2,817 tok/s (5.82 s) | 36 tok/s |
+| gemma-4-12B-it-fp8-native | 3,661 tok/s (1.12 s) | 3,208 tok/s (5.11 s) | 49 tok/s |
+| gemma-4-E4B-it | 9,081 tok/s (0.45 s) | 7,523 tok/s (2.18 s) | 69 tok/s |
+| qwen25-05b-judged-proof | — | — | 335 tok/s |
+| qwen25-05b-order-25 | — | — | 335 tok/s |
 <!-- end of the speed table -->
 
 Strata, on the same PC and model, processes Flash-Next's 4,096-token prompt at
-1,850 tok/s and its 16,384-token prompt at 3,290 tok/s and generates 135 tok/s;
-on agent turns both generate 145 tok/s. The 16K prompt is the one figure behind
-Strata's. A conversation of 237,290
+1,850 tok/s and its 16,384-token prompt at 3,290 tok/s, and generates 135 tok/s
+on its own bench's short chat and 145 tok/s on agent turns. A conversation of 237,290
 tokens is read in 2m16s, every later question answered in about 0.8 s, and a
 question that branches off an earlier turn of such a conversation is answered
 from the context already read, in about 1.3 s.

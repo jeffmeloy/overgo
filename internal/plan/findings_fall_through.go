@@ -15,29 +15,58 @@ const FindingsRegister = "docs/sqa_findings.json"
 // names it, so "never idle" never turns the register into endless low-value commits.
 var fallThroughSeverities = []string{"P1", "P2"}
 
-// openFinding is the part of a finding fall-through reads.
+// openFinding is the part of a finding the plan and the landing read: its id, state and title, and the files it cites.
 type openFinding struct {
 	ID       string `json:"id"`
 	Status   string `json:"status"`
 	Severity string `json:"severity"`
 	Title    string `json:"title"`
+	Sources  []struct {
+		Path string `json:"path"`
+	} `json:"sources"`
 }
 
 // findingOpen is the status of a finding the reviewer has not closed.
 const findingOpen = "open"
 
+// readFindings reads the register's findings. It holds more, its reviewer's fields among them, so it is read for the
+// fields openFinding holds alone.
+func readFindings(register []byte) ([]openFinding, error) {
+	var read struct {
+		Findings []openFinding `json:"findings"`
+	}
+	err := json.Unmarshal(register, &read)
+	return read.Findings, err
+}
+
+// FindingsTouching are the open findings that cite a path of paths, written "SQA-n (Pn): title; cites path, ...": the
+// ones a change to those paths may move, which its landing's message names.
+func FindingsTouching(register []byte, paths []string) ([]string, error) {
+	findings, err := readFindings(register)
+	var touching []string
+	for _, finding := range findings {
+		var cited []string
+		for _, source := range finding.Sources {
+			if finding.Status == findingOpen && slices.Contains(paths, source.Path) && !slices.Contains(cited, source.Path) {
+				cited = append(cited, source.Path)
+			}
+		}
+		if len(cited) > 0 {
+			touching = append(touching, finding.ID+" ("+finding.Severity+"): "+finding.Title+"; cites "+strings.Join(cited, ", "))
+		}
+	}
+	return touching, err
+}
+
 // FindingsToFile are the findings an empty plan falls through to before the full measurement run: those open at P1
 // and then P2, each that no row of the plan names yet, written "SQA-n (Pn): title". A register that holds none, or a
 // plan whose rows name each, leaves the measurement run next.
 func FindingsToFile(document Plan, register []byte) ([]string, error) {
-	// The register holds more than fall-through reads, its reviewer's fields among them, so it is read for these alone.
-	var read struct {
-		Findings []openFinding `json:"findings"`
-	}
-	if err := json.Unmarshal(register, &read); err != nil {
+	findings, err := readFindings(register)
+	if err != nil {
 		return nil, err
 	}
-	findings := slices.DeleteFunc(read.Findings, func(finding openFinding) bool {
+	findings = slices.DeleteFunc(findings, func(finding openFinding) bool {
 		return finding.Status != findingOpen || !slices.Contains(fallThroughSeverities, finding.Severity) || namedByARow(document, finding.ID)
 	})
 	slices.SortStableFunc(findings, func(a, b openFinding) int {

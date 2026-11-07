@@ -128,7 +128,11 @@ func (w *execRowWorld) Gate(reference, messageFile string) (string, error) {
 	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
 		var said bytes.Buffer
-		refusal, _ = w.tool(io.MultiWriter(os.Stderr, &said), gate, "-plan", reference, "-message-file", messageFile)
+		arguments := []string{gate, "-plan", reference}
+		if messageFile != "" {
+			arguments = append(arguments, "-message-file", messageFile)
+		}
+		refusal, _ = w.tool(io.MultiWriter(os.Stderr, &said), arguments...)
 		if _, commit, found := strings.Cut(said.String(), landedAs); found {
 			w.reported, _, _ = strings.Cut(commit, "\n")
 		}
@@ -177,8 +181,8 @@ const standardInput = "-"
 // change or a cause outside it refused the landing, and how often that
 // class of refusal recurred.
 func landCommand(reference, messageFile string, input io.Reader, output io.Writer) error {
-	if strings.Count(reference, "/") != strings.Count(reference, ",")+1 || strings.TrimSpace(messageFile) == "" {
-		return fmt.Errorf("usage: loop -land <item>/<step>[,<item>/<step>...] -message-file <file, or - for standard input>")
+	if strings.Count(reference, "/") != strings.Count(reference, ",")+1 {
+		return fmt.Errorf("usage: loop -land <item>/<step>[,<item>/<step>...] [-message-file <file, or - for standard input>]")
 	}
 	var message []byte
 	if messageFile == standardInput {

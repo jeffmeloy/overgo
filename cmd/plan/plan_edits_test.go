@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -504,8 +505,9 @@ Why the second waits.
 // state, where a commit completes only an open one; a whole row with every
 // step it has; and a row with its last step. A step that awaited retired work
 // keeps its list and waits no longer, as after a completion. The command
-// repeats the reason and says no landing records it, and refuses a
-// retirement with no reason, and a row or a step the plan lacks.
+// repeats the reason, and the plan records each retirement with it for the
+// next landing's message; it refuses a retirement with no reason, and a row
+// or a step the plan lacks.
 func TestRetireRemovesARowOrAStep(t *testing.T) {
 	t.Parallel()
 	blocked := openStep("blocked")
@@ -528,13 +530,16 @@ func TestRetireRemovesARowOrAStep(t *testing.T) {
 	const reason = "Superseded by the listing."
 	for _, reference := range []string{"work/blocked", "dropped", "single/only"} {
 		output, err := planCommand(t, root, "-retire", "-reason", reason, reference)
-		if err != nil || !strings.HasPrefix(output, reference+": retired; no Landed-Row trailer records it, so the commit's message says why: "+reason+"; next: ") {
+		if err != nil || !strings.HasPrefix(output, reference+": retired; the next landing's message says why: "+reason+"; next: ") {
 			t.Fatalf("plan -retire %s: %v\n%s", reference, err, output)
 		}
 	}
 	after := editedPlan(t, root)
 	if got, want := rowIDs(after), "waits work"; got != want {
 		t.Fatalf("rows after retiring a step, a row and a row's last step = %q, want %q", got, want)
+	}
+	if want := []plan.Retirement{{Row: "work/blocked", Reason: reason}, {Row: "dropped", Reason: reason}, {Row: "single/only", Reason: reason}}; !slices.Equal(after.Retired, want) {
+		t.Fatalf("the plan records the retirements %v, want %v", after.Retired, want)
 	}
 	if rendered(t, after.Items[0]) != rendered(t, held.Items[0]) || rendered(t, after.Items[1].Steps) != rendered(t, held.Items[1].Steps[1:]) {
 		t.Fatalf("rows left after the retirements:\n%s", rendered(t, after.Items))
@@ -553,7 +558,7 @@ func TestRetireRemovesARowOrAStep(t *testing.T) {
 	requireRefused(t, refusing, written, `"absent"`, "-retire", "-reason", reason, "single/absent")
 	requireRefused(t, refusing, written, "not found", "-retire", "-reason", reason, "work/")
 	requireOffered(t, refusing, "-retire", "-retire -reason <why> <item-id>[/<step-id>]",
-		"A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check and leaves no trailer, so the commit's message carries the reason")
+		"A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
 }
 
 // TestParagraphRewritesAStandingParagraph holds plan -paragraph to replacing the text of one standing paragraph of

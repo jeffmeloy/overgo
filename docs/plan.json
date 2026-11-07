@@ -49,41 +49,15 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "driver-on",
-      "title": "The unattended driver works the plan from Windows startup, takes defaults, falls through to findings, reports its status and owns when work continues",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 658,
-        "reason": "stop-clears measured 257 production nodes against 48 left: the stop's check, its validation, the dispatch call and the -clears-when flag; gate-retired is to be retired, adding none"
-      },
-      "steps": [
-        {
-          "id": "gate-retired",
-          "title": "The Stop gate and the per-message hook go, the driver owning when work continues",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheRepositoryRegistersNoStopGate$'",
-          "rationale": "With the driver started at boot, a chat session no longer has to be held open to keep work going. scripts/overgo_stop_gate.sh and scripts/overgo_next_task.sh, their registrations in .claude/settings.json and their tests in cmd/loophook go; the session-start hook keeps printing the assigned step. The owner removes the same Stop hook from the user-level ~/.claude/settings.json, where it runs for every Claude session on the machine.\nServes: setup-steps.\nDisappears: the Stop gate and the per-message hook.\nEvidence: the repository's settings register no Stop or per-message hook, and the driver's tests still hold continuation.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "generated-commits",
       "title": "The commit tool writes the commit message and the undo check, and every code-rule refusal fixes the code or prints the exact edit",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
-        "reason": "Estimate before the survey: message composition in internal/landing, a Go findings-touching reader in place of a scratch script, the undo run and edits printed by each rule; the message prose rules' code goes with it; a step raises it with its measured figure."
+        "nodes": 411,
+        "reason": "message measured 739 production nodes: the message the landing writes, the findings reader, the retirement record and the optional message file, less the prose checks it retires; undo-check and rule-edits are estimated at 410 more"
       },
       "steps": [
-        {
-          "id": "message",
-          "title": "The landing composes its own message from the step, the diff, the plan's changes and the findings the change touches",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTheLandingWritesItsOwnMessage$'",
-          "rationale": "From Oct 31 to Nov 7, 168 of 263 refused commit attempts were the message and code-rule checks: a missing section, a retired step not named in full, a measured figure typed, a metric not named. Each takes ten seconds to find and costs a fix and a retry, and a weak model fails them more.\nThe landing writes: the title and cause from the step; the change from the diff's files and tests; the plan's changes since the last landing from the plan's diff (retired steps, count changes), which landing.go already computes; the findings whose cited files the change touches, from docs/sqa_findings.json, by a Go reader in place of the lead's scratch script; the undo check's result; the predicted effect from the step's Serves line. The worker writes no message, or one optional line. The message prose checks go with it.\nServes: failure-rate; the share of commits refused (45%).\nDisappears: hand-written commit messages and their prose checks.\nEvidence: a landing with no message file commits a message holding every section, its plan changes and touching findings read from the tree.\nBatch: host lane."
-        },
         {
           "id": "undo-check",
           "title": "The landing removes a behaviour change's production files, runs the step's check, and refuses a change the check does not catch on an assertion",

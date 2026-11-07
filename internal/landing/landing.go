@@ -48,7 +48,6 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/scorecard/metric"
 	"overgo/internal/testevidence"
 )
 
@@ -132,6 +131,8 @@ type landing struct {
 	verifiers []string
 	// spent is where the run's time went, for the checkout's record.
 	spent spent
+	// composed is the message the landing wrote for the change (compose), before what the gate measured.
+	composed string
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -146,7 +147,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		return "", err
 	}
 	options.Repo = root
-	if err := requireSections(options.Message); err != nil {
+	if err := creditsNoCoAuthor(options.Message); err != nil {
 		return "", err
 	}
 	scratch, err := os.MkdirTemp("", "overgo-landing-*")
@@ -286,58 +287,15 @@ func (l *landing) checks() []check {
 // stagePrefix opens the refusal of a stage, before the stage's name.
 const stagePrefix = "land: "
 
-// predictedSection opens the part of a landing message that says what the
-// change should do.
-const predictedSection = "Predicted effect:"
-
-// measuredUnits are the units a measured figure is typed in, which a prediction leaves to the gate's own measurement.
-var measuredUnits = []string{"%", "GB", "GiB", "KiB", "MB", "MiB", "ms", "s", "TiB"}
-
-// requireSections holds the message to the two sections every landing
-// states, each saying something on its own line: why the change was needed
-// and what it should do. The prediction names a scorecard metric, so it can be
-// read against the scorecard, and types no measured figure, which the gate
-// writes itself. No line credits a co-author.
-func requireSections(message []byte) error {
-	for _, label := range []string{"Cause:", predictedSection} {
-		said, found := section(message, label)
-		if !found {
-			return fmt.Errorf("land: the message lacks a %q section", label)
-		}
-		if first, _, _ := strings.Cut(strings.TrimSpace(said), "\n"); strings.TrimSpace(strings.TrimPrefix(first, label)) == "" {
-			return fmt.Errorf("land: the message's %q section says nothing on its line", label)
-		}
-	}
-	predicted, _ := section(message, predictedSection)
-	if !slices.ContainsFunc(metric.Columns, func(name metric.Name) bool { return strings.Contains(predicted, string(name)) }) {
-		return fmt.Errorf("land: the %q section names no scorecard metric, one of %v", predictedSection, metric.Columns)
-	}
-	words := strings.Fields(predicted)
-	for index, word := range words {
-		word = strings.Trim(word, ",.;:()")
-		number := strings.TrimLeft(word, "0123456789.")
-		unit := slices.Contains(measuredUnits, number) || number == "" && index+1 < len(words) && slices.Contains(measuredUnits, strings.Trim(words[index+1], ",.;:()"))
-		if _, err := time.ParseDuration(word); number != word && (unit || err == nil) {
-			return fmt.Errorf("land: the %q section types the figure %q: the gate writes what it measured", predictedSection, word)
-		}
-	}
+// creditsNoCoAuthor refuses the lead's words when a line of them credits a co-author: a landing's message carries none.
+// The landing writes the rest of the message itself (compose).
+func creditsNoCoAuthor(message []byte) error {
 	for line := range strings.Lines(string(message)) {
 		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "co-authored-by:") {
 			return errors.New("land: the message credits a co-author; a landing's message carries none")
 		}
 	}
 	return nil
-}
-
-// section is the message from the line that opens with label to its end,
-// and whether a line does.
-func section(message []byte, label string) (string, bool) {
-	lines := strings.Split(string(message), "\n")
-	at := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(strings.TrimSpace(line), label) })
-	if at < 0 {
-		return "", false
-	}
-	return strings.Join(lines[at:], "\n"), true
 }
 
 // parents reads the commit the landing publishes onto, seeding the private
@@ -459,9 +417,9 @@ func (l *landing) row(ctx context.Context) error {
 	}
 	// A plan the commit it builds on does not hold has no terms to change.
 	var replaced []string
+	var before plan.Plan
 	if heldErr == nil {
-		before, err := plan.Parse(held)
-		if err != nil {
+		if before, err = plan.Parse(held); err != nil {
 			return err
 		}
 		l.changedTerms = termsChanged(before, document)
@@ -473,8 +431,11 @@ func (l *landing) row(ctx context.Context) error {
 			var removed []string
 			removed, replaced = rowChanges(before, document)
 			for _, row := range removed {
-				if !strings.Contains(string(l.Message), row) {
-					return fmt.Errorf("land: the change removes %s from the plan without landing it: its message names it and says why", row)
+				retired := slices.ContainsFunc(document.Retired, func(record plan.Retirement) bool {
+					return row == record.Row || strings.HasPrefix(row, record.Row+"/")
+				})
+				if !retired && !strings.Contains(string(l.Message), row) {
+					return fmt.Errorf("land: the change removes %s from the plan without landing it: retire it with go run ./cmd/plan -retire -reason <why> %s", row, row)
 				}
 				l.changedTerms = append(l.changedTerms, retiredRowTrailer+": "+row)
 			}
@@ -499,28 +460,21 @@ func (l *landing) row(ctx context.Context) error {
 		l.counts[item.ID] = item.Budget
 	}
 	for _, row := range named {
-		judged := false
-		for _, item := range l.terms.Items {
-			for _, step := range item.Steps {
-				if item.ID != row.item || step.ID != row.step {
-					continue
-				}
-				if judged = true; !slices.Contains(l.verifiers, step.Verify) {
-					l.verifiers = append(l.verifiers, step.Verify)
-				}
-			}
-		}
-		if !judged {
+		if step, judged := plan.ExactStep(l.terms, row.item, row.step); !judged {
 			if err := l.judgeAdded(document, row); err != nil {
 				return err
 			}
+		} else if !slices.Contains(l.verifiers, step.Verify) {
+			l.verifiers = append(l.verifiers, step.Verify)
 		}
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
 			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
 		}
 	}
-	l.planned = data
-	return nil
+	// The message says the retirements, so the plan the commit publishes holds them no more.
+	l.advanced.Retired, l.planned = nil, data
+	l.composed, err = l.compose(ctx, before, document, named)
+	return err
 }
 
 // landedAgain refuses a change whose plan holds a step the trunk's plan does not, which a landing on the trunk
@@ -946,7 +900,7 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 	return landed, errors.Join(err, followed, synced)
 }
 
-// message is the authored message, what the gate measured, and the trailers:
+// message is the composed message, what the gate measured, and the trailers:
 // the scorecard slices, then the landed row.
 func (l *landing) message() string {
 	trailers := slices.Concat(l.trailers, l.changedTerms)
@@ -954,7 +908,7 @@ func (l *landing) message() string {
 	for _, row := range named {
 		trailers = append(trailers, plan.LandedRowTrailer+": "+row.String())
 	}
-	return strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+	return l.composed + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 

@@ -322,9 +322,9 @@ documentation and reserved ranges. The operator executor admits them.
 holds priorities, dependencies, owners, and acceptance.
 
 1. Take the next row: `go run ./cmd/plan -next`.
-2. Land it: `go run ./cmd/loop -land <item>/<step> -message-file -`. The
+2. Land it: `go run ./cmd/loop -land <item>/<step>`. The
    [small gate](internal/landing/landing.go) (its package doc lists the stages)
-   checks the tree and commits with the step removed from the plan.
+   checks the tree, writes the message and commits with the step removed from the plan.
 3. The improvement cycle measures the scorecard and files each decline as a row.
 4. Scorecard gaps become the next rows.
 

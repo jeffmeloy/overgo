@@ -4,6 +4,6 @@ skill.md is the only written guidance; each of its rules names the check that ho
 
 - Next step: `go run ./cmd/plan -next`
 - Check it: `go run ./cmd/plan -verify`
-- Commit it: `go run ./cmd/loop -land <item>/<step> -message-file -`
+- Commit it: `go run ./cmd/loop -land <item>/<step>`
 
 When a command refuses, do what its message says and keep going. Don't stop to ask.

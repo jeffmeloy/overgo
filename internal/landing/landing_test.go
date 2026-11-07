@@ -182,8 +182,10 @@ func TestAChangedCheckOrCountIsWrittenInTheCommit(t *testing.T) {
 			t.Fatalf("the commit does not say %q:\n%s", want, message)
 		}
 	}
-	if strings.Contains(message, "untouched") || strings.Contains(message, "added") {
-		t.Fatalf("the commit speaks of a row whose terms did not change:\n%s", message)
+	for line := range strings.Lines(message) {
+		if strings.HasPrefix(line, "Changed-") && (strings.Contains(line, "untouched") || strings.Contains(line, "added")) {
+			t.Fatalf("the commit's trailer %q speaks of a row whose terms did not change:\n%s", line, message)
+		}
 	}
 }
 

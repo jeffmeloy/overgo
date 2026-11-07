@@ -21,7 +21,7 @@ func AcceptedProgressSince(ctx context.Context, repository string, document Plan
 	if ctx == nil || !worklease.ValidCommit(checkpoint) {
 		return false, errors.New("plan: progress requires an exact checkpoint")
 	}
-	step, found := exactPlanStep(document, itemID, stepID)
+	step, found := ExactStep(document, itemID, stepID)
 	if !found || step.Status != StatusOpen {
 		return false, errors.New("plan: progress step is not open")
 	}

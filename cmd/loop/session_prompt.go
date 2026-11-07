@@ -19,7 +19,7 @@ const sessionInstructions = `You are overgo's lead for this run, in the reposito
 Work the plan, one step after another, until it is empty or a stop is recorded:
 - go run ./cmd/plan -next names the step, and go run ./cmd/plan -prompt its check and notes.
 - Make its check pass: go run ./cmd/plan -verify.
-- Commit it: go run ./cmd/loop -land <item>/<step> -message-file <file>, run in the background, unpiped. Its message holds Cause:, Change:, Plan since the last landing, Checked by undoing, Findings pass and Predicted effect: lines, the prediction naming a scorecard metric and no measured figure.
+- Commit it: go run ./cmd/loop -land <item>/<step>, run in the background, unpiped. The landing writes the commit message from the step, the change, the plan and the findings it touches.
 - Then take the next step.
 
 A command that refuses says what to do: do it and keep going. Never stop to ask; a choice between options takes the one that changes least and can be undone, recorded with go run ./cmd/plan -note. If the guard says another session holds this worktree, end this run at once: the session working it goes on.`

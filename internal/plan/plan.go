@@ -128,8 +128,17 @@ type Plan struct {
 	// rather than prose in a rationale: plan -decisions lists the open
 	// ones with how long they have waited.
 	Decisions []Decision `json:"decisions,omitempty"`
+	// Retired are the steps plan -retire removed since the last landing, each with why: the next landing says them in
+	// its message and publishes the plan without them.
+	Retired []Retirement `json:"retired,omitempty"`
 	// parked are the rows dispatch passes over at this commit (ParkRow); they are the worktree's state, not the plan's.
 	parked []string
+}
+
+// Retirement is a step, or a row with every step it had, removed without landing, as item/step or item, and why.
+type Retirement struct {
+	Row    string `json:"row"`
+	Reason string `json:"reason"`
 }
 
 // decisionOptions is the fewest options a decision offers: one option is
@@ -425,7 +434,7 @@ func validateDependencies(d Plan) error {
 func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		if candidate, present := exactPlanStep(d, itemID, stepID); present && candidate.Status != StatusDone {
+		if candidate, present := ExactStep(d, itemID, stepID); present && candidate.Status != StatusDone {
 			return false
 		}
 	}
@@ -580,7 +589,8 @@ func exactPlanItem(document Plan, itemID string) (Item, bool) {
 	return Item{}, false
 }
 
-func exactPlanStep(document Plan, itemID, stepID string) (Step, bool) {
+// ExactStep is the step itemID/stepID of the plan, and whether the plan holds it.
+func ExactStep(document Plan, itemID, stepID string) (Step, bool) {
 	item, _ := exactPlanItem(document, itemID)
 	for _, step := range item.Steps {
 		if step.ID == stepID {

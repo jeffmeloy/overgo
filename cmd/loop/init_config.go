@@ -33,7 +33,7 @@ var defaultWorker = []string{"claude", "-p", "--permission-mode", "acceptEdits",
 // worker is its implementing session, what the worker is for, where the written guidance is, and that it never stops
 // to ask. The plan's prompt for the dispatched step follows it.
 const defaultPrompt = "Take over this worktree. You are the overgo driver's worker, in the repository's main checkout. Work the one step below until it is " +
-	"committed through go run ./cmd/loop -land <item>/<step> -message-file -, and end there. skill.md is the written " +
+	"committed through go run ./cmd/loop -land <item>/<step>, and end there. skill.md is the written " +
 	"guidance. A command that refuses says what to do: do it and keep going, and never stop to ask.\n"
 
 // writeDefaultConfig writes the driver's default configuration at path and its worker's prompt beside it, the worker

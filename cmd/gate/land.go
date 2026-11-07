@@ -11,13 +11,16 @@ import (
 )
 
 // land runs the small gate over the working tree for one plan row. A message
-// file of "-" is read from standard input.
+// file of "-" is read from standard input; with none the landing's own
+// message stands alone.
 func land(reference, messageFile string, preflight bool) error {
 	var message []byte
 	var err error
-	if messageFile == "-" {
+	switch messageFile {
+	case "":
+	case "-":
 		message, err = io.ReadAll(os.Stdin)
-	} else {
+	default:
 		message, err = os.ReadFile(messageFile)
 	}
 	if err != nil {

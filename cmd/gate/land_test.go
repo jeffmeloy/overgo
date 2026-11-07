@@ -60,9 +60,6 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	// The change only adds a test file: a package rule must still see the
 	// package doc the unchanged source carries.
 	write("internal/p/twice_test.go", "package p\n\nimport \"testing\"\n\nfunc TestValueTwice(t *testing.T) {\n\tif Value() != Value() {\n\t\tt.Fatal(Value())\n\t}\n}\n")
-	if _, err := land("first/do", []byte("Change the fixture\n\nPredicted effect: none.\n")); err == nil || !strings.Contains(err.Error(), "Cause:") {
-		t.Fatalf("a message without its cause landed: %v", err)
-	}
 	commit, err := land("first/do", message)
 	if err != nil {
 		t.Fatalf("a passing change was refused: %v", err)

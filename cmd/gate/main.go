@@ -13,12 +13,12 @@ func main() {
 }
 
 func run() error {
-	messageFile := flag.String("message-file", "", "commit message file, or - for standard input (required; never -m: the shell eats backticks)")
+	messageFile := flag.String("message-file", "", "optional words of the lead for the message the landing writes itself, from a file, or - for standard input")
 	planRef := flag.String("plan", "", "item/step this commit serves, or several joined by commas that land together; each step must be open in the plan")
 	preflight := flag.Bool("preflight", false, "run only the cheap stages (space, format, fix, vet, rules, the invariant tests, the row's verify) over the same tree and commit nothing")
 	flag.Parse()
-	if *planRef == "" || *messageFile == "" || flag.NArg() != 0 {
-		return errors.New("usage: gate -plan <item>/<step> -message-file <file, or -> [-preflight]")
+	if *planRef == "" || flag.NArg() != 0 {
+		return errors.New("usage: gate -plan <item>/<step> [-message-file <file, or ->] [-preflight]")
 	}
 	return land(*planRef, *messageFile, *preflight)
 }

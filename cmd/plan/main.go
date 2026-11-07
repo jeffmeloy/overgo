@@ -71,7 +71,7 @@ func main() {
 	note := flag.Bool("note", false, "add a working note to a step's reasoning, before its closing Serves lines, which -prompt shows with the step: -note -rationale-file <file> <item-id> <step-id>")
 	paragraph := flag.Bool("paragraph", false, "rewrite a standing paragraph of the doctrine, numbered as the plan holds them from 0: -paragraph -rationale-file <file> <index>; an empty file removes it")
 	show := flag.Bool("show", false, "print one row whole, with each step's check, what it awaits and the reasoning -prompt leaves out: -show <item-id>")
-	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check and leaves no trailer, so the commit's message carries the reason")
+	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check, and the plan records it with its reason until the next landing's message says it")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
@@ -167,7 +167,7 @@ func run(c cli, args []string) error {
 	case c.paragraph:
 		return rewriteParagraph(role, c, args)
 	case c.retire:
-		return editPlan(role, c, args, "retired; no Landed-Row trailer records it, so the commit's message says why")
+		return editPlan(role, c, args, "retired; the next landing's message says why")
 	case c.show:
 		return printRow(os.Stdout, document, strings.Join(args, "/"))
 	case c.add:
@@ -438,9 +438,9 @@ const editUsage = `usage, with every flag before the names, where Go's flag pars
 // A retirement is not a completion. A landing completes one open step whose
 // check passed, and its commit says so in a Landed-Row trailer (plan.Advance).
 // A retirement removes a step whatever its state, or a row with every step it
-// has; it runs no check and leaves no trailer, so only the message of the
-// commit that carries the plan says why. A step that awaited the work waits
-// no longer in either case.
+// has; it runs no check, and the plan records it with why until the next
+// landing, whose message says it and whose commit carries a Retired-Row
+// trailer. A step that awaited the work waits no longer in either case.
 func editPlan(role string, c cli, args []string, did string) error {
 	reference, words := strings.Join(args, "/"), strings.TrimSpace(c.reason)
 	if c.rationaleFile != "" {
@@ -485,6 +485,9 @@ func editPlan(role string, c cli, args []string, did string) error {
 		case c.retire:
 			// The row goes whole, or with the last step it had.
 			document.Items = slices.Delete(document.Items, item, item+1)
+		}
+		if c.retire {
+			document.Retired = append(document.Retired, plan.Retirement{Row: reference, Reason: words})
 		}
 		return document, nil
 	})
@@ -650,7 +653,7 @@ func printPromptStep(it plan.Item, st plan.Step, decided []string, output io.Wri
 	if len(st.DependsOn) != 0 {
 		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
 	}
-	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %[1]s/%[2]s -message-file <msg> (the small gate over the dirty tree, the landing confirmed from git)
+	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %[1]s/%[2]s (the small gate over the dirty tree, which writes the message, the landing confirmed from git)
 SCRATCH tmp/%[1]s/ for this row's probes and documents only
 FINDINGS park off-scope work: go run ./cmd/finding -h
 `, it.ID, st.ID)

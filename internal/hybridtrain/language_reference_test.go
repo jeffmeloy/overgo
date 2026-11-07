@@ -3,8 +3,10 @@ package hybridtrain
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // languageModel is a hybrid stack read as a language model, the host reference a device walk of its frozen backward is held to: the embedding rows its tokens take, its decoder layers,
@@ -102,4 +104,36 @@ func (m *languageModel) forward(tokens []int, positions []int, rows []float32) (
 	}
 	pass.out, pass.trace = hostmath.HybridStackForward(x, m.Layers, pass.dims, pass.states)
 	return pass, nil
+}
+
+// smallHybridModel is a small hybrid language model of a gated-delta layer and a gated attention layer with partial
+// rotary positions, as Qwen3.5 holds them, its weights drawn from seed, and the draw that made them.
+func smallHybridModel(seed int64) (*languageModel, func(int) []float32) {
+	const hidden, inter, headDim, vocab = 8, 16, 4, 12
+	rng := rand.New(rand.NewSource(seed))
+	draw := func(count int) []float32 { return testutil.NormalVector(rng, count, 0.4) }
+	mlp := func() hostmath.QwenMLPWeights {
+		return hostmath.QwenMLPWeights{Gate: draw(inter * hidden), Up: draw(inter * hidden), Down: draw(hidden * inter)}
+	}
+	geometry := StackConfig{
+		Types: []LayerKind{LinearAttention, FullAttention}, Hidden: hidden, Inter: inter, Eps: 1e-6,
+		Heads: 2, KVHeads: 1, HeadDim: headDim, RopeDim: 2, RopeTheta: 10000,
+		GDNKeyHeads: 2, GDNValueHeads: 2, GDNHeadDim: headDim, GDNConvK: 3,
+	}
+	keyDim, valueDim, queryDim, kvDim := 2*headDim, 2*headDim, 2*headDim, headDim
+	return &languageModel{
+		Geometry: geometry, Vocab: vocab, Embedding: draw(vocab * hidden), FinalNorm: draw(hidden), Head: draw(vocab * hidden),
+		Layers: []hostmath.HybridLayerWeights{
+			{InputNorm: draw(hidden), PostNorm: draw(hidden), IsLinear: true, MLP: mlp(), GDN: hostmath.GatedDeltaMixWeights{
+				Wq: draw(keyDim * hidden), Wk: draw(keyDim * hidden), Wv: draw(valueDim * hidden),
+				ConvQ: draw(keyDim * 3), ConvK: draw(keyDim * 3), ConvV: draw(valueDim * 3),
+				Wbeta: draw(2 * hidden), Walpha: draw(2 * hidden), TimeStep: draw(2), A: draw(2),
+				Wz: draw(valueDim * hidden), Norm: draw(headDim), Wout: draw(hidden * valueDim),
+			}},
+			{InputNorm: draw(hidden), PostNorm: draw(hidden), MLP: mlp(), Attn: hostmath.AttentionMixWeights{
+				Wq: draw(queryDim * hidden), Wk: draw(kvDim * hidden), Wv: draw(kvDim * hidden), Wo: draw(hidden * queryDim),
+				QNorm: draw(headDim), KNorm: draw(headDim), Gate: draw(queryDim * hidden),
+			}},
+		},
+	}, draw
 }

@@ -697,6 +697,229 @@ extern "C" __global__ void gated_delta_net_backward_f32(
     }
 }
 
+// GDN_BACKWARD_WARPS, GDN_BACKWARD_WARP_ROWS and GDN_BACKWARD_COLUMNS shape gated_delta_net_rows_backward_f32: a block of
+// the default 256 threads holds GDN_BACKWARD_BLOCK_ROWS rows of a head's state, a warp GDN_BACKWARD_WARP_ROWS of them and
+// a lane GDN_BACKWARD_COLUMNS columns of each (lane, lane + 32, ...), so a state up to GDN_BACKWARD_SIZE_MAX wide, and a
+// thread GDN_BACKWARD_THREAD_VALUES values of it. Measured on the RTX 4090 D over Qwen3.5-9B's 32 value heads of 128 and
+// 360 tokens: two rows a warp took 1.1 ms, four 1.7 ms (half the blocks to hide the scan's latency), one 1.4 ms (twice
+// the atomic sums across blocks).
+constexpr unsigned int GDN_BACKWARD_WARPS = 8;
+constexpr unsigned int GDN_BACKWARD_WARP_ROWS = 2;
+constexpr unsigned int GDN_BACKWARD_COLUMNS = 4;
+constexpr unsigned int GDN_BACKWARD_BLOCK_ROWS = GDN_BACKWARD_WARPS * GDN_BACKWARD_WARP_ROWS;
+constexpr unsigned int GDN_BACKWARD_SIZE_MAX = CUDA_WARP_WIDTH * GDN_BACKWARD_COLUMNS;
+constexpr unsigned int GDN_BACKWARD_THREAD_VALUES = GDN_BACKWARD_WARP_ROWS * GDN_BACKWARD_COLUMNS;
+
+// gdn_backward_warp_sum is value summed over a warp's lanes, which every lane holds.
+__device__ __forceinline__ float gdn_backward_warp_sum(float value) {
+    return __shfl_sync(0xffffffffu, warp_sum_down(value), 0);
+}
+
+// gdn_backward_columns reads a lane's columns of a row of size values, zero past the row.
+__device__ __forceinline__ void gdn_backward_columns(float (&columns)[GDN_BACKWARD_COLUMNS], const float * row, unsigned int lane, unsigned int size) {
+#pragma unroll
+    for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+        const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+        columns[part] = column < size ? row[column] : 0.0f;
+    }
+}
+
+// gdn_backward_step carries a warp's rows of a head's state over one token as gated_delta_net_f32 does: each row decays
+// by the token's gate, then moves along the key by the delta rule's error against the token's value, scaled by beta.
+// Rows past the state's width stay zero.
+__device__ __forceinline__ void gdn_backward_step(
+        float (&state)[GDN_BACKWARD_WARP_ROWS][GDN_BACKWARD_COLUMNS],
+        const float * key,
+        const float * value,
+        float decay,
+        float beta,
+        unsigned int lane,
+        unsigned int first_row,
+        unsigned int size) {
+    float keys[GDN_BACKWARD_COLUMNS];
+    gdn_backward_columns(keys, key, lane, size);
+#pragma unroll
+    for (unsigned int index = 0; index < GDN_BACKWARD_WARP_ROWS; ++index) {
+        float dot = 0.0f;
+#pragma unroll
+        for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+            state[index][part] *= decay;
+            dot += state[index][part] * keys[part];
+        }
+        const unsigned int row = first_row + index;
+        const float delta = ((row < size ? value[row] : 0.0f) - gdn_backward_warp_sum(dot)) * beta;
+#pragma unroll
+        for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+            state[index][part] += delta * keys[part];
+        }
+    }
+}
+
+// gdn_backward_slot moves a thread's values of the state to (keep) or from its slot of scratch, own the thread's first.
+__device__ __forceinline__ void gdn_backward_slot(
+        float (&state)[GDN_BACKWARD_WARP_ROWS][GDN_BACKWARD_COLUMNS], float * own, unsigned int slot, bool keep) {
+#pragma unroll
+    for (unsigned int index = 0; index < GDN_BACKWARD_THREAD_VALUES; ++index) {
+        float * at = own + ((size_t) slot * GDN_BACKWARD_THREAD_VALUES + index) * blockDim.x;
+        float & held = state[index / GDN_BACKWARD_COLUMNS][index % GDN_BACKWARD_COLUMNS];
+        if (keep) {
+            *at = held;
+        } else {
+            held = *at;
+        }
+    }
+}
+
+// gated_delta_net_rows_backward_f32 is gated_delta_net_f32's VJP for one sequence from a zero state, one gate a head and
+// query and key heads alike (head % key_heads), in f32: from d_output it gives d_query, d_key, d_value, d_gate and
+// d_beta as hostmath.GatedDeltaNetBackward does. A block of GDN_BACKWARD_WARPS warps takes GDN_BACKWARD_BLOCK_ROWS rows
+// of one head's state, whose recurrences are their own (blockIdx.x = head * groups + group, groups = ceil(size /
+// GDN_BACKWARD_BLOCK_ROWS)): a first pass keeps the rows before every chunk-th token, then each chunk, the last first,
+// is carried again from its checkpoint keeping the rows before each of its tokens and walked back token by token, the
+// rows' gradient carried in registers. A thread keeps only its own values in scratch, ceil(tokens / chunk) + chunk
+// slots of GDN_BACKWARD_THREAD_VALUES laid out thread-fastest, gridDim.x * blockDim.x times that many floats. A token's
+// query and key gradients sum over the block's rows in shared memory and then over groups and the value heads sharing
+// the key head by atomicAdd, as its gate and beta gradients sum over groups: the caller zeroes d_query, d_key, d_gate
+// and d_beta. d_value is written once.
+extern "C" __global__ void __launch_bounds__(GDN_BACKWARD_WARPS * CUDA_WARP_WIDTH) gated_delta_net_rows_backward_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * d_output,
+        float * d_query,
+        float * d_key,
+        float * d_value,
+        float * d_gate,
+        float * d_beta,
+        float * scratch,
+        unsigned int size,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int chunk) {
+    // Two of each, so a token's sums are written while the token before it is still read: one barrier a token.
+    __shared__ float query_sums[2][GDN_BACKWARD_WARPS][GDN_BACKWARD_SIZE_MAX];
+    __shared__ float key_sums[2][GDN_BACKWARD_WARPS][GDN_BACKWARD_SIZE_MAX];
+    __shared__ float gate_sums[2][GDN_BACKWARD_WARPS];
+    __shared__ float beta_sums[2][GDN_BACKWARD_WARPS];
+    const unsigned int groups = (size + GDN_BACKWARD_BLOCK_ROWS - 1) / GDN_BACKWARD_BLOCK_ROWS;
+    const unsigned int head = blockIdx.x / groups;
+    if (head >= heads) {
+        return;
+    }
+    const unsigned int key_head = head % key_heads;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH, warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int first_row = (blockIdx.x % groups) * GDN_BACKWARD_BLOCK_ROWS + warp * GDN_BACKWARD_WARP_ROWS;
+    const unsigned int checkpoints = (tokens + chunk - 1) / chunk;
+    float * own = scratch + (size_t) blockIdx.x * (checkpoints + chunk) * GDN_BACKWARD_THREAD_VALUES * blockDim.x + threadIdx.x;
+    const float scale = rsqrtf((float) size);
+    float state[GDN_BACKWARD_WARP_ROWS][GDN_BACKWARD_COLUMNS] = {};
+    float carry[GDN_BACKWARD_WARP_ROWS][GDN_BACKWARD_COLUMNS] = {};
+    for (unsigned int token = 0; token < (checkpoints - 1) * chunk; ++token) {
+        if (token % chunk == 0) {
+            gdn_backward_slot(state, own, token / chunk, true);
+        }
+        const size_t at = (size_t) token * heads + head;
+        gdn_backward_step(state, key + ((size_t) token * key_heads + key_head) * size, value + at * size, expf(gate[at]), beta[at], lane, first_row, size);
+    }
+    gdn_backward_slot(state, own, checkpoints - 1, true);
+    for (unsigned int checkpoint = checkpoints; checkpoint-- > 0;) {
+        const unsigned int first = checkpoint * chunk, last = min(tokens, first + chunk);
+        gdn_backward_slot(state, own, checkpoint, false);
+        for (unsigned int token = first; token < last; ++token) {
+            gdn_backward_slot(state, own, checkpoints + token - first, true);
+            const size_t at = (size_t) token * heads + head;
+            if (token + 1 < last) {
+                gdn_backward_step(state, key + ((size_t) token * key_heads + key_head) * size, value + at * size, expf(gate[at]), beta[at], lane, first_row, size);
+            }
+        }
+        for (unsigned int token = last; token-- > first;) {
+            // state holds the rows before the token.
+            gdn_backward_slot(state, own, checkpoints + token - first, false);
+            const size_t at = (size_t) token * heads + head;
+            const size_t key_at = ((size_t) token * key_heads + key_head) * size;
+            const float decay = expf(gate[at]), beta_value = beta[at];
+            float keys[GDN_BACKWARD_COLUMNS], queries[GDN_BACKWARD_COLUMNS];
+            float query_part[GDN_BACKWARD_COLUMNS] = {}, key_part[GDN_BACKWARD_COLUMNS] = {};
+            gdn_backward_columns(keys, key + key_at, lane, size);
+            gdn_backward_columns(queries, query + key_at, lane, size);
+            float gate_part = 0.0f, beta_part = 0.0f;
+#pragma unroll
+            for (unsigned int index = 0; index < GDN_BACKWARD_WARP_ROWS; ++index) {
+                const unsigned int row = first_row + index;
+                const bool held = row < size;
+                const float target = held ? value[at * size + row] : 0.0f;
+                const float output_gradient = held ? d_output[at * size + row] * scale : 0.0f;
+                float decayed[GDN_BACKWARD_COLUMNS], total[GDN_BACKWARD_COLUMNS];
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+                    decayed[part] = state[index][part] * decay;
+                    dot += decayed[part] * keys[part];
+                }
+                const float error = target - gdn_backward_warp_sum(dot);
+                const float delta = error * beta_value;
+                // total is the gradient of the rows after the token: the carry from the tokens after it and the readout's.
+                float delta_gradient = 0.0f;
+#pragma unroll
+                for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+                    total[part] = carry[index][part] + output_gradient * queries[part];
+                    query_part[part] += output_gradient * (decayed[part] + delta * keys[part]);
+                    delta_gradient += total[part] * keys[part];
+                }
+                delta_gradient = gdn_backward_warp_sum(delta_gradient);
+                if (held && lane == 0) {
+                    d_value[at * size + row] = delta_gradient * beta_value;
+                }
+                beta_part += delta_gradient * error;
+                const float dot_gradient = -delta_gradient * beta_value;
+#pragma unroll
+                for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+                    const float decayed_gradient = total[part] + dot_gradient * keys[part];
+                    key_part[part] += delta * total[part] + dot_gradient * decayed[part];
+                    gate_part += decayed_gradient * decayed[part];
+                    carry[index][part] = decayed_gradient * decay;
+                }
+            }
+            const unsigned int parity = token & 1;
+#pragma unroll
+            for (unsigned int part = 0; part < GDN_BACKWARD_COLUMNS; ++part) {
+                const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+                if (column < size) {
+                    query_sums[parity][warp][column] = query_part[part];
+                    key_sums[parity][warp][column] = key_part[part];
+                }
+            }
+            gate_part = warp_sum_down(gate_part);
+            if (lane == 0) {
+                gate_sums[parity][warp] = gate_part;
+                beta_sums[parity][warp] = beta_part;
+            }
+            __syncthreads();
+            for (unsigned int index = threadIdx.x; index < 2 * size; index += blockDim.x) {
+                const unsigned int column = index % size;
+                const bool keyed = index >= size;
+                float sum = 0.0f;
+                for (unsigned int part = 0; part < GDN_BACKWARD_WARPS; ++part) {
+                    sum += keyed ? key_sums[parity][part][column] : query_sums[parity][part][column];
+                }
+                atomicAdd((keyed ? d_key : d_query) + key_at + column, sum);
+            }
+            if (threadIdx.x == 0) {
+                float gate_sum = 0.0f, beta_sum = 0.0f;
+                for (unsigned int part = 0; part < GDN_BACKWARD_WARPS; ++part) {
+                    gate_sum += gate_sums[parity][part];
+                    beta_sum += beta_sums[parity][part];
+                }
+                atomicAdd(d_gate + at, gate_sum);
+                atomicAdd(d_beta + at, beta_sum);
+            }
+        }
+    }
+}
+
 extern "C" __global__ void gated_linear_attention_f32(
 		const float * key,
 		const float * value,

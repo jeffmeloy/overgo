@@ -206,6 +206,35 @@ extern "C" __global__ void short_conv_backward_f32(
     }
 }
 
+// depthwise_causal_conv_f32 is the qwen3.5 gated-delta mix's short convolution before its SiLU (hostmath.ShortConvForward
+// without the SiLU) over token-major rows [tokens, channels], a thread an output value adding its taps in order:
+// output[t][c] = sum_j weights[c][j] * input[t - (kernel - 1) + j][c], inputs before the first token zero. With
+// transpose set it is that convolution's VJP with respect to its input: output[t][c] = sum_j weights[c][j] *
+// input[t + (kernel - 1) - j][c], inputs past the last token zero.
+extern "C" __global__ void depthwise_causal_conv_f32(
+        const float * input,
+        const float * weights,
+        float * output,
+        unsigned int channels,
+        unsigned int tokens,
+        unsigned int kernel,
+        unsigned int transpose) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= channels * tokens) {
+        return;
+    }
+    const unsigned int channel = index % channels, token = index / channels;
+    float sum = 0.0f;
+    for (unsigned int tap = 0; tap < kernel; ++tap) {
+        const unsigned int lag = kernel - 1 - tap;
+        if (transpose != 0 ? token + lag < tokens : token >= lag) {
+            const unsigned int source = transpose != 0 ? token + lag : token - lag;
+            sum += weights[channel * kernel + tap] * input[(size_t) source * channels + channel];
+        }
+    }
+    output[index] = sum;
+}
+
 extern "C" __global__ void ssm_conv_f32(
         const float * input,
         const float * weights,

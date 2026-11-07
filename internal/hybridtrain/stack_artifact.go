@@ -334,21 +334,41 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 		return nil, fmt.Errorf("hybrid stack: open artifact: %w", err)
 	}
 	defer file.Close()
+	m, weights, err := loadStack(ctx, file, len(tokenIDs)-1)
+	if err != nil {
+		return nil, err
+	}
+	input, err := model.LoadHostRows(ctx, file, weights.TokenEmbedding, tokenIDs[:len(tokenIDs)-1])
+	if err != nil {
+		return nil, fmt.Errorf("hybrid stack: load input token rows: %w", err)
+	}
+	target, err := model.LoadHostRows(ctx, file, weights.TokenEmbedding, tokenIDs[1:])
+	if err != nil {
+		return nil, fmt.Errorf("hybrid stack: load target token rows: %w", err)
+	}
+	m.X = input.Data
+	m.Target = target.Data
+	return m, nil
+}
 
+// loadStack binds every layer of the open artifact, full-attention and recurrent gated-delta alike, per the spec's
+// own layer cadence, into one trainable mixed stack with f32 masters decoded from the serving storage, for sequences
+// of tokens tokens, and returns the artifact's weight catalog beside it.
+func loadStack(ctx context.Context, file *gguf.File, tokens int) (*Model, model.Weights, error) {
 	spec, err := model.ReadSpec(file)
 	if err != nil {
-		return nil, fmt.Errorf("hybrid stack: read specification: %w", err)
+		return nil, model.Weights{}, fmt.Errorf("hybrid stack: read specification: %w", err)
 	}
 	weights, err := model.ReadWeights(file, spec)
 	if err != nil {
-		return nil, fmt.Errorf("hybrid stack: read weight catalog: %w", err)
+		return nil, model.Weights{}, fmt.Errorf("hybrid stack: read weight catalog: %w", err)
 	}
 	if len(weights.Layers) == 0 {
-		return nil, errors.New("hybrid stack: artifact declares no layers")
+		return nil, model.Weights{}, errors.New("hybrid stack: artifact declares no layers")
 	}
 	geometry, err := readStackGeometry(spec)
 	if err != nil {
-		return nil, err
+		return nil, model.Weights{}, err
 	}
 
 	// Layer census and exact slab extents before any tensor is decoded, so
@@ -358,10 +378,10 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 	for li := range weights.Layers {
 		recurrent := spec.IsRecurrentLayer(uint32(li))
 		if recurrent != weights.Layers[li].Recurrent {
-			return nil, fmt.Errorf("hybrid stack: layer %d cadence disagrees with its tensor inventory", li)
+			return nil, model.Weights{}, fmt.Errorf("hybrid stack: layer %d cadence disagrees with its tensor inventory", li)
 		}
 		if inter := int(spec.LayerFeedForwardLength(uint32(li))); inter != geometry.inter {
-			return nil, fmt.Errorf("hybrid stack: layer %d feed-forward length %d differs from %d", li, inter, geometry.inter)
+			return nil, model.Weights{}, fmt.Errorf("hybrid stack: layer %d feed-forward length %d differs from %d", li, inter, geometry.inter)
 		}
 		types[li] = FullAttention
 		if recurrent {
@@ -374,7 +394,7 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 
 	cfg := StackConfig{
 		Types:         types,
-		Tokens:        len(tokenIDs) - 1,
+		Tokens:        tokens,
 		Hidden:        geometry.hidden,
 		Inter:         geometry.inter,
 		Eps:           float64(spec.RMSNormEpsilon),
@@ -402,7 +422,7 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 	for li, kind := range types {
 		host, err := loadStackLayer(ctx, file, weights.Layers[li], m.matW[len(m.matW):cap(m.matW)], geometry.hidden*geometry.inter, &storage)
 		if err != nil {
-			return nil, fmt.Errorf("hybrid stack: load layer %d: %w", li, err)
+			return nil, model.Weights{}, fmt.Errorf("hybrid stack: load layer %d: %w", li, err)
 		}
 		if kind == LinearAttention {
 			err = bindRecurrentLayer(b, li, geometry, &host)
@@ -411,28 +431,18 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 			err = bindAttentionLayer(b, li, geometry, &host)
 		}
 		if err != nil {
-			return nil, err
+			return nil, model.Weights{}, err
 		}
 		m.Dims[li] = cfg.layerDims(kind)
 	}
 	if len(m.matW) != matTotal || len(m.vecW) != vecTotal {
-		return nil, fmt.Errorf("hybrid stack: bound %d+%d parameters, expected %d+%d",
+		return nil, model.Weights{}, fmt.Errorf("hybrid stack: bound %d+%d parameters, expected %d+%d",
 			len(m.matW), len(m.vecW), matTotal, vecTotal)
 	}
 	b.rebindAliases()
 	if err := b.finish(); err != nil {
-		return nil, err
+		return nil, model.Weights{}, err
 	}
 
-	input, err := model.LoadHostRows(ctx, file, weights.TokenEmbedding, tokenIDs[:len(tokenIDs)-1])
-	if err != nil {
-		return nil, fmt.Errorf("hybrid stack: load input token rows: %w", err)
-	}
-	target, err := model.LoadHostRows(ctx, file, weights.TokenEmbedding, tokenIDs[1:])
-	if err != nil {
-		return nil, fmt.Errorf("hybrid stack: load target token rows: %w", err)
-	}
-	m.X = input.Data
-	m.Target = target.Data
-	return m, nil
+	return m, weights, nil
 }

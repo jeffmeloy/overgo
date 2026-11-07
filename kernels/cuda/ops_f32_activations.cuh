@@ -63,6 +63,37 @@ extern "C" __global__ void rms_norm_backward_f32(
     }
 }
 
+// rms_norm_input_backward_f32 is rms_norm_backward_f32's input gradient alone, for a weight no step trains: no weight
+// gradient is written. A block takes a row, its threads a power of two up to 256 as block_sum_f32 sums them.
+extern "C" __global__ void rms_norm_input_backward_f32(
+        const float * dy,
+        const float * x,
+        const float * weight,
+        float * dx,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    __shared__ float partial[256];
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const size_t offset = (size_t) row * width;
+    float squares = 0.0f, dot = 0.0f;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float value = x[offset + column];
+        squares += value * value;
+        dot += dy[offset + column] * weight[column] * value;
+    }
+    squares = block_sum_f32(squares, partial);
+    dot = block_sum_f32(dot, partial);
+    const float inverse = rsqrtf(squares / (float) width + epsilon);
+    const float coefficient = inverse * inverse * inverse / (float) width * dot;
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        dx[offset + column] = inverse * weight[column] * dy[offset + column] - coefficient * x[offset + column];
+    }
+}
+
 // embedding_gather_rows_f32: frozen lexical lookup for resident training.
 extern "C" __global__ void embedding_gather_rows_f32(
 		const float * table,

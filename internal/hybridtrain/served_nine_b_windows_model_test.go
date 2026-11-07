@@ -65,34 +65,22 @@ func TestTheHybridReferenceIsTheServedNineB(t *testing.T) {
 	head := testcheck.Must(model.LoadHostRows(ctx, file, *weights.Output, probed))(t).Data
 	runner.Close()
 
-	stack := testcheck.Must(LoadStackArtifact(ctx, path, tokens))(t)
-	for layer, kind := range stack.Cfg.Types {
-		if kind != FullAttention {
-			continue
-		}
-		fused := testcheck.Must(model.LoadHostTensor(ctx, file, *weights.Layers[layer].AttentionQ))(t).Data
-		headDim := stack.Cfg.HeadDim
-		gate := make([]float32, stack.Cfg.Heads*headDim*hidden)
-		for index := range stack.Cfg.Heads {
-			copy(gate[index*headDim*hidden:(index+1)*headDim*hidden], fused[(index*2*headDim+headDim)*hidden:(index*2*headDim+2*headDim)*hidden])
-		}
-		stack.Weights[layer].Attn.Gate = gate
-	}
+	frozen := testcheck.Must(LoadFrozenLanguageModel(ctx, path, len(tokens)))(t)
+	defer frozen.Close()
 	// The reference's vocabulary is the prompt's own tokens, each its own row.
 	local := make([]int, len(tokens))
 	for index := range local {
 		local[index] = index
 	}
 	reference := &languageModel{
-		Geometry: stack.Cfg, Vocab: len(tokens), Layers: stack.Weights,
-		Embedding: testcheck.Must(model.LoadHostRows(ctx, file, weights.TokenEmbedding, tokens))(t).Data,
-		FinalNorm: testcheck.Must(model.LoadHostTensor(ctx, file, weights.OutputNorm))(t).Data,
+		Geometry: frozen.Geometry, Vocab: len(tokens), Layers: frozen.Layers, FinalNorm: frozen.FinalNorm,
+		Embedding: testcheck.Must(frozen.TokenRows(ctx, tokens))(t),
 	}
 	states := make([][]float32, len(placedRows))
 	for index, rows := range placedRows {
 		pass := testcheck.Must(reference.forward(local, []int{0, 1}, rows))(t)
 		states[index] = make([]float32, hidden)
-		hostmath.RMSNormInto(states[index], pass.out[len(pass.out)-hidden:], reference.FinalNorm, 1, hidden, stack.Cfg.Eps)
+		hostmath.RMSNormInto(states[index], pass.out[len(pass.out)-hidden:], reference.FinalNorm, 1, hidden, frozen.Geometry.Eps)
 	}
 	norm := func(values []float32) float64 {
 		var sum float64

@@ -80,7 +80,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_activations.cuh",
-          "sha256": "1b66aa97d9c9e93fba9598d7fcc7951bc3f85d003a8bbc13e5ab1d0ce4205f66"
+          "sha256": "19ba415467651ae6db1a3a8c6b7c75bb591670abcef84270f5a5a1fce2c8daf6"
         },
         {
           "path": "kernels/cuda/ops_f32_attention.cuh",
@@ -108,7 +108,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_recurrent.cuh",
-          "sha256": "f3461b3d844951287ba57ec87aae0cbbeb758d16920ff1911f59c46ca85db79f"
+          "sha256": "9425e014f4001b5f1181d6a6a8eca764c216fb7d26e8edd2d1d47083233fa4d9"
         },
         {
           "path": "kernels/cuda/ops_f32_routing.cuh",
@@ -116,7 +116,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_rows.cuh",
-          "sha256": "8f2c0d583308ea690cf0adbb67d60ec67ab1694ba400bfd4de402a0d869ffb95"
+          "sha256": "6dd16e3e906ae39dbc8942dcd2f15486eb009d46422f4cac2c9dac87c9907b34"
         },
         {
           "path": "kernels/cuda/ops_f32_selection.cuh",
@@ -128,7 +128,7 @@
         },
         {
           "path": "kernels/cuda/ops_f32_unary.cuh",
-          "sha256": "7ce3a921ad89a03c7ba108e2097f950566308800254d50a21c407fdabc7c9ca6"
+          "sha256": "07021c9a269c9718e7b82b451c7536eba0860161b5f8020847a19ce767be7001"
         },
         {
           "path": "kernels/cuda/ops_f32_vae.cuh",
@@ -144,7 +144,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "e177d858d0555607668c581fd956a6bf6302568bd91bffc0fbc69ee4621f4591",
+      "assetSha256": "c8e53a5ba4df879da92b76354f1e46c9c448214313e97bc3781e62976e146021",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -191,6 +191,7 @@
         "copy_f32",
         "copy_token_offset_bf16_cache_f32",
         "copy_token_offset_f32",
+        "depthwise_causal_conv_f32",
         "dequant_rows_iq4_nl_f16",
         "dequant_rows_iq4_xs_f16",
         "dequant_rows_q1_0_f16",
@@ -211,6 +212,7 @@
         "gated_delta_chunk_f32",
         "gated_delta_conv_f32",
         "gated_delta_conv_prompt_f32",
+        "gated_delta_gates_backward_f32",
         "gated_delta_gates_f32",
         "gated_delta_net_backward_f32",
         "gated_delta_net_f32",
@@ -218,6 +220,7 @@
         "gated_delta_net_keyhead2_f32",
         "gated_delta_net_keyhead3_f32",
         "gated_delta_net_keyhead4_f32",
+        "gated_delta_net_rows_backward_f32",
         "gated_delta_net_rows_f32",
         "gated_linear_attention_f32",
         "gather_last_f32",
@@ -347,6 +350,7 @@
         "repeat_heads_f32",
         "rms_norm_backward_f32",
         "rms_norm_f32",
+        "rms_norm_input_backward_f32",
         "rms_norm_mean_bf16_round_f32",
         "rms_norm_mean_f32",
         "rope_append_neox_f32",
@@ -928,6 +932,24 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "depthwise_causal_conv_f32",
+            "gather_last_f32",
+            "gather_last_q8_0_f32",
+            "mul_mat_q8_0_input_f32",
+            "ssm_conv_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -966,6 +988,23 @@
           "functions": [
             "gated_delta_conv_f32",
             "gated_delta_conv_prompt_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "gated_delta_gates_backward_f32"
           ]
         },
         {
@@ -1067,6 +1106,30 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "gated_delta_net_rows_backward_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -1076,23 +1139,6 @@
           ],
           "functions": [
             "gated_linear_attention_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32"
-          ],
-          "functions": [
-            "gather_last_f32",
-            "gather_last_q8_0_f32",
-            "mul_mat_q8_0_input_f32",
-            "ssm_conv_f32"
           ]
         },
         {
@@ -1254,6 +1300,7 @@
           ],
           "functions": [
             "mad_norm_backward_f32",
+            "rms_norm_input_backward_f32",
             "weighted_rms_norm_add_f32"
           ]
         },

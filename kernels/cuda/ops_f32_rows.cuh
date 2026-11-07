@@ -230,6 +230,31 @@ extern "C" __global__ void gated_delta_gates_f32(
     }
 }
 
+// gated_delta_gates_backward_f32 is the VJP of gated_delta_gates_f32's gates with respect to their products, a thread a
+// (token, head) of count: gate = softplus(alpha + time_step) * decay gives d_alpha = d_gate * decay * sigmoid(alpha +
+// time_step), and beta = sigmoid(logit) gives d_logit = d_beta * beta * (1 - beta). d_alpha may be d_gate and d_logit
+// d_beta.
+extern "C" __global__ void gated_delta_gates_backward_f32(
+        const float * alpha,
+        const float * time_step,
+        const float * decay,
+        const float * beta,
+        const float * d_gate,
+        const float * d_beta,
+        float * d_alpha,
+        float * d_logit,
+        unsigned int heads,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const float gate_gradient = d_gate[index], beta_gradient = d_beta[index], value = beta[index];
+    d_alpha[index] = gate_gradient * decay[head] / (1.0f + expf(-(alpha[index] + time_step[head])));
+    d_logit[index] = beta_gradient * value * (1.0f - value);
+}
+
 
 extern "C" __global__ void get_rows_f32(
         const float * table,

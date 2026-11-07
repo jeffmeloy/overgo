@@ -203,6 +203,14 @@ func (o *ResidentOps) UploadU32(values []uint32) (driver.DevicePtr, error) {
 	return pointer, o.session.state.Driver.MemcpyHtoD(pointer, driver.Bytes(values))
 }
 
+// Write copies data into the device buffer at pointer, queued on the scope's stream.
+func (o *ResidentOps) Write(pointer driver.DevicePtr, data []byte) error {
+	if o == nil || o.session == nil || pointer == 0 || len(data) == 0 {
+		return errors.New("resident ops: invalid write")
+	}
+	return o.session.state.Driver.MemcpyHtoDAsync(pointer, data, o.session.state.Stream)
+}
+
 func (o *ResidentOps) DownloadF32(pointer driver.DevicePtr, values []float32) error {
 	if o == nil || o.session == nil || pointer == 0 || len(values) == 0 {
 		return errors.New("resident ops: invalid download")

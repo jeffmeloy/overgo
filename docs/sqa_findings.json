@@ -1,7 +1,7 @@
 {
     "branch": "master",
     "candidate_review": {
-    "assessment": "Harden existing tool replay admission before adding recipe behavior. Reject the recorded-call conflict through existing call/receipt owners.",
+    "assessment": "One safe test/setup consolidation and one early-refusal correction. Keep envelope and judgement checks separate: acceptance verdict and multi-seed evidence completeness differ.",
     "current_review_order": [
         "SQA-316",
         "SQA-315",
@@ -13,22 +13,24 @@
         "SQA-266",
         "SQA-328",
         "SQA-325",
+        "SQA-330",
         "SQA-324",
-        "SQA-257"
+        "SQA-257",
+        "SQA-303"
       ],
     "declined_candidates": [
-        "Do not merge full-answer replay with partial restart: one skips value-only ancestors, the other retains a durable prefix after failure.",
-        "Do not merge code-scope invalidation with argument-conflict coverage: the child-process test deliberately changes code identity and can mask same-code reuse.",
-        "SQA-325 still owns late missing-adapter refusal; its source and recommendation are unchanged.",
-        "No additional recipe abstraction or workflow expansion justified by this sample."
+        "Do not build a shared evaluation framework for the small repeated score arithmetic in envelope/judgement checks; their distinct records and policies would require adapters and migration.",
+        "Do not replace production promotion validation with the committed JSON envelope check, or infer activation from completed evidence.",
+        "No duplicate finding for fixed absolute hook paths:223d93310 fixes that; SQA-329 only removes duplicated fixture setup.",
+        "SQA-325 and SQA-328 remain open; their runtime sources are unchanged since the preceding review."
       ],
-    "rank_basis": "Add P2 SQA-328 ahead of P3 SQA-325. Other active ordering unchanged."
+    "rank_basis": "Insert P3 SQA-330 beside SQA-325 for known setup refusal and SQA-329 beside test consolidation work; prior ranks otherwise unchanged."
   },
     "committed_plan": {
-    "git_blob": "3824853e37317e7686db14375c0863c06cafe7bc",
+    "git_blob": "4a0fcf40608f45803b00183eaa52384a43868646",
     "path": "docs/plan.json",
-    "revision": "9ffbfa60416fa79f672775c98c272347808ddfde",
-    "sha256": "fb222d4b009703d31f72ae172cf2267fedbbe6cbb9d1a7d8db66af0dd7cd7af4",
+    "revision": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+    "sha256": "093ac9e356d9b6bdeba0c1315058b73ffbf6ca65a18b351951aac110d19daf17",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
     "findings": [
@@ -6560,54 +6562,150 @@
         "Report full production/test/helper/read/setup cost; no net reduction or exactly-once guarantee claimed without evidence."
       ],
       "comparison": "The existing HTTP/store fixture is the smallest deciding comparison: request item=A, then the same key with item=B. Current source predicts success with recovered outputs and no new transport call; the repair must return an input-binding conflict, leave transport count unchanged and retain the original replay. This in-process fixture holds code identity constant, unlike the existing two-child command check. No SQA execution."
+    },
+    {
+      "id": "SQA-329",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-and-setup-consolidation",
+      "classification": "shared-hook-admission-fixture-with-net-reduction",
+      "title": "Keep hook-path and missing-hook admission cases in one repository fixture",
+      "evidence_commit": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+      "sources": [
+        {
+          "path": "internal/landing/trunk_hook_test.go",
+          "symbol": "TestALandingRefusesATrunkWithoutItsHook; TestAHookPathNamingTheHooksFolderHoldsTheHook; hookedRepository"
+        },
+        {
+          "path": "internal/landing/landing.go",
+          "symbol": "(*landing).hooked: retained directory-identity admission"
+        },
+        {
+          "path": "skill.md",
+          "symbol": "Existing citation names TestALandingRefusesATrunkWithoutItsHook"
+        },
+        {
+          "path": "cmd/loophook/doctrine.go",
+          "symbol": "Existing citation names the retained missing-hook test"
+        }
+      ],
+      "evidence": "Both tests call hookedRepository, define the same landing.hooked closure and check the same admission owner. The new path table covers absolute, forward-slashed and dotted paths to the hook folder, plus its parent and an unrelated folder. The retained test first checks the configured relative path, then unsets core.hooksPath and finally removes the hook folder. Insert the full table after its initial successful check and before unset/removal: each table row explicitly sets the path, and unset then restores the existing missing-setting case. Source references to the new test name are confined to its declaration; the closed landing's historical verifier stays in Git. Existing doctrine citations already name the retained test.",
+      "recommended_change": "Move the five-case path table into TestALandingRefusesATrunkWithoutItsHook before it unsets the setting. Delete TestAHookPathNamingTheHooksFolderHoldsTheHook and its duplicate t.Parallel, hookedRepository call and check closure. Retain a brief explanation of why equivalent path spelling matters beside the moved cases. Reuse the existing helper unchanged; add no wrapper, table framework or new fixture.",
+      "displaced_surface": "One Test declaration and duplicate setup disappear. Keep all five path cases, the initial valid relative path, unset-setting refusal with its diagnostic, and no-hook acceptance. Keep os.SameFile and the production hook enforcement unchanged. Other trunk-move/reset tests retain their separate repository lifetimes. The merged test stays parallel with other tests; its own cases run sequentially as before.",
+      "impact": "Less test maintenance and one fewer disposable Git repository. No reduction in security checks or alteration of real repository hook settings. No measured elapsed or memory gain.",
+      "expected_benefit": {
+        "outcome": "Actual AST: test file1082; retained test163, new test175. The new test's movable range statement is114 nodes; its duplicate prefix is46, and remaining declaration/doc overhead15. Retained pair338 ->277 before retaining explanatory doc nodes, approximately277..281 with the explanation; net -57..61 test nodes. File approximately1021..1025. Production delta0; no replacement implemented or executed.",
+        "cost_contract": "One hookedRepository setup disappears: one temp repository,13 Git setup invocations (including3 commits) and4 file-write calls. Its existing299-node helper stays for other tests. The five path-setting Git calls, eight admission observations across both original tests, and the unrelated-path temp directory remain. New helpers/wrappers/exports/config/fixtures/schema/gate phases0. Static fixture bytes unchanged; less generated setup. Native Go caching and existing gate selection remain. Historical check receipts are not rewritten.",
+        "uncertainty": "Before counts and moved-statement size are parsed from the pin; after size is arithmetic for the stated move with a small comment allowance, not a parsed implementation. No test run or timing measurement by SQA."
+      },
+      "likely_effort": "Small move within one existing test file.",
+      "plan_references": [
+        "hook-folder/do landed223d93310; retain its path-equivalence requirement",
+        "docs/plan.json standing: consolidations pay for their complete surface"
+      ],
+      "plan_coverage": "Report-only follow-up; no active plan selector references the removed test. Distinct from SQA-322's landing-stage order.",
+      "closure_criteria": [
+        "All original hook-path, missing-setting and absent-hook cases run under the retained test, before destructive fixture teardown.",
+        "The second Test and duplicated setup/closure are gone; existing helper and production security admission are unchanged.",
+        "Record complete test AST and setup reduction, including moved comments; no new helper or gate phase.",
+        "Use the retained native test as the deciding check during implementation; no SQA execution."
+      ],
+      "comparison": "Compare the two source bodies with the retained merged test: the path table executes before unset/removal, with all five rows and diagnostics preserved. Replacing os.SameFile with the old textual comparison must still be caught by the moved absolute-path case, the failure already retained in223d93310."
+    },
+    {
+      "id": "SQA-330",
+      "status": "open",
+      "severity": "P3",
+      "category": "evaluation-admission-and-sequencing",
+      "classification": "source-established-late-derived-family-capability-refusal",
+      "title": "Reject an unsupported derived family before evaluating file suites",
+      "evidence_commit": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+      "sources": [
+        {
+          "path": "cmd/evaluate/main.go",
+          "symbol": "modelRequest.Family; compileManifest; worker dispatch to executeModel"
+        },
+        {
+          "path": "cmd/evaluate/session.go",
+          "symbol": "executeModel; openEvaluationSession"
+        },
+        {
+          "path": "cmd/evaluate/all.go",
+          "symbol": "derivedEvaluator; runAllWorkerPass checks it before derived evaluation"
+        },
+        {
+          "path": "cmd/evaluate/capability.go",
+          "symbol": "capabilitySession implements Evaluate/Close, not EvaluateDerived; openCapabilitySession"
+        },
+        {
+          "path": "cmd/evaluate/main_test.go",
+          "symbol": "TestAModelRequestCampaignsItsDerivedFamily; fixtureSession; derivedFixtureSession"
+        }
+      ],
+      "evidence": "compileManifest admits a request containing both Suites and Family, including a capability task. executeModel opens the session and evaluates every file suite before asserting derivedEvaluator. A capabilitySession supplies Evaluate/Close but no EvaluateDerived, so a valid capability file-suite run followed by Family=bbh can do all its work before the knowable refusal. The existing unsupported-session fixture passes only Family and no Suites, so it cannot detect this ordering. The supported fixture already owns suites-before-family behavior. This is an admitted source counterexample, not an observed failed production run.",
+      "recommended_change": "Resolve the existing derivedEvaluator capability immediately after open succeeds, when Family is requested, and return its existing refusal joined with Close before entering the suite loop. Retain that binding for the later family call, so successful requests still evaluate file suites before derived suites. Replace the late type assertion; do not duplicate it or add a capability registry, preflight service, interface export or retry policy.",
+      "displaced_surface": "Remove late static capability admission after suite execution. Invalid requests perform zero suite evaluations instead of every requested suite; the session still opens once and closes once. Valid requests retain suite order, then derived evaluation, with existing error joining, cancellation and close ownership. This does not claim to avoid model loading or predict dynamic suite errors.",
+      "impact": "Avoids expensive work for a request whose opened session cannot satisfy its declared family. Error precedence changes deliberately: unsupported family is reported before any file-suite failure. No numerical acceptance or retained result is changed.",
+      "expected_benefit": {
+        "outcome": "Actual AST baseline session.go1479 and main_test.go714, pair2193; executeModel157 and the existing family test316. Planning estimate +10..35 production and +15..40 test nodes (pair2218..2268). No safe net code reduction is established; this is small correctness/efficiency growth.",
+        "cost_contract": "Move one assertion and retain its binding; no extra capability lookup, helper, wrapper, model setup, fixture file, test function or standing gate. Extend the existing unsupported-session case by giving its already-compiled request one file suite, reset/snapshot the existing task log, and require no Evaluate calls plus exactly one Close. Retain the family-only compilation case and successful suite-then-family path. No added model/device execution. Savings are avoided suite calls on invalid setup, not measured wall time.",
+        "uncertainty": "Static source proof only. No new application test or evaluation run by SQA. Replacement counts are estimates, and model-load avoidance is expressly not claimed."
+      },
+      "likely_effort": "Small ordering change in executeModel and one existing fixture extension.",
+      "plan_references": [
+        "vision-bridge/derived-family landedddaf123d4",
+        "docs/plan.json standing: known prerequisites checked before expensive work"
+      ],
+      "plan_coverage": "No active implementation row. SQA-325 is a separate workflow-runtime binding contract; share the principle, not a new cross-runtime abstraction.",
+      "closure_criteria": [
+        "Requested Family on a session without derivedEvaluator refuses before every Evaluate call and closes once, preserving joined errors.",
+        "Supported requests still execute file suites in order, then their family, and close once.",
+        "The existing family fixture catches the late-check implementation using an unsupported session with a nonempty Suites list; retain family-only compilation and duplicate-family refusal.",
+        "Report full production/test cost; no additional suite framework or SQA run."
+      ],
+      "comparison": "Reuse TestAModelRequestCampaignsItsDerivedFamily's unsupported fixture with one file suite. Current source logs that suite before error; the repair must log none while retaining its Close count. Keep the existing supported path as the ordering owner."
     }
   ],
     "gate_test_assessment": {
     "assumptions": [
-        "Recipe/model/manual identity does not include tool argument values; content-addressed ToolCall already does. Code identity alone is insufficient.",
-        "The CLI counterexample uses a stable built command or the same process. The test-build/go run fallback intentionally uses a process-scoped identity.",
-        "Receipt call identity is an existing typed fact; no new distribution, timing threshold or geometry rule is needed."
+        "os.SameFile compares actual hook-directory identity; valid absolute/relative spelling must remain admitted, foreign directories refused. No real hook/security settings changed by SQA.",
+        "Derived-family capability is known from the opened session before file evaluation; moving that admission changes invalid-input precedence, not numerical ordering.",
+        "Envelope seeds0/2 vary training sample order. Reused baseline/dropped/text answers are declared in the record; two labels alone do not establish statistical independence.",
+        "Recorded composed latency is one frame/prompt at48 tokens, not a tail or workload distribution. Serving-memory limits do not apply to training peak memory.",
+        "1e-9 score arithmetic tolerance checks fractions in strict JSON; numerical acceptance remains separate from timing."
       ],
-    "automation_sequence": "Compile and validate arguments -> derive operation from graph/key/code -> recover completed receipts -> publish run. The missing current-call comparison permits stale success. Refuse the conflict before this recovery; retain same-request partial work and existing authority. No new scheduler or automatic retry.",
+    "automation_sequence": "Hook path identity now avoids the reported false stop; consolidate its duplicate fixture only. Manifest worker still discovers an unsupported Family after file suites; move that assertion ahead of the loop. Concurrent6920c5c0a lands inactive composite publication; no activation or full publication-route review is inferred.",
     "fresh_ast": {
-        "revision": "9ffbfa60416fa79f672775c98c272347808ddfde",
-        "method": "Existing external Go parser/ast.Inspect over seven exact committed files; local bindings/manual callers only.",
+        "revision": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+        "method": "Selected committed-file AST parsed at aeb4ea22d; all five blobs unchanged at the reconciled pin. Statement decomposition for the hook-test move without implementing it.",
         "files": [
           {
-            "path": "internal/workflowruntime/tool_workflow.go",
-            "nodes": 500
+            "path": "internal/landing/trunk_hook_test.go",
+            "nodes": 1082
           },
           {
-            "path": "internal/workflowruntime/tool_workflow_test.go",
-            "nodes": 443
+            "path": "cmd/evaluate/session.go",
+            "nodes": 1479
           },
           {
-            "path": "internal/workflowruntime/runtime.go",
-            "nodes": 5225
+            "path": "cmd/evaluate/main_test.go",
+            "nodes": 714
           },
           {
-            "path": "internal/workflowruntime/replay_test.go",
-            "nodes": 835
+            "path": "internal/evaluation/vision_bridge_envelope_test.go",
+            "nodes": 789
           },
           {
-            "path": "internal/capabilityruntime/run_key.go",
-            "nodes": 236
-          },
-          {
-            "path": "cmd/tool-workflow/main.go",
-            "nodes": 397
-          },
-          {
-            "path": "cmd/tool-workflow/replay_key_test.go",
-            "nodes": 671
+            "path": "internal/evaluation/vision_bridge_record_test.go",
+            "nodes": 706
           }
         ],
-        "production_nodes": 6358,
-        "test_nodes": 1949,
-        "total_nodes": 8307,
-        "functions": 42,
-        "parser_local_bindings": 1681,
-        "decision": "No duplicate behavioral requirement established. Preserve existing tests and extend one tool-workflow fixture for the new identity obligation; necessary growth must be counted."
+        "production_nodes": 1479,
+        "test_nodes": 3291,
+        "total_nodes": 4770,
+        "functions": 27,
+        "parser_local_bindings": 854,
+        "decision": "Hook pair338 nodes ->277..281 estimated, no production change, one Git fixture removed. Family admission pair2193 ->2218..2268 estimated correctness growth; count separately and do not promise a combined net reduction."
       },
     "requested_growth_analysis": {
       "window": {
@@ -6766,30 +6864,36 @@
       "retained_change_costs": "Two consolidation landings(2d59f642c exact folds andbb4fc706a parameter folds) remove744 production nodes but add1591 test nodes, net+847 across Go. Pilot retirementea8ed43a7 removes5926 production/9990 test nodes and one schema, while fixture bytes grow599; its test deletion is already included in the day's offsets and must not be subtracted twice. These retained gates are broader changes, not matched per-test performance comparisons."
     },
     "retained_results": [
-        "200955a39 documents that a built command reuses stage receipts while code identity is unchanged; its native command check varies code across two child processes. That covers code invalidation, not changed arguments.",
-        "41820e3a9 retained command JSON/durable-result coverage; the current fixture decodes Run/RunID and output identities. No new execution was performed.",
-        "SQA-327's prior closure and measured +13 production/+148 test AST cost remain intact; no code advanced since that report."
+        "223d93310 reports the hook spelling false refusal blocked landings for about an hour; the fix's undo check catches absolute paths. Gate reports+57 production/+175 test nodes, verify11.878s. This is retained evidence, not a new measurement.",
+        "ddaf123d4 adds Family support at+90 production/+364 test AST, verify15.579s. Its unsupported-session fixture has no file suites. The retained first text set scored0/237 and was replaced by the577-case BBH set; no new review workload.",
+        "aeb4ea22d adds789 test nodes and a 5482-byte durable envelope JSON record (real maintenance/storage cost despite the gate reporting zero fixture bytes). It records170/256 and161/256 for two bridges, baseline68/256, dropped54/256 and shuffled59/256 and64/256. BBH baseline/candidates all360/577 by declared reuse. One prompt records0.513s alone versus1.205s/1.176s composed, with9,708,001,280 versus11,051,518,592 bytes. Gate skips device/webui/CUDA and verifies the record in1.88s.",
+        "Native Go caching and current gates remain the execution owners. The report recommends no confidence rerun or model measurement."
       ],
     "tests": [
         {
+          "classification": "merge/remove",
+          "owner": "TestALandingRefusesATrunkWithoutItsHook",
+          "requirement": "Retain five path-equivalence/foreign-folder cases before unset/removal; remove TestAHookPathNamingTheHooksFolderHoldsTheHook's duplicate wrapper/setup."
+        },
+        {
           "classification": "retain/extend",
-          "owner": "TestToolWorkflowExecutesCompiledOrderWithDurableRun",
-          "requirement": "Keep dependency order and durable results; add same-code original/replay/conflicting arguments in the existing HTTP/store setup."
+          "owner": "TestAModelRequestCampaignsItsDerivedFamily",
+          "requirement": "Keep valid suites-then-family and compilation cases; make the existing unsupported-session case prove zero suite calls."
         },
         {
           "classification": "retain",
-          "owner": "TestAReplayKeyNamesTheCodeThatComputesIt",
-          "requirement": "Different-code command execution and JSON result identity; two child processes do not exercise same-code argument reuse."
+          "owner": "TestTheNineBEnvelopeIsComplete",
+          "requirement": "Distinct seed/checkpoint bindings, all reading denominators and resource presence; not a substitute for production promotion/evidence validation."
         },
         {
           "classification": "retain",
-          "owner": "TestReplayRunsNoStageItsOutputDoesNotNeed",
-          "requirement": "Completed answer prunes value-only ancestors, adapter-free replay, failed replay writes nothing."
+          "owner": "judgementIsComplete and its two native test entrypoints",
+          "requirement": "Existing shared owner preserves model-specific floors, checkpoint choice, acceptance verdict and serving limits."
         },
         {
           "classification": "retain",
-          "owner": "TestWorkflowRestartSkipsCompletedStages; TestWorkflowRecoveryRejectsRecipeDrift",
-          "requirement": "Resume a completed prefix and refuse a different recipe; neither substitutes for tool-argument binding."
+          "owner": "TestOnlyALandingMovesTheTrunkInGit; TestAResetThatMovesNothingPasses",
+          "requirement": "Actual hook enforcement and no-op reset behavior remain separate from hook configuration admission."
         }
       ]
   },
@@ -8324,9 +8428,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
     "limitations": [
-      "Static source and retained records only; no application tests, services, model/device runs, gates, benchmarks or agents.",
-      "Selected Go AST uses existing external go/parser and ast.Inspect over pinned blobs: parser-local bindings plus manual caller tracing, no package/type or device resolution.",
-      "Other findings retain their original evidence revisions. Implementation-owned/unknown fields and historical growth analysis are preserved exactly. No new safe net reduction established."
+      "No application tests, gates, services, model/device runs, profiles, agents or worker messages. No implementation or plan/skill edits.",
+      "AST: existing go/parser/ast.Inspect plus a small external statement counter over pinned blobs; parser-local bindings and manual caller tracing, no package/type or device resolution.",
+      "Concurrent publish-composite edits landed as6920c5c0a and were preserved; its new route is outside this bounded review. Other findings retain evidence revisions.",
+      "Envelope JSON checks consistency, not a live-store proof of every producing run. Statistical independence and tail latency are not established by two seed labels or one resource prompt."
     ],
     "master_lead_triage": {
     "at": "2026-11-06",
@@ -9122,11 +9227,11 @@
       }
     }
   },
-    "next_finding_number": 329,
+    "next_finding_number": 331,
     "publication_context": {
-    "assessment": "Re-read committed code, report and owner state immediately before report-only publication; no implementation changes in this heartbeat.",
-    "checked_head": "9ffbfa60416fa79f672775c98c272347808ddfde",
-    "publication": "Existing landing/gate ownership and hooks; only docs/sqa_findings.json may be committed."
+    "assessment": "Re-read code/report/owner state after concurrent6920c5c0a. Selected source blobs and owner fields unchanged; plan removal of completed publication reconciled. Preserve any subsequent worker changes.",
+    "checked_head": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+    "publication": "Existing landing/gate ownership and hooks; only docs/sqa_findings.json committed."
   },
     "ranked_active_finding_ids": [
     "SQA-316",
@@ -9139,11 +9244,13 @@
     "SQA-266",
     "SQA-328",
     "SQA-325",
+    "SQA-330",
     "SQA-324",
     "SQA-257",
     "SQA-303",
     "SQA-285",
     "SQA-297",
+    "SQA-329",
     "SQA-295",
     "SQA-296",
     "SQA-287",
@@ -9169,37 +9276,39 @@
     "repository": "C:\\Users\\jeffm\\overgo",
     "review_author": "Report-only SQA in a chat that previously implemented Overgo changes; implementation overlap is disclosed, not independent third-party review.",
     "review_notes": [
-      "No implementation or new workload. One new correctness finding; no quota-driven reduction.",
-      "Keep recipe expansion subordinate to replacing real shared orchestration; this sample instead needs a small identity admission repair.",
-      "Full-answer replay, partial restart, recipe drift and code drift protect different failures and remain separate.",
-      "Prior implementation overlap disclosed; report-only publication preserves all owner/unknown fields."
+      "Preserve complete hook security coverage while deleting duplicate setup; observed false-path stop is already fixed.",
+      "No new recipe machinery. The new manifest Family feature needs its static session admission before costly work.",
+      "Retained envelope evidence is scoped to declared suites/prompts; candidate publication and activation are not inferred.",
+      "Only a substantive report edit may land; unknown/implementation fields and worker changes remain untouched."
     ],
-    "reviewed_at": "2026-11-07T10:40:35Z",
-    "reviewed_master": "9ffbfa60416fa79f672775c98c272347808ddfde",
+    "reviewed_at": "2026-11-07T12:47:31Z",
+    "reviewed_master": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
     "schema_version": 2,
     "scope": [
-      "Committed master 9ffbfa604; unchanged instruction blob69a0ec1510af484e39da2cf7e169dbc73b70ae8f and plan blob3824853e37317e7686db14375c0863c06cafe7bc. Bounded rotation through recipe compilation, adapter admission, durable replay, capability keys and the tool-workflow CLI.",
-      "Read concrete callers before the prior findings. Rechecked SQA-325 and the separate replay/restart requirements; found SQA-328's argument identity gap. No whole-system review.",
-      "This chat previously implemented Overgo changes. This is an overlapping review, not independent third-party SQA."
+      "Pin 6920c5c0ab499d42babb0e91c2ae9c87e86f1b05; current committed plan4a0fcf40608f45803b00183eaa52384a43868646 and unchanged instructions69a0ec1510af484e39da2cf7e169dbc73b70ae8f already read. Standing paragraphs unchanged; envelope and inactive publication landed. Hybrid-gate and format-loader remain open.",
+      "Bounded review of hook admission/setup, manifest-to-session evaluation ordering, and envelope/judgement record checks against the production promotion owner. Concrete callers and provisional conclusions preceded reading prior findings.",
+      "Selected committed AST and retained landing/record evidence only. This chat previously implemented Overgo: overlapping review, not independent third-party SQA.",
+      "Initial analysis at aeb4ea22d; concurrent6920c5c0a changes no selected AST/source files or findings/owner responses. Reconciled its committed plan and path set before publication; no complete review of its new publish route."
     ],
     "sqa_response": {
-    "assessment": "155 stable IDs:36 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-328 only; SQA-325 remains open.",
+    "assessment": "157 stable IDs:38 canonical open,113 resolved,4 deferred,2 consolidated aliases. Add SQA-329 and SQA-330; no closure or alias.",
     "consolidated_findings": [],
     "deferred_findings": [],
-    "evidence": "Tool-call content changes with arguments, but ExecuteToolWorkflow's operation does not; recoverStage never compares current calls with receipt inputs. A new run can name new inputs with old outputs. Static counterexample, not an observed incident.",
+    "evidence": "Two hook tests share the exact setup/check contract and can retain all cases under one owner. executeModel admits Family support after file suites, although session capability is already known.",
     "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
-        "status": "Unchanged owner responses. No response yet for SQA-325/328; preserve owner fields exactly."
+        "status": "Owner fields unchanged. No implementation response yet for325/328; their sources remain unchanged."
       },
     "new_findings": [
-        "SQA-328"
+        "SQA-329",
+        "SQA-330"
       ],
     "partially_addressed_findings": [],
     "priority_changes": [
-        "Insert P2 SQA-328 before P3 SQA-325; other ranks unchanged."
+        "Add early-family refusal near existing setup admission work and hook fixture consolidation near test reductions; prior ranks unchanged."
       ],
-    "recommendation": "Refuse conflicting recorded call bindings through the existing tool workflow and receipt owners, keeping exact replay and all current authority. Extend one native fixture; no test deletion justified.",
+    "recommendation": "Merge the hook test bodies without new helpers; move derived capability admission before file work and strengthen the existing fixture. Preserve the separate envelope/judgement contracts.",
     "refactor": {
       "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
       "history_path": "docs/sqa_findings.json",
@@ -9207,7 +9316,7 @@
     },
     "reopened_findings": [],
     "resolved_findings": [],
-    "reviewed_master": "9ffbfa60416fa79f672775c98c272347808ddfde",
-    "uncertainty": "No executed reproducer or measured savings. Necessary guard/test/read cost is positive; no general exactly-once promise."
+    "reviewed_master": "6920c5c0ab499d42babb0e91c2ae9c87e86f1b05",
+    "uncertainty": "No executed candidate or measured savings. Hook AST saving is57..61 estimated from parsed fragments; family fix adds estimated25..75 nodes. Do not combine them into a promised net reduction."
   }
   }

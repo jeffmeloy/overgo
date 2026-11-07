@@ -125,6 +125,36 @@ func TestALandingRefusesATrunkWithoutItsHook(t *testing.T) {
 	}
 }
 
+// TestAHookPathNamingTheHooksFolderHoldsTheHook: git reads the hook path from the repository's root, so the setting
+// holds the trunk's hook whenever it names the hook's folder, absolute, forward-slashed or dotted, and only then; a
+// helper's worktree once rewrote it to the absolute path and every landing was refused while the hook ran.
+func TestAHookPathNamingTheHooksFolderHoldsTheHook(t *testing.T) {
+	t.Parallel()
+	run, repo := hookedRepository(t)
+	check := func() error {
+		l := &landing{Options: Options{Repo: repo, Log: io.Discard}}
+		return l.hooked(context.Background())
+	}
+	// The setting holds the hook when it names the hook's folder, however it is written, and only then.
+	for _, setting := range []struct {
+		path string
+		on   bool
+	}{
+		{filepath.Join(repo, filepath.FromSlash(trunkHookDirectory)), true},
+		{filepath.ToSlash(filepath.Join(repo, filepath.FromSlash(trunkHookDirectory))), true},
+		{"./" + trunkHookDirectory + "/", true},
+		{filepath.Join(repo, "scripts"), false},
+		{t.TempDir(), false},
+	} {
+		if output, err := run(nil, "config", "core.hooksPath", setting.path); err != nil {
+			t.Fatalf("%v: %s", err, output)
+		}
+		if err := check(); (err == nil) != setting.on {
+			t.Fatalf("with the hook path %s: %v; want the hook on %t", setting.path, err, setting.on)
+		}
+	}
+}
+
 // TestAResetThatMovesNothingPasses: git names the trunk to the hook on a reset to where it stands, which is how a landing's
 // index follows its commit. The hook refused that, so every landing landed and then reported itself refused.
 func TestAResetThatMovesNothingPasses(t *testing.T) {

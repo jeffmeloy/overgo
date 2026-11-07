@@ -969,13 +969,21 @@ func (l *landing) moveRef(ctx context.Context, arguments ...string) (string, err
 }
 
 // hooked refuses a repository that carries the trunk's hook with the hook off: nothing in a checkout sets core.hooksPath, so
-// a clone runs without it until a landing says so.
+// a clone runs without it until a landing says so. The setting is read as git reads it, a relative path from the
+// repository's root, and holds the hook exactly when it names the hook's folder, however it is written.
 func (l *landing) hooked(ctx context.Context) error {
-	if _, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(trunkHookDirectory), trunkHook)); err != nil {
+	folder := filepath.Join(l.Repo, filepath.FromSlash(trunkHookDirectory))
+	if _, err := os.Stat(filepath.Join(folder, trunkHook)); err != nil {
 		return nil
 	}
 	set, _ := gitauthority.Query(ctx, l.Repo, "config", "core.hooksPath")
-	if strings.TrimSpace(string(set)) != trunkHookDirectory {
+	named := strings.TrimSpace(string(set))
+	if !filepath.IsAbs(named) {
+		named = filepath.Join(l.Repo, named)
+	}
+	hooks, namedErr := os.Stat(named)
+	want, wantErr := os.Stat(folder)
+	if namedErr != nil || wantErr != nil || !os.SameFile(hooks, want) {
 		return fmt.Errorf("land: the trunk's hook is off, so a raw commit could move it: run git config core.hooksPath %s", trunkHookDirectory)
 	}
 	return nil

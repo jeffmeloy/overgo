@@ -354,6 +354,11 @@ const (
 	warmRateMetric  = "output tokens over decode time, a request again on a loaded model"
 )
 
+// rateTokens is the fewest output tokens a warm reading's decode rate is read from: fewer time the decode's start,
+// and readings that ended at their first token read eight to thirteen thousand tok/s on models that generate a few
+// hundred.
+const rateTokens = 16
+
 // The measures of a video model's request at the size a person asks for, which Row.Warm holds beside the warm request's.
 const (
 	userSizeTimeMetric   = "time to the whole output, at the size a person asks for"
@@ -896,7 +901,7 @@ func (summary *servingSummary) readWarm(observation runrecord.ServingObservation
 		}
 	}
 	for _, phase := range observation.Phases {
-		if phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0 {
+		if phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0 && observation.Usage.OutputTokens >= rateTokens {
 			sample.took[timingDecodeRate] = float64(observation.Usage.OutputTokens) / time.Duration(phase.DurationNS).Seconds()
 		}
 	}

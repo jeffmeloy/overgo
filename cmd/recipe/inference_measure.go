@@ -209,11 +209,11 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 			continue
 		}
 		fmt.Fprintf(said, "recipe: a fresh %d-token prompt, read once unmeasured and then measured on another\n", length)
-		_, _, warmErr := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard)
+		_, _, warmErr := observeRequest(ctx, throughEnd{model}, evaluation.ExactCase{Name: fmt.Sprintf("warm-up-%d", length), Prompt: warming, MaxTokens: lengthTokens}, io.Discard)
 		if warmErr != nil {
 			fmt.Fprintf(said, "recipe: the unmeasured %d-token prompt failed: %v\n", length, warmErr)
 		}
-		observation, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
+		observation, _, err := observeRequest(ctx, throughEnd{model}, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
 		if err != nil {
 			fmt.Fprintf(said, "recipe: the %d-token prompt failed: %v\n", length, err)
 		}
@@ -223,6 +223,19 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 		observed = append(observed, observation)
 	}
 	return observed
+}
+
+// throughEnd is a loaded model whose generation continues past its end of
+// generation to the request's token count, as the Strata benchmark's runs do:
+// a speed reading times a whole decode, where a model that ends its answer at
+// its first token would time one token (MiniCPM5-1B's and Qwen2.5-0.5B's warm
+// readings of one token read 8,969 and 13,055 tok/s).
+type throughEnd struct{ servedModel }
+
+// Generate generates through the request's token count.
+func (model throughEnd) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	options.ContinueAfterEOG = true
+	return model.servedModel.Generate(ctx, prompt, options)
 }
 
 // warmPromptTokens and warmTokens size the request a loaded model is timed on
@@ -241,7 +254,7 @@ const (
 // prompt read through the cache the first left, and its rate the warm decode's.
 // The first readies the decode's graphs and records nothing. A prompt the model
 // cannot build is said and no attempt returned; a request that fails is a
-// failed attempt.
+// failed attempt. Both generate their whole warmTokens (throughEnd).
 func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
 	if context := int(model.ModelProperties().ContextLength); context != 0 && warmPromptTokens+warmTokens > context {
 		fmt.Fprintf(said, "recipe: no warm request: the context holds %d tokens\n", context)
@@ -254,10 +267,10 @@ func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runre
 	}
 	request := evaluation.ExactCase{Name: "warm", Prompt: prompt, MaxTokens: warmTokens}
 	fmt.Fprintf(said, "recipe: a request of %d tokens, then the same again on the loaded model\n", warmTokens)
-	if _, _, err := observeRequest(ctx, model, request, io.Discard); err != nil {
+	if _, _, err := observeRequest(ctx, throughEnd{model}, request, io.Discard); err != nil {
 		fmt.Fprintf(said, "recipe: the first warm request failed: %v\n", err)
 	}
-	observation, _, err := observeRequest(ctx, model, request, said)
+	observation, _, err := observeRequest(ctx, throughEnd{model}, request, said)
 	if err != nil {
 		fmt.Fprintf(said, "recipe: the warm request failed: %v\n", err)
 	}

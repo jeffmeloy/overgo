@@ -43,6 +43,8 @@ const (
 type servedFixture struct {
 	t       *testing.T
 	prompts []string
+	// through says, for each prompt, whether its generation continued past the end of generation.
+	through []bool
 	stall   time.Duration
 	stalled time.Duration
 	context uint32
@@ -73,6 +75,7 @@ func tick(t *testing.T, since time.Duration) time.Duration {
 // each step taking a tick of the clock.
 func (fixture *servedFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	fixture.prompts = append(fixture.prompts, prompt)
+	fixture.through = append(fixture.through, options.ContinueAfterEOG)
 	if fixture.stall > 0 {
 		waited := tick(fixture.t, 0)
 		fixture.stalled = tick(fixture.t, waited+fixture.stall) - waited
@@ -255,5 +258,22 @@ func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
 	loaded := slices.ContainsFunc(longer.Phases, func(phase runrecord.PhaseMetric) bool { return phase.Phase == runrecord.PhaseLoad })
 	if longer.Recipe != active || longer.Outcome != runrecord.OutcomeSucceeded || longer.Usage.InputTokens != uint64(read) || !prefilled || loaded {
 		t.Fatalf("longer attempt = %+v; want a succeeded attempt of the recipe that read %d tokens, sampled its prefill and timed no load", longer, read)
+	}
+}
+
+// TestTheSpeedReadingsDecodeTheirWholeCount holds the measurement's speed readings to a whole decode: the verified
+// request stops where the model ends its answer, as its verification did, while each longer prompt's two readings and
+// the warm request's two continue past the end of generation to their token count, so a model that ends its answer at
+// its first token is still timed decoding.
+func TestTheSpeedReadingsDecodeTheirWholeCount(t *testing.T) {
+	t.Parallel()
+	directory, path, model, _, _ := measuredFixture(t)
+	verified := len(model.prompts)
+	model.context = uint32(evaluation.PromptLengths[1] - 1)
+	_, _, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil })
+	testcheck.NoError(t, err)
+	through := model.through[verified:]
+	if want := []bool{false, true, true, true, true}; !slices.Equal(through, want) {
+		t.Fatalf("the measurement's requests continued past the end as %v; want the verified request's to stop and the speed readings' to continue, %v", through, want)
 	}
 }

@@ -100,3 +100,27 @@ func TestSpeedIsReadWarmAtStatedLengths(t *testing.T) {
 		t.Errorf("a warm rate of 90 after %.4g tok/s compares as %+v, want the row's throughput decline", rate.Value, compared)
 	}
 }
+
+// TestAWarmRateNeedsEnoughTokens holds a warm decode rate to a reading that generated at least rateTokens: Qwen2.5-0.5B's
+// warm reading of one token in 85.1 microseconds read 11,751 tok/s, which is the decode's start and no rate, so its row
+// reads no warm rate from it, and a newer warm reading of 128 tokens over 381.6 ms gives the rate, 335 tok/s.
+func TestAWarmRateNeedsEnoughTokens(t *testing.T) {
+	t.Parallel()
+	warm := func(tokens uint64, decode time.Duration) runrecord.ServingObservation {
+		return runrecord.ServingObservation{
+			SessionReused: true, MeasuredNS: uint64(time.Millisecond + decode), Usage: runrecord.ServingUsage{InputTokens: 256, OutputTokens: tokens},
+			Phases:   []runrecord.PhaseMetric{{Phase: runrecord.PhaseDecode, DurationNS: uint64(decode)}},
+			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(time.Millisecond)}},
+		}
+	}
+	first := runrecord.ServingObservation{MeasuredNS: uint64(time.Second), Usage: runrecord.ServingUsage{InputTokens: 5, OutputTokens: 4},
+		Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(time.Millisecond)}}}
+	_, short := servedAttempts(t, []runrecord.ServingObservation{first, warm(1, 85100*time.Nanosecond)})
+	if rate := throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, short); rate.Contract.Metric == warmRateMetric {
+		t.Fatalf("a warm reading of one token gave the rate %+v", rate)
+	}
+	_, whole := servedAttempts(t, []runrecord.ServingObservation{first, warm(1, 85100*time.Nanosecond), warm(128, 381600*time.Microsecond)})
+	if rate := throughputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, whole); rate.Contract.Metric != warmRateMetric || math.Abs(rate.Value-128/0.3816) > 1e-6 {
+		t.Fatalf("a warm reading of 128 tokens over 381.6 ms gave %+v, want %.4g tok/s on the warm contract", rate, 128/0.3816)
+	}
+}

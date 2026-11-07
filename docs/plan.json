@@ -54,8 +54,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 8,
-        "reason": "warm-speed/readme-table measured 722 production nodes, more than estimated: the README's speed table in internal/scorecard, the -readme command and its check in cmd/validate, and longer-prompt cells read from warmed attempts alone; warm-speed/measure runs a measurement and adds little code."
+        "nodes": 14,
+        "reason": "warm-speed/full-decode adds 86 production nodes, the whole-decode wrapper for the speed readings and the warm rate's token floor, filed after the count was set; warm-speed/measure adds little."
       },
       "steps": [
         {

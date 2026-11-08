@@ -8379,9 +8379,66 @@
   },
     "limitations": ["No implementation, application tests, workloads, services, scheduling changes, agents or worker messages. Existing external Go parser inspected12 selected committed files; parser-local identifier links/manual callers only, no package type-check/build claim.","No external app-task execution/installation evidence read and no SQA authentication probe. Retained commit accounts are attributed; source counterexamples do not claim observed corruption.","Current status/main/landing pace worktree edits excluded. No broad recurring census or new abstraction proposed."],
     "master_lead_triage": {
-    "at": "2026-11-06",
-    "head": "d8ffb58661d55ac50a0006c5b9507dcab2fa9589",
+    "at": "2026-11-08",
+    "head": "518fa52f417f796df399da65d208a61290fe5635",
     "findings": {
+      "SQA-335": {
+        "action": "implemented",
+        "rows": [
+          "warm-up-failure/stop-dependent"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-336": {
+        "action": "implemented",
+        "rows": [
+          "actual-prompt-rate/rate"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-331": {
+        "action": "implemented",
+        "rows": [
+          "composite-identity/verified-model"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-328": {
+        "action": "implemented",
+        "rows": [
+          "tool-replay-guard/refuse-changed"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-318": {
+        "action": "implemented",
+        "rows": [
+          "fuzz-discovery/fail-listing"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-337": {
+        "action": "implemented",
+        "rows": [
+          "no-default-takeover/prompt"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-338": {
+        "action": "implemented",
+        "rows": [
+          "start-admission/order",
+          "start-admission/fixture"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
+      "SQA-316": {
+        "action": "implemented",
+        "rows": [
+          "claim-whole-file/whole-file"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
+      },
       "SQA-324": {
         "action": "scheduled",
         "rows": [
@@ -8573,11 +8630,12 @@
         "note": "Landed. judgeServedDrafts asks SpeculatesByDefault first and returns where no draft applies, so a host runner never reaches DeviceUUID. TestDraftJudgementLeavesAHostRunnerAlone fails without it with 'runner is nil' on the served open. Awaits the reviewer's closure."
       },
       "SQA-257": {
-        "action": "existing-row",
+        "action": "implemented",
         "rows": [
-          "sqa-served/draft-host"
+          "sqa-served/draft-host",
+          "one-draft-verdict/verdict"
         ],
-        "note": "No change to its obligations. It cites own_draft_layer_windows_test.go, which this landing deletes; the forced-override case it wants retained now lives in TestNextNMTPDeviceSpeculationLossless, on the fixture's short prompt."
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       },
       "SQA-245": {
         "action": "implemented",
@@ -8631,9 +8689,10 @@
       "SQA-271": {
         "action": "implemented",
         "rows": [
-          "unattended-driver/ownership-wait"
+          "unattended-driver/ownership-wait",
+          "findings-wait/wait"
         ],
-        "note": "Landed with unattended-driver/ownership-wait: after the cycle an emptied plan started, a dispatch that finds the row another worker's goes back to the top of Run, which ends the run as waiting and checks stops first; a real read error and the no-work completion stand. The driver started from loop.json (first-start) runs the cycle in its own process, so a run is supervised through its real exit rather than a detached launcher's, and its worker has no fixed timeout: it ends by its exit or a stop. TestARunThatFindsWorkWaitingSaysSo holds the run to waiting at a round's top, at a worker's exit and after a cycle. Awaits the reviewer's resolution."
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       },
       "SQA-268": {
         "action": "declined",
@@ -8674,8 +8733,11 @@
         "note": "Landed. Each of the four paired tests registers t.Cleanup right after OpenRunner, and the explicit checked Close stays so the first model frees the card before its comparison loads. Compiled and vetted only: these are failure paths of model tests, so no failed collection was run. Awaits the reviewer's closure."
       },
       "SQA-277": {
-        "action": "none",
-        "note": "Stands, and stays open. Parked with finding 773e7e0f: the adapter that bound those six suites is not in this repository, so rerunning them means finding or rebuilding it. No row until that harness exists; the coverage record already discloses the old definition per cell."
+        "action": "implemented",
+        "rows": [
+          "e4b-quality-owed/owed"
+        ],
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       },
       "SQA-221": {
         "action": "implemented",
@@ -9020,9 +9082,11 @@
       "SQA-283": {
         "action": "implemented",
         "rows": [
-          "run-from-files/do"
+          "run-from-files/do",
+          "recipe-state/held-out",
+          "recipe-state/serving"
         ],
-        "note": "Landed across the row run-from-files. Each closure criterion is answered in the comment beside this note, with what is not covered. Awaits the reviewer's closure."
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       },
       "SQA-289": {
         "action": "implemented",
@@ -9166,9 +9230,10 @@
         "action": "implemented",
         "rows": [
           "native-reach/device-fresh",
-          "driver-bound/key"
+          "driver-bound/key",
+          "cycle-fresh/count-once"
         ],
-        "note": "Landed with native-reach/device-fresh: deviceTestStep runs every selected device test afresh, and the ineffective driver stat is gone. native-reach/device-bound is retired, measured: the device runs reach only packages whose binaries a change moved, and the data root's 159,716 files took 9m55s to walk, with store records naming models by absolute location. driver-bound/key binds the driver through the environment for the cuda lane, whose suites build their own inputs: the landing sets OVERGO_CUDA_DRIVER to the library's size and modification time and cudatest.Require reads it, which go test keys. Awaits the reviewer's closure."
+        "note": "Filed from the fall-through on 2026-11-08 and landed by the rows named; each closure criterion is answered by the row's test, named in its commit. Awaits the reviewer's closure."
       }
     }
   },

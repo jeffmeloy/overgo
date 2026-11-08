@@ -157,8 +157,8 @@ type SelectedSuite struct {
 	Environment []string `json:"environment,omitzero"`
 }
 
-// cycleSuites lists the improvement cycle's lanes, which run every cycle:
-// go test's cache replays the packages no change reached since their pass.
+// cycleSuites lists the improvement cycle's lanes, which run every cycle, each
+// go test lane afresh, since its models lie outside the module's cache keys.
 func cycleSuites() []SelectedSuite {
 	suites := []SelectedSuite{}
 	for _, lane := range landing.CycleLanes() {

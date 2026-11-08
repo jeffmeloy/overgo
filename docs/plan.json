@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cycle-fresh",
-      "title": "Every cycle lane that runs go test runs its tests afresh, so a real-model pass is never replayed after its model or reference bytes change",
-      "status": "open",
-      "budget": {
-        "nodes": 10,
-        "reason": "Estimate before the survey: -count=1 joins the models and needle-reference commands in internal/landing/lanes.go cycleLanes, and two comments stop claiming the cache replays only unchanged inputs."
-      },
-      "steps": [
-        {
-          "id": "count-once",
-          "title": "The models and needle-reference cycle lanes run go test with -count=1, as every other go test cycle lane does",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryCycleLaneThatRunsGoTestRunsAfresh$'",
-          "rationale": "SQA-315: internal/landing/lanes.go cycleLanes runs the models and needle-reference lanes without -count=1, and cmd/validate cycleSuites and acquire pass those arguments on; go test keys its cache only on inputs inside the module, so a pass that opened OVERGO_SINGLE_PASS_GGUF or the needle reference fixture through dataroot is replayed after those external bytes change.\n\nBoth commands gain -count=1, as audio and sequences have, and the cycleLanes and cycleSuites comments stop saying the cache replays only what nothing changed. The new test reads every cycle lane whose verb is test, so a lane added later is held too.\n\nServes: held-out-quality; a cycle's real-model evidence reads the model bytes it names.\nDisappears: replayed real-model passes over changed external inputs.\nEvidence: every go test cycle lane's arguments carry -count=1, and a lane without it is named.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "recipe-state",
       "title": "A held-out reading, a serving attempt and a training observation carry the verification state of the recipe and task that ran",
       "status": "open",

@@ -133,9 +133,10 @@ const checkedTags = CycleTags + "," + pairTag
 
 // cycleLanes are what the improvement cycle runs in the gate's place: real
 // models, the live store and the served-model journeys, which guard what
-// the cycle compares. validate -run runs each of them every cycle, go test's
-// cache replaying the packages nothing changed, and the cycle reports
-// its pass.
+// the cycle compares. validate -run runs each of them every cycle, and a lane
+// that runs go test runs it with -count=1, since the models and references
+// it reads lie outside the module and go test's cache does not see them
+// change (SQA-315); the cycle reports its pass.
 var cycleLanes = []lane{
 	{
 		// A served-model journey or the server command.
@@ -165,13 +166,15 @@ var cycleLanes = []lane{
 		// time shares the device; adaptiveparity alone runs about 11
 		// minutes, past go test's default timeout.
 		name: "models", packages: modelPackages, tags: CycleTags,
-		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, modelPackages...) },
+		command: func(string) []string {
+			return append([]string{"test", "-count=1", "-p=1", "-timeout=0"}, modelPackages...)
+		},
 		environment: []string{cudaTestEnvironment, "OVERGO_WAN_FULL=1"},
 	},
 	{
 		name: "needle-reference", packages: []string{"./internal/seq2seq"}, tags: CycleTags,
 		command: func(string) []string {
-			return []string{"test", "-timeout=0", "./internal/seq2seq", "-run", "^TestNeedleCallsMatchUpstreamOnEvaluationCases$"}
+			return []string{"test", "-count=1", "-timeout=0", "./internal/seq2seq", "-run", "^TestNeedleCallsMatchUpstreamOnEvaluationCases$"}
 		},
 		environment: []string{cudaTestEnvironment},
 	},

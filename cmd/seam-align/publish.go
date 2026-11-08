@@ -9,7 +9,6 @@ import (
 	"overgo/internal/bridgegraph"
 	"overgo/internal/checked"
 	"overgo/internal/composition"
-	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelartifact"
@@ -288,7 +287,8 @@ func (candidate compositeCandidate) register(ctx context.Context, store *overgod
 // the runner reports, the derivation the store must learn when no recipe of the store's names the model, and its
 // embedding width.
 func textModel(ctx context.Context, store *overgodb.Store, path string) (modelrecipe.ProgramIdentity, *modelrecipe.Derivation, uint64, error) {
-	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, store, path, discovery.LoadMemo(ctx, store).Claim)
+	// The model is read from its bytes, never from a memo's claim that its size and time kept (SQA-331).
+	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, path)
 	if err != nil {
 		return modelrecipe.ProgramIdentity{}, nil, 0, err
 	}

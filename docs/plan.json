@@ -3,24 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "composite-identity",
-      "title": "A composite is published under the model identity its file's bytes hold now, never under a remembered claim",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Estimate before the survey: one call replaced and the discovery import removed in cmd/seam-align/publish.go textModel, about 10 nodes fewer."
-      },
-      "steps": [
-        {
-          "id": "verified-model",
-          "title": "seam-align's textModel resolves its model through ResolveActiveGGUF, which hashes the file, instead of the catalog memo's claim",
-          "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestACompositeIsPublishedUnderTheModelIdentityItsBytesHold$'",
-          "rationale": "SQA-331: cmd/seam-align/publish.go textModel resolves its model with ResolveClaimedGGUF and discovery.LoadMemo's Claim, which returns a remembered digest when size and modification time match, then discards the claims Take returns; a GGUF whose payload changed with size and time kept is published under its old identity, and TestAJudgedBridgePublishesAnInactiveComposite, starting from an empty store, never meets a remembered claim.\n\ntextModel calls modelrecipe.ResolveActiveGGUF(ctx, store, path), which hashes the file, and the discovery import goes; refusal before registration and idempotent inactive publication stay.\n\nServes: failure-rate; a composite cannot cite an identity its model's bytes no longer hold.\nDisappears: the memo shortcut in publication.\nEvidence: with the tiny model's inventory remembered and its payload changed, size and time kept, textModel returns the identity of the bytes now.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "tool-replay-guard",
       "title": "A tool workflow run again under its key with changed call arguments is refused before any tool runs, naming the node",
       "status": "open",

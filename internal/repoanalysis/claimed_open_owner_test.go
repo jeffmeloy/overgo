@@ -16,8 +16,10 @@ import (
 // model that the discovery memo remembers opens through OpenRunner without
 // that first pass, and the open proves the remembered identity in the pass
 // that uploads; a row that moves one of these there removes it from the list,
-// and nothing adds to it.
+// and only a file that names a model it never loads, which no upload proves,
+// is added to it.
 var hashingOpeners = map[string]string{
+	"cmd/seam-align/publish.go":                      "publishes a composite under its text model's identity without loading the model, so the file's bytes are the only proof (SQA-331)",
 	"internal/evaluation/transcription_projected.go": "checks the language model's identity against the plan before it loads the projector and only then opens",
 	"internal/servingtest/active_gguf.go":            "the fixture helper that serves a test with an exact session and residency policy",
 }

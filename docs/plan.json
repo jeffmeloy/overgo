@@ -31,28 +31,6 @@
       ]
     },
     {
-      "id": "hf-hub-files",
-      "title": "hf-hub downloads the files a decision names, not the whole repository",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 25,
-        "reason": "A flag that passes exact paths to hfhub.DownloadRequest.Files, which the library already honours."
-      },
-      "steps": [
-        {
-          "id": "flag",
-          "title": "go run ./cmd/hf-hub download -files a,b downloads and receipts those paths alone",
-          "status": "open",
-          "verify": "go test ./cmd/hf-hub -count=1 -run '^TestADownloadTakesTheFilesItNames$'",
-          "files": [
-            "cmd/hf-hub"
-          ],
-          "rationale": "On 2026-11-08 decision self-forcing-download named one checkpoint, self_forcing_dmd.pt (5.68 GB), of gdhe17/Self-Forcing, which holds seven checkpoints and 45 GB; cmd/hf-hub download takes the whole repository, though hfhub.DownloadRequest.Files limits a download to exact paths. The image and video plan's other downloads (Real-ESRGAN, FlashVSR, DWPose, DiTDH-XL) are single files of larger repositories too.\n\nA -files flag passes the paths, and the receipt names those files alone.\n\nServes: setup-steps; each decided download fetches what was decided.\nDisappears: a download of files no decision named.\nEvidence: a download naming one file of a fixture repository fetches and receipts that file alone.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "media-user-size",
       "title": "Every image and video cell records the preset it ran, and each generator is timed at a user's size beside its smoke request, stage by stage",
       "owner": "master-lead",

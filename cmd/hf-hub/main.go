@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -40,6 +41,7 @@ func runArguments(ctx context.Context, args []string) error {
 	datasets := flags.Bool("datasets", false, "address the dataset namespace instead of models")
 	revision := flags.String("revision", "", "repository revision; empty resolves the default branch")
 	destination := flags.String("dest", "", "download destination directory")
+	files := flags.String("files", "", "with download: the repository paths to fetch, comma-separated, which the receipt names alone; empty fetches every file")
 	receiptPath := flags.String("receipt", "", "write a verified source receipt outside the downloaded directory; requires SHA-256 for every repository file")
 	timeout := flags.Duration("timeout", 0, "total caller budget; zero runs until completion or interrupt")
 	limit := flags.Int("limit", 20, "search result bound")
@@ -112,12 +114,25 @@ func runArguments(ctx context.Context, args []string) error {
 		if strings.TrimSpace(*destination) == "" {
 			return errors.New("hf-hub download requires -dest")
 		}
+		var named []string
+		for path := range strings.SplitSeq(*files, ",") {
+			if path = strings.TrimSpace(path); path != "" {
+				named = append(named, path)
+			}
+		}
 		resolved, err := client.Download(ctx, hfhub.DownloadRequest{
-			Kind: kind, Repository: subject, Revision: *revision, Destination: *destination,
+			Kind: kind, Repository: subject, Revision: *revision, Destination: *destination, Files: named,
 			Observe: reportProgress(),
 		})
 		if err != nil {
 			return err
+		}
+		// What was named is what was fetched, and what the receipt names: a name the repository does not hold is refused.
+		if len(named) > 0 {
+			resolved.Files = slices.DeleteFunc(resolved.Files, func(file hfhub.RepoFile) bool { return !slices.Contains(named, file.Path) })
+			if len(resolved.Files) != len(named) {
+				return fmt.Errorf("hf-hub: %s @ %s holds %d of the %d files named in -files", resolved.ID, resolved.Revision, len(resolved.Files), len(named))
+			}
 		}
 		if *receiptPath != "" {
 			if err := writeSourceReceipt(ctx, *provider, *endpoint, kind, resolved, *destination, *receiptPath); err != nil {

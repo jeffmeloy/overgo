@@ -8,25 +8,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1200,
+        "nodes": 794,
         "reason": "Estimated after a survey of the code, at about twice what a first sketch of the steps counts, since this week's rows landed at two to six times the counts they were filed with (wan-few-step 300 -\u003e 1100, sampling-split 400 -\u003e 1700, umt5-resident 336 -\u003e 1750): a repeat test through the judge's projector, answers keyed and stored beside the reuse the other suites have, and a re-verification before a stale judge opens."
       },
       "steps": [
-        {
-          "id": "replay",
-          "title": "A generated-media judgement keeps each answer under the judge's identity, the media's digest and the question, and a later run on the same inputs replays it instead of asking",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestAJudgedAnswerIsReplayedForTheSameInputs$'",
-          "files": [
-            "internal/evaluation",
-            "cmd/evaluate",
-            "internal/scorecard"
-          ],
-          "rationale": "evaluateGeneratedAnswer asks every case on every run (internal/evaluation/generated_answer.go:176-186). The multiple-choice, instruction-rule and sampled-answer suites already reuse answers keyed by everything an answer depends on (internal/evaluation/observation.go:60-104, held by TestAnswersOutliveOnlyTheCommitsThatLeaveTheirCodeUnchanged). A judged question costs about 27 s for TIFA images (3b20a6e87) and about 6.3 s for video (the Wan student's run on 2026-11-08), so the 415-question TIFA suite takes about three hours of the card. A reference model's outputs do not change between comparisons. video-judge/same-settings judges Wan's base, and every later preset, eight-bit or step-cache candidate is compared with the same reference, so the reference's answers need asking only once.\n\nServes: setup-steps; card hours per comparison.\nDisappears: the reference's media judged again for each candidate.\nEvidence: a second judged run on unchanged media asks the judge nothing and scores the same, and a changed picture is asked again.\nBatch: host lane.",
-          "depends_on": [
-            "judge-instrument/repeatable"
-          ]
-        },
         {
           "id": "current",
           "title": "A judged run opens its judge only with current verification evidence, re-verifying it first when the build no longer compiles the profile it was verified against",

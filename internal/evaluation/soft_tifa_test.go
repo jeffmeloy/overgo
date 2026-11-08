@@ -79,7 +79,10 @@ func TestSoftTIFAScoresTheProbabilityOfTheRightAnswer(t *testing.T) {
 	if len(metrics) != 2 || metrics[1].Name != SoftMetric || metrics[1].Value != report.Soft {
 		t.Fatalf("the suite's metrics are %+v, want the accuracy and the soft share", metrics)
 	}
-	if _, err := evaluateGeneratedAnswer(t.Context(), store, judgedGenerator{exactGenerator{pieces: []string{"A"}}, "judge-a"}, compiled, plan); err == nil {
+	// A store that keeps none of the judge's answers, which would otherwise be read rather than asked (replayJudged).
+	fresh := overgodbtest.Open(t, t.TempDir())
+	publishPlanFixtureAuthorities(t, fresh, plan)
+	if _, err := evaluateGeneratedAnswer(t.Context(), fresh, judgedGenerator{exactGenerator{pieces: []string{"A"}}, "judge-a"}, compiled, plan); err == nil {
 		t.Fatal("a judge that names no token of the choices scored a suite of choices")
 	}
 }

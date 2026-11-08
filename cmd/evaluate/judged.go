@@ -107,6 +107,14 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 	if err != nil {
 		return nil, err
 	}
-	opened.(*capabilitySession).campaign.WithPrompting(evaluation.PromptingChatTemplate)
+	keepJudgedAnswers(opened.(*capabilitySession).campaign)
 	return opened, nil
+}
+
+// keepJudgedAnswers frames a judged session's questions in the judge's conversation and keeps the judge's answers
+// under the identity of its code where the build counted one (evaluation.AnsweredBy), else under the commit: a judged
+// question costs 6 to 27 s of the card, and a later commit that leaves the judge's code where it was asks it nothing it
+// answered before about the same media.
+func keepJudgedAnswers(campaign *evaluation.Campaign) *evaluation.Campaign {
+	return evaluation.AnsweredBy[inference.Runner](campaign.WithPrompting(evaluation.PromptingChatTemplate))
 }

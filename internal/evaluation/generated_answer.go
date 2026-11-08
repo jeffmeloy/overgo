@@ -173,19 +173,34 @@ func evaluateGeneratedAnswer(
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	var probabilities []float64
+	replayed := 0
 	for index, testCase := range compiled.suite.Cases {
-		var result ExactResult
-		var probability *float64
+		ask := func() (keptAnswer, error) {
+			if compiled.suite.choices() {
+				result, chance, err := recordChoice(ctx, generator, testCase, rightChoice(testCase, compiled.suite.Transforms))
+				return keptAnswer{result.Text, result.PromptTokens, result.GeneratedTokens, &chance}, err
+			}
+			result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+			return keptAnswer{result.Text, result.PromptTokens, result.GeneratedTokens, nil}, err
+		}
+		var kept keptAnswer
+		var answeredBefore bool
 		var err error
-		if compiled.suite.choices() {
-			var chance float64
-			result, chance, err = recordChoice(ctx, generator, testCase, rightChoice(testCase, compiled.suite.Transforms))
-			probability, probabilities = &chance, append(probabilities, chance)
+		if judged {
+			kept, answeredBefore, err = replayJudged(ctx, repository, plan, judge.Judge(), testCase, ask)
 		} else {
-			result, err = recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+			kept, err = ask()
 		}
 		if err != nil {
 			return generatedAnswerReport{}, err
+		}
+		if answeredBefore {
+			replayed++
+		}
+		result := ExactResult{Name: testCase.Name, PromptTokens: kept.PromptTokens, GeneratedTokens: kept.GeneratedTokens, Text: kept.Text, Producer: producingRun(generator)}
+		probability := kept.Probability
+		if probability != nil {
+			probabilities = append(probabilities, *probability)
 		}
 		scored := normalizeAnswer(result.Text, compiled.suite.Transforms)
 		accepted := false
@@ -207,6 +222,9 @@ func evaluateGeneratedAnswer(
 			producers = append(producers, producer)
 		}
 		progress.hit(accepted)
+	}
+	if replayed > 0 {
+		progress.sample(fmt.Sprintf("%d of %d cases were answered before by this judge, of this media, and were not put to it again", replayed, len(compiled.suite.Cases)))
 	}
 	report.Accuracy = float64(correct) / float64(len(report.Observations))
 	if compiled.suite.choices() {

@@ -30,10 +30,6 @@ func productionGo(path string) bool {
 // into the message.
 func (l *landing) undo(ctx context.Context) error {
 	restored := slices.DeleteFunc(slices.Clone(l.written), func(path string) bool { return !productionGo(path) })
-	named, _ := rows(l.Ref)
-	consolidates := slices.ContainsFunc(l.terms.Items, func(item plan.Item) bool {
-		return item.Class == plan.ClassConsolidation && slices.ContainsFunc(named, func(row ref) bool { return row.item == item.ID })
-	})
 	checks := slices.DeleteFunc(slices.Clone(l.verifiers), func(check string) bool {
 		parsed, err := runrecord.ParseVerify(check)
 		return err != nil || len(parsed.GoTests()) == 0
@@ -42,7 +38,7 @@ func (l *landing) undo(ctx context.Context) error {
 	case len(restored) == 0:
 		l.undone = []string{"none run: the change touches no production Go"}
 		return nil
-	case consolidates:
+	case l.consolidates():
 		l.undone = []string{"none run: a consolidation passes before and after"}
 		return nil
 	case len(checks) == 0:
@@ -85,6 +81,15 @@ func (l *landing) undo(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// consolidates says a landed step is a consolidation's, whose change must shrink production code and pass before and
+// after.
+func (l *landing) consolidates() bool {
+	named, _ := rows(l.Ref)
+	return slices.ContainsFunc(l.terms.Items, func(item plan.Item) bool {
+		return item.Class == plan.ClassConsolidation && slices.ContainsFunc(named, func(row ref) bool { return row.item == item.ID })
+	})
 }
 
 // treeAt checks the commit the change builds on out in a worktree of its own, named name in the scratch, and returns

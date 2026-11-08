@@ -122,8 +122,9 @@ func stalePins(repo string, paths []string) ([]string, error) {
 		}
 		raw, normalized := sha256.Sum256(data), sha256.Sum256(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
 		for _, pin := range held {
-			if pin.digest != hex.EncodeToString(raw[:]) && pin.digest != hex.EncodeToString(normalized[:]) {
-				stale = append(stale, path+" (pinned by "+pin.record+")")
+			if now := hex.EncodeToString(normalized[:]); pin.digest != hex.EncodeToString(raw[:]) && pin.digest != now {
+				stale = append(stale, path+" (pinned by "+pin.record+"; edit: sed -i s/"+pin.digest+"/"+now+"/ "+pin.record+
+					", or else git checkout HEAD -- "+path+", the first only for a change that keeps the behaviour the record pins)")
 			}
 		}
 	}

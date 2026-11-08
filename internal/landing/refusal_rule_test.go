@@ -38,12 +38,12 @@ func Exported(values []int) int {
 	}
 	refused := append([]string{pinsRefusal([]string{"docs/verification/record.json"}), style.Error()}, newPolicyLiterals(base, candidate)...)
 	refused = append(append(refused, newLegacyForms(base, candidate)...),
-		exportRefusal("p.Exported", "internal/p"), uncoveredRefusal("internal/p"), countRefusal(9, "row/do", 3))
+		exportRefusal("p", "Exported", "internal/p"), uncoveredRefusal("internal/p"), shrinkRefusal(9, "row/do", 3))
 	got := Classify("row/do", "gate: "+stagePrefix+"rules: "+strings.Join(refused, "; "))
 	if want := []string{"pins", "style", "inline-numbers", "legacy-forms", "exports", "cuda-lanes", "count"}; got.Class != "rules" || !slices.Equal(got.Rules, want) {
 		t.Fatalf("a refusal of every rule classed %s naming %v, want rules naming %v", got.Class, got.Rules, want)
 	}
-	if count := Classify("row/do", "gate: "+stagePrefix+"rules: "+countRefusal(9, "row/do", 3)); !slices.Equal(count.Rules, []string{"count"}) {
+	if count := Classify("row/do", "gate: "+stagePrefix+"rules: "+shrinkRefusal(9, "row/do", 3)); !slices.Equal(count.Rules, []string{"count"}) {
 		t.Fatalf("a refusal of the count alone named %v", count.Rules)
 	}
 	if other := Classify("row/do", "gate: "+stagePrefix+"test: FAIL internal/p"); other.Class != "test" || len(other.Rules) != 0 {

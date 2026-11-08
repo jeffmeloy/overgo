@@ -71,9 +71,36 @@ func ValidateGoStyleDelta(candidate, baseline gosyntax.Snapshot) error {
 	}
 	parts := make([]string, 0, len(introduced))
 	for _, finding := range introduced {
-		parts = append(parts, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
+		parts = append(parts, fmt.Sprintf("%s:%d:%s:%s (%s; edit: %s)", finding.File, finding.Line, finding.Kind, finding.Symbol, finding.Detail, finding.edit()))
 	}
 	return fmt.Errorf("new Go style findings: %s", strings.Join(parts, ", "))
+}
+
+// edit is the change that clears the finding, a command where one does.
+func (f goStyleFinding) edit() string {
+	switch f.Kind {
+	case goStyleFormat:
+		return "gofmt -w " + f.File
+	case goStylePackageDoc:
+		return "keep one comment opening `// Package " + f.Symbol[strings.LastIndex(f.Symbol, "#")+1:] + "` above a package clause of the package, in " + f.File + " or another of its files"
+	case goStyleExportDoc:
+		return "write a comment opening with `// " + f.Symbol + " ` on the line above line " + strconv.Itoa(f.Line)
+	case goStyleGetter:
+		return "rename " + f.Symbol + " to " + strings.TrimPrefix(f.Symbol, "Get")
+	case goStyleInitialism:
+		bad := strings.TrimPrefix(f.Detail, "noncanonical initialism ")
+		return "rename " + f.Symbol + " to " + strings.Replace(f.Symbol, bad, strings.ToUpper(bad), 1)
+	case goStyleReceiverConsistency:
+		return "name the receiver of every method of " + f.Symbol + " alike"
+	case goStyleImportAlias:
+		return "import " + f.Symbol + " under one name in the package, or with none"
+	case goStyleErrorText:
+		return "open the error text with a small letter"
+	case goStyleNamedResult:
+		return "drop the result names " + f.Symbol + " leaves unused"
+	default:
+		return "return " + f.Symbol + "'s results by value"
+	}
 }
 
 func goStyleCensus(snapshot gosyntax.Snapshot) (goStyleReport, error) {

@@ -81,11 +81,11 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	if first, _, err := land(ctx, one, "first/do", io.Discard); err != nil || trunk() != first {
 		t.Fatalf("the first session's commit = %q with the trunk at %s (%v), want it the trunk's tip", first, trunk(), err)
 	}
-	check := "test -f " + fileOne
+	check := "test -f internal/p/c.go"
 	moved := moveSecond(0, check)
 	two.write(fileTwo, sourceTwo)
 	_, _, err := land(ctx, two, "second/do", io.Discard)
-	for _, want := range []string{"may add 0", "moved its terms", fmt.Sprintf(`second/do was checked by "true" and could add %d`, grown), fmt.Sprintf("is checked by %q and may add 0", check)} {
+	for _, want := range []string{"moved its terms", fmt.Sprintf(`second/do was checked by "true" and could add %d`, grown), fmt.Sprintf("is checked by %q and may add 0", check)} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("the second session's commit under terms the trunk moved = %v, want it refused saying %q", err, want)
 		}
@@ -93,10 +93,10 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	if trunk() != moved || two.git("rev-parse", "HEAD") != moved || holds(two, fileTwo) != sourceTwo {
 		t.Fatalf("after the refusal the trunk is at %s and the worktree on %s holding %q; want the trunk unmoved at %s, the worktree brought up to it, and its file as it was", trunk(), two.git("rev-parse", "HEAD"), holds(two, fileTwo), moved)
 	}
-	given := moveSecond(grown, check)
+	given := moveSecond(grown, "test -f "+fileOne)
 	second, said, err := land(ctx, two, "second/do", io.Discard)
 	if err != nil || trunk() != second || fixture.git("rev-parse", second+"^") != given || strings.Contains(said, "moved its terms") {
-		t.Fatalf("with the count given back the second session's commit = %q on %s (%v), saying %q; want it landed on the lead's %s", second, fixture.git("rev-parse", second+"^"), err, said, given)
+		t.Fatalf("with its terms given back the second session's commit = %q on %s (%v), saying %q; want it landed on the lead's %s", second, fixture.git("rev-parse", second+"^"), err, said, given)
 	}
 	if changed := fixture.git("diff-tree", "-r", "--name-only", given, second); changed != plan.Path+"\n"+fileTwo {
 		t.Fatalf("the second session's commit changes %q, want its own file and its row's removal", changed)

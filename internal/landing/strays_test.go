@@ -28,7 +28,7 @@ func TestALandingRefusesAStrayDocument(t *testing.T) {
 	if want := []string{"docs/draft.json", "docs/hand-off.md"}; !slices.Equal(strays, want) {
 		t.Fatalf("stray documents = %v, want %v", strays, want)
 	}
-	refusal := strayRefusal(strays)
+	refusal := strayRefusal(strays, "row")
 	known := slices.ContainsFunc(stageRules, func(rule struct{ name, phrase string }) bool {
 		return rule.name == "stray-documents" && strings.Contains(refusal, rule.phrase)
 	})

@@ -41,27 +41,30 @@ var stageRules = []struct{ name, phrase string }{
 	{"exports", "has no consumer outside its package"},
 	{"cuda-lanes", "has CUDA-gated tests that no lane runs"},
 	{"stray-documents", "an ignored document outside its homes"},
-	{"count", "production syntax nodes, and the row"},
+	{"count", "production syntax nodes, and the consolidation"},
 }
 
-// pinsRefusal, uncoveredRefusal, exportRefusal and countRefusal are what the
+// pinsRefusal, uncoveredRefusal, exportRefusal and shrinkRefusal are what the
 // rules stage refuses a change with for moving bytes a record pins, a
-// CUDA-gated test no lane runs, an export no other package uses, and growth
-// past a row's count.
+// CUDA-gated test no lane runs, an export no other package uses, and a
+// consolidation that grows past its count; each ends with the edit that
+// clears it, a command where one does.
 func pinsRefusal(stale []string) string {
-	return "changes bytes a record pins: " + strings.Join(stale, "; ") + "; repin the record for a behaviour-neutral edit, or restore the file"
+	return "changes bytes a record pins: " + strings.Join(stale, "; ")
 }
 
 func uncoveredRefusal(directory string) string {
-	return directory + " has CUDA-gated tests that no lane runs; add it to a lane that sets " + cudaTestEnvironment
+	return directory + " has CUDA-gated tests that no lane runs; edit: add \"./" + directory + "\" to cudaPackages in internal/landing/lanes.go"
 }
 
-func exportRefusal(name, directory string) string {
-	return "new export " + name + " in " + directory + " has no consumer outside its package; unexport it or land its consumer"
+func exportRefusal(pkg, name, directory string) string {
+	unexported := strings.ToLower(name[:1]) + name[1:]
+	return "new export " + pkg + "." + name + " in " + directory + " has no consumer outside its package; edit: gofmt -r '" + name + " -> " +
+		unexported + "' -w " + directory + "/*.go, or land its consumer"
 }
 
-func countRefusal(growth int, row string, left int) string {
-	return fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count with a reason in this change's own plan edit, or in the row of a merge", growth, row, left)
+func shrinkRefusal(growth int, row string, left int) string {
+	return fmt.Sprintf("adds %d production syntax nodes, and the consolidation %s may add %d; edit: remove production code until it adds no more than that, or file the growth as a row of its own", growth, row, left)
 }
 
 const (

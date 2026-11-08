@@ -72,8 +72,8 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	if err := l.verify(ctx); err == nil {
 		t.Error("a change passed the check it wrote for itself")
 	}
-	if err := l.rules(ctx); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("may add %d", grown-1)) {
-		t.Errorf("a change that raised its own row's count: %v, want the growth refused by the earlier count", err)
+	if err := l.rules(ctx); err != nil || !strings.Contains(l.details["rules"], fmt.Sprintf("of the %d its row may add", grown-1)) {
+		t.Errorf("a change that raised its own row's count: %v, %q, want its growth recorded against the earlier count", err, l.details["rules"])
 	}
 	added := fixture.candidateOf("row/file")
 	added.Log = io.Discard
@@ -133,13 +133,13 @@ func TestANewRowLandsWithItsWork(t *testing.T) {
 	}
 }
 
-// TestItemsGrowthIsChargedAcrossItsLandings holds a row's count to the whole of
-// what its landings add. A row of two steps may add one node less than the two
-// together add: the first landing is admitted and the plan it publishes
-// carries what is left, and the second, which the count as first written would
-// still admit, is refused the growth the first used. What a landing removes
-// comes back to the count, and rows landed together share theirs, the
-// remainder staying with the first the plan still holds.
+// TestItemsGrowthIsChargedAcrossItsLandings records against a row's count the
+// whole of what its landings add. A row whose count is one node less than its
+// first two steps add has each landing's growth taken from it: the plan the
+// first publishes carries what is left, and the second, past the count, lands
+// and leaves it below zero by what it grew past. What a landing removes comes
+// back to the count, and rows landed together share theirs, the remainder
+// staying with the first the plan still holds.
 func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -150,7 +150,7 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 	if count < second {
 		t.Fatalf("the fixture's count %d does not admit the second step's %d nodes alone, so it shows nothing", count, second)
 	}
-	fixture.commitPlan(rowPlan(count, [2]string{"do", "true"}, [2]string{"later", "true"}, [2]string{"last", "true"}))
+	fixture.commitPlan(rowPlan(count, [2]string{"do", "true"}, [2]string{"later", "true"}, [2]string{"last", "true"}, [2]string{"end", "true"}))
 	left := func(commit string) int {
 		t.Helper()
 		published, err := plan.Parse([]byte(fixture.git("cat-file", "blob", commit+":"+plan.Path)))
@@ -173,19 +173,25 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 
 	fixture.write("internal/p/p.go", twoFunctions)
 	l = fixture.candidateOf("row/later")
-	if err := l.rules(ctx); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("adds %d production syntax nodes", second)) || !strings.Contains(err.Error(), fmt.Sprintf("may add %d", count-first)) {
-		t.Fatalf("the second step's growth of %d with %d left: %v, want it refused the growth the first step used", second, count-first, err)
+	if err := l.rules(ctx); err != nil {
+		t.Fatalf("the second step's growth of %d with %d left was refused: %v, want it recorded", second, count-first, err)
+	}
+	if commit, err = l.commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := left(commit); got != count-first-second {
+		t.Fatalf("after a landing that grew past the count the plan gives the row %d, want %d", got, count-first-second)
 	}
 
 	// A landing that removes code returns what it removed to the count.
 	fixture.write("internal/p/p.go", emptyPackage)
-	l = fixture.candidateOf("row/later")
+	l = fixture.candidateOf("row/last")
 	testcheck.NoError(t, l.rules(ctx))
 	if commit, err = l.commit(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := left(commit); got != count {
-		t.Fatalf("after a landing that removed the %d nodes the first added the plan gives the row %d, want %d", first, got, count)
+		t.Fatalf("after a landing that removed the %d nodes the two added the plan gives the row %d, want %d", first+second, got, count)
 	}
 
 	// Rows landed together are admitted by the sum of their counts, and the

@@ -3,7 +3,7 @@ package landing
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/testcheck"
@@ -29,11 +29,12 @@ func TestPreflightNamesPinnedBytes(t *testing.T) {
 	})
 	stale := testcheck.Must(stalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"}))(t)
 	want := []string{
-		"docs/verification/fixture-coverage.json (pinned by cmd/validate/accepted_fixture_test.go)",
-		"internal/a/a_test.go (pinned by docs/verification/fixture-coverage.json)",
+		"docs/verification/fixture-coverage.json (pinned by cmd/validate/accepted_fixture_test.go; edit: sed -i s/",
+		"internal/a/a_test.go (pinned by docs/verification/fixture-coverage.json; edit: sed -i s/" + digest("package a // pinned\n") + "/" +
+			digest("package a // edited\n") + "/ docs/verification/fixture-coverage.json, or else git checkout HEAD -- internal/a/a_test.go",
 	}
-	if !slices.Equal(stale, want) {
-		t.Fatalf("stale pins %q, want %q", stale, want)
+	if len(stale) != len(want) || !strings.HasPrefix(stale[0], want[0]) || !strings.HasPrefix(stale[1], want[1]) {
+		t.Fatalf("stale pins %q, want them to open %q", stale, want)
 	}
 	if stale, err := stalePins(root, []string{"internal/b/b_test.go"}); err != nil || len(stale) != 0 {
 		t.Fatalf("an unpinned change named %q (%v)", stale, err)

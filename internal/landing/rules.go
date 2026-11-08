@@ -25,10 +25,10 @@ import (
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // no new style finding, no new inline policy number, no new legacy form go fix
 // leaves, no new export without a consumer, no CUDA-gated test no lane runs,
-// no ignored document left outside its homes (strayDocuments), and no more
-// production code than the landed rows may still add. It says
-// what the change adds of each kind of written code; only production code is
-// bounded.
+// no ignored document left outside its homes (strayDocuments), and, for a
+// consolidation, no more production code than its count. Each refusal prints
+// the edit that clears it. It says what the change adds of each kind of
+// written code, which the landed rows' counts take.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -62,12 +62,15 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	if len(strays) != 0 {
-		findings = append(findings, strayRefusal(strays))
+		named, _ := rows(l.Ref)
+		findings = append(findings, strayRefusal(strays, named[0].item))
 	}
+	// A row's growth is measured and recorded, its count taking it; only a consolidation, which must shrink, is held to
+	// its count.
 	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
 	left := l.charge(growth)
-	if growth > left {
-		findings = append(findings, countRefusal(growth, l.Ref, left))
+	if growth > left && l.consolidates() {
+		findings = append(findings, shrinkRefusal(growth, l.Ref, left))
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
@@ -214,20 +217,30 @@ func (l *landing) changedSource(ctx context.Context) (gosyntax.Snapshot, gosynta
 func newPolicyLiterals(base, candidate gosyntax.Snapshot) []string {
 	before := literalCounts(base)
 	var findings []string
-	for key, count := range literalCounts(candidate) {
-		if count > before[key] {
-			findings = append(findings, "new inline number "+key+"; name it as a documented constant")
+	for key, written := range literalCounts(candidate) {
+		if len(written) > len(before[key]) {
+			_, value, _ := strings.Cut(key, " ")
+			name, lines := written[0].scope+"Value", make([]string, len(written))
+			for index, number := range written {
+				lines[index] = number.line
+			}
+			findings = append(findings, fmt.Sprintf("new inline number %s on lines %s; edit: declare `const %s = %s` beside the file's constants, its comment saying why it is %s, and write %s for %s on those lines",
+				key, strings.Join(lines, ", "), name, value, value, name, value))
 		}
 	}
 	return findings
 }
 
-// literalCounts counts each number written inline by file and value. A
+// inlineNumber is where a number is written inline: its line and the declaration it is in, its name led by a small
+// letter, which names the constant the number is to become.
+type inlineNumber struct{ line, scope string }
+
+// literalCounts finds each number written inline by file and value. A
 // count keyed by file, not by enclosing declaration, still rises when a
 // change adds a number, and holds when a change renames or moves the
 // function that already had it.
-func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
-	counts := map[string]int{}
+func literalCounts(snapshot gosyntax.Snapshot) map[string][]inlineNumber {
+	counts := map[string][]inlineNumber{}
 	for _, file := range snapshot.Files {
 		if file.Test {
 			continue
@@ -237,13 +250,20 @@ func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 			continue
 		}
 		for _, declaration := range syntax.Decls {
-			if general, ok := declaration.(*ast.GenDecl); ok && general.Tok == token.CONST {
-				continue
+			scope := "package"
+			switch declared := declaration.(type) {
+			case *ast.GenDecl:
+				if declared.Tok == token.CONST {
+					continue
+				}
+			case *ast.FuncDecl:
+				scope = strings.ToLower(declared.Name.Name[:1]) + declared.Name.Name[1:]
 			}
 			ast.Inspect(declaration, func(node ast.Node) bool {
 				literal, ok := node.(*ast.BasicLit)
 				if ok && (literal.Kind == token.INT || literal.Kind == token.FLOAT) && literal.Value != "0" && literal.Value != "1" {
-					counts[file.Path+" "+literal.Value]++
+					key := file.Path + " " + literal.Value
+					counts[key] = append(counts[key], inlineNumber{strconv.Itoa(file.Line(literal.Pos())), scope})
 				}
 				return true
 			})
@@ -377,7 +397,7 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 			}
 		}
 		if !production && !(tested && testSupport(sources, directory)) {
-			findings = append(findings, exportRefusal(pkg+"."+name, directory))
+			findings = append(findings, exportRefusal(pkg, name, directory))
 		}
 	}
 	return findings, nil

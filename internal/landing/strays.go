@@ -44,7 +44,8 @@ func strayDocuments(ctx context.Context, repo string) ([]string, error) {
 }
 
 // strayRefusal is what the rules stage refuses a change with while a stray document stands in the checkout.
-func strayRefusal(strays []string) string {
+func strayRefusal(strays []string, item string) string {
 	return "an ignored document outside its homes stands in the checkout: " + strings.Join(strays, ", ") +
-		"; a draft or hand-off belongs in the plan (plan -add -from -, plan -note) or under tmp/<row>/, so move or delete it"
+		"; a draft or hand-off belongs in the plan (plan -add -from -, plan -note) or under tmp/" + item + "/; edit: mkdir -p tmp/" + item +
+		" && mv " + strings.Join(strays, " ") + " tmp/" + item + "/"
 }

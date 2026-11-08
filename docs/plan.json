@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "generated-commits",
-      "title": "The commit tool writes the commit message and the undo check, and every code-rule refusal fixes the code or prints the exact edit",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1042,
-        "reason": "undo-check measured 678 production nodes against the 411 left: the undo run in its own worktree, the assertion a failed test is told by, and the shared worktree helper; rule-edits is estimated at 300 more"
-      },
-      "steps": [
-        {
-          "id": "rule-edits",
-          "title": "Every code-rule refusal fixes the code or prints the exact edit, and a row's size is recorded from measurement",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleRefusalFixesOrPrintsItsEdit$'",
-          "rationale": "A rule that only says what is wrong leaves the model to guess the fix. Each refusal either applies its fix as the formatter does, or prints the exact edit: the constant's name and the line it replaces, the register line to remove, the repeated body and the helper it matches. A row's production size is recorded from measurement in the commit instead of raised beforehand by plan -setcount with a written reason.\nServes: failure-rate; the share of commits refused.\nDisappears: refusals without an edit, and size raises by hand.\nEvidence: each rule's refusal on a fixture either changes the file to pass or prints an edit that, applied, passes.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "step-kinds",
       "title": "Run steps run without a model, and a code step lists the files it may change",
       "owner": "master-lead",

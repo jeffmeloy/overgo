@@ -3,29 +3,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "diffusion-memory-range",
-      "title": "SimpleDiffusion's resident forward is held to the memory it measures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 30,
-        "reason": "Estimate before the survey: the growth is either a real allocation to remove or a range to remeasure."
-      },
-      "steps": [
-        {
-          "id": "range",
-          "title": "TestRealResidentForwardLeadership passes: the resident forward's static and peak memory are within the range its evidence holds",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/diffusionimage -count=1 -run '^TestRealResidentForwardLeadership$'",
-          "files": [
-            "internal/diffusionimage"
-          ],
-          "needs_card": true,
-          "rationale": "The measurement run at fdd4ab1ce failed TestRealResidentForwardLeadership on 2026-11-08: 'resident memory static=407325964 peak=605365760 exceeds evidence range' (388 MiB static, 577 MiB peak).\n\nWhat grew is found by the forward's allocation ledger against the commit the range was measured at; an allocation that serves nothing is removed, and a range is moved only by a measurement that says why.\n\nServes: peak-device-memory.\nDisappears: a lane failure.\nEvidence: the test passes on the card.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "qwen25-golden",
       "title": "Qwen2.5-0.5B's greedy serving matches its golden again",
       "owner": "master-lead",

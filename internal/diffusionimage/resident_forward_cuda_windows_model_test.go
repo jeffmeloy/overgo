@@ -53,7 +53,7 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 	hostToDeviceCopies := after.Execution.HostToDeviceCopies - before.Execution.HostToDeviceCopies
 	hostToDeviceBytes := after.Execution.HostToDeviceBytes - before.Execution.HostToDeviceBytes
 	t.Logf("real SimpleDiffusion resident forward: compile=%s cold=%s warm_median=%s host_median=%s", compileWall, coldWall, warmMedian, hostMedian)
-	t.Logf("quality: host_max=%.3e cuda_max=%.3e static=%.3f MiB peak=%.3f MiB h2d=%d copies/%.3f MiB", hostDiff, deviceDiff, float64(after.StaticBytes)/(1<<20), float64(after.Device.PeakBytes)/(1<<20), hostToDeviceCopies, float64(hostToDeviceBytes)/(1<<20))
+	t.Logf("quality: host_max=%.3e cuda_max=%.3e static=%.3f MiB held=%.3f MiB peak=%.3f MiB h2d=%d copies/%.3f MiB", hostDiff, deviceDiff, float64(after.StaticBytes)/(1<<20), float64(after.HeldBytes)/(1<<20), float64(after.Device.PeakBytes)/(1<<20), hostToDeviceCopies, float64(hostToDeviceBytes)/(1<<20))
 	if hostDiff > tolReal || deviceDiff > 2e-5 {
 		t.Fatalf("resident quality exceeds gates: host=%.3e cuda=%.3e", hostDiff, deviceDiff)
 	}
@@ -66,7 +66,9 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 	if hostToDeviceBytes >= 1<<20 {
 		t.Fatalf("resident execution uploaded %.3f MiB after static binding", float64(hostToDeviceBytes)/(1<<20))
 	}
-	if after.StaticBytes < 350<<20 || after.Device.PeakBytes > after.StaticBytes+140<<20 {
-		t.Fatalf("resident memory static=%d peak=%d exceeds evidence range", after.StaticBytes, after.Device.PeakBytes)
+	// The ledger counts what the card charged for the weights' chunks, whole pages (6f5a7db52), so the forward's own
+	// memory is the peak above what the chunks hold, not above the weights' bytes.
+	if after.StaticBytes < 350<<20 || after.HeldBytes < after.StaticBytes || after.Device.PeakBytes > after.HeldBytes+140<<20 {
+		t.Fatalf("resident memory static=%d held=%d peak=%d exceeds evidence range", after.StaticBytes, after.HeldBytes, after.Device.PeakBytes)
 	}
 }

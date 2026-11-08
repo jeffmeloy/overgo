@@ -114,9 +114,12 @@ func (p *ResidentProgram) place(state *device.State, bytes uint64) (driver.Devic
 	return placed, chunk, nil
 }
 
-// ResidentStats reports session-owned device storage and execution.
+// ResidentStats reports session-owned device storage and execution. StaticBytes are the bound inputs' own bytes, and
+// HeldBytes what the card holds for them: each live chunk once, at what the card charged for it, the pages its packing
+// rounds to among them, which the device's ledger counts.
 type ResidentStats struct {
 	StaticBytes uint64
+	HeldBytes   uint64
 	Device      driver.MemoryStats
 	Execution   driver.ExecutionStats
 }
@@ -415,7 +418,14 @@ func (s *ResidentSession) Stats(ctx context.Context) (ResidentStats, error) {
 		return ResidentStats{}, err
 	}
 	executionStats, err := s.worker.ExecutionStats(ctx)
-	return ResidentStats{StaticBytes: s.staticBytes, Device: deviceStats, Execution: executionStats}, err
+	seen := map[*residentChunk]bool{}
+	var held uint64
+	for _, allocation := range s.allocations {
+		if chunk := allocation.chunk; chunk != nil && chunk.live > 0 && !seen[chunk] {
+			seen[chunk], held = true, held+chunk.bytes
+		}
+	}
+	return ResidentStats{StaticBytes: s.staticBytes, HeldBytes: held, Device: deviceStats, Execution: executionStats}, err
 }
 
 // Close releases all resident resources.

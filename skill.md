@@ -18,8 +18,9 @@ description: The rules for Overgo development, written as one logical statement 
 - local `main` = GitHub staging, which nothing reads (check: cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - push <=> a request to push, never the system's own initiative (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - this file = the system's doctrine, and the plan holds rows and decisions alone (check: internal/plan TestThePlanHoldsNoRuleText)
+- rule text outside this file and AGENTS.md => refused, the session's start text pointing here alone (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer)
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
-- doctrine != any person's preferences or rules (check: cmd/loophook TestDoctrineNamesNoPerson, internal/plan TestControlVocabularyNamesNoPerson)
+- doctrine != any person's preferences or rules (check: internal/repoanalysis TestRuleTextLivesOnlyInSkillAndThePointer, internal/plan TestControlVocabularyNamesNoPerson)
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
 - goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself (check: internal/plan TestAStopIsTheOwnersOrAnOutsideNeed, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPersistentLoopStop)
 - executable policy admits and activates (check: internal/agenttool TestCandidateCatalogStagesVerifiesAndActivatesExactly, internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)

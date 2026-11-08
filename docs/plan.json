@@ -13,13 +13,6 @@
       },
       "steps": [
         {
-          "id": "rule-text",
-          "title": "One test refuses rule text outside skill.md and AGENTS.md, and rule copies nothing reads go",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRuleTextLivesOnlyInSkillAndThePointer$'",
-          "rationale": "Rules live in more than a dozen places; when they disagree the model reconciles them, and asking the owner is its safe way out. One test covers the session-start text, the hook messages and the plan, and replaces cmd/loophook/doctrine_rules_test.go, doctrine_person_test.go and internal/plan/doctrine_test.go. .git/adaptive-source/skill.md and scripts/session_doctrine.sh go once a search finds nothing that reads them. The measurement checkout under .overgo-runtime/cycle is left to its pinned-run owner (cmd/loop inCycle and moveCycle), which takes guidance from the revision a cycle runs at; it is not refreshed by hand (SQA-333).\nServes: setup-steps.\nDisappears: rule text outside skill.md and the pointer, and three rule-text tests.\nEvidence: a rule sentence added to a hook's output or the plan is refused.\nBatch: host lane."
-        },
-        {
           "id": "skill-sort",
           "title": "Every skill.md line outside Judgement names the check that holds it, and the rest move to code, data or a command's help",
           "status": "open",

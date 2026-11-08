@@ -20,10 +20,20 @@ import (
 	"overgo/internal/scorecard"
 )
 
-// Step identifies one dispatched unit of plan work.
+// Step identifies one dispatched unit of plan work. Run, of a run step, is the command that does its work and Record
+// the file it writes, which a CommandWorld runs and lands with no worker.
 type Step struct {
-	Item string
-	ID   string
+	Item   string
+	ID     string
+	Run    string
+	Record string
+}
+
+// CommandWorld is the optional world extension that works a run step with no worker: much of the plan's work is a
+// measurement to run and wait for, which a model adds nothing to. It runs the step's command, requires the record the
+// step names written, and lands it through the gate; what it returns is said as a worker's tail is.
+type CommandWorld interface {
+	RunCommand(step Step) (tail string, err error)
 }
 
 func (s Step) Key() string { return s.Item + "/" + s.ID }
@@ -200,8 +210,13 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, fmt.Errorf("loop: checkpoint progress: %w", err)
 			}
 		}
-		tail, err := world.RunWorker(step, prompt, feedback)
-		outcome.Invocations++
+		var tail string
+		if commands, runs := world.(CommandWorld); runs && step.Run != "" {
+			tail, err = commands.RunCommand(step)
+		} else {
+			tail, err = world.RunWorker(step, prompt, feedback)
+			outcome.Invocations++
+		}
 		attempts++
 		if err != nil {
 			// A worker that cannot even launch is a world failure; a worker

@@ -42,6 +42,10 @@ type Step struct {
 	Title  string `json:"title"`
 	Status string `json:"status"`
 	Verify string `json:"verify,omitzero"`
+	// Run, of a run step, is the command that does its work and Record the file it writes, which Verify reads: the
+	// driver runs it and lands the record with no worker.
+	Run    string `json:"run,omitzero"`
+	Record string `json:"record,omitzero"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;
 	// DependsOn declares ordering the queue must respect; Capabilities name
@@ -351,6 +355,9 @@ func validatePlanGraph(d Plan) error {
 			}
 			if step.Verify != "" && !validAutomationDetail(step.Verify) {
 				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
+			}
+			if (strings.TrimSpace(step.Run) == "") != (strings.TrimSpace(step.Record) == "") {
+				return fmt.Errorf("plan step %s/%s is a run step: it names both its command (-run) and the record it writes (-record)", item.ID, step.ID)
 			}
 			if err := validateVerificationBatch(step.VerificationBatch); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)

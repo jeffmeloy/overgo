@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 350,
+        "nodes": 5,
         "reason": "Estimate before the survey: a step kind and its fields in internal/plan, the driver's run path, filing checks and the landing's scope check; a step raises it with its measured figure."
       },
       "steps": [
-        {
-          "id": "run-steps",
-          "title": "A run step names a command, the record it writes and the check that reads it, and the driver runs it with no worker",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestARunStepRunsWithoutAWorker$'",
-          "rationale": "Much of the week's work was not editing code: vision-bridge's capture-9b took 54 minutes, bridge-9b 1.44 GPU-hours, and judge-9b and envelope-9b were readings. A model running a command and waiting adds nothing.\nA run step names its command, the record it writes, and the check that reads that record; the driver runs it, verifies and lands the record with no worker.\nServes: setup-steps; model calls per landing.\nDisappears: a model babysitting a long run.\nEvidence: a run step whose command writes its record lands with no worker call.\nBatch: host lane."
-        },
         {
           "id": "scope",
           "title": "A code step lists the files it may change, and its landing refuses a change outside them",

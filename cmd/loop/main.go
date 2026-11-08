@@ -57,7 +57,9 @@ import (
 	"time"
 
 	"overgo/internal/authoritylock"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
@@ -305,7 +307,13 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	if dispatch.Waiting != "" {
 		return loop.Step{}, false, fmt.Errorf("%w: %s", loop.ErrWorkWaiting, dispatch.Waiting)
 	}
-	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
+	// A run step's command and record are the plan's, read beside the dispatch.
+	document, err := plan.Load("")
+	if err != nil {
+		return loop.Step{}, false, err
+	}
+	step, _ := plan.ExactStep(document, dispatch.Item, dispatch.Step)
+	return loop.Step{Item: dispatch.Item, ID: dispatch.Step, Run: step.Run, Record: step.Record}, true, nil
 }
 
 // dispatched is the plan's current row, as data: the prose line is never parsed back.
@@ -391,6 +399,28 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	// accomplished. Log the event and continue.
 	fmt.Printf("loop: worker exited for %s (err=%v)\n", step.Key(), err)
 	return tail, nil
+}
+
+// RunCommand works a run step with no worker: it runs the step's command in the checkout, requires the record the step
+// names written, and lands the step through the gate, whose landing writes the message.
+func (w *execWorld) RunCommand(step loop.Step) (string, error) {
+	shell, err := clioptions.POSIXShell()
+	if err != nil {
+		return "", &loop.LaunchError{Err: err}
+	}
+	out, err := runTool(shell, "-c", step.Run)
+	if err != nil {
+		return out, err
+	}
+	written, err := gitauthority.Query(context.Background(), loopWorktree, "status", "--porcelain", "--", step.Record)
+	if err != nil {
+		return out, err
+	}
+	if strings.TrimSpace(string(written)) == "" {
+		return out, fmt.Errorf("loop: %s ran and left its record %s as it was", step.Key(), step.Record)
+	}
+	landed, err := landRow(&execRowWorld{}, step.Key(), "")
+	return landed.Detail, err
 }
 
 func (w *execWorld) Verify(loop.Step) (string, error) {

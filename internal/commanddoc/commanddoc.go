@@ -79,6 +79,8 @@ var Declared = map[string]Descriptor{
 		"an operator keeping build/ to declared artifacts"),
 	"hf-hub": operator("hf-hub", "search the Hugging Face hub, resolve a revision's files and download them with size and digest verification",
 		"an operator bringing models in from the hub"),
+	"comfy-reference": operator("comfy-reference", "keep a ComfyUI workflow as its page saves it, with ComfyUI's own API request for each of its sections, as a fixture, and print the request the tree builds for one section",
+		"an operator recording ComfyUI references"),
 	"activation-cases": operator("activation-cases", "publish and inspect typed behavioral case denominators",
 		"an operator curating activation behaviour cases"),
 	"dataset-catalog": operator("dataset-catalog", "publish the legacy dataset inventory into OvergoDB",

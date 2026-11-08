@@ -243,21 +243,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1500,
+        "nodes": -2872,
         "reason": "Re-estimated 2026-11-08 in one pass, at about three times the first estimate: the campaign's steps came in at 3 to 7 times theirs (served 1878 of 447, interface 1010 of 400, causal-t2v 653 of 300), a rewritten loop counting whole, and a step that measures carries its cell through the timing chain (internal/media, capabilityruntime, servingattempt, runrecord, cmd/recipe, scorecard)."
       },
       "steps": [
-        {
-          "id": "request",
-          "title": "The recorder turns MOSS_IMAGE_ULTRA_WORKFLOW.json into ComfyUI's API request: its 24 subgraphs flattened, Set/Get links resolved, bypassed nodes dropped, widget values named from /object_info",
-          "status": "open",
-          "verify": "go test ./cmd/comfy-reference -count=1 -run '^TestTheUltraWorkflowFlattensToItsAPIRequest$'",
-          "files": [
-            "cmd/comfy-reference",
-            "fixtures/comfy"
-          ],
-          "rationale": "The owner decided on 2026-11-05 that the golden for MOSS Ultra is ComfyUI running C:/Users/jeffm/Downloads/Moss/MOSS_IMAGE_ULTRA_WORKFLOW.json on the files in its own install. The workflow is a saved UI graph, not an API request.\n\nA Go command copies the workflow into fixtures with its hash and builds the API request: subgraphs flattened, KJNodes' Set/Get links resolved, bypassed nodes dropped, each node's widgets_values mapped to input names from ComfyUI's /object_info, one section switched on at a time. It adds only recording nodes: SaveLatent after each sampler, PreviewAny on a BasicScheduler carrying the section's schedule so sigmas are recorded as numbers, and the workflow's own prompt-used outputs. ComfyUI is GPL-3.0; it runs as a separate process and overgo reads only its HTTP answers (the GPL FAQ treats pipes and sockets as communication between separate programs); no ComfyUI source is read or ported.\n\nServes: setup-steps; every comparison of moss-ultra rests on it, and the next workflow reuses it.\nDisappears: hand-built ComfyUI references.\nEvidence: the fixture workflow flattens to an API request whose node set and inputs equal the expected ones, and a workflow with an unresolvable link is refused.\nBatch: host lane."
-        },
         {
           "id": "record",
           "title": "Each section and prompt mode is recorded at 1024 x 576 on the install's own files, ComfyUI listening on the machine only with API nodes and the manager's network checks off",

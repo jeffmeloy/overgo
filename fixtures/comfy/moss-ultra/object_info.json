@@ -1,0 +1,3061 @@
+{
+  "CLIPLoader": {
+    "input": {
+      "required": {
+        "clip_name": [
+          [
+            "Qwen3.5-9B-abliterated_int8_convrot.safetensors"
+          ]
+        ],
+        "type": [
+          [
+            "stable_diffusion",
+            "stable_cascade",
+            "sd3",
+            "stable_audio",
+            "mochi",
+            "ltxv",
+            "pixart",
+            "cosmos",
+            "lumina2",
+            "wan",
+            "hidream",
+            "chroma",
+            "ace",
+            "omnigen2",
+            "qwen_image",
+            "hunyuan_image",
+            "flux2",
+            "ovis",
+            "longcat_image",
+            "cogvideox",
+            "lens",
+            "pixeldit",
+            "ideogram4",
+            "boogu",
+            "krea2",
+            "joyimage",
+            "mage",
+            "minimax",
+            "yue2",
+            "flux3",
+            "moss_image",
+            "fibo2"
+          ]
+        ]
+      },
+      "optional": {
+        "device": [
+          [
+            "default",
+            "cpu"
+          ],
+          {
+            "advanced": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "clip_name",
+        "type"
+      ],
+      "optional": [
+        "device"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "CLIP"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "CLIP"
+    ],
+    "name": "CLIPLoader",
+    "display_name": "Load CLIP",
+    "description": "Recipes:\nsd: clip-l\nstable cascade: clip-g\nsd3: t5 xxl / clip-g / clip-l\nstable audio: t5 base\nmochi: t5 xxl\ncogvideox: t5 xxl (226-token padding)\ncosmos: old t5 xxl\nlumina2: gemma 2 2B\nwan: umt5 xxl\nhidream: llama-3.1 (Recommend) or t5\nomnigen2: qwen vl 2.5 3B\njoyimage: qwen3-vl 8B\nlens: gpt-oss-20b\npixeldit: gemma 2 2B elm\nminimax: MiniMax H3 Qwen3-VL or Music3 Qwen/RVQ\nflux3: qwen3-vl 4B\nfibo2: qwen3-vl 4B",
+    "python_module": "nodes",
+    "category": "model/loaders",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": []
+  },
+  "CLIPTextEncode": {
+    "input": {
+      "required": {
+        "text": [
+          "STRING",
+          {
+            "multiline": true,
+            "dynamicPrompts": true,
+            "tooltip": "The text to be encoded."
+          }
+        ],
+        "clip": [
+          "CLIP",
+          {
+            "tooltip": "The CLIP model used for encoding the text."
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "text",
+        "clip"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "CONDITIONING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "CONDITIONING"
+    ],
+    "name": "CLIPTextEncode",
+    "display_name": "CLIP Text Encode (Prompt)",
+    "description": "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images.",
+    "python_module": "nodes",
+    "category": "model/conditioning",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "output_tooltips": [
+      "A conditioning containing the embedded text used to guide the diffusion model."
+    ],
+    "search_aliases": [
+      "text",
+      "prompt",
+      "text prompt",
+      "positive prompt",
+      "negative prompt",
+      "encode text",
+      "text encoder",
+      "encode prompt"
+    ]
+  },
+  "ComfyMathExpression": {
+    "input": {
+      "required": {
+        "expression": [
+          "STRING",
+          {
+            "default": "a + b",
+            "multiline": true
+          }
+        ],
+        "values": [
+          "COMFY_AUTOGROW_V3",
+          {
+            "template": {
+              "input": {
+                "required": {
+                  "value": [
+                    "FLOAT,INT,BOOLEAN",
+                    {}
+                  ]
+                }
+              },
+              "names": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e",
+                "f",
+                "g",
+                "h",
+                "i",
+                "j",
+                "k",
+                "l",
+                "m",
+                "n",
+                "o",
+                "p",
+                "q",
+                "r",
+                "s",
+                "t",
+                "u",
+                "v",
+                "w",
+                "x",
+                "y",
+                "z"
+              ],
+              "min": 1
+            }
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "expression",
+        "values"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "FLOAT",
+      "INT",
+      "BOOLEAN"
+    ],
+    "output_is_list": [
+      false,
+      false,
+      false
+    ],
+    "output_name": [
+      "FLOAT",
+      "INT",
+      "BOOL"
+    ],
+    "output_tooltips": [
+      null,
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "ComfyMathExpression",
+    "display_name": "Math Expression",
+    "description": "",
+    "python_module": "comfy_extras.nodes_math",
+    "category": "utilities",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "math",
+      "expression",
+      "formula",
+      "calculate",
+      "calculator",
+      "eval"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "ComfySwitchNode": {
+    "input": {
+      "required": {
+        "switch": [
+          "BOOLEAN",
+          {}
+        ]
+      },
+      "optional": {
+        "on_false": [
+          "COMFY_MATCHTYPE_V3",
+          {
+            "lazy": true,
+            "template": {
+              "template_id": "switch",
+              "allowed_types": "*"
+            }
+          }
+        ],
+        "on_true": [
+          "COMFY_MATCHTYPE_V3",
+          {
+            "lazy": true,
+            "template": {
+              "template_id": "switch",
+              "allowed_types": "*"
+            }
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "switch"
+      ],
+      "optional": [
+        "on_false",
+        "on_true"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "COMFY_MATCHTYPE_V3"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "output"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": [
+      "switch"
+    ],
+    "name": "ComfySwitchNode",
+    "display_name": "If/Else Switch",
+    "description": "",
+    "python_module": "comfy_extras.nodes_logic",
+    "category": "utilities/logic",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "if",
+      "then",
+      "switch",
+      "conditional",
+      "branch"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "CreateBoundingBoxes": {
+    "input": {
+      "required": {
+        "width": [
+          "INT",
+          {
+            "tooltip": "Width of the canvas and the pixel grid for the bounding boxes.",
+            "default": 1024,
+            "min": 64,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "height": [
+          "INT",
+          {
+            "tooltip": "Height of the canvas and the pixel grid for the bounding boxes.",
+            "default": 1024,
+            "min": 64,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "editor_state": [
+          "BOUNDING_BOXES",
+          {
+            "tooltip": "Draw bounding boxes and set each box type, text, description, color palette. Start with background element first and foreground last.",
+            "default": [],
+            "socketless": false
+          }
+        ]
+      },
+      "optional": {
+        "background": [
+          "IMAGE",
+          {
+            "tooltip": "Optional image used as background in the canvas and preview."
+          }
+        ],
+        "bboxes": [
+          "BOUNDING_BOX,ARRAY,STRING",
+          {
+            "tooltip": "Bounding boxes, elements, or a JSON string to initialize the canvas. A new upstream value initializes the canvas; edits made on the canvas take priority and are kept until the upstream value changes again."
+          }
+        ],
+        "last_incoming": [
+          "BOUNDING_BOXES",
+          {
+            "tooltip": "Internal state managed by the canvas: the upstream bboxes value that last initialized it. Leave empty to re-initialize the canvas from the bboxes input on the next run.",
+            "default": [],
+            "socketless": true
+          }
+        ]
+      },
+      "hidden": {
+        "prompt": [
+          "PROMPT"
+        ],
+        "extra_pnginfo": [
+          "EXTRA_PNGINFO"
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "width",
+        "height",
+        "editor_state"
+      ],
+      "optional": [
+        "background",
+        "bboxes",
+        "last_incoming"
+      ],
+      "hidden": [
+        "prompt",
+        "extra_pnginfo"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE",
+      "BOUNDING_BOX",
+      "ARRAY"
+    ],
+    "output_is_list": [
+      false,
+      false,
+      false
+    ],
+    "output_name": [
+      "preview",
+      "bboxes",
+      "elements"
+    ],
+    "output_tooltips": [
+      null,
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "CreateBoundingBoxes",
+    "display_name": "Create Bounding Boxes",
+    "description": "Draw bounding boxes in a canvas. Outputs Ideogram prompt elements, pixel-space bounding boxes, and a preview image.",
+    "python_module": "comfy_extras.nodes_bounding_boxes",
+    "category": "utilities",
+    "output_node": true,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "DepthAnythingV2Preprocessor": {
+    "input": {
+      "required": {
+        "image": [
+          "IMAGE"
+        ]
+      },
+      "optional": {
+        "ckpt_name": [
+          [
+            "depth_anything_v2_vitg.pth",
+            "depth_anything_v2_vitl.pth",
+            "depth_anything_v2_vitb.pth",
+            "depth_anything_v2_vits.pth"
+          ],
+          {
+            "default": "depth_anything_v2_vitl.pth"
+          }
+        ],
+        "resolution": [
+          "INT",
+          {
+            "default": 512,
+            "min": 64,
+            "max": 16384,
+            "step": 64
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "image"
+      ],
+      "optional": [
+        "ckpt_name",
+        "resolution"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "IMAGE"
+    ],
+    "name": "DepthAnythingV2Preprocessor",
+    "display_name": "Depth Anything V2 - Relative",
+    "description": "",
+    "python_module": "custom_nodes.comfyui_controlnet_aux",
+    "category": "ControlNet Preprocessors/Normal and Depth Estimators",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": []
+  },
+  "EmptyFlux2LatentImage": {
+    "input": {
+      "required": {
+        "width": [
+          "INT",
+          {
+            "default": 1024,
+            "min": 16,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "height": [
+          "INT",
+          {
+            "default": 1024,
+            "min": 16,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "batch_size": [
+          "INT",
+          {
+            "default": 1,
+            "min": 1,
+            "max": 4096
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "width",
+        "height",
+        "batch_size"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "LATENT"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "LATENT"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "EmptyFlux2LatentImage",
+    "display_name": "Empty Flux 2 Latent",
+    "description": "",
+    "python_module": "comfy_extras.nodes_flux",
+    "category": "model/latent/flux",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "GetImageSize": {
+    "input": {
+      "required": {
+        "image": [
+          "IMAGE",
+          {}
+        ]
+      },
+      "hidden": {
+        "unique_id": [
+          "UNIQUE_ID"
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "image"
+      ],
+      "hidden": [
+        "unique_id"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "INT",
+      "INT",
+      "INT"
+    ],
+    "output_is_list": [
+      false,
+      false,
+      false
+    ],
+    "output_name": [
+      "width",
+      "height",
+      "batch_size"
+    ],
+    "output_tooltips": [
+      null,
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "GetImageSize",
+    "display_name": "Get Image Size",
+    "description": "Returns the width, height, and batch size of the image.",
+    "python_module": "comfy_extras.nodes_images",
+    "category": "image",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "dimensions",
+      "resolution",
+      "image info"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "Ideogram4PromptBuilderKJ": {
+    "input": {
+      "required": {
+        "width": [
+          "INT",
+          {
+            "tooltip": "Canvas aspect width (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16.",
+            "default": 1024,
+            "min": 64,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "height": [
+          "INT",
+          {
+            "tooltip": "Canvas aspect height (also the pixel grid the bbox is measured in). Ideogram 4 needs multiples of 16.",
+            "default": 1024,
+            "min": 64,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "high_level_description": [
+          "STRING",
+          {
+            "tooltip": "Optional one-line overview of the whole image (blank = omitted).",
+            "default": "",
+            "multiline": true
+          }
+        ],
+        "background": [
+          "STRING",
+          {
+            "tooltip": "Required scene background description.",
+            "default": "",
+            "multiline": true
+          }
+        ],
+        "style": [
+          "COMFY_DYNAMICCOMBO_V3",
+          {
+            "options": [
+              {
+                "key": "none",
+                "inputs": {
+                  "required": {}
+                }
+              },
+              {
+                "key": "photo",
+                "inputs": {
+                  "required": {
+                    "photo": [
+                      "STRING",
+                      {
+                        "default": "",
+                        "multiline": false
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "art_style",
+                "inputs": {
+                  "required": {
+                    "art_style": [
+                      "STRING",
+                      {
+                        "default": "",
+                        "multiline": false
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "aesthetics": [
+          "STRING",
+          {
+            "tooltip": "Style descriptor (blank = omitted).",
+            "default": "",
+            "multiline": false
+          }
+        ],
+        "lighting": [
+          "STRING",
+          {
+            "tooltip": "Style descriptor (blank = omitted).",
+            "default": "",
+            "multiline": false
+          }
+        ],
+        "medium": [
+          "STRING",
+          {
+            "tooltip": "Style descriptor (blank = omitted).",
+            "default": "",
+            "multiline": false
+          }
+        ],
+        "style_palette_data": [
+          "STRING",
+          {
+            "tooltip": "Serialized style color palette from the editor (managed by the node UI).",
+            "advanced": true,
+            "default": "",
+            "socketless": true,
+            "multiline": false
+          }
+        ],
+        "elements_data": [
+          "STRING",
+          {
+            "tooltip": "Serialized regions from the editor (managed by the node UI).",
+            "advanced": true,
+            "default": "",
+            "socketless": true,
+            "multiline": false
+          }
+        ],
+        "bg_brightness": [
+          "INT",
+          {
+            "tooltip": "Background image brightness % (managed by the node UI slider).",
+            "advanced": true,
+            "default": 25,
+            "socketless": true,
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "import_mode": [
+          "COMBO",
+          {
+            "tooltip": "How a wired import_json is used: 'when empty' only seeds the editor while it has no regions (then the editor wins, so you can edit); 'always' makes the wired JSON authoritative so its changes always propagate to the output.",
+            "default": "when empty",
+            "multiselect": false,
+            "options": [
+              "when empty",
+              "always"
+            ]
+          }
+        ],
+        "output_format": [
+          "STRING",
+          {
+            "tooltip": "Output JSON formatting (set via the editor toolbar): 'compact' (default, what Ideogram 4 expects) or 'pretty' (indented, for readability).",
+            "advanced": true,
+            "default": "compact",
+            "socketless": true,
+            "multiline": false
+          }
+        ],
+        "coord_mode": [
+          "STRING",
+          {
+            "tooltip": "bbox coordinate space (set via the editor toolbar): 'normalized' (default, the 0-1000 grid Ideogram 4 expects) or 'absolute' (pixels, scaled by width/height \u2014 NON-STANDARD for Ideogram, for other tools that want pixel coords).",
+            "advanced": true,
+            "default": "normalized",
+            "socketless": true,
+            "multiline": false
+          }
+        ],
+        "bbox_order": [
+          "STRING",
+          {
+            "tooltip": "bbox axis order (set via the editor toolbar): 'yx' (default, Ideogram's [ymin,xmin,ymax,xmax]) or 'xy' ([xmin,ymin,xmax,ymax], the standard x1,y1,x2,y2 that Qwen-VL and most detectors use).",
+            "advanced": true,
+            "default": "yx",
+            "socketless": true,
+            "multiline": false
+          }
+        ]
+      },
+      "optional": {
+        "image": [
+          "IMAGE",
+          {
+            "tooltip": "Optional reference image shown as the editor background (and behind the preview)."
+          }
+        ],
+        "import_json": [
+          "STRING",
+          {
+            "tooltip": "Optional: a full caption JSON. When connected, it loads into the editor and drives the output per 'import_mode'.",
+            "default": "",
+            "forceInput": true,
+            "multiline": false
+          }
+        ],
+        "bboxes": [
+          "BOUNDING_BOX",
+          {
+            "tooltip": "Optional pixel-space boxes ({x, y, width, height}) used to seed the editor's regions when it has none. Ignored once regions exist.",
+            "default": {
+              "x": 0,
+              "y": 0,
+              "width": 512,
+              "height": 512
+            },
+            "socketless": true,
+            "forceInput": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "width",
+        "height",
+        "high_level_description",
+        "background",
+        "style",
+        "aesthetics",
+        "lighting",
+        "medium",
+        "style_palette_data",
+        "elements_data",
+        "bg_brightness",
+        "import_mode",
+        "output_format",
+        "coord_mode",
+        "bbox_order"
+      ],
+      "optional": [
+        "image",
+        "import_json",
+        "bboxes"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING",
+      "IMAGE",
+      "BOUNDING_BOX",
+      "INT",
+      "INT"
+    ],
+    "output_is_list": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "output_name": [
+      "prompt",
+      "preview",
+      "bboxes",
+      "width",
+      "height"
+    ],
+    "output_tooltips": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "Ideogram4PromptBuilderKJ",
+    "display_name": "Ideogram 4 Prompt Builder KJ",
+    "description": "\nVisual prompt builder for Ideogram 4's structured JSON caption format.\n\nDrag on the canvas to draw regions; select a region to set its type (obj/text),  \ndescription, text, and color palette. Set the background and optional style fields  \nas widgets. Outputs the assembled caption JSON string.  \n\nbbox is normalized to a 0-1000 grid as [ymin, xmin, ymax, xmax]; width/height set\nthe canvas aspect ratio.\n\nCanvas controls:\n- Drag: draw a new region\n- Ctrl/Cmd-drag: force-draw a new region even on top of an existing one\n- Click: select a region \u00b7 Alt-click: cycle overlapping regions\n- Double-click: edit the description inline\n- Right-click: region list (select / delete / duplicate / reorder, top = front)\n- Del / Backspace: remove the selected region\n- Ctrl/Cmd + C / V / D: copy / paste / duplicate the selected region\n- bbox fields (px / out) next to obj/text are editable\n\nColor swatches:\n- Click: edit \u00b7 Drag: reorder \u00b7 Right-click: remove\n- Hover + Ctrl/Cmd + C / V: copy / paste the hex\n- \"+\": add a color (uses the clipboard color if it is one)\n\nToolbar:\n- Live: use the live sampling preview as the background (and grab the final result)\n- Grab BG / Clear BG: use the last generated image as the background\n- brightness slider, token estimate, and Copy / Paste / Clear all",
+    "python_module": "custom_nodes.ComfyUI-KJNodes",
+    "category": "KJNodes/text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "ideogram",
+      "caption",
+      "bbox",
+      "prompt builder",
+      "json prompt"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "Image Comparer (rgthree)": {
+    "input": {
+      "required": {},
+      "optional": {
+        "image_a": [
+          "IMAGE"
+        ],
+        "image_b": [
+          "IMAGE"
+        ]
+      },
+      "hidden": {
+        "prompt": "PROMPT",
+        "extra_pnginfo": "EXTRA_PNGINFO"
+      }
+    },
+    "input_order": {
+      "required": [],
+      "optional": [
+        "image_a",
+        "image_b"
+      ],
+      "hidden": [
+        "prompt",
+        "extra_pnginfo"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "images"
+    ],
+    "name": "Image Comparer (rgthree)",
+    "display_name": "Image Comparer (rgthree)",
+    "description": "Compares two images with a hover slider, or click from properties.",
+    "python_module": "custom_nodes.rgthree-comfy",
+    "category": "rgthree",
+    "output_node": true,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "preview",
+      "preview image",
+      "show image",
+      "view image",
+      "display image",
+      "image viewer"
+    ],
+    "essentials_category": "Basics"
+  },
+  "ImageScale": {
+    "input": {
+      "required": {
+        "image": [
+          "IMAGE"
+        ],
+        "upscale_method": [
+          [
+            "nearest-exact",
+            "bilinear",
+            "area",
+            "bicubic",
+            "lanczos"
+          ]
+        ],
+        "width": [
+          "INT",
+          {
+            "default": 512,
+            "min": 0,
+            "max": 16384,
+            "step": 1
+          }
+        ],
+        "height": [
+          "INT",
+          {
+            "default": 512,
+            "min": 0,
+            "max": 16384,
+            "step": 1
+          }
+        ],
+        "crop": [
+          [
+            "disabled",
+            "center"
+          ]
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "image",
+        "upscale_method",
+        "width",
+        "height",
+        "crop"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "IMAGE"
+    ],
+    "name": "ImageScale",
+    "display_name": "Upscale Image",
+    "description": "",
+    "python_module": "nodes",
+    "category": "image/upscaling",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "resize",
+      "resize image",
+      "scale image",
+      "image resize",
+      "zoom",
+      "zoom in",
+      "change size"
+    ],
+    "essentials_category": "Image Tools"
+  },
+  "ImageSharpen": {
+    "input": {
+      "required": {
+        "image": [
+          "IMAGE",
+          {}
+        ],
+        "sharpen_radius": [
+          "INT",
+          {
+            "advanced": true,
+            "default": 1,
+            "min": 1,
+            "max": 31,
+            "step": 1
+          }
+        ],
+        "sigma": [
+          "FLOAT",
+          {
+            "advanced": true,
+            "default": 1.0,
+            "min": 0.1,
+            "max": 10.0,
+            "step": 0.01
+          }
+        ],
+        "alpha": [
+          "FLOAT",
+          {
+            "advanced": true,
+            "default": 1.0,
+            "min": 0.0,
+            "max": 5.0,
+            "step": 0.01
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "image",
+        "sharpen_radius",
+        "sigma",
+        "alpha"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "IMAGE"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "ImageSharpen",
+    "display_name": "Sharpen Image",
+    "description": "",
+    "python_module": "comfy_extras.nodes_post_processing",
+    "category": "image/filters",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "JsonExtractString": {
+    "input": {
+      "required": {
+        "json_string": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "key": [
+          "STRING",
+          {
+            "multiline": false
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "json_string",
+        "key"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "JsonExtractString",
+    "display_name": "Extract Text from JSON",
+    "description": "Extract a key's value from the first valid JSON object in the text, including Markdown code blocks.",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "json",
+      "extract json",
+      "parse json",
+      "json value",
+      "read json"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "KSampler": {
+    "input": {
+      "required": {
+        "model": [
+          "MODEL",
+          {
+            "tooltip": "The model used for denoising the input latent."
+          }
+        ],
+        "seed": [
+          "INT",
+          {
+            "default": 0,
+            "min": 0,
+            "max": 18446744073709551615,
+            "control_after_generate": true,
+            "tooltip": "The random seed used for creating the noise."
+          }
+        ],
+        "steps": [
+          "INT",
+          {
+            "default": 20,
+            "min": 1,
+            "max": 10000,
+            "tooltip": "The number of steps used in the denoising process."
+          }
+        ],
+        "cfg": [
+          "FLOAT",
+          {
+            "default": 8.0,
+            "min": 0.0,
+            "max": 100.0,
+            "step": 0.1,
+            "round": 0.01,
+            "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."
+          }
+        ],
+        "sampler_name": [
+          [
+            "euler",
+            "euler_cfg_pp",
+            "euler_ancestral",
+            "euler_ancestral_cfg_pp",
+            "heun",
+            "heunpp2",
+            "exp_heun_2_x0",
+            "exp_heun_2_x0_sde",
+            "dpm_2",
+            "dpm_2_ancestral",
+            "lms",
+            "dpm_fast",
+            "dpm_adaptive",
+            "dpmpp_2s_ancestral",
+            "dpmpp_2s_ancestral_cfg_pp",
+            "dpmpp_sde",
+            "dpmpp_sde_gpu",
+            "dpmpp_2m",
+            "dpmpp_2m_cfg_pp",
+            "dpmpp_2m_sde",
+            "dpmpp_2m_sde_gpu",
+            "dpmpp_2m_sde_heun",
+            "dpmpp_2m_sde_heun_gpu",
+            "dpmpp_3m_sde",
+            "dpmpp_3m_sde_gpu",
+            "ddpm",
+            "lcm",
+            "ipndm",
+            "ipndm_v",
+            "deis",
+            "cfgpp_ud10_ab",
+            "res_multistep",
+            "res_multistep_cfg_pp",
+            "res_multistep_ancestral",
+            "res_multistep_ancestral_cfg_pp",
+            "gradient_estimation",
+            "gradient_estimation_cfg_pp",
+            "er_sde",
+            "seeds_2",
+            "seeds_3",
+            "sa_solver",
+            "sa_solver_pece",
+            "ddim",
+            "uni_pc",
+            "uni_pc_bh2",
+            "legacy_rk",
+            "rk",
+            "rk_beta",
+            "deis_3m_ode",
+            "deis_2m_ode",
+            "deis_3m",
+            "deis_2m",
+            "res_6s_ode",
+            "res_5s_ode",
+            "res_3s_ode",
+            "res_2s_ode",
+            "res_3m_ode",
+            "res_2m_ode",
+            "res_6s",
+            "res_5s",
+            "res_3s",
+            "res_2s",
+            "res_3m",
+            "res_2m"
+          ],
+          {
+            "tooltip": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output."
+          }
+        ],
+        "scheduler": [
+          [
+            "simple",
+            "sgm_uniform",
+            "karras",
+            "exponential",
+            "ddim_uniform",
+            "beta",
+            "normal",
+            "linear_quadratic",
+            "kl_optimal",
+            "bong_tangent",
+            "beta57"
+          ],
+          {
+            "tooltip": "The scheduler controls how noise is gradually removed to form the image."
+          }
+        ],
+        "positive": [
+          "CONDITIONING",
+          {
+            "tooltip": "The conditioning describing the attributes you want to include in the image."
+          }
+        ],
+        "negative": [
+          "CONDITIONING",
+          {
+            "tooltip": "The conditioning describing the attributes you want to exclude from the image."
+          }
+        ],
+        "latent_image": [
+          "LATENT",
+          {
+            "tooltip": "The latent image to denoise."
+          }
+        ],
+        "denoise": [
+          "FLOAT",
+          {
+            "default": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.01,
+            "tooltip": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling."
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "model",
+        "seed",
+        "steps",
+        "cfg",
+        "sampler_name",
+        "scheduler",
+        "positive",
+        "negative",
+        "latent_image",
+        "denoise"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "LATENT"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "LATENT"
+    ],
+    "name": "KSampler",
+    "display_name": "KSampler",
+    "description": "Uses the provided model, positive and negative conditioning to denoise the latent image.",
+    "python_module": "nodes",
+    "category": "model/sampling",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "output_tooltips": [
+      "The denoised latent."
+    ],
+    "search_aliases": [
+      "sampler",
+      "sample",
+      "generate",
+      "denoise",
+      "diffuse",
+      "txt2img",
+      "img2img"
+    ]
+  },
+  "LoadImage": {
+    "input": {
+      "required": {
+        "image": [
+          [
+            "example.png",
+            "transparent_rgb_gaming_mouse.png"
+          ],
+          {
+            "image_upload": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "image"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE",
+      "MASK"
+    ],
+    "output_is_list": [
+      false,
+      false
+    ],
+    "output_name": [
+      "IMAGE",
+      "MASK"
+    ],
+    "name": "LoadImage",
+    "display_name": "Load Image",
+    "description": "",
+    "python_module": "nodes",
+    "category": "image",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "load image",
+      "open image",
+      "import image",
+      "image input",
+      "upload image",
+      "read image",
+      "image loader"
+    ],
+    "essentials_category": "Basics"
+  },
+  "MOSSImageControl": {
+    "input": {
+      "required": {
+        "positive": [
+          "CONDITIONING",
+          {}
+        ],
+        "negative": [
+          "CONDITIONING",
+          {}
+        ],
+        "vae": [
+          "VAE",
+          {}
+        ],
+        "strength": [
+          "FLOAT",
+          {
+            "tooltip": "Scales the maps' contribution to the image tokens. 0.0 is the same as no maps, 1.0 is the trained strength.",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 10.0,
+            "step": 0.01
+          }
+        ],
+        "start_percent": [
+          "FLOAT",
+          {
+            "tooltip": "Sampling percent at which the control starts.",
+            "default": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.001
+          }
+        ],
+        "end_percent": [
+          "FLOAT",
+          {
+            "tooltip": "Sampling percent at which the control ends. Ending early keeps the layout and depth while the rest of the steps loosen the shapes.",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.001
+          }
+        ]
+      },
+      "optional": {
+        "color_map": [
+          "IMAGE",
+          {
+            "tooltip": "One flat color per region, at the output size. The colors are only region IDs."
+          }
+        ],
+        "depth_map": [
+          "IMAGE",
+          {
+            "tooltip": "Depth map at the output size, near is white."
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "positive",
+        "negative",
+        "vae",
+        "strength",
+        "start_percent",
+        "end_percent"
+      ],
+      "optional": [
+        "color_map",
+        "depth_map"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "CONDITIONING",
+      "CONDITIONING"
+    ],
+    "output_is_list": [
+      false,
+      false
+    ],
+    "output_name": [
+      "positive",
+      "negative"
+    ],
+    "output_tooltips": [
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "MOSSImageControl",
+    "display_name": "MOSS-Image Color/Depth Control",
+    "description": "Adds the color region and depth maps for a MOSS-Image color/depth control adapter loaded with a LoRA loader.",
+    "python_module": "comfy_extras.nodes_moss_image",
+    "category": "model/conditioning/moss_image",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "MOSSImageLayoutPrompt": {
+    "input": {
+      "required": {
+        "prompt": [
+          "STRING",
+          {
+            "tooltip": "Description of the whole image.",
+            "multiline": true,
+            "dynamicPrompts": true
+          }
+        ],
+        "element": [
+          "ARRAY",
+          {
+            "tooltip": "Prompt elements from the node Create Bounding Boxes. The description is the box's caption, text boxes also render their text."
+          }
+        ],
+        "width": [
+          "INT",
+          {
+            "tooltip": "Width of the generated image; the boxes are placed in its pixels.",
+            "default": 1024,
+            "min": 16,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "height": [
+          "INT",
+          {
+            "tooltip": "Height of the generated image; the boxes are placed in its pixels.",
+            "default": 1024,
+            "min": 16,
+            "max": 16384,
+            "step": 16
+          }
+        ],
+        "character_boxes": [
+          "STRING",
+          {
+            "tooltip": "Numbers of the object boxes to label as characters instead of objects, as tagged in the Create Bounding Boxes preview, e.g. \"1, 3\".",
+            "default": "",
+            "multiline": false
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "prompt",
+        "element",
+        "width",
+        "height",
+        "character_boxes"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "prompt"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "MOSSImageLayoutPrompt",
+    "display_name": "MOSS-Image Layout Prompt",
+    "description": "Builds a MOSS-Image layout prompt from the prompt and the boxes from Create Bounding Boxes.",
+    "python_module": "comfy_extras.nodes_moss_image",
+    "category": "model/conditioning/moss_image",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "ModelAttentionBackend": {
+    "input": {
+      "required": {
+        "model": [
+          "MODEL",
+          {
+            "tooltip": "The model to patch."
+          }
+        ],
+        "attention": [
+          "COMBO",
+          {
+            "display_name": "backend",
+            "tooltip": "The dense attention backend. Comfy Kitchen attention uses quantized INT8 attention and is available only on Nvidia and AMD GPUs.",
+            "default": "pytorch attention",
+            "multiselect": false,
+            "options": [
+              "pytorch attention",
+              "comfy kitchen attention"
+            ]
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "model",
+        "attention"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "MODEL"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "model"
+    ],
+    "output_tooltips": [
+      "The model with the selected attention backend."
+    ],
+    "output_matchtypes": null,
+    "name": "ModelAttentionBackend",
+    "display_name": "Model Attention Backend",
+    "description": "Selects the dense attention implementation for the model. When used with Block Sparse Attention, this backend is used whenever sparse attention is inactive or unsupported.",
+    "python_module": "comfy_extras.nodes_model_advanced",
+    "category": "model/patch",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "comfy kitchen",
+      "attention",
+      "pytorch",
+      "kitchen attention"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "Power Lora Loader (rgthree)": {
+    "input": {
+      "required": {},
+      "optional": {
+        "model": [
+          "MODEL"
+        ],
+        "clip": [
+          "CLIP"
+        ]
+      },
+      "hidden": {}
+    },
+    "input_order": {
+      "required": [],
+      "optional": [
+        "model",
+        "clip"
+      ],
+      "hidden": []
+    },
+    "is_input_list": false,
+    "output": [
+      "MODEL",
+      "CLIP"
+    ],
+    "output_is_list": [
+      false,
+      false
+    ],
+    "output_name": [
+      "MODEL",
+      "CLIP"
+    ],
+    "name": "Power Lora Loader (rgthree)",
+    "display_name": "Power Lora Loader (rgthree)",
+    "description": "",
+    "python_module": "custom_nodes.rgthree-comfy",
+    "category": "rgthree",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": []
+  },
+  "PreviewAny": {
+    "input": {
+      "required": {
+        "source": [
+          "*",
+          {}
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "source"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "name": "PreviewAny",
+    "display_name": "Preview as Text",
+    "description": "Preview any input value as text.",
+    "python_module": "comfy_extras.nodes_preview_any",
+    "category": "utilities",
+    "output_node": true,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "preview",
+      "preview text",
+      "show output",
+      "inspect",
+      "debug",
+      "print value",
+      "show text"
+    ]
+  },
+  "PreviewImage": {
+    "input": {
+      "required": {
+        "images": [
+          "IMAGE"
+        ]
+      },
+      "hidden": {
+        "prompt": "PROMPT",
+        "extra_pnginfo": "EXTRA_PNGINFO"
+      }
+    },
+    "input_order": {
+      "required": [
+        "images"
+      ],
+      "hidden": [
+        "prompt",
+        "extra_pnginfo"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "images"
+    ],
+    "name": "PreviewImage",
+    "display_name": "Preview Image",
+    "description": "Preview the images without saving them to the ComfyUI output directory.",
+    "python_module": "nodes",
+    "category": "image",
+    "output_node": true,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "preview",
+      "preview image",
+      "show image",
+      "view image",
+      "display image",
+      "image viewer"
+    ],
+    "essentials_category": "Basics"
+  },
+  "PrimitiveBoolean": {
+    "input": {
+      "required": {
+        "value": [
+          "BOOLEAN",
+          {}
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "value"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "BOOLEAN"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "BOOLEAN"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "PrimitiveBoolean",
+    "display_name": "Boolean",
+    "description": "",
+    "python_module": "comfy_extras.nodes_primitive",
+    "category": "utilities/primitive",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "PrimitiveInt": {
+    "input": {
+      "required": {
+        "value": [
+          "INT",
+          {
+            "min": -9223372036854775807,
+            "max": 9223372036854775807,
+            "control_after_generate": "fixed"
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "value"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "INT"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "INT"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "PrimitiveInt",
+    "display_name": "Int",
+    "description": "",
+    "python_module": "comfy_extras.nodes_primitive",
+    "category": "utilities/primitive",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "PrimitiveStringMultiline": {
+    "input": {
+      "required": {
+        "value": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "value"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "PrimitiveStringMultiline",
+    "display_name": "Text (Multiline)",
+    "description": "",
+    "python_module": "comfy_extras.nodes_primitive",
+    "category": "utilities/primitive",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "text",
+      "string",
+      "text box",
+      "prompt"
+    ],
+    "essentials_category": "Basics",
+    "has_intermediate_output": false
+  },
+  "RegexExtract": {
+    "input": {
+      "required": {
+        "string": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "regex_pattern": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "mode": [
+          "COMBO",
+          {
+            "multiselect": false,
+            "options": [
+              "First Match",
+              "All Matches",
+              "First Group",
+              "All Groups"
+            ]
+          }
+        ],
+        "case_insensitive": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": true
+          }
+        ],
+        "multiline": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": false
+          }
+        ],
+        "dotall": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": false
+          }
+        ],
+        "group_index": [
+          "INT",
+          {
+            "advanced": true,
+            "default": 1,
+            "min": 0,
+            "max": 100
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "string",
+        "regex_pattern",
+        "mode",
+        "case_insensitive",
+        "multiline",
+        "dotall",
+        "group_index"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "RegexExtract",
+    "display_name": "Extract Text",
+    "description": "",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "regex extract",
+      "regex",
+      "pattern extract",
+      "text parser",
+      "parse text"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "RegexMatch": {
+    "input": {
+      "required": {
+        "string": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "regex_pattern": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "case_insensitive": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": true
+          }
+        ],
+        "multiline": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": false
+          }
+        ],
+        "dotall": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": false
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "string",
+        "regex_pattern",
+        "case_insensitive",
+        "multiline",
+        "dotall"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "BOOLEAN"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "matches"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "RegexMatch",
+    "display_name": "Match Text",
+    "description": "",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "regex match",
+      "regex",
+      "pattern match",
+      "text contains",
+      "string match"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "RegexReplace": {
+    "input": {
+      "required": {
+        "string": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "regex_pattern": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "replace": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ]
+      },
+      "optional": {
+        "case_insensitive": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": true
+          }
+        ],
+        "multiline": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": false
+          }
+        ],
+        "dotall": [
+          "BOOLEAN",
+          {
+            "tooltip": "When enabled, the dot (.) character will match any character including newline characters. When disabled, dots won't match newlines.",
+            "advanced": true,
+            "default": false
+          }
+        ],
+        "count": [
+          "INT",
+          {
+            "tooltip": "Maximum number of replacements to make. Set to 0 to replace all occurrences (default). Set to 1 to replace only the first match, 2 for the first two matches, etc.",
+            "advanced": true,
+            "default": 0,
+            "min": 0,
+            "max": 100
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "string",
+        "regex_pattern",
+        "replace"
+      ],
+      "optional": [
+        "case_insensitive",
+        "multiline",
+        "dotall",
+        "count"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "RegexReplace",
+    "display_name": "Replace Text (Regex)",
+    "description": "Find and replace text using regex patterns.",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "regex replace",
+      "regex",
+      "pattern replace",
+      "substitution"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "ResolutionSelector": {
+    "input": {
+      "required": {
+        "aspect_ratio": [
+          "COMBO",
+          {
+            "tooltip": "The aspect ratio for the output dimensions.",
+            "default": "1:1 (Square)",
+            "multiselect": false,
+            "options": [
+              "1:1 (Square)",
+              "2:3 (Portrait Photo)",
+              "3:2 (Photo)",
+              "3:4 (Portrait Standard)",
+              "4:3 (Standard)",
+              "9:16 (Portrait Widescreen)",
+              "16:9 (Widescreen)",
+              "21:9 (Ultrawide)"
+            ]
+          }
+        ],
+        "megapixels": [
+          "FLOAT",
+          {
+            "tooltip": "Target total megapixels. 1.0 MP \u2248 1024x1024 for square.",
+            "default": 1.0,
+            "min": 0.1,
+            "max": 16.0,
+            "step": 0.1
+          }
+        ],
+        "multiple": [
+          "INT",
+          {
+            "tooltip": "Nearest multiple of the result to set the selected resolution to.",
+            "advanced": true,
+            "default": 8,
+            "min": 8,
+            "max": 128,
+            "step": 4
+          }
+        ]
+      },
+      "optional": {
+        "preview": [
+          "RESOLUTION_PREVIEW",
+          {
+            "tooltip": "Live preview of the calculated output resolution.",
+            "socketless": true,
+            "ratio_widget": "aspect_ratio",
+            "megapixels_widget": "megapixels",
+            "multiple_widget": "multiple"
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "aspect_ratio",
+        "megapixels",
+        "multiple"
+      ],
+      "optional": [
+        "preview"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "INT",
+      "INT"
+    ],
+    "output_is_list": [
+      false,
+      false
+    ],
+    "output_name": [
+      "width",
+      "height"
+    ],
+    "output_tooltips": [
+      "Calculated width in pixels multiplied by the selected multiple.",
+      "Calculated height in pixels multiplied by the selected multiple."
+    ],
+    "output_matchtypes": null,
+    "name": "ResolutionSelector",
+    "display_name": "Resolution Selector",
+    "description": "Calculate width and height from aspect ratio and megapixel target. Useful for setting up Empty Latent Image dimensions.",
+    "python_module": "comfy_extras.nodes_resolution",
+    "category": "utilities",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "SaveImage": {
+    "input": {
+      "required": {
+        "images": [
+          "IMAGE",
+          {
+            "tooltip": "The images to save."
+          }
+        ],
+        "filename_prefix": [
+          "STRING",
+          {
+            "default": "ComfyUI",
+            "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."
+          }
+        ]
+      },
+      "hidden": {
+        "prompt": "PROMPT",
+        "extra_pnginfo": "EXTRA_PNGINFO"
+      }
+    },
+    "input_order": {
+      "required": [
+        "images",
+        "filename_prefix"
+      ],
+      "hidden": [
+        "prompt",
+        "extra_pnginfo"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "images"
+    ],
+    "name": "SaveImage",
+    "display_name": "Save Image",
+    "description": "Saves the input images to your ComfyUI output directory.",
+    "python_module": "nodes",
+    "category": "image",
+    "output_node": true,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "save",
+      "save image",
+      "export image",
+      "output image",
+      "write image",
+      "download"
+    ],
+    "essentials_category": "Basics"
+  },
+  "SkipLayerGuidanceDiTSimple": {
+    "input": {
+      "required": {
+        "model": [
+          "MODEL",
+          {}
+        ],
+        "double_layers": [
+          "STRING",
+          {
+            "advanced": true,
+            "default": "7, 8, 9",
+            "multiline": false
+          }
+        ],
+        "single_layers": [
+          "STRING",
+          {
+            "advanced": true,
+            "default": "7, 8, 9",
+            "multiline": false
+          }
+        ],
+        "start_percent": [
+          "FLOAT",
+          {
+            "advanced": true,
+            "default": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.001
+          }
+        ],
+        "end_percent": [
+          "FLOAT",
+          {
+            "advanced": true,
+            "default": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "step": 0.001
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "model",
+        "double_layers",
+        "single_layers",
+        "start_percent",
+        "end_percent"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "MODEL"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "MODEL"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "SkipLayerGuidanceDiTSimple",
+    "display_name": null,
+    "description": "Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass.",
+    "python_module": "comfy_extras.nodes_slg",
+    "category": "advanced/guidance",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": true,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": null,
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "StringCompare": {
+    "input": {
+      "required": {
+        "string_a": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "string_b": [
+          "STRING",
+          {
+            "multiline": true
+          }
+        ],
+        "mode": [
+          "COMBO",
+          {
+            "multiselect": false,
+            "options": [
+              "Starts With",
+              "Ends With",
+              "Equal"
+            ]
+          }
+        ],
+        "case_sensitive": [
+          "BOOLEAN",
+          {
+            "advanced": true,
+            "default": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "string_a",
+        "string_b",
+        "mode",
+        "case_sensitive"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "BOOLEAN"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "BOOLEAN"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "StringCompare",
+    "display_name": "Compare Text",
+    "description": "",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "compare",
+      "text match",
+      "string equals",
+      "starts with",
+      "ends with"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "StringFormat": {
+    "input": {
+      "required": {
+        "values": [
+          "COMFY_AUTOGROW_V3",
+          {
+            "template": {
+              "input": {
+                "required": {
+                  "value": [
+                    "*",
+                    {}
+                  ]
+                }
+              },
+              "names": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e",
+                "f",
+                "g",
+                "h",
+                "i",
+                "j",
+                "k",
+                "l",
+                "m",
+                "n",
+                "o",
+                "p",
+                "q",
+                "r",
+                "s",
+                "t",
+                "u",
+                "v",
+                "w",
+                "x",
+                "y",
+                "z"
+              ],
+              "min": 0
+            }
+          }
+        ],
+        "f_string": [
+          "STRING",
+          {
+            "default": "{a}",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "values",
+        "f_string"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "STRING"
+    ],
+    "output_tooltips": [
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "StringFormat",
+    "display_name": "Format Text",
+    "description": "Same as Python's string format method. Supports all of Python's format options and features.",
+    "python_module": "comfy_extras.nodes_string",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "string",
+      "format"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "TextGenerate": {
+    "input": {
+      "required": {
+        "clip": [
+          "CLIP",
+          {}
+        ],
+        "prompt": [
+          "STRING",
+          {
+            "default": "",
+            "multiline": true,
+            "dynamicPrompts": true
+          }
+        ],
+        "max_length": [
+          "INT",
+          {
+            "default": 512,
+            "min": 1,
+            "max": 32768
+          }
+        ],
+        "sampling_mode": [
+          "COMFY_DYNAMICCOMBO_V3",
+          {
+            "display_name": "Sampling Mode",
+            "options": [
+              {
+                "key": "on",
+                "inputs": {
+                  "required": {
+                    "temperature": [
+                      "FLOAT",
+                      {
+                        "default": 0.7,
+                        "min": 0.01,
+                        "max": 2.0,
+                        "step": 1e-06
+                      }
+                    ],
+                    "top_k": [
+                      "INT",
+                      {
+                        "default": 64,
+                        "min": 0,
+                        "max": 1000
+                      }
+                    ],
+                    "top_p": [
+                      "FLOAT",
+                      {
+                        "default": 0.95,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01
+                      }
+                    ],
+                    "min_p": [
+                      "FLOAT",
+                      {
+                        "default": 0.05,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01
+                      }
+                    ],
+                    "repetition_penalty": [
+                      "FLOAT",
+                      {
+                        "default": 1.05,
+                        "min": 0.0,
+                        "max": 5.0,
+                        "step": 0.01
+                      }
+                    ],
+                    "seed": [
+                      "INT",
+                      {
+                        "default": 0,
+                        "min": 0,
+                        "max": 18446744073709551615
+                      }
+                    ]
+                  },
+                  "optional": {
+                    "presence_penalty": [
+                      "FLOAT",
+                      {
+                        "default": 0.0,
+                        "min": 0.0,
+                        "max": 5.0,
+                        "step": 0.01
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "off",
+                "inputs": {
+                  "required": {}
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "optional": {
+        "image": [
+          "IMAGE",
+          {}
+        ],
+        "video": [
+          "IMAGE",
+          {
+            "tooltip": "Video frames as image batch. Assumed to be 24 FPS; subsampled to 1 FPS internally."
+          }
+        ],
+        "audio": [
+          "AUDIO",
+          {}
+        ],
+        "thinking": [
+          "BOOLEAN",
+          {
+            "tooltip": "Operate in thinking mode if the model supports it.",
+            "default": false
+          }
+        ],
+        "use_default_template": [
+          "BOOLEAN",
+          {
+            "tooltip": "Use the built in system prompt/template if the model has one.",
+            "advanced": true,
+            "default": true
+          }
+        ],
+        "mtp": [
+          "COMBO",
+          {
+            "tooltip": "Speculative decoding with the checkpoint's multi-token-prediction head. No effect without MTP weights. auto adapts the draft depth and breadth to observed token matches and execution cost; 2-5 pins a constant draft depth; tree modes pin both breadth and depth. Sampled output stays correctly distributed but differs from non-MTP output for the same seed.",
+            "default": "auto",
+            "multiselect": false,
+            "options": [
+              "auto",
+              "off",
+              "2",
+              "3",
+              "4",
+              "5",
+              "tree2s1",
+              "tree2s2",
+              "tree3s1",
+              "tree4s1m8"
+            ]
+          }
+        ],
+        "system_prompt": [
+          "STRING",
+          {
+            "tooltip": "Replaces the system prompt in the model's chat template. Ignored when the default template is not used.",
+            "forceInput": true,
+            "multiline": false
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "clip",
+        "prompt",
+        "max_length",
+        "sampling_mode"
+      ],
+      "optional": [
+        "image",
+        "video",
+        "audio",
+        "thinking",
+        "use_default_template",
+        "mtp",
+        "system_prompt"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "STRING",
+      "STRING"
+    ],
+    "output_is_list": [
+      false,
+      false
+    ],
+    "output_name": [
+      "generated_text",
+      "thinking"
+    ],
+    "output_tooltips": [
+      null,
+      null
+    ],
+    "output_matchtypes": null,
+    "name": "TextGenerate",
+    "display_name": "Generate Text",
+    "description": "",
+    "python_module": "comfy_extras.nodes_textgen",
+    "category": "text",
+    "output_node": false,
+    "deprecated": false,
+    "experimental": false,
+    "dev_only": false,
+    "api_node": false,
+    "price_badge": null,
+    "search_aliases": [
+      "LLM",
+      "gemma"
+    ],
+    "essentials_category": null,
+    "has_intermediate_output": false
+  },
+  "UNETLoader": {
+    "input": {
+      "required": {
+        "unet_name": [
+          [
+            "moss_image_base_int8_convrot.safetensors"
+          ]
+        ],
+        "weight_dtype": [
+          [
+            "default",
+            "fp8_e4m3fn",
+            "fp8_e4m3fn_fast",
+            "fp8_e5m2"
+          ],
+          {
+            "advanced": true
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "unet_name",
+        "weight_dtype"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "MODEL"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "MODEL"
+    ],
+    "name": "UNETLoader",
+    "display_name": "Load Diffusion Model",
+    "description": "",
+    "python_module": "nodes",
+    "category": "model/loaders",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": []
+  },
+  "VAEDecode": {
+    "input": {
+      "required": {
+        "samples": [
+          "LATENT",
+          {
+            "tooltip": "The latent to be decoded."
+          }
+        ],
+        "vae": [
+          "VAE",
+          {
+            "tooltip": "The VAE model used for decoding the latent."
+          }
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "samples",
+        "vae"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "IMAGE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "IMAGE"
+    ],
+    "name": "VAEDecode",
+    "display_name": "VAE Decode",
+    "description": "Decodes latent images back into pixel space images.",
+    "python_module": "nodes",
+    "category": "model/latent",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "output_tooltips": [
+      "The decoded image."
+    ],
+    "search_aliases": [
+      "decode",
+      "decode latent",
+      "latent to image",
+      "render latent"
+    ]
+  },
+  "VAEEncode": {
+    "input": {
+      "required": {
+        "pixels": [
+          "IMAGE"
+        ],
+        "vae": [
+          "VAE"
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "pixels",
+        "vae"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "LATENT"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "LATENT"
+    ],
+    "name": "VAEEncode",
+    "display_name": "VAE Encode",
+    "description": "",
+    "python_module": "nodes",
+    "category": "model/latent",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": [
+      "encode",
+      "encode image",
+      "image to latent"
+    ]
+  },
+  "VAELoader": {
+    "input": {
+      "required": {
+        "vae_name": [
+          [
+            "flux2-vae_small.safetensors",
+            "taesdxl",
+            "taesd",
+            "taef1",
+            "pixel_space"
+          ]
+        ]
+      }
+    },
+    "input_order": {
+      "required": [
+        "vae_name"
+      ]
+    },
+    "is_input_list": false,
+    "output": [
+      "VAE"
+    ],
+    "output_is_list": [
+      false
+    ],
+    "output_name": [
+      "VAE"
+    ],
+    "name": "VAELoader",
+    "display_name": "Load VAE",
+    "description": "",
+    "python_module": "nodes",
+    "category": "model/loaders",
+    "output_node": false,
+    "has_intermediate_output": false,
+    "search_aliases": []
+  }
+}

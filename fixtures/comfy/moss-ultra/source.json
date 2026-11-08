@@ -1,0 +1,12 @@
+{
+  "workflow": "MOSS_IMAGE_ULTRA_WORKFLOW.json",
+  "sha256": "60bf094f438d07deda059b85eefc305fe519b289e7cfe62abfe12792526a0e4a",
+  "requests": {
+    "DEPTH CONTROL": "requests/depth-control.json",
+    "DEPTH CONTROL TURBO": "requests/depth-control-turbo.json",
+    "IMAGE TO IMAGE": "requests/image-to-image.json",
+    "IMAGE TO IMAGE TURBO": "requests/image-to-image-turbo.json",
+    "TEXT TO IMAGE": "requests/text-to-image.json",
+    "TEXT TO IMAGE TURBO": "requests/text-to-image-turbo.json"
+  }
+}
